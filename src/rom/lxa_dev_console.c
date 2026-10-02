@@ -142,6 +142,9 @@ struct LxaConUnit {
     struct IOStdReq *pending_read;  /* Currently pending async read, or NULL */
 };
 
+/* lxa_graphics.c: non-blocking display refresh (also safe in interrupts) */
+extern VOID _graphics_RefreshAllScreens(void);
+
 static void console_copy_keymap(struct KeyMap *dest, const struct KeyMap *src)
 {
     if (!dest || !src) {
@@ -1051,7 +1054,7 @@ static void console_refresh_scrollback_view(struct LxaConUnit *unit)
         console_draw_cursor(unit);
     }
 
-    WaitTOF();
+    _graphics_RefreshAllScreens();
 }
 
 static void console_update_idcmp_flags(struct LxaConUnit *unit)
@@ -1786,7 +1789,7 @@ static void console_process_input(struct LxaConUnit *unit)
     /* Redraw cursor and refresh display */
     if (redraw_cursor || unit->cursor_visible) {
         console_draw_cursor(unit);
-        WaitTOF();
+        _graphics_RefreshAllScreens();
     }
 }
 
@@ -3340,7 +3343,7 @@ static void __g_lxa_console_Open ( register struct Library   *dev   __asm("a6"),
 
         console_update_idcmp_flags(unit);
         
-        LPRINTF(LOG_INFO, "_console: Window now has IDCMPFlags=0x%08lx, UserPort=0x%08lx\n",
+        DPRINTF(LOG_DEBUG, "_console: Window now has IDCMPFlags=0x%08lx, UserPort=0x%08lx\n",
                 (ULONG)window->IDCMPFlags, (ULONG)window->UserPort);
         
         /* Register unit in tracking array for VBlank hook (Phase 45: async I/O) */
@@ -3512,8 +3515,8 @@ static BPTR __g_lxa_console_BeginIO ( register struct Library   *dev   __asm("a6
                     console_process_char(unit, data[i]);
                 }
                 
-                /* Trigger display refresh via WaitTOF */
-                WaitTOF();
+                /* Trigger display refresh */
+                _graphics_RefreshAllScreens();
                 
                 iostd->io_Actual = len;
             } else {
@@ -3526,7 +3529,7 @@ static BPTR __g_lxa_console_BeginIO ( register struct Library   *dev   __asm("a6
                     len = strlen(data);
                 }
                 
-                LPRINTF(LOG_INFO, "_console: WRITE (no window): '");
+                DPRINTF(LOG_DEBUG, "_console: WRITE (no window): '");
                 for (LONG i = 0; i < len && i < 256; i++) {
                     char c = data[i];
                     if (c >= 32 && c < 127) {
@@ -3536,10 +3539,10 @@ static BPTR __g_lxa_console_BeginIO ( register struct Library   *dev   __asm("a6
                     } else if (c == '\r') {
                         lputs(LOG_INFO, "\\r");
                     } else {
-                        LPRINTF(LOG_INFO, "\\x%02x", (unsigned char)c);
+                        DPRINTF(LOG_DEBUG, "\\x%02x", (unsigned char)c);
                     }
                 }
-                LPRINTF(LOG_INFO, "'\n");
+                DPRINTF(LOG_DEBUG, "'\n");
                 iostd->io_Actual = len;
             }
             break;

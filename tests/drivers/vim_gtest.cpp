@@ -89,10 +89,9 @@ protected:
     }
 
     bool WaitForHostFile(const std::string& host_path, int timeout_ms = 5000) {
-        auto deadline = std::chrono::steady_clock::now() +
-            std::chrono::milliseconds(timeout_ms);
+        EmuDeadline deadline(timeout_ms);
 
-        while (std::chrono::steady_clock::now() < deadline) {
+        while (!deadline.Expired()) {
             if (access(host_path.c_str(), R_OK) == 0) {
                 return true;
             }
@@ -106,10 +105,9 @@ protected:
     bool WaitForHostFileContains(const std::string& host_path,
                                  const std::string& expected,
                                  int timeout_ms = 5000) {
-        auto deadline = std::chrono::steady_clock::now() +
-            std::chrono::milliseconds(timeout_ms);
+        EmuDeadline deadline(timeout_ms);
 
-        while (std::chrono::steady_clock::now() < deadline) {
+        while (!deadline.Expired()) {
             if (WaitForHostFile(host_path, 100)) {
                 std::ifstream in(host_path, std::ios::binary);
                 std::string content((std::istreambuf_iterator<char>(in)),
@@ -126,10 +124,9 @@ protected:
     }
 
     bool WaitForOutputContains(const std::string& needle, int timeout_ms = 5000) {
-        auto deadline = std::chrono::steady_clock::now() +
-            std::chrono::milliseconds(timeout_ms);
+        EmuDeadline deadline(timeout_ms);
 
-        while (std::chrono::steady_clock::now() < deadline) {
+        while (!deadline.Expired()) {
             if (GetOutput().find(needle) != std::string::npos) {
                 return true;
             }

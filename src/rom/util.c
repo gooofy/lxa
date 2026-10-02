@@ -619,16 +619,47 @@ __stdargs void __assert_func (const char *file_name, int line_number, const char
     emu_stop(1);
 }
 
+/*
+ * Long-word fill: clearing large buffers (MEMF_CLEAR, RAD:, bitmaps) byte by
+ * byte costs ~20 emulated cycles per byte.  The pattern-distribution pass is
+ * disabled so GCC cannot turn these loops back into a call to memset().
+ */
+__attribute__((optimize("no-tree-loop-distribute-patterns")))
 void *memset(void *dst, int c, ULONG n)
 {
-    if (n)
-    {
-        char *d = dst;
+    UBYTE *d = dst;
+    UBYTE b = (UBYTE)c;
 
-        do
-            *d++ = c;
-        while (--n != 0);
+    if (n >= 16)
+    {
+        ULONG v, blocks;
+        ULONG *l;
+
+        if ((ULONG)d & 1)
+        {
+            *d++ = b;
+            n--;
+        }
+
+        v = b;
+        v |= v << 8;
+        v |= v << 16;
+        l = (ULONG *)d;
+        blocks = n >> 4;
+        n &= 15;
+        while (blocks--)
+        {
+            *l++ = v;
+            *l++ = v;
+            *l++ = v;
+            *l++ = v;
+        }
+        d = (UBYTE *)l;
     }
+
+    while (n--)
+        *d++ = b;
+
     return dst;
 }
 

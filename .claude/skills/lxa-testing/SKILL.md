@@ -183,7 +183,10 @@ that takes >60 seconds, add an explicit `TIMEOUT` property in CMakeLists.txt.
 - `RunProgram(path, args)` - Load and run program until exit
 - `RunCycles(n)` - Run n CPU cycles
 - `RunCyclesWithVBlank(iterations, cycles_per_iteration)` - Run cycles with VBlank interrupts
-- `WaitForWindows(count, timeout_ms)` - Wait for windows to open
+- `RunFrames(n)` - Run n VBlank frames of emulated time (20 ms each; preferred)
+- `WaitForStableContent(max_frames)` - Run until visible content stops changing
+- `EmuDeadline d(timeout_ms)` / `d.Expired()` - Timeouts for custom wait loops (emulated time)
+- `WaitForWindows(count, timeout_ms)` - Wait for windows to open (timeout in emulated ms)
 - `GetWindowInfo(index, info)` - Get window position/size
 - `WaitForWindowDrawn(index, timeout_ms)` - Wait for non-empty visible window content
 
@@ -214,31 +217,22 @@ that takes >60 seconds, add an explicit `TIMEOUT` property in CMakeLists.txt.
 
 ## 8. Performance-Aware Test Writing
 
-### 8.1 Current Test Suite Performance
-The test suite runs 63 tests in ~145 seconds wall-time with `-j16`. Previous
-optimizations (Phases 106-107) reduced this from ~210s through:
+### 8.1 Deterministic Virtual Clock (Phase 201)
+All drivers run on the virtual clock (AGENTS.md §6.6): 25 MHz emulated CPU,
+500 000 cycles per 50 Hz frame, idle time skipped, timeouts in emulated ms.
+The full suite (78 tests) runs in ~22 s with `-j16` and is byte-for-byte
+reproducible. Wall-clock waits (`steady_clock`, `gettimeofday`) are forbidden
+in tests; use `EmuDeadline`.
 
-- **Headless display skip**: `display_update_planar()`/`display_refresh_all()`
-  are skipped in headless VBlank; `s_display_dirty` flag auto-flushes on
-  `lxa_read_pixel()`/`lxa_capture_*()` calls.
-- **Idle detection**: `lxa_is_idle()` checks if TaskReady list is empty.
-  `lxa_run_until_idle()` returns early when all tasks are blocked.
-- **Persistent fixtures**: Multi-test drivers use `SetUpTestSuite()` /
-  `TearDownTestSuite()` to load the app once per binary, not once per test.
-- **Reduced cycle budgets**: `lxa_inject_string()` uses 10x50K with idle
-  early-return. `lxa_inject_mouse_click()` uses 6 settle iterations with idle.
-  `lxa_inject_drag()` uses 3x200K per step (VBlank-driven, not idle-detected,
-  because Intuition renders in interrupt context).
+Cycle budgets are emulated *time*: 500 000 cycles = 20 ms. A program doing
+`Delay(50)` needs 50 frames regardless of host speed, so express waits in
+frames (`RunFrames`) or as conditions, not as large fixed cycle loops.
 
-### 8.2 Current Cycle Budget Reference
-
-| Operation | Current Budget | Real 68000 Need | Over-Provision |
-|:----------|---------------:|----------------:|---------------:|
-| Key press (inject_string) | 500,000 (10×50K) | ~2,000 | 250× |
-| Mouse click | ~300,000 (6 iters) | ~10,000 | 30× |
-| Drag step (inject_drag) | 600,000 (3×200K) | ~70,000 | 9× |
-| App startup (typical) | 5-10M | ~1-2M | 5× |
-| Settling after action | 1-3M | ~200K | 5-15× |
+### 8.2 Input Injection Budgets
+`lxa_inject_mouse_click()`, `lxa_inject_string()` and `lxa_inject_drag()`
+use `lxa_run_until_idle()`: they return as soon as no task is ready **and**
+no interrupt is in progress (Intuition renders menus from the VBlank
+handler, so the IPL check matters). The budgets are upper bounds only.
 
 ### 8.3 Guidelines for New Tests
 - **Prefer event-driven waiting**: Use `WaitForWindowDrawn()`, window count

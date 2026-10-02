@@ -370,6 +370,8 @@ extern pending_bp_t *_g_pending_bps;
 
 /* Console input queue helpers (defined in lxa.c, used by lxa_dos_host.c) */
 bool lxa_host_console_input_empty(void);
+/* Set by lxa_init(): console reads never touch the host stdin (liblxa) */
+extern bool g_console_stdin_detached;
 int  lxa_host_console_input_pop(void);
 
 /* =========================================================

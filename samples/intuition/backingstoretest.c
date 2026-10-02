@@ -87,9 +87,14 @@ static void wait_for_signal(struct Window *win)
         WaitPort(win->UserPort);
         while ((msg = (struct IntuiMessage *)GetMsg(win->UserPort)) != NULL) {
             ULONG cls = msg->Class;
+            UWORD code = msg->Code;
             ReplyMsg((struct Message *)msg);
-            /* Any non-refresh message advances the stage. */
-            if (cls != IDCMP_REFRESHWINDOW && cls != IDCMP_NEWSIZE) {
+            /* A key press (VANILLAKEY) or a left-button press advances the
+             * stage.  Key-up RAWKEY and button-up messages are ignored, so
+             * one keystroke advances exactly one stage regardless of how
+             * the key-up event interleaves with the window changes. */
+            if (cls == IDCMP_VANILLAKEY ||
+                (cls == IDCMP_MOUSEBUTTONS && code == SELECTDOWN)) {
                 got = TRUE;
             }
         }

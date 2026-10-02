@@ -463,6 +463,9 @@ TEST_F(AsmOneTest, ZMenuFlickerCheck) {
      * throwaway drag to flush that paint, then capture the baseline,
      * then drag again and assert pixel-count stability within 5%. */
     FlushAndSettle();
+    /* ASM-One paints its startup banner progressively; measure only once
+     * the screen content is stable. */
+    WaitForStableContent();
 
     const int menu_x = window_info.x + 35;
     const int bar_y  = MenuBarY();

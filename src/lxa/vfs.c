@@ -227,9 +227,23 @@ void vfs_init(void) {
 }
 
 bool vfs_add_drive(const char *amiga_name, const char *linux_path) {
-    drive_map_t *map = malloc(sizeof(drive_map_t));
+    drive_map_t *map;
     char normalized_path[PATH_MAX];
 
+    /* Device names are unique: re-adding a drive replaces its mapping
+     * (e.g. a test pointing HOME: at a private directory). */
+    for (map = g_drive_maps; map; map = map->next) {
+        if (strcasecmp(map->amiga_name, amiga_name) == 0) {
+            if (!normalize_host_path(linux_path, normalized_path, sizeof(normalized_path)))
+                return false;
+            free(map->linux_path);
+            map->linux_path = strdup(normalized_path);
+            DPRINTF(LOG_DEBUG, "vfs: remapped %s: to %s\n", amiga_name, map->linux_path);
+            return true;
+        }
+    }
+
+    map = malloc(sizeof(drive_map_t));
     if (!map) return false;
 
     map->amiga_name = strdup(amiga_name);

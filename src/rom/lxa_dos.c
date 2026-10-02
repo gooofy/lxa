@@ -2969,7 +2969,7 @@ void _dos_Delay ( register struct DosLibrary * __libBase __asm("a6"),
      * and allows other tasks to run via the scheduler.
      */
     DPRINTF (LOG_DEBUG, "_dos: Delay(%ld) called.\n", ticks);
-    LPRINTF (LOG_INFO, "_dos: Delay(%ld) called.\n", ticks);
+    DPRINTF(LOG_DEBUG, "_dos: Delay(%ld) called.\n", ticks);
 
     if (ticks == 0)
         return;

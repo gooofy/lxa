@@ -12,6 +12,8 @@
 #include "m68k.h"
 #include "util.h"
 #include "lxa_copper.h"
+#include "lxa_vclock.h"
+#include "lxa_coverage.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -34,6 +36,9 @@ extern char *g_loadfile;
 extern char g_args[MAX_ARGS_LEN];
 extern int g_args_len;
 
+static int s_vblank_count = 0;
+static int s_cycles_since_auto_vblank = 0;
+
 /* Forward declarations for internal lxa.c functions we need */
 extern bool _load_rom_map(const char *rom_path);
 extern void sigalrm_handler(int sig);
@@ -48,7 +53,7 @@ extern void *g_text_hook_userdata;
 #define ROM_SIZE (512 * 1024)
 #define ROM_START 0xf80000
 #define TIMER_INTERVAL_US 20000
-#define EXECBASE_LIBLIST             392
+#define EXECBASE_LIBLIST             378
 #define EXECBASE_TASKREADY           406
 #define INTUITIONBASE_FIRSTSCREEN    60
 
@@ -457,24 +462,44 @@ int lxa_init(const lxa_config_t *config)
         /* Continue anyway - might be headless */
     }
 
-    /* Set up timer for preemptive multitasking */
-    struct sigaction sa;
-    sa.sa_handler = sigalrm_handler;
-    sa.sa_flags = SA_RESTART;
-    sigemptyset(&sa.sa_mask);
-    if (sigaction(SIGALRM, &sa, NULL) < 0) {
-        perror("sigaction");
-        return -1;
-    }
+    /* Phase 201: time model.  LXA_REALTIME_CLOCK=1 forces the wall clock
+     * (A/B debugging of timing-dependent behaviour). */
+    const char *rt_env = getenv("LXA_REALTIME_CLOCK");
+    bool realtime = config->realtime_clock || (rt_env && rt_env[0] == '1');
+    vclock_config_t vcfg = {
+        .deterministic = !realtime,
+        .cpu_hz = config->cpu_hz,
+        .cycles_per_frame = config->cycles_per_frame,
+        .epoch_secs = config->epoch_secs,
+    };
+    vclock_init(&vcfg);
+    lxa_coverage_init();
 
-    struct itimerval timer;
-    timer.it_value.tv_sec = 0;
-    timer.it_value.tv_usec = TIMER_INTERVAL_US;
-    timer.it_interval.tv_sec = 0;
-    timer.it_interval.tv_usec = TIMER_INTERVAL_US;
-    if (setitimer(ITIMER_REAL, &timer, NULL) < 0) {
-        perror("setitimer");
-        return -1;
+    extern bool g_console_stdin_detached;
+    g_console_stdin_detached = true;
+    s_vblank_count = 0;
+    s_cycles_since_auto_vblank = 0;
+
+    if (realtime) {
+        /* Set up timer for preemptive multitasking */
+        struct sigaction sa;
+        sa.sa_handler = sigalrm_handler;
+        sa.sa_flags = SA_RESTART;
+        sigemptyset(&sa.sa_mask);
+        if (sigaction(SIGALRM, &sa, NULL) < 0) {
+            perror("sigaction");
+            return -1;
+        }
+
+        struct itimerval timer;
+        timer.it_value.tv_sec = 0;
+        timer.it_value.tv_usec = TIMER_INTERVAL_US;
+        timer.it_interval.tv_sec = 0;
+        timer.it_interval.tv_usec = TIMER_INTERVAL_US;
+        if (setitimer(ITIMER_REAL, &timer, NULL) < 0) {
+            perror("setitimer");
+            return -1;
+        }
     }
 
     g_running = true;
@@ -492,9 +517,13 @@ void lxa_shutdown(void)
 {
     if (!g_api_initialized) return;
 
-    /* Stop timer */
-    struct itimerval timer = {{0, 0}, {0, 0}};
-    setitimer(ITIMER_REAL, &timer, NULL);
+    /* Stop timer (no-op when running on the deterministic clock) */
+    if (!vclock_deterministic()) {
+        struct itimerval timer = {{0, 0}, {0, 0}};
+        setitimer(ITIMER_REAL, &timer, NULL);
+    }
+
+    lxa_coverage_flush();
 
     /* Shutdown display */
     display_shutdown();
@@ -560,8 +589,6 @@ bool lxa_add_drive(const char *name, const char *linux_path)
     return true;
 }
 
-static int s_vblank_count = 0;
-static int s_cycles_since_auto_vblank = 0;
 
 /*
  * Automatic VBlank cadence based on emulated cycle count.
@@ -582,97 +609,145 @@ static int s_cycles_since_auto_vblank = 0;
  */
 #define AUTO_VBLANK_CYCLES 500000
 
+/*
+ * Process a pending VBlank: poll host events, run the copper, refresh the
+ * display, expire timer requests and raise the level-3 interrupt.
+ * Returns false if the host requested quit.
+ */
+static bool api_process_vblank(void)
+{
+    extern volatile sig_atomic_t g_pending_irq;
+    extern uint16_t g_intena;
+
+    s_vblank_count++;
+    s_cycles_since_auto_vblank = 0;
+    /* VBlank - poll events and refresh display */
+    if (display_poll_events()) {
+        g_running = false;
+        return false;
+    }
+
+    /* Phase 114: Run one pass of the copper list per VBlank. */
+    copper_run_frame();
+
+    /* 
+     * Update display from Amiga's planar bitmap if configured.
+     * This converts the planar data in emulated RAM to chunky pixels
+     * so that display_refresh_all() can present them via SDL.
+     *
+     * Phase 58: This was missing - display_refresh_all() only converts
+     * the existing pixel buffer to SDL, but didn't update the pixel
+     * buffer from the Amiga's planar bitmap first.
+     *
+     * Phase 106: Skip the expensive planar-to-chunky conversion and
+     * display refresh in headless mode.  Tests that need pixel data
+     * call lxa_flush_display() or lxa_capture_window() explicitly,
+     * both of which always perform the conversion regardless of this
+     * skip.  This eliminates ~150 full-screen conversions per typical
+     * test SetUp.
+     */
+    if (!display_get_headless()) {
+        display_t *disp = display_get_active();
+        uint32_t planes_ptr, bpr, depth;
+        if (disp && display_get_amiga_bitmap(disp, &planes_ptr, &bpr, &depth))
+        {
+            int w, h, d;
+            display_get_size(disp, &w, &h, &d);
+
+            /* Read plane pointers from m68k memory */
+            const uint8_t *planes[8] = {0};
+            for (uint32_t i = 0; i < depth && i < 8; i++)
+            {
+                uint32_t plane_addr = m68k_read_memory_32(planes_ptr + i * 4);
+                if (plane_addr && plane_addr < RAM_SIZE)
+                {
+                    planes[i] = (const uint8_t *)&g_ram[plane_addr];
+                }
+            }
+
+            /* Update display from planar data */
+            display_update_planar(disp, 0, 0, w, h, planes, bpr, depth);
+        }
+
+        /* Refresh displays (now with updated pixel data) */
+        display_refresh_all();
+    } else {
+        /* Headless: pixel buffer is now stale.  Functions that
+         * read pixels (lxa_read_pixel, etc.) will auto-flush on
+         * the first access after this point. */
+        s_display_dirty = true;
+    }
+
+    /* Check timer queue */
+    _timer_check_expired();
+
+    /* Trigger interrupt if enabled */
+    #define INTENA_MASTER 0x4000
+    #define INTENA_VBLANK 0x0020
+    if ((g_intena & INTENA_MASTER) && (g_intena & INTENA_VBLANK)) {
+        g_pending_irq &= ~(1 << 3);
+        /*
+         * Lower the interrupt line first, then raise it again.
+         * Musashi treats same-level interrupts as edge-triggered:
+         * once the CPU acknowledges a level-3 interrupt, it won't
+         * re-trigger at the same level unless the line is lowered
+         * first.  Without this edge, a VBlank triggered while the
+         * previous ISR is still active (IPL=3) would be lost
+         * because the CPU considers it already acknowledged.
+         */
+        m68k_set_irq(0);
+        m68k_set_irq(3);
+    } else {
+        DPRINTF(LOG_DEBUG, "lxa_run_cycles: VBlank pending but INTENA blocked, g_intena=0x%04x\n",
+                g_intena);
+    }
+    return true;
+}
+
+/* Phase 201: deterministic run loop.  Execution is split at VBlank frame
+ * boundaries so that virtual time and VBlank delivery stay coherent;
+ * `cycles` is a budget of emulated time (idle time counts). */
+static int api_run_cycles_deterministic(int cycles)
+{
+    extern volatile sig_atomic_t g_pending_irq;
+
+    int remaining = cycles;
+
+    while (remaining > 0 && g_running) {
+        if (g_pending_irq & (1 << 3)) {
+            if (!api_process_vblank())
+                return 1;
+        } else {
+            m68k_set_irq(0);
+        }
+
+        int chunk = (int)vclock_cycles_to_next_frame();
+        if (chunk > remaining)
+            chunk = remaining;
+
+        int used = vclock_execute(chunk);
+        remaining -= used > 0 ? used : chunk;
+
+        if (vclock_frame_due())
+            g_pending_irq |= (1 << 3);
+    }
+
+    return g_running ? 0 : 1;
+}
+
 int lxa_run_cycles(int cycles)
 {
     if (!g_api_initialized || !g_running) return 1;
 
+    if (vclock_deterministic())
+        return api_run_cycles_deterministic(cycles);
+
     /* Check for pending timer interrupts */
     extern volatile sig_atomic_t g_pending_irq;
-    extern uint16_t g_intena;
-    
+
     if (g_pending_irq & (1 << 3)) {
-        s_vblank_count++;
-        s_cycles_since_auto_vblank = 0;
-        /* VBlank - poll events and refresh display */
-        if (display_poll_events()) {
-            g_running = false;
+        if (!api_process_vblank())
             return 1;
-        }
-
-        /* Phase 114: Run one pass of the copper list per VBlank. */
-        copper_run_frame();
-
-        /* 
-         * Update display from Amiga's planar bitmap if configured.
-         * This converts the planar data in emulated RAM to chunky pixels
-         * so that display_refresh_all() can present them via SDL.
-         *
-         * Phase 58: This was missing - display_refresh_all() only converts
-         * the existing pixel buffer to SDL, but didn't update the pixel
-         * buffer from the Amiga's planar bitmap first.
-         *
-         * Phase 106: Skip the expensive planar-to-chunky conversion and
-         * display refresh in headless mode.  Tests that need pixel data
-         * call lxa_flush_display() or lxa_capture_window() explicitly,
-         * both of which always perform the conversion regardless of this
-         * skip.  This eliminates ~150 full-screen conversions per typical
-         * test SetUp.
-         */
-        if (!display_get_headless()) {
-            display_t *disp = display_get_active();
-            uint32_t planes_ptr, bpr, depth;
-            if (disp && display_get_amiga_bitmap(disp, &planes_ptr, &bpr, &depth))
-            {
-                int w, h, d;
-                display_get_size(disp, &w, &h, &d);
-
-                /* Read plane pointers from m68k memory */
-                const uint8_t *planes[8] = {0};
-                for (uint32_t i = 0; i < depth && i < 8; i++)
-                {
-                    uint32_t plane_addr = m68k_read_memory_32(planes_ptr + i * 4);
-                    if (plane_addr && plane_addr < RAM_SIZE)
-                    {
-                        planes[i] = (const uint8_t *)&g_ram[plane_addr];
-                    }
-                }
-
-                /* Update display from planar data */
-                display_update_planar(disp, 0, 0, w, h, planes, bpr, depth);
-            }
-
-            /* Refresh displays (now with updated pixel data) */
-            display_refresh_all();
-        } else {
-            /* Headless: pixel buffer is now stale.  Functions that
-             * read pixels (lxa_read_pixel, etc.) will auto-flush on
-             * the first access after this point. */
-            s_display_dirty = true;
-        }
-
-        /* Check timer queue */
-        _timer_check_expired();
-
-        /* Trigger interrupt if enabled */
-        #define INTENA_MASTER 0x4000
-        #define INTENA_VBLANK 0x0020
-        if ((g_intena & INTENA_MASTER) && (g_intena & INTENA_VBLANK)) {
-            g_pending_irq &= ~(1 << 3);
-            /*
-             * Lower the interrupt line first, then raise it again.
-             * Musashi treats same-level interrupts as edge-triggered:
-             * once the CPU acknowledges a level-3 interrupt, it won't
-             * re-trigger at the same level unless the line is lowered
-             * first.  Without this edge, a VBlank triggered while the
-             * previous ISR is still active (IPL=3) would be lost
-             * because the CPU considers it already acknowledged.
-             */
-            m68k_set_irq(0);
-            m68k_set_irq(3);
-        } else {
-            DPRINTF(LOG_DEBUG, "lxa_run_cycles: VBlank pending but INTENA blocked, g_intena=0x%04x\n",
-                    g_intena);
-        }
     } else {
         /*
          * Auto-VBlank: if enough emulated cycles have passed without a
@@ -691,12 +766,55 @@ int lxa_run_cycles(int cycles)
     }
 
     /* Execute CPU cycles */
-    m68k_execute(cycles);
+    vclock_execute(cycles);
 
     if (!g_running) {
         DPRINTF(LOG_DEBUG, "lxa_run_cycles: g_running became false during m68k_execute\n");
     }
     return g_running ? 0 : 1;
+}
+
+int lxa_run_frames(int frames)
+{
+    if (!g_api_initialized || !g_running) return 1;
+
+    for (int i = 0; i < frames && g_running; i++) {
+        uint32_t c = vclock_deterministic() ? vclock_cycles_to_next_frame()
+                                            : vclock_cycles_per_frame();
+        if (lxa_run_cycles((int)c) != 0)
+            break;
+    }
+    return g_running ? 0 : 1;
+}
+
+uint64_t lxa_get_emulated_cycles(void)
+{
+    return vclock_cycles();
+}
+
+uint64_t lxa_get_time_us(void)
+{
+    return vclock_now_us();
+}
+
+uint32_t lxa_get_pc(void)
+{
+    return m68k_get_reg(NULL, M68K_REG_PC);
+}
+
+uint64_t lxa_get_idle_cycles(void)
+{
+    return vclock_idle_cycles();
+}
+
+uint64_t lxa_get_frame_count(void)
+{
+    return vclock_frames();
+}
+
+bool lxa_is_deterministic(void)
+{
+    return vclock_deterministic();
 }
 
 int lxa_get_vblank_count(void)
@@ -733,7 +851,18 @@ bool lxa_is_idle(void)
     uint32_t lh_Head = m68k_read_memory_32(list_addr);
     uint32_t lh_Tail_addr = list_addr + 4;
 
-    return lh_Head == lh_Tail_addr;
+    if (lh_Head != lh_Tail_addr)
+        return false;
+
+    /*
+     * Phase 201: Intuition renders menus and gadget imagery from the
+     * VBlank input handler.  The system is only idle once that interrupt
+     * work is finished, i.e. no interrupt is in progress (IPL 0).
+     */
+    if (m68k_get_reg(NULL, M68K_REG_SR) & 0x0700)
+        return false;
+
+    return true;
 }
 
 int lxa_run_until_idle(int max_iterations, int cycles_per_iter)
@@ -809,12 +938,56 @@ int lxa_get_exit_code(void)
     return g_rv;
 }
 
+/*
+ * Phase 201: timeout bookkeeping for the lxa_wait_* / run_until helpers.
+ * On the virtual clock a timeout is measured in *emulated* time, so a wait
+ * succeeds or fails identically on a loaded and an idle host.  A wall-clock
+ * guard (10x the timeout, at least 60 s) still catches genuine hangs.
+ * In real-time mode the timeout is plain wall-clock time, as before.
+ */
+typedef struct api_deadline {
+    int timeout_ms;
+    uint64_t start_emu_us;
+    struct timeval start_wall;
+} api_deadline_t;
+
+static void api_deadline_start(api_deadline_t *d, int timeout_ms)
+{
+    d->timeout_ms = timeout_ms;
+    d->start_emu_us = vclock_now_us();
+    gettimeofday(&d->start_wall, NULL);
+}
+
+static bool api_deadline_expired(const api_deadline_t *d)
+{
+    struct timeval now;
+    long wall_ms;
+
+    if (d->timeout_ms <= 0)
+        return false;
+
+    gettimeofday(&now, NULL);
+    wall_ms = (now.tv_sec - d->start_wall.tv_sec) * 1000 +
+              (now.tv_usec - d->start_wall.tv_usec) / 1000;
+
+    if (!vclock_deterministic())
+        return wall_ms >= d->timeout_ms;
+
+    if (vclock_now_us() - d->start_emu_us >= (uint64_t)d->timeout_ms * 1000ull)
+        return true;
+
+    long guard_ms = (long)d->timeout_ms * 10;
+    if (guard_ms < 60000)
+        guard_ms = 60000;
+    return wall_ms >= guard_ms;
+}
+
 int lxa_run_until_exit(int timeout_ms)
 {
     if (!g_api_initialized) return -1;
 
-    struct timeval start, now;
-    gettimeofday(&start, NULL);
+    api_deadline_t deadline;
+    api_deadline_start(&deadline, timeout_ms);
 
     int cycle_count = 0;
 
@@ -828,13 +1001,8 @@ int lxa_run_until_exit(int timeout_ms)
 
         if (lxa_run_cycles(10000) != 0) break;
 
-        if (timeout_ms > 0) {
-            gettimeofday(&now, NULL);
-            long elapsed = (now.tv_sec - start.tv_sec) * 1000 +
-                          (now.tv_usec - start.tv_usec) / 1000;
-            if (elapsed >= timeout_ms) {
-                return -1;  /* Timeout */
-            }
+        if (api_deadline_expired(&deadline)) {
+            return -1;  /* Timeout */
         }
     }
 
@@ -899,19 +1067,13 @@ bool lxa_inject_drag(int start_x, int start_y, int end_x, int end_y, int button,
         return false;
     
     /*
-     * Phase 106: Drag steps need generous cycle budgets because
-     * Intuition's rendering happens in the input.device handler
-     * (interrupt context), not in a normal task.  The CPU task
-     * goes idle immediately, but the rendering work still needs
-     * VBlank cycles to complete.  Idle detection is therefore
-     * unreliable here — use fixed budgets instead.
-     *
-     * The original pre-Phase-106 budget was 500K per step.
-     * We reduce to 3 VBlanks × 200K cycles each, which is still
-     * significantly less overhead while keeping drag fidelity.
+     * Intuition's drag/menu rendering happens in the VBlank input handler
+     * (interrupt context).  Since Phase 201 lxa_is_idle() also requires
+     * that no interrupt is in progress or pending, so idle detection is
+     * reliable here and each phase of the drag returns as soon as the
+     * system settles (budgets are upper bounds, in emulated cycles).
      */
-    lxa_trigger_vblank();
-    lxa_run_cycles(200000);
+    lxa_run_until_idle(2, 100000);
 
     /* Press button */
     if (!display_inject_mouse(start_x, start_y, button, DISPLAY_EVENT_MOUSEBUTTON))
@@ -922,10 +1084,7 @@ bool lxa_inject_drag(int start_x, int start_y, int end_x, int end_y, int button,
      * the VBlank ISR triggers heavy rendering (menu bar + items).
      * Give enough VBlanks for the menu system to set up.
      */
-    for (int i = 0; i < 5; i++) {
-        lxa_trigger_vblank();
-        lxa_run_cycles(200000);
-    }
+    lxa_run_until_idle(5, 200000);
 
     /* Interpolate movement */
     if (steps < 1) steps = 1;
@@ -941,13 +1100,10 @@ bool lxa_inject_drag(int start_x, int start_y, int end_x, int end_y, int button,
         /* Each movement step needs VBlank processing for the
          * input handler to see the new coordinates.  Menu-mode
          * steps trigger _render_menu_item_chain (RectFill + Text
-         * per item) inside ProcessInputEvents.  Give 10 VBlanks ×
-         * 200K cycles (2M total) so the render completes before
-         * the next event is injected. */
-        for (int i = 0; i < 10; i++) {
-            lxa_trigger_vblank();
-            lxa_run_cycles(200000);
-        }
+         * per item) inside ProcessInputEvents; wait until that
+         * render has completed before injecting the next event. */
+        { int mn = getenv("DRAG_MIN") ? atoi(getenv("DRAG_MIN")) : 0; for (int i=0;i<mn;i++){ lxa_trigger_vblank(); lxa_run_cycles(200000);} }
+        lxa_run_until_idle(10, 200000);
     }
 
     /* Release button at end position */
@@ -956,10 +1112,7 @@ bool lxa_inject_drag(int start_x, int start_y, int end_x, int end_y, int button,
     
     /* Let the release event propagate — menu cleanup / window
      * resize finalization happen here. */
-    for (int i = 0; i < 5; i++) {
-        lxa_trigger_vblank();
-        lxa_run_cycles(200000);
-    }
+    lxa_run_until_idle(5, 200000);
 
     return true;
 }
@@ -1058,11 +1211,11 @@ bool lxa_wait_window_drawn(int index, int timeout_ms)
     if (!g_api_initialized)
         return false;
 
-    struct timeval start, now;
+    api_deadline_t deadline;
     int cycles_since_vblank = 0;
     const int cycles_per_vblank = 50000;
 
-    gettimeofday(&start, NULL);
+    api_deadline_start(&deadline, timeout_ms);
 
     while (g_running)
     {
@@ -1078,14 +1231,8 @@ bool lxa_wait_window_drawn(int index, int timeout_ms)
             cycles_since_vblank = 0;
         }
 
-        if (timeout_ms > 0)
-        {
-            gettimeofday(&now, NULL);
-            long elapsed = (now.tv_sec - start.tv_sec) * 1000 +
-                           (now.tv_usec - start.tv_usec) / 1000;
-            if (elapsed >= timeout_ms)
-                return false;
-        }
+        if (api_deadline_expired(&deadline))
+            return false;
     }
 
     return lxa_get_window_content(index) >= 0;
@@ -1231,8 +1378,8 @@ bool lxa_wait_idle(int timeout_ms)
 {
     if (!g_api_initialized) return false;
 
-    struct timeval start, now;
-    gettimeofday(&start, NULL);
+    api_deadline_t deadline;
+    api_deadline_start(&deadline, timeout_ms);
 
     int cycles_since_vblank = 0;
     const int cycles_per_vblank = 50000;  /* Trigger VBlank every 50k cycles */
@@ -1247,12 +1394,7 @@ bool lxa_wait_idle(int timeout_ms)
             cycles_since_vblank = 0;
         }
 
-        if (timeout_ms > 0) {
-            gettimeofday(&now, NULL);
-            long elapsed = (now.tv_sec - start.tv_sec) * 1000 +
-                          (now.tv_usec - start.tv_usec) / 1000;
-            if (elapsed >= timeout_ms) return false;
-        }
+        if (api_deadline_expired(&deadline)) return false;
     }
 
     return true;
@@ -1262,8 +1404,8 @@ bool lxa_wait_windows(int count, int timeout_ms)
 {
     if (!g_api_initialized) return false;
 
-    struct timeval start, now;
-    gettimeofday(&start, NULL);
+    api_deadline_t deadline;
+    api_deadline_start(&deadline, timeout_ms);
 
     int cycles_since_vblank = 0;
     const int cycles_per_vblank = 50000;  /* Trigger VBlank every 50k cycles */
@@ -1278,12 +1420,7 @@ bool lxa_wait_windows(int count, int timeout_ms)
             cycles_since_vblank = 0;
         }
 
-        if (timeout_ms > 0) {
-            gettimeofday(&now, NULL);
-            long elapsed = (now.tv_sec - start.tv_sec) * 1000 +
-                          (now.tv_usec - start.tv_usec) / 1000;
-            if (elapsed >= timeout_ms) return false;
-        }
+        if (api_deadline_expired(&deadline)) return false;
     }
 
     return lxa_get_window_count() >= count;
@@ -1293,8 +1430,8 @@ bool lxa_wait_exit(int timeout_ms)
 {
     if (!g_api_initialized) return false;
 
-    struct timeval start, now;
-    gettimeofday(&start, NULL);
+    api_deadline_t deadline;
+    api_deadline_start(&deadline, timeout_ms);
 
     int cycles_since_vblank = 0;
     const int cycles_per_vblank = 50000;  /* Trigger VBlank every 50k cycles */
@@ -1310,12 +1447,7 @@ bool lxa_wait_exit(int timeout_ms)
             cycles_since_vblank = 0;
         }
 
-        if (timeout_ms > 0) {
-            gettimeofday(&now, NULL);
-            long elapsed = (now.tv_sec - start.tv_sec) * 1000 +
-                          (now.tv_usec - start.tv_usec) / 1000;
-            if (elapsed >= timeout_ms) return false;
-        }
+        if (api_deadline_expired(&deadline)) return false;
     }
 
     return true;

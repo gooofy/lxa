@@ -239,7 +239,12 @@ static void timer_read_eclock_ticks(struct TimerBase *timerbase, ULONG *ticks_hi
     U_normalizeTimeval(&raw_time);
 
     mul_u32_u32_to_u64(raw_time.tv_secs, timerbase->tb_EClock, &prod_hi, &prod_lo);
-    frac_ticks = (raw_time.tv_micro * timerbase->tb_EClock) / 1000000UL;
+    /* tv_micro * EClock (up to ~7.1e11) needs 64-bit intermediate math */
+    {
+        ULONG f_hi, f_lo, f_rem;
+        mul_u32_u32_to_u64(raw_time.tv_micro, timerbase->tb_EClock, &f_hi, &f_lo);
+        divmod_u64_u32(f_hi, f_lo, 1000000UL, &frac_ticks, &f_rem);
+    }
     u64_add_u32(&prod_hi, &prod_lo, frac_ticks);
 
     if (u64_cmp(prod_hi, prod_lo,

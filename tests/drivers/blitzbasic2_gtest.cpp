@@ -330,8 +330,7 @@ protected:
      * was reached within @p timeout_ms wall-clock milliseconds.
      */
     bool WaitForWindowCountAtMost(int count, int timeout_ms) {
-        struct timeval start, now;
-        gettimeofday(&start, nullptr);
+        EmuDeadline deadline(timeout_ms);
         int cycles_since_vblank = 0;
         const int cycles_per_vblank = 50000;
         while (lxa_get_window_count() > count && lxa_is_running()) {
@@ -341,10 +340,7 @@ protected:
                 lxa_trigger_vblank();
                 cycles_since_vblank = 0;
             }
-            gettimeofday(&now, nullptr);
-            long elapsed = (now.tv_sec - start.tv_sec) * 1000
-                         + (now.tv_usec - start.tv_usec) / 1000;
-            if (elapsed >= timeout_ms) return false;
+            if (deadline.Expired()) return false;
         }
         return lxa_get_window_count() <= count;
     }
@@ -740,21 +736,6 @@ TEST_F(BlitzBasic2Test, QuitMenuItemClosesApp) {
         << output;
 }
 
-/* ===================================================================== */
-/* Debug: Capture screenshots for manual review (disabled by default)      */
-/* ===================================================================== */
-
-TEST_F(BlitzBasic2Test, DISABLED_CaptureScreenshotsForReview) {
-    ASSERT_TRUE(CaptureWindow("/tmp/blitzbasic2-startup.png", 0));
-    DragMenu(40, window_info.y + 80, false);
-    ASSERT_TRUE(lxa_capture_screen("/tmp/blitzbasic2-project-menu.png"));
-}
-
-TEST_F(BlitzBasic2Test, DISABLED_CaptureMenuItemPositions) {
-    /* Single capture at the ABOUT item position (Y=65 absolute) */
-    DragMenu(40, 65, false);
-    lxa_capture_screen("/tmp/bb2-about-drag.png");
-}
 
 /* Phase 126: startup latency baseline sentinel */
 TEST_F(BlitzBasic2Test, ZStartupLatency) {

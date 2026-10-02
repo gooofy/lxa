@@ -1889,6 +1889,7 @@ struct GfxBase * __g_lxa_graphics_InitLib    ( register struct GfxBase *graphics
 
     /* Initialize the public font list and register the built-in default font. */
     NEWLIST(&graphicsb->BlitWaitQ);
+    NEWLIST(&graphicsb->TOF_WaitQ);
     NEWLIST(&graphicsb->TextFonts);
     graphicsb->blthd = NULL;
     graphicsb->blttl = NULL;
@@ -2004,7 +2005,7 @@ static VOID _graphics_BltTemplate ( register struct GfxBase * GfxBase __asm("a6"
 
     DPRINTF (LOG_DEBUG, "_graphics: BltTemplate() source=0x%08lx xSrc=%ld srcMod=%ld dest=(%ld,%ld) size=%ldx%ld\n",
              (ULONG)_source, _xSrc, _srcMod, _xDest, _yDest, _xSize, _ySize);
-    LPRINTF (LOG_INFO, "_graphics: BltTemplate() dest=(%ld,%ld) size=%ldx%ld\n",
+    DPRINTF(LOG_DEBUG, "_graphics: BltTemplate() dest=(%ld,%ld) size=%ldx%ld\n",
              _xDest, _yDest, _xSize, _ySize);
 
     if (!_source || !_destRP)
@@ -2266,32 +2267,6 @@ static WORD graphics_text_glyph_pos(CONST struct TextFont *font, WORD idx)
     return (WORD)(charloc >> 16);
 }
 
-static UBYTE graphics_text_mono_pen(CONST struct TextFont *font, WORD idx, WORD row, WORD col)
-{
-    WORD glyph_width;
-    WORD glyph_pos;
-
-    if (!font || !font->tf_CharData || row < 0 || row >= font->tf_YSize || col < 0)
-        return 0;
-
-    if (!font->tf_CharLoc)
-    {
-        const UBYTE *glyph = topaz8_get_glyph((UBYTE)(font->tf_LoChar + idx));
-
-        if (col >= font->tf_XSize)
-            return 0;
-
-        return (glyph[row] & (0x80 >> col)) ? 1 : 0;
-    }
-
-    glyph_width = graphics_text_glyph_width(font, idx);
-    glyph_pos = graphics_text_glyph_pos(font, idx);
-    if (col >= glyph_width)
-        return 0;
-
-    return GetPlaneBit((PLANEPTR)font->tf_CharData, font->tf_Modulo, (WORD)(glyph_pos + col), row);
-}
-
 static UBYTE graphics_text_color_pen(CONST struct TextFont *font, WORD idx, WORD row, WORD col)
 {
     struct ColorTextFont *ctf;
@@ -2491,80 +2466,114 @@ static LONG _graphics_Text ( register struct GfxBase * GfxBase __asm("a6"),
         if (font->tf_CharKern)
             x += ((WORD *)font->tf_CharKern)[idx];
 
-        /* Draw the character glyph */
-        for (row = 0; row < (ULONG)font->tf_YSize; row++)
+        /* Draw the character glyph.  Per-character and per-row values are
+         * hoisted out of the pixel loop: Text() is the hottest rendering
+         * path and its cost is emulated time on the deterministic clock. */
         {
-            WORD py = y + (WORD)row;
+            WORD bm_width = (WORD)(bm->BytesPerRow * 8);
+            UWORD bpr = bm->BytesPerRow;
+            UBYTE depth = bm->Depth;
+            WORD glyph_pos = 0;
+            const UBYTE *topaz_glyph = NULL;
 
-            /* Skip if row is outside bitmap */
-            if (py < 0 || py >= (WORD)bm->Rows)
-                continue;
-
-            for (col = 0; col < (ULONG)glyph_width; col++)
+            if (!colorfont && font->tf_CharData)
             {
-                WORD px = x + (WORD)col;
-                UBYTE source_pen = colorfont ?
-                    graphics_text_color_pen(font, idx, (WORD)row, (WORD)col) :
-                    graphics_text_mono_pen(font, idx, (WORD)row, (WORD)col);
-                BOOL pixel_set = source_pen != 0;
-                UBYTE pen = colorfont ? source_pen : fgpen;
+                if (font->tf_CharLoc)
+                    glyph_pos = graphics_text_glyph_pos(font, idx);
+                else
+                    topaz_glyph = topaz8_get_glyph((UBYTE)(font->tf_LoChar + idx));
+            }
 
-                /* Skip if column is outside bitmap */
-                if (px < 0 || px >= (WORD)(bm->BytesPerRow * 8))
+            for (row = 0; row < (ULONG)font->tf_YSize; row++)
+            {
+                WORD py = y + (WORD)row;
+                ULONG row_off;
+                const UBYTE *src_row = NULL;
+
+                /* Skip if row is outside bitmap */
+                if (py < 0 || py >= (WORD)bm->Rows)
                     continue;
 
-                /* Determine what to draw based on draw mode */
-                if (basemode == JAM1)
-                {
-                    /* JAM1: Only draw foreground pixels */
-                    if (pixel_set)
-                    {
-                        /* Set pixel to FgPen */
-                        WORD byte_idx = px / 8;
-                        UBYTE bit_mask = (UBYTE)(0x80 >> (px % 8));
-                        ULONG plane;
+                row_off = (ULONG)py * bpr;
+                if (!colorfont && font->tf_CharData && font->tf_CharLoc)
+                    src_row = (const UBYTE *)font->tf_CharData + (ULONG)row * (UWORD)font->tf_Modulo;
 
-                        for (plane = 0; plane < (ULONG)bm->Depth; plane++)
+                for (col = 0; col < (ULONG)glyph_width; col++)
+                {
+                    WORD px = x + (WORD)col;
+                    BOOL pixel_set;
+                    UBYTE pen;
+                    UBYTE bit_mask;
+                    ULONG byte_off;
+                    ULONG plane;
+
+                    /* Skip if column is outside bitmap */
+                    if (px < 0 || px >= bm_width)
+                        continue;
+
+                    if (colorfont)
+                    {
+                        UBYTE source_pen = graphics_text_color_pen(font, idx, (WORD)row, (WORD)col);
+                        pixel_set = source_pen != 0;
+                        pen = source_pen;
+                    }
+                    else if (src_row)
+                    {
+                        WORD bx = glyph_pos + (WORD)col;
+                        pixel_set = (src_row[bx >> 3] & (0x80 >> (bx & 7))) != 0;
+                        pen = fgpen;
+                    }
+                    else if (topaz_glyph)
+                    {
+                        pixel_set = col < (ULONG)font->tf_XSize &&
+                                    (topaz_glyph[row] & (0x80 >> col)) != 0;
+                        pen = fgpen;
+                    }
+                    else
+                    {
+                        pixel_set = FALSE;
+                        pen = fgpen;
+                    }
+
+                    byte_off = row_off + (ULONG)(px >> 3);
+                    bit_mask = (UBYTE)(0x80 >> (px & 7));
+
+                    /* Determine what to draw based on draw mode */
+                    if (basemode == JAM1)
+                    {
+                        /* JAM1: Only draw foreground pixels */
+                        if (!pixel_set)
+                            continue;
+                        for (plane = 0; plane < depth; plane++)
                         {
-                            UBYTE *plane_ptr = bm->Planes[plane] + py * bm->BytesPerRow + byte_idx;
+                            UBYTE *plane_ptr = bm->Planes[plane] + byte_off;
                             if (pen & (1 << plane))
                                 *plane_ptr |= bit_mask;
                             else
                                 *plane_ptr &= ~bit_mask;
                         }
                     }
-                }
-                else if (basemode == JAM2)
-                {
-                    /* JAM2: Draw both foreground and background */
-                    WORD byte_idx = px / 8;
-                    UBYTE bit_mask = (UBYTE)(0x80 >> (px % 8));
-                    UBYTE draw_pen = pixel_set ? pen : bgpen;
-                    ULONG plane;
-
-                    for (plane = 0; plane < (ULONG)bm->Depth; plane++)
+                    else if (basemode == JAM2)
                     {
-                        UBYTE *plane_ptr = bm->Planes[plane] + py * bm->BytesPerRow + byte_idx;
-                        if (draw_pen & (1 << plane))
-                            *plane_ptr |= bit_mask;
-                        else
-                            *plane_ptr &= ~bit_mask;
-                    }
-                }
-                else if (basemode == COMPLEMENT)
-                {
-                    /* COMPLEMENT: XOR with existing pixels */
-                    if (pixel_set)
-                    {
-                        WORD byte_idx = px / 8;
-                        UBYTE bit_mask = (UBYTE)(0x80 >> (px % 8));
-                        ULONG plane;
+                        /* JAM2: Draw both foreground and background */
+                        UBYTE draw_pen = pixel_set ? pen : bgpen;
 
-                        for (plane = 0; plane < (ULONG)bm->Depth; plane++)
+                        for (plane = 0; plane < depth; plane++)
                         {
-                            UBYTE *plane_ptr = bm->Planes[plane] + py * bm->BytesPerRow + byte_idx;
-                            *plane_ptr ^= bit_mask;
+                            UBYTE *plane_ptr = bm->Planes[plane] + byte_off;
+                            if (draw_pen & (1 << plane))
+                                *plane_ptr |= bit_mask;
+                            else
+                                *plane_ptr &= ~bit_mask;
                         }
+                    }
+                    else if (basemode == COMPLEMENT)
+                    {
+                        /* COMPLEMENT: XOR with existing pixels */
+                        if (!pixel_set)
+                            continue;
+                        for (plane = 0; plane < depth; plane++)
+                            *(bm->Planes[plane] + byte_off) ^= bit_mask;
                     }
                 }
             }
@@ -4485,36 +4494,61 @@ static LONG _graphics_AreaEnd ( register struct GfxBase * GfxBase __asm("a6"),
 }
 
 
-static VOID _graphics_WaitTOF ( register struct GfxBase * GfxBase __asm("a6"))
+/*
+ * Block the calling task until the next vertical blank.
+ *
+ * The task is queued on GfxBase->TOF_WaitQ (ln_Name = task) and sleeps on
+ * SIGF_SINGLE; _graphics_VBlankHook(), called from the level-3 interrupt,
+ * signals every queued task.  A VBlank arriving between queueing and Wait()
+ * just leaves SIGF_SINGLE set, so no frame is ever missed.
+ */
+static void graphics_wait_vblank(struct GfxBase *GfxBase)
+{
+    struct Node waiter;
+    struct Task *me = FindTask(NULL);
+
+    waiter.ln_Name = (char *)me;
+    waiter.ln_Type = NT_UNKNOWN;
+    waiter.ln_Pri = 0;
+
+    Disable();
+    AddTail(&GfxBase->TOF_WaitQ, &waiter);
+    SetSignal(0, SIGF_SINGLE);
+    Enable();
+
+    Wait(SIGF_SINGLE);
+
+    Disable();
+    Remove(&waiter);
+    Enable();
+}
+
+/* Called from the level-3 (VBlank) interrupt: wake all WaitTOF() callers. */
+VOID _graphics_VBlankHook(void)
+{
+    extern struct GfxBase *GfxBase;
+    struct Node *node;
+
+    if (!GfxBase || !GfxBase->TOF_WaitQ.lh_Head)
+        return;
+
+    for (node = GfxBase->TOF_WaitQ.lh_Head; node->ln_Succ; node = node->ln_Succ)
+        Signal((struct Task *)node->ln_Name, SIGF_SINGLE);
+}
+
+/*
+ * Process pending input and push every Intuition screen's planar bitmap to
+ * its host display.  Never blocks, so ROM-internal callers that only want a
+ * display refresh (console.device, also from interrupt context) use this
+ * instead of WaitTOF().
+ */
+VOID _graphics_RefreshAllScreens(void)
 {
     struct Screen *screen;
-    int i;
-    
-    DPRINTF (LOG_DEBUG, "_graphics: WaitTOF()\n");
-    
-    /*
-     * WaitTOF() waits for the next vertical blank (top of frame).
-     * This is approximately 1/50th of a second (20ms for PAL).
-     * 
-     * We implement this by:
-     * 1. Calling EMU_CALL_WAIT multiple times to wait ~20ms total
-     * 2. Processing input events
-     * 3. Refreshing displays
-     * 
-     * EMU_CALL_WAIT sleeps for 1ms, so we call it ~20 times.
-     */
-    for (i = 0; i < 20; i++)
-    {
-        emucall0(EMU_CALL_WAIT);
-    }
-    
-    /* Process input events and refresh displays for all Intuition screens.
-     * This is a good hook point since WaitTOF is called in main loops.
-     * 
-     * IMPORTANT: Use global IntuitionBase instead of OpenLibrary() to avoid
+
+    /* IMPORTANT: Use global IntuitionBase instead of OpenLibrary() to avoid
      * reentrancy issues when VBlank interrupts fire during library calls.
-     * The global is set up at ROM initialization time (exec.c).
-     */
+     * The global is set up at ROM initialization time (exec.c). */
     if (!IntuitionBase)
     {
         return;
@@ -4532,19 +4566,28 @@ static VOID _graphics_WaitTOF ( register struct GfxBase * GfxBase __asm("a6"))
         ULONG display_handle = (ULONG)screen->ExtData;
         if (display_handle)
         {
-            /* Build planes pointer array for emucall */
-            /* The screen's BitMap.Planes[] array contains the plane addresses */
+            /* The screen's BitMap.Planes[] array contains the plane addresses.
+             * Pack bpr and depth into single parameter: (bpr << 16) | depth */
             ULONG bpr = screen->BitMap.BytesPerRow;
             ULONG depth = screen->BitMap.Depth;
-            
-            /* Pack bpr and depth into single parameter: (bpr << 16) | depth */
             ULONG bpr_depth = (bpr << 16) | (depth & 0xFFFF);
             
-            /* Pass the address of the Planes array */
             emucall3(EMU_CALL_INT_REFRESH_SCREEN, display_handle, 
                      (ULONG)&screen->BitMap.Planes[0], bpr_depth);
         }
     }
+}
+
+static VOID _graphics_WaitTOF ( register struct GfxBase * GfxBase __asm("a6"))
+{
+    DPRINTF (LOG_DEBUG, "_graphics: WaitTOF()\n");
+
+    /* WaitTOF() waits for the next vertical blank (top of frame). */
+    graphics_wait_vblank(GfxBase);
+
+    /* WaitTOF is called in most main loops: a good point to deliver input
+     * and refresh the host displays. */
+    _graphics_RefreshAllScreens();
 }
 
 static VOID _graphics_QBlit ( register struct GfxBase * GfxBase __asm("a6"),
@@ -5692,8 +5735,11 @@ static VOID _graphics_ScrollRaster ( register struct GfxBase * GfxBase __asm("a6
 static VOID _graphics_WaitBOVP ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct ViewPort * vp __asm("a0"))
 {
-    (void)GfxBase;
     (void)vp;
+
+    /* There is no beam position to poll; the bottom of any viewport is
+     * passed at the latest by the next vertical blank. */
+    graphics_wait_vblank(GfxBase);
 }
 
 static WORD _graphics_GetSprite ( register struct GfxBase * GfxBase __asm("a6"),
@@ -7050,7 +7096,7 @@ static VOID _graphics_BltBitMapRastPort ( register struct GfxBase * GfxBase __as
 
     DPRINTF (LOG_DEBUG, "_graphics: BltBitMapRastPort() src=0x%08lx (%ld,%ld) destRP=0x%08lx (%ld,%ld) size=%ldx%ld minterm=0x%02lx\n",
              (ULONG)srcBitMap, xSrc, ySrc, (ULONG)destRP, xDest, yDest, xSize, ySize, minterm);
-    LPRINTF (LOG_INFO, "_graphics: BltBitMapRastPort() src=0x%08lx (%ld,%ld) destRP=(%ld,%ld) size=%ldx%ld minterm=0x%02lx\n",
+    DPRINTF(LOG_DEBUG, "_graphics: BltBitMapRastPort() src=0x%08lx (%ld,%ld) destRP=(%ld,%ld) size=%ldx%ld minterm=0x%02lx\n",
              (ULONG)srcBitMap, xSrc, ySrc, xDest, yDest, xSize, ySize, minterm);
 
     if (!srcBitMap || !destRP || !destRP->BitMap)

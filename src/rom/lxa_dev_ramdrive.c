@@ -102,14 +102,9 @@ static struct RamdriveUnit *ramdrive_get_unit(struct IORequest *ioreq)
 
 static void ramdrive_clear_unit(struct RamdriveUnit *unit)
 {
-    ULONG index;
-
     if (unit && unit->ru_Data)
     {
-        for (index = 0; index < unit->ru_Size; index++)
-        {
-            unit->ru_Data[index] = 0;
-        }
+        memset(unit->ru_Data, 0, unit->ru_Size);
     }
 }
 

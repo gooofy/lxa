@@ -401,9 +401,11 @@ TEST_F(DrawingHelpersDriverTest, RendersAndErasesContent) {
     EXPECT_EQ(ReadPixel(window_info.x + 91, window_info.y + 21), 3)
         << "Expected IDS_SELECTED to merge interior pixels with the existing background pen";
 
+    /* The sample waits Delay(50) (1 s of emulated time) before erasing;
+     * allow up to 2 s (100 frames) on the deterministic clock. */
     bool saw_after_erase = false;
-    for (int i = 0; i < 40; i++) {
-        RunCyclesWithVBlank(2, 50000);
+    for (int i = 0; i < 100; i++) {
+        lxa_run_frames(1);
         output = GetOutput();
         if (output.find("READY: after erase") != std::string::npos) {
             saw_after_erase = true;

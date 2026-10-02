@@ -321,10 +321,13 @@ TEST_F(GadToolsMenuPixelTest, SubmenuHoverDoesNotCorruptLowerMainItems) {
 
     const int print_x = 30;
     const int print_y = 42;
-    const int draft_sub_x = 110;
-    const int draft_sub_y = 26;
-    const int nlq_sub_x = 110;
-    const int nlq_sub_y = 36;
+    /* The Print submenu opens beside the Print item: Draft at y~44, NLQ at
+     * y~54.  (The previous y=26/36 points lay outside the submenu; the test
+     * only passed while the slow menu repaint was still in progress.) */
+    const int draft_sub_x = 115;
+    const int draft_sub_y = 44;
+    const int nlq_sub_x = 115;
+    const int nlq_sub_y = 54;
     const int submenu_x1 = 100;
     const int submenu_y1 = 20;
     const int submenu_x2 = 220;

@@ -10,6 +10,7 @@
 #include "lxa_internal.h"
 #include "lxa_memory.h"
 #include "config.h"
+#include "lxa_vclock.h"
 
 /* Forward declarations for float/double helpers defined later in this file */
 static float ffp_to_host_float(uint32_t raw);
@@ -252,7 +253,7 @@ int op_illg(int level)
             else
             {
                 DPRINTF (LOG_DEBUG, "*** no other tasks, stopping emulator\n");
-                m68k_end_timeslice();
+                vclock_end_timeslice();
                 g_running = FALSE;
             }
             break;
@@ -303,7 +304,7 @@ int op_illg(int level)
             else
             {
                 DPRINTF (LOG_DEBUG, "*** no other tasks, exiting emulator\n");
-                m68k_end_timeslice();
+                vclock_end_timeslice();
                 g_running = FALSE;
             }
             break;
@@ -386,7 +387,7 @@ int op_illg(int level)
                     fprintf(stderr, "*** FATAL: Trap #%d at PC=0x%08x\n", excn - 32, pc);
                 }
                 _debug(pc);
-                m68k_end_timeslice();
+                vclock_end_timeslice();
                 g_running = FALSE;
             } else {
                 LPRINTF (LOG_WARNING, "*** Exception in task - continuing (use -d to halt and debug)\n");
@@ -427,7 +428,7 @@ int op_illg(int level)
                 {
                     fprintf(stderr, "*** EMU_CALL_WAIT: no tasks left, stopping emulator\n");
                     DPRINTF(LOG_DEBUG, "*** EMU_CALL_WAIT: no tasks left, stopping emulator\n");
-                    m68k_end_timeslice();
+                    vclock_end_timeslice();
                     g_running = false;
                     break;
                 }
@@ -442,7 +443,17 @@ int op_illg(int level)
                 m68k_set_irq(3);
             }
             
-            usleep(1000);  /* 1ms - avoid busy-waiting */
+            /* Phase 201: real-time mode sleeps 1 ms.  On the virtual clock
+             * time may only skip ahead when no task is ready to run (the
+             * dispatcher idle loop, or a task polling while everything else
+             * waits); a task busy-polling while others are ready just burns
+             * cycles like on real hardware. */
+            {
+                uint32_t sb = m68k_read_memory_32(4);
+                uint32_t ready_head = m68k_read_memory_32(sb + EXECBASE_TASKREADY);
+                bool system_idle = ready_head == sb + EXECBASE_TASKREADY + 4;
+                vclock_idle(system_idle);
+            }
             break;
         }
 
@@ -455,7 +466,10 @@ int op_illg(int level)
              */
             uint32_t ms = m68k_get_reg(NULL, M68K_REG_D1);
             DPRINTF(LOG_DEBUG, "lxa: EMU_CALL_DELAY %u ms\n", ms);
-            usleep(ms * 1000);
+            if (vclock_deterministic())
+                vclock_advance_us((uint64_t)ms * 1000ull);
+            else
+                usleep(ms * 1000);
             break;
         }
 
@@ -597,10 +611,18 @@ int op_illg(int level)
         {
             uint32_t d1 = m68k_get_reg(NULL, M68K_REG_D1);
 
+            /* Phase 201: read the virtual clock.  Deterministic runs treat
+             * the virtual epoch as local time so results do not depend on
+             * the host time zone. */
+            uint64_t now_us = vclock_now_us();
             struct timeval tv;
-            gettimeofday(&tv, 0);
+            tv.tv_sec = (time_t)(now_us / 1000000ull);
+            tv.tv_usec = (suseconds_t)(now_us % 1000000ull);
             struct tm t;
-            localtime_r(&tv.tv_sec, &t);
+            if (vclock_deterministic())
+                gmtime_r(&tv.tv_sec, &t);
+            else
+                localtime_r(&tv.tv_sec, &t);
             DPRINTF (LOG_DEBUG, "lxa: lxa: op_illg(): EMU_CALL_GETSYSTIME %02ld:%02ld:%02ld\n",
                      t.tm_hour, t.tm_min, t.tm_sec);
 
@@ -1880,7 +1902,7 @@ int op_illg(int level)
             if (quit)
             {
                 DPRINTF(LOG_INFO, "lxa: display quit requested\n");
-                m68k_end_timeslice();
+                vclock_end_timeslice();
                 g_running = FALSE;
             }
             break;
@@ -2496,7 +2518,9 @@ int op_illg(int level)
             FD_ZERO(&readfds);
             FD_SET(STDIN_FILENO, &readfds);
             
-            int ready = select(STDIN_FILENO + 1, &readfds, NULL, NULL, &tv);
+            /* liblxa never reads the host stdin (see _dos_read) */
+            int ready = g_console_stdin_detached ? 0 :
+                        select(STDIN_FILENO + 1, &readfds, NULL, NULL, &tv);
             
             if (ready > 0 && FD_ISSET(STDIN_FILENO, &readfds))
             {
@@ -2551,7 +2575,8 @@ int op_illg(int level)
             FD_ZERO(&readfds);
             FD_SET(STDIN_FILENO, &readfds);
             
-            int ready = select(STDIN_FILENO + 1, &readfds, NULL, NULL, &tv);
+            int ready = g_console_stdin_detached ? 0 :
+                        select(STDIN_FILENO + 1, &readfds, NULL, NULL, &tv);
             
             m68k_set_reg(M68K_REG_D0, (ready > 0 && FD_ISSET(STDIN_FILENO, &readfds)) ? 1 : 0);
             break;
@@ -3559,7 +3584,7 @@ int op_illg(int level)
              * 2. Child tasks that didn't get to cleanup are acceptable loss
              * 3. This prevents hangs from orphaned child tasks
              */
-            m68k_end_timeslice();
+            vclock_end_timeslice();
             g_running = FALSE;
             break;
         }

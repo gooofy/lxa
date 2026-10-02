@@ -267,12 +267,10 @@ protected:
      */
     bool WaitForWindowCountAtMost(int count, int timeout_ms = 5000)
     {
-        auto start = std::chrono::steady_clock::now();
+        EmuDeadline deadline(timeout_ms);
         while (lxa_get_window_count() > count) {
             RunCyclesWithVBlank(5, 50000);
-            auto elapsed = std::chrono::steady_clock::now() - start;
-            if (std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count()
-                >= timeout_ms) {
+            if (deadline.Expired()) {
                 return false;
             }
         }

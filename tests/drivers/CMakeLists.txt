@@ -302,6 +302,10 @@ if(BUILD_GTESTS AND GTEST_FOUND)
         add_gtest_driver(devices_gtest)
     endif()
 
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/determinism_gtest.cpp)
+        add_gtest_driver(determinism_gtest)
+    endif()
+
     # Console tests
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/console_gtest.cpp)
         add_gtest_driver(console_gtest)

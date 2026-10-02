@@ -48,6 +48,8 @@ set(LXA_CORE_SOURCES
     rootless_layout.c
     lxa_copper.c
     lxa_profile.c
+    lxa_vclock.c
+    lxa_coverage.c
 )
 
 # Common compile options
@@ -61,6 +63,16 @@ set(LXA_COMPILE_OPTIONS
     -Wno-format-overflow
     -Wno-return-type
 )
+
+# Phase 202: host code coverage (gcov).  `cmake -DLXA_COVERAGE=ON` then
+# `make coverage` (see tools/coverage_report.py).
+option(LXA_COVERAGE "Instrument host code with gcov" OFF)
+set(LXA_COVERAGE_LINK_OPTIONS)
+if(LXA_COVERAGE)
+    message(STATUS "LXA_COVERAGE enabled: host code built with --coverage")
+    list(APPEND LXA_COMPILE_OPTIONS --coverage -O0)
+    set(LXA_COVERAGE_LINK_OPTIONS --coverage)
+endif()
 
 # Phase 126: Optional profiling build
 option(PROFILE_BUILD "Enable per-ROM-function profiling instrumentation" OFF)
@@ -120,6 +132,9 @@ target_link_libraries(liblxa PUBLIC
     ${READLINE_LIBRARY}
     m
 )
+if(LXA_COVERAGE_LINK_OPTIONS)
+    target_link_options(liblxa PUBLIC ${LXA_COVERAGE_LINK_OPTIONS})
+endif()
 
 if(LXA_SDL_LINK_LIBS)
     target_link_libraries(liblxa PUBLIC ${LXA_SDL_LINK_LIBS})
@@ -158,6 +173,9 @@ target_link_libraries(lxa PRIVATE
 
 if(LXA_SDL_LINK_LIBS)
     target_link_libraries(lxa PRIVATE ${LXA_SDL_LINK_LIBS})
+endif()
+if(LXA_COVERAGE_LINK_OPTIONS)
+    target_link_options(lxa PRIVATE ${LXA_COVERAGE_LINK_OPTIONS})
 endif()
 
 set_target_properties(lxa PROPERTIES

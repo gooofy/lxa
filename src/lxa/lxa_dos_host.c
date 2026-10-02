@@ -9,6 +9,7 @@
 
 #include "lxa_internal.h"
 #include "lxa_memory.h"
+#include "lxa_vclock.h"
 
 /* Forward declaration (definition near end of file) */
 static int _linux_path_to_amiga(const char *linux_path, char *amiga_buf, size_t bufsize);
@@ -27,9 +28,8 @@ bool                  g_audio_initialized = false;
 
 static uint64_t _timer_get_time_us(void)
 {
-    struct timeval tv;
-    gettimeofday(&tv, NULL);
-    return (uint64_t)tv.tv_sec * 1000000ULL + (uint64_t)tv.tv_usec;
+    /* Phase 201: wall clock in real-time mode, virtual clock otherwise */
+    return vclock_now_us();
 }
 
 static void __attribute__((unused)) _audio_init(void)
@@ -817,6 +817,8 @@ int _dos_open (uint32_t path68k, uint32_t accessMode, uint32_t fh68k)
     return 0;
 }
 
+bool g_console_stdin_detached = false;
+
 int _dos_read (uint32_t fh68k, uint32_t buf68k, uint32_t len68k)
 {
     DPRINTF (LOG_DEBUG, "lxa: _dos_read(): fh=0x%08x, buf68k=0x%08x, len68k=%d\n", fh68k, buf68k, len68k);
@@ -846,6 +848,13 @@ int _dos_read (uint32_t fh68k, uint32_t buf68k, uint32_t len68k)
 
         return (int)count;
     }
+
+    /* liblxa (test drivers, pylxa) never reads the host's stdin: console
+     * input comes only from the injection queue, and an empty queue reads
+     * as end-of-file.  Otherwise a test would block on whatever stdin the
+     * harness happened to inherit (a pipe under ctest). */
+    if (kind == FILE_KIND_CONSOLE && g_console_stdin_detached)
+        return 0;
 
     ssize_t l = read (fd, buf, len68k);
 
@@ -1924,6 +1933,15 @@ uint32_t _dos_lockrecord(uint32_t fh68k, uint32_t offset, uint32_t length,
         {
             m68k_write_memory_32(fh68k + 40, ERROR_LOCK_TIMEOUT);
             return 0;
+        }
+
+        /* Phase 201: the conflicting lock can only be released by another
+         * host process while we block here, so on the virtual clock the
+         * full timeout elapses at once. */
+        if (vclock_deterministic())
+        {
+            vclock_advance_us((uint64_t)timeout * 20000ULL);
+            continue;
         }
 
         usleep(1000);
@@ -3620,6 +3638,14 @@ int _dos_waitforchar(uint32_t fh68k, uint32_t timeout_us)
 
     if (kind == FILE_KIND_CONSOLE && !lxa_host_console_input_empty())
         return 1;
+
+    /* liblxa: the host stdin is detached; no injected input means the
+     * timeout elapses (in virtual time, so it stays deterministic). */
+    if (kind == FILE_KIND_CONSOLE && g_console_stdin_detached)
+    {
+        vclock_advance_us(timeout_us);
+        return 0;
+    }
     
     /* Use select() to check for available input */
     fd_set readfds;

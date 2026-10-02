@@ -35,8 +35,13 @@ protected:
 
         /* Let task reach Wait() in event loop */
         WaitForEventLoop(100, 10000);
+        startup_output = GetOutput();
         ClearOutput();
     }
+
+    /* Output printed before SetUp() cleared the buffer (the startup banner
+     * may or may not have been printed by then, depending on CPU speed). */
+    std::string startup_output;
 };
 
 TEST_F(MenuLayoutTest, WindowOpens) {
@@ -83,7 +88,7 @@ TEST_F(MenuLayoutTest, StartupOutput) {
      * Need to give it enough cycles for printf to complete.
      */
     RunCyclesWithVBlank(30, 100000);
-    std::string output = GetOutput();
+    std::string output = startup_output + GetOutput();
     EXPECT_NE(output.find("Menu Example running"), std::string::npos)
         << "Program should print startup message. Output: " << output;
 }

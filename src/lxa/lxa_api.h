@@ -55,6 +55,17 @@ typedef struct lxa_config {
     bool headless;              /* Run without SDL display windows */
     bool rootless;              /* Track individual windows for testing (default: true) */
     bool verbose;               /* Enable verbose logging */
+    /*
+     * Phase 201: time model.  By default liblxa runs on a deterministic
+     * virtual clock: VBlank, timer.device and DateStamp are derived only
+     * from emulated cycles, so two runs of the same scenario are
+     * byte-identical.  Set realtime_clock to use host wall-clock time and
+     * a SIGALRM-driven VBlank instead (the interactive lxa behaviour).
+     */
+    bool realtime_clock;
+    uint32_t cpu_hz;            /* deterministic: emulated CPU clock (0 = 25 MHz) */
+    uint32_t cycles_per_frame;  /* deterministic: cycles per VBlank (0 = cpu_hz/50) */
+    uint64_t epoch_secs;        /* deterministic: Unix time at boot (0 = 2024-01-01) */
 } lxa_config_t;
 
 /*
@@ -90,6 +101,39 @@ int lxa_load_program(const char *program, const char *args);
  * @return 0 if still running, non-zero if program has exited
  */
 int lxa_run_cycles(int cycles);
+
+/*
+ * Run the emulation for `frames` VBlank frames of emulated time
+ * (Phase 201).  In deterministic mode one frame is exactly
+ * cycles_per_frame emulated cycles; idle time is skipped, so a frame in
+ * which every task waits costs almost no wall time.
+ *
+ * @return 0 if still running, non-zero if program has exited
+ */
+int lxa_run_frames(int frames);
+
+/*
+ * Emulated time introspection (Phase 201).
+ * lxa_get_emulated_cycles(): total emulated CPU cycles since lxa_init().
+ * lxa_get_frame_count():     VBlank frames elapsed (deterministic mode).
+ * lxa_get_idle_cycles():     emulated cycles skipped because every task was
+ *                            waiting (deterministic mode); busy = total - idle.
+ * lxa_is_deterministic():    true when running on the virtual clock.
+ */
+uint64_t lxa_get_emulated_cycles(void);
+uint64_t lxa_get_frame_count(void);
+uint64_t lxa_get_idle_cycles(void);
+
+/*
+ * Current emulated time in microseconds since the Unix epoch: the virtual
+ * clock in deterministic mode, host wall-clock time otherwise.  Use it for
+ * test timeouts so they do not depend on host load.
+ */
+uint64_t lxa_get_time_us(void);
+
+/* Current m68k program counter (diagnostics: where is a busy task spinning?) */
+uint32_t lxa_get_pc(void);
+bool lxa_is_deterministic(void);
 
 /*
  * Flush the display by converting Amiga planar bitmap data to chunky pixels.

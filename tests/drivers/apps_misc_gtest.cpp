@@ -258,9 +258,9 @@ protected:
     }
 
     bool WaitForHostFile(const std::string& host_path, int timeout_ms = 5000) {
-        auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(timeout_ms);
+        EmuDeadline deadline(timeout_ms);
 
-        while (std::chrono::steady_clock::now() < deadline) {
+        while (!deadline.Expired()) {
             if (access(host_path.c_str(), R_OK) == 0) {
                 return true;
             }
@@ -328,6 +328,8 @@ protected:
 
         WaitForEventLoop(100, 10000);
         RunCyclesWithVBlank(400, 50000);
+        /* ProWrite paints its ruler and document progressively */
+        WaitForStableContent();
 
         prowrite_menu_window_index = FindProWriteMenuWindowIndex();
         ASSERT_GE(prowrite_menu_window_index, 0)
@@ -410,9 +412,9 @@ protected:
     }
 
     bool WaitForWindowCountAtLeast(int minimum_count, int timeout_ms = 5000) {
-        const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(timeout_ms);
+        EmuDeadline deadline(timeout_ms);
 
-        while (std::chrono::steady_clock::now() < deadline) {
+        while (!deadline.Expired()) {
             if (lxa_get_window_count() >= minimum_count) {
                 return true;
             }
@@ -428,9 +430,9 @@ protected:
     }
 
     bool WaitForWindowCountAtMost(int maximum_count, int timeout_ms = 5000) {
-        const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(timeout_ms);
+        EmuDeadline deadline(timeout_ms);
 
-        while (std::chrono::steady_clock::now() < deadline) {
+        while (!deadline.Expired()) {
             if (lxa_get_window_count() <= maximum_count) {
                 return true;
             }
@@ -473,9 +475,9 @@ protected:
                                  const std::function<bool(const lxa_window_info_t&, int)>& matcher,
                                  int timeout_ms = 5000)
     {
-        const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(timeout_ms);
+        EmuDeadline deadline(timeout_ms);
 
-        while (std::chrono::steady_clock::now() < deadline) {
+        while (!deadline.Expired()) {
             const int window_count = lxa_get_window_count();
             for (int i = baseline_window_count; i < window_count; ++i) {
                 lxa_window_info_t info;
@@ -1189,7 +1191,7 @@ TEST_F(ProWriteInteractionTest, TypingChangesDocumentContent) {
                  << "(corrupt list pointer — ROM compatibility issue)";
 }
 
-TEST_F(AppsMiscTest, DISABLED_BlitzBasic2Starts) {
+TEST_F(AppsMiscTest, BlitzBasic2Starts) {
     if (!SetupOriginalSystemAssigns(true, true, true) || !SetupBlitzBasic2Assigns()) {
         GTEST_SKIP() << "BlitzBasic2 app bundle or original system disk not found";
     }
@@ -1225,7 +1227,7 @@ TEST_F(AppsMiscTest, Sonix2Starts) {
     EXPECT_GE(window_info.height, 100);
 }
 
-TEST_F(AppsMiscTest, DISABLED_TypefaceStarts) {
+TEST_F(AppsMiscTest, TypefaceStarts) {
     if (!SetupOriginalSystemAssigns(true, true, false) || !SetupTypefaceAssigns()) {
         GTEST_SKIP() << "Typeface app bundle or original system disk not found";
     }
@@ -1236,15 +1238,28 @@ TEST_F(AppsMiscTest, DISABLED_TypefaceStarts) {
     ASSERT_TRUE(WaitForWindows(1, 20000)) << GetOutput();
 }
 
-TEST_F(AppsMiscTest, DISABLED_Vim53Starts) {
+TEST_F(AppsMiscTest, Vim53Starts) {
     if (!SetupOriginalSystemAssigns(true, false, false) || !SetupVimAssigns()) {
         GTEST_SKIP() << "vim-5.3 app bundle or original system disk not found";
     }
 
+    /* vim reads home:.vimrc; keep the host user's dotfiles out of the test */
+    std::string vim_home = t_dir_path + "/vim-home";
+    mkdir(vim_home.c_str(), 0755);
+    ASSERT_TRUE(lxa_add_drive("HOME", vim_home.c_str()));
+
     ASSERT_EQ(lxa_load_program("APPS:vim-5.3/Vim", ""), 0)
         << "Failed to load vim-5.3 via APPS: assign";
 
-    ASSERT_TRUE(WaitForWindows(1, 20000)) << GetOutput();
+    /* vim runs in the CLI console (lxa maps it to the host console), so it
+     * opens no Intuition window; the intro screen proves a clean start. */
+    EmuDeadline deadline(20000);
+    while (GetOutput().find("VIM - Vi IMproved") == std::string::npos && !deadline.Expired())
+        RunCyclesWithVBlank(1, 50000);
+
+    EXPECT_NE(GetOutput().find("VIM - Vi IMproved"), std::string::npos) << GetOutput();
+    EXPECT_EQ(GetOutput().find("Error detected"), std::string::npos) << GetOutput();
+    EXPECT_TRUE(lxa_is_running());
 }
 
 int main(int argc, char **argv) {

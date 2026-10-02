@@ -14,10 +14,14 @@ set(M68K_OBJCOPY "${M68K_PREFIX}/bin/m68k-amigaos-objcopy")
 set(M68K_OBJDUMP "${M68K_PREFIX}/bin/m68k-amigaos-objdump")
 
 # Compiler flags for ROM
+# The ROM only ever runs on lxa's own CPU core (68030, 68040 from Phase 240),
+# so it is compiled for 68020+: 32-bit MULS/DIVS instead of libgcc calls.
+# This matters on the deterministic clock, where every emulated cycle is time.
 set(ROM_CFLAGS
-    -march=68000
-    -mcpu=68000
+    -march=68020
+    -mcpu=68020
     -O2
+    -g
     -Wall
     -Werror
     -fno-builtin

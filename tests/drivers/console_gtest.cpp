@@ -20,8 +20,7 @@ protected:
     }
 
     bool WaitForOutputContains(const char* marker, int timeout_ms = 5000) {
-        struct timeval start, now;
-        gettimeofday(&start, NULL);
+        EmuDeadline deadline(timeout_ms);
 
         while (true) {
             RunCyclesWithVBlank(1);
@@ -31,10 +30,7 @@ protected:
                 return true;
             }
 
-            gettimeofday(&now, NULL);
-            long elapsed = (now.tv_sec - start.tv_sec) * 1000 +
-                          (now.tv_usec - start.tv_usec) / 1000;
-            if (elapsed >= timeout_ms) {
+            if (deadline.Expired()) {
                 return false;
             }
         }

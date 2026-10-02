@@ -81,6 +81,7 @@ lxa and the reference must present the same machine. Otherwise every diff is jus
 | Profile `rtg` | Workbench on a uaegfx mode (e.g. 800×600×8; final mode fixed in Phase 210) | identical defaults once M4 lands |
 | Drives | `SYS:` refsys · `APPS:` `../lxa-apps` (read-only) · `LXAREF:` exchange dir | `APPS:` same layout |
 | Control | `serial_port = tcp://127.0.0.1:<port>`, Xvfb, warp mode | — |
+| Time | real time (warp only skips idle) | deterministic virtual clock, 25 MHz virtual CPU (Phase 201) |
 
 The daily-driver system at `~/media/emu/amiga/FS-UAE/hdd/system` is **not** the reference. Its patches (MuForce, KingCON, SetPatch variants, MUI prefs) would contaminate the results. It stays useful for manual exploration.
 
@@ -114,30 +115,11 @@ M0 and M1 are on the critical path: nothing in M2 and later is efficient without
 
 ## Next Phase
 
-> **Phase 201 — Deterministic virtual time**. Phase 210 (reference system builder) has no code dependency on 201 and may run in parallel in a separate worktree.
+> **Phase 203 — Stub telemetry**, then 204. Phase 210 (reference system builder) has no code dependency on M0 and may run in parallel in a separate worktree.
 
 ---
 
 ## M0 — Foundations
-
-### Phase 201 — Deterministic virtual time
-**Class**: Quality (root cause of flakiness).
-- [ ] Add a `deterministic` mode (config + `lxa_init` flag). VBlank is derived only from emulated cycles, with a configurable cycles-per-frame (default about a 7.09 MHz PAL frame equivalent). No `SIGALRM` / `setitimer`.
-- [ ] timer.device (`lxa_dos_host.c:28`), DateStamp (`lxa_dispatch.c:601`) and every `gettimeofday` in emulation paths read a virtual clock: a seeded epoch plus elapsed emulated time. The `lxa_api.c` test-wait timeouts may keep using wall time, but only as a hang guard.
-- [ ] Make deterministic mode the default for GTest drivers. Interactive `lxa` keeps the real-time clock.
-- [ ] Add `lxa_run_frames(n)` and switch fixtures from cycle-count loops to frame counts.
-- [ ] Shrink the generous budgets in AGENTS §6.6 (`lxa_inject_string` 1M cycles/char, the 500K-cycle drag steps) once determinism is proven, and record the new wall time.
-
-**Test gate**: running the same app scenario twice gives byte-identical captures and event logs. The full suite passes 20× in a row under `stress-ng -c 16` with zero flakes.
-
-### Phase 202 — Coverage you can measure
-**Class**: Quality (makes the coverage mandate checkable).
-- [ ] Host side: a `-DLXA_COVERAGE=ON` build with gcov/lcov and a `make coverage` target.
-- [ ] ROM side: an emulator PC-histogram mode that records executed ROM addresses and maps them to source lines with `m68k-amigaos-addr2line` against the ROM ELF. Output is lcov-compatible, so host and ROM merge into one report.
-- [ ] Per-LVO table: for every public function of every system library, record whether a test executes it.
-- [ ] Redefine the mandate in AGENTS.md as: *every public LVO has ≥1 test, and line coverage never decreases phase over phase*. Record the baseline here.
-
-**Test gate**: `make coverage` produces the merged report; the per-LVO table is checked in under `doc/coverage/`.
 
 ### Phase 203 — Stub telemetry
 **Class**: Quality (makes facades visible).
@@ -268,7 +250,7 @@ M0 and M1 are on the critical path: nothing in M2 and later is efficient without
 - [ ] **222c** layers: clip rects, damage lists, backfill hooks, SMART/SIMPLE/SUPER refresh sequences.
 - [ ] **222d** intuition geometry: border sizes per flag combination, `WA_*` tag effects, requester layout, `EasyRequest` layout, screen title bar.
 - [ ] **222e** gadtools: `CreateGadget` resulting geometry for every kind, font and flag combination; `CreateMenus`/`LayoutMenus` item geometry.
-- [ ] **222f** locale, keymap (`MapRawKey`/`MapANSI` over all keys and qualifiers), iffparse, icon, diskfont.
+- [ ] **222f** locale, keymap (`MapRawKey`/`MapANSI` over all keys and qualifiers), iffparse, icon, diskfont. Includes re-enabling `ConsoleTest.DISABLED_KeymapUnit` (`console_gtest.cpp`): `keymap_unit` terminates silently (rc 0, no output) inside `CD_ASKDEFAULTKEYMAP` on a `CONU_LIBRARY` open.
 
 **Test gate per sub-phase**: probe outputs equal the reference goldens.
 
@@ -327,7 +309,8 @@ M0 and M1 are on the critical path: nothing in M2 and later is efficient without
 **Class**: Compatibility. Carried over from the legacy roadmap; each one must now end with a reference golden.
 - [ ] BlitzBasic 2 ted editor shows no text (legacy 160). Start with a tracediff and a reference capture, not with hypotheses.
 - [ ] SysInfo hardware fields and the Cluster2 EXIT button (legacy 162). SysInfo needs the battclock/CIA resources from Phase 255.
-- [ ] DOpus button pages beyond the default (Move/Rename).
+- [ ] DOpus button pages beyond the default (Move/Rename), and re-enable `AppsMiscScreenTest.DISABLED_DirectoryOpusCopiesFile` (`apps_misc_gtest.cpp`: the copy never lands on the host).
+- [ ] SysInfo gadgets: re-enable `SysInfoTest.DISABLED_{Memory,Boards,Libraries,Speed}Gadget…` (`sysinfo_gtest.cpp`). Phase 201 showed they only passed while the slow wall-clock startup paint was still running; after full startup a click on MEMORY/BOARDS/LIBRARIES/SPEED repaints nothing. Start with a reference capture of the same clicks.
 
 **Test gate**: each item has a passing golden scenario.
 
@@ -422,6 +405,7 @@ The order below is provisional. After Phase 231/232 it is re-sorted by how often
 - [ ] Register `binfmt_misc` for hunk executables (magic `0x000003F3`), so `./MyAmigaApp` just runs.
 - [ ] `.desktop` launcher generation.
 - [ ] Per-app "prefixes" (the counterpart of `WINEPREFIX`) built from manifests: assigns, libs and prefs overlays.
+- [ ] Volume model: every host path must belong to a volume. Today `ParentDir()` from an assign that lies outside all drives walks up to a bogus `home:` volume (FinalWriter builds its font path this way), so `HOME:` cannot simply be pointed elsewhere. Add a fallback root volume and isolate `HOME:` in test prefixes.
 
 ### Phase 261 — Host clipboard bridge
 - [ ] clipboard.device unit 0 ↔ host clipboard (IFF FTXT ↔ UTF-8, with Latin-1 mapping).
@@ -456,6 +440,7 @@ The order below is provisional. After Phase 231/232 it is re-sorted by how often
 
 ### Phase 274 — Performance (was legacy 163)
 - [ ] With deterministic time, wall time becomes measurable per scenario. Profile host overhead with `--profile` and set budgets per scenario.
+- [ ] **Emulated-cycle cost of ROM rendering** (found in Phase 201; every ROM cycle is now emulated time): an open menu re-renders all items on every VBlank (~80–500 K cycles per item); `RectFill`/`SetPixelDirect` and `Text()` still work pixel by pixel (~37 K cycles per character including menu overhead). Make rendering row/word based and repaint only the changed highlight. Measure with `lxa_get_idle_cycles()` and PC sampling (`tools/rom_symbolize.py`).
 
 ### Phase 275 — CPU core evaluation (was legacy 172)
 - [ ] Moira or JIT, considered only once host overhead is no longer dominant.
@@ -474,9 +459,9 @@ The order below is provisional. After Phase 231/232 it is re-sorted by how often
 | Scenarios with reference goldens | 0 | 4 | 300+ |
 | Test programs validated on real OS | 0 / 225 | — | 225 / 225 |
 | Stubbed system-library LVOs (Phase 203 inventory) | ~90 (audit estimate) | measured | 0 used by the corpus |
-| Line coverage (host + ROM) | unmeasured | measured | never decreasing |
-| Flaky-test rate (20× runs) | unmeasured | 0 | 0 |
-| Full-suite wall time `-j16` | ~145 s | ≤145 s | ≤120 s |
+| Line coverage (host + ROM) | ROM 77.3 % / host 32.6 % (v0.11.0) | measured | never decreasing |
+| Flaky-test rate (20× runs) | 0 / 20 under load (v0.11.0) | 0 | 0 |
+| Full-suite wall time `-j16` | 22 s (v0.11.0; was 110 s) | ≤145 s | ≤120 s |
 
 ---
 
@@ -497,3 +482,5 @@ The order below is provisional. After Phase 231/232 it is re-sorted by how often
 |---|---|---|
 | 1–159c | Legacy era: core emulator, exec/dos/graphics/intuition/layers/gadtools/etc., host test API, 19-app driver suite. See `doc/roadmap-legacy.md` and git history. | ≤ v0.10.14 |
 | 200 | Roadmap & agent-docs reset: AGENTS.md for Claude Code + RDD/clean-room rules, workflow skill de-pooled, stale stub comments removed, `apps/README.md` manifest rule. | v0.10.15 |
+| 201 | Deterministic virtual time: cycle-derived VBlank/timer/DateStamp (`lxa_vclock.c`, 25 MHz virtual CPU, idle skipping), emulated-time timeouts (`EmuDeadline`), real `WaitTOF`, ReadEClock overflow fix, host stdin detached under liblxa, 38 hot-path LPRINTFs demoted, ROM built for 68020, faster `Text`/`memset`/`CopyMem`. Suite 110 s → 22 s, 20/20 runs under load green. | v0.11.0 |
+| 202 | Measurable coverage: ROM PC-bitmap coverage + disk-library vector coverage (`LXA_ROM_COVERAGE`), host gcov (`-DLXA_COVERAGE=ON`), `make coverage` → merged lcov + HTML, per-LVO table `doc/coverage/lvo-coverage.md`. Baseline: ROM 77.3 %, host 32.6 %, 787 LVOs tested. | v0.11.0 |

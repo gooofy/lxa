@@ -1,6 +1,8 @@
 #include "lxa_internal.h"
 #include "lxa_memory.h"
 #include "lxa_api.h"
+#include "lxa_vclock.h"
+#include "lxa_coverage.h"
 
 
 #define RAM_START   0x000000
@@ -599,6 +601,9 @@ void _update_debug_active(void)
  */
 void cpu_instr_callback(int pc)
 {
+    /* Phase 202: ROM coverage (no-op unless LXA_ROM_COVERAGE is set) */
+    lxa_coverage_mark((uint32_t)pc);
+
     /* Always record PC in trace buffer for post-mortem debugging */
     g_trace_buf[g_trace_buf_idx] = pc;
     g_trace_buf_idx = (g_trace_buf_idx+1) % TRACE_BUF_ENTRIES;
@@ -1182,6 +1187,8 @@ static void print_usage(char *argv[])
     fprintf(stderr, "    -b <addr|sym>  add breakpoint, examples: -b _start\n");
     fprintf(stderr, "    -c <config>    use config file (default: ~/.lxa/config.ini)\n");
     fprintf(stderr, "    -d             enable debug output\n");
+    fprintf(stderr, "    --deterministic   run on the virtual clock (time derived from emulated\n");
+    fprintf(stderr, "                      cycles, idle time skipped; reproducible runs)\n");
     fprintf(stderr, "    -h, --help     display this help and exit\n");
     fprintf(stderr, "    --profile <path>  write profiling JSON to path on exit\n");
     fprintf(stderr, "    -r <rom>       use kickstart ROM (auto-detected if not specified)\n");
@@ -1278,6 +1285,7 @@ int main(int argc, char **argv, char **envp)
     char *rom_path = NULL;
     char *config_path = NULL;
     char *profile_path = NULL;
+    bool deterministic = false;
     int optind=0;
 
     /* Pending assigns from command line flags (applied after config is loaded) */
@@ -1321,6 +1329,12 @@ int main(int argc, char **argv, char **envp)
 
             queue_pending_assign(pending_assigns, &num_pending_assigns, spec,
                                  PENDING_ASSIGN_REPLACE, "--assign");
+            continue;
+        }
+
+        if (strcmp(argv[optind], "--deterministic") == 0)
+        {
+            deterministic = true;
             continue;
         }
 
@@ -1561,31 +1575,40 @@ int main(int argc, char **argv, char **envp)
      */
     display_init();
 
+    /* Phase 201: time model */
+    vclock_config_t vcfg = { .deterministic = deterministic };
+    vclock_init(&vcfg);
+    lxa_coverage_init();
+
     /*
      * Phase 6.5: Set up timer-driven preemptive multitasking
      *
      * We use setitimer() to generate SIGALRM at ~50Hz (PAL VBlank rate).
      * The signal handler sets g_pending_irq which is checked each iteration.
+     * On the deterministic clock VBlank is derived from emulated cycles instead.
      */
-    struct sigaction sa;
-    sa.sa_handler = sigalrm_handler;
-    sa.sa_flags = SA_RESTART;  /* Restart interrupted syscalls */
-    sigemptyset(&sa.sa_mask);
-    if (sigaction(SIGALRM, &sa, NULL) < 0)
-    {
-        perror("sigaction");
-        exit(EXIT_FAILURE);
-    }
-
     struct itimerval timer;
-    timer.it_value.tv_sec = 0;
-    timer.it_value.tv_usec = TIMER_INTERVAL_US;
-    timer.it_interval.tv_sec = 0;
-    timer.it_interval.tv_usec = TIMER_INTERVAL_US;
-    if (setitimer(ITIMER_REAL, &timer, NULL) < 0)
+    if (!deterministic)
     {
-        perror("setitimer");
-        exit(EXIT_FAILURE);
+        struct sigaction sa;
+        sa.sa_handler = sigalrm_handler;
+        sa.sa_flags = SA_RESTART;  /* Restart interrupted syscalls */
+        sigemptyset(&sa.sa_mask);
+        if (sigaction(SIGALRM, &sa, NULL) < 0)
+        {
+            perror("sigaction");
+            exit(EXIT_FAILURE);
+        }
+
+        timer.it_value.tv_sec = 0;
+        timer.it_value.tv_usec = TIMER_INTERVAL_US;
+        timer.it_interval.tv_sec = 0;
+        timer.it_interval.tv_usec = TIMER_INTERVAL_US;
+        if (setitimer(ITIMER_REAL, &timer, NULL) < 0)
+        {
+            perror("setitimer");
+            exit(EXIT_FAILURE);
+        }
     }
 
     DPRINTF(LOG_DEBUG, "lxa: Timer-driven scheduler enabled at %d Hz\n", 1000000 / TIMER_INTERVAL_US);
@@ -1677,18 +1700,32 @@ int main(int argc, char **argv, char **envp)
          * Execute a batch of instructions. The batch size is chosen to be
          * small enough that we check for interrupts frequently (~1000 cycles
          * gives reasonable responsiveness while keeping overhead low).
+         * On the deterministic clock, run up to the next frame boundary.
          */
-        m68k_execute(1000);
+        if (deterministic)
+        {
+            vclock_execute((int)vclock_cycles_to_next_frame());
+            if (vclock_frame_due())
+                g_pending_irq |= (1 << 3);
+        }
+        else
+        {
+            vclock_execute(1000);
+        }
     }
 
     /* Stop the timer */
-    timer.it_value.tv_sec = 0;
-    timer.it_value.tv_usec = 0;
-    timer.it_interval.tv_sec = 0;
-    timer.it_interval.tv_usec = 0;
-    setitimer(ITIMER_REAL, &timer, NULL);
+    if (!deterministic)
+    {
+        timer.it_value.tv_sec = 0;
+        timer.it_value.tv_usec = 0;
+        timer.it_interval.tv_sec = 0;
+        timer.it_interval.tv_usec = 0;
+        setitimer(ITIMER_REAL, &timer, NULL);
+    }
 
     _audio_shutdown();
+    lxa_coverage_flush();
 
     if (profile_path)
         lxa_profile_write_json(profile_path);

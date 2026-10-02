@@ -1955,7 +1955,7 @@ void _defaultTaskExit (void)
 void _exec_RemTask ( register struct ExecBase * SysBase __asm("a6"),
                                      register struct Task * task  __asm("a1"))
 {
-    LPRINTF (LOG_INFO, "_exec: RemTask called, task=0x%08lx\n", task);
+    DPRINTF(LOG_DEBUG, "_exec: RemTask called, task=0x%08lx\n", task);
 
     struct Task    *me = SysBase->ThisTask;
 
@@ -2184,7 +2184,7 @@ ULONG _exec_SetSignal ( register struct ExecBase *SysBase     __asm("a6"),
                                         register ULONG            signalSet   __asm("d1"))
 {
     DPRINTF (LOG_DEBUG, "_exec: SetSignal called, newSignals=0x%08lx, signalSet=0x%08lx\n", newSignals, signalSet);
-    LPRINTF (LOG_INFO, "_exec: SetSignal(new=0x%08lx mask=0x%08lx) task='%s'\n", newSignals, signalSet,
+    DPRINTF(LOG_DEBUG, "_exec: SetSignal(new=0x%08lx mask=0x%08lx) task='%s'\n", newSignals, signalSet,
              SysBase->ThisTask ? SysBase->ThisTask->tc_Node.ln_Name : "?");
 
     struct Task *me = SysBase->ThisTask;
@@ -2322,7 +2322,7 @@ ULONG _exec_Wait ( register struct ExecBase * SysBase __asm("a6"),
                                                         register ULONG ___signalSet  __asm("d0"))
 {
     DPRINTF (LOG_DEBUG, "_exec: Wait() called, signalSet=0x%08lx\n", ___signalSet);
-    LPRINTF (LOG_INFO, "_exec: Wait() sigs=0x%08lx task='%s'\n", ___signalSet,
+    DPRINTF(LOG_DEBUG, "_exec: Wait() sigs=0x%08lx task='%s'\n", ___signalSet,
              SysBase->ThisTask ? SysBase->ThisTask->tc_Node.ln_Name : "?");
 
     struct Task *thisTask = SysBase->ThisTask;
@@ -2386,7 +2386,7 @@ ULONG _exec_Wait ( register struct ExecBase * SysBase __asm("a6"),
     Enable();
 
     DPRINTF (LOG_DEBUG, "_exec: Wait() returning rcvd=0x%08lx\n", rcvd);
-    LPRINTF (LOG_INFO, "_exec: Wait() returning rcvd=0x%08lx task='%s'\n", rcvd,
+    DPRINTF(LOG_DEBUG, "_exec: Wait() returning rcvd=0x%08lx task='%s'\n", rcvd,
              thisTask ? thisTask->tc_Node.ln_Name : "?");
 
     /* All done. */
@@ -2399,7 +2399,7 @@ void _exec_Signal ( register struct ExecBase * SysBase __asm("a6"),
 {
     DPRINTF (LOG_DEBUG, "_exec: Signal() called, task=0x%08lx '%s', signalSet=0x%08lx\n",
              ___task, ___task ? ___task->tc_Node.ln_Name : "(null)", ___signalSet);
-    LPRINTF (LOG_INFO, "_exec: Signal() task=0x%08lx name='%s' sigs=0x%08lx\n",
+    DPRINTF(LOG_DEBUG, "_exec: Signal() task=0x%08lx name='%s' sigs=0x%08lx\n",
              (ULONG)___task, ___task ? ___task->tc_Node.ln_Name : "(null)", ___signalSet);
 
     /* Validate task pointer before doing anything */
@@ -2466,13 +2466,13 @@ void _exec_Signal ( register struct ExecBase * SysBase __asm("a6"),
     }
 
     /* Does the target task have signals to process? */
-    LPRINTF(LOG_INFO, "_exec: Signal() check: SigRecvd=0x%08lx SigWait=0x%08lx SigExcept=0x%08lx State=%d\n",
+    DPRINTF(LOG_DEBUG, "_exec: Signal() check: SigRecvd=0x%08lx SigWait=0x%08lx SigExcept=0x%08lx State=%d\n",
             ___task->tc_SigRecvd, ___task->tc_SigWait, ___task->tc_SigExcept, ___task->tc_State);
     if (___task->tc_SigRecvd & (___task->tc_SigWait | ___task->tc_SigExcept))
     {
         if (___task->tc_State == TS_WAIT)
         {
-            LPRINTF (LOG_INFO, "_exec: Signal() waking up WAIT task '%s' SigRecvd=0x%08lx SigWait=0x%08lx\n",
+            DPRINTF(LOG_DEBUG, "_exec: Signal() waking up WAIT task '%s' SigRecvd=0x%08lx SigWait=0x%08lx\n",
                      ___task->tc_Node.ln_Name, ___task->tc_SigRecvd, ___task->tc_SigWait);
 
             /* Yes. Move it to the ready list. */
@@ -2521,7 +2521,7 @@ BYTE _exec_AllocSignal ( register struct ExecBase * SysBase    __asm("a6"),
                                          register BYTE              signalNum  __asm("d0"))
 {
     DPRINTF (LOG_DEBUG, "_exec: AllocSignal called, signalNum=%d\n", signalNum);
-    LPRINTF (LOG_INFO, "_exec: AllocSignal(%d)\n", signalNum);
+    DPRINTF(LOG_DEBUG, "_exec: AllocSignal(%d)\n", signalNum);
 
     struct Task *me = SysBase->ThisTask;
     ULONG newmask;
@@ -2540,7 +2540,7 @@ BYTE _exec_AllocSignal ( register struct ExecBase * SysBase    __asm("a6"),
             signalNum++;
 
         DPRINTF (LOG_DEBUG, "_exec: AllocSignal -> auto selected signalNum=%d\n", signalNum);
-        LPRINTF (LOG_INFO, "_exec: AllocSignal -> bit %d\n", signalNum);
+        DPRINTF(LOG_DEBUG, "_exec: AllocSignal -> bit %d\n", signalNum);
     }
     else if (signalNum > 31)
     {
@@ -2603,7 +2603,7 @@ void _exec_AddPort ( register struct ExecBase * SysBase __asm("a6"),
 {
     DPRINTF (LOG_DEBUG, "_exec: AddPort() called, port=0x%08lx, name=%s\n",
              ___port, ___port->mp_Node.ln_Name ? ___port->mp_Node.ln_Name : "NULL");
-    LPRINTF (LOG_INFO, "_exec: AddPort() port=0x%08lx name=%s\n",
+    DPRINTF(LOG_DEBUG, "_exec: AddPort() port=0x%08lx name=%s\n",
              (ULONG)___port, ___port->mp_Node.ln_Name ? ___port->mp_Node.ln_Name : "NULL");
 
     /* Arbitrate for the list of messageports. */
@@ -2642,7 +2642,7 @@ void _exec_PutMsg ( register struct ExecBase * SysBase __asm("a6"),
                                                         register struct Message * ___message  __asm("a1"))
 {
     DPRINTF (LOG_DEBUG, "_exec: PutMsg() called, port=0x%08lx, message=0x%08lx\n", ___port, ___message);
-    LPRINTF (LOG_INFO, "_exec: PutMsg() port=0x%08lx msg=0x%08lx\n", (ULONG)___port, (ULONG)___message);
+    DPRINTF(LOG_DEBUG, "_exec: PutMsg() port=0x%08lx msg=0x%08lx\n", (ULONG)___port, (ULONG)___message);
 
     if (___port == NULL || ___message == NULL)
     {
@@ -2771,7 +2771,7 @@ struct Message * _exec_WaitPort ( register struct ExecBase * SysBase __asm("a6")
                                                   register struct MsgPort * ___port  __asm("a0"))
 {
     DPRINTF (LOG_DEBUG, "_exec: WaitPort() called, port=0x%08lx\n", ___port);
-    LPRINTF (LOG_INFO, "_exec: WaitPort(port=0x%08lx) task='%s'\n", (ULONG)___port,
+    DPRINTF(LOG_DEBUG, "_exec: WaitPort(port=0x%08lx) task='%s'\n", (ULONG)___port,
              SysBase->ThisTask ? SysBase->ThisTask->tc_Node.ln_Name : "?");
 
     /*
@@ -2805,13 +2805,13 @@ struct MsgPort * _exec_FindPort ( register struct ExecBase * SysBase __asm("a6")
                                                         register CONST_STRPTR ___name  __asm("a1"))
 {
     DPRINTF (LOG_DEBUG, "_exec: FindPort() called, name=%s\n", ___name ? (char *)___name : "NULL");
-    LPRINTF (LOG_INFO, "_exec: FindPort() name=%s\n", ___name ? (char *)___name : "NULL");
+    DPRINTF(LOG_DEBUG, "_exec: FindPort() name=%s\n", ___name ? (char *)___name : "NULL");
 
     /* Nothing spectacular - just look for that name. */
     struct MsgPort *retVal = (struct MsgPort *)FindName(&SysBase->PortList, ___name);
 
     DPRINTF (LOG_DEBUG, "_exec: FindPort() returning 0x%08lx\n", retVal);
-    LPRINTF (LOG_INFO, "_exec: FindPort() returning 0x%08lx\n", (ULONG)retVal);
+    DPRINTF(LOG_DEBUG, "_exec: FindPort() returning 0x%08lx\n", (ULONG)retVal);
 
     return retVal;
 }
@@ -4576,6 +4576,7 @@ void _exec_AddMemList ( register struct ExecBase * SysBase __asm("a6"),
     #undef MEMHEADER_TOTAL
 }
 
+__attribute__((optimize("no-tree-loop-distribute-patterns")))
 void _exec_CopyMem ( register struct ExecBase *SysBase __asm("a6"),
                                      register const APTR       source  __asm("a0"),
                                      register APTR             dest    __asm("a1"),
@@ -4590,6 +4591,33 @@ void _exec_CopyMem ( register struct ExecBase *SysBase __asm("a6"),
     {
         const UBYTE *src = (const UBYTE *)source;
         UBYTE *dst = (UBYTE *)dest;
+
+        /* Same word alignment: copy long words (4 bytes per move) */
+        if (size >= 16 && !(((ULONG)src ^ (ULONG)dst) & 1))
+        {
+            const ULONG *ls;
+            ULONG *ld;
+            ULONG blocks;
+
+            if ((ULONG)src & 1)
+            {
+                *dst++ = *src++;
+                size--;
+            }
+            ls = (const ULONG *)src;
+            ld = (ULONG *)dst;
+            blocks = size >> 4;
+            size &= 15;
+            while (blocks--)
+            {
+                *ld++ = *ls++;
+                *ld++ = *ls++;
+                *ld++ = *ls++;
+                *ld++ = *ls++;
+            }
+            src = (const UBYTE *)ls;
+            dst = (UBYTE *)ld;
+        }
 
         while (size--)
             *dst++ = *src++;

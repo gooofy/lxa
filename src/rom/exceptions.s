@@ -260,6 +260,9 @@ _handleIRQ3:
     /* Process DOS notify requests after timer/input updates */
     jsr         __dos_NotifyVBlankHook
 
+    /* Wake tasks blocked in WaitTOF()/WaitBOVP() */
+    jsr         __graphics_VBlankHook
+
     move.l      4, a6                               | restore a6 (C call may have changed it)
 
     /* count down current task's time slice */

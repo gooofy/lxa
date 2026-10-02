@@ -1,0 +1,7562 @@
+[
+ {
+  "lib": "amigaguide",
+  "lvo": -36,
+  "function": "LockAmigaGuideBase",
+  "symbol": "",
+  "status": "untested"
+ },
+ {
+  "lib": "amigaguide",
+  "lvo": -42,
+  "function": "UnlockAmigaGuideBase",
+  "symbol": "",
+  "status": "untested"
+ },
+ {
+  "lib": "amigaguide",
+  "lvo": -54,
+  "function": "OpenAmigaGuideA",
+  "symbol": "",
+  "status": "untested"
+ },
+ {
+  "lib": "amigaguide",
+  "lvo": -60,
+  "function": "OpenAmigaGuideAsyncA",
+  "symbol": "",
+  "status": "tested"
+ },
+ {
+  "lib": "amigaguide",
+  "lvo": -66,
+  "function": "CloseAmigaGuide",
+  "symbol": "",
+  "status": "untested"
+ },
+ {
+  "lib": "amigaguide",
+  "lvo": -72,
+  "function": "AmigaGuideSignal",
+  "symbol": "",
+  "status": "untested"
+ },
+ {
+  "lib": "amigaguide",
+  "lvo": -78,
+  "function": "GetAmigaGuideMsg",
+  "symbol": "",
+  "status": "untested"
+ },
+ {
+  "lib": "amigaguide",
+  "lvo": -84,
+  "function": "ReplyAmigaGuideMsg",
+  "symbol": "",
+  "status": "untested"
+ },
+ {
+  "lib": "amigaguide",
+  "lvo": -90,
+  "function": "SetAmigaGuideContextA",
+  "symbol": "",
+  "status": "untested"
+ },
+ {
+  "lib": "amigaguide",
+  "lvo": -96,
+  "function": "SendAmigaGuideContextA",
+  "symbol": "",
+  "status": "untested"
+ },
+ {
+  "lib": "amigaguide",
+  "lvo": -102,
+  "function": "SendAmigaGuideCmdA",
+  "symbol": "",
+  "status": "untested"
+ },
+ {
+  "lib": "amigaguide",
+  "lvo": -108,
+  "function": "SetAmigaGuideAttrsA",
+  "symbol": "",
+  "status": "untested"
+ },
+ {
+  "lib": "amigaguide",
+  "lvo": -114,
+  "function": "GetAmigaGuideAttr",
+  "symbol": "",
+  "status": "untested"
+ },
+ {
+  "lib": "amigaguide",
+  "lvo": -126,
+  "function": "LoadXRef",
+  "symbol": "",
+  "status": "untested"
+ },
+ {
+  "lib": "amigaguide",
+  "lvo": -132,
+  "function": "ExpungeXRef",
+  "symbol": "",
+  "status": "untested"
+ },
+ {
+  "lib": "amigaguide",
+  "lvo": -138,
+  "function": "AddAmigaGuideHostA",
+  "symbol": "",
+  "status": "untested"
+ },
+ {
+  "lib": "amigaguide",
+  "lvo": -144,
+  "function": "RemoveAmigaGuideHostA",
+  "symbol": "",
+  "status": "untested"
+ },
+ {
+  "lib": "amigaguide",
+  "lvo": -210,
+  "function": "GetAmigaGuideString",
+  "symbol": "",
+  "status": "untested"
+ },
+ {
+  "lib": "asl",
+  "lvo": -30,
+  "function": "AllocFileRequest",
+  "symbol": "asl_AllocFileRequest",
+  "status": "untested"
+ },
+ {
+  "lib": "asl",
+  "lvo": -36,
+  "function": "FreeFileRequest",
+  "symbol": "asl_FreeFileRequest",
+  "status": "untested"
+ },
+ {
+  "lib": "asl",
+  "lvo": -42,
+  "function": "RequestFile",
+  "symbol": "asl_RequestFile",
+  "status": "untested"
+ },
+ {
+  "lib": "asl",
+  "lvo": -48,
+  "function": "AllocAslRequest",
+  "symbol": "asl_AllocAslRequest",
+  "status": "tested"
+ },
+ {
+  "lib": "asl",
+  "lvo": -54,
+  "function": "FreeAslRequest",
+  "symbol": "asl_FreeAslRequest",
+  "status": "tested"
+ },
+ {
+  "lib": "asl",
+  "lvo": -60,
+  "function": "AslRequest",
+  "symbol": "asl_AslRequest",
+  "status": "tested"
+ },
+ {
+  "lib": "asl",
+  "lvo": -78,
+  "function": "AbortAslRequest",
+  "symbol": "",
+  "status": "no ROM symbol"
+ },
+ {
+  "lib": "asl",
+  "lvo": -84,
+  "function": "ActivateAslRequest",
+  "symbol": "",
+  "status": "no ROM symbol"
+ },
+ {
+  "lib": "battclock",
+  "lvo": -6,
+  "function": "ResetBattClock",
+  "symbol": "",
+  "status": "no ROM symbol"
+ },
+ {
+  "lib": "battclock",
+  "lvo": -12,
+  "function": "ReadBattClock",
+  "symbol": "",
+  "status": "no ROM symbol"
+ },
+ {
+  "lib": "battclock",
+  "lvo": -18,
+  "function": "WriteBattClock",
+  "symbol": "",
+  "status": "no ROM symbol"
+ },
+ {
+  "lib": "battmem",
+  "lvo": -6,
+  "function": "ObtainBattSemaphore",
+  "symbol": "",
+  "status": "no ROM symbol"
+ },
+ {
+  "lib": "battmem",
+  "lvo": -12,
+  "function": "ReleaseBattSemaphore",
+  "symbol": "",
+  "status": "no ROM symbol"
+ },
+ {
+  "lib": "battmem",
+  "lvo": -18,
+  "function": "ReadBattMem",
+  "symbol": "",
+  "status": "no ROM symbol"
+ },
+ {
+  "lib": "battmem",
+  "lvo": -24,
+  "function": "WriteBattMem",
+  "symbol": "",
+  "status": "no ROM symbol"
+ },
+ {
+  "lib": "bullet",
+  "lvo": -30,
+  "function": "OpenEngine",
+  "symbol": "",
+  "status": "no ROM symbol"
+ },
+ {
+  "lib": "bullet",
+  "lvo": -36,
+  "function": "CloseEngine",
+  "symbol": "",
+  "status": "no ROM symbol"
+ },
+ {
+  "lib": "bullet",
+  "lvo": -42,
+  "function": "SetInfoA",
+  "symbol": "",
+  "status": "no ROM symbol"
+ },
+ {
+  "lib": "bullet",
+  "lvo": -48,
+  "function": "ObtainInfoA",
+  "symbol": "",
+  "status": "no ROM symbol"
+ },
+ {
+  "lib": "bullet",
+  "lvo": -54,
+  "function": "ReleaseInfoA",
+  "symbol": "",
+  "status": "no ROM symbol"
+ },
+ {
+  "lib": "cardres",
+  "lvo": -6,
+  "function": "OwnCard",
+  "symbol": "",
+  "status": "no ROM symbol"
+ },
+ {
+  "lib": "cardres",
+  "lvo": -12,
+  "function": "ReleaseCard",
+  "symbol": "",
+  "status": "no ROM symbol"
+ },
+ {
+  "lib": "cardres",
+  "lvo": -18,
+  "function": "GetCardMap",
+  "symbol": "",
+  "status": "no ROM symbol"
+ },
+ {
+  "lib": "cardres",
+  "lvo": -24,
+  "function": "BeginCardAccess",
+  "symbol": "",
+  "status": "no ROM symbol"
+ },
+ {
+  "lib": "cardres",
+  "lvo": -30,
+  "function": "EndCardAccess",
+  "symbol": "",
+  "status": "no ROM symbol"
+ },
+ {
+  "lib": "cardres",
+  "lvo": -36,
+  "function": "ReadCardStatus",
+  "symbol": "",
+  "status": "no ROM symbol"
+ },
+ {
+  "lib": "cardres",
+  "lvo": -42,
+  "function": "CardResetRemove",
+  "symbol": "",
+  "status": "no ROM symbol"
+ },
+ {
+  "lib": "cardres",
+  "lvo": -48,
+  "function": "CardMiscControl",
+  "symbol": "",
+  "status": "no ROM symbol"
+ },
+ {
+  "lib": "cardres",
+  "lvo": -54,
+  "function": "CardAccessSpeed",
+  "symbol": "",
+  "status": "no ROM symbol"
+ },
+ {
+  "lib": "cardres",
+  "lvo": -60,
+  "function": "CardProgramVoltage",
+  "symbol": "",
+  "status": "no ROM symbol"
+ },
+ {
+  "lib": "cardres",
+  "lvo": -66,
+  "function": "CardResetCard",
+  "symbol": "",
+  "status": "no ROM symbol"
+ },
+ {
+  "lib": "cardres",
+  "lvo": -72,
+  "function": "CopyTuple",
+  "symbol": "",
+  "status": "no ROM symbol"
+ },
+ {
+  "lib": "cardres",
+  "lvo": -78,
+  "function": "DeviceTuple",
+  "symbol": "",
+  "status": "no ROM symbol"
+ },
+ {
+  "lib": "cardres",
+  "lvo": -84,
+  "function": "IfAmigaXIP",
+  "symbol": "",
+  "status": "no ROM symbol"
+ },
+ {
+  "lib": "cardres",
+  "lvo": -90,
+  "function": "CardForceChange",
+  "symbol": "",
+  "status": "no ROM symbol"
+ },
+ {
+  "lib": "cardres",
+  "lvo": -96,
+  "function": "CardChangeCount",
+  "symbol": "",
+  "status": "no ROM symbol"
+ },
+ {
+  "lib": "cardres",
+  "lvo": -102,
+  "function": "CardInterface",
+  "symbol": "",
+  "status": "no ROM symbol"
+ },
+ {
+  "lib": "cia",
+  "lvo": -6,
+  "function": "__AddICRVector",
+  "symbol": "",
+  "status": "no ROM symbol"
+ },
+ {
+  "lib": "cia",
+  "lvo": -12,
+  "function": "__RemICRVector",
+  "symbol": "",
+  "status": "no ROM symbol"
+ },
+ {
+  "lib": "cia",
+  "lvo": -18,
+  "function": "__AbleICR",
+  "symbol": "",
+  "status": "no ROM symbol"
+ },
+ {
+  "lib": "cia",
+  "lvo": -24,
+  "function": "__SetICR",
+  "symbol": "",
+  "status": "no ROM symbol"
+ },
+ {
+  "lib": "colorwheel",
+  "lvo": -30,
+  "function": "ConvertHSBToRGB",
+  "symbol": "",
+  "status": "no ROM symbol"
+ },
+ {
+  "lib": "colorwheel",
+  "lvo": -36,
+  "function": "ConvertRGBToHSB",
+  "symbol": "",
+  "status": "no ROM symbol"
+ },
+ {
+  "lib": "commodities",
+  "lvo": -30,
+  "function": "CreateCxObj",
+  "symbol": "commodities_CreateCxObj",
+  "status": "untested"
+ },
+ {
+  "lib": "commodities",
+  "lvo": -36,
+  "function": "CxBroker",
+  "symbol": "commodities_CxBroker",
+  "status": "tested"
+ },
+ {
+  "lib": "commodities",
+  "lvo": -42,
+  "function": "ActivateCxObj",
+  "symbol": "commodities_ActivateCxObj",
+  "status": "untested"
+ },
+ {
+  "lib": "commodities",
+  "lvo": -48,
+  "function": "DeleteCxObj",
+  "symbol": "commodities_DeleteCxObj",
+  "status": "untested"
+ },
+ {
+  "lib": "commodities",
+  "lvo": -54,
+  "function": "DeleteCxObjAll",
+  "symbol": "commodities_DeleteCxObjAll",
+  "status": "tested"
+ },
+ {
+  "lib": "commodities",
+  "lvo": -60,
+  "function": "CxObjType",
+  "symbol": "commodities_CxObjType",
+  "status": "untested"
+ },
+ {
+  "lib": "commodities",
+  "lvo": -66,
+  "function": "CxObjError",
+  "symbol": "commodities_CxObjError",
+  "status": "untested"
+ },
+ {
+  "lib": "commodities",
+  "lvo": -72,
+  "function": "ClearCxObjError",
+  "symbol": "commodities_ClearCxObjError",
+  "status": "untested"
+ },
+ {
+  "lib": "commodities",
+  "lvo": -78,
+  "function": "SetCxObjPri",
+  "symbol": "commodities_SetCxObjPri",
+  "status": "untested"
+ },
+ {
+  "lib": "commodities",
+  "lvo": -84,
+  "function": "AttachCxObj",
+  "symbol": "commodities_AttachCxObj",
+  "status": "untested"
+ },
+ {
+  "lib": "commodities",
+  "lvo": -90,
+  "function": "EnqueueCxObj",
+  "symbol": "commodities_EnqueueCxObj",
+  "status": "untested"
+ },
+ {
+  "lib": "commodities",
+  "lvo": -96,
+  "function": "InsertCxObj",
+  "symbol": "commodities_InsertCxObj",
+  "status": "untested"
+ },
+ {
+  "lib": "commodities",
+  "lvo": -102,
+  "function": "RemoveCxObj",
+  "symbol": "commodities_RemoveCxObj",
+  "status": "untested"
+ },
+ {
+  "lib": "commodities",
+  "lvo": -114,
+  "function": "SetTranslate",
+  "symbol": "commodities_SetTranslate",
+  "status": "untested"
+ },
+ {
+  "lib": "commodities",
+  "lvo": -120,
+  "function": "SetFilter",
+  "symbol": "commodities_SetFilter",
+  "status": "untested"
+ },
+ {
+  "lib": "commodities",
+  "lvo": -126,
+  "function": "SetFilterIX",
+  "symbol": "commodities_SetFilterIX",
+  "status": "untested"
+ },
+ {
+  "lib": "commodities",
+  "lvo": -132,
+  "function": "ParseIX",
+  "symbol": "commodities_ParseIX",
+  "status": "untested"
+ },
+ {
+  "lib": "commodities",
+  "lvo": -138,
+  "function": "CxMsgType",
+  "symbol": "commodities_CxMsgType",
+  "status": "untested"
+ },
+ {
+  "lib": "commodities",
+  "lvo": -144,
+  "function": "CxMsgData",
+  "symbol": "commodities_CxMsgData",
+  "status": "untested"
+ },
+ {
+  "lib": "commodities",
+  "lvo": -150,
+  "function": "CxMsgID",
+  "symbol": "commodities_CxMsgID",
+  "status": "untested"
+ },
+ {
+  "lib": "commodities",
+  "lvo": -156,
+  "function": "DivertCxMsg",
+  "symbol": "commodities_DivertCxMsg",
+  "status": "untested"
+ },
+ {
+  "lib": "commodities",
+  "lvo": -162,
+  "function": "RouteCxMsg",
+  "symbol": "commodities_RouteCxMsg",
+  "status": "untested"
+ },
+ {
+  "lib": "commodities",
+  "lvo": -168,
+  "function": "DisposeCxMsg",
+  "symbol": "commodities_DisposeCxMsg",
+  "status": "untested"
+ },
+ {
+  "lib": "commodities",
+  "lvo": -174,
+  "function": "InvertKeyMap",
+  "symbol": "commodities_InvertKeyMap",
+  "status": "untested"
+ },
+ {
+  "lib": "commodities",
+  "lvo": -180,
+  "function": "AddIEvents",
+  "symbol": "commodities_AddIEvents",
+  "status": "untested"
+ },
+ {
+  "lib": "commodities",
+  "lvo": -204,
+  "function": "MatchIX",
+  "symbol": "commodities_MatchIX",
+  "status": "untested"
+ },
+ {
+  "lib": "console",
+  "lvo": -42,
+  "function": "CDInputHandler",
+  "symbol": "g_lxa_console_CDInputHandler",
+  "status": "untested"
+ },
+ {
+  "lib": "console",
+  "lvo": -48,
+  "function": "RawKeyConvert",
+  "symbol": "g_lxa_console_RawKeyConvert",
+  "status": "tested"
+ },
+ {
+  "lib": "datatypes",
+  "lvo": -36,
+  "function": "ObtainDataTypeA",
+  "symbol": "",
+  "status": "tested"
+ },
+ {
+  "lib": "datatypes",
+  "lvo": -42,
+  "function": "ReleaseDataType",
+  "symbol": "",
+  "status": "tested"
+ },
+ {
+  "lib": "datatypes",
+  "lvo": -48,
+  "function": "NewDTObjectA",
+  "symbol": "",
+  "status": "tested"
+ },
+ {
+  "lib": "datatypes",
+  "lvo": -54,
+  "function": "DisposeDTObject",
+  "symbol": "",
+  "status": "tested"
+ },
+ {
+  "lib": "datatypes",
+  "lvo": -60,
+  "function": "SetDTAttrsA",
+  "symbol": "",
+  "status": "tested"
+ },
+ {
+  "lib": "datatypes",
+  "lvo": -66,
+  "function": "GetDTAttrsA",
+  "symbol": "",
+  "status": "tested"
+ },
+ {
+  "lib": "datatypes",
+  "lvo": -72,
+  "function": "AddDTObject",
+  "symbol": "",
+  "status": "untested"
+ },
+ {
+  "lib": "datatypes",
+  "lvo": -78,
+  "function": "RefreshDTObjectA",
+  "symbol": "",
+  "status": "untested"
+ },
+ {
+  "lib": "datatypes",
+  "lvo": -84,
+  "function": "DoAsyncLayout",
+  "symbol": "",
+  "status": "untested"
+ },
+ {
+  "lib": "datatypes",
+  "lvo": -90,
+  "function": "DoDTMethodA",
+  "symbol": "",
+  "status": "untested"
+ },
+ {
+  "lib": "datatypes",
+  "lvo": -96,
+  "function": "RemoveDTObject",
+  "symbol": "",
+  "status": "untested"
+ },
+ {
+  "lib": "datatypes",
+  "lvo": -102,
+  "function": "GetDTMethods",
+  "symbol": "",
+  "status": "untested"
+ },
+ {
+  "lib": "datatypes",
+  "lvo": -108,
+  "function": "GetDTTriggerMethods",
+  "symbol": "",
+  "status": "untested"
+ },
+ {
+  "lib": "datatypes",
+  "lvo": -114,
+  "function": "PrintDTObjectA",
+  "symbol": "",
+  "status": "untested"
+ },
+ {
+  "lib": "datatypes",
+  "lvo": -138,
+  "function": "GetDTString",
+  "symbol": "",
+  "status": "tested"
+ },
+ {
+  "lib": "datatypes",
+  "lvo": -258,
+  "function": "FindMethod",
+  "symbol": "",
+  "status": "disk library (not loaded)"
+ },
+ {
+  "lib": "datatypes",
+  "lvo": -264,
+  "function": "FindTriggerMethod",
+  "symbol": "",
+  "status": "disk library (not loaded)"
+ },
+ {
+  "lib": "datatypes",
+  "lvo": -270,
+  "function": "CopyDTMethods",
+  "symbol": "",
+  "status": "disk library (not loaded)"
+ },
+ {
+  "lib": "datatypes",
+  "lvo": -276,
+  "function": "CopyDTTriggerMethods",
+  "symbol": "",
+  "status": "disk library (not loaded)"
+ },
+ {
+  "lib": "datatypes",
+  "lvo": -282,
+  "function": "FreeDTMethods",
+  "symbol": "",
+  "status": "disk library (not loaded)"
+ },
+ {
+  "lib": "datatypes",
+  "lvo": -288,
+  "function": "GetDTTriggerMethodDataFlags",
+  "symbol": "",
+  "status": "disk library (not loaded)"
+ },
+ {
+  "lib": "datatypes",
+  "lvo": -294,
+  "function": "SaveDTObjectA",
+  "symbol": "",
+  "status": "disk library (not loaded)"
+ },
+ {
+  "lib": "datatypes",
+  "lvo": -300,
+  "function": "StartDragSelect",
+  "symbol": "",
+  "status": "disk library (not loaded)"
+ },
+ {
+  "lib": "disk",
+  "lvo": -6,
+  "function": "AllocUnit",
+  "symbol": "",
+  "status": "no ROM symbol"
+ },
+ {
+  "lib": "disk",
+  "lvo": -12,
+  "function": "FreeUnit",
+  "symbol": "",
+  "status": "no ROM symbol"
+ },
+ {
+  "lib": "disk",
+  "lvo": -18,
+  "function": "GetUnit",
+  "symbol": "",
+  "status": "no ROM symbol"
+ },
+ {
+  "lib": "disk",
+  "lvo": -24,
+  "function": "GiveUnit",
+  "symbol": "",
+  "status": "no ROM symbol"
+ },
+ {
+  "lib": "disk",
+  "lvo": -30,
+  "function": "GetUnitID",
+  "symbol": "",
+  "status": "no ROM symbol"
+ },
+ {
+  "lib": "disk",
+  "lvo": -36,
+  "function": "ReadUnitID",
+  "symbol": "",
+  "status": "no ROM symbol"
+ },
+ {
+  "lib": "diskfont",
+  "lvo": -30,
+  "function": "OpenDiskFont",
+  "symbol": "diskfont_OpenDiskFont",
+  "status": "tested"
+ },
+ {
+  "lib": "diskfont",
+  "lvo": -36,
+  "function": "AvailFonts",
+  "symbol": "diskfont_AvailFonts",
+  "status": "tested"
+ },
+ {
+  "lib": "diskfont",
+  "lvo": -42,
+  "function": "NewFontContents",
+  "symbol": "diskfont_NewFontContents",
+  "status": "tested"
+ },
+ {
+  "lib": "diskfont",
+  "lvo": -48,
+  "function": "DisposeFontContents",
+  "symbol": "diskfont_DisposeFontContents",
+  "status": "tested"
+ },
+ {
+  "lib": "diskfont",
+  "lvo": -54,
+  "function": "NewScaledDiskFont",
+  "symbol": "diskfont_NewScaledDiskFont",
+  "status": "untested"
+ },
+ {
+  "lib": "diskfont",
+  "lvo": -60,
+  "function": "GetDiskFontCtrl",
+  "symbol": "diskfont_GetDiskFontCtrl",
+  "status": "tested"
+ },
+ {
+  "lib": "diskfont",
+  "lvo": -66,
+  "function": "SetDiskFontCtrlA",
+  "symbol": "diskfont_SetDiskFontCtrlA",
+  "status": "tested"
+ },
+ {
+  "lib": "diskfont",
+  "lvo": -72,
+  "function": "EOpenEngine",
+  "symbol": "diskfont_EOpenEngine",
+  "status": "tested"
+ },
+ {
+  "lib": "diskfont",
+  "lvo": -78,
+  "function": "ECloseEngine",
+  "symbol": "diskfont_ECloseEngine",
+  "status": "tested"
+ },
+ {
+  "lib": "diskfont",
+  "lvo": -84,
+  "function": "ESetInfoA",
+  "symbol": "diskfont_ESetInfoA",
+  "status": "tested"
+ },
+ {
+  "lib": "diskfont",
+  "lvo": -90,
+  "function": "EObtainInfoA",
+  "symbol": "diskfont_EObtainInfoA",
+  "status": "tested"
+ },
+ {
+  "lib": "diskfont",
+  "lvo": -96,
+  "function": "EReleaseInfoA",
+  "symbol": "diskfont_EReleaseInfoA",
+  "status": "tested"
+ },
+ {
+  "lib": "diskfont",
+  "lvo": -102,
+  "function": "OpenOutlineFont",
+  "symbol": "diskfont_OpenOutlineFont",
+  "status": "tested"
+ },
+ {
+  "lib": "diskfont",
+  "lvo": -108,
+  "function": "CloseOutlineFont",
+  "symbol": "diskfont_CloseOutlineFont",
+  "status": "tested"
+ },
+ {
+  "lib": "diskfont",
+  "lvo": -114,
+  "function": "WriteFontContents",
+  "symbol": "diskfont_WriteFontContents",
+  "status": "tested"
+ },
+ {
+  "lib": "diskfont",
+  "lvo": -120,
+  "function": "WriteDiskFontHeaderA",
+  "symbol": "diskfont_WriteDiskFontHeaderA",
+  "status": "tested"
+ },
+ {
+  "lib": "diskfont",
+  "lvo": -126,
+  "function": "ObtainCharsetInfo",
+  "symbol": "diskfont_ObtainCharsetInfo",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -30,
+  "function": "Open",
+  "symbol": "dos_Open",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -36,
+  "function": "Close",
+  "symbol": "dos_Close",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -42,
+  "function": "Read",
+  "symbol": "dos_Read",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -48,
+  "function": "Write",
+  "symbol": "dos_Write",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -54,
+  "function": "Input",
+  "symbol": "dos_Input",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -60,
+  "function": "Output",
+  "symbol": "dos_Output",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -66,
+  "function": "Seek",
+  "symbol": "dos_Seek",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -72,
+  "function": "DeleteFile",
+  "symbol": "dos_DeleteFile",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -78,
+  "function": "Rename",
+  "symbol": "dos_Rename",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -84,
+  "function": "Lock",
+  "symbol": "dos_Lock",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -90,
+  "function": "UnLock",
+  "symbol": "dos_UnLock",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -96,
+  "function": "DupLock",
+  "symbol": "dos_DupLock",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -102,
+  "function": "Examine",
+  "symbol": "dos_Examine",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -108,
+  "function": "ExNext",
+  "symbol": "dos_ExNext",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -114,
+  "function": "Info",
+  "symbol": "dos_Info",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -120,
+  "function": "CreateDir",
+  "symbol": "dos_CreateDir",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -126,
+  "function": "CurrentDir",
+  "symbol": "dos_CurrentDir",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -132,
+  "function": "IoErr",
+  "symbol": "dos_IoErr",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -138,
+  "function": "CreateProc",
+  "symbol": "dos_CreateProc",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -144,
+  "function": "Exit",
+  "symbol": "dos_Exit",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -150,
+  "function": "LoadSeg",
+  "symbol": "dos_LoadSeg",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -156,
+  "function": "UnLoadSeg",
+  "symbol": "dos_UnLoadSeg",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -174,
+  "function": "DeviceProc",
+  "symbol": "dos_DeviceProc",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -180,
+  "function": "SetComment",
+  "symbol": "dos_SetComment",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -186,
+  "function": "SetProtection",
+  "symbol": "dos_SetProtection",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -192,
+  "function": "DateStamp",
+  "symbol": "dos_DateStamp",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -198,
+  "function": "Delay",
+  "symbol": "dos_Delay",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -204,
+  "function": "WaitForChar",
+  "symbol": "dos_WaitForChar",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -210,
+  "function": "ParentDir",
+  "symbol": "dos_ParentDir",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -216,
+  "function": "IsInteractive",
+  "symbol": "dos_IsInteractive",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -222,
+  "function": "Execute",
+  "symbol": "dos_Execute",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -228,
+  "function": "AllocDosObjectTagList/AllocDosObject",
+  "symbol": "dos_AllocDosObject",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -234,
+  "function": "FreeDosObject",
+  "symbol": "dos_FreeDosObject",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -240,
+  "function": "DoPkt2/DoPkt3/DoPkt1/DoPkt/DoPkt0/DoPkt4",
+  "symbol": "dos_DoPkt",
+  "status": "untested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -246,
+  "function": "SendPkt",
+  "symbol": "dos_SendPkt",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -252,
+  "function": "WaitPkt",
+  "symbol": "dos_WaitPkt",
+  "status": "untested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -258,
+  "function": "ReplyPkt",
+  "symbol": "dos_ReplyPkt",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -264,
+  "function": "AbortPkt",
+  "symbol": "dos_AbortPkt",
+  "status": "untested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -270,
+  "function": "LockRecord",
+  "symbol": "dos_LockRecord",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -276,
+  "function": "LockRecords",
+  "symbol": "dos_LockRecords",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -282,
+  "function": "UnLockRecord",
+  "symbol": "dos_UnLockRecord",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -288,
+  "function": "UnLockRecords",
+  "symbol": "dos_UnLockRecords",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -294,
+  "function": "SelectInput",
+  "symbol": "dos_SelectInput",
+  "status": "untested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -300,
+  "function": "SelectOutput",
+  "symbol": "dos_SelectOutput",
+  "status": "untested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -306,
+  "function": "FGetC",
+  "symbol": "dos_FGetC",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -312,
+  "function": "FPutC",
+  "symbol": "dos_FPutC",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -318,
+  "function": "UnGetC",
+  "symbol": "dos_UnGetC",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -324,
+  "function": "FRead",
+  "symbol": "dos_FRead",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -330,
+  "function": "FWrite",
+  "symbol": "dos_FWrite",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -336,
+  "function": "FGets",
+  "symbol": "dos_FGets",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -342,
+  "function": "FPuts",
+  "symbol": "dos_FPuts",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -348,
+  "function": "VFWritef",
+  "symbol": "dos_VFWritef",
+  "status": "untested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -354,
+  "function": "VFPrintf",
+  "symbol": "dos_VFPrintf",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -360,
+  "function": "Flush",
+  "symbol": "dos_Flush",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -366,
+  "function": "SetVBuf",
+  "symbol": "dos_SetVBuf",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -372,
+  "function": "DupLockFromFH",
+  "symbol": "dos_DupLockFromFH",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -378,
+  "function": "OpenFromLock",
+  "symbol": "dos_OpenFromLock",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -384,
+  "function": "ParentOfFH",
+  "symbol": "dos_ParentOfFH",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -390,
+  "function": "ExamineFH",
+  "symbol": "dos_ExamineFH",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -396,
+  "function": "SetFileDate",
+  "symbol": "dos_SetFileDate",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -402,
+  "function": "NameFromLock",
+  "symbol": "dos_NameFromLock",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -408,
+  "function": "NameFromFH",
+  "symbol": "dos_NameFromFH",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -414,
+  "function": "SplitName",
+  "symbol": "dos_SplitName",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -420,
+  "function": "SameLock",
+  "symbol": "dos_SameLock",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -426,
+  "function": "SetMode",
+  "symbol": "dos_SetMode",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -432,
+  "function": "ExAll",
+  "symbol": "dos_ExAll",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -438,
+  "function": "ReadLink",
+  "symbol": "dos_ReadLink",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -444,
+  "function": "MakeLink",
+  "symbol": "dos_MakeLink",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -450,
+  "function": "ChangeMode",
+  "symbol": "dos_ChangeMode",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -456,
+  "function": "SetFileSize",
+  "symbol": "dos_SetFileSize",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -462,
+  "function": "SetIoErr",
+  "symbol": "dos_SetIoErr",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -468,
+  "function": "Fault",
+  "symbol": "dos_Fault",
+  "status": "untested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -474,
+  "function": "PrintFault",
+  "symbol": "dos_PrintFault",
+  "status": "untested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -480,
+  "function": "ErrorReport",
+  "symbol": "dos_ErrorReport",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -492,
+  "function": "Cli",
+  "symbol": "dos_Cli",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -498,
+  "function": "CreateNewProc/CreateNewProcTagList",
+  "symbol": "dos_CreateNewProc",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -504,
+  "function": "RunCommand",
+  "symbol": "dos_RunCommand",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -510,
+  "function": "GetConsoleTask",
+  "symbol": "dos_GetConsoleTask",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -516,
+  "function": "SetConsoleTask",
+  "symbol": "dos_SetConsoleTask",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -522,
+  "function": "GetFileSysTask",
+  "symbol": "dos_GetFileSysTask",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -528,
+  "function": "SetFileSysTask",
+  "symbol": "dos_SetFileSysTask",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -534,
+  "function": "GetArgStr",
+  "symbol": "dos_GetArgStr",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -540,
+  "function": "SetArgStr",
+  "symbol": "dos_SetArgStr",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -546,
+  "function": "FindCliProc",
+  "symbol": "dos_FindCliProc",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -552,
+  "function": "MaxCli",
+  "symbol": "dos_MaxCli",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -558,
+  "function": "SetCurrentDirName",
+  "symbol": "dos_SetCurrentDirName",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -564,
+  "function": "GetCurrentDirName",
+  "symbol": "dos_GetCurrentDirName",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -570,
+  "function": "SetProgramName",
+  "symbol": "dos_SetProgramName",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -576,
+  "function": "GetProgramName",
+  "symbol": "dos_GetProgramName",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -582,
+  "function": "SetPrompt",
+  "symbol": "dos_SetPrompt",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -588,
+  "function": "GetPrompt",
+  "symbol": "dos_GetPrompt",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -594,
+  "function": "SetProgramDir",
+  "symbol": "dos_SetProgramDir",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -600,
+  "function": "GetProgramDir",
+  "symbol": "dos_GetProgramDir",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -606,
+  "function": "System/SystemTagList",
+  "symbol": "dos_SystemTagList",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -612,
+  "function": "AssignLock",
+  "symbol": "dos_AssignLock",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -618,
+  "function": "AssignLate",
+  "symbol": "dos_AssignLate",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -624,
+  "function": "AssignPath",
+  "symbol": "dos_AssignPath",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -630,
+  "function": "AssignAdd",
+  "symbol": "dos_AssignAdd",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -636,
+  "function": "RemAssignList",
+  "symbol": "dos_RemAssignList",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -642,
+  "function": "GetDeviceProc",
+  "symbol": "dos_GetDeviceProc",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -648,
+  "function": "FreeDeviceProc",
+  "symbol": "dos_FreeDeviceProc",
+  "status": "untested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -654,
+  "function": "LockDosList",
+  "symbol": "dos_LockDosList",
+  "status": "untested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -660,
+  "function": "UnLockDosList",
+  "symbol": "dos_UnLockDosList",
+  "status": "untested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -666,
+  "function": "AttemptLockDosList",
+  "symbol": "dos_AttemptLockDosList",
+  "status": "untested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -672,
+  "function": "RemDosEntry",
+  "symbol": "dos_RemDosEntry",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -678,
+  "function": "AddDosEntry",
+  "symbol": "dos_AddDosEntry",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -684,
+  "function": "FindDosEntry",
+  "symbol": "dos_FindDosEntry",
+  "status": "untested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -690,
+  "function": "NextDosEntry",
+  "symbol": "dos_NextDosEntry",
+  "status": "untested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -696,
+  "function": "MakeDosEntry",
+  "symbol": "dos_MakeDosEntry",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -702,
+  "function": "FreeDosEntry",
+  "symbol": "dos_FreeDosEntry",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -708,
+  "function": "IsFileSystem",
+  "symbol": "dos_IsFileSystem",
+  "status": "untested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -714,
+  "function": "Format",
+  "symbol": "dos_Format",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -720,
+  "function": "Relabel",
+  "symbol": "dos_Relabel",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -726,
+  "function": "Inhibit",
+  "symbol": "dos_Inhibit",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -732,
+  "function": "AddBuffers",
+  "symbol": "dos_AddBuffers",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -738,
+  "function": "CompareDates",
+  "symbol": "dos_CompareDates",
+  "status": "untested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -744,
+  "function": "DateToStr",
+  "symbol": "dos_DateToStr",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -750,
+  "function": "StrToDate",
+  "symbol": "dos_StrToDate",
+  "status": "untested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -756,
+  "function": "InternalLoadSeg",
+  "symbol": "dos_InternalLoadSeg",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -762,
+  "function": "InternalUnLoadSeg",
+  "symbol": "dos_InternalUnLoadSeg",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -768,
+  "function": "NewLoadSegTagList/NewLoadSeg",
+  "symbol": "dos_NewLoadSeg",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -774,
+  "function": "AddSegment",
+  "symbol": "dos_AddSegment",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -780,
+  "function": "FindSegment",
+  "symbol": "dos_FindSegment",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -786,
+  "function": "RemSegment",
+  "symbol": "dos_RemSegment",
+  "status": "untested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -792,
+  "function": "CheckSignal",
+  "symbol": "dos_CheckSignal",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -798,
+  "function": "ReadArgs",
+  "symbol": "dos_ReadArgs",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -804,
+  "function": "FindArg",
+  "symbol": "dos_FindArg",
+  "status": "untested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -810,
+  "function": "ReadItem",
+  "symbol": "dos_ReadItem",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -816,
+  "function": "StrToLong",
+  "symbol": "dos_StrToLong",
+  "status": "untested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -822,
+  "function": "MatchFirst",
+  "symbol": "dos_MatchFirst",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -828,
+  "function": "MatchNext",
+  "symbol": "dos_MatchNext",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -834,
+  "function": "MatchEnd",
+  "symbol": "dos_MatchEnd",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -840,
+  "function": "ParsePattern",
+  "symbol": "dos_ParsePattern",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -846,
+  "function": "MatchPattern",
+  "symbol": "dos_MatchPattern",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -858,
+  "function": "FreeArgs",
+  "symbol": "dos_FreeArgs",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -870,
+  "function": "FilePart",
+  "symbol": "dos_FilePart",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -876,
+  "function": "PathPart",
+  "symbol": "dos_PathPart",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -882,
+  "function": "AddPart",
+  "symbol": "dos_AddPart",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -888,
+  "function": "StartNotify",
+  "symbol": "dos_StartNotify",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -894,
+  "function": "EndNotify",
+  "symbol": "dos_EndNotify",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -900,
+  "function": "SetVar",
+  "symbol": "dos_SetVar",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -906,
+  "function": "GetVar",
+  "symbol": "dos_GetVar",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -912,
+  "function": "DeleteVar",
+  "symbol": "dos_DeleteVar",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -918,
+  "function": "FindVar",
+  "symbol": "dos_FindVar",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -930,
+  "function": "CliInitNewcli",
+  "symbol": "dos_CliInitNewcli",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -936,
+  "function": "CliInitRun",
+  "symbol": "dos_CliInitRun",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -942,
+  "function": "WriteChars",
+  "symbol": "dos_WriteChars",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -948,
+  "function": "PutStr",
+  "symbol": "dos_PutStr",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -954,
+  "function": "VPrintf",
+  "symbol": "dos_VPrintf",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -966,
+  "function": "ParsePatternNoCase",
+  "symbol": "dos_ParsePatternNoCase",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -972,
+  "function": "MatchPatternNoCase",
+  "symbol": "dos_MatchPatternNoCase",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -984,
+  "function": "SameDevice",
+  "symbol": "dos_SameDevice",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -990,
+  "function": "ExAllEnd",
+  "symbol": "dos_ExAllEnd",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -996,
+  "function": "SetOwner",
+  "symbol": "dos_SetOwner",
+  "status": "tested"
+ },
+ {
+  "lib": "dos",
+  "lvo": -1014,
+  "function": "VolumeRequestHook",
+  "symbol": "",
+  "status": "no ROM symbol"
+ },
+ {
+  "lib": "dos",
+  "lvo": -1026,
+  "function": "GetCurrentDir",
+  "symbol": "",
+  "status": "no ROM symbol"
+ },
+ {
+  "lib": "dos",
+  "lvo": -1128,
+  "function": "PutErrStr",
+  "symbol": "",
+  "status": "no ROM symbol"
+ },
+ {
+  "lib": "dos",
+  "lvo": -1134,
+  "function": "ErrorOutput",
+  "symbol": "",
+  "status": "no ROM symbol"
+ },
+ {
+  "lib": "dos",
+  "lvo": -1140,
+  "function": "SelectError",
+  "symbol": "",
+  "status": "no ROM symbol"
+ },
+ {
+  "lib": "dos",
+  "lvo": -1152,
+  "function": "DoShellMethodTagList",
+  "symbol": "",
+  "status": "no ROM symbol"
+ },
+ {
+  "lib": "dos",
+  "lvo": -1158,
+  "function": "ScanStackToken",
+  "symbol": "",
+  "status": "no ROM symbol"
+ },
+ {
+  "lib": "exec",
+  "lvo": -30,
+  "function": "Supervisor",
+  "symbol": "exec_Supervisor",
+  "status": "tested"
+ },
+ {
+  "lib": "exec",
+  "lvo": -72,
+  "function": "InitCode",
+  "symbol": "exec_InitCode",
+  "status": "tested"
+ },
+ {
+  "lib": "exec",
+  "lvo": -78,
+  "function": "InitStruct",
+  "symbol": "exec_InitStruct",
+  "status": "tested"
+ },
+ {
+  "lib": "exec",
+  "lvo": -84,
+  "function": "MakeLibrary",
+  "symbol": "exec_MakeLibrary",
+  "status": "tested"
+ },
+ {
+  "lib": "exec",
+  "lvo": -90,
+  "function": "MakeFunctions",
+  "symbol": "exec_MakeFunctions",
+  "status": "tested"
+ },
+ {
+  "lib": "exec",
+  "lvo": -96,
+  "function": "FindResident",
+  "symbol": "exec_FindResident",
+  "status": "tested"
+ },
+ {
+  "lib": "exec",
+  "lvo": -102,
+  "function": "InitResident",
+  "symbol": "exec_InitResident",
+  "status": "tested"
+ },
+ {
+  "lib": "exec",
+  "lvo": -108,
+  "function": "Alert",
+  "symbol": "exec_Alert",
+  "status": "tested"
+ },
+ {
+  "lib": "exec",
+  "lvo": -114,
+  "function": "Debug",
+  "symbol": "exec_Debug",
+  "status": "untested"
+ },
+ {
+  "lib": "exec",
+  "lvo": -120,
+  "function": "Disable",
+  "symbol": "exec_Disable",
+  "status": "tested"
+ },
+ {
+  "lib": "exec",
+  "lvo": -126,
+  "function": "Enable",
+  "symbol": "exec_Enable",
+  "status": "tested"
+ },
+ {
+  "lib": "exec",
+  "lvo": -132,
+  "function": "Forbid",
+  "symbol": "exec_Forbid",
+  "status": "tested"
+ },
+ {
+  "lib": "exec",
+  "lvo": -138,
+  "function": "Permit",
+  "symbol": "exec_Permit",
+  "status": "tested"
+ },
+ {
+  "lib": "exec",
+  "lvo": -144,
+  "function": "SetSR",
+  "symbol": "exec_SetSR",
+  "status": "untested"
+ },
+ {
+  "lib": "exec",
+  "lvo": -150,
+  "function": "SuperState",
+  "symbol": "exec_SuperState",
+  "status": "tested"
+ },
+ {
+  "lib": "exec",
+  "lvo": -156,
+  "function": "UserState",
+  "symbol": "exec_UserState",
+  "status": "tested"
+ },
+ {
+  "lib": "exec",
+  "lvo": -162,
+  "function": "SetIntVector",
+  "symbol": "exec_SetIntVector",
+  "status": "tested"
+ },
+ {
+  "lib": "exec",
+  "lvo": -168,
+  "function": "AddIntServer",
+  "symbol": "exec_AddIntServer",
+  "status": "tested"
+ },
+ {
+  "lib": "exec",
+  "lvo": -174,
+  "function": "RemIntServer",
+  "symbol": "exec_RemIntServer",
+  "status": "tested"
+ },
+ {
+  "lib": "exec",
+  "lvo": -180,
+  "function": "Cause",
+  "symbol": "exec_Cause",
+  "status": "tested"
+ },
+ {
+  "lib": "exec",
+  "lvo": -186,
+  "function": "Allocate",
+  "symbol": "exec_Allocate",
+  "status": "tested"
+ },
+ {
+  "lib": "exec",
+  "lvo": -192,
+  "function": "Deallocate",
+  "symbol": "exec_Deallocate",
+  "status": "tested"
+ },
+ {
+  "lib": "exec",
+  "lvo": -198,
+  "function": "AllocMem",
+  "symbol": "exec_AllocMem",
+  "status": "tested"
+ },
+ {
+  "lib": "exec",
+  "lvo": -204,
+  "function": "AllocAbs",
+  "symbol": "exec_AllocAbs",
+  "status": "untested"
+ },
+ {
+  "lib": "exec",
+  "lvo": -210,
+  "function": "FreeMem",
+  "symbol": "exec_FreeMem",
+  "status": "tested"
+ },
+ {
+  "lib": "exec",
+  "lvo": -216,
+  "function": "AvailMem",
+  "symbol": "exec_AvailMem",
+  "status": "tested"
+ },
+ {
+  "lib": "exec",
+  "lvo": -222,
+  "function": "AllocEntry",
+  "symbol": "exec_AllocEntry",
+  "status": "tested"
+ },
+ {
+  "lib": "exec",
+  "lvo": -228,
+  "function": "FreeEntry",
+  "symbol": "exec_FreeEntry",
+  "status": "tested"
+ },
+ {
+  "lib": "exec",
+  "lvo": -234,
+  "function": "Insert/InsertMinNode",
+  "symbol": "exec_Insert",
+  "status": "tested"
+ },
+ {
+  "lib": "exec",
+  "lvo": -240,
+  "function": "AddHeadMinList/AddHead",
+  "symbol": "exec_AddHead",
+  "status": "tested"
+ },
+ {
+  "lib": "exec",
+  "lvo": -246,
+  "function": "AddTail/AddTailMinList",
+  "symbol": "exec_AddTail",
+  "status": "tested"
+ },
+ {
+  "lib": "exec",
+  "lvo": -252,
+  "function": "RemoveMinNode/Remove",
+  "symbol": "exec_Remove",
+  "status": "tested"
+ },
+ {
+  "lib": "exec",
+  "lvo": -258,
+  "function": "RemHead/RemHeadMinList",
+  "symbol": "exec_RemHead",
+  "status": "tested"
+ },
+ {
+  "lib": "exec",
+  "lvo": -264,
+  "function": "RemTailMinList/RemTail",
+  "symbol": "exec_RemTail",
+  "status": "tested"
+ },
+ {
+  "lib": "exec",
+  "lvo": -270,
+  "function": "Enqueue",
+  "symbol": "exec_Enqueue",
+  "status": "tested"
+ },
+ {
+  "lib": "exec",
+  "lvo": -276,
+  "function": "FindName",
+  "symbol": "exec_FindName",
+  "status": "tested"
+ },
+ {
+  "lib": "exec",
+  "lvo": -282,
+  "function": "AddTask",
+  "symbol": "exec_AddTask",
+  "status": "tested"
+ },
+ {
+  "lib": "exec",
+  "lvo": -288,
+  "function": "RemTask",
+  "symbol": "exec_RemTask",
+  "status": "tested"
+ },
+ {
+  "lib": "exec",
+  "lvo": -294,
+  "function": "FindTask",
+  "symbol": "exec_FindTask",
+  "status": "tested"
+ },
+ {
+  "lib": "exec",
+  "lvo": -300,
+  "function": "SetTaskPri",
+  "symbol": "exec_SetTaskPri",
+  "status": "tested"
+ },
+ {
+  "lib": "exec",
+  "lvo": -306,
+  "function": "SetSignal",
+  "symbol": "exec_SetSignal",
+  "status": "tested"
+ },
+ {
+  "lib": "exec",
+  "lvo": -312,
+  "function": "SetExcept",
+  "symbol": "exec_SetExcept",
+  "status": "tested"
+ },
+ {
+  "lib": "exec",
+  "lvo": -318,
+  "function": "Wait",
+  "symbol": "exec_Wait",
+  "status": "tested"
+ },
+ {
+  "lib": "exec",
+  "lvo": -324,
+  "function": "Signal",
+  "symbol": "exec_Signal",
+  "status": "tested"
+ },
+ {
+  "lib": "exec",
+  "lvo": -330,
+  "function": "AllocSignal",
+  "symbol": "exec_AllocSignal",
+  "status": "tested"
+ },
+ {
+  "lib": "exec",
+  "lvo": -336,
+  "function": "FreeSignal",
+  "symbol": "exec_FreeSignal",
+  "status": "tested"
+ },
+ {
+  "lib": "exec",
+  "lvo": -342,
+  "function": "AllocTrap",
+  "symbol": "exec_AllocTrap",
+  "status": "untested"
+ },
+ {
+  "lib": "exec",
+  "lvo": -348,
+  "function": "FreeTrap",
+  "symbol": "exec_FreeTrap",
+  "status": "untested"
+ },
+ {
+  "lib": "exec",
+  "lvo": -354,
+  "function": "AddPort",
+  "symbol": "exec_AddPort",
+  "status": "tested"
+ },
+ {
+  "lib": "exec",
+  "lvo": -360,
+  "function": "RemPort",
+  "symbol": "exec_RemPort",
+  "status": "tested"
+ },
+ {
+  "lib": "exec",
+  "lvo": -366,
+  "function": "PutMsg",
+  "symbol": "exec_PutMsg",
+  "status": "tested"
+ },
+ {
+  "lib": "exec",
+  "lvo": -372,
+  "function": "GetMsg",
+  "symbol": "exec_GetMsg",
+  "status": "tested"
+ },
+ {
+  "lib": "exec",
+  "lvo": -378,
+  "function": "ReplyMsg",
+  "symbol": "exec_ReplyMsg",
+  "status": "tested"
+ },
+ {
+  "lib": "exec",
+  "lvo": -384,
+  "function": "WaitPort",
+  "symbol": "exec_WaitPort",
+  "status": "tested"
+ },
+ {
+  "lib": "exec",
+  "lvo": -390,
+  "function": "FindPort",
+  "symbol": "exec_FindPort",
+  "status": "tested"
+ },
+ {
+  "lib": "exec",
+  "lvo": -396,
+  "function": "AddLibrary",
+  "symbol": "exec_AddLibrary",
+  "status": "tested"
+ },
+ {
+  "lib": "exec",
+  "lvo": -402,
+  "function": "RemLibrary",
+  "symbol": "exec_RemLibrary",
+  "status": "tested"
+ },
+ {
+  "lib": "exec",
+  "lvo": -408,
+  "function": "OldOpenLibrary",
+  "symbol": "exec_OldOpenLibrary",
+  "status": "tested"
+ },
+ {
+  "lib": "exec",
+  "lvo": -414,
+  "function": "CloseLibrary",
+  "symbol": "exec_CloseLibrary",
+  "status": "tested"
+ },
+ {
+  "lib": "exec",
+  "lvo": -420,
+  "function": "SetFunction",
+  "symbol": "exec_SetFunction",
+  "status": "tested"
+ },
+ {
+  "lib": "exec",
+  "lvo": -426,
+  "function": "SumLibrary",
+  "symbol": "exec_SumLibrary",
+  "status": "tested"
+ },
+ {
+  "lib": "exec",
+  "lvo": -432,
+  "function": "AddDevice",
+  "symbol": "exec_AddDevice",
+  "status": "untested"
+ },
+ {
+  "lib": "exec",
+  "lvo": -438,
+  "function": "RemDevice",
+  "symbol": "exec_RemDevice",
+  "status": "tested"
+ },
+ {
+  "lib": "exec",
+  "lvo": -444,
+  "function": "OpenDevice",
+  "symbol": "exec_OpenDevice",
+  "status": "tested"
+ },
+ {
+  "lib": "exec",
+  "lvo": -450,
+  "function": "CloseDevice",
+  "symbol": "exec_CloseDevice",
+  "status": "tested"
+ },
+ {
+  "lib": "exec",
+  "lvo": -456,
+  "function": "DoIO",
+  "symbol": "exec_DoIO",
+  "status": "tested"
+ },
+ {
+  "lib": "exec",
+  "lvo": -462,
+  "function": "SendIO",
+  "symbol": "exec_SendIO",
+  "status": "tested"
+ },
+ {
+  "lib": "exec",
+  "lvo": -468,
+  "function": "CheckIO",
+  "symbol": "exec_CheckIO",
+  "status": "tested"
+ },
+ {
+  "lib": "exec",
+  "lvo": -474,
+  "function": "WaitIO",
+  "symbol": "exec_WaitIO",
+  "status": "tested"
+ },
+ {
+  "lib": "exec",
+  "lvo": -480,
+  "function": "AbortIO",
+  "symbol": "exec_AbortIO",
+  "status": "tested"
+ },
+ {
+  "lib": "exec",
+  "lvo": -486,
+  "function": "AddResource",
+  "symbol": "exec_AddResource",
+  "status": "tested"
+ },
+ {
+  "lib": "exec",
+  "lvo": -492,
+  "function": "RemResource",
+  "symbol": "exec_RemResource",
+  "status": "tested"
+ },
+ {
+  "lib": "exec",
+  "lvo": -498,
+  "function": "OpenResource",
+  "symbol": "exec_OpenResource",
+  "status": "tested"
+ },
+ {
+  "lib": "exec",
+  "lvo": -522,
+  "function": "RawDoFmt",
+  "symbol": "exec_RawDoFmt",
+  "status": "tested"
+ },
+ {
+  "lib": "exec",
+  "lvo": -528,
+  "function": "GetCC",
+  "symbol": "exec_GetCC",
+  "status": "untested"
+ },
+ {
+  "lib": "exec",
+  "lvo": -534,
+  "function": "TypeOfMem",
+  "symbol": "exec_TypeOfMem",
+  "status": "tested"
+ },
+ {
+  "lib": "exec",
+  "lvo": -540,
+  "function": "Procure",
+  "symbol": "exec_Procure",
+  "status": "untested"
+ },
+ {
+  "lib": "exec",
+  "lvo": -546,
+  "function": "Vacate",
+  "symbol": "exec_Vacate",
+  "status": "untested"
+ },
+ {
+  "lib": "exec",
+  "lvo": -552,
+  "function": "OpenLibrary",
+  "symbol": "exec_OpenLibrary",
+  "status": "tested"
+ },
+ {
+  "lib": "exec",
+  "lvo": -558,
+  "function": "InitSemaphore",
+  "symbol": "exec_InitSemaphore",
+  "status": "tested"
+ },
+ {
+  "lib": "exec",
+  "lvo": -564,
+  "function": "ObtainSemaphore",
+  "symbol": "exec_ObtainSemaphore",
+  "status": "tested"
+ },
+ {
+  "lib": "exec",
+  "lvo": -570,
+  "function": "ReleaseSemaphore",
+  "symbol": "exec_ReleaseSemaphore",
+  "status": "tested"
+ },
+ {
+  "lib": "exec",
+  "lvo": -576,
+  "function": "AttemptSemaphore",
+  "symbol": "exec_AttemptSemaphore",
+  "status": "tested"
+ },
+ {
+  "lib": "exec",
+  "lvo": -582,
+  "function": "ObtainSemaphoreList",
+  "symbol": "exec_ObtainSemaphoreList",
+  "status": "untested"
+ },
+ {
+  "lib": "exec",
+  "lvo": -588,
+  "function": "ReleaseSemaphoreList",
+  "symbol": "exec_ReleaseSemaphoreList",
+  "status": "untested"
+ },
+ {
+  "lib": "exec",
+  "lvo": -594,
+  "function": "FindSemaphore",
+  "symbol": "exec_FindSemaphore",
+  "status": "tested"
+ },
+ {
+  "lib": "exec",
+  "lvo": -600,
+  "function": "AddSemaphore",
+  "symbol": "exec_AddSemaphore",
+  "status": "tested"
+ },
+ {
+  "lib": "exec",
+  "lvo": -606,
+  "function": "RemSemaphore",
+  "symbol": "exec_RemSemaphore",
+  "status": "tested"
+ },
+ {
+  "lib": "exec",
+  "lvo": -612,
+  "function": "SumKickData",
+  "symbol": "exec_SumKickData",
+  "status": "tested"
+ },
+ {
+  "lib": "exec",
+  "lvo": -618,
+  "function": "AddMemList",
+  "symbol": "exec_AddMemList",
+  "status": "untested"
+ },
+ {
+  "lib": "exec",
+  "lvo": -624,
+  "function": "CopyMem",
+  "symbol": "exec_CopyMem",
+  "status": "tested"
+ },
+ {
+  "lib": "exec",
+  "lvo": -630,
+  "function": "CopyMemQuick",
+  "symbol": "exec_CopyMemQuick",
+  "status": "tested"
+ },
+ {
+  "lib": "exec",
+  "lvo": -636,
+  "function": "CacheClearU",
+  "symbol": "exec_CacheClearU",
+  "status": "tested"
+ },
+ {
+  "lib": "exec",
+  "lvo": -642,
+  "function": "CacheClearE",
+  "symbol": "exec_CacheClearE",
+  "status": "untested"
+ },
+ {
+  "lib": "exec",
+  "lvo": -648,
+  "function": "CacheControl",
+  "symbol": "exec_CacheControl",
+  "status": "untested"
+ },
+ {
+  "lib": "exec",
+  "lvo": -654,
+  "function": "CreateIORequest",
+  "symbol": "exec_CreateIORequest",
+  "status": "tested"
+ },
+ {
+  "lib": "exec",
+  "lvo": -660,
+  "function": "DeleteIORequest",
+  "symbol": "exec_DeleteIORequest",
+  "status": "tested"
+ },
+ {
+  "lib": "exec",
+  "lvo": -666,
+  "function": "CreateMsgPort",
+  "symbol": "exec_CreateMsgPort",
+  "status": "tested"
+ },
+ {
+  "lib": "exec",
+  "lvo": -672,
+  "function": "DeleteMsgPort",
+  "symbol": "exec_DeleteMsgPort",
+  "status": "tested"
+ },
+ {
+  "lib": "exec",
+  "lvo": -678,
+  "function": "ObtainSemaphoreShared",
+  "symbol": "exec_ObtainSemaphoreShared",
+  "status": "tested"
+ },
+ {
+  "lib": "exec",
+  "lvo": -684,
+  "function": "AllocVec",
+  "symbol": "exec_AllocVec",
+  "status": "tested"
+ },
+ {
+  "lib": "exec",
+  "lvo": -690,
+  "function": "FreeVec",
+  "symbol": "exec_FreeVec",
+  "status": "tested"
+ },
+ {
+  "lib": "exec",
+  "lvo": -696,
+  "function": "CreatePool",
+  "symbol": "exec_CreatePool",
+  "status": "tested"
+ },
+ {
+  "lib": "exec",
+  "lvo": -702,
+  "function": "DeletePool",
+  "symbol": "exec_DeletePool",
+  "status": "untested"
+ },
+ {
+  "lib": "exec",
+  "lvo": -708,
+  "function": "AllocPooled",
+  "symbol": "exec_AllocPooled",
+  "status": "tested"
+ },
+ {
+  "lib": "exec",
+  "lvo": -714,
+  "function": "FreePooled",
+  "symbol": "exec_FreePooled",
+  "status": "tested"
+ },
+ {
+  "lib": "exec",
+  "lvo": -720,
+  "function": "AttemptSemaphoreShared",
+  "symbol": "exec_AttemptSemaphoreShared",
+  "status": "tested"
+ },
+ {
+  "lib": "exec",
+  "lvo": -726,
+  "function": "ColdReboot",
+  "symbol": "exec_ColdReboot",
+  "status": "untested"
+ },
+ {
+  "lib": "exec",
+  "lvo": -732,
+  "function": "StackSwap",
+  "symbol": "exec_StackSwap",
+  "status": "untested"
+ },
+ {
+  "lib": "exec",
+  "lvo": -762,
+  "function": "CachePreDMA",
+  "symbol": "exec_CachePreDMA",
+  "status": "tested"
+ },
+ {
+  "lib": "exec",
+  "lvo": -768,
+  "function": "CachePostDMA",
+  "symbol": "exec_CachePostDMA",
+  "status": "tested"
+ },
+ {
+  "lib": "exec",
+  "lvo": -774,
+  "function": "AddMemHandler",
+  "symbol": "exec_AddMemHandler",
+  "status": "untested"
+ },
+ {
+  "lib": "exec",
+  "lvo": -780,
+  "function": "RemMemHandler",
+  "symbol": "exec_RemMemHandler",
+  "status": "untested"
+ },
+ {
+  "lib": "exec",
+  "lvo": -786,
+  "function": "ObtainQuickVector",
+  "symbol": "",
+  "status": "no ROM symbol"
+ },
+ {
+  "lib": "exec",
+  "lvo": -828,
+  "function": "NewMinList",
+  "symbol": "exec_NewMinList",
+  "status": "untested"
+ },
+ {
+  "lib": "expansion",
+  "lvo": -30,
+  "function": "AddConfigDev",
+  "symbol": "expansion_AddConfigDev",
+  "status": "tested"
+ },
+ {
+  "lib": "expansion",
+  "lvo": -36,
+  "function": "AddBootNode",
+  "symbol": "expansion_AddBootNode",
+  "status": "untested"
+ },
+ {
+  "lib": "expansion",
+  "lvo": -42,
+  "function": "AllocBoardMem",
+  "symbol": "expansion_AllocBoardMem",
+  "status": "tested"
+ },
+ {
+  "lib": "expansion",
+  "lvo": -48,
+  "function": "AllocConfigDev",
+  "symbol": "expansion_AllocConfigDev",
+  "status": "tested"
+ },
+ {
+  "lib": "expansion",
+  "lvo": -54,
+  "function": "AllocExpansionMem",
+  "symbol": "expansion_AllocExpansionMem",
+  "status": "tested"
+ },
+ {
+  "lib": "expansion",
+  "lvo": -60,
+  "function": "ConfigBoard",
+  "symbol": "expansion_ConfigBoard",
+  "status": "tested"
+ },
+ {
+  "lib": "expansion",
+  "lvo": -66,
+  "function": "ConfigChain",
+  "symbol": "expansion_ConfigChain",
+  "status": "tested"
+ },
+ {
+  "lib": "expansion",
+  "lvo": -72,
+  "function": "FindConfigDev",
+  "symbol": "expansion_FindConfigDev",
+  "status": "tested"
+ },
+ {
+  "lib": "expansion",
+  "lvo": -78,
+  "function": "FreeBoardMem",
+  "symbol": "expansion_FreeBoardMem",
+  "status": "tested"
+ },
+ {
+  "lib": "expansion",
+  "lvo": -84,
+  "function": "FreeConfigDev",
+  "symbol": "expansion_FreeConfigDev",
+  "status": "tested"
+ },
+ {
+  "lib": "expansion",
+  "lvo": -90,
+  "function": "FreeExpansionMem",
+  "symbol": "expansion_FreeExpansionMem",
+  "status": "tested"
+ },
+ {
+  "lib": "expansion",
+  "lvo": -96,
+  "function": "ReadExpansionByte",
+  "symbol": "expansion_ReadExpansionByte",
+  "status": "tested"
+ },
+ {
+  "lib": "expansion",
+  "lvo": -102,
+  "function": "ReadExpansionRom",
+  "symbol": "expansion_ReadExpansionRom",
+  "status": "tested"
+ },
+ {
+  "lib": "expansion",
+  "lvo": -108,
+  "function": "RemConfigDev",
+  "symbol": "expansion_RemConfigDev",
+  "status": "tested"
+ },
+ {
+  "lib": "expansion",
+  "lvo": -114,
+  "function": "WriteExpansionByte",
+  "symbol": "expansion_WriteExpansionByte",
+  "status": "tested"
+ },
+ {
+  "lib": "expansion",
+  "lvo": -120,
+  "function": "ObtainConfigBinding",
+  "symbol": "expansion_ObtainConfigBinding",
+  "status": "tested"
+ },
+ {
+  "lib": "expansion",
+  "lvo": -126,
+  "function": "ReleaseConfigBinding",
+  "symbol": "expansion_ReleaseConfigBinding",
+  "status": "tested"
+ },
+ {
+  "lib": "expansion",
+  "lvo": -132,
+  "function": "SetCurrentBinding",
+  "symbol": "expansion_SetCurrentBinding",
+  "status": "tested"
+ },
+ {
+  "lib": "expansion",
+  "lvo": -138,
+  "function": "GetCurrentBinding",
+  "symbol": "expansion_GetCurrentBinding",
+  "status": "tested"
+ },
+ {
+  "lib": "expansion",
+  "lvo": -144,
+  "function": "MakeDosNode",
+  "symbol": "expansion_MakeDosNode",
+  "status": "tested"
+ },
+ {
+  "lib": "expansion",
+  "lvo": -150,
+  "function": "AddDosNode",
+  "symbol": "expansion_AddDosNode",
+  "status": "tested"
+ },
+ {
+  "lib": "gadtools",
+  "lvo": -30,
+  "function": "CreateGadgetA",
+  "symbol": "gadtools_CreateGadgetA",
+  "status": "tested"
+ },
+ {
+  "lib": "gadtools",
+  "lvo": -36,
+  "function": "FreeGadgets",
+  "symbol": "gadtools_FreeGadgets",
+  "status": "tested"
+ },
+ {
+  "lib": "gadtools",
+  "lvo": -42,
+  "function": "GT_SetGadgetAttrsA",
+  "symbol": "gadtools_GT_SetGadgetAttrsA",
+  "status": "tested"
+ },
+ {
+  "lib": "gadtools",
+  "lvo": -48,
+  "function": "CreateMenusA",
+  "symbol": "gadtools_CreateMenusA",
+  "status": "tested"
+ },
+ {
+  "lib": "gadtools",
+  "lvo": -54,
+  "function": "FreeMenus",
+  "symbol": "gadtools_FreeMenus",
+  "status": "tested"
+ },
+ {
+  "lib": "gadtools",
+  "lvo": -60,
+  "function": "LayoutMenuItemsA",
+  "symbol": "gadtools_LayoutMenuItemsA",
+  "status": "tested"
+ },
+ {
+  "lib": "gadtools",
+  "lvo": -66,
+  "function": "LayoutMenusA",
+  "symbol": "gadtools_LayoutMenusA",
+  "status": "tested"
+ },
+ {
+  "lib": "gadtools",
+  "lvo": -72,
+  "function": "GT_GetIMsg",
+  "symbol": "gadtools_GT_GetIMsg",
+  "status": "tested"
+ },
+ {
+  "lib": "gadtools",
+  "lvo": -78,
+  "function": "GT_ReplyIMsg",
+  "symbol": "gadtools_GT_ReplyIMsg",
+  "status": "tested"
+ },
+ {
+  "lib": "gadtools",
+  "lvo": -84,
+  "function": "GT_RefreshWindow",
+  "symbol": "gadtools_GT_RefreshWindow",
+  "status": "tested"
+ },
+ {
+  "lib": "gadtools",
+  "lvo": -90,
+  "function": "GT_BeginRefresh",
+  "symbol": "gadtools_GT_BeginRefresh",
+  "status": "tested"
+ },
+ {
+  "lib": "gadtools",
+  "lvo": -96,
+  "function": "GT_EndRefresh",
+  "symbol": "gadtools_GT_EndRefresh",
+  "status": "tested"
+ },
+ {
+  "lib": "gadtools",
+  "lvo": -102,
+  "function": "GT_FilterIMsg",
+  "symbol": "gadtools_GT_FilterIMsg",
+  "status": "tested"
+ },
+ {
+  "lib": "gadtools",
+  "lvo": -108,
+  "function": "GT_PostFilterIMsg",
+  "symbol": "gadtools_GT_PostFilterIMsg",
+  "status": "tested"
+ },
+ {
+  "lib": "gadtools",
+  "lvo": -114,
+  "function": "CreateContext",
+  "symbol": "gadtools_CreateContext",
+  "status": "tested"
+ },
+ {
+  "lib": "gadtools",
+  "lvo": -120,
+  "function": "DrawBevelBoxA",
+  "symbol": "gadtools_DrawBevelBoxA",
+  "status": "tested"
+ },
+ {
+  "lib": "gadtools",
+  "lvo": -126,
+  "function": "GetVisualInfoA",
+  "symbol": "gadtools_GetVisualInfoA",
+  "status": "tested"
+ },
+ {
+  "lib": "gadtools",
+  "lvo": -132,
+  "function": "FreeVisualInfo",
+  "symbol": "gadtools_FreeVisualInfo",
+  "status": "tested"
+ },
+ {
+  "lib": "gadtools",
+  "lvo": -138,
+  "function": "SetDesignFontA",
+  "symbol": "",
+  "status": "no ROM symbol"
+ },
+ {
+  "lib": "gadtools",
+  "lvo": -144,
+  "function": "ScaleGadgetRectA",
+  "symbol": "",
+  "status": "no ROM symbol"
+ },
+ {
+  "lib": "gadtools",
+  "lvo": -174,
+  "function": "GT_GetGadgetAttrsA",
+  "symbol": "gadtools_GT_GetGadgetAttrsA",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -30,
+  "function": "BltBitMap",
+  "symbol": "graphics_BltBitMap",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -36,
+  "function": "BltTemplate",
+  "symbol": "graphics_BltTemplate",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -42,
+  "function": "ClearEOL",
+  "symbol": "graphics_ClearEOL",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -48,
+  "function": "ClearScreen",
+  "symbol": "graphics_ClearScreen",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -54,
+  "function": "TextLength",
+  "symbol": "graphics_TextLength",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -60,
+  "function": "Text",
+  "symbol": "graphics_Text",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -66,
+  "function": "SetFont",
+  "symbol": "graphics_SetFont",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -72,
+  "function": "OpenFont",
+  "symbol": "graphics_OpenFont",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -78,
+  "function": "CloseFont",
+  "symbol": "graphics_CloseFont",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -84,
+  "function": "AskSoftStyle",
+  "symbol": "graphics_AskSoftStyle",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -90,
+  "function": "SetSoftStyle",
+  "symbol": "graphics_SetSoftStyle",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -96,
+  "function": "AddBob",
+  "symbol": "graphics_AddBob",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -102,
+  "function": "AddVSprite",
+  "symbol": "graphics_AddVSprite",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -108,
+  "function": "DoCollision",
+  "symbol": "graphics_DoCollision",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -114,
+  "function": "DrawGList",
+  "symbol": "graphics_DrawGList",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -120,
+  "function": "InitGels",
+  "symbol": "graphics_InitGels",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -126,
+  "function": "InitMasks",
+  "symbol": "graphics_InitMasks",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -132,
+  "function": "RemIBob",
+  "symbol": "graphics_RemIBob",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -138,
+  "function": "RemVSprite",
+  "symbol": "graphics_RemVSprite",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -144,
+  "function": "SetCollision",
+  "symbol": "graphics_SetCollision",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -150,
+  "function": "SortGList",
+  "symbol": "graphics_SortGList",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -156,
+  "function": "AddAnimOb",
+  "symbol": "graphics_AddAnimOb",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -162,
+  "function": "Animate",
+  "symbol": "graphics_Animate",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -168,
+  "function": "GetGBuffers",
+  "symbol": "graphics_GetGBuffers",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -174,
+  "function": "InitGMasks",
+  "symbol": "graphics_InitGMasks",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -180,
+  "function": "DrawEllipse",
+  "symbol": "graphics_DrawEllipse",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -186,
+  "function": "AreaEllipse",
+  "symbol": "graphics_AreaEllipse",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -192,
+  "function": "LoadRGB4",
+  "symbol": "graphics_LoadRGB4",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -198,
+  "function": "InitRastPort",
+  "symbol": "graphics_InitRastPort",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -204,
+  "function": "InitVPort",
+  "symbol": "graphics_InitVPort",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -210,
+  "function": "MrgCop",
+  "symbol": "graphics_MrgCop",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -216,
+  "function": "MakeVPort",
+  "symbol": "graphics_MakeVPort",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -222,
+  "function": "LoadView",
+  "symbol": "graphics_LoadView",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -228,
+  "function": "WaitBlit",
+  "symbol": "graphics_WaitBlit",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -234,
+  "function": "SetRast",
+  "symbol": "graphics_SetRast",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -240,
+  "function": "Move",
+  "symbol": "graphics_Move",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -246,
+  "function": "Draw",
+  "symbol": "graphics_Draw",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -252,
+  "function": "AreaMove",
+  "symbol": "graphics_AreaMove",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -258,
+  "function": "AreaDraw",
+  "symbol": "graphics_AreaDraw",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -264,
+  "function": "AreaEnd",
+  "symbol": "graphics_AreaEnd",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -270,
+  "function": "WaitTOF",
+  "symbol": "graphics_WaitTOF",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -276,
+  "function": "QBlit",
+  "symbol": "graphics_QBlit",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -282,
+  "function": "InitArea",
+  "symbol": "graphics_InitArea",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -288,
+  "function": "SetRGB4",
+  "symbol": "graphics_SetRGB4",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -294,
+  "function": "QBSBlit",
+  "symbol": "graphics_QBSBlit",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -300,
+  "function": "BltClear",
+  "symbol": "graphics_BltClear",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -306,
+  "function": "RectFill",
+  "symbol": "graphics_RectFill",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -312,
+  "function": "BltPattern",
+  "symbol": "graphics_BltPattern",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -318,
+  "function": "ReadPixel",
+  "symbol": "graphics_ReadPixel",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -324,
+  "function": "WritePixel",
+  "symbol": "graphics_WritePixel",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -330,
+  "function": "Flood",
+  "symbol": "graphics_Flood",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -336,
+  "function": "PolyDraw",
+  "symbol": "graphics_PolyDraw",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -342,
+  "function": "SetAPen",
+  "symbol": "graphics_SetAPen",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -348,
+  "function": "SetBPen",
+  "symbol": "graphics_SetBPen",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -354,
+  "function": "SetDrMd",
+  "symbol": "graphics_SetDrMd",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -360,
+  "function": "InitView",
+  "symbol": "graphics_InitView",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -366,
+  "function": "CBump",
+  "symbol": "graphics_CBump",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -372,
+  "function": "CMove",
+  "symbol": "graphics_CMove",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -378,
+  "function": "CWait",
+  "symbol": "graphics_CWait",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -384,
+  "function": "VBeamPos",
+  "symbol": "graphics_VBeamPos",
+  "status": "untested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -390,
+  "function": "InitBitMap",
+  "symbol": "graphics_InitBitMap",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -396,
+  "function": "ScrollRaster",
+  "symbol": "graphics_ScrollRaster",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -402,
+  "function": "WaitBOVP",
+  "symbol": "graphics_WaitBOVP",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -408,
+  "function": "GetSprite",
+  "symbol": "graphics_GetSprite",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -414,
+  "function": "FreeSprite",
+  "symbol": "graphics_FreeSprite",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -420,
+  "function": "ChangeSprite",
+  "symbol": "graphics_ChangeSprite",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -426,
+  "function": "MoveSprite",
+  "symbol": "graphics_MoveSprite",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -432,
+  "function": "LockLayerRom",
+  "symbol": "graphics_LockLayerRom",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -438,
+  "function": "UnlockLayerRom",
+  "symbol": "graphics_UnlockLayerRom",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -444,
+  "function": "SyncSBitMap",
+  "symbol": "graphics_SyncSBitMap",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -450,
+  "function": "CopySBitMap",
+  "symbol": "graphics_CopySBitMap",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -456,
+  "function": "OwnBlitter",
+  "symbol": "graphics_OwnBlitter",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -462,
+  "function": "DisownBlitter",
+  "symbol": "graphics_DisownBlitter",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -468,
+  "function": "InitTmpRas",
+  "symbol": "graphics_InitTmpRas",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -474,
+  "function": "AskFont",
+  "symbol": "graphics_AskFont",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -480,
+  "function": "AddFont",
+  "symbol": "graphics_AddFont",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -486,
+  "function": "RemFont",
+  "symbol": "graphics_RemFont",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -492,
+  "function": "AllocRaster",
+  "symbol": "graphics_AllocRaster",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -498,
+  "function": "FreeRaster",
+  "symbol": "graphics_FreeRaster",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -504,
+  "function": "AndRectRegion",
+  "symbol": "graphics_AndRectRegion",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -510,
+  "function": "OrRectRegion",
+  "symbol": "graphics_OrRectRegion",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -516,
+  "function": "NewRegion",
+  "symbol": "graphics_NewRegion",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -522,
+  "function": "ClearRectRegion",
+  "symbol": "graphics_ClearRectRegion",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -528,
+  "function": "ClearRegion",
+  "symbol": "graphics_ClearRegion",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -534,
+  "function": "DisposeRegion",
+  "symbol": "graphics_DisposeRegion",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -540,
+  "function": "FreeVPortCopLists",
+  "symbol": "graphics_FreeVPortCopLists",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -546,
+  "function": "FreeCopList",
+  "symbol": "graphics_FreeCopList",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -552,
+  "function": "ClipBlit",
+  "symbol": "graphics_ClipBlit",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -558,
+  "function": "XorRectRegion",
+  "symbol": "graphics_XorRectRegion",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -564,
+  "function": "FreeCprList",
+  "symbol": "graphics_FreeCprList",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -570,
+  "function": "GetColorMap",
+  "symbol": "graphics_GetColorMap",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -576,
+  "function": "FreeColorMap",
+  "symbol": "graphics_FreeColorMap",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -582,
+  "function": "GetRGB4",
+  "symbol": "graphics_GetRGB4",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -588,
+  "function": "ScrollVPort",
+  "symbol": "graphics_ScrollVPort",
+  "status": "untested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -594,
+  "function": "UCopperListInit",
+  "symbol": "graphics_UCopperListInit",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -600,
+  "function": "FreeGBuffers",
+  "symbol": "graphics_FreeGBuffers",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -606,
+  "function": "BltBitMapRastPort",
+  "symbol": "graphics_BltBitMapRastPort",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -612,
+  "function": "OrRegionRegion",
+  "symbol": "graphics_OrRegionRegion",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -618,
+  "function": "XorRegionRegion",
+  "symbol": "graphics_XorRegionRegion",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -624,
+  "function": "AndRegionRegion",
+  "symbol": "graphics_AndRegionRegion",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -630,
+  "function": "SetRGB4CM",
+  "symbol": "graphics_SetRGB4CM",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -636,
+  "function": "BltMaskBitMapRastPort",
+  "symbol": "graphics_BltMaskBitMapRastPort",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -654,
+  "function": "AttemptLockLayerRom",
+  "symbol": "graphics_AttemptLockLayerRom",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -660,
+  "function": "GfxNew",
+  "symbol": "graphics_GfxNew",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -666,
+  "function": "GfxFree",
+  "symbol": "graphics_GfxFree",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -672,
+  "function": "GfxAssociate",
+  "symbol": "graphics_GfxAssociate",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -678,
+  "function": "BitMapScale",
+  "symbol": "graphics_BitMapScale",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -684,
+  "function": "ScalerDiv",
+  "symbol": "graphics_ScalerDiv",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -690,
+  "function": "TextExtent",
+  "symbol": "graphics_TextExtent",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -696,
+  "function": "TextFit",
+  "symbol": "graphics_TextFit",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -702,
+  "function": "GfxLookUp",
+  "symbol": "graphics_GfxLookUp",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -708,
+  "function": "VideoControl",
+  "symbol": "graphics_VideoControl",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -714,
+  "function": "OpenMonitor",
+  "symbol": "graphics_OpenMonitor",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -720,
+  "function": "CloseMonitor",
+  "symbol": "graphics_CloseMonitor",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -726,
+  "function": "FindDisplayInfo",
+  "symbol": "graphics_FindDisplayInfo",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -732,
+  "function": "NextDisplayInfo",
+  "symbol": "graphics_NextDisplayInfo",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -756,
+  "function": "GetDisplayInfoData",
+  "symbol": "graphics_GetDisplayInfoData",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -762,
+  "function": "FontExtent",
+  "symbol": "graphics_FontExtent",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -768,
+  "function": "ReadPixelLine8",
+  "symbol": "graphics_ReadPixelLine8",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -774,
+  "function": "WritePixelLine8",
+  "symbol": "graphics_WritePixelLine8",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -780,
+  "function": "ReadPixelArray8",
+  "symbol": "graphics_ReadPixelArray8",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -786,
+  "function": "WritePixelArray8",
+  "symbol": "graphics_WritePixelArray8",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -792,
+  "function": "GetVPModeID",
+  "symbol": "graphics_GetVPModeID",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -798,
+  "function": "ModeNotAvailable",
+  "symbol": "graphics_ModeNotAvailable",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -804,
+  "function": "WeighTAMatch",
+  "symbol": "",
+  "status": "no ROM symbol"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -810,
+  "function": "EraseRect",
+  "symbol": "graphics_EraseRect",
+  "status": "untested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -816,
+  "function": "ExtendFont",
+  "symbol": "graphics_ExtendFont",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -822,
+  "function": "StripFont",
+  "symbol": "graphics_StripFont",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -828,
+  "function": "CalcIVG",
+  "symbol": "graphics_CalcIVG",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -834,
+  "function": "AttachPalExtra",
+  "symbol": "graphics_AttachPalExtra",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -840,
+  "function": "ObtainBestPenA",
+  "symbol": "graphics_ObtainBestPenA",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -852,
+  "function": "SetRGB32",
+  "symbol": "graphics_SetRGB32",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -858,
+  "function": "GetAPen",
+  "symbol": "graphics_GetAPen",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -864,
+  "function": "GetBPen",
+  "symbol": "graphics_GetBPen",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -870,
+  "function": "GetDrMd",
+  "symbol": "graphics_GetDrMd",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -876,
+  "function": "GetOutlinePen",
+  "symbol": "graphics_GetOutlinePen",
+  "status": "untested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -882,
+  "function": "LoadRGB32",
+  "symbol": "graphics_LoadRGB32",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -888,
+  "function": "SetChipRev",
+  "symbol": "graphics_SetChipRev",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -894,
+  "function": "SetABPenDrMd",
+  "symbol": "graphics_SetABPenDrMd",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -900,
+  "function": "GetRGB32",
+  "symbol": "graphics_GetRGB32",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -918,
+  "function": "AllocBitMap",
+  "symbol": "graphics_AllocBitMap",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -924,
+  "function": "FreeBitMap",
+  "symbol": "graphics_FreeBitMap",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -930,
+  "function": "GetExtSpriteA",
+  "symbol": "graphics_GetExtSpriteA",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -936,
+  "function": "CoerceMode",
+  "symbol": "graphics_CoerceMode",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -942,
+  "function": "ChangeVPBitMap",
+  "symbol": "graphics_ChangeVPBitMap",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -948,
+  "function": "ReleasePen",
+  "symbol": "graphics_ReleasePen",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -954,
+  "function": "ObtainPen",
+  "symbol": "graphics_ObtainPen",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -960,
+  "function": "GetBitMapAttr",
+  "symbol": "graphics_GetBitMapAttr",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -966,
+  "function": "AllocDBufInfo",
+  "symbol": "graphics_AllocDBufInfo",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -972,
+  "function": "FreeDBufInfo",
+  "symbol": "graphics_FreeDBufInfo",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -978,
+  "function": "SetOutlinePen",
+  "symbol": "graphics_SetOutlinePen",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -984,
+  "function": "SetWriteMask",
+  "symbol": "graphics_SetWriteMask",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -990,
+  "function": "SetMaxPen",
+  "symbol": "graphics_SetMaxPen",
+  "status": "untested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -996,
+  "function": "SetRGB32CM",
+  "symbol": "graphics_SetRGB32CM",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -1002,
+  "function": "ScrollRasterBF",
+  "symbol": "graphics_ScrollRasterBF",
+  "status": "untested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -1008,
+  "function": "FindColor",
+  "symbol": "graphics_FindColor",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -1020,
+  "function": "AllocSpriteDataA",
+  "symbol": "graphics_AllocSpriteDataA",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -1026,
+  "function": "ChangeExtSpriteA",
+  "symbol": "graphics_ChangeExtSpriteA",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -1032,
+  "function": "FreeSpriteData",
+  "symbol": "graphics_FreeSpriteData",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -1038,
+  "function": "SetRPAttrsA",
+  "symbol": "graphics_SetRPAttrsA",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -1044,
+  "function": "GetRPAttrsA",
+  "symbol": "graphics_GetRPAttrsA",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -1050,
+  "function": "BestModeIDA",
+  "symbol": "graphics_BestModeIDA",
+  "status": "tested"
+ },
+ {
+  "lib": "graphics",
+  "lvo": -1056,
+  "function": "WriteChunkyPixels",
+  "symbol": "graphics_WriteChunkyPixels",
+  "status": "untested"
+ },
+ {
+  "lib": "icon",
+  "lvo": -54,
+  "function": "FreeFreeList",
+  "symbol": "icon_FreeFreeList",
+  "status": "untested"
+ },
+ {
+  "lib": "icon",
+  "lvo": -72,
+  "function": "AddFreeList",
+  "symbol": "icon_AddFreeList",
+  "status": "untested"
+ },
+ {
+  "lib": "icon",
+  "lvo": -78,
+  "function": "GetDiskObject",
+  "symbol": "icon_GetDiskObject",
+  "status": "tested"
+ },
+ {
+  "lib": "icon",
+  "lvo": -84,
+  "function": "PutDiskObject",
+  "symbol": "icon_PutDiskObject",
+  "status": "tested"
+ },
+ {
+  "lib": "icon",
+  "lvo": -90,
+  "function": "FreeDiskObject",
+  "symbol": "icon_FreeDiskObject",
+  "status": "tested"
+ },
+ {
+  "lib": "icon",
+  "lvo": -96,
+  "function": "FindToolType",
+  "symbol": "icon_FindToolType",
+  "status": "tested"
+ },
+ {
+  "lib": "icon",
+  "lvo": -102,
+  "function": "MatchToolValue",
+  "symbol": "icon_MatchToolValue",
+  "status": "tested"
+ },
+ {
+  "lib": "icon",
+  "lvo": -108,
+  "function": "BumpRevision",
+  "symbol": "icon_BumpRevision",
+  "status": "tested"
+ },
+ {
+  "lib": "icon",
+  "lvo": -114,
+  "function": "FreeAlloc",
+  "symbol": "icon_FreeAlloc",
+  "status": "untested"
+ },
+ {
+  "lib": "icon",
+  "lvo": -120,
+  "function": "GetDefDiskObject",
+  "symbol": "icon_GetDefDiskObject",
+  "status": "tested"
+ },
+ {
+  "lib": "icon",
+  "lvo": -126,
+  "function": "PutDefDiskObject",
+  "symbol": "icon_PutDefDiskObject",
+  "status": "tested"
+ },
+ {
+  "lib": "icon",
+  "lvo": -132,
+  "function": "GetDiskObjectNew",
+  "symbol": "icon_GetDiskObjectNew",
+  "status": "tested"
+ },
+ {
+  "lib": "icon",
+  "lvo": -138,
+  "function": "DeleteDiskObject",
+  "symbol": "icon_DeleteDiskObject",
+  "status": "tested"
+ },
+ {
+  "lib": "icon",
+  "lvo": -144,
+  "function": "FreeFree",
+  "symbol": "icon_FreeFree",
+  "status": "untested"
+ },
+ {
+  "lib": "icon",
+  "lvo": -150,
+  "function": "DupDiskObjectA",
+  "symbol": "icon_DupDiskObjectA",
+  "status": "untested"
+ },
+ {
+  "lib": "icon",
+  "lvo": -156,
+  "function": "IconControlA",
+  "symbol": "icon_IconControlA",
+  "status": "tested"
+ },
+ {
+  "lib": "icon",
+  "lvo": -162,
+  "function": "DrawIconStateA",
+  "symbol": "icon_DrawIconStateA",
+  "status": "tested"
+ },
+ {
+  "lib": "icon",
+  "lvo": -168,
+  "function": "GetIconRectangleA",
+  "symbol": "icon_GetIconRectangleA",
+  "status": "tested"
+ },
+ {
+  "lib": "icon",
+  "lvo": -174,
+  "function": "NewDiskObject",
+  "symbol": "icon_NewDiskObject",
+  "status": "untested"
+ },
+ {
+  "lib": "icon",
+  "lvo": -180,
+  "function": "GetIconTagList",
+  "symbol": "icon_GetIconTagList",
+  "status": "untested"
+ },
+ {
+  "lib": "icon",
+  "lvo": -186,
+  "function": "PutIconTagList",
+  "symbol": "icon_PutIconTagList",
+  "status": "untested"
+ },
+ {
+  "lib": "icon",
+  "lvo": -192,
+  "function": "LayoutIconA",
+  "symbol": "icon_LayoutIconA",
+  "status": "tested"
+ },
+ {
+  "lib": "icon",
+  "lvo": -198,
+  "function": "ChangeToSelectedIconColor",
+  "symbol": "icon_ChangeToSelectedIconColor",
+  "status": "tested"
+ },
+ {
+  "lib": "icon",
+  "lvo": -204,
+  "function": "BumpRevisionLength",
+  "symbol": "icon_BumpRevisionLength",
+  "status": "untested"
+ },
+ {
+  "lib": "iffparse",
+  "lvo": -30,
+  "function": "AllocIFF",
+  "symbol": "iffparse_AllocIFF",
+  "status": "tested"
+ },
+ {
+  "lib": "iffparse",
+  "lvo": -36,
+  "function": "OpenIFF",
+  "symbol": "iffparse_OpenIFF",
+  "status": "tested"
+ },
+ {
+  "lib": "iffparse",
+  "lvo": -42,
+  "function": "ParseIFF",
+  "symbol": "iffparse_ParseIFF",
+  "status": "tested"
+ },
+ {
+  "lib": "iffparse",
+  "lvo": -48,
+  "function": "CloseIFF",
+  "symbol": "iffparse_CloseIFF",
+  "status": "tested"
+ },
+ {
+  "lib": "iffparse",
+  "lvo": -54,
+  "function": "FreeIFF",
+  "symbol": "iffparse_FreeIFF",
+  "status": "tested"
+ },
+ {
+  "lib": "iffparse",
+  "lvo": -60,
+  "function": "ReadChunkBytes",
+  "symbol": "iffparse_ReadChunkBytes",
+  "status": "tested"
+ },
+ {
+  "lib": "iffparse",
+  "lvo": -66,
+  "function": "WriteChunkBytes",
+  "symbol": "iffparse_WriteChunkBytes",
+  "status": "tested"
+ },
+ {
+  "lib": "iffparse",
+  "lvo": -72,
+  "function": "ReadChunkRecords",
+  "symbol": "iffparse_ReadChunkRecords",
+  "status": "tested"
+ },
+ {
+  "lib": "iffparse",
+  "lvo": -78,
+  "function": "WriteChunkRecords",
+  "symbol": "iffparse_WriteChunkRecords",
+  "status": "tested"
+ },
+ {
+  "lib": "iffparse",
+  "lvo": -84,
+  "function": "PushChunk",
+  "symbol": "iffparse_PushChunk",
+  "status": "tested"
+ },
+ {
+  "lib": "iffparse",
+  "lvo": -90,
+  "function": "PopChunk",
+  "symbol": "iffparse_PopChunk",
+  "status": "tested"
+ },
+ {
+  "lib": "iffparse",
+  "lvo": -102,
+  "function": "EntryHandler",
+  "symbol": "iffparse_EntryHandler",
+  "status": "tested"
+ },
+ {
+  "lib": "iffparse",
+  "lvo": -108,
+  "function": "ExitHandler",
+  "symbol": "iffparse_ExitHandler",
+  "status": "tested"
+ },
+ {
+  "lib": "iffparse",
+  "lvo": -114,
+  "function": "PropChunk",
+  "symbol": "iffparse_PropChunk",
+  "status": "tested"
+ },
+ {
+  "lib": "iffparse",
+  "lvo": -120,
+  "function": "PropChunks",
+  "symbol": "iffparse_PropChunks",
+  "status": "untested"
+ },
+ {
+  "lib": "iffparse",
+  "lvo": -126,
+  "function": "StopChunk",
+  "symbol": "iffparse_StopChunk",
+  "status": "tested"
+ },
+ {
+  "lib": "iffparse",
+  "lvo": -132,
+  "function": "StopChunks",
+  "symbol": "iffparse_StopChunks",
+  "status": "untested"
+ },
+ {
+  "lib": "iffparse",
+  "lvo": -138,
+  "function": "CollectionChunk",
+  "symbol": "iffparse_CollectionChunk",
+  "status": "tested"
+ },
+ {
+  "lib": "iffparse",
+  "lvo": -144,
+  "function": "CollectionChunks",
+  "symbol": "iffparse_CollectionChunks",
+  "status": "untested"
+ },
+ {
+  "lib": "iffparse",
+  "lvo": -150,
+  "function": "StopOnExit",
+  "symbol": "iffparse_StopOnExit",
+  "status": "tested"
+ },
+ {
+  "lib": "iffparse",
+  "lvo": -156,
+  "function": "FindProp",
+  "symbol": "iffparse_FindProp",
+  "status": "tested"
+ },
+ {
+  "lib": "iffparse",
+  "lvo": -162,
+  "function": "FindCollection",
+  "symbol": "iffparse_FindCollection",
+  "status": "tested"
+ },
+ {
+  "lib": "iffparse",
+  "lvo": -168,
+  "function": "FindPropContext",
+  "symbol": "iffparse_FindPropContext",
+  "status": "tested"
+ },
+ {
+  "lib": "iffparse",
+  "lvo": -174,
+  "function": "CurrentChunk",
+  "symbol": "iffparse_CurrentChunk",
+  "status": "tested"
+ },
+ {
+  "lib": "iffparse",
+  "lvo": -180,
+  "function": "ParentChunk",
+  "symbol": "iffparse_ParentChunk",
+  "status": "tested"
+ },
+ {
+  "lib": "iffparse",
+  "lvo": -186,
+  "function": "AllocLocalItem",
+  "symbol": "iffparse_AllocLocalItem",
+  "status": "untested"
+ },
+ {
+  "lib": "iffparse",
+  "lvo": -192,
+  "function": "LocalItemData",
+  "symbol": "iffparse_LocalItemData",
+  "status": "untested"
+ },
+ {
+  "lib": "iffparse",
+  "lvo": -198,
+  "function": "SetLocalItemPurge",
+  "symbol": "iffparse_SetLocalItemPurge",
+  "status": "untested"
+ },
+ {
+  "lib": "iffparse",
+  "lvo": -204,
+  "function": "FreeLocalItem",
+  "symbol": "iffparse_FreeLocalItem",
+  "status": "untested"
+ },
+ {
+  "lib": "iffparse",
+  "lvo": -210,
+  "function": "FindLocalItem",
+  "symbol": "iffparse_FindLocalItem",
+  "status": "tested"
+ },
+ {
+  "lib": "iffparse",
+  "lvo": -216,
+  "function": "StoreLocalItem",
+  "symbol": "iffparse_StoreLocalItem",
+  "status": "tested"
+ },
+ {
+  "lib": "iffparse",
+  "lvo": -222,
+  "function": "StoreItemInContext",
+  "symbol": "iffparse_StoreItemInContext",
+  "status": "untested"
+ },
+ {
+  "lib": "iffparse",
+  "lvo": -228,
+  "function": "InitIFF",
+  "symbol": "iffparse_InitIFF",
+  "status": "untested"
+ },
+ {
+  "lib": "iffparse",
+  "lvo": -234,
+  "function": "InitIFFasDOS",
+  "symbol": "iffparse_InitIFFasDOS",
+  "status": "tested"
+ },
+ {
+  "lib": "iffparse",
+  "lvo": -240,
+  "function": "InitIFFasClip",
+  "symbol": "iffparse_InitIFFasClip",
+  "status": "tested"
+ },
+ {
+  "lib": "iffparse",
+  "lvo": -246,
+  "function": "OpenClipboard",
+  "symbol": "iffparse_OpenClipboard",
+  "status": "tested"
+ },
+ {
+  "lib": "iffparse",
+  "lvo": -252,
+  "function": "CloseClipboard",
+  "symbol": "iffparse_CloseClipboard",
+  "status": "tested"
+ },
+ {
+  "lib": "iffparse",
+  "lvo": -258,
+  "function": "GoodID",
+  "symbol": "iffparse_GoodID",
+  "status": "tested"
+ },
+ {
+  "lib": "iffparse",
+  "lvo": -264,
+  "function": "GoodType",
+  "symbol": "iffparse_GoodType",
+  "status": "tested"
+ },
+ {
+  "lib": "iffparse",
+  "lvo": -270,
+  "function": "IDtoStr",
+  "symbol": "iffparse_IDtoStr",
+  "status": "untested"
+ },
+ {
+  "lib": "input",
+  "lvo": -42,
+  "function": "PeekQualifier",
+  "symbol": "g_lxa_input_PeekQualifier",
+  "status": "tested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -30,
+  "function": "OpenIntuition",
+  "symbol": "intuition_OpenIntuition",
+  "status": "tested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -36,
+  "function": "Intuition",
+  "symbol": "intuition_Intuition",
+  "status": "tested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -42,
+  "function": "AddGadget",
+  "symbol": "intuition_AddGadget",
+  "status": "tested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -48,
+  "function": "ClearDMRequest",
+  "symbol": "intuition_ClearDMRequest",
+  "status": "tested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -54,
+  "function": "ClearMenuStrip",
+  "symbol": "intuition_ClearMenuStrip",
+  "status": "tested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -60,
+  "function": "ClearPointer",
+  "symbol": "intuition_ClearPointer",
+  "status": "tested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -66,
+  "function": "CloseScreen",
+  "symbol": "intuition_CloseScreen",
+  "status": "tested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -72,
+  "function": "CloseWindow",
+  "symbol": "intuition_CloseWindow",
+  "status": "tested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -78,
+  "function": "CloseWorkBench",
+  "symbol": "intuition_CloseWorkBench",
+  "status": "tested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -84,
+  "function": "CurrentTime",
+  "symbol": "intuition_CurrentTime",
+  "status": "tested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -90,
+  "function": "DisplayAlert",
+  "symbol": "intuition_DisplayAlert",
+  "status": "tested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -96,
+  "function": "DisplayBeep",
+  "symbol": "intuition_DisplayBeep",
+  "status": "tested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -102,
+  "function": "DoubleClick",
+  "symbol": "intuition_DoubleClick",
+  "status": "tested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -108,
+  "function": "DrawBorder",
+  "symbol": "intuition_DrawBorder",
+  "status": "tested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -114,
+  "function": "DrawImage",
+  "symbol": "intuition_DrawImage",
+  "status": "tested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -120,
+  "function": "EndRequest",
+  "symbol": "intuition_EndRequest",
+  "status": "tested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -126,
+  "function": "GetDefPrefs",
+  "symbol": "intuition_GetDefPrefs",
+  "status": "untested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -132,
+  "function": "GetPrefs",
+  "symbol": "intuition_GetPrefs",
+  "status": "tested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -138,
+  "function": "InitRequester",
+  "symbol": "intuition_InitRequester",
+  "status": "tested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -144,
+  "function": "ItemAddress",
+  "symbol": "intuition_ItemAddress",
+  "status": "tested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -150,
+  "function": "ModifyIDCMP",
+  "symbol": "intuition_ModifyIDCMP",
+  "status": "tested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -156,
+  "function": "ModifyProp",
+  "symbol": "intuition_ModifyProp",
+  "status": "tested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -162,
+  "function": "MoveScreen",
+  "symbol": "intuition_MoveScreen",
+  "status": "tested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -168,
+  "function": "MoveWindow",
+  "symbol": "intuition_MoveWindow",
+  "status": "tested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -174,
+  "function": "OffGadget",
+  "symbol": "intuition_OffGadget",
+  "status": "tested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -180,
+  "function": "OffMenu",
+  "symbol": "intuition_OffMenu",
+  "status": "tested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -186,
+  "function": "OnGadget",
+  "symbol": "intuition_OnGadget",
+  "status": "tested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -192,
+  "function": "OnMenu",
+  "symbol": "intuition_OnMenu",
+  "status": "tested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -198,
+  "function": "OpenScreen",
+  "symbol": "intuition_OpenScreen",
+  "status": "tested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -204,
+  "function": "OpenWindow",
+  "symbol": "intuition_OpenWindow",
+  "status": "tested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -210,
+  "function": "OpenWorkBench",
+  "symbol": "intuition_OpenWorkBench",
+  "status": "tested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -216,
+  "function": "PrintIText",
+  "symbol": "intuition_PrintIText",
+  "status": "tested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -222,
+  "function": "RefreshGadgets",
+  "symbol": "intuition_RefreshGadgets",
+  "status": "tested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -228,
+  "function": "RemoveGadget",
+  "symbol": "intuition_RemoveGadget",
+  "status": "tested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -234,
+  "function": "ReportMouse1/ReportMouse",
+  "symbol": "intuition_ReportMouse",
+  "status": "tested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -240,
+  "function": "Request",
+  "symbol": "intuition_Request",
+  "status": "tested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -246,
+  "function": "ScreenToBack",
+  "symbol": "intuition_ScreenToBack",
+  "status": "tested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -252,
+  "function": "ScreenToFront",
+  "symbol": "intuition_ScreenToFront",
+  "status": "tested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -258,
+  "function": "SetDMRequest",
+  "symbol": "intuition_SetDMRequest",
+  "status": "tested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -264,
+  "function": "SetMenuStrip",
+  "symbol": "intuition_SetMenuStrip",
+  "status": "tested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -270,
+  "function": "SetPointer",
+  "symbol": "intuition_SetPointer",
+  "status": "tested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -276,
+  "function": "SetWindowTitles",
+  "symbol": "intuition_SetWindowTitles",
+  "status": "tested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -282,
+  "function": "ShowTitle",
+  "symbol": "intuition_ShowTitle",
+  "status": "tested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -288,
+  "function": "SizeWindow",
+  "symbol": "intuition_SizeWindow",
+  "status": "tested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -294,
+  "function": "ViewAddress",
+  "symbol": "intuition_ViewAddress",
+  "status": "untested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -300,
+  "function": "ViewPortAddress",
+  "symbol": "intuition_ViewPortAddress",
+  "status": "tested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -306,
+  "function": "WindowToBack",
+  "symbol": "intuition_WindowToBack",
+  "status": "tested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -312,
+  "function": "WindowToFront",
+  "symbol": "intuition_WindowToFront",
+  "status": "tested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -318,
+  "function": "WindowLimits",
+  "symbol": "intuition_WindowLimits",
+  "status": "tested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -324,
+  "function": "SetPrefs",
+  "symbol": "intuition_SetPrefs",
+  "status": "untested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -330,
+  "function": "IntuiTextLength",
+  "symbol": "intuition_IntuiTextLength",
+  "status": "tested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -336,
+  "function": "WBenchToBack",
+  "symbol": "intuition_WBenchToBack",
+  "status": "tested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -342,
+  "function": "WBenchToFront",
+  "symbol": "intuition_WBenchToFront",
+  "status": "tested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -348,
+  "function": "AutoRequest",
+  "symbol": "intuition_AutoRequest",
+  "status": "untested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -354,
+  "function": "BeginRefresh",
+  "symbol": "intuition_BeginRefresh",
+  "status": "tested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -360,
+  "function": "BuildSysRequest",
+  "symbol": "intuition_BuildSysRequest",
+  "status": "tested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -366,
+  "function": "EndRefresh",
+  "symbol": "intuition_EndRefresh",
+  "status": "tested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -372,
+  "function": "FreeSysRequest",
+  "symbol": "intuition_FreeSysRequest",
+  "status": "tested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -378,
+  "function": "MakeScreen",
+  "symbol": "intuition_MakeScreen",
+  "status": "untested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -384,
+  "function": "RemakeDisplay",
+  "symbol": "intuition_RemakeDisplay",
+  "status": "tested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -390,
+  "function": "RethinkDisplay",
+  "symbol": "intuition_RethinkDisplay",
+  "status": "untested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -396,
+  "function": "AllocRemember",
+  "symbol": "intuition_AllocRemember",
+  "status": "tested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -402,
+  "function": "AlohaWorkbench",
+  "symbol": "",
+  "status": "no ROM symbol"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -408,
+  "function": "FreeRemember",
+  "symbol": "intuition_FreeRemember",
+  "status": "tested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -414,
+  "function": "LockIBase",
+  "symbol": "intuition_LockIBase",
+  "status": "tested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -420,
+  "function": "UnlockIBase",
+  "symbol": "intuition_UnlockIBase",
+  "status": "tested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -426,
+  "function": "GetScreenData",
+  "symbol": "intuition_GetScreenData",
+  "status": "tested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -432,
+  "function": "RefreshGList",
+  "symbol": "intuition_RefreshGList",
+  "status": "tested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -438,
+  "function": "AddGList",
+  "symbol": "intuition_AddGList",
+  "status": "tested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -444,
+  "function": "RemoveGList",
+  "symbol": "intuition_RemoveGList",
+  "status": "tested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -450,
+  "function": "ActivateWindow",
+  "symbol": "intuition_ActivateWindow",
+  "status": "tested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -456,
+  "function": "RefreshWindowFrame",
+  "symbol": "intuition_RefreshWindowFrame",
+  "status": "tested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -462,
+  "function": "ActivateGadget",
+  "symbol": "intuition_ActivateGadget",
+  "status": "tested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -468,
+  "function": "NewModifyProp",
+  "symbol": "intuition_NewModifyProp",
+  "status": "tested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -474,
+  "function": "QueryOverscan",
+  "symbol": "intuition_QueryOverscan",
+  "status": "tested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -480,
+  "function": "MoveWindowInFrontOf",
+  "symbol": "intuition_MoveWindowInFrontOf",
+  "status": "tested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -486,
+  "function": "ChangeWindowBox",
+  "symbol": "intuition_ChangeWindowBox",
+  "status": "tested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -492,
+  "function": "SetEditHook",
+  "symbol": "intuition_SetEditHook",
+  "status": "untested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -498,
+  "function": "SetMouseQueue",
+  "symbol": "intuition_SetMouseQueue",
+  "status": "tested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -504,
+  "function": "ZipWindow",
+  "symbol": "intuition_ZipWindow",
+  "status": "tested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -510,
+  "function": "LockPubScreen",
+  "symbol": "intuition_LockPubScreen",
+  "status": "tested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -516,
+  "function": "UnlockPubScreen",
+  "symbol": "intuition_UnlockPubScreen",
+  "status": "tested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -522,
+  "function": "LockPubScreenList",
+  "symbol": "intuition_LockPubScreenList",
+  "status": "tested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -528,
+  "function": "UnlockPubScreenList",
+  "symbol": "intuition_UnlockPubScreenList",
+  "status": "tested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -534,
+  "function": "NextPubScreen",
+  "symbol": "intuition_NextPubScreen",
+  "status": "untested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -540,
+  "function": "SetDefaultPubScreen",
+  "symbol": "intuition_SetDefaultPubScreen",
+  "status": "untested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -546,
+  "function": "SetPubScreenModes",
+  "symbol": "intuition_SetPubScreenModes",
+  "status": "untested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -552,
+  "function": "PubScreenStatus",
+  "symbol": "intuition_PubScreenStatus",
+  "status": "tested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -558,
+  "function": "ObtainGIRPort",
+  "symbol": "intuition_ObtainGIRPort",
+  "status": "tested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -564,
+  "function": "ReleaseGIRPort",
+  "symbol": "intuition_ReleaseGIRPort",
+  "status": "tested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -570,
+  "function": "GadgetMouse",
+  "symbol": "intuition_GadgetMouse",
+  "status": "untested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -582,
+  "function": "GetDefaultPubScreen",
+  "symbol": "intuition_GetDefaultPubScreen",
+  "status": "tested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -588,
+  "function": "EasyRequestArgs",
+  "symbol": "intuition_EasyRequestArgs",
+  "status": "tested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -594,
+  "function": "BuildEasyRequestArgs",
+  "symbol": "intuition_BuildEasyRequestArgs",
+  "status": "tested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -600,
+  "function": "SysReqHandler",
+  "symbol": "intuition_SysReqHandler",
+  "status": "tested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -606,
+  "function": "OpenWindowTagList",
+  "symbol": "intuition_OpenWindowTagList",
+  "status": "tested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -612,
+  "function": "OpenScreenTagList",
+  "symbol": "intuition_OpenScreenTagList",
+  "status": "tested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -618,
+  "function": "DrawImageState",
+  "symbol": "intuition_DrawImageState",
+  "status": "tested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -624,
+  "function": "PointInImage",
+  "symbol": "intuition_PointInImage",
+  "status": "untested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -630,
+  "function": "EraseImage",
+  "symbol": "intuition_EraseImage",
+  "status": "tested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -636,
+  "function": "NewObjectA",
+  "symbol": "intuition_NewObjectA",
+  "status": "tested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -642,
+  "function": "DisposeObject",
+  "symbol": "intuition_DisposeObject",
+  "status": "tested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -648,
+  "function": "SetAttrsA",
+  "symbol": "intuition_SetAttrsA",
+  "status": "tested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -654,
+  "function": "GetAttr",
+  "symbol": "intuition_GetAttr",
+  "status": "tested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -660,
+  "function": "SetGadgetAttrsA",
+  "symbol": "intuition_SetGadgetAttrsA",
+  "status": "tested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -666,
+  "function": "NextObject",
+  "symbol": "intuition_NextObject",
+  "status": "tested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -678,
+  "function": "MakeClass",
+  "symbol": "intuition_MakeClass",
+  "status": "tested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -684,
+  "function": "AddClass",
+  "symbol": "intuition_AddClass",
+  "status": "tested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -690,
+  "function": "GetScreenDrawInfo",
+  "symbol": "intuition_GetScreenDrawInfo",
+  "status": "tested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -696,
+  "function": "FreeScreenDrawInfo",
+  "symbol": "intuition_FreeScreenDrawInfo",
+  "status": "tested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -702,
+  "function": "ResetMenuStrip",
+  "symbol": "intuition_ResetMenuStrip",
+  "status": "tested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -708,
+  "function": "RemoveClass",
+  "symbol": "intuition_RemoveClass",
+  "status": "tested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -714,
+  "function": "FreeClass",
+  "symbol": "intuition_FreeClass",
+  "status": "tested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -768,
+  "function": "AllocScreenBuffer",
+  "symbol": "intuition_AllocScreenBuffer",
+  "status": "untested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -774,
+  "function": "FreeScreenBuffer",
+  "symbol": "intuition_FreeScreenBuffer",
+  "status": "untested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -780,
+  "function": "ChangeScreenBuffer",
+  "symbol": "intuition_ChangeScreenBuffer",
+  "status": "untested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -786,
+  "function": "ScreenDepth",
+  "symbol": "intuition_ScreenDepth",
+  "status": "tested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -792,
+  "function": "ScreenPosition",
+  "symbol": "intuition_ScreenPosition",
+  "status": "tested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -798,
+  "function": "ScrollWindowRaster",
+  "symbol": "intuition_ScrollWindowRaster",
+  "status": "untested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -804,
+  "function": "LendMenus",
+  "symbol": "intuition_LendMenus",
+  "status": "tested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -810,
+  "function": "DoGadgetMethodA",
+  "symbol": "intuition_DoGadgetMethodA",
+  "status": "tested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -816,
+  "function": "SetWindowPointerA",
+  "symbol": "intuition_SetWindowPointerA",
+  "status": "tested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -822,
+  "function": "TimedDisplayAlert",
+  "symbol": "intuition_TimedDisplayAlert",
+  "status": "tested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -828,
+  "function": "HelpControl",
+  "symbol": "intuition_HelpControl",
+  "status": "untested"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -834,
+  "function": "ShowWindow",
+  "symbol": "",
+  "status": "no ROM symbol"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -840,
+  "function": "HideWindow",
+  "symbol": "",
+  "status": "no ROM symbol"
+ },
+ {
+  "lib": "intuition",
+  "lvo": -1212,
+  "function": "IntuitionControlA",
+  "symbol": "",
+  "status": "no ROM symbol"
+ },
+ {
+  "lib": "keymap",
+  "lvo": -30,
+  "function": "SetKeyMapDefault",
+  "symbol": "keymap_SetKeyMapDefault",
+  "status": "untested"
+ },
+ {
+  "lib": "keymap",
+  "lvo": -36,
+  "function": "AskKeyMapDefault",
+  "symbol": "keymap_AskKeyMapDefault",
+  "status": "untested"
+ },
+ {
+  "lib": "keymap",
+  "lvo": -42,
+  "function": "MapRawKey",
+  "symbol": "keymap_MapRawKey",
+  "status": "untested"
+ },
+ {
+  "lib": "keymap",
+  "lvo": -48,
+  "function": "MapANSI",
+  "symbol": "keymap_MapANSI",
+  "status": "tested"
+ },
+ {
+  "lib": "layers",
+  "lvo": -30,
+  "function": "InitLayers",
+  "symbol": "layers_InitLayers",
+  "status": "tested"
+ },
+ {
+  "lib": "layers",
+  "lvo": -36,
+  "function": "CreateUpfrontLayer",
+  "symbol": "layers_CreateUpfrontLayer",
+  "status": "tested"
+ },
+ {
+  "lib": "layers",
+  "lvo": -42,
+  "function": "CreateBehindLayer",
+  "symbol": "layers_CreateBehindLayer",
+  "status": "tested"
+ },
+ {
+  "lib": "layers",
+  "lvo": -48,
+  "function": "UpfrontLayer",
+  "symbol": "layers_UpfrontLayer",
+  "status": "tested"
+ },
+ {
+  "lib": "layers",
+  "lvo": -54,
+  "function": "BehindLayer",
+  "symbol": "layers_BehindLayer",
+  "status": "tested"
+ },
+ {
+  "lib": "layers",
+  "lvo": -60,
+  "function": "MoveLayer",
+  "symbol": "layers_MoveLayer",
+  "status": "tested"
+ },
+ {
+  "lib": "layers",
+  "lvo": -66,
+  "function": "SizeLayer",
+  "symbol": "layers_SizeLayer",
+  "status": "tested"
+ },
+ {
+  "lib": "layers",
+  "lvo": -72,
+  "function": "ScrollLayer",
+  "symbol": "layers_ScrollLayer",
+  "status": "tested"
+ },
+ {
+  "lib": "layers",
+  "lvo": -78,
+  "function": "BeginUpdate",
+  "symbol": "layers_BeginUpdate",
+  "status": "tested"
+ },
+ {
+  "lib": "layers",
+  "lvo": -84,
+  "function": "EndUpdate",
+  "symbol": "layers_EndUpdate",
+  "status": "tested"
+ },
+ {
+  "lib": "layers",
+  "lvo": -90,
+  "function": "DeleteLayer",
+  "symbol": "layers_DeleteLayer",
+  "status": "tested"
+ },
+ {
+  "lib": "layers",
+  "lvo": -96,
+  "function": "LockLayer",
+  "symbol": "layers_LockLayer",
+  "status": "tested"
+ },
+ {
+  "lib": "layers",
+  "lvo": -102,
+  "function": "UnlockLayer",
+  "symbol": "layers_UnlockLayer",
+  "status": "tested"
+ },
+ {
+  "lib": "layers",
+  "lvo": -108,
+  "function": "LockLayers",
+  "symbol": "layers_LockLayers",
+  "status": "tested"
+ },
+ {
+  "lib": "layers",
+  "lvo": -114,
+  "function": "UnlockLayers",
+  "symbol": "layers_UnlockLayers",
+  "status": "tested"
+ },
+ {
+  "lib": "layers",
+  "lvo": -120,
+  "function": "LockLayerInfo",
+  "symbol": "layers_LockLayerInfo",
+  "status": "tested"
+ },
+ {
+  "lib": "layers",
+  "lvo": -126,
+  "function": "SwapBitsRastPortClipRect",
+  "symbol": "layers_SwapBitsRastPortClipRect",
+  "status": "untested"
+ },
+ {
+  "lib": "layers",
+  "lvo": -132,
+  "function": "WhichLayer",
+  "symbol": "layers_WhichLayer",
+  "status": "tested"
+ },
+ {
+  "lib": "layers",
+  "lvo": -138,
+  "function": "UnlockLayerInfo",
+  "symbol": "layers_UnlockLayerInfo",
+  "status": "tested"
+ },
+ {
+  "lib": "layers",
+  "lvo": -144,
+  "function": "NewLayerInfo",
+  "symbol": "layers_NewLayerInfo",
+  "status": "tested"
+ },
+ {
+  "lib": "layers",
+  "lvo": -150,
+  "function": "DisposeLayerInfo",
+  "symbol": "layers_DisposeLayerInfo",
+  "status": "tested"
+ },
+ {
+  "lib": "layers",
+  "lvo": -156,
+  "function": "FattenLayerInfo",
+  "symbol": "layers_FattenLayerInfo",
+  "status": "tested"
+ },
+ {
+  "lib": "layers",
+  "lvo": -162,
+  "function": "ThinLayerInfo",
+  "symbol": "layers_ThinLayerInfo",
+  "status": "tested"
+ },
+ {
+  "lib": "layers",
+  "lvo": -168,
+  "function": "MoveLayerInFrontOf",
+  "symbol": "layers_MoveLayerInFrontOf",
+  "status": "tested"
+ },
+ {
+  "lib": "layers",
+  "lvo": -174,
+  "function": "InstallClipRegion",
+  "symbol": "layers_InstallClipRegion",
+  "status": "tested"
+ },
+ {
+  "lib": "layers",
+  "lvo": -180,
+  "function": "MoveSizeLayer",
+  "symbol": "layers_MoveSizeLayer",
+  "status": "tested"
+ },
+ {
+  "lib": "layers",
+  "lvo": -186,
+  "function": "CreateUpfrontHookLayer",
+  "symbol": "layers_CreateUpfrontHookLayer",
+  "status": "tested"
+ },
+ {
+  "lib": "layers",
+  "lvo": -192,
+  "function": "CreateBehindHookLayer",
+  "symbol": "layers_CreateBehindHookLayer",
+  "status": "tested"
+ },
+ {
+  "lib": "layers",
+  "lvo": -198,
+  "function": "InstallLayerHook",
+  "symbol": "layers_InstallLayerHook",
+  "status": "tested"
+ },
+ {
+  "lib": "layers",
+  "lvo": -204,
+  "function": "InstallLayerInfoHook",
+  "symbol": "layers_InstallLayerInfoHook",
+  "status": "tested"
+ },
+ {
+  "lib": "layers",
+  "lvo": -210,
+  "function": "SortLayerCR",
+  "symbol": "layers_SortLayerCR",
+  "status": "untested"
+ },
+ {
+  "lib": "layers",
+  "lvo": -216,
+  "function": "DoHookClipRects",
+  "symbol": "layers_DoHookClipRects",
+  "status": "untested"
+ },
+ {
+  "lib": "layers",
+  "lvo": -222,
+  "function": "LayerOccluded",
+  "symbol": "layers_LayerOccluded",
+  "status": "tested"
+ },
+ {
+  "lib": "layers",
+  "lvo": -228,
+  "function": "HideLayer",
+  "symbol": "layers_HideLayer",
+  "status": "tested"
+ },
+ {
+  "lib": "layers",
+  "lvo": -234,
+  "function": "ShowLayer",
+  "symbol": "layers_ShowLayer",
+  "status": "tested"
+ },
+ {
+  "lib": "layers",
+  "lvo": -240,
+  "function": "SetLayerInfoBounds",
+  "symbol": "layers_SetLayerInfoBounds",
+  "status": "tested"
+ },
+ {
+  "lib": "locale",
+  "lvo": -36,
+  "function": "CloseCatalog",
+  "symbol": "locale_CloseCatalog",
+  "status": "untested"
+ },
+ {
+  "lib": "locale",
+  "lvo": -42,
+  "function": "CloseLocale",
+  "symbol": "locale_CloseLocale",
+  "status": "tested"
+ },
+ {
+  "lib": "locale",
+  "lvo": -48,
+  "function": "ConvToLower",
+  "symbol": "locale_ConvToLower",
+  "status": "tested"
+ },
+ {
+  "lib": "locale",
+  "lvo": -54,
+  "function": "ConvToUpper",
+  "symbol": "locale_ConvToUpper",
+  "status": "tested"
+ },
+ {
+  "lib": "locale",
+  "lvo": -60,
+  "function": "FormatDate",
+  "symbol": "locale_FormatDate",
+  "status": "tested"
+ },
+ {
+  "lib": "locale",
+  "lvo": -66,
+  "function": "FormatString",
+  "symbol": "locale_FormatString",
+  "status": "tested"
+ },
+ {
+  "lib": "locale",
+  "lvo": -72,
+  "function": "GetCatalogStr",
+  "symbol": "locale_GetCatalogStr",
+  "status": "tested"
+ },
+ {
+  "lib": "locale",
+  "lvo": -78,
+  "function": "GetLocaleStr",
+  "symbol": "locale_GetLocaleStr",
+  "status": "tested"
+ },
+ {
+  "lib": "locale",
+  "lvo": -84,
+  "function": "IsAlNum",
+  "symbol": "locale_IsAlNum",
+  "status": "tested"
+ },
+ {
+  "lib": "locale",
+  "lvo": -90,
+  "function": "IsAlpha",
+  "symbol": "locale_IsAlpha",
+  "status": "tested"
+ },
+ {
+  "lib": "locale",
+  "lvo": -96,
+  "function": "IsCntrl",
+  "symbol": "locale_IsCntrl",
+  "status": "tested"
+ },
+ {
+  "lib": "locale",
+  "lvo": -102,
+  "function": "IsDigit",
+  "symbol": "locale_IsDigit",
+  "status": "tested"
+ },
+ {
+  "lib": "locale",
+  "lvo": -108,
+  "function": "IsGraph",
+  "symbol": "locale_IsGraph",
+  "status": "tested"
+ },
+ {
+  "lib": "locale",
+  "lvo": -114,
+  "function": "IsLower",
+  "symbol": "locale_IsLower",
+  "status": "tested"
+ },
+ {
+  "lib": "locale",
+  "lvo": -120,
+  "function": "IsPrint",
+  "symbol": "locale_IsPrint",
+  "status": "tested"
+ },
+ {
+  "lib": "locale",
+  "lvo": -126,
+  "function": "IsPunct",
+  "symbol": "locale_IsPunct",
+  "status": "tested"
+ },
+ {
+  "lib": "locale",
+  "lvo": -132,
+  "function": "IsSpace",
+  "symbol": "locale_IsSpace",
+  "status": "tested"
+ },
+ {
+  "lib": "locale",
+  "lvo": -138,
+  "function": "IsUpper",
+  "symbol": "locale_IsUpper",
+  "status": "tested"
+ },
+ {
+  "lib": "locale",
+  "lvo": -144,
+  "function": "IsXDigit",
+  "symbol": "locale_IsXDigit",
+  "status": "tested"
+ },
+ {
+  "lib": "locale",
+  "lvo": -150,
+  "function": "OpenCatalogA",
+  "symbol": "locale_OpenCatalogA",
+  "status": "tested"
+ },
+ {
+  "lib": "locale",
+  "lvo": -156,
+  "function": "OpenLocale",
+  "symbol": "locale_OpenLocale",
+  "status": "tested"
+ },
+ {
+  "lib": "locale",
+  "lvo": -162,
+  "function": "ParseDate",
+  "symbol": "locale_ParseDate",
+  "status": "tested"
+ },
+ {
+  "lib": "locale",
+  "lvo": -174,
+  "function": "StrConvert",
+  "symbol": "locale_StrConvert",
+  "status": "tested"
+ },
+ {
+  "lib": "locale",
+  "lvo": -180,
+  "function": "StrnCmp",
+  "symbol": "locale_StrnCmp",
+  "status": "tested"
+ },
+ {
+  "lib": "lowlevel",
+  "lvo": -30,
+  "function": "ReadJoyPort",
+  "symbol": "",
+  "status": "no ROM symbol"
+ },
+ {
+  "lib": "lowlevel",
+  "lvo": -36,
+  "function": "GetLanguageSelection",
+  "symbol": "",
+  "status": "no ROM symbol"
+ },
+ {
+  "lib": "lowlevel",
+  "lvo": -48,
+  "function": "GetKey",
+  "symbol": "",
+  "status": "no ROM symbol"
+ },
+ {
+  "lib": "lowlevel",
+  "lvo": -54,
+  "function": "QueryKeys",
+  "symbol": "",
+  "status": "no ROM symbol"
+ },
+ {
+  "lib": "lowlevel",
+  "lvo": -60,
+  "function": "AddKBInt",
+  "symbol": "",
+  "status": "no ROM symbol"
+ },
+ {
+  "lib": "lowlevel",
+  "lvo": -66,
+  "function": "RemKBInt",
+  "symbol": "",
+  "status": "no ROM symbol"
+ },
+ {
+  "lib": "lowlevel",
+  "lvo": -72,
+  "function": "SystemControlA",
+  "symbol": "",
+  "status": "no ROM symbol"
+ },
+ {
+  "lib": "lowlevel",
+  "lvo": -78,
+  "function": "AddTimerInt",
+  "symbol": "",
+  "status": "no ROM symbol"
+ },
+ {
+  "lib": "lowlevel",
+  "lvo": -84,
+  "function": "RemTimerInt",
+  "symbol": "",
+  "status": "no ROM symbol"
+ },
+ {
+  "lib": "lowlevel",
+  "lvo": -90,
+  "function": "StopTimerInt",
+  "symbol": "",
+  "status": "no ROM symbol"
+ },
+ {
+  "lib": "lowlevel",
+  "lvo": -96,
+  "function": "StartTimerInt",
+  "symbol": "",
+  "status": "no ROM symbol"
+ },
+ {
+  "lib": "lowlevel",
+  "lvo": -102,
+  "function": "ElapsedTime",
+  "symbol": "",
+  "status": "no ROM symbol"
+ },
+ {
+  "lib": "lowlevel",
+  "lvo": -108,
+  "function": "AddVBlankInt",
+  "symbol": "",
+  "status": "no ROM symbol"
+ },
+ {
+  "lib": "lowlevel",
+  "lvo": -114,
+  "function": "RemVBlankInt",
+  "symbol": "",
+  "status": "no ROM symbol"
+ },
+ {
+  "lib": "lowlevel",
+  "lvo": -132,
+  "function": "SetJoyPortAttrsA",
+  "symbol": "",
+  "status": "no ROM symbol"
+ },
+ {
+  "lib": "mathffp",
+  "lvo": -30,
+  "function": "SPFix",
+  "symbol": "mathffp_SPFix",
+  "status": "tested"
+ },
+ {
+  "lib": "mathffp",
+  "lvo": -36,
+  "function": "SPFlt",
+  "symbol": "mathffp_SPFlt",
+  "status": "tested"
+ },
+ {
+  "lib": "mathffp",
+  "lvo": -42,
+  "function": "SPCmp",
+  "symbol": "mathffp_SPCmp",
+  "status": "tested"
+ },
+ {
+  "lib": "mathffp",
+  "lvo": -48,
+  "function": "SPTst",
+  "symbol": "mathffp_SPTst",
+  "status": "tested"
+ },
+ {
+  "lib": "mathffp",
+  "lvo": -54,
+  "function": "SPAbs",
+  "symbol": "mathffp_SPAbs",
+  "status": "tested"
+ },
+ {
+  "lib": "mathffp",
+  "lvo": -60,
+  "function": "SPNeg",
+  "symbol": "mathffp_SPNeg",
+  "status": "tested"
+ },
+ {
+  "lib": "mathffp",
+  "lvo": -66,
+  "function": "SPAdd",
+  "symbol": "mathffp_SPAdd",
+  "status": "tested"
+ },
+ {
+  "lib": "mathffp",
+  "lvo": -72,
+  "function": "SPSub",
+  "symbol": "mathffp_SPSub",
+  "status": "tested"
+ },
+ {
+  "lib": "mathffp",
+  "lvo": -78,
+  "function": "SPMul",
+  "symbol": "mathffp_SPMul",
+  "status": "tested"
+ },
+ {
+  "lib": "mathffp",
+  "lvo": -84,
+  "function": "SPDiv",
+  "symbol": "mathffp_SPDiv",
+  "status": "tested"
+ },
+ {
+  "lib": "mathffp",
+  "lvo": -90,
+  "function": "SPFloor",
+  "symbol": "mathffp_SPFloor",
+  "status": "tested"
+ },
+ {
+  "lib": "mathffp",
+  "lvo": -96,
+  "function": "SPCeil",
+  "symbol": "mathffp_SPCeil",
+  "status": "tested"
+ },
+ {
+  "lib": "mathieeedoubbas",
+  "lvo": -30,
+  "function": "IEEEDPFix",
+  "symbol": "mathieeedoubbas_IEEEDPFix",
+  "status": "tested"
+ },
+ {
+  "lib": "mathieeedoubbas",
+  "lvo": -36,
+  "function": "IEEEDPFlt",
+  "symbol": "mathieeedoubbas_IEEEDPFlt",
+  "status": "tested"
+ },
+ {
+  "lib": "mathieeedoubbas",
+  "lvo": -42,
+  "function": "IEEEDPCmp",
+  "symbol": "mathieeedoubbas_IEEEDPCmp",
+  "status": "tested"
+ },
+ {
+  "lib": "mathieeedoubbas",
+  "lvo": -48,
+  "function": "IEEEDPTst",
+  "symbol": "mathieeedoubbas_IEEEDPTst",
+  "status": "untested"
+ },
+ {
+  "lib": "mathieeedoubbas",
+  "lvo": -54,
+  "function": "IEEEDPAbs",
+  "symbol": "mathieeedoubbas_IEEEDPAbs",
+  "status": "tested"
+ },
+ {
+  "lib": "mathieeedoubbas",
+  "lvo": -60,
+  "function": "IEEEDPNeg",
+  "symbol": "mathieeedoubbas_IEEEDPNeg",
+  "status": "tested"
+ },
+ {
+  "lib": "mathieeedoubbas",
+  "lvo": -66,
+  "function": "IEEEDPAdd",
+  "symbol": "mathieeedoubbas_IEEEDPAdd",
+  "status": "tested"
+ },
+ {
+  "lib": "mathieeedoubbas",
+  "lvo": -72,
+  "function": "IEEEDPSub",
+  "symbol": "mathieeedoubbas_IEEEDPSub",
+  "status": "tested"
+ },
+ {
+  "lib": "mathieeedoubbas",
+  "lvo": -78,
+  "function": "IEEEDPMul",
+  "symbol": "mathieeedoubbas_IEEEDPMul",
+  "status": "tested"
+ },
+ {
+  "lib": "mathieeedoubbas",
+  "lvo": -84,
+  "function": "IEEEDPDiv",
+  "symbol": "mathieeedoubbas_IEEEDPDiv",
+  "status": "tested"
+ },
+ {
+  "lib": "mathieeedoubbas",
+  "lvo": -90,
+  "function": "IEEEDPFloor",
+  "symbol": "mathieeedoubbas_IEEEDPFloor",
+  "status": "untested"
+ },
+ {
+  "lib": "mathieeedoubbas",
+  "lvo": -96,
+  "function": "IEEEDPCeil",
+  "symbol": "mathieeedoubbas_IEEEDPCeil",
+  "status": "untested"
+ },
+ {
+  "lib": "mathieeedoubtrans",
+  "lvo": -30,
+  "function": "IEEEDPAtan",
+  "symbol": "mathieeedoubtrans_IEEEDPAtan",
+  "status": "tested"
+ },
+ {
+  "lib": "mathieeedoubtrans",
+  "lvo": -36,
+  "function": "IEEEDPSin",
+  "symbol": "mathieeedoubtrans_IEEEDPSin",
+  "status": "tested"
+ },
+ {
+  "lib": "mathieeedoubtrans",
+  "lvo": -42,
+  "function": "IEEEDPCos",
+  "symbol": "mathieeedoubtrans_IEEEDPCos",
+  "status": "tested"
+ },
+ {
+  "lib": "mathieeedoubtrans",
+  "lvo": -48,
+  "function": "IEEEDPTan",
+  "symbol": "mathieeedoubtrans_IEEEDPTan",
+  "status": "tested"
+ },
+ {
+  "lib": "mathieeedoubtrans",
+  "lvo": -54,
+  "function": "IEEEDPSincos",
+  "symbol": "mathieeedoubtrans_IEEEDPSincos",
+  "status": "tested"
+ },
+ {
+  "lib": "mathieeedoubtrans",
+  "lvo": -60,
+  "function": "IEEEDPSinh",
+  "symbol": "mathieeedoubtrans_IEEEDPSinh",
+  "status": "tested"
+ },
+ {
+  "lib": "mathieeedoubtrans",
+  "lvo": -66,
+  "function": "IEEEDPCosh",
+  "symbol": "mathieeedoubtrans_IEEEDPCosh",
+  "status": "tested"
+ },
+ {
+  "lib": "mathieeedoubtrans",
+  "lvo": -72,
+  "function": "IEEEDPTanh",
+  "symbol": "mathieeedoubtrans_IEEEDPTanh",
+  "status": "tested"
+ },
+ {
+  "lib": "mathieeedoubtrans",
+  "lvo": -78,
+  "function": "IEEEDPExp",
+  "symbol": "mathieeedoubtrans_IEEEDPExp",
+  "status": "tested"
+ },
+ {
+  "lib": "mathieeedoubtrans",
+  "lvo": -84,
+  "function": "IEEEDPLog",
+  "symbol": "mathieeedoubtrans_IEEEDPLog",
+  "status": "tested"
+ },
+ {
+  "lib": "mathieeedoubtrans",
+  "lvo": -90,
+  "function": "IEEEDPPow",
+  "symbol": "mathieeedoubtrans_IEEEDPPow",
+  "status": "tested"
+ },
+ {
+  "lib": "mathieeedoubtrans",
+  "lvo": -96,
+  "function": "IEEEDPSqrt",
+  "symbol": "mathieeedoubtrans_IEEEDPSqrt",
+  "status": "tested"
+ },
+ {
+  "lib": "mathieeedoubtrans",
+  "lvo": -102,
+  "function": "IEEEDPTieee",
+  "symbol": "mathieeedoubtrans_IEEEDPTieee",
+  "status": "tested"
+ },
+ {
+  "lib": "mathieeedoubtrans",
+  "lvo": -108,
+  "function": "IEEEDPFieee",
+  "symbol": "mathieeedoubtrans_IEEEDPFieee",
+  "status": "tested"
+ },
+ {
+  "lib": "mathieeedoubtrans",
+  "lvo": -114,
+  "function": "IEEEDPAsin",
+  "symbol": "mathieeedoubtrans_IEEEDPAsin",
+  "status": "tested"
+ },
+ {
+  "lib": "mathieeedoubtrans",
+  "lvo": -120,
+  "function": "IEEEDPAcos",
+  "symbol": "mathieeedoubtrans_IEEEDPAcos",
+  "status": "tested"
+ },
+ {
+  "lib": "mathieeedoubtrans",
+  "lvo": -126,
+  "function": "IEEEDPLog10",
+  "symbol": "mathieeedoubtrans_IEEEDPLog10",
+  "status": "tested"
+ },
+ {
+  "lib": "mathieeesingbas",
+  "lvo": -30,
+  "function": "IEEESPFix",
+  "symbol": "mathieeesingbas_IEEESPFix",
+  "status": "tested"
+ },
+ {
+  "lib": "mathieeesingbas",
+  "lvo": -36,
+  "function": "IEEESPFlt",
+  "symbol": "mathieeesingbas_IEEESPFlt",
+  "status": "tested"
+ },
+ {
+  "lib": "mathieeesingbas",
+  "lvo": -42,
+  "function": "IEEESPCmp",
+  "symbol": "mathieeesingbas_IEEESPCmp",
+  "status": "tested"
+ },
+ {
+  "lib": "mathieeesingbas",
+  "lvo": -48,
+  "function": "IEEESPTst",
+  "symbol": "mathieeesingbas_IEEESPTst",
+  "status": "tested"
+ },
+ {
+  "lib": "mathieeesingbas",
+  "lvo": -54,
+  "function": "IEEESPAbs",
+  "symbol": "mathieeesingbas_IEEESPAbs",
+  "status": "tested"
+ },
+ {
+  "lib": "mathieeesingbas",
+  "lvo": -60,
+  "function": "IEEESPNeg",
+  "symbol": "mathieeesingbas_IEEESPNeg",
+  "status": "tested"
+ },
+ {
+  "lib": "mathieeesingbas",
+  "lvo": -66,
+  "function": "IEEESPAdd",
+  "symbol": "mathieeesingbas_IEEESPAdd",
+  "status": "tested"
+ },
+ {
+  "lib": "mathieeesingbas",
+  "lvo": -72,
+  "function": "IEEESPSub",
+  "symbol": "mathieeesingbas_IEEESPSub",
+  "status": "tested"
+ },
+ {
+  "lib": "mathieeesingbas",
+  "lvo": -78,
+  "function": "IEEESPMul",
+  "symbol": "mathieeesingbas_IEEESPMul",
+  "status": "tested"
+ },
+ {
+  "lib": "mathieeesingbas",
+  "lvo": -84,
+  "function": "IEEESPDiv",
+  "symbol": "mathieeesingbas_IEEESPDiv",
+  "status": "tested"
+ },
+ {
+  "lib": "mathieeesingbas",
+  "lvo": -90,
+  "function": "IEEESPFloor",
+  "symbol": "mathieeesingbas_IEEESPFloor",
+  "status": "tested"
+ },
+ {
+  "lib": "mathieeesingbas",
+  "lvo": -96,
+  "function": "IEEESPCeil",
+  "symbol": "mathieeesingbas_IEEESPCeil",
+  "status": "tested"
+ },
+ {
+  "lib": "mathieeesingtrans",
+  "lvo": -30,
+  "function": "IEEESPAtan",
+  "symbol": "",
+  "status": "no ROM symbol"
+ },
+ {
+  "lib": "mathieeesingtrans",
+  "lvo": -36,
+  "function": "IEEESPSin",
+  "symbol": "",
+  "status": "no ROM symbol"
+ },
+ {
+  "lib": "mathieeesingtrans",
+  "lvo": -42,
+  "function": "IEEESPCos",
+  "symbol": "",
+  "status": "no ROM symbol"
+ },
+ {
+  "lib": "mathieeesingtrans",
+  "lvo": -48,
+  "function": "IEEESPTan",
+  "symbol": "",
+  "status": "no ROM symbol"
+ },
+ {
+  "lib": "mathieeesingtrans",
+  "lvo": -54,
+  "function": "IEEESPSincos",
+  "symbol": "",
+  "status": "no ROM symbol"
+ },
+ {
+  "lib": "mathieeesingtrans",
+  "lvo": -60,
+  "function": "IEEESPSinh",
+  "symbol": "",
+  "status": "no ROM symbol"
+ },
+ {
+  "lib": "mathieeesingtrans",
+  "lvo": -66,
+  "function": "IEEESPCosh",
+  "symbol": "",
+  "status": "no ROM symbol"
+ },
+ {
+  "lib": "mathieeesingtrans",
+  "lvo": -72,
+  "function": "IEEESPTanh",
+  "symbol": "",
+  "status": "no ROM symbol"
+ },
+ {
+  "lib": "mathieeesingtrans",
+  "lvo": -78,
+  "function": "IEEESPExp",
+  "symbol": "",
+  "status": "no ROM symbol"
+ },
+ {
+  "lib": "mathieeesingtrans",
+  "lvo": -84,
+  "function": "IEEESPLog",
+  "symbol": "",
+  "status": "no ROM symbol"
+ },
+ {
+  "lib": "mathieeesingtrans",
+  "lvo": -90,
+  "function": "IEEESPPow",
+  "symbol": "",
+  "status": "no ROM symbol"
+ },
+ {
+  "lib": "mathieeesingtrans",
+  "lvo": -96,
+  "function": "IEEESPSqrt",
+  "symbol": "",
+  "status": "no ROM symbol"
+ },
+ {
+  "lib": "mathieeesingtrans",
+  "lvo": -102,
+  "function": "IEEESPTieee",
+  "symbol": "",
+  "status": "no ROM symbol"
+ },
+ {
+  "lib": "mathieeesingtrans",
+  "lvo": -108,
+  "function": "IEEESPFieee",
+  "symbol": "",
+  "status": "no ROM symbol"
+ },
+ {
+  "lib": "mathieeesingtrans",
+  "lvo": -114,
+  "function": "IEEESPAsin",
+  "symbol": "",
+  "status": "no ROM symbol"
+ },
+ {
+  "lib": "mathieeesingtrans",
+  "lvo": -120,
+  "function": "IEEESPAcos",
+  "symbol": "",
+  "status": "no ROM symbol"
+ },
+ {
+  "lib": "mathieeesingtrans",
+  "lvo": -126,
+  "function": "IEEESPLog10",
+  "symbol": "",
+  "status": "no ROM symbol"
+ },
+ {
+  "lib": "mathtrans",
+  "lvo": -30,
+  "function": "SPAtan",
+  "symbol": "mathtrans_SPAtan",
+  "status": "tested"
+ },
+ {
+  "lib": "mathtrans",
+  "lvo": -36,
+  "function": "SPSin",
+  "symbol": "mathtrans_SPSin",
+  "status": "tested"
+ },
+ {
+  "lib": "mathtrans",
+  "lvo": -42,
+  "function": "SPCos",
+  "symbol": "mathtrans_SPCos",
+  "status": "tested"
+ },
+ {
+  "lib": "mathtrans",
+  "lvo": -48,
+  "function": "SPTan",
+  "symbol": "mathtrans_SPTan",
+  "status": "tested"
+ },
+ {
+  "lib": "mathtrans",
+  "lvo": -54,
+  "function": "SPSincos",
+  "symbol": "mathtrans_SPSincos",
+  "status": "tested"
+ },
+ {
+  "lib": "mathtrans",
+  "lvo": -60,
+  "function": "SPSinh",
+  "symbol": "mathtrans_SPSinh",
+  "status": "tested"
+ },
+ {
+  "lib": "mathtrans",
+  "lvo": -66,
+  "function": "SPCosh",
+  "symbol": "mathtrans_SPCosh",
+  "status": "tested"
+ },
+ {
+  "lib": "mathtrans",
+  "lvo": -72,
+  "function": "SPTanh",
+  "symbol": "mathtrans_SPTanh",
+  "status": "tested"
+ },
+ {
+  "lib": "mathtrans",
+  "lvo": -78,
+  "function": "SPExp",
+  "symbol": "mathtrans_SPExp",
+  "status": "tested"
+ },
+ {
+  "lib": "mathtrans",
+  "lvo": -84,
+  "function": "SPLog",
+  "symbol": "mathtrans_SPLog",
+  "status": "tested"
+ },
+ {
+  "lib": "mathtrans",
+  "lvo": -90,
+  "function": "SPPow",
+  "symbol": "mathtrans_SPPow",
+  "status": "tested"
+ },
+ {
+  "lib": "mathtrans",
+  "lvo": -96,
+  "function": "SPSqrt",
+  "symbol": "mathtrans_SPSqrt",
+  "status": "tested"
+ },
+ {
+  "lib": "mathtrans",
+  "lvo": -102,
+  "function": "SPTieee",
+  "symbol": "mathtrans_SPTieee",
+  "status": "tested"
+ },
+ {
+  "lib": "mathtrans",
+  "lvo": -108,
+  "function": "SPFieee",
+  "symbol": "mathtrans_SPFieee",
+  "status": "tested"
+ },
+ {
+  "lib": "mathtrans",
+  "lvo": -114,
+  "function": "SPAsin",
+  "symbol": "mathtrans_SPAsin",
+  "status": "tested"
+ },
+ {
+  "lib": "mathtrans",
+  "lvo": -120,
+  "function": "SPAcos",
+  "symbol": "mathtrans_SPAcos",
+  "status": "tested"
+ },
+ {
+  "lib": "mathtrans",
+  "lvo": -126,
+  "function": "SPLog10",
+  "symbol": "mathtrans_SPLog10",
+  "status": "tested"
+ },
+ {
+  "lib": "misc",
+  "lvo": -6,
+  "function": "AllocMiscResource",
+  "symbol": "",
+  "status": "no ROM symbol"
+ },
+ {
+  "lib": "misc",
+  "lvo": -12,
+  "function": "FreeMiscResource",
+  "symbol": "",
+  "status": "no ROM symbol"
+ },
+ {
+  "lib": "nonvolatile",
+  "lvo": -30,
+  "function": "GetCopyNV",
+  "symbol": "",
+  "status": "no ROM symbol"
+ },
+ {
+  "lib": "nonvolatile",
+  "lvo": -36,
+  "function": "FreeNVData",
+  "symbol": "",
+  "status": "no ROM symbol"
+ },
+ {
+  "lib": "nonvolatile",
+  "lvo": -42,
+  "function": "StoreNV",
+  "symbol": "",
+  "status": "no ROM symbol"
+ },
+ {
+  "lib": "nonvolatile",
+  "lvo": -48,
+  "function": "DeleteNV",
+  "symbol": "",
+  "status": "no ROM symbol"
+ },
+ {
+  "lib": "nonvolatile",
+  "lvo": -54,
+  "function": "GetNVInfo",
+  "symbol": "",
+  "status": "no ROM symbol"
+ },
+ {
+  "lib": "nonvolatile",
+  "lvo": -60,
+  "function": "GetNVList",
+  "symbol": "",
+  "status": "no ROM symbol"
+ },
+ {
+  "lib": "nonvolatile",
+  "lvo": -66,
+  "function": "SetNVProtection",
+  "symbol": "",
+  "status": "no ROM symbol"
+ },
+ {
+  "lib": "potgo",
+  "lvo": -6,
+  "function": "AllocPotBits",
+  "symbol": "",
+  "status": "no ROM symbol"
+ },
+ {
+  "lib": "potgo",
+  "lvo": -12,
+  "function": "FreePotBits",
+  "symbol": "",
+  "status": "no ROM symbol"
+ },
+ {
+  "lib": "potgo",
+  "lvo": -18,
+  "function": "WritePotgo",
+  "symbol": "",
+  "status": "no ROM symbol"
+ },
+ {
+  "lib": "ramdrive",
+  "lvo": -42,
+  "function": "KillRAD0",
+  "symbol": "g_lxa_ramdrive_KillRAD0",
+  "status": "tested"
+ },
+ {
+  "lib": "ramdrive",
+  "lvo": -48,
+  "function": "KillRAD",
+  "symbol": "g_lxa_ramdrive_KillRAD",
+  "status": "tested"
+ },
+ {
+  "lib": "realtime",
+  "lvo": -30,
+  "function": "LockRealTime",
+  "symbol": "",
+  "status": "no ROM symbol"
+ },
+ {
+  "lib": "realtime",
+  "lvo": -36,
+  "function": "UnlockRealTime",
+  "symbol": "",
+  "status": "no ROM symbol"
+ },
+ {
+  "lib": "realtime",
+  "lvo": -42,
+  "function": "CreatePlayerA",
+  "symbol": "",
+  "status": "no ROM symbol"
+ },
+ {
+  "lib": "realtime",
+  "lvo": -48,
+  "function": "DeletePlayer",
+  "symbol": "",
+  "status": "no ROM symbol"
+ },
+ {
+  "lib": "realtime",
+  "lvo": -54,
+  "function": "SetPlayerAttrsA",
+  "symbol": "",
+  "status": "no ROM symbol"
+ },
+ {
+  "lib": "realtime",
+  "lvo": -60,
+  "function": "SetConductorState",
+  "symbol": "",
+  "status": "no ROM symbol"
+ },
+ {
+  "lib": "realtime",
+  "lvo": -66,
+  "function": "ExternalSync",
+  "symbol": "",
+  "status": "no ROM symbol"
+ },
+ {
+  "lib": "realtime",
+  "lvo": -72,
+  "function": "NextConductor",
+  "symbol": "",
+  "status": "no ROM symbol"
+ },
+ {
+  "lib": "realtime",
+  "lvo": -78,
+  "function": "FindConductor",
+  "symbol": "",
+  "status": "no ROM symbol"
+ },
+ {
+  "lib": "realtime",
+  "lvo": -84,
+  "function": "GetPlayerAttrsA",
+  "symbol": "",
+  "status": "no ROM symbol"
+ },
+ {
+  "lib": "rexxsyslib",
+  "lvo": -126,
+  "function": "CreateArgstring",
+  "symbol": "",
+  "status": "untested"
+ },
+ {
+  "lib": "rexxsyslib",
+  "lvo": -132,
+  "function": "DeleteArgstring",
+  "symbol": "",
+  "status": "untested"
+ },
+ {
+  "lib": "rexxsyslib",
+  "lvo": -138,
+  "function": "LengthArgstring",
+  "symbol": "",
+  "status": "untested"
+ },
+ {
+  "lib": "rexxsyslib",
+  "lvo": -144,
+  "function": "CreateRexxMsg",
+  "symbol": "",
+  "status": "untested"
+ },
+ {
+  "lib": "rexxsyslib",
+  "lvo": -150,
+  "function": "DeleteRexxMsg",
+  "symbol": "",
+  "status": "untested"
+ },
+ {
+  "lib": "rexxsyslib",
+  "lvo": -156,
+  "function": "ClearRexxMsg",
+  "symbol": "",
+  "status": "untested"
+ },
+ {
+  "lib": "rexxsyslib",
+  "lvo": -162,
+  "function": "FillRexxMsg",
+  "symbol": "",
+  "status": "untested"
+ },
+ {
+  "lib": "rexxsyslib",
+  "lvo": -168,
+  "function": "IsRexxMsg",
+  "symbol": "",
+  "status": "untested"
+ },
+ {
+  "lib": "rexxsyslib",
+  "lvo": -450,
+  "function": "LockRexxBase",
+  "symbol": "",
+  "status": "untested"
+ },
+ {
+  "lib": "rexxsyslib",
+  "lvo": -456,
+  "function": "UnlockRexxBase",
+  "symbol": "",
+  "status": "untested"
+ },
+ {
+  "lib": "rexxsyslib",
+  "lvo": -480,
+  "function": "CreateRexxHostPort",
+  "symbol": "",
+  "status": "untested"
+ },
+ {
+  "lib": "rexxsyslib",
+  "lvo": -486,
+  "function": "DeleteRexxHostPort",
+  "symbol": "",
+  "status": "untested"
+ },
+ {
+  "lib": "rexxsyslib",
+  "lvo": -492,
+  "function": "GetRexxVarFromMsg",
+  "symbol": "",
+  "status": "untested"
+ },
+ {
+  "lib": "rexxsyslib",
+  "lvo": -498,
+  "function": "SetRexxVarFromMsg",
+  "symbol": "",
+  "status": "untested"
+ },
+ {
+  "lib": "rexxsyslib",
+  "lvo": -504,
+  "function": "LaunchRexxScript",
+  "symbol": "",
+  "status": "untested"
+ },
+ {
+  "lib": "rexxsyslib",
+  "lvo": -510,
+  "function": "FreeRexxMsg",
+  "symbol": "",
+  "status": "untested"
+ },
+ {
+  "lib": "rexxsyslib",
+  "lvo": -516,
+  "function": "GetRexxBufferFromMsg",
+  "symbol": "",
+  "status": "untested"
+ },
+ {
+  "lib": "timer",
+  "lvo": -42,
+  "function": "AddTime",
+  "symbol": "g_lxa_timer_AddTime",
+  "status": "tested"
+ },
+ {
+  "lib": "timer",
+  "lvo": -48,
+  "function": "SubTime",
+  "symbol": "g_lxa_timer_SubTime",
+  "status": "tested"
+ },
+ {
+  "lib": "timer",
+  "lvo": -54,
+  "function": "CmpTime",
+  "symbol": "g_lxa_timer_CmpTime",
+  "status": "tested"
+ },
+ {
+  "lib": "timer",
+  "lvo": -60,
+  "function": "ReadEClock",
+  "symbol": "g_lxa_timer_ReadEClock",
+  "status": "tested"
+ },
+ {
+  "lib": "timer",
+  "lvo": -66,
+  "function": "GetSysTime",
+  "symbol": "g_lxa_timer_GetSysTime",
+  "status": "tested"
+ },
+ {
+  "lib": "translator",
+  "lvo": -30,
+  "function": "Translate",
+  "symbol": "translator_Translate",
+  "status": "untested"
+ },
+ {
+  "lib": "utility",
+  "lvo": -30,
+  "function": "FindTagItem",
+  "symbol": "utility_FindTagItem",
+  "status": "tested"
+ },
+ {
+  "lib": "utility",
+  "lvo": -36,
+  "function": "GetTagData",
+  "symbol": "utility_GetTagData",
+  "status": "tested"
+ },
+ {
+  "lib": "utility",
+  "lvo": -42,
+  "function": "PackBoolTags",
+  "symbol": "utility_PackBoolTags",
+  "status": "tested"
+ },
+ {
+  "lib": "utility",
+  "lvo": -48,
+  "function": "NextTagItem",
+  "symbol": "utility_NextTagItem",
+  "status": "tested"
+ },
+ {
+  "lib": "utility",
+  "lvo": -54,
+  "function": "FilterTagChanges",
+  "symbol": "utility_FilterTagChanges",
+  "status": "tested"
+ },
+ {
+  "lib": "utility",
+  "lvo": -60,
+  "function": "MapTags",
+  "symbol": "utility_MapTags",
+  "status": "tested"
+ },
+ {
+  "lib": "utility",
+  "lvo": -66,
+  "function": "AllocateTagItems",
+  "symbol": "utility_AllocateTagItems",
+  "status": "tested"
+ },
+ {
+  "lib": "utility",
+  "lvo": -72,
+  "function": "CloneTagItems",
+  "symbol": "utility_CloneTagItems",
+  "status": "tested"
+ },
+ {
+  "lib": "utility",
+  "lvo": -78,
+  "function": "FreeTagItems",
+  "symbol": "utility_FreeTagItems",
+  "status": "tested"
+ },
+ {
+  "lib": "utility",
+  "lvo": -84,
+  "function": "RefreshTagItemClones",
+  "symbol": "utility_RefreshTagItemClones",
+  "status": "tested"
+ },
+ {
+  "lib": "utility",
+  "lvo": -90,
+  "function": "TagInArray",
+  "symbol": "utility_TagInArray",
+  "status": "tested"
+ },
+ {
+  "lib": "utility",
+  "lvo": -96,
+  "function": "FilterTagItems",
+  "symbol": "utility_FilterTagItems",
+  "status": "tested"
+ },
+ {
+  "lib": "utility",
+  "lvo": -102,
+  "function": "CallHookPkt",
+  "symbol": "utility_CallHookPkt",
+  "status": "tested"
+ },
+ {
+  "lib": "utility",
+  "lvo": -120,
+  "function": "Amiga2Date",
+  "symbol": "utility_Amiga2Date",
+  "status": "tested"
+ },
+ {
+  "lib": "utility",
+  "lvo": -126,
+  "function": "Date2Amiga",
+  "symbol": "utility_Date2Amiga",
+  "status": "tested"
+ },
+ {
+  "lib": "utility",
+  "lvo": -132,
+  "function": "CheckDate",
+  "symbol": "utility_CheckDate",
+  "status": "tested"
+ },
+ {
+  "lib": "utility",
+  "lvo": -138,
+  "function": "SMult32",
+  "symbol": "utility_SMult32",
+  "status": "tested"
+ },
+ {
+  "lib": "utility",
+  "lvo": -144,
+  "function": "UMult32",
+  "symbol": "utility_UMult32",
+  "status": "tested"
+ },
+ {
+  "lib": "utility",
+  "lvo": -150,
+  "function": "SDivMod32",
+  "symbol": "utility_SDivMod32",
+  "status": "tested"
+ },
+ {
+  "lib": "utility",
+  "lvo": -156,
+  "function": "UDivMod32",
+  "symbol": "utility_UDivMod32",
+  "status": "tested"
+ },
+ {
+  "lib": "utility",
+  "lvo": -162,
+  "function": "Stricmp",
+  "symbol": "utility_Stricmp",
+  "status": "tested"
+ },
+ {
+  "lib": "utility",
+  "lvo": -168,
+  "function": "Strnicmp",
+  "symbol": "utility_Strnicmp",
+  "status": "tested"
+ },
+ {
+  "lib": "utility",
+  "lvo": -174,
+  "function": "ToUpper",
+  "symbol": "utility_ToUpper",
+  "status": "tested"
+ },
+ {
+  "lib": "utility",
+  "lvo": -180,
+  "function": "ToLower",
+  "symbol": "utility_ToLower",
+  "status": "tested"
+ },
+ {
+  "lib": "utility",
+  "lvo": -186,
+  "function": "ApplyTagChanges",
+  "symbol": "utility_ApplyTagChanges",
+  "status": "tested"
+ },
+ {
+  "lib": "utility",
+  "lvo": -198,
+  "function": "SMult64",
+  "symbol": "utility_SMult64",
+  "status": "untested"
+ },
+ {
+  "lib": "utility",
+  "lvo": -204,
+  "function": "UMult64",
+  "symbol": "utility_UMult64",
+  "status": "untested"
+ },
+ {
+  "lib": "utility",
+  "lvo": -210,
+  "function": "PackStructureTags",
+  "symbol": "utility_PackStructureTags",
+  "status": "tested"
+ },
+ {
+  "lib": "utility",
+  "lvo": -216,
+  "function": "UnpackStructureTags",
+  "symbol": "utility_UnpackStructureTags",
+  "status": "tested"
+ },
+ {
+  "lib": "utility",
+  "lvo": -222,
+  "function": "AddNamedObject",
+  "symbol": "utility_AddNamedObject",
+  "status": "tested"
+ },
+ {
+  "lib": "utility",
+  "lvo": -228,
+  "function": "AllocNamedObjectA",
+  "symbol": "utility_AllocNamedObjectA",
+  "status": "tested"
+ },
+ {
+  "lib": "utility",
+  "lvo": -234,
+  "function": "AttemptRemNamedObject",
+  "symbol": "utility_AttemptRemNamedObject",
+  "status": "tested"
+ },
+ {
+  "lib": "utility",
+  "lvo": -240,
+  "function": "FindNamedObject",
+  "symbol": "utility_FindNamedObject",
+  "status": "tested"
+ },
+ {
+  "lib": "utility",
+  "lvo": -246,
+  "function": "FreeNamedObject",
+  "symbol": "utility_FreeNamedObject",
+  "status": "tested"
+ },
+ {
+  "lib": "utility",
+  "lvo": -252,
+  "function": "NamedObjectName",
+  "symbol": "utility_NamedObjectName",
+  "status": "tested"
+ },
+ {
+  "lib": "utility",
+  "lvo": -258,
+  "function": "ReleaseNamedObject",
+  "symbol": "utility_ReleaseNamedObject",
+  "status": "tested"
+ },
+ {
+  "lib": "utility",
+  "lvo": -264,
+  "function": "RemNamedObject",
+  "symbol": "utility_RemNamedObject",
+  "status": "tested"
+ },
+ {
+  "lib": "utility",
+  "lvo": -270,
+  "function": "GetUniqueID",
+  "symbol": "utility_GetUniqueID",
+  "status": "tested"
+ },
+ {
+  "lib": "utility",
+  "lvo": -312,
+  "function": "VSNPrintf",
+  "symbol": "",
+  "status": "no ROM symbol"
+ },
+ {
+  "lib": "utility",
+  "lvo": -438,
+  "function": "Strncpy",
+  "symbol": "",
+  "status": "no ROM symbol"
+ },
+ {
+  "lib": "utility",
+  "lvo": -444,
+  "function": "Strncat",
+  "symbol": "",
+  "status": "no ROM symbol"
+ },
+ {
+  "lib": "utility",
+  "lvo": -450,
+  "function": "SDivMod64",
+  "symbol": "",
+  "status": "no ROM symbol"
+ },
+ {
+  "lib": "utility",
+  "lvo": -456,
+  "function": "UDivMod64",
+  "symbol": "",
+  "status": "no ROM symbol"
+ },
+ {
+  "lib": "wb",
+  "lvo": -30,
+  "function": "UpdateWorkbench",
+  "symbol": "workbench_UpdateWorkbench",
+  "status": "tested"
+ },
+ {
+  "lib": "wb",
+  "lvo": -48,
+  "function": "AddAppWindowA",
+  "symbol": "workbench_AddAppWindowA",
+  "status": "tested"
+ },
+ {
+  "lib": "wb",
+  "lvo": -54,
+  "function": "RemoveAppWindow",
+  "symbol": "workbench_RemoveAppWindow",
+  "status": "tested"
+ },
+ {
+  "lib": "wb",
+  "lvo": -60,
+  "function": "AddAppIconA",
+  "symbol": "workbench_AddAppIconA",
+  "status": "tested"
+ },
+ {
+  "lib": "wb",
+  "lvo": -66,
+  "function": "RemoveAppIcon",
+  "symbol": "workbench_RemoveAppIcon",
+  "status": "tested"
+ },
+ {
+  "lib": "wb",
+  "lvo": -72,
+  "function": "AddAppMenuItemA",
+  "symbol": "workbench_AddAppMenuItemA",
+  "status": "tested"
+ },
+ {
+  "lib": "wb",
+  "lvo": -78,
+  "function": "RemoveAppMenuItem",
+  "symbol": "workbench_RemoveAppMenuItem",
+  "status": "tested"
+ },
+ {
+  "lib": "wb",
+  "lvo": -90,
+  "function": "WBInfo",
+  "symbol": "workbench_WBInfo",
+  "status": "tested"
+ },
+ {
+  "lib": "wb",
+  "lvo": -96,
+  "function": "OpenWorkbenchObjectA",
+  "symbol": "workbench_OpenWorkbenchObjectA",
+  "status": "tested"
+ },
+ {
+  "lib": "wb",
+  "lvo": -102,
+  "function": "CloseWorkbenchObjectA",
+  "symbol": "workbench_CloseWorkbenchObjectA",
+  "status": "tested"
+ },
+ {
+  "lib": "wb",
+  "lvo": -108,
+  "function": "WorkbenchControlA",
+  "symbol": "workbench_WorkbenchControlA",
+  "status": "tested"
+ },
+ {
+  "lib": "wb",
+  "lvo": -114,
+  "function": "AddAppWindowDropZoneA",
+  "symbol": "workbench_AddAppWindowDropZoneA",
+  "status": "tested"
+ },
+ {
+  "lib": "wb",
+  "lvo": -120,
+  "function": "RemoveAppWindowDropZone",
+  "symbol": "workbench_RemoveAppWindowDropZone",
+  "status": "tested"
+ },
+ {
+  "lib": "wb",
+  "lvo": -126,
+  "function": "ChangeWorkbenchSelectionA",
+  "symbol": "workbench_ChangeWorkbenchSelectionA",
+  "status": "tested"
+ },
+ {
+  "lib": "wb",
+  "lvo": -132,
+  "function": "MakeWorkbenchObjectVisibleA",
+  "symbol": "workbench_MakeWorkbenchObjectVisibleA",
+  "status": "tested"
+ },
+ {
+  "lib": "wb",
+  "lvo": -138,
+  "function": "WhichWorkbenchObjectA",
+  "symbol": "workbench_WhichWorkbenchObjectA",
+  "status": "tested"
+ }
+]

@@ -4,7 +4,7 @@ This document is the entry point for AI agents working on the `lxa` codebase. Tr
 
 ## 1. Core Mandates
 - **Stability**: Zero tolerance for crashes.
-- **Coverage**: 100% test coverage required.
+- **Coverage (measurable since Phase 202)**: every public LVO of every system library has at least one test that executes it, and line coverage (ROM + host) **never decreases phase over phase**. Measure with `cmake -B build-cov -DLXA_COVERAGE=ON && make -C build-cov coverage`; it writes `build-cov/coverage/` (lcov tracefiles + `index.html`) and regenerates `doc/coverage/lvo-coverage.md`, which is checked in. Record the new numbers in the roadmap scoreboard when a phase closes.
 - **Zero failing tests at phase completion**: The full test suite (`ctest --test-dir build -j16 --timeout 180`) must report **zero failures and zero timeouts** before any phase is declared done. Failures inherited from earlier phases are NOT acceptable as "pre-existing" — fix them, or formally quarantine them with a `DISABLED_` GTest prefix AND a roadmap entry justifying the deferral. Hand-waving "5 pre-existing failures, unrelated to my phase" is forbidden.
 - **Reference**: ALWAYS consult RKRM and NDK.
 - **System Libraries Must Be Fully Implemented**: AmigaOS system libraries (dos.library, exec.library, graphics.library, intuition.library, datatypes.library, etc.) must have complete, correct implementations — not stubs. Stub implementations of system libraries are never acceptable; they mask bugs and break app compatibility. If a system library function is missing or incomplete, implement it properly.
@@ -199,19 +199,38 @@ in host-side tests. The pattern:
 - For apps that render responses in-place (not in a new window), verify the
   effect via pixel count change rather than waiting for a new window.
 
-### 6.6 Test Timing and Cycle Budgets
+### 6.6 Test Timing: the Deterministic Virtual Clock (Phase 201)
 
-Current cycle budgets are deliberately generous for correctness. A real 7 MHz
-68000 processes a keypress in ~1000 cycles, but `lxa_inject_string()` uses
-1,000,000 per character. This over-provisioning ensures reliability but makes
-tests slow (see Performance Notes below and the roadmap for optimization plans).
+liblxa (all GTest drivers) runs on a **deterministic virtual clock** by default
+(`src/lxa/lxa_vclock.c`). Interactive `lxa` keeps the wall clock unless started
+with `--deterministic`.
 
-**When writing new tests**:
-- Do not arbitrarily increase cycle budgets to "fix" a flaky test. First
-  understand why the test is flaky.
-- If an app needs more cycles during startup, use `WaitForWindowDrawn()` with
-  a retry loop rather than a flat `RunCyclesWithVBlank(200, 50000)`.
-- Prefer event-driven waiting (window count, pixel change) over fixed cycle counts.
+- **Time = emulated cycles.** The virtual CPU runs at 25 MHz (A4000-class
+  reference machine); one 50 Hz PAL frame is 500 000 cycles. VBlank,
+  timer.device, `DateStamp()`, `GetSysTime()` and `ReadEClock()` all derive from
+  the cycle counter; the boot date is 2024-01-01 (`epoch_secs` overrides).
+- **Idle time is skipped**, not slept: when no task is ready the clock jumps to
+  the end of the current slice. Waiting for a 5 s `Delay()` costs ~nothing.
+- **Same scenario, same bytes.** Two runs produce identical captures, output,
+  cycle and frame counts (`determinism_gtest`). If a test is flaky, it is a bug
+  in lxa or in the test, never "timing noise".
+- **Timeouts are emulated time.** `lxa_wait_*()`, `lxa_run_until_exit()` and the
+  `EmuDeadline` fixture helper measure their timeout in emulated ms; a
+  wall-clock guard (10x, ≥60 s) only catches real hangs. Never add
+  `steady_clock`/`gettimeofday` waits to tests.
+- **Wait in frames, wait for state.** Prefer `RunFrames(n)`,
+  `WaitForStableContent()`, `WaitForWindows()` and text-hook/output conditions
+  over fixed `RunCyclesWithVBlank()` loops. A program doing `Delay(50)` needs
+  50 frames, whatever the cycle budget.
+- **Emulated time exposes ROM cost.** Every ROM cycle is now visible time; a
+  slow ROM routine (e.g. per-pixel `Text()`/`RectFill()`) makes apps slow in
+  emulated seconds. `lxa_get_idle_cycles()`, `lxa_get_pc()` and
+  `tools/rom_symbolize.py` find the hot spot.
+- **A/B debugging**: `LXA_REALTIME_CLOCK=1` forces the old wall-clock mode for
+  one run. Phase 201 found several tests that only passed because a slow
+  wall-clock paint was still in progress — check such "passes" with captures.
+- **Stress gate**: `tools/stress_suite.sh -n 20 -l 16` runs the suite 20x under
+  load and backtraces any driver alive >60 s.
 
 ### 6.7 Test Sharding
 
@@ -455,7 +474,7 @@ When ROM code calls `LPRINTF()`/`DPRINTF()` from inside a high-frequency hook (e
 1. **Make each LPRINTF a single short line** with a unique stable prefix (e.g., `P151_GAD %d t=%x f=%x p=%d,%d s=%dx%d R=%lx T=%lx S=%lx`). Then `grep -aoE "P151_GAD [^_]+"` extracts only well-formed lines.
 2. **Suppress the interleaving source temporarily**: lower the offending high-frequency LPRINTF (e.g., `VBlankInputHook calling PIE`) to `DPRINTF(LOG_DEBUG, …)` only for the duration of the diagnostic session — but **revert before commit** (see §6.3).
 3. **Do NOT try to write to a host file from ROM via `fopen`/`fprintf`**: those symbols don't exist in the m68k ROM environment (linker error: `undefined reference to fopen`). The only viable host-bridge from ROM is `lputc`/`lputs`/`lprintf` via the `EMU_CALL_LPUTS` illegal-instruction trap.
-4. **Removing a frequently-called LPRINTF can change test timing**: Phase 151 observed that lowering `VBlankInputHook calling PIE` from `LPRINTF(LOG_INFO)` to `DPRINTF(LOG_DEBUG)` caused a previously-passing dismiss flow in `dpaint_gtest` to fail. The host-side `lputs` syscall implicitly burns wall-clock time and acts as a soft throttle. Either keep the LPRINTF (and use workaround #1) or compensate with explicit settling cycles in the test.
+4. **LPRINTF costs emulated time**: formatting runs in m68k code, so every LPRINTF burns thousands of emulated cycles. Phase 201 demoted the per-VBlank/per-Signal INFO lines (VBlank overhead dropped from 11 % to 2.5 % of a frame). Never leave INFO-level LPRINTFs in hot paths (VBlank, Signal/Wait, input, per-item rendering).
 
 **Rule for new instrumentation**: Always design the LPRINTF format to be **one line, ≤120 chars, with a unique prefix grep can anchor on**. Multi-line dumps via consecutive LPRINTFs are unsafe in any code path that runs more than ~10 times per second.
 

@@ -16,9 +16,11 @@
 #include <cstdint>
 #include <fstream>
 #include <string>
+#include <chrono>
 #include <cstring>
 #include <limits.h>
 #include <unistd.h>
+#include <sys/stat.h>
 #include <cstdio>
 #include <cstdlib>
 #include <vector>
@@ -419,6 +421,48 @@ inline const char* FindAppsPath() {
 }
 
 /**
+ * Phase 201: deadline for test wait loops.
+ *
+ * Measured in *emulated* time on the deterministic clock, so a wait that
+ * passes on an idle machine passes on a loaded one too.  A wall-clock guard
+ * (10x the timeout, at least 60 s) catches genuine hangs.  Once the program
+ * has exited emulated time no longer advances, so the deadline expires.
+ */
+class EmuDeadline {
+public:
+    explicit EmuDeadline(int timeout_ms)
+        : start_us_(lxa_get_time_us()),
+          timeout_us_((uint64_t)(timeout_ms > 0 ? timeout_ms : 0) * 1000ull),
+          wall_start_(std::chrono::steady_clock::now()),
+          guard_ms_(timeout_ms * 10L > 60000L ? timeout_ms * 10L : 60000L) {}
+
+    bool Expired() const {
+        if (lxa_get_time_us() - start_us_ >= timeout_us_)
+            return true;
+        /* Emulated time stops when the program has exited: allow one more
+         * pass of the caller's loop (so it can check its condition against
+         * the final state), then expire. */
+        if (!lxa_is_running()) {
+            if (!stopped_seen_) {
+                stopped_seen_ = true;
+                return false;
+            }
+            return true;
+        }
+        auto wall = std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::steady_clock::now() - wall_start_).count();
+        return wall >= guard_ms_;
+    }
+
+private:
+    uint64_t start_us_;
+    uint64_t timeout_us_;
+    std::chrono::steady_clock::time_point wall_start_;
+    long guard_ms_;
+    mutable bool stopped_seen_ = false;
+};
+
+/**
  * Base test fixture for all lxa tests.
  * Provides automatic setup/teardown of the lxa emulator.
  */
@@ -622,6 +666,41 @@ protected:
             lxa_trigger_vblank();
             lxa_run_cycles(cycles_per_iteration);
         }
+    }
+
+    /**
+     * Phase 201: run `frames` VBlank frames of emulated time (20 ms each on
+     * the PAL virtual clock).  Prefer this over cycle loops: it states the
+     * wait in the units real Amiga software uses (Delay ticks, WaitTOF).
+     */
+    void RunFrames(int frames) {
+        lxa_run_frames(frames);
+    }
+
+    /**
+     * Phase 201: run until the visible content stops changing (the
+     * content-pixel count is identical for `stable_checks` consecutive
+     * samples taken `frames_per_check` frames apart), or until
+     * `max_frames` have elapsed.  Use this instead of fixed settle loops
+     * when an app paints progressively (startup banners, deferred paint).
+     * Returns true if the content became stable.
+     */
+    bool WaitForStableContent(int max_frames = 500, int frames_per_check = 10,
+                              int stable_checks = 3) {
+        int last = -1, same = 0;
+        for (int f = 0; f < max_frames && lxa_is_running(); f += frames_per_check) {
+            lxa_run_frames(frames_per_check);
+            lxa_flush_display();
+            int now = lxa_get_content_pixels();
+            if (now == last) {
+                if (++same >= stable_checks)
+                    return true;
+            } else {
+                same = 0;
+                last = now;
+            }
+        }
+        return false;
     }
     
     /**

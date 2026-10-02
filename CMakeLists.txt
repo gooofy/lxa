@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(lxa VERSION 0.10.14 LANGUAGES C CXX ASM)
+project(lxa VERSION 0.11.0 LANGUAGES C CXX ASM)
 
 # Option to set installation prefix
 if(NOT DEFINED CMAKE_INSTALL_PREFIX)
@@ -156,6 +156,20 @@ if(BUILD_TEST_DRIVERS)
     message(STATUS "Configuring test drivers...")
     add_subdirectory(tests/drivers)
 endif()
+
+# === Coverage (Phase 202) ===
+# `make coverage` runs the full suite with ROM coverage recording
+# (LXA_ROM_COVERAGE) and, if configured with -DLXA_COVERAGE=ON, host gcov,
+# then writes the merged report to build/coverage/ and the per-LVO table to
+# doc/coverage/.
+find_package(Python3 COMPONENTS Interpreter)
+add_custom_target(coverage
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/coverage_report.py
+            --build ${CMAKE_BINARY_DIR} --run-tests
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    USES_TERMINAL
+    COMMENT "Running test suite with coverage and writing merged report"
+)
 
 # === Summary ===
 message(STATUS "")
