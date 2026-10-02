@@ -312,5 +312,7 @@
 /* Phase 203: stub telemetry.  d1=lib name, d2=function name, d3=detail
  * (all C strings in emulated memory).  Reported by LXA_UNIMPLEMENTED(). */
 #define EMU_CALL_UNIMPLEMENTED       5200
+/* Phase 235: d1=library name -> d0=1 if LXA_OVERRIDE loads it from disk */
+#define EMU_CALL_LIB_OVERRIDDEN      5201
 
 #endif

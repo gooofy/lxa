@@ -12,6 +12,7 @@
 #include "config.h"
 #include "lxa_vclock.h"
 #include "lxa_unimpl.h"
+#include "lxa_override.h"
 
 /* Forward declarations for float/double helpers defined later in this file */
 static float ffp_to_host_float(uint32_t raw);
@@ -225,6 +226,13 @@ int op_illg(int level)
                 vclock_end_timeslice();
                 g_running = FALSE;
             }
+            break;
+        }
+
+        case EMU_CALL_LIB_OVERRIDDEN:
+        {
+            uint32_t name = m68k_get_reg(NULL, M68K_REG_D1);
+            m68k_set_reg(M68K_REG_D0, name && lxa_override_lookup(_mgetstr(name), NULL, 0) ? 1 : 0);
             break;
         }
 

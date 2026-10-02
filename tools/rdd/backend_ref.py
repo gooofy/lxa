@@ -212,7 +212,8 @@ def run(scn, out_dir, build=None, use_cache=True):
                         agent.cmd("DELAY 10")
                         snapshot("menu%d" % i, {"screen": True}, t)
                         agent.cmd("RELEASE %d %d R" % (x, y))
-                        agent.cmd("WAIT_IDLE 5000")
+                        agent.cmd("DELAY 10")     # MENUPICK(MENUNULL) handling; not WAIT_IDLE
+                                                  # (apps polling input never look idle)
                 elif kind == "quit":
                     lines = agent.cmd("QUIT %d" % args.get("timeout", 5000), timeout=60)
                     step["survivor"] = "SURVIVOR yes" in lines

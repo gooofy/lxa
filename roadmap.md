@@ -154,6 +154,7 @@ Complete (Phases 210–216, v0.11.9); see the summary table.
 ### Phase 222 — API conformance probes ("WINE tests")
 **Class**: Compatibility. Small generated probe programs call each function with normal and edge-case inputs and print the results. The reference output is the golden. Sub-phases are prioritised by stub telemetry and app traces:
 - [ ] **222a** utility, exec (lists, memory, semaphores, signals, ports), dos (paths, `ReadArgs`, pattern matching, locks, `ExAll`, `SetVBuf`, error codes).
+  - Open from the Phase 220 dos triage: `ReadArgs()` must read the command line from `Input()`'s buffer, not `pr_Arguments`; `Output()` buffering differs from AmigaOS (visible when stdio and dos output are mixed); `NameFromLock()` returns `SYS:` instead of the volume name; RawDoFmt's stray NUL after zero-padded negative numbers (`%05ld`) is not emulated.
 - [ ] **222b** graphics on off-screen bitmaps (lines, areas, flood, blits, `Text`/`TextExtent`/`TextFit`, algorithmic styles), compared as bitmap hashes.
 - [ ] **222c** layers: clip rects, damage lists, backfill hooks, SMART/SIMPLE/SUPER refresh sequences.
 - [ ] **222d** intuition geometry: border sizes per flag combination, `WA_*` tag effects, requester layout, `EasyRequest` layout, screen title bar. Includes the `OpenWindowTags` defaults seen in the `simplegad`/`simplegtgadget` goldens: untitled window `Title` is `""` not NULL, `MaxWidth`/`MaxHeight` default to the window size (not 65535) without a sizing gadget, `WFLG_VISITOR` on public screens, system gadget type bits (close gadget `0x8085`).

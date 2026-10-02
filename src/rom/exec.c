@@ -487,7 +487,8 @@ static struct Library *exec_register_resident_node(struct ExecBase *SysBase,
         lib_base->lib_IdString     = (APTR)resident->rt_IdString;
         lib_base->lib_Version      = resident->rt_Version;
 
-        AddTail(target_list, (struct Node *)lib_base);
+        if (target_list)
+            AddTail(target_list, (struct Node *)lib_base);
     }
 
     return lib_base;
@@ -5308,6 +5309,13 @@ struct Library *registerBuiltInLib (ULONG dSize, struct Resident *romTAG)
      * where LibBase is declared as struct Library* instead of the actual library type).
      * The 5th parameter (segList) is 0 for ROM-based libraries.
      */
+    /* Phase 235: with LXA_OVERRIDE the library stays private to lxa's ROM
+     * (the ROM keeps using it) and OpenLibrary() loads the user's binary */
+    if (emucall1(EMU_CALL_LIB_OVERRIDDEN, (ULONG)romTAG->rt_Name))
+    {
+        LPRINTF (LOG_WARNING, "_exec: LXA_OVERRIDE: %s comes from LIBS: (diagnostic mode)\n", romTAG->rt_Name);
+        return exec_register_resident_node(SysBase, NULL, romTAG, 0);
+    }
     return exec_register_resident_node(SysBase, &SysBase->LibList, romTAG, 0);
 }
 

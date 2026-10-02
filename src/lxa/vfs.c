@@ -8,6 +8,7 @@
 #include <linux/limits.h>
 #include <pwd.h>
 #include "vfs.h"
+#include "lxa_override.h"
 #include "util.h"
 
 typedef struct drive_map_s drive_map_t;
@@ -393,6 +394,10 @@ static bool resolve_path_with_duplicate_root_component(const char *root,
 }
 
 bool vfs_resolve_path(const char *amiga_path, char *linux_path, size_t maxlen) {
+    /* Phase 235: LXA_OVERRIDE - LIBS:<name>.library from the user's WB 3.1 */
+    if (!strncasecmp(amiga_path, "LIBS:", 5) && lxa_override_lookup(amiga_path + 5, linux_path, maxlen))
+        return true;
+
     if (!strncasecmp(amiga_path, "NIL:", 4)) {
         strncpy(linux_path, "/dev/null", maxlen);
         return true;

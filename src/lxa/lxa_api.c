@@ -15,6 +15,7 @@
 #include "lxa_vclock.h"
 #include "lxa_coverage.h"
 #include "lxa_relay.h"
+#include "lxa_override.h"
 
 void lxa_reset_held_tasks(void);   /* lxa_dos_host.c */
 #include "lxa_unimpl.h"
@@ -480,6 +481,7 @@ int lxa_init(const lxa_config_t *config)
     vclock_init(&vcfg);
     lxa_coverage_init();
     lxa_relay_init_from_env();
+    lxa_override_init();
 
     extern bool g_console_stdin_detached;
     g_console_stdin_detached = true;

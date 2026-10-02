@@ -152,6 +152,8 @@ def owning_phases(c, roadmap_text):
         probes.append("`%s,%s,%s`" % pm.groups())
     if m:
         probes += ["`%s`" % m.group(3), m.group(3)] if len(m.group(3)) > 3 else []
+        if re.match(r"^\d+$", m.group(3)) and int(m.group(3)) > 9:
+            probes.append("0x%x" % int(m.group(3)))
         probes += ["%s %s" % (m.group(2), m.group(3))]
     phases = []
     cur = None
