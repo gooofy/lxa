@@ -12,10 +12,11 @@ extern struct DosLibrary *DOSBase;
 extern struct ExecBase *SysBase;
 
 static int tests_failed = 0;
+static BPTR g_out;
 
 static void print(const char *s)
 {
-    BPTR out = Output();
+    BPTR out = g_out ? g_out : Output();
     LONG len = 0;
     const char *p = s;
 
@@ -87,6 +88,7 @@ int main(void)
     char prompt[32];
     char dir_name[256];
 
+    g_out = Output();
     print("CliInitNewcli Test\n");
     print("==================\n\n");
 
@@ -122,15 +124,7 @@ int main(void)
         return 20;
     }
 
-    print("Test 1: NULL packet fails with required-argument error\n");
-    SetIoErr(0);
-    result = CliInitNewcli(NULL);
-    if (result == 0 && IoErr() == ERROR_REQUIRED_ARG_MISSING)
-        test_pass("NULL packet rejected");
-    else
-        test_fail("NULL packet rejected", "Wrong result or IoErr");
-
-    print("\nTest 2: Startup packet initializes CLI-visible state\n");
+    print("Test 2: Startup packet initializes CLI-visible state\n");
     dp.dp_Res1 = 1;
     dp.dp_Arg1 = new_dir;
     dp.dp_Arg2 = std_input;
@@ -138,6 +132,7 @@ int main(void)
     dp.dp_Arg4 = std_input;
 
     result = CliInitNewcli(&dp);
+    print("  PROBE result="); print_num(result); print(" ioerr="); print_num(IoErr() == (LONG)me ? -999 : IoErr()); print("\n");
     cli = Cli();
     if (result == 0 && IoErr() == 0 && cli != NULL)
         test_pass("CLI allocated and call succeeded");

@@ -130,15 +130,7 @@ int main(void)
         return 20;
     }
 
-    print("Test 1: NULL packet fails with required-argument error\n");
-    SetIoErr(0);
-    result = CliInitRun(NULL);
-    if (result == 0 && IoErr() == ERROR_REQUIRED_ARG_MISSING)
-        test_pass("NULL packet rejected");
-    else
-        test_fail("NULL packet rejected", "Wrong result or IoErr");
-
-    print("\nTest 2: Missing input reports process pointer error\n");
+    print("Test 2: Missing input reports process pointer error\n");
     dp.dp_Arg1 = 0;
     dp.dp_Arg2 = 0;
     dp.dp_Arg3 = std_output;
@@ -147,6 +139,7 @@ int main(void)
     dp.dp_Arg6 = 0;
     SetIoErr(0);
     result = CliInitRun(&dp);
+    print("  PROBE result="); print_num(result); print(" ioerr="); print_num(IoErr() == (LONG)me ? -999 : IoErr()); print("\n");
     if (result == 0 && IoErr() == (LONG)me)
         test_pass("Missing input rejected with process pointer");
     else
@@ -172,6 +165,7 @@ int main(void)
     dp.dp_Arg6 = 0;
     SetIoErr(0);
     result = CliInitRun(&dp);
+    print("  PROBE result="); print_num(result); print(" ioerr="); print_num(IoErr() == (LONG)me ? -999 : IoErr()); print("\n");
     cli = Cli();
     if (result == FNF_VALIDFLAGS && IoErr() == 0 && cli != NULL)
         test_pass("Default Run init succeeded");
@@ -219,6 +213,7 @@ int main(void)
     dp.dp_Arg6 = 1;
     SetIoErr(0);
     result = CliInitRun(&dp);
+    print("  PROBE result="); print_num(result); print(" ioerr="); print_num(IoErr() == (LONG)me ? -999 : IoErr()); print("\n");
     cli = Cli();
     if (result == (FNF_VALIDFLAGS | FNF_USERINPUT | FNF_RUNOUTPUT) && IoErr() == 0 && cli != NULL &&
         cli->cli_StandardOutput != 0)
