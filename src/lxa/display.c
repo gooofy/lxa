@@ -553,6 +553,7 @@ bool display_init(void)
  */
 void display_shutdown(void)
 {
+    display_handle_reset();
     if (!g_display_initialized)
     {
         return;
@@ -761,6 +762,7 @@ void display_close(display_t *display)
     {
         return;
     }
+    display_handle_release(display);
 
     /* Clear active display if this is the one being closed */
     if (g_active_display == display)
@@ -1253,6 +1255,59 @@ static void queue_event(const display_event_t *event)
 /*
  * Get the next event from the queue
  */
+/* ------------------------------------------------------------------ */
+/* Host object handles (Phase 212)                                     */
+/* ------------------------------------------------------------------ */
+
+#define DISPLAY_MAX_HANDLES 1024
+#define DISPLAY_HANDLE_TAG  0x4C580000u     /* 'LX' in the high word */
+static void *g_handles[DISPLAY_MAX_HANDLES];
+
+uint32_t display_handle_of(void *ptr)
+{
+    int i, free_slot = -1;
+
+    if (!ptr)
+        return 0;
+    for (i = 0; i < DISPLAY_MAX_HANDLES; i++) {
+        if (g_handles[i] == ptr)
+            return DISPLAY_HANDLE_TAG | (uint32_t)(i + 1);
+        if (!g_handles[i] && free_slot < 0)
+            free_slot = i;
+    }
+    if (free_slot < 0) {
+        LPRINTF(LOG_ERROR, "display: out of host object handles\n");
+        return 0;
+    }
+    g_handles[free_slot] = ptr;
+    return DISPLAY_HANDLE_TAG | (uint32_t)(free_slot + 1);
+}
+
+void *display_handle_ptr(uint32_t handle)
+{
+    uint32_t idx = handle & 0xFFFFu;
+
+    if ((handle & 0xFFFF0000u) != DISPLAY_HANDLE_TAG || idx == 0 || idx > DISPLAY_MAX_HANDLES)
+        return NULL;
+    return g_handles[idx - 1];
+}
+
+void display_handle_reset(void)
+{
+    memset(g_handles, 0, sizeof(g_handles));
+}
+
+void display_handle_release(void *ptr)
+{
+    int i;
+
+    if (!ptr)
+        return;
+    for (i = 0; i < DISPLAY_MAX_HANDLES; i++)
+        if (g_handles[i] == ptr)
+            g_handles[i] = NULL;
+}
+
 /* Phase 204: qualifier of the last input event delivered to the emulated
  * system (what Intuition reports in IntuiMessage->Qualifier). */
 static int g_delivered_qualifier = 0;
@@ -1941,6 +1996,7 @@ void display_window_close(display_window_t *window)
     {
         return;
     }
+    display_handle_release(window);
 
 #if HAS_SDL2
     if (g_sdl_available)

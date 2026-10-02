@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "lxa-tree/1",
+  "title": "Intuition tree snapshot (lxa-tree/1)",
+  "description": "Screens, windows, gadgets and menus as produced by lxaprobe DUMP_TREE (reference) and lxa_dump_tree_json() (lxa). Raw NDK field values; see doc/rdd-snapshot.md.",
+  "type": "object",
+  "required": ["schema", "backend", "screens"],
+  "properties": {
+    "schema": {"const": "lxa-tree/1"},
+    "backend": {"enum": ["lxa", "ref"]},
+    "screens": {"type": "array", "items": {"$ref": "#/$defs/screen"}}
+  },
+  "$defs": {
+    "str": {"type": ["string", "null"]},
+    "int": {"type": "integer"},
+    "font": {
+      "type": ["object", "null"],
+      "required": ["name", "ysize", "xsize", "baseline"],
+      "properties": {"name": {"$ref": "#/$defs/str"}, "ysize": {"type": "integer"},
+                     "xsize": {"type": "integer"}, "baseline": {"type": "integer"}}
+    },
+    "intuitext": {
+      "type": "object",
+      "required": ["text", "left", "top", "fpen", "bpen", "drawmode"],
+      "properties": {"text": {"$ref": "#/$defs/str"}}
+    },
+    "gadget": {
+      "type": "object",
+      "required": ["id", "type", "flags", "activation", "left", "top", "width", "height", "text"],
+      "properties": {"text": {"type": "array", "items": {"$ref": "#/$defs/intuitext"}}}
+    },
+    "item": {
+      "type": "object",
+      "required": ["left", "top", "width", "height", "flags", "mutualexclude", "command", "text", "sub"],
+      "properties": {"text": {"$ref": "#/$defs/str"},
+                     "sub": {"type": "array", "items": {"$ref": "#/$defs/item"}}}
+    },
+    "menu": {
+      "type": "object",
+      "required": ["title", "left", "top", "width", "height", "flags", "items"],
+      "properties": {"items": {"type": "array", "items": {"$ref": "#/$defs/item"}}}
+    },
+    "window": {
+      "type": "object",
+      "required": ["title", "screen_title", "app", "left", "top", "width", "height", "min_width",
+                   "min_height", "max_width", "max_height", "flags", "idcmp", "border",
+                   "detail_pen", "block_pen", "font", "gadgets", "menus"],
+      "properties": {
+        "app": {"type": "boolean"},
+        "border": {"type": "array", "items": {"type": "integer"}, "minItems": 4, "maxItems": 4},
+        "font": {"$ref": "#/$defs/font"},
+        "gadgets": {"type": "array", "items": {"$ref": "#/$defs/gadget"}},
+        "menus": {"type": "array", "items": {"$ref": "#/$defs/menu"}}
+      }
+    },
+    "screen": {
+      "type": "object",
+      "required": ["title", "default_title", "left", "top", "width", "height", "depth", "display_id",
+                   "flags", "bar_height", "bar_vborder", "bar_hborder", "menu_vborder",
+                   "menu_hborder", "wbor", "font", "windows"],
+      "properties": {
+        "wbor": {"type": "array", "items": {"type": "integer"}, "minItems": 4, "maxItems": 4},
+        "font": {"$ref": "#/$defs/font"},
+        "windows": {"type": "array", "items": {"$ref": "#/$defs/window"}}
+      }
+    }
+  }
+}

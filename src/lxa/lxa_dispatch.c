@@ -1297,14 +1297,14 @@ int op_illg(int level)
 
             display_t *display = display_open(width, height, depth, "LXA Amiga Display");
             /* Store display handle as a host pointer - we'll use the pointer address as a handle */
-            m68k_set_reg(M68K_REG_D0, (uint32_t)(uintptr_t)display);
+            m68k_set_reg(M68K_REG_D0, display_handle_of(display));
             break;
         }
 
         case EMU_CALL_GFX_CLOSE_DISPLAY:
         {
             uint32_t d1 = m68k_get_reg(NULL, M68K_REG_D1);
-            display_t *display = (display_t *)(uintptr_t)d1;
+            display_t *display = (display_t *)display_handle_ptr(d1);
 
             DPRINTF(LOG_DEBUG, "lxa: op_illg(): EMU_CALL_GFX_CLOSE_DISPLAY handle=0x%08x\n", d1);
 
@@ -1315,7 +1315,7 @@ int op_illg(int level)
         case EMU_CALL_GFX_REFRESH:
         {
             uint32_t d1 = m68k_get_reg(NULL, M68K_REG_D1);
-            display_t *display = (display_t *)(uintptr_t)d1;
+            display_t *display = (display_t *)display_handle_ptr(d1);
 
             DPRINTF(LOG_DEBUG, "lxa: op_illg(): EMU_CALL_GFX_REFRESH handle=0x%08x\n", d1);
 
@@ -1328,7 +1328,7 @@ int op_illg(int level)
             uint32_t d1 = m68k_get_reg(NULL, M68K_REG_D1);
             uint32_t d2 = m68k_get_reg(NULL, M68K_REG_D2);
             uint32_t d3 = m68k_get_reg(NULL, M68K_REG_D3);
-            display_t *display = (display_t *)(uintptr_t)d1;
+            display_t *display = (display_t *)display_handle_ptr(d1);
             int index = (int)(d2 & 0xFF);
             uint8_t r = (d3 >> 16) & 0xFF;
             uint8_t g = (d3 >> 8) & 0xFF;
@@ -1347,7 +1347,7 @@ int op_illg(int level)
             uint32_t d2 = m68k_get_reg(NULL, M68K_REG_D2);
             uint32_t d3 = m68k_get_reg(NULL, M68K_REG_D3);
             uint32_t a0 = m68k_get_reg(NULL, M68K_REG_A0);
-            display_t *display = (display_t *)(uintptr_t)d1;
+            display_t *display = (display_t *)display_handle_ptr(d1);
             int start = (int)d2;
             int count = (int)d3;
 
@@ -1377,7 +1377,7 @@ int op_illg(int level)
             uint32_t d2 = m68k_get_reg(NULL, M68K_REG_D2);
             uint32_t d3 = m68k_get_reg(NULL, M68K_REG_D3);
             uint32_t a0 = m68k_get_reg(NULL, M68K_REG_A0);
-            display_t *display = (display_t *)(uintptr_t)d1;
+            display_t *display = (display_t *)display_handle_ptr(d1);
             int start = (int)d2;
             int count = (int)d3;
 
@@ -1407,7 +1407,7 @@ int op_illg(int level)
             uint32_t d2 = m68k_get_reg(NULL, M68K_REG_D2);
             uint32_t d3 = m68k_get_reg(NULL, M68K_REG_D3);
             uint32_t d4 = m68k_get_reg(NULL, M68K_REG_D4);
-            display_t *display = (display_t *)(uintptr_t)d1;
+            display_t *display = (display_t *)display_handle_ptr(d1);
             int x = (int)d2;
             int y = (int)d3;
             uint8_t pen = (uint8_t)d4;
@@ -1433,7 +1433,7 @@ int op_illg(int level)
             uint32_t d4 = m68k_get_reg(NULL, M68K_REG_D4);
             uint32_t d5 = m68k_get_reg(NULL, M68K_REG_D5);
             uint32_t d6 = m68k_get_reg(NULL, M68K_REG_D6);
-            display_t *display = (display_t *)(uintptr_t)d1;
+            display_t *display = (display_t *)display_handle_ptr(d1);
             int x1 = (int)d2;
             int y1 = (int)d3;
             int x2 = (int)d4;
@@ -1467,7 +1467,7 @@ int op_illg(int level)
             uint32_t d4 = m68k_get_reg(NULL, M68K_REG_D4);
             uint32_t d5 = m68k_get_reg(NULL, M68K_REG_D5);
             uint32_t d6 = m68k_get_reg(NULL, M68K_REG_D6);
-            display_t *display = (display_t *)(uintptr_t)d1;
+            display_t *display = (display_t *)display_handle_ptr(d1);
             int x1 = (int)d2;
             int y1 = (int)d3;
             int x2 = (int)d4;
@@ -1514,7 +1514,7 @@ int op_illg(int level)
             uint32_t d6 = m68k_get_reg(NULL, M68K_REG_D6);
             uint32_t d7 = m68k_get_reg(NULL, M68K_REG_D7);
             uint32_t a0 = m68k_get_reg(NULL, M68K_REG_A0);
-            display_t *display = (display_t *)(uintptr_t)d1;
+            display_t *display = (display_t *)display_handle_ptr(d1);
             int x = (int)d2;
             int y = (int)d3;
             int width = (int)d4;
@@ -1580,7 +1580,7 @@ int op_illg(int level)
             uint32_t d5 = m68k_get_reg(NULL, M68K_REG_D5);
             uint32_t d6 = m68k_get_reg(NULL, M68K_REG_D6);
             uint32_t a0 = m68k_get_reg(NULL, M68K_REG_A0);
-            display_t *display = (display_t *)(uintptr_t)d1;
+            display_t *display = (display_t *)display_handle_ptr(d1);
             int x = (int)d2;
             int y = (int)d3;
             int width = (int)d4;
@@ -1900,7 +1900,7 @@ int op_illg(int level)
         case EMU_CALL_GFX_GET_SIZE:
         {
             uint32_t d1 = m68k_get_reg(NULL, M68K_REG_D1);
-            display_t *display = (display_t *)(uintptr_t)d1;
+            display_t *display = (display_t *)display_handle_ptr(d1);
             int width, height, depth;
 
             display_get_size(display, &width, &height, &depth);
@@ -2022,7 +2022,7 @@ int op_illg(int level)
                                      0, 0, (int)width, (int)height);
 
             /* Return display handle (pointer cast to uint32_t) */
-            m68k_set_reg(M68K_REG_D0, (uint32_t)(uintptr_t)disp);
+            m68k_set_reg(M68K_REG_D0, display_handle_of(disp));
             break;
         }
 
@@ -2030,7 +2030,7 @@ int op_illg(int level)
         {
             /* d1: display_handle */
             uint32_t d1 = m68k_get_reg(NULL, M68K_REG_D1);
-            display_t *disp = (display_t *)(uintptr_t)d1;
+            display_t *disp = (display_t *)display_handle_ptr(d1);
 
             DPRINTF(LOG_DEBUG, "lxa: op_illg(): EMU_CALL_INT_CLOSE_SCREEN handle=0x%08x\n", d1);
 
@@ -2051,7 +2051,7 @@ int op_illg(int level)
             uint32_t d1 = m68k_get_reg(NULL, M68K_REG_D1);
             uint32_t d2 = m68k_get_reg(NULL, M68K_REG_D2);
             uint32_t d3 = m68k_get_reg(NULL, M68K_REG_D3);
-            display_t *disp = (display_t *)(uintptr_t)d1;
+            display_t *disp = (display_t *)display_handle_ptr(d1);
             uint32_t planes_ptr = d2;
             uint32_t bpr = (d3 >> 16) & 0xFFFF;
             uint32_t depth = d3 & 0xFFFF;
@@ -2098,7 +2098,7 @@ int op_illg(int level)
             uint32_t d1 = m68k_get_reg(NULL, M68K_REG_D1);
             uint32_t d2 = m68k_get_reg(NULL, M68K_REG_D2);
             uint32_t d3 = m68k_get_reg(NULL, M68K_REG_D3);
-            display_t *disp = (display_t *)(uintptr_t)d1;
+            display_t *disp = (display_t *)display_handle_ptr(d1);
             uint32_t planes_ptr = d2;
             uint32_t bpr = (d3 >> 16) & 0xFFFF;
             uint32_t depth = d3 & 0xFFFF;
@@ -2185,7 +2185,7 @@ int op_illg(int level)
         case EMU_CALL_INT_GET_EVENT_WIN:
         {
             /* Returns display handle for window that received the event */
-            m68k_set_reg(M68K_REG_D0, (uint32_t)(uintptr_t)g_last_event.window);
+            m68k_set_reg(M68K_REG_D0, display_handle_of(g_last_event.window));
             break;
         }
 
@@ -2202,7 +2202,7 @@ int op_illg(int level)
             uint32_t d3 = m68k_get_reg(NULL, M68K_REG_D3);
             uint32_t d4 = m68k_get_reg(NULL, M68K_REG_D4);
             uint32_t d5 = m68k_get_reg(NULL, M68K_REG_D5);
-            display_t *screen = (display_t *)(uintptr_t)d1;
+            display_t *screen = (display_t *)display_handle_ptr(d1);
             int x = (int16_t)((d2 >> 16) & 0xFFFF);
             int y = (int16_t)(d2 & 0xFFFF);
             int w = (int16_t)((d3 >> 16) & 0xFFFF);
@@ -2252,7 +2252,7 @@ int op_illg(int level)
                 int win_idx = display_get_window_count() - 1;
                 lxa_push_intui_event(LXA_INTUI_EVENT_OPEN_WINDOW, win_idx, title, x, y, w, h);
             }
-            m68k_set_reg(M68K_REG_D0, (uint32_t)(uintptr_t)win);
+            m68k_set_reg(M68K_REG_D0, display_handle_of(win));
             break;
         }
 
@@ -2260,7 +2260,7 @@ int op_illg(int level)
         {
             /* d1: window_handle */
             uint32_t d1 = m68k_get_reg(NULL, M68K_REG_D1);
-            display_window_t *win = (display_window_t *)(uintptr_t)d1;
+            display_window_t *win = (display_window_t *)display_handle_ptr(d1);
 
             DPRINTF(LOG_DEBUG, "lxa: EMU_CALL_INT_CLOSE_WINDOW handle=0x%08x\n", d1);
 
@@ -2279,7 +2279,7 @@ int op_illg(int level)
             /* d1: window_handle, d2: (x << 16) | y */
             uint32_t d1 = m68k_get_reg(NULL, M68K_REG_D1);
             uint32_t d2 = m68k_get_reg(NULL, M68K_REG_D2);
-            display_window_t *win = (display_window_t *)(uintptr_t)d1;
+            display_window_t *win = (display_window_t *)display_handle_ptr(d1);
             int x = (int16_t)((d2 >> 16) & 0xFFFF);
             int y = (int16_t)(d2 & 0xFFFF);
 
@@ -2298,7 +2298,7 @@ int op_illg(int level)
             uint32_t d1 = m68k_get_reg(NULL, M68K_REG_D1);
             uint32_t d2 = m68k_get_reg(NULL, M68K_REG_D2);
             uint32_t d3 = m68k_get_reg(NULL, M68K_REG_D3);
-            display_window_t *win = (display_window_t *)(uintptr_t)d1;
+            display_window_t *win = (display_window_t *)display_handle_ptr(d1);
             int w = (int)d2;
             int h = (int)d3;
 
@@ -2314,7 +2314,7 @@ int op_illg(int level)
         {
             /* d1: window_handle */
             uint32_t d1 = m68k_get_reg(NULL, M68K_REG_D1);
-            display_window_t *win = (display_window_t *)(uintptr_t)d1;
+            display_window_t *win = (display_window_t *)display_handle_ptr(d1);
 
             DPRINTF(LOG_DEBUG, "lxa: EMU_CALL_INT_WINDOW_TOFRONT handle=0x%08x\n", d1);
 
@@ -2327,7 +2327,7 @@ int op_illg(int level)
         {
             /* d1: window_handle */
             uint32_t d1 = m68k_get_reg(NULL, M68K_REG_D1);
-            display_window_t *win = (display_window_t *)(uintptr_t)d1;
+            display_window_t *win = (display_window_t *)display_handle_ptr(d1);
 
             DPRINTF(LOG_DEBUG, "lxa: EMU_CALL_INT_WINDOW_TOBACK handle=0x%08x\n", d1);
 
@@ -2341,7 +2341,7 @@ int op_illg(int level)
             /* d1: window_handle, d2: title_ptr */
             uint32_t d1 = m68k_get_reg(NULL, M68K_REG_D1);
             uint32_t d2 = m68k_get_reg(NULL, M68K_REG_D2);
-            display_window_t *win = (display_window_t *)(uintptr_t)d1;
+            display_window_t *win = (display_window_t *)display_handle_ptr(d1);
             uint32_t title_ptr = d2;
 
             char title[128] = "";
@@ -2372,7 +2372,7 @@ int op_illg(int level)
             uint32_t d1 = m68k_get_reg(NULL, M68K_REG_D1);
             uint32_t d2 = m68k_get_reg(NULL, M68K_REG_D2);
             uint32_t d3 = m68k_get_reg(NULL, M68K_REG_D3);
-            display_window_t *win = (display_window_t *)(uintptr_t)d1;
+            display_window_t *win = (display_window_t *)display_handle_ptr(d1);
             uint32_t planes_ptr = d2;
             uint32_t bpr = (d3 >> 16) & 0xFFFF;
             uint32_t depth = d3 & 0xFFFF;
@@ -2419,7 +2419,7 @@ int op_illg(int level)
             /* d1: window_handle, d2: emulated Window* */
             uint32_t d1 = m68k_get_reg(NULL, M68K_REG_D1);
             uint32_t d2 = m68k_get_reg(NULL, M68K_REG_D2);
-            display_window_t *win = (display_window_t *)(uintptr_t)d1;
+            display_window_t *win = (display_window_t *)display_handle_ptr(d1);
 
             DPRINTF(LOG_DEBUG, "lxa: EMU_CALL_INT_ATTACH_WINDOW handle=0x%08x, window=0x%08x\n",
                     d1, d2);
@@ -2721,7 +2721,7 @@ int op_illg(int level)
             }
             filename[i] = '\0';
             
-            bool result = display_capture_window((display_window_t *)(uintptr_t)window_handle, filename);
+            bool result = display_capture_window((display_window_t *)display_handle_ptr(window_handle), filename);
             m68k_set_reg(M68K_REG_D0, result ? 1 : 0);
             break;
         }

@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "lxa-bundle/1",
+  "title": "Snapshot bundle metadata (lxa-bundle/1)",
+  "type": "object",
+  "required": ["schema", "backend", "scenario", "snapshot", "files"],
+  "properties": {
+    "schema": {"const": "lxa-bundle/1"},
+    "backend": {"enum": ["lxa", "ref"]},
+    "scenario": {"type": "string"},
+    "snapshot": {"type": "string"},
+    "profile": {"enum": ["aga", "rtg"]},
+    "lxa_version": {"type": "string"},
+    "refsys_checksum": {"type": "string"},
+    "window": {"type": ["integer", "null"]},
+    "screen": {
+      "type": "object",
+      "required": ["width", "height", "depth"],
+      "properties": {"width": {"type": "integer"}, "height": {"type": "integer"},
+                     "depth": {"type": "integer"}}
+    },
+    "files": {"type": "array", "items": {"enum": ["screen.png", "palette.json", "tree.json",
+                                                    "text.jsonl", "stdout.txt", "trace.jsonl",
+                                                    "unimplemented.json"]}}
+  }
+}

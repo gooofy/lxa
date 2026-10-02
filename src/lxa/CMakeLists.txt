@@ -109,6 +109,7 @@ endif()
 add_library(liblxa STATIC
     ${LXA_CORE_SOURCES}
     lxa_api.c
+    lxa_rdd.c
 )
 
 target_include_directories(liblxa PUBLIC
@@ -144,6 +145,38 @@ endif()
 set_target_properties(liblxa PROPERTIES
     ARCHIVE_OUTPUT_DIRECTORY ${HOST_BINARY_DIR}/lib
     OUTPUT_NAME lxa
+)
+
+# === liblxa.so (Phase 212) ===
+# Shared build of liblxa for the Python bindings (tools/rdd/pylxa.py).
+add_library(liblxa_shared SHARED
+    ${LXA_CORE_SOURCES}
+    lxa_api.c
+    lxa_rdd.c
+)
+target_include_directories(liblxa_shared PUBLIC
+    ${CMAKE_SOURCE_DIR}/src/include
+    ${CMAKE_CURRENT_SOURCE_DIR}
+)
+if(READLINE_INCLUDE_DIR)
+    target_include_directories(liblxa_shared PRIVATE ${READLINE_INCLUDE_DIR})
+endif()
+if(SDL2_FOUND)
+    target_include_directories(liblxa_shared PRIVATE ${SDL2_INCLUDE_DIRS})
+endif()
+target_compile_options(liblxa_shared PRIVATE ${LXA_COMPILE_OPTIONS})
+target_compile_definitions(liblxa_shared PRIVATE ${LXA_COMPILE_DEFINITIONS} LXA_LIBRARY_BUILD)
+target_link_libraries(liblxa_shared PUBLIC Threads::Threads PNG::PNG ${READLINE_LIBRARY} m)
+if(LXA_SDL_LINK_LIBS)
+    target_link_libraries(liblxa_shared PUBLIC ${LXA_SDL_LINK_LIBS})
+endif()
+if(LXA_COVERAGE_LINK_OPTIONS)
+    target_link_options(liblxa_shared PUBLIC ${LXA_COVERAGE_LINK_OPTIONS})
+endif()
+set_target_properties(liblxa_shared PROPERTIES
+    LIBRARY_OUTPUT_DIRECTORY ${HOST_BINARY_DIR}/lib
+    OUTPUT_NAME lxa
+    POSITION_INDEPENDENT_CODE ON
 )
 
 # === lxa executable ===

@@ -225,6 +225,17 @@ typedef struct {
  */
 bool display_get_event(display_event_t *event);
 
+/*
+ * Host objects (display_t, display_window_t) referenced from emulated memory
+ * (e.g. Screen->ExtData) are exchanged as 32-bit handles, never as raw host
+ * pointers, which do not fit in 32 bits in PIE processes (Phase 212).
+ * Handle 0 is NULL.  Handles stay valid until display_handle_release().
+ */
+uint32_t display_handle_of(void *ptr);
+void    *display_handle_ptr(uint32_t handle);
+void     display_handle_release(void *ptr);
+void     display_handle_reset(void);
+
 /* Phase 204: qualifier of the last event delivered to the emulated system */
 int display_get_delivered_qualifier(void);
 

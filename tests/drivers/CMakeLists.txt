@@ -482,6 +482,17 @@ if(BUILD_GTESTS AND GTEST_FOUND)
             LABELS "meta"
         )
 
+        # Phase 212: Python RDD tooling (pylxa bindings, snapshot bundles)
+        add_test(
+            NAME rdd_python
+            COMMAND ${Python3_EXECUTABLE} -m unittest discover -s ${CMAKE_SOURCE_DIR}/tests/rdd
+        )
+        set_tests_properties(rdd_python PROPERTIES
+            TIMEOUT 300
+            LABELS "rdd"
+            ENVIRONMENT "LXA_BUILD=${CMAKE_BINARY_DIR}"
+        )
+
         # Phase 211: the RDD reference machine (real AmigaOS 3.1 under
         # FS-UAE) with the lxaprobe agent.  Skipped (exit 77) when the
         # user's AmigaOS media or FS-UAE are not installed.

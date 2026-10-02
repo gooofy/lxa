@@ -137,6 +137,25 @@ uint64_t lxa_get_idle_cycles(void);
  */
 uint64_t lxa_get_time_us(void);
 
+/* ========== RDD snapshot parity (Phase 212) ========== */
+/*
+ * The same raw artefacts the reference agent (tools/refsys/agent/lxaprobe)
+ * produces on real AmigaOS; formats in doc/rdd-snapshot.md.
+ *
+ * lxa_dump_tree_json():         Intuition tree, schema "lxa-tree/1".
+ * lxa_capture_screen_indexed(): active screen as LXASNAP1 pen indices.
+ * lxa_capture_window_indexed(): screen pixels inside the n-th window of the
+ *                               active screen (agent: SNAP file WINDOW n).
+ * lxa_text_log_start/stop/dump: Text() calls as JSON lines {text,x,y}.
+ * Return 0 / true on success.
+ */
+int  lxa_dump_tree_json(const char *path);
+bool lxa_capture_screen_indexed(const char *path);
+bool lxa_capture_window_indexed(int index, const char *path);
+void lxa_text_log_start(void);
+void lxa_text_log_stop(void);
+int  lxa_text_log_dump(const char *path);
+
 /* ========== Stub telemetry (Phase 203) ========== */
 
 #define LXA_EXIT_UNIMPLEMENTED 125
