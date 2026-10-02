@@ -215,13 +215,6 @@ Complete (Phases 210–216, v0.11.9); see the summary table.
 
 **Test gate**: each item has a passing golden scenario.
 
-### Phase 235 — Library override mode (diagnostic, like `WINEDLLOVERRIDES`)
-**Class**: Compatibility (diagnostic tooling, never shipped).
-- [ ] An `LXA_OVERRIDE=asl,iffparse,…` mode that loads the **user's own** Workbench 3.1 disk-library binaries instead of lxa's versions. This applies only to hardware-independent disk libraries.
-- [ ] Use: bisect whether a divergence lives in lxa's library or below it. The user's binaries are never committed and never distributed. lxa's own implementations stay mandatory (AGENTS §1).
-
-**Test gate**: an app runs with one overridden library; documented as a debug-only workflow.
-
 ### Phase 236 — Prefs fidelity
 **Class**: Compatibility.
 - [ ] Read the `ENV:Sys/*.prefs` files the way IPrefs does: screenmode, font, palette, wbpattern, input, pointer, overscan, locale.
@@ -396,3 +389,4 @@ The order below is provisional. After Phase 231/232 it is re-sorted by how often
 | 216 | RDD skills & loop: skills `rdd-reference`, `compat-sweep` (parallel per-app triage in worktrees, coordinator clustering); `python3 -m rdd cluster` (mechanical tree-diff clusters with bit-level flag signatures and folded geometry + reviewed findings; owners from golden ratchets, findings and roadmap text; phase stubs for unowned clusters in ≥ 2 scenarios); `python3 -m rdd loop` (run → report → goldens → cluster → sweep report, non-zero on golden regression or unowned cluster). First loop: `doc/sweeps/2026-10-02-loop.md`, 6 scenarios, 6/6 goldens pass, 0 unowned multi-app clusters (no stubs). Compat-DB refresh moved to Phase 230. | v0.11.9 |
 | 230 | App corpus & compat DB: 36 apps catalogued (`apps/<App>.json`; 20 added from the user's FS-UAE disk, with provenance and their real third-party libraries; DOPUS/SYSINFO/KP2 are `alias_of` symlinks), `tools/rdd/corpus.py --check` (CTest `corpus_check`), one launch scenario per app (`tests/scenarios/apps/`), `python3 -m rdd compat` derives ratings from a twin run into `apps/compat.yaml` (no free-text issues; divergences linked to phases), `rdd dashboard`, `rdd loop` fails when a rating drops. First run: 1 platinum, 22 silver, 2 bronze, 6 garbage, 5 untested (3 crash the reference too). | v0.11.11 |
 | 233 | Relay-trace differential: `src/lxa/lxa_relay.c` traces calls through library jump tables (`LXA_TRACE`, `lxa_trace_start`, return detection by return address + SP, library list refreshed after `OpenLibrary`, ROM-internal calls skipped, `LXA_TRACE_INJECT` fault injection); scenario step `trace:`; reference side via lxaprobe `TRACE`; `python3 -m rdd tracediff` (NDK .fd names, clib-prototype typing, top-level calls only, first divergence in order or return value). Gate: an injected `Seek` return bug is located (`tests/rdd/test_tracediff.py`). Found and fixed: `Close()` returned 1 instead of DOSTRUE, `Seek()` returned the new position and allowed seeking past EOF; `ExecBase->ChkBase` was never set. | v0.11.10 |
+| 235 | Library override mode: `LXA_OVERRIDE=asl,iffparse` (+ `LXA_OVERRIDE_DIR`, default the reference system's `Libs/`) keeps the built-in library private to the ROM and maps `LIBS:<name>` to the user's AmigaOS 3.1 binary (`src/lxa/lxa_override.c`, `EMU_CALL_LIB_OVERRIDDEN`); only 3.1 disk libraries accepted; `tests/exec/libident`; gate `tests/rdd/test_override.py` (Tests/IffParse/Basic runs on the real iffparse 40.1). Debug-only workflow: AGENTS §6.26. | v0.11.12 |
