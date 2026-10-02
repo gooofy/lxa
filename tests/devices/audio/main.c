@@ -279,10 +279,10 @@ int main(void)
     CloseDevice((struct IORequest *)req);
     test_ok("CloseDevice audio.device");
 
-    if (req->ioa_Request.io_Device == NULL) {
-        test_ok("CloseDevice clears io_Device");
+    if (req->ioa_Request.io_Device == (struct Device *)-1 && req->ioa_Request.io_Unit == NULL) {
+        test_ok("CloseDevice sets io_Device to -1");
     } else {
-        test_fail_msg("CloseDevice clears io_Device");
+        test_fail_msg("CloseDevice sets io_Device to -1");
     }
 
     DeleteIORequest((struct IORequest *)req2);
