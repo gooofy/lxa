@@ -5520,7 +5520,7 @@ static int test_clipboard_phase91_stub_closed(void)
     DoIO((struct IORequest *)writer);
     wait_error = WaitIO((struct IORequest *)reader);
     if (writer->io_Error != 0 || wait_error != 0 || reader->io_Error != 0 ||
-        hook_state.calls != 2 || hook_state.last_cmd != CMD_UPDATE)
+        hook_state.calls != 3 || hook_state.last_cmd != CMD_UPDATE)
     {
         print("FAIL: clipboard.device posted write/update sequence behaved like a stub\n");
         errors++;
@@ -5553,24 +5553,25 @@ static int test_clipboard_phase91_stub_closed(void)
 
     RemDevice(device);
     if ((device->dd_Library.lib_Flags & LIBF_DELEXP) != 0 &&
-        FindName(&SysBase->DeviceList, (CONST_STRPTR)"clipboard.device") == NULL)
+        FindName(&SysBase->DeviceList, (CONST_STRPTR)"clipboard.device") == &device->dd_Library.lib_Node)
     {
-        print("OK: clipboard.device Expunge() no longer behaves like a stub\n");
+        print("OK: clipboard.device Expunge() while open sets LIBF_DELEXP and keeps the device (3.1)\n");
     }
     else
     {
-        print("FAIL: clipboard.device Expunge() did not defer and unlink as expected\n");
+        print("FAIL: clipboard.device Expunge() did not defer as expected\n");
         errors++;
     }
 
     open_error = OpenDevice((CONST_STRPTR)"clipboard.device", PRIMARY_CLIP, (struct IORequest *)reopen, 0);
-    if (open_error == IOERR_OPENFAIL)
+    if (open_error == 0 && (device->dd_Library.lib_Flags & LIBF_DELEXP) == 0)
     {
-        print("OK: deferred clipboard.device Expunge() blocks new opens\n");
+        print("OK: OpenDevice() after deferred clipboard.device Expunge() clears LIBF_DELEXP (3.1)\n");
+        CloseDevice((struct IORequest *)reopen);
     }
     else
     {
-        print("FAIL: deferred clipboard.device Expunge() still allowed opens\n");
+        print("FAIL: clipboard.device reopen after deferred Expunge() failed\n");
         errors++;
         if (open_error == 0)
             CloseDevice((struct IORequest *)reopen);

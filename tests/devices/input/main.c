@@ -95,13 +95,19 @@ static void test_fail(const char *msg)
     print("\n");
 }
 
+/* Events written by this test carry TEST_SUBCLASS; anything else in the
+ * chain (e.g. the input.device timer events) is passed on untouched. */
+#define TEST_SUBCLASS 0x5A
+
 static struct InputEvent *first_handler(register struct InputEvent *events __asm("a0"),
                                         register APTR data __asm("a1"))
 {
-    struct InputEvent *event = events;
+    struct InputEvent *event;
     UWORD mark = (UWORD)(ULONG)data;
 
-    if (event) {
+    for (event = events; event; event = event->ie_NextEvent) {
+        if (event->ie_SubClass != TEST_SUBCLASS)
+            continue;
         g_first_count++;
         g_first_last_class = event->ie_Class;
         g_first_last_code = event->ie_Code;
@@ -114,13 +120,19 @@ static struct InputEvent *first_handler(register struct InputEvent *events __asm
     return events;
 }
 
-static struct InputEvent *second_handler(register struct InputEvent *events __asm("a0"),
+static struct InputEvent *second_handler(register struct InputEvent *chain __asm("a0"),
                                          register APTR data __asm("a1"))
 {
-    struct InputEvent *event = events;
+    struct InputEvent *event;
+    struct InputEvent *events = chain;
+    struct InputEvent **link = &events;
     UWORD mark = (UWORD)(ULONG)data;
 
-    if (event) {
+    while ((event = *link) != NULL) {
+        if (event->ie_SubClass != TEST_SUBCLASS) {
+            link = &event->ie_NextEvent;
+            continue;
+        }
         g_second_count++;
         g_second_last_class = event->ie_Class;
         g_second_last_code = event->ie_Code;
@@ -128,10 +140,11 @@ static struct InputEvent *second_handler(register struct InputEvent *events __as
         g_second_last_x = event->ie_X;
         g_second_last_y = event->ie_Y;
         event->ie_Qualifier |= mark;
+        /* swallow the test event: it must not reach Intuition */
+        *link = event->ie_NextEvent;
     }
 
-    /* last handler of the test: swallow the event */
-    return NULL;
+    return events;
 }
 
 static void reset_counters(void)
@@ -240,7 +253,7 @@ int main(void)
     reset_counters();
     event.ie_NextEvent = NULL;
     event.ie_Class = IECLASS_RAWKEY;
-    event.ie_SubClass = 0;
+    event.ie_SubClass = TEST_SUBCLASS;
     event.ie_Code = 0x20;
     event.ie_Qualifier = IEQUALIFIER_LSHIFT;
     event.ie_X = 12;
@@ -346,7 +359,7 @@ int main(void)
     reset_counters();
     add_events[0].ie_NextEvent = NULL;
     add_events[0].ie_Class = IECLASS_RAWKEY;
-    add_events[0].ie_SubClass = 0;
+    add_events[0].ie_SubClass = TEST_SUBCLASS;
     add_events[0].ie_Code = 0x60;
     add_events[0].ie_Qualifier = IEQUALIFIER_LSHIFT;
     add_events[0].ie_X = 0;
@@ -354,7 +367,7 @@ int main(void)
 
     add_events[1].ie_NextEvent = NULL;
     add_events[1].ie_Class = IECLASS_POINTERPOS;
-    add_events[1].ie_SubClass = 0;
+    add_events[1].ie_SubClass = TEST_SUBCLASS;
     add_events[1].ie_Code = 0;
     add_events[1].ie_Qualifier = IEQUALIFIER_LEFTBUTTON;
     add_events[1].ie_X = 77;
@@ -429,6 +442,73 @@ int main(void)
         test_fail("IND_SETPERIOD failed");
     }
 
+    reset_counters();
+    event.ie_Class = IECLASS_RAWMOUSE;
+    event.ie_Code = IECODE_LBUTTON;
+    event.ie_Qualifier = IEQUALIFIER_LEFTBUTTON;
+    event.ie_X = 9;
+    event.ie_Y = 11;
+
+    input_req->io_Command = IND_WRITEEVENT;
+    input_req->io_Data = &event;
+    input_req->io_Flags = IOF_QUICK;
+    DoIO((struct IORequest *)input_req);
+
+    if (g_first_count == 1 && g_second_count == 1 &&
+        g_second_last_class == IECLASS_RAWMOUSE && g_second_last_code == IECODE_LBUTTON) {
+        test_ok("Handlers received rawmouse event");
+    } else {
+        test_fail("Handlers did not receive rawmouse event");
+    }
+
+    if (PeekQualifier() == 0) {
+        test_ok("IND_WRITEEVENT mouse button does not change PeekQualifier");
+    } else {
+        test_fail("PeekQualifier changed by written mouse event");
+    }
+
+    event.ie_Code = IECODE_MBUTTON;
+    event.ie_Qualifier = IEQUALIFIER_LEFTBUTTON | IEQUALIFIER_RBUTTON |
+                         IEQUALIFIER_MIDBUTTON | IEQUALIFIER_REPEAT |
+                         IEQUALIFIER_INTERRUPT |
+                         IEQUALIFIER_MULTIBROADCAST;
+
+    input_req->io_Command = IND_WRITEEVENT;
+    input_req->io_Data = &event;
+    input_req->io_Flags = IOF_QUICK;
+    DoIO((struct IORequest *)input_req);
+
+    if (input_req->io_Error == 0 &&
+        (g_second_last_qual & (IEQUALIFIER_REPEAT | IEQUALIFIER_INTERRUPT |
+                               IEQUALIFIER_MULTIBROADCAST)) ==
+        (IEQUALIFIER_REPEAT | IEQUALIFIER_INTERRUPT | IEQUALIFIER_MULTIBROADCAST)) {
+        test_ok("IND_WRITEEVENT preserves transient mouse qualifier bits");
+    } else {
+        test_fail("IND_WRITEEVENT transient mouse qualifiers failed");
+    }
+
+    if (PeekQualifier() == 0) {
+        test_ok("PeekQualifier ignores written mouse qualifiers");
+    } else {
+        test_fail("PeekQualifier latched written mouse qualifiers");
+    }
+
+    event.ie_Code = IECODE_MBUTTON | IECODE_UP_PREFIX;
+    event.ie_Qualifier = 0;
+    input_req->io_Command = IND_WRITEEVENT;
+    input_req->io_Data = &event;
+    input_req->io_Flags = IOF_QUICK;
+    DoIO((struct IORequest *)input_req);
+
+    event.ie_Code = IECODE_LBUTTON | IECODE_UP_PREFIX;
+    DoIO((struct IORequest *)input_req);
+
+    if (PeekQualifier() == 0) {
+        test_ok("PeekQualifier clears mouse qualifiers on release snapshot");
+    } else {
+        test_fail("PeekQualifier did not clear released mouse qualifiers");
+    }
+
     input_req->io_Command = IND_REMHANDLER;
     input_req->io_Data = &first_interrupt;
     input_req->io_Flags = IOF_QUICK;
@@ -449,12 +529,13 @@ int main(void)
         test_fail("IND_REMHANDLER second handler failed");
     }
 
+    /* a harmless event: nobody may act on it once our handlers are gone */
     reset_counters();
-    event.ie_Class = IECLASS_RAWMOUSE;
-    event.ie_Code = IECODE_LBUTTON;
-    event.ie_Qualifier = IEQUALIFIER_LEFTBUTTON;
-    event.ie_X = 9;
-    event.ie_Y = 11;
+    event.ie_Class = IECLASS_NULL;
+    event.ie_Code = 0;
+    event.ie_Qualifier = 0;
+    event.ie_X = 0;
+    event.ie_Y = 0;
 
     input_req->io_Command = IND_WRITEEVENT;
     input_req->io_Data = &event;
@@ -465,48 +546,6 @@ int main(void)
         test_ok("Removed handlers stop receiving events");
     } else {
         test_fail("Removed handlers still received events");
-    }
-
-    if (PeekQualifier() == 0) {
-        test_ok("IND_WRITEEVENT mouse button does not change PeekQualifier");
-    } else {
-        test_fail("PeekQualifier changed by written mouse event");
-    }
-
-    event.ie_Code = IECODE_MBUTTON;
-    event.ie_Qualifier = IEQUALIFIER_LEFTBUTTON | IEQUALIFIER_RBUTTON |
-                         IEQUALIFIER_MIDBUTTON | IEQUALIFIER_REPEAT |
-                         IEQUALIFIER_INTERRUPT |
-                         IEQUALIFIER_MULTIBROADCAST;
-
-    input_req->io_Command = IND_WRITEEVENT;
-    input_req->io_Data = &event;
-    input_req->io_Flags = IOF_QUICK;
-    DoIO((struct IORequest *)input_req);
-
-    if (input_req->io_Error == 0) {
-        test_ok("IND_WRITEEVENT preserves transient mouse qualifier bits");
-    } else {
-        test_fail("IND_WRITEEVENT transient mouse qualifiers failed");
-    }
-
-    if (PeekQualifier() == 0) {
-        test_ok("PeekQualifier ignores written mouse qualifiers");
-    } else {
-        test_fail("PeekQualifier latched written mouse qualifiers");
-    }
-
-    event.ie_Code = IECODE_MBUTTON | IECODE_UP_PREFIX;
-    event.ie_Qualifier = 0;
-    input_req->io_Command = IND_WRITEEVENT;
-    input_req->io_Data = &event;
-    input_req->io_Flags = IOF_QUICK;
-    DoIO((struct IORequest *)input_req);
-
-    if (PeekQualifier() == 0) {
-        test_ok("PeekQualifier clears mouse qualifiers on release snapshot");
-    } else {
-        test_fail("PeekQualifier did not clear released mouse qualifiers");
     }
 
     CloseDevice((struct IORequest *)input_req);

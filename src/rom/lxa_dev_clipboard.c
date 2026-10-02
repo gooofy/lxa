@@ -135,10 +135,12 @@ static struct ClipboardUnit *clipboard_alloc_unit(ULONG unit)
 
     clip_unit->cu_Partial.cu_Node.ln_Type = NT_UNKNOWN;
     clip_unit->cu_Partial.cu_UnitNum = unit;
-    clip_unit->cu_CurrentClipID = 0;
+    /* AmigaOS 3.1 reports clip ID 1 for an empty clipboard; the first
+     * write gets ID 2 (verified on the reference, Phase 220). */
+    clip_unit->cu_CurrentClipID = 1;
     clip_unit->cu_DataClipID = 0;
     clip_unit->cu_WriteClipID = 0;
-    clip_unit->cu_NextClipID = 1;
+    clip_unit->cu_NextClipID = 2;
     NEWLIST(&clip_unit->cu_ChangeHooks);
 
     return clip_unit;
@@ -248,6 +250,8 @@ static LONG clipboard_send_satisfy(struct ClipboardUnit *clip_unit)
         clip_unit->cu_SatisfyMsg.sm_ClipID = clip_unit->cu_CurrentClipID;
         PutMsg(clip_unit->cu_SatisfyPort, &clip_unit->cu_SatisfyMsg.sm_Msg);
         clip_unit->cu_SatisfySent = TRUE;
+        /* 3.1 calls the change hooks (CBD_POST) when it asks for the data */
+        clipboard_notify_changehooks(clip_unit, CBD_POST, clip_unit->cu_CurrentClipID);
     }
 
     return 0;
@@ -261,27 +265,54 @@ static void clipboard_reply_request(struct IORequest *ioreq)
     }
 }
 
+/*
+ * The readable size of a clip.  Like AmigaOS 3.1, an IFF clip is as long as
+ * its FORM header says (8 + ckSize, padded to even); bytes beyond the stored
+ * data read as zeros.  Non-IFF data is read as stored.
+ */
+static ULONG clipboard_clip_size(struct ClipboardUnit *clip_unit)
+{
+    const UBYTE *d = clip_unit->cu_Data;
+    ULONG len;
+
+    if (!d || clip_unit->cu_DataSize < 8 ||
+        d[0] != 'F' || d[1] != 'O' || d[2] != 'R' || d[3] != 'M')
+    {
+        return clip_unit->cu_DataSize;
+    }
+
+    len = ((ULONG)d[4] << 24) | ((ULONG)d[5] << 16) | ((ULONG)d[6] << 8) | (ULONG)d[7];
+    len = (len + 1) & ~1UL;
+    if (len > MAX_CLIP_SIZE)
+    {
+        len = MAX_CLIP_SIZE;
+    }
+    return len + 8;
+}
+
 static LONG clipboard_service_read(struct ClipboardUnit *clip_unit,
                                    struct IOClipReq *clipreq)
 {
     ULONG offset;
     ULONG available;
     ULONG toread;
+    ULONG size;
     LONG requested_id;
+
+    clipreq->io_Actual = 0;
 
     requested_id = clipreq->io_ClipID;
     if (requested_id == 0)
     {
         requested_id = clip_unit->cu_CurrentClipID;
         clipreq->io_ClipID = requested_id;
-    }
 
-    clipreq->io_Actual = 0;
-
-    if (requested_id == 0)
-    {
-        clipreq->io_Offset = 0;
-        return 0;
+        /* nothing on the clipboard: the read ends at once (ClipID -1) */
+        if (clip_unit->cu_DataClipID != requested_id && !clip_unit->cu_PostActive)
+        {
+            clipreq->io_ClipID = -1;
+            return 0;
+        }
     }
 
     if (requested_id != clip_unit->cu_CurrentClipID)
@@ -305,26 +336,38 @@ static LONG clipboard_service_read(struct ClipboardUnit *clip_unit,
         return CLIPBOARD_READ_PENDING;
     }
 
+    /* A read at or past the end of the clip ends the read: nothing is
+     * transferred and io_ClipID becomes -1 (AmigaOS 3.1). */
+    size = clipboard_clip_size(clip_unit);
     offset = clipreq->io_Offset;
-    if (offset > clip_unit->cu_DataSize)
+    if (offset >= size)
     {
-        offset = clip_unit->cu_DataSize;
+        clipreq->io_ClipID = -1;
+        return 0;
     }
 
-    available = clip_unit->cu_DataSize - offset;
+    available = size - offset;
     toread = (clipreq->io_Length < available) ? clipreq->io_Length : available;
 
     if (toread > 0 && clipreq->io_Data)
     {
-        CopyMem(clip_unit->cu_Data + offset, clipreq->io_Data, toread);
+        ULONG stored = 0;
+
+        if (offset < clip_unit->cu_DataSize)
+        {
+            stored = clip_unit->cu_DataSize - offset;
+            if (stored > toread)
+                stored = toread;
+            CopyMem(clip_unit->cu_Data + offset, clipreq->io_Data, stored);
+        }
+        if (stored < toread)
+        {
+            memset((UBYTE *)clipreq->io_Data + stored, 0, toread - stored);
+        }
     }
 
     clipreq->io_Actual = toread;
     clipreq->io_Offset = offset + toread;
-    if (toread != clipreq->io_Length)
-    {
-        clipreq->io_Offset = clip_unit->cu_DataSize + 1;
-    }
 
     return 0;
 }
@@ -352,22 +395,29 @@ static void clipboard_complete_pending_read(struct ClipboardUnit *clip_unit)
     ReplyMsg(&pending->io_Message);
 }
 
+/*
+ * AmigaOS 3.1 behaviour (verified on the reference, Phase 220): an
+ * Expunge() while the device is open only sets LIBF_DELEXP and leaves the
+ * device in the DeviceList (a later OpenDevice() clears the flag again);
+ * closing the last opener does not expunge.  Only an Expunge() with no
+ * opener removes the device.
+ */
 static BPTR clipboard_expunge_if_possible(struct ClipboardBase *clipbase)
 {
-    if (FindName(&SysBase->DeviceList,
-                 (CONST_STRPTR)clipbase->cb_Device.dd_Library.lib_Node.ln_Name) ==
-        &clipbase->cb_Device.dd_Library.lib_Node)
-    {
-        Remove(&clipbase->cb_Device.dd_Library.lib_Node);
-        DPRINTF(LOG_DEBUG, "_clipboard: Expunge() removed device from DeviceList\n");
-    }
-
     if (clipbase->cb_Device.dd_Library.lib_OpenCnt != 0)
     {
         clipbase->cb_Device.dd_Library.lib_Flags |= LIBF_DELEXP;
         DPRINTF(LOG_DEBUG, "_clipboard: Expunge() deferred, open count=%u\n",
                 (unsigned int)clipbase->cb_Device.dd_Library.lib_OpenCnt);
         return 0;
+    }
+
+    if (FindName(&SysBase->DeviceList,
+                 (CONST_STRPTR)clipbase->cb_Device.dd_Library.lib_Node.ln_Name) ==
+        &clipbase->cb_Device.dd_Library.lib_Node)
+    {
+        Remove(&clipbase->cb_Device.dd_Library.lib_Node);
+        DPRINTF(LOG_DEBUG, "_clipboard: Expunge() removed device from DeviceList\n");
     }
 
     clipbase->cb_Device.dd_Library.lib_Flags &= ~LIBF_DELEXP;
@@ -459,12 +509,7 @@ static BPTR __g_lxa_clipboard_Close( register struct Library   *dev   __asm("a6"
         clipbase->cb_Device.dd_Library.lib_OpenCnt--;
     }
 
-    if (clipbase->cb_Device.dd_Library.lib_OpenCnt == 0 &&
-        (clipbase->cb_Device.dd_Library.lib_Flags & LIBF_DELEXP))
-    {
-        return clipboard_expunge_if_possible(clipbase);
-    }
-    
+    /* the last Close() does not expunge, even with LIBF_DELEXP (3.1) */
     return 0;
 }
 
@@ -491,7 +536,7 @@ static BPTR __g_lxa_clipboard_BeginIO ( register struct Library   *dev   __asm("
     DPRINTF (LOG_DEBUG, "_clipboard: BeginIO() called, command=%u\n", command);
     
     ioreq->io_Error = 0;
-    clipreq->io_Actual = 0;
+    /* only CMD_READ and CMD_WRITE set io_Actual (AmigaOS 3.1) */
     
     if (!clip_unit) {
         DPRINTF (LOG_ERROR, "_clipboard: BeginIO() NULL unit\n");
@@ -525,7 +570,9 @@ static BPTR __g_lxa_clipboard_BeginIO ( register struct Library   *dev   __asm("
             STRPTR buffer = clipreq->io_Data;
             LONG write_id = clipreq->io_ClipID;
             ULONG required;
-            
+
+            clipreq->io_Actual = 0;
+
             DPRINTF (LOG_DEBUG, "_clipboard: CMD_WRITE offset=%lu length=%lu clipID=%ld\n",
                      offset, length, write_id);
 
