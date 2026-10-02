@@ -3492,7 +3492,27 @@ int op_illg(int level)
              */
             double base = host_double_from_m68k_registers(M68K_REG_D1, M68K_REG_D2);
             double exponent = host_double_from_m68k_registers(M68K_REG_D3, M68K_REG_D4);
-            double result = pow(base, exponent);
+            double result;
+
+            /* Edge cases follow AmigaOS 3.1 mathieeedoubtrans (reference-
+             * verified, Phase 220), not C99 pow():
+             *   x^0 = 1 (also for NaN x), any other NaN operand -> NaN,
+             *   1^+-inf = NaN,
+             *   0^y: y > 0 -> +0, y < 0 integer -> 1, y < 0 fraction -> +0,
+             *   x < 0 with a fractional y -> +0 (no NaN). */
+            bool exp_is_int = isfinite(exponent) && floor(exponent) == exponent;
+            if (exponent == 0.0)
+                result = 1.0;
+            else if (isnan(base) || isnan(exponent))
+                result = NAN;
+            else if (base == 1.0 && isinf(exponent))
+                result = -NAN;          /* 0xfff80000 00000000 on AmigaOS */
+            else if (base == 0.0)
+                result = (exponent < 0.0 && exp_is_int) ? 1.0 : 0.0;
+            else if (base < 0.0 && isfinite(base) && !exp_is_int)
+                result = 0.0;
+            else
+                result = pow(base, exponent);
 
             DPRINTF(LOG_DEBUG, "lxa: IEEEDP_POW(%f, %f) = %f\n", base, exponent, result);
             host_double_to_m68k_registers(result, M68K_REG_D0, M68K_REG_D1);

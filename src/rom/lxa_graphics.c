@@ -1912,14 +1912,16 @@ struct GfxBase * __g_lxa_graphics_InitLib    ( register struct GfxBase *graphics
 struct GfxBase * __g_lxa_graphics_OpenLib ( register struct GfxBase  *GfxBase __asm("a6"))
 {
     DPRINTF (LOG_DEBUG, "_graphics: OpenLib() called\n");
-    GfxBase->LibNode.lib_OpenCnt++;
+    /* AmigaOS 3.1 keeps lib_OpenCnt of this never-expunged ROM library
+     * constant at 1 (reference-verified, Phase 220) */
+    GfxBase->LibNode.lib_OpenCnt = 1;
     GfxBase->LibNode.lib_Flags &= ~LIBF_DELEXP;
     return GfxBase;
 }
 
 BPTR __g_lxa_graphics_CloseLib ( register struct GfxBase  *graphicsb __asm("a6"))
 {
-    graphicsb->LibNode.lib_OpenCnt--;
+    (void)graphicsb;   /* lib_OpenCnt stays constant, see OpenLib */
     return NULL;
 }
 

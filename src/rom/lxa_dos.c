@@ -6513,7 +6513,7 @@ struct DosList * _dos_AttemptLockDosList ( register struct DosLibrary * DOSBase 
     return _dos_LockDosList(DOSBase, flags);
 }
 
-BOOL _dos_RemDosEntry ( register struct DosLibrary * DOSBase __asm("a6"),
+LONG _dos_RemDosEntry ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register struct DosList * dlist __asm("d1"))
 {
     struct RootNode *root;
@@ -6540,7 +6540,7 @@ BOOL _dos_RemDosEntry ( register struct DosLibrary * DOSBase __asm("a6"),
     {
         dos_info->di_DevInfo = dlist->dol_Next;
         ReleaseSemaphore(&dos_info->di_DevLock);
-        return TRUE;
+        return DOSTRUE;   /* -1, as AmigaOS 3.1 (reference-verified) */
     }
 
     while (current)
@@ -6551,7 +6551,7 @@ BOOL _dos_RemDosEntry ( register struct DosLibrary * DOSBase __asm("a6"),
         {
             current->dol_Next = dlist->dol_Next;
             ReleaseSemaphore(&dos_info->di_DevLock);
-            return TRUE;
+            return DOSTRUE;
         }
 
         current = next;
@@ -6586,12 +6586,16 @@ LONG _dos_AddDosEntry ( register struct DosLibrary * DOSBase __asm("a6"),
 
     ObtainSemaphore(&dos_info->di_DevLock);
 
-    if (dlist->dol_Type != DLT_VOLUME)
+    /* AmigaOS 3.1 rejects a name already used by a device/assign (for
+     * devices and assigns) or by another volume (for volumes)
+     * (reference-verified, Phase 220) */
     {
+        BOOL is_volume = dlist->dol_Type == DLT_VOLUME;
+
         current = (struct DosList *)BADDR(dos_info->di_DevInfo);
         while (current)
         {
-            if (current->dol_Type != DLT_VOLUME &&
+            if ((current->dol_Type == DLT_VOLUME) == is_volume &&
                 lxa_dos_bstr_case_equal(current->dol_Name, dlist->dol_Name))
             {
                 ReleaseSemaphore(&dos_info->di_DevLock);

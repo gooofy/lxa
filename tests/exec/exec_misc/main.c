@@ -668,14 +668,18 @@ int main(void)
         test_ok("CachePostDMA returns without crashing");
     }
 
-    /* ===== Test 10: InitCode resident replay ===== */
-    print("\nTest 10: InitCode resident replay\n");
+    /* ===== Test 10: InitCode without matching residents ===== */
+    /* Re-running the real coldstart residents would re-initialise the
+     * running system (it crashes AmigaOS 3.1): ask for a start class no
+     * resident carries (rt_Flags bit 3 is unused), so InitCode() walks the
+     * list and starts nothing. */
+    print("\nTest 10: InitCode with no matching resident\n");
     {
         struct Resident *resident_before;
         struct Resident *resident_after;
 
         resident_before = FindResident((CONST_STRPTR)"dos.library");
-        InitCode(RTF_COLDSTART, 0);
+        InitCode(0x08, 0);
         resident_after = FindResident((CONST_STRPTR)"dos.library");
 
         if (resident_before != NULL && resident_after == resident_before)

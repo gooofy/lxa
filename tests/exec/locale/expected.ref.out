@@ -1,0 +1,57 @@
+Testing locale.library
+
+  OK: OpenLibrary locale.library
+--- GetLocaleStr tests ---
+  OK: GetLocaleStr DAY_1 = Sunday
+  OK: GetLocaleStr MON_1 = January
+  OK: GetLocaleStr ABDAY_1 = Sun
+  OK: GetLocaleStr ABMON_3 = Mar
+  OK: GetLocaleStr AM_STR = AM
+--- OpenLocale / class tests ---
+  OK: OpenLocale NULL returns default locale
+  OK: OpenLocale english (no such prefs file) fails
+  OK: OpenLocale missing fails
+  OK: Character classification
+  OK: Character classification negatives
+  OK: ConvToUpper / ConvToLower
+--- Catalog tests ---
+  OK: AssignPath LOCALE
+  OK: AssignPath PROGDIR
+  OK: create test catalog
+  OK: OpenCatalog external file currently unavailable in hosted setup
+--- StrnCmp / StrConvert tests ---
+  OK: StrnCmp SC_ASCII
+  OK: StrnCmp SC_COLLATE1/2
+  OK: StrnCmp NULL handling
+  OK: StrConvert SC_ASCII
+  OK: StrConvert SC_COLLATE2
+  OK: StrConvert truncation
+--- FormatDate tests ---
+  OK: OpenLocale
+  OK: FormatDate epoch = 1978-01-01
+  OK: FormatDate epoch weekday = Sunday
+  OK: FormatDate epoch abbrev weekday = Sun
+  OK: FormatDate epoch month = January
+  OK: FormatDate time = 13:45:30
+  OK: FormatDate 12h = 01:45 PM
+  OK: FormatDate %%D = 01/01/78
+  OK: FormatDate literal %%
+  OK: FormatDate 2000-06-15 Thursday
+--- FormatString tests ---
+  OK: FormatString %%s
+  OK: FormatString %%ld
+  OK: FormatString negative %%ld
+  OK: FormatString %%lx uppercase
+  OK: FormatString literal %%%%
+  OK: FormatString %%lc
+  OK: FormatString width padding
+  OK: FormatString zero padding
+  OK: FormatString %%lu
+--- ParseDate tests ---
+  OK: ParseDate 1978-01-01 = day 0
+  OK: ParseDate 2000-06-15 = day 8201
+  OK: ParseDate 14:30:00
+  OK: ParseDate time component
+  OK: CloseLibrary
+
+PASS: All 46 tests passed!

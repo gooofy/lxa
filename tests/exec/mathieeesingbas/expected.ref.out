@@ -1,0 +1,35 @@
+Testing mathieeesingbas.library
+
+  OK: OpenLibrary mathieeesingbas.library
+  OK: IEEESPFlt(0) = 0.0
+  OK: IEEESPFlt(1) = 1.0
+  OK: IEEESPFlt(-1) = -1.0
+  OK: IEEESPFlt(42) = 42.0
+  OK: IEEESPFix(1.0) = 1
+  OK: IEEESPFix(21.0) = 21
+  OK: IEEESPFix(-1.0) = -1
+  OK: IEEESPFix(IEEESPFlt(0)) = 0
+  OK: IEEESPTst(5.0) > 0
+  OK: IEEESPTst(0.0) == 0
+  OK: IEEESPTst(-3.0) < 0
+  OK: IEEESPCmp(10, 20) < 0
+  OK: IEEESPCmp(20, 10) > 0
+  OK: IEEESPCmp(10, 10) == 0
+  OK: IEEESPAbs(-5.0) = 5.0
+  OK: IEEESPAbs(5.0) = 5.0
+  OK: IEEESPNeg(7.0) = -7.0
+  OK: IEEESPNeg(-7.0) = 7.0
+  OK: IEEESPAdd(3, 4) = 7
+  OK: IEEESPAdd(-10, 3) = -7
+  OK: IEEESPSub(10, 3) = 7
+  OK: IEEESPSub(3, 10) = -7
+  OK: IEEESPFloor(3.7) = 3
+  OK: IEEESPFloor(-2.3) = -3
+  OK: IEEESPFloor(5.0) = 5
+  OK: IEEESPCeil(3.2) = 4
+  OK: IEEESPCeil(-2.7) = -2
+  OK: IEEESPCeil(5.0) = 5
+  OK: Roundtrip IEEESPFix(IEEESPFlt(N)) for -100..100
+  OK: CloseLibrary
+
+PASS: All 31 tests passed!

@@ -1,0 +1,34 @@
+Testing expansion.library DOS/binding helpers
+OK: GetCurrentBinding reports the full structure size
+OK: SetCurrentBinding stores the ConfigDev pointer
+OK: SetCurrentBinding stores the file name pointer
+OK: SetCurrentBinding stores the product string pointer
+OK: SetCurrentBinding stores the tool types pointer
+OK: GetCurrentBinding still reports full size after partial SetCurrentBinding
+OK: Partial SetCurrentBinding preserves copied ConfigDev field
+OK: Partial SetCurrentBinding preserves copied file name field
+OK: Partial SetCurrentBinding clears uncopied product string field
+OK: Partial SetCurrentBinding clears uncopied tool types field
+OK: MakeDosNode rejects NULL parameter packets
+OK: MakeDosNode allocates a DeviceNode for valid packets
+OK: MakeDosNode tags DeviceNode entries as DLT_DEVICE
+OK: MakeDosNode sets the default stack size
+OK: MakeDosNode sets the default startup priority
+OK: MakeDosNode stores the DOS device name as a BSTR
+OK: MakeDosNode copies the startup unit number
+OK: MakeDosNode copies the startup flags
+OK: MakeDosNode stores the exec device name as a NULL-terminated BSTR
+OK: MakeDosNode copies the environment table size
+OK: MakeDosNode copies the environment payload
+OK: MakeDosNode preserves boot priority in the copied environment
+OK: MakeDosNode can allocate multiple independent device nodes
+OK: AddDosNode rejects NULL device nodes
+OK: AddDosNode accepts the first device node
+OK: AddDosNode accepts higher-priority device nodes
+OK: AddDosNode accepts lower-priority device nodes
+OK: AddDosNode does not check for duplicate names
+OK: AddDosNode adds no BootNode once DOS runs
+OK: AddDosNode enters every node into the DOS device list
+OK: AddDosNode links each new node at the head of the DOS list
+OK: RemDosEntry removes the added nodes again
+PASS: expansion DOS/binding helper tests passed

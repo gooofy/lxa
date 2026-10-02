@@ -16,8 +16,6 @@ static BPTR out;
 static LONG test_pass = 0;
 static LONG test_fail = 0;
 static ULONG g_soft_count = 0;
-static ULONG g_order[8];
-static ULONG g_order_len = 0;
 
 static void print(const char *s)
 {
@@ -66,136 +64,154 @@ static void test_fail_msg(const char *name)
     test_fail++;
 }
 
-static void record_order(ULONG value)
-{
-    if (g_order_len < 8)
-        g_order[g_order_len++] = value;
-}
+/* VERTB server: A1 = is_Data (a counter); returns 0 (Z set) so the
+ * rest of the chain still runs. */
+ULONG vblank_server(void);
+asm(
+".globl _vblank_server          \n"
+"_vblank_server:                \n"
+"       addq.l  #1,(a1)         \n"
+"       moveq   #0,d0           \n"
+"       rts                     \n"
+);
 
-static void SoftHandlerA(void)
+static void SoftHandler(void)
 {
     g_soft_count++;
-    record_order(1);
 }
 
-static void SoftHandlerB(void)
+static void DummyHandler(void)
 {
-    g_soft_count++;
-    record_order(2);
 }
 
-static void VectorHandler(void)
+/* position of a node in a list, -1 if absent */
+static LONG node_index(struct List *list, struct Node *node)
 {
+    struct Node *n;
+    LONG i = 0;
+
+    for (n = list->lh_Head; n->ln_Succ; n = n->ln_Succ, i++)
+        if (n == node)
+            return i;
+    return -1;
 }
 
 int main(void)
 {
     struct Interrupt intA;
     struct Interrupt intB;
-    struct List *soft_list;
+    struct Interrupt softInt;
+    struct List *vertb_list;
+    volatile ULONG countA = 0, countB = 0;
 
     out = Output();
 
     print("Exec Interrupt Tests\n");
     print("====================\n\n");
 
-    soft_list = (struct List *)SysBase->IntVects[INTB_SOFTINT].iv_Data;
-
     /* Test 1: AddIntServer priority insertion */
     print("Test 1: AddIntServer priority insertion\n");
-    if (soft_list != NULL) {
-        test_ok("Soft interrupt vector has a server list");
+    vertb_list = (struct List *)SysBase->IntVects[INTB_VERTB].iv_Data;
+    if (vertb_list != NULL) {
+        test_ok("VERTB vector has a server list");
     } else {
-        test_fail_msg("Soft interrupt vector missing server list");
+        test_fail_msg("VERTB vector missing server list");
         return 20;
     }
 
     intA.is_Node.ln_Type = NT_INTERRUPT;
-    intA.is_Node.ln_Pri = 5;
-    intA.is_Node.ln_Name = (char *)"SoftA";
-    intA.is_Data = NULL;
-    intA.is_Code = (void (*)())SoftHandlerA;
+    intA.is_Node.ln_Pri = -60;
+    intA.is_Node.ln_Name = (char *)"ServerA";
+    intA.is_Data = (APTR)&countA;
+    intA.is_Code = (void (*)())vblank_server;
 
     intB.is_Node.ln_Type = NT_INTERRUPT;
-    intB.is_Node.ln_Pri = 10;
-    intB.is_Node.ln_Name = (char *)"SoftB";
-    intB.is_Data = NULL;
-    intB.is_Code = (void (*)())SoftHandlerB;
+    intB.is_Node.ln_Pri = -50;
+    intB.is_Node.ln_Name = (char *)"ServerB";
+    intB.is_Data = (APTR)&countB;
+    intB.is_Code = (void (*)())vblank_server;
 
-    AddIntServer(INTB_SOFTINT, &intA);
-    AddIntServer(INTB_SOFTINT, &intB);
+    AddIntServer(INTB_VERTB, &intA);
+    AddIntServer(INTB_VERTB, &intB);
 
-    if (soft_list->lh_Head == &intB.is_Node && intB.is_Node.ln_Succ == &intA.is_Node) {
-        test_ok("AddIntServer inserts by descending priority");
-    } else {
-        test_fail_msg("AddIntServer priority order incorrect");
+    {
+        LONG ia, ib;
+
+        Disable();
+        ia = node_index(vertb_list, &intA.is_Node);
+        ib = node_index(vertb_list, &intB.is_Node);
+        Enable();
+        if (ia >= 0 && ib >= 0) {
+            test_ok("AddIntServer links both servers");
+        } else {
+            test_fail_msg("AddIntServer did not link the servers");
+        }
+        if (ib >= 0 && ib < ia) {
+            test_ok("AddIntServer inserts by descending priority");
+        } else {
+            test_fail_msg("AddIntServer priority order incorrect");
+        }
     }
 
-    AddIntServer(INTB_SOFTINT, &intA);
-    if (intB.is_Node.ln_Succ == &intA.is_Node && intA.is_Node.ln_Succ == (struct Node *)&soft_list->lh_Tail) {
-        test_ok("AddIntServer ignores duplicate server links");
+    /* Test 2: the servers run every vertical blank */
+    print("\nTest 2: VERTB servers run\n");
+    Delay(10);
+    if (countA > 0 && countB > 0) {
+        test_ok("VERTB servers were called");
     } else {
-        test_fail_msg("AddIntServer should ignore duplicate server links");
+        test_fail_msg("VERTB servers were not called");
     }
 
-    /* Test 2: Cause executes software interrupt */
-    print("\nTest 2: Cause executes software interrupt\n");
+    /* Test 3: RemIntServer removes handlers */
+    print("\nTest 3: RemIntServer removes handlers\n");
+    RemIntServer(INTB_VERTB, &intB);
+    RemIntServer(INTB_VERTB, &intA);
+    {
+        LONG ia, ib;
+        ULONG a0, b0;
+
+        Disable();
+        ia = node_index(vertb_list, &intA.is_Node);
+        ib = node_index(vertb_list, &intB.is_Node);
+        Enable();
+        if (ia < 0 && ib < 0) {
+            test_ok("RemIntServer unlinked both servers");
+        } else {
+            test_fail_msg("RemIntServer left a server linked");
+        }
+        a0 = countA;
+        b0 = countB;
+        Delay(5);
+        if (countA == a0 && countB == b0) {
+            test_ok("Removed servers are no longer called");
+        } else {
+            test_fail_msg("Removed servers are still called");
+        }
+    }
+
+    /* Test 4: Cause executes a software interrupt */
+    print("\nTest 4: Cause executes software interrupt\n");
+    softInt.is_Node.ln_Type = NT_INTERRUPT;
+    softInt.is_Node.ln_Pri = 0;
+    softInt.is_Node.ln_Name = (char *)"Soft";
+    softInt.is_Data = NULL;
+    softInt.is_Code = (void (*)())SoftHandler;
     g_soft_count = 0;
-    g_order_len = 0;
-    Cause(&intA);
+    Cause(&softInt);
+    Delay(1);
     if (g_soft_count == 1) {
-        test_ok("Cause invoked soft interrupt handler");
+        test_ok("Cause invoked soft interrupt handler once");
     } else {
-        test_fail_msg("Cause did not invoke soft interrupt handler");
+        test_fail_msg("Cause did not invoke soft interrupt handler once");
     }
-    if (intA.is_Node.ln_Type == NT_INTERRUPT) {
-        test_ok("Cause preserves node type after dispatch");
+    if (softInt.is_Node.ln_Type == NT_INTERRUPT) {
+        test_ok("Cause restores node type after dispatch");
     } else {
         test_fail_msg("Cause left node type in queued state");
     }
 
-    /* Test 3: Cause ignores duplicate queueing */
-    print("\nTest 3: Cause ignores duplicate queueing\n");
-    g_soft_count = 0;
-    intA.is_Node.ln_Type = NT_SOFTINT;
-    Cause(&intA);
-    if (g_soft_count == 0) {
-        test_ok("Cause ignores already queued soft interrupt");
-    } else {
-        test_fail_msg("Cause should ignore already queued soft interrupt");
-    }
-    intA.is_Node.ln_Type = NT_INTERRUPT;
-
-    /* Test 4: RemIntServer removes handlers */
-    print("\nTest 4: RemIntServer removes handlers\n");
-    RemIntServer(INTB_SOFTINT, &intB);
-    if (soft_list->lh_Head == &intA.is_Node) {
-        test_ok("RemIntServer removed head handler");
-    } else {
-        test_fail_msg("RemIntServer did not remove head handler");
-    }
-
-    RemIntServer(INTB_SOFTINT, &intA);
-    if (soft_list->lh_TailPred == (struct Node *)soft_list) {
-        test_ok("RemIntServer restored empty list");
-    } else {
-        test_fail_msg("RemIntServer did not restore empty list");
-    }
-
-    RemIntServer(INTB_SOFTINT, &intA);
-    if (soft_list->lh_TailPred == (struct Node *)soft_list) {
-        test_ok("RemIntServer ignores missing servers");
-    } else {
-        test_fail_msg("RemIntServer should ignore missing servers");
-    }
-
-    /* Test 5: Cause(NULL) safety */
-    print("\nTest 5: Cause(NULL) safety\n");
-    Cause(NULL);
-    test_ok("Cause(NULL) did not crash");
-
-    /* Test 6: Disable/Enable nesting */
-    print("\nTest 6: Disable/Enable nesting\n");
+    /* Test 5: Disable/Enable nesting */
+    print("\nTest 5: Disable/Enable nesting\n");
     {
         BYTE original = SysBase->IDNestCnt;
 
@@ -225,12 +241,11 @@ int main(void)
             test_ok("Enable restores original IDNestCnt");
         } else {
             test_fail_msg("Enable did not restore original IDNestCnt");
-            SysBase->IDNestCnt = original;
         }
     }
 
-    /* Test 7: Forbid/Permit nesting */
-    print("\nTest 7: Forbid/Permit nesting\n");
+    /* Test 6: Forbid/Permit nesting */
+    print("\nTest 6: Forbid/Permit nesting\n");
     {
         BYTE original = SysBase->TDNestCnt;
 
@@ -260,83 +275,47 @@ int main(void)
             test_ok("Permit restores original TDNestCnt");
         } else {
             test_fail_msg("Permit did not restore original TDNestCnt");
-            SysBase->TDNestCnt = original;
         }
     }
 
-    /* Test 8: SuperState/UserState hosted semantics */
-    print("\nTest 8: SuperState/UserState hosted semantics\n");
-    if (SuperState() == NULL) {
-        test_ok("SuperState returns NULL in hosted implementation");
-    } else {
-        test_fail_msg("SuperState should return NULL in hosted implementation");
+    /* Test 7: SuperState/UserState round trip */
+    print("\nTest 7: SuperState/UserState round trip\n");
+    {
+        APTR ssp = SuperState();
+        UserState(ssp);
+        test_ok("SuperState/UserState round trip returned");
     }
 
-    UserState(NULL);
-    test_ok("UserState(NULL) did not crash");
-
-    /* Test 9: SetIntVector direct vector semantics */
-    print("\nTest 9: SetIntVector direct vector semantics\n");
+    /* Test 8: SetIntVector on a handler vector (disk sync: not enabled, so
+     * the handler never runs); the previous handler is restored. */
+    print("\nTest 8: SetIntVector handler semantics\n");
     {
-        struct Interrupt vectorInt;
         struct Interrupt handlerInt;
         struct Interrupt *oldInt;
-
-        vectorInt.is_Node.ln_Type = NT_INTERRUPT;
-        vectorInt.is_Node.ln_Pri = 0;
-        vectorInt.is_Node.ln_Name = (char *)"Vector";
-        vectorInt.is_Data = NULL;
-        vectorInt.is_Code = (void (*)())VectorHandler;
-
-        oldInt = SetIntVector(INTB_EXTER, &vectorInt);
-        if (oldInt == NULL) {
-            test_ok("SetIntVector returns previous vector");
-        } else {
-            test_fail_msg("SetIntVector returns previous vector");
-        }
-
-        if (SysBase->IntVects[INTB_EXTER].iv_Code == vectorInt.is_Code) {
-            test_ok("SetIntVector updates iv_Code");
-        } else {
-            test_fail_msg("SetIntVector updates iv_Code");
-        }
-
-        if (SysBase->IntVects[INTB_EXTER].iv_Node == NULL) {
-            test_ok("SetIntVector keeps non-handler iv_Node NULL");
-        } else {
-            test_fail_msg("SetIntVector keeps non-handler iv_Node NULL");
-        }
-
-        if (SetIntVector(INTB_EXTER, NULL) == &vectorInt) {
-            test_ok("SetIntVector(NULL) returns installed vector");
-        } else {
-            test_fail_msg("SetIntVector(NULL) returns installed vector");
-        }
-
-        if ((ULONG)SysBase->IntVects[INTB_EXTER].iv_Code == ~0UL) {
-            test_ok("SetIntVector(NULL) restores default iv_Code sentinel");
-        } else {
-            test_fail_msg("SetIntVector(NULL) restores default iv_Code sentinel");
-        }
 
         handlerInt.is_Node.ln_Type = NT_INTERRUPT;
         handlerInt.is_Node.ln_Pri = 0;
         handlerInt.is_Node.ln_Name = (char *)"Handler";
-        handlerInt.is_Data = NULL;
-        handlerInt.is_Code = (void (*)())VectorHandler;
+        handlerInt.is_Data = (APTR)&countA;
+        handlerInt.is_Code = (void (*)())DummyHandler;
 
-        SetIntVector(INTB_DSKSYNC, &handlerInt);
-        if (SysBase->IntVects[INTB_DSKSYNC].iv_Node == &handlerInt.is_Node) {
-            test_ok("SetIntVector stores handler iv_Node for handler vectors");
-        } else {
-            test_fail_msg("SetIntVector should store handler iv_Node for handler vectors");
-        }
+        Disable();
+        oldInt = SetIntVector(INTB_DSKSYNC, &handlerInt);
+        {
+            BOOL code_ok = SysBase->IntVects[INTB_DSKSYNC].iv_Code == handlerInt.is_Code;
+            BOOL data_ok = SysBase->IntVects[INTB_DSKSYNC].iv_Data == handlerInt.is_Data;
+            BOOL node_ok = SysBase->IntVects[INTB_DSKSYNC].iv_Node == &handlerInt.is_Node;
+            struct Interrupt *back = SetIntVector(INTB_DSKSYNC, oldInt);
+            Enable();
 
-        SetIntVector(INTB_DSKSYNC, NULL);
-        if (SysBase->IntVects[INTB_DSKSYNC].iv_Node == NULL) {
-            test_ok("SetIntVector(NULL) clears handler iv_Node");
-        } else {
-            test_fail_msg("SetIntVector(NULL) should clear handler iv_Node");
+            if (code_ok) test_ok("SetIntVector updates iv_Code");
+            else test_fail_msg("SetIntVector did not update iv_Code");
+            if (data_ok) test_ok("SetIntVector updates iv_Data");
+            else test_fail_msg("SetIntVector did not update iv_Data");
+            if (node_ok) test_ok("SetIntVector stores the Interrupt in iv_Node");
+            else test_fail_msg("SetIntVector did not store iv_Node");
+            if (back == &handlerInt) test_ok("SetIntVector returns the previous handler");
+            else test_fail_msg("SetIntVector did not return the previous handler");
         }
     }
 

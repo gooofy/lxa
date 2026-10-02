@@ -1,0 +1,35 @@
+Exec Task Management Tests
+==========================
+
+Test 1: FindTask(NULL)
+  OK: FindTask(NULL) returned non-NULL
+  OK: Task has valid name
+  OK: Task state is TS_RUN
+  OK: Task priority in valid range
+  OK: Stack pointers are set
+
+Test 2: FindTask(name)
+  OK: FindTask(name) found correct task
+
+Test 3: FindTask(non-existent)
+  OK: FindTask returns NULL for non-existent task
+
+Test 4: SetTaskPri()
+  OK: SetTaskPri set new priority correctly
+  OK: Priority restored correctly
+
+Test 5: SetTaskPri(NULL)
+  OK: SetTaskPri(NULL) did not crash
+
+Test 6: SetTaskPri extreme values
+  OK: Max priority (127) accepted
+  OK: Min priority (-128) accepted
+
+Test 7: SysBase->ThisTask consistency
+  OK: SysBase->ThisTask == FindTask(NULL)
+
+=============================
+Tests passed: 13
+Tests failed: 0
+
+PASS: All task tests passed!

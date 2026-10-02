@@ -34,6 +34,10 @@ struct PingPongMsg {
 /* Number of ping-pong exchanges */
 #define NUM_EXCHANGES 5
 
+/* The child signals the main task when it is done; main must not exit (and
+ * unload the child's code) before that. */
+static struct Task *g_mainTask;
+
 /* Child task entry point */
 void ChildTask(void)
 {
@@ -119,6 +123,11 @@ void ChildTask(void)
     DeleteMsgPort(myPort);
 
     Write(out, (CONST APTR)"Child: Finished\n", 16);
+
+    /* Stay in Forbid() until this process is gone, so main cannot unload
+     * our code before we have exited. */
+    Forbid();
+    Signal(g_mainTask, SIGBREAKF_CTRL_F);
 }
 
 int main(void)
@@ -129,6 +138,8 @@ int main(void)
     BPTR out = Output();
     LONG exchanges = 0;
 
+    g_mainTask = FindTask(NULL);
+    SetSignal(0, SIGBREAKF_CTRL_F);
     Write(out, (CONST APTR)"Main: Starting ping-pong test\n", 30);
 
     /* Create main port */
@@ -151,10 +162,14 @@ int main(void)
             { NP_Entry, (ULONG)ChildTask },
             { NP_Name, (ULONG)"PingPong.Child" },
             { NP_StackSize, 8192 },
+            /* lower priority: the child only runs while main waits, which
+             * keeps the output order deterministic */
+            { NP_Priority, g_mainTask->tc_Node.ln_Pri - 1 },
+            /* the handles belong to main: the child must not close them */
             { NP_Input, Input() },
+            { NP_CloseInput, FALSE },
             { NP_Output, Output() },
             /* the parent's streams must stay open (NP_Close* default TRUE) */
-            { NP_CloseInput, FALSE },
             { NP_CloseOutput, FALSE },
             { TAG_DONE, 0 }
         };
@@ -200,6 +215,9 @@ int main(void)
             ReplyMsg((struct Message *)msg);
         }
     }
+
+    /* wait until the child has exited */
+    Wait(SIGBREAKF_CTRL_F);
 
     Write(out, (CONST APTR)"Main: Test complete!\n", 21);
 

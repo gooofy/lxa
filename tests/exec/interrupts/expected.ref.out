@@ -1,0 +1,45 @@
+Exec Interrupt Tests
+====================
+
+Test 1: AddIntServer priority insertion
+  OK: VERTB vector has a server list
+  OK: AddIntServer links both servers
+  OK: AddIntServer inserts by descending priority
+
+Test 2: VERTB servers run
+  OK: VERTB servers were called
+
+Test 3: RemIntServer removes handlers
+  OK: RemIntServer unlinked both servers
+  OK: Removed servers are no longer called
+
+Test 4: Cause executes software interrupt
+  OK: Cause invoked soft interrupt handler once
+  OK: Cause restores node type after dispatch
+
+Test 5: Disable/Enable nesting
+  OK: Disable increments IDNestCnt
+  OK: Disable nests IDNestCnt
+  OK: Enable decrements nested IDNestCnt
+  OK: Enable restores original IDNestCnt
+
+Test 6: Forbid/Permit nesting
+  OK: Forbid increments TDNestCnt
+  OK: Forbid nests TDNestCnt
+  OK: Permit decrements nested TDNestCnt
+  OK: Permit restores original TDNestCnt
+
+Test 7: SuperState/UserState round trip
+  OK: SuperState/UserState round trip returned
+
+Test 8: SetIntVector handler semantics
+  OK: SetIntVector updates iv_Code
+  OK: SetIntVector updates iv_Data
+  OK: SetIntVector stores the Interrupt in iv_Node
+  OK: SetIntVector returns the previous handler
+
+=============================
+Tests passed: 21
+Tests failed: 0
+
+PASS: All interrupt tests passed!

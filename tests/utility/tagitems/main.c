@@ -616,11 +616,15 @@ static void test_date_helpers(void)
     expect_ulong(roundtrip.sec, 56, "Date round-trip keeps second");
     expect_ulong(CheckDate(&leap), leap_seconds, "CheckDate returns seconds for valid leap date");
 
+    /* AmigaOS 3.1 ignores the weekday but rejects a leap second
+     * (reference-verified) */
     valid_with_weird_wday = leap;
-    valid_with_weird_wday.sec = 60;
     valid_with_weird_wday.wday = 99;
-    expect_ulong(CheckDate(&valid_with_weird_wday), Date2Amiga(&valid_with_weird_wday),
-        "CheckDate accepts leap second and ignores weekday");
+    expect_ulong(CheckDate(&valid_with_weird_wday), leap_seconds,
+        "CheckDate ignores the weekday");
+    valid_with_weird_wday.sec = 60;
+    expect_ulong(CheckDate(&valid_with_weird_wday), 0,
+        "CheckDate rejects a leap second");
 
     invalid_non_leap = leap;
     invalid_non_leap.year = 2001;
@@ -731,8 +735,9 @@ static void test_unpack_structure_tags(void)
     expect_long(unpacked_word, -2345, "UnpackStructureTags reads signed word");
     expect_ulong(unpacked_ulong, 0x2468ace0UL, "UnpackStructureTags reads unsigned long");
     expect_long(unpacked_long, -7654321, "UnpackStructureTags reads signed long");
-    expect_ulong(unpacked_bit, TRUE, "UnpackStructureTags reads bit fields");
-    expect_ulong(unpacked_flip, TRUE, "UnpackStructureTags reads inverted bit fields");
+    /* a set bit field unpacks as ~0 (AmigaOS 3.1, reference-verified) */
+    expect_ulong(unpacked_bit, ~0UL, "UnpackStructureTags reads bit fields");
+    expect_ulong(unpacked_flip, ~0UL, "UnpackStructureTags reads inverted bit fields");
     expect_ulong(unpacked_extra, 0x2468ace0UL,
         "UnpackStructureTags handles PACK_NEWOFFSET entries");
 }

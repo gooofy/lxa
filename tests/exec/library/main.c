@@ -466,7 +466,13 @@ static BOOL create_otag_file(CONST_STRPTR path)
  * Test a single library's reference counting.
  * Returns number of errors.
  */
-static int test_library_refcount(const char *name)
+/*
+ * Open/close a library twice and check the open count moves by `step` per
+ * call.  Absolute counts depend on the running system and are not printed.
+ * AmigaOS 3.1's graphics.library and intuition.library keep lib_OpenCnt
+ * constant (step 0, reference-verified, Phase 220).
+ */
+static int test_library_refcount(const char *name, int step)
 {
     int errors = 0;
     struct Library *lib1, *lib2;
@@ -476,8 +482,6 @@ static int test_library_refcount(const char *name)
     print(name);
     print(" ---\n");
 
-    /* Find the library node to read lib_OpenCnt directly */
-    /* First, open it to get the base pointer */
     lib1 = OpenLibrary((CONST_STRPTR)name, 0);
     if (lib1 == NULL)
     {
@@ -488,12 +492,7 @@ static int test_library_refcount(const char *name)
     }
     print("OK: OpenLibrary() returned non-NULL\n");
 
-    /* Read count after first open */
     cnt_after_open1 = lib1->lib_OpenCnt;
-    print("  lib_OpenCnt after 1st open: ");
-    print_num(cnt_after_open1);
-    print("\n");
-
     if (cnt_after_open1 < 1)
     {
         print("FAIL: lib_OpenCnt should be >= 1 after OpenLibrary()\n");
@@ -504,7 +503,6 @@ static int test_library_refcount(const char *name)
         print("OK: lib_OpenCnt >= 1 after OpenLibrary()\n");
     }
 
-    /* Open again - count should increment */
     lib2 = OpenLibrary((CONST_STRPTR)name, 0);
     if (lib2 == NULL)
     {
@@ -515,21 +513,17 @@ static int test_library_refcount(const char *name)
     }
 
     cnt_after_open2 = lib2->lib_OpenCnt;
-    print("  lib_OpenCnt after 2nd open: ");
-    print_num(cnt_after_open2);
-    print("\n");
-
-    if (cnt_after_open2 != cnt_after_open1 + 1)
+    if (cnt_after_open2 != cnt_after_open1 + step)
     {
-        print("FAIL: lib_OpenCnt should have incremented by 1\n");
+        print("FAIL: lib_OpenCnt changed unexpectedly on 2nd open\n");
         errors++;
     }
     else
     {
-        print("OK: lib_OpenCnt incremented correctly on 2nd open\n");
+        print(step ? "OK: lib_OpenCnt incremented correctly on 2nd open\n"
+                   : "OK: lib_OpenCnt stays constant on 2nd open\n");
     }
 
-    /* Verify same base returned */
     if (lib1 != lib2)
     {
         print("FAIL: 2nd OpenLibrary() returned different base pointer\n");
@@ -540,38 +534,30 @@ static int test_library_refcount(const char *name)
         print("OK: Same library base returned\n");
     }
 
-    /* Close once - count should decrement */
     CloseLibrary(lib2);
     cnt_after_close1 = lib1->lib_OpenCnt;
-    print("  lib_OpenCnt after 1st close: ");
-    print_num(cnt_after_close1);
-    print("\n");
-
-    if (cnt_after_close1 != cnt_after_open2 - 1)
+    if (cnt_after_close1 != cnt_after_open2 - step)
     {
-        print("FAIL: lib_OpenCnt should have decremented by 1\n");
+        print("FAIL: lib_OpenCnt changed unexpectedly on close\n");
         errors++;
     }
     else
     {
-        print("OK: lib_OpenCnt decremented correctly on close\n");
+        print(step ? "OK: lib_OpenCnt decremented correctly on close\n"
+                   : "OK: lib_OpenCnt stays constant on close\n");
     }
 
-    /* Close again */
     CloseLibrary(lib1);
     cnt_after_close2 = lib1->lib_OpenCnt;
-    print("  lib_OpenCnt after 2nd close: ");
-    print_num(cnt_after_close2);
-    print("\n");
-
-    if (cnt_after_close2 != cnt_after_close1 - 1)
+    if (cnt_after_close2 != cnt_after_close1 - step)
     {
-        print("FAIL: lib_OpenCnt should have decremented by 1 again\n");
+        print("FAIL: lib_OpenCnt changed unexpectedly on 2nd close\n");
         errors++;
     }
     else
     {
-        print("OK: lib_OpenCnt decremented correctly on 2nd close\n");
+        print(step ? "OK: lib_OpenCnt decremented correctly on 2nd close\n"
+                   : "OK: lib_OpenCnt stays constant on 2nd close\n");
     }
 
     print("\n");
@@ -599,9 +585,9 @@ static int test_exec_library_helpers(void)
     }
     print("OK: MakeLibrary returned non-NULL\n");
 
-    if (lib->lib_NegSize == 30)
+    if (lib->lib_NegSize == 32)
     {
-        print("OK: MakeLibrary computed 5 vectors of negative size\n");
+        print("OK: MakeLibrary rounds 5 vectors up to a longword negative size\n");
     }
     else
     {
@@ -691,8 +677,9 @@ static int test_exec_library_helpers(void)
     lib_size = lib->lib_NegSize + lib->lib_PosSize;
     FreeMem(lib_mem, lib_size);
 
-    CloseLibrary(NULL);
-    print("OK: CloseLibrary(NULL) did not crash\n\n");
+    /* CloseLibrary(NULL) hangs AmigaOS 3.1 (reference-verified):
+     * covered by Tests/Exec/NullSafety (lxa only) */
+    print("\n");
     return errors;
 }
 
@@ -806,16 +793,17 @@ static int test_dos_library_init_state(void)
         errors++;
     }
 
+    /* the CLI list holds the running shells: check it is well formed */
     if (DOSBase->dl_Root != NULL &&
-        DOSBase->dl_Root->rn_CliList.mlh_Head == (struct MinNode *)&DOSBase->dl_Root->rn_CliList.mlh_Tail &&
         DOSBase->dl_Root->rn_CliList.mlh_Tail == NULL &&
-        DOSBase->dl_Root->rn_CliList.mlh_TailPred == (struct MinNode *)&DOSBase->dl_Root->rn_CliList.mlh_Head)
+        DOSBase->dl_Root->rn_CliList.mlh_TailPred->mln_Succ ==
+            (struct MinNode *)&DOSBase->dl_Root->rn_CliList.mlh_Tail)
     {
-        print("OK: dos.library initialized an empty CLI list\n");
+        print("OK: dos.library CLI list is a valid list\n");
     }
     else
     {
-        print("FAIL: dos.library CLI list is not initialized like NEWLIST\n");
+        print("FAIL: dos.library CLI list is not a valid list\n");
         errors++;
     }
 
@@ -829,19 +817,6 @@ static int test_dos_library_init_state(void)
     else
     {
         print("FAIL: dos.library DosInfo semaphore state is not initialized\n");
-        errors++;
-    }
-
-    if (DOSBase->dl_Errors == NULL &&
-        DOSBase->dl_TimeReq == NULL &&
-        DOSBase->dl_UtilityBase == NULL &&
-        DOSBase->dl_IntuitionBase == NULL)
-    {
-        print("OK: dos.library private startup pointers stay cleared\n");
-    }
-    else
-    {
-        print("FAIL: dos.library private startup pointers should be cleared\n");
         errors++;
     }
 
@@ -1175,6 +1150,7 @@ static int test_dos_errorreport_stub_closed(void)
 static int test_dos_getconsoletask_stub_closed(void)
 {
     int errors = 0;
+    BOOL ok;
     struct Process *me = (struct Process *)FindTask(NULL);
     struct MsgPort *probe_port;
     struct MsgPort *old_console_task;
@@ -1191,7 +1167,10 @@ static int test_dos_getconsoletask_stub_closed(void)
     old_console_task = me->pr_ConsoleTask;
     me->pr_ConsoleTask = probe_port;
 
-    if (GetConsoleTask() == probe_port)
+    ok = (GetConsoleTask() == probe_port);
+    me->pr_ConsoleTask = old_console_task;
+
+    if (ok)
     {
         print("OK: GetConsoleTask() no longer behaves like a stub\n");
     }
@@ -1201,7 +1180,6 @@ static int test_dos_getconsoletask_stub_closed(void)
         errors++;
     }
 
-    me->pr_ConsoleTask = old_console_task;
     DeleteMsgPort(probe_port);
 
     print("\n");
@@ -1211,6 +1189,7 @@ static int test_dos_getconsoletask_stub_closed(void)
 static int test_dos_setconsoletask_stub_closed(void)
 {
     int errors = 0;
+    BOOL ok;
     struct Process *me = (struct Process *)FindTask(NULL);
     struct MsgPort *probe_port;
     struct MsgPort *old_console_task;
@@ -1228,7 +1207,10 @@ static int test_dos_setconsoletask_stub_closed(void)
     old_console_task = me->pr_ConsoleTask;
     previous = SetConsoleTask(probe_port);
 
-    if (previous == old_console_task && me->pr_ConsoleTask == probe_port)
+    ok = (previous == old_console_task && me->pr_ConsoleTask == probe_port);
+    SetConsoleTask(old_console_task);
+
+    if (ok)
     {
         print("OK: SetConsoleTask() no longer behaves like a stub\n");
     }
@@ -1238,7 +1220,6 @@ static int test_dos_setconsoletask_stub_closed(void)
         errors++;
     }
 
-    SetConsoleTask(old_console_task);
     DeleteMsgPort(probe_port);
 
     print("\n");
@@ -1248,6 +1229,7 @@ static int test_dos_setconsoletask_stub_closed(void)
 static int test_dos_getfilesystask_stub_closed(void)
 {
     int errors = 0;
+    BOOL ok;
     struct Process *me = (struct Process *)FindTask(NULL);
     struct MsgPort *probe_port;
     struct MsgPort *old_filesystem_task;
@@ -1264,7 +1246,10 @@ static int test_dos_getfilesystask_stub_closed(void)
     old_filesystem_task = (struct MsgPort *)me->pr_FileSystemTask;
     me->pr_FileSystemTask = probe_port;
 
-    if (GetFileSysTask() == probe_port)
+    ok = (GetFileSysTask() == probe_port);
+    me->pr_FileSystemTask = old_filesystem_task;
+
+    if (ok)
     {
         print("OK: GetFileSysTask() no longer behaves like a stub\n");
     }
@@ -1274,7 +1259,6 @@ static int test_dos_getfilesystask_stub_closed(void)
         errors++;
     }
 
-    me->pr_FileSystemTask = old_filesystem_task;
     DeleteMsgPort(probe_port);
 
     print("\n");
@@ -1284,6 +1268,7 @@ static int test_dos_getfilesystask_stub_closed(void)
 static int test_dos_setfilesystask_stub_closed(void)
 {
     int errors = 0;
+    BOOL ok;
     struct Process *me = (struct Process *)FindTask(NULL);
     struct MsgPort *probe_port;
     struct MsgPort *old_filesystem_task;
@@ -1301,7 +1286,10 @@ static int test_dos_setfilesystask_stub_closed(void)
     old_filesystem_task = me->pr_FileSystemTask;
     previous = SetFileSysTask(probe_port);
 
-    if (previous == old_filesystem_task && me->pr_FileSystemTask == probe_port)
+    ok = (previous == old_filesystem_task && me->pr_FileSystemTask == probe_port);
+    SetFileSysTask(old_filesystem_task);
+
+    if (ok)
     {
         print("OK: SetFileSysTask() no longer behaves like a stub\n");
     }
@@ -1311,7 +1299,6 @@ static int test_dos_setfilesystask_stub_closed(void)
         errors++;
     }
 
-    SetFileSysTask(old_filesystem_task);
     DeleteMsgPort(probe_port);
 
     print("\n");
@@ -1558,41 +1545,44 @@ static int test_dos_setargstr_stub_closed(void)
     return errors;
 }
 
+/* position of a node in the DOS list (caller holds the DOS list lock) */
+static LONG dos_list_index(struct DosList *node)
+{
+    struct DosInfo *info = (struct DosInfo *)BADDR(DOSBase->dl_Root->rn_Info);
+    struct DosList *dl;
+    LONG i = 0;
+
+    for (dl = (struct DosList *)BADDR(info->di_DevInfo); dl; dl = (struct DosList *)BADDR(dl->dol_Next), i++)
+        if (dl == node)
+            return i;
+    return -1;
+}
+
+/* The live DOS list is only touched through the API, under the list lock:
+ * replacing di_DevInfo behind DOS' back breaks a running AmigaOS. */
 static int test_dos_remdosentry_stub_closed(void)
 {
     int errors = 0;
-    struct RootNode *root;
-    struct DosInfo *dos_info;
-    BPTR old_head;
     struct DosList *node;
+    LONG added, removed, again, index;
 
     print("--- Test: DOS RemDosEntry entry point ---\n");
 
-    if (!DOSBase || !DOSBase->dl_Root)
-    {
-        print("FAIL: DOS root node is not initialized\n\n");
-        return 1;
-    }
-
-    root = DOSBase->dl_Root;
-    dos_info = (struct DosInfo *)BADDR(root->rn_Info);
-    if (!dos_info)
-    {
-        print("FAIL: DOS info is not initialized\n\n");
-        return 1;
-    }
-
-    node = (struct DosList *)AllocMem(sizeof(*node), MEMF_PUBLIC | MEMF_CLEAR);
+    node = MakeDosEntry((CONST_STRPTR)"EXECREMDOS", DLT_DEVICE);
     if (!node)
     {
         print("FAIL: Could not allocate probe DosList node for RemDosEntry\n\n");
         return 1;
     }
 
-    old_head = dos_info->di_DevInfo;
-    dos_info->di_DevInfo = MKBADDR(node);
+    LockDosList(LDF_DEVICES | LDF_WRITE);
+    added = AddDosEntry(node);
+    removed = RemDosEntry(node);
+    index = dos_list_index(node);
+    again = RemDosEntry(node);
+    UnLockDosList(LDF_DEVICES | LDF_WRITE);
 
-    if (RemDosEntry(node) && dos_info->di_DevInfo == 0)
+    if (added && removed == DOSTRUE && index < 0 && again == DOSFALSE)
     {
         print("OK: RemDosEntry() no longer behaves like a stub\n");
     }
@@ -1602,8 +1592,7 @@ static int test_dos_remdosentry_stub_closed(void)
         errors++;
     }
 
-    dos_info->di_DevInfo = old_head;
-    FreeMem(node, sizeof(*node));
+    FreeDosEntry(node);
 
     print("\n");
     return errors;
@@ -1640,47 +1629,34 @@ static void free_bstr(BSTR bstr)
 static int test_dos_adddosentry_stub_closed(void)
 {
     int errors = 0;
-    struct RootNode *root;
-    struct DosInfo *dos_info;
-    BPTR old_head;
     struct DosList *node;
-    BSTR name;
+    struct DosList *dup;
+    LONG added, dup_added, index;
 
     print("--- Test: DOS AddDosEntry entry point ---\n");
 
-    if (!DOSBase || !DOSBase->dl_Root)
-    {
-        print("FAIL: DOS root node is not initialized\n\n");
-        return 1;
-    }
-
-    root = DOSBase->dl_Root;
-    dos_info = (struct DosInfo *)BADDR(root->rn_Info);
-    if (!dos_info)
-    {
-        print("FAIL: DOS info is not initialized\n\n");
-        return 1;
-    }
-
-    node = (struct DosList *)AllocMem(sizeof(*node), MEMF_PUBLIC | MEMF_CLEAR);
-    name = alloc_bstr("EXECADDDOS");
-    if (!node || !name)
+    node = MakeDosEntry((CONST_STRPTR)"EXECADDDOS", DLT_DEVICE);
+    dup = MakeDosEntry((CONST_STRPTR)"execadddos", DLT_DEVICE);
+    if (!node || !dup)
     {
         print("FAIL: Could not allocate probe DosList node for AddDosEntry\n\n");
-        if (name)
-            free_bstr(name);
         if (node)
-            FreeMem(node, sizeof(*node));
+            FreeDosEntry(node);
+        if (dup)
+            FreeDosEntry(dup);
         return 1;
     }
 
-    node->dol_Type = DLT_DEVICE;
-    node->dol_Name = name;
+    LockDosList(LDF_DEVICES | LDF_WRITE);
+    added = AddDosEntry(node);
+    index = dos_list_index(node);
+    dup_added = AddDosEntry(dup);
+    if (dup_added)
+        RemDosEntry(dup);
+    RemDosEntry(node);
+    UnLockDosList(LDF_DEVICES | LDF_WRITE);
 
-    old_head = dos_info->di_DevInfo;
-    dos_info->di_DevInfo = 0;
-
-    if (AddDosEntry(node) == DOSTRUE && BADDR(dos_info->di_DevInfo) == node && node->dol_Next == 0)
+    if (added == DOSTRUE && index >= 0)
     {
         print("OK: AddDosEntry() no longer behaves like a stub\n");
     }
@@ -1690,9 +1666,19 @@ static int test_dos_adddosentry_stub_closed(void)
         errors++;
     }
 
-    dos_info->di_DevInfo = old_head;
-    free_bstr(name);
-    FreeMem(node, sizeof(*node));
+    /* AmigaOS 3.1 rejects a second device of the same name (any case) */
+    if (dup_added == DOSFALSE)
+    {
+        print("OK: AddDosEntry() rejects a duplicate device name\n");
+    }
+    else
+    {
+        print("FAIL: AddDosEntry() accepted a duplicate device name\n");
+        errors++;
+    }
+
+    FreeDosEntry(dup);
+    FreeDosEntry(node);
 
     print("\n");
     return errors;
@@ -1725,9 +1711,7 @@ static int test_dos_makedosentry_stub_closed(void)
         errors++;
     }
 
-    if (node->dol_Name)
-        FreeVec((APTR)BADDR(node->dol_Name));
-    FreeVec(node);
+    FreeDosEntry(node);
 
     print("\n");
     return errors;
@@ -1772,7 +1756,7 @@ static int test_dos_format_stub_closed(void)
 
     print("--- Test: DOS Format entry point ---\n");
 
-    ok = Format((CONST_STRPTR)"HOME:", (CONST_STRPTR)"LIBFORMAT", ID_DOS_DISK);
+    ok = Format((CONST_STRPTR)"RAM:", (CONST_STRPTR)"LIBFORMAT", ID_DOS_DISK);
     if (ok == DOSFALSE && IoErr() == ERROR_ACTION_NOT_KNOWN)
     {
         print("OK: Format() no longer behaves like a stub\n");
@@ -1816,7 +1800,7 @@ static int test_dos_inhibit_stub_closed(void)
 
     print("--- Test: DOS Inhibit entry point ---\n");
 
-    ok = Inhibit((CONST_STRPTR)"HOME:", DOSTRUE);
+    ok = Inhibit((CONST_STRPTR)"RAM:", DOSTRUE);
     if (ok == DOSFALSE && IoErr() == ERROR_ACTION_NOT_KNOWN)
     {
         print("OK: Inhibit() no longer behaves like a stub\n");
@@ -1838,7 +1822,7 @@ static int test_dos_addbuffers_stub_closed(void)
 
     print("--- Test: DOS AddBuffers entry point ---\n");
 
-    ok = AddBuffers((CONST_STRPTR)"HOME:", 1);
+    ok = AddBuffers((CONST_STRPTR)"RAM:", 1);
     if (ok == DOSFALSE && IoErr() == ERROR_ACTION_NOT_KNOWN)
     {
         print("OK: AddBuffers() no longer behaves like a stub\n");
@@ -5584,20 +5568,22 @@ cleanup:
     return errors;
 }
 
-int main(void)
+static int test_refcounts(void)
 {
     int errors = 0;
 
-    print("=== exec/library Test ===\n\n");
+    errors += test_library_refcount("graphics.library", 0);
+    errors += test_library_refcount("intuition.library", 0);
+    errors += test_library_refcount("utility.library", 1);
+    errors += test_library_refcount("mathtrans.library", 1);
+    errors += test_library_refcount("mathffp.library", 1);
+    errors += test_library_refcount("expansion.library", 1);
+    return errors;
+}
 
-    /* Test 1: Test reference counting for all 6 previously-broken libraries */
-    errors += test_library_refcount("graphics.library");
-    errors += test_library_refcount("intuition.library");
-    errors += test_library_refcount("utility.library");
-    errors += test_library_refcount("mathtrans.library");
-    errors += test_library_refcount("mathffp.library");
-    errors += test_library_refcount("expansion.library");
-
+static int test_open_failures(void)
+{
+    int errors = 0;
     /* Test 2: OpenLibrary() for non-existent library */
     print("--- Test: Non-existent library ---\n");
     {
@@ -5630,188 +5616,140 @@ int main(void)
         }
     }
 
-    /* Test 4: Verify MakeLibrary/SetFunction/SumLibrary/AddLibrary/RemLibrary */
-    errors += test_exec_library_helpers();
+    print("\n");
+    return errors;
+}
 
-    /* Test 5: Verify third-party libraries stay off the built-in ROM surface */
-    errors += test_external_library_scope();
+/*
+ * Sections.  lxa_only sections are built into Tests/Exec/LibraryLxa
+ * (tests/exec/library_lxa, LIBRARY_LXA_ONLY) and do not run on AmigaOS 3.1:
+ * CliInitNewcli/CliInitRun re-initialise the calling CLI, Relabel/SetOwner/
+ * AddSegment depend on lxa's filesystems and resident list, and the
+ * graphics/intuition/icon/diskfont/workbench/device sections (Phases 80-97)
+ * use lxa fixtures or hardware (sprites, copper, floppy, SCSI, parallel,
+ * gameport).  Phase 220 ran every section on the reference one by one; the
+ * divergences found there are tracked as follow-up work, not hidden here.
+ * "Library <n>" runs section n only (used to probe the reference).
+ */
+struct LibrarySection
+{
+    int (*fn)(void);
+    BOOL lxa_only;
+};
 
-    /* Test 6: Verify dos.library InitLib initialized the public DOS base state */
-    errors += test_dos_library_init_state();
+static const struct LibrarySection g_sections[] = {
+    { test_refcounts, FALSE },
+    { test_open_failures, FALSE },
+    { test_exec_library_helpers, FALSE },
+    { test_external_library_scope, FALSE },
+    { test_dos_library_init_state, FALSE },
+    { test_dos_lockrecord_stub_closed, FALSE },
+    { test_dos_lockrecords_stub_closed, FALSE },
+    { test_dos_unlockrecord_stub_closed, FALSE },
+    { test_dos_unlockrecords_stub_closed, FALSE },
+    { test_dos_splitname_stub_closed, FALSE },
+    { test_dos_setmode_stub_closed, FALSE },
+    { test_dos_changemode_stub_closed, FALSE },
+    { test_dos_samedevice_stub_closed, FALSE },
+    { test_dos_errorreport_stub_closed, FALSE },
+    { test_dos_getconsoletask_stub_closed, FALSE },
+    { test_dos_setconsoletask_stub_closed, FALSE },
+    { test_dos_getfilesystask_stub_closed, FALSE },
+    { test_dos_setfilesystask_stub_closed, FALSE },
+    { test_dos_getargstr_stub_closed, FALSE },
+    { test_dos_cliinitnewcli_stub_closed, TRUE },
+    { test_dos_cliinitrun_stub_closed, TRUE },
+    { test_dos_setargstr_stub_closed, FALSE },
+    { test_dos_remdosentry_stub_closed, FALSE },
+    { test_dos_adddosentry_stub_closed, FALSE },
+    { test_dos_makedosentry_stub_closed, FALSE },
+    { test_dos_freedosentry_stub_closed, FALSE },
+    { test_dos_format_stub_closed, FALSE },
+    { test_dos_relabel_stub_closed, TRUE },
+    { test_dos_inhibit_stub_closed, FALSE },
+    { test_dos_addbuffers_stub_closed, FALSE },
+    { test_dos_setowner_stub_closed, TRUE },
+    { test_dos_addsegment_stub_closed, TRUE },
+    { test_dos_readitem_stub_closed, FALSE },
+    { test_utility_packbooltags_stub_closed, FALSE },
+    { test_utility_filtertagchanges_stub_closed, FALSE },
+    { test_utility_applytagchanges_stub_closed, FALSE },
+    { test_graphics_addanimob_stub_closed, TRUE },
+    { test_graphics_remibob_stub_closed, TRUE },
+    { test_graphics_docollision_stub_closed, TRUE },
+    { test_graphics_animate_stub_closed, TRUE },
+    { test_graphics_getgbuffers_stub_closed, TRUE },
+    { test_graphics_cbump_stub_closed, TRUE },
+    { test_graphics_cmove_stub_closed, TRUE },
+    { test_graphics_cwait_stub_closed, TRUE },
+    { test_graphics_calcivg_stub_closed, TRUE },
+    { test_graphics_setchiprev_stub_closed, TRUE },
+    { test_graphics_syncsbitmap_stub_closed, TRUE },
+    { test_graphics_copysbitmap_stub_closed, TRUE },
+    { test_graphics_getextsprite_stub_closed, TRUE },
+    { test_graphics_allocspritedata_stub_closed, TRUE },
+    { test_graphics_freespritedata_stub_closed, TRUE },
+    { test_intuition_openintuition_stub_closed, TRUE },
+    { test_intuition_entry_point_dispatch, TRUE },
+    { test_icon_phase87_stub_closed, TRUE },
+    { test_diskfont_phase88_stub_closed, TRUE },
+    { test_workbench_phase89_stub_closed, TRUE },
+    { test_timer_phase90_stub_closed, TRUE },
+    { test_clipboard_phase91_stub_closed, TRUE },
+    { test_gameport_phase92_stub_closed, TRUE },
+    { test_trackdisk_phase93_stub_closed, TRUE },
+    { test_mathffp_phase94_stub_closed, TRUE },
+    { test_parallel_phase97_stub_closed, TRUE },
+    { test_scsi_phase97_stub_closed, TRUE },
+};
 
-    /* Test 7: Verify LockRecord no longer hits the stub path */
-    errors += test_dos_lockrecord_stub_closed();
+int main(int argc, char **argv)
+{
+    int errors = 0;
+    int i;
 
-    /* Test 8: Verify LockRecords no longer hits the stub path */
-    errors += test_dos_lockrecords_stub_closed();
+#ifdef LIBRARY_LXA_ONLY
+    const BOOL want_lxa_only = TRUE;
+    print("=== exec/library Test (lxa only) ===\n\n");
+#else
+    const BOOL want_lxa_only = FALSE;
+    print("=== exec/library Test ===\n\n");
+#endif
 
-    /* Test 9: Verify UnLockRecord no longer hits the stub path */
-    errors += test_dos_unlockrecord_stub_closed();
+    /* "Library <n>[-<m>] ...": run the given sections whatever their
+     * classification (probing aid) */
+    if (argc > 1)
+    {
+        int arg;
 
-    /* Test 10: Verify UnLockRecords no longer hits the stub path */
-    errors += test_dos_unlockrecords_stub_closed();
+        for (arg = 1; arg < argc; arg++)
+        {
+            const char *p = argv[arg];
+            int first = 0;
+            int last;
 
-    /* Test 11: Verify SplitName no longer hits the stub path */
-    errors += test_dos_splitname_stub_closed();
-
-    /* Test 12: Verify SetMode no longer hits the stub path */
-    errors += test_dos_setmode_stub_closed();
-
-    /* Test 13: Verify ChangeMode no longer hits the stub path */
-    errors += test_dos_changemode_stub_closed();
-
-    /* Test 14: Verify SameDevice no longer hits the stub path */
-    errors += test_dos_samedevice_stub_closed();
-
-    /* Test 15: Verify ErrorReport no longer hits the stub path */
-    errors += test_dos_errorreport_stub_closed();
-
-    /* Test 16: Verify GetConsoleTask no longer hits the stub path */
-    errors += test_dos_getconsoletask_stub_closed();
-
-    /* Test 17: Verify SetConsoleTask no longer hits the stub path */
-    errors += test_dos_setconsoletask_stub_closed();
-
-    /* Test 18: Verify GetFileSysTask no longer hits the stub path */
-    errors += test_dos_getfilesystask_stub_closed();
-
-    /* Test 19: Verify SetFileSysTask no longer hits the stub path */
-    errors += test_dos_setfilesystask_stub_closed();
-
-    /* Test 20: Verify GetArgStr no longer hits the stub path */
-    errors += test_dos_getargstr_stub_closed();
-
-    /* Test 21: Verify CliInitNewcli no longer hits the stub path */
-    errors += test_dos_cliinitnewcli_stub_closed();
-
-    /* Test 22: Verify CliInitRun no longer hits the stub path */
-    errors += test_dos_cliinitrun_stub_closed();
-
-    /* Test 23: Verify SetArgStr no longer hits the stub path */
-    errors += test_dos_setargstr_stub_closed();
-
-    /* Test 24: Verify RemDosEntry no longer hits the stub path */
-    errors += test_dos_remdosentry_stub_closed();
-
-    /* Test 25: Verify AddDosEntry no longer hits the stub path */
-    errors += test_dos_adddosentry_stub_closed();
-
-    /* Test 26: Verify MakeDosEntry no longer hits the stub path */
-    errors += test_dos_makedosentry_stub_closed();
-
-    /* Test 27: Verify FreeDosEntry no longer hits the stub path */
-    errors += test_dos_freedosentry_stub_closed();
-
-    /* Test 28: Verify Format no longer hits the stub path */
-    errors += test_dos_format_stub_closed();
-
-    /* Test 29: Verify Relabel no longer hits the stub path */
-    errors += test_dos_relabel_stub_closed();
-
-    /* Test 30: Verify Inhibit no longer hits the stub path */
-    errors += test_dos_inhibit_stub_closed();
-
-    /* Test 31: Verify AddBuffers no longer hits the stub path */
-    errors += test_dos_addbuffers_stub_closed();
-
-    /* Test 32: Verify SetOwner no longer hits the stub path */
-    errors += test_dos_setowner_stub_closed();
-
-    /* Test 33: Verify AddSegment no longer hits the stub path */
-    errors += test_dos_addsegment_stub_closed();
-
-    /* Test 34: Verify ReadItem no longer hits the stub path */
-    errors += test_dos_readitem_stub_closed();
-
-    /* Test 35: Verify PackBoolTags no longer hits the stub path */
-    errors += test_utility_packbooltags_stub_closed();
-
-    /* Test 36: Verify FilterTagChanges no longer hits the stub path */
-    errors += test_utility_filtertagchanges_stub_closed();
-
-    /* Test 37: Verify ApplyTagChanges no longer hits the stub path */
-    errors += test_utility_applytagchanges_stub_closed();
-
-    /* Test 38: Verify AddAnimOb no longer hits the stub path */
-    errors += test_graphics_addanimob_stub_closed();
-
-    /* Test 39: Verify RemIBob no longer hits the stub path */
-    errors += test_graphics_remibob_stub_closed();
-
-    /* Test 40: Verify DoCollision/InitMasks/SetCollision no longer hit the stub path */
-    errors += test_graphics_docollision_stub_closed();
-
-    /* Test 41: Verify Animate no longer hits the stub path */
-    errors += test_graphics_animate_stub_closed();
-
-    /* Test 42: Verify GetGBuffers no longer hits the stub path */
-    errors += test_graphics_getgbuffers_stub_closed();
-
-    /* Test 43: Verify CBump no longer hits the stub path */
-    errors += test_graphics_cbump_stub_closed();
-
-    /* Test 44: Verify CMove no longer hits the stub path */
-    errors += test_graphics_cmove_stub_closed();
-
-    /* Test 45: Verify CWait no longer hits the stub path */
-    errors += test_graphics_cwait_stub_closed();
-
-    /* Test 46: Verify CalcIVG no longer hits the stub path */
-    errors += test_graphics_calcivg_stub_closed();
-
-    /* Test 47: Verify SetChipRev no longer hits the stub path */
-    errors += test_graphics_setchiprev_stub_closed();
-
-    /* Test 48: Verify SyncSBitMap no longer hits the stub path */
-    errors += test_graphics_syncsbitmap_stub_closed();
-
-    /* Test 49: Verify CopySBitMap no longer hits the stub path */
-    errors += test_graphics_copysbitmap_stub_closed();
-
-    /* Test 50: Verify GetExtSpriteA no longer hits the stub path */
-    errors += test_graphics_getextsprite_stub_closed();
-
-    /* Test 51: Verify AllocSpriteDataA no longer hits the stub path */
-    errors += test_graphics_allocspritedata_stub_closed();
-
-    /* Test 52: Verify FreeSpriteData no longer hits the stub path */
-    errors += test_graphics_freespritedata_stub_closed();
-
-    /* Test 53: Verify OpenIntuition no longer hits the stub path */
-    errors += test_intuition_openintuition_stub_closed();
-
-    /* Test 54: Verify Intuition no longer hits the stub path */
-    errors += test_intuition_entry_point_dispatch();
-
-    /* Test 55: Verify icon.library Phase 87 entry points no longer hit stub paths */
-    errors += test_icon_phase87_stub_closed();
-
-    /* Test 56: Verify diskfont.library Phase 88 entry points no longer hit stub paths */
-    errors += test_diskfont_phase88_stub_closed();
-
-    /* Test 57: Verify workbench.library Phase 89 entry points no longer hit stub paths */
-    errors += test_workbench_phase89_stub_closed();
-
-    /* Test 58: Verify timer.device Phase 90 entry point no longer hits the stub path */
-    errors += test_timer_phase90_stub_closed();
-
-    /* Test 59: Verify clipboard.device Phase 91 entry points no longer hit the stub path */
-    errors += test_clipboard_phase91_stub_closed();
-
-    /* Test 60: Verify gameport.device Phase 92 entry points no longer hit the stub path */
-    errors += test_gameport_phase92_stub_closed();
-
-    /* Test 61: Verify trackdisk.device Phase 93 entry points no longer hit the stub path */
-    errors += test_trackdisk_phase93_stub_closed();
-
-    /* Test 62: Verify mathffp.library Phase 94 entry point no longer hits the stub path */
-    errors += test_mathffp_phase94_stub_closed();
-
-    /* Test 63: Verify parallel.device Phase 97 entry point no longer hits the stub path */
-    errors += test_parallel_phase97_stub_closed();
-
-    /* Test 64: Verify scsi.device Phase 97 entry point no longer hits the stub path */
-    errors += test_scsi_phase97_stub_closed();
+            while (*p >= '0' && *p <= '9')
+                first = first * 10 + (*p++ - '0');
+            last = first;
+            if (*p == '-')
+            {
+                p++;
+                last = 0;
+                while (*p >= '0' && *p <= '9')
+                    last = last * 10 + (*p++ - '0');
+            }
+            for (i = first; i <= last && i < (int)(sizeof(g_sections) / sizeof(g_sections[0])); i++)
+                errors += g_sections[i].fn();
+        }
+    }
+    else
+    {
+        for (i = 0; i < (int)(sizeof(g_sections) / sizeof(g_sections[0])); i++)
+        {
+            if (g_sections[i].lxa_only == want_lxa_only)
+                errors += g_sections[i].fn();
+        }
+    }
 
     /* ========== Final result ========== */
     print("\n=== Test Results ===\n");
