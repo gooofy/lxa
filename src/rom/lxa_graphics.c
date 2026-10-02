@@ -832,15 +832,26 @@ static const char *graphics_display_mode_name(ULONG display_id)
 
 static UWORD graphics_display_nominal_width(ULONG display_id)
 {
+    if ((display_id & SUPER_KEY) == SUPER_KEY)
+        return 1280;
     return (display_id & HIRES) ? 640 : 320;
+}
+
+/* pixel width scale: 1 lores, 2 hires, 4 superhires */
+static WORD graphics_display_xscale(ULONG display_id)
+{
+    if ((display_id & SUPER_KEY) == SUPER_KEY)
+        return 4;
+    return (display_id & HIRES) ? 2 : 1;
 }
 
 static UWORD graphics_display_nominal_height(ULONG display_id)
 {
-    if ((display_id & MONITOR_ID_MASK) == PAL_MONITOR_ID)
-        return 256;
+    UWORD height = ((display_id & MONITOR_ID_MASK) == NTSC_MONITOR_ID) ? 200 : 256;
 
-    return 200;
+    if (display_id & LACE)
+        height *= 2;
+    return height;
 }
 
 static UWORD graphics_display_total_rows(ULONG display_id)
@@ -5527,8 +5538,9 @@ static VOID _graphics_InitView ( register struct GfxBase * GfxBase __asm("a6"),
     view->ViewPort = NULL;
     view->LOFCprList = NULL;
     view->SHFCprList = NULL;
-    view->DyOffset = 0;
-    view->DxOffset = 0;
+    /* standard display window start (AmigaOS 3.1, reference machine) */
+    view->DyOffset = 0x2C;
+    view->DxOffset = 0x81;
     view->Modes = 0;
 }
 
@@ -8358,7 +8370,12 @@ static BOOL _graphics_VideoControl ( register struct GfxBase * GfxBase __asm("a6
     {
         switch (tag->ti_Tag)
         {
-            case VTAG_ATTACH_CM_SET: colorMap->cm_vp = (struct ViewPort *)tag->ti_Data; break;
+            case VTAG_ATTACH_CM_SET:
+                /* links both ways (AmigaOS 3.1, reference) */
+                colorMap->cm_vp = (struct ViewPort *)tag->ti_Data;
+                if (colorMap->cm_vp)
+                    colorMap->cm_vp->ColorMap = colorMap;
+                break;
             case VTAG_ATTACH_CM_GET: tag->ti_Tag = VTAG_ATTACH_CM_SET; tag->ti_Data = (ULONG)colorMap->cm_vp; break;
             case VTAG_VIEWPORTEXTRA_SET: colorMap->cm_vpe = (struct ViewPortExtra *)tag->ti_Data; break;
             case VTAG_VIEWPORTEXTRA_GET: tag->ti_Tag = VTAG_VIEWPORTEXTRA_SET; tag->ti_Data = (ULONG)colorMap->cm_vpe; break;
@@ -8377,8 +8394,8 @@ static BOOL _graphics_VideoControl ( register struct GfxBase * GfxBase __asm("a6
             case VTAG_BORDERSPRITE_SET: colorMap->Flags |= BORDERSPRITES; break;
             case VTAG_BORDERSPRITE_CLR: colorMap->Flags &= ~BORDERSPRITES; break;
             case VTAG_BORDERSPRITE_GET:
-                if (colorMap->Flags & BORDERSPRITES) { tag->ti_Tag = VTAG_BORDERSPRITE_SET; tag->ti_Data = TRUE; }
-                else { tag->ti_Tag = VTAG_BORDERSPRITE_CLR; tag->ti_Data = FALSE; }
+                /* the state is reported in the tag only (reference) */
+                tag->ti_Tag = (colorMap->Flags & BORDERSPRITES) ? VTAG_BORDERSPRITE_SET : VTAG_BORDERSPRITE_CLR;
                 break;
             case VTAG_SPRITERESN_SET: colorMap->SpriteResolution = (UBYTE)tag->ti_Data; break;
             case VTAG_SPRITERESN_GET: tag->ti_Tag = VTAG_SPRITERESN_SET; tag->ti_Data = colorMap->SpriteResolution; break;
@@ -8387,48 +8404,48 @@ static BOOL _graphics_VideoControl ( register struct GfxBase * GfxBase __asm("a6
             case VTAG_BORDERBLANK_SET: colorMap->Flags |= BORDER_BLANKING; break;
             case VTAG_BORDERBLANK_CLR: colorMap->Flags &= ~BORDER_BLANKING; break;
             case VTAG_BORDERBLANK_GET:
-                if (colorMap->Flags & BORDER_BLANKING) { tag->ti_Tag = VTAG_BORDERBLANK_SET; tag->ti_Data = TRUE; }
-                else { tag->ti_Tag = VTAG_BORDERBLANK_CLR; tag->ti_Data = FALSE; }
+                /* the state is reported in the tag only (reference) */
+                tag->ti_Tag = (colorMap->Flags & BORDER_BLANKING) ? VTAG_BORDERBLANK_SET : VTAG_BORDERBLANK_CLR;
                 break;
             case VTAG_BORDERNOTRANS_SET: colorMap->Flags |= BORDER_NOTRANSPARENCY; break;
             case VTAG_BORDERNOTRANS_CLR: colorMap->Flags &= ~BORDER_NOTRANSPARENCY; break;
             case VTAG_BORDERNOTRANS_GET:
-                if (colorMap->Flags & BORDER_NOTRANSPARENCY) { tag->ti_Tag = VTAG_BORDERNOTRANS_SET; tag->ti_Data = TRUE; }
-                else { tag->ti_Tag = VTAG_BORDERNOTRANS_CLR; tag->ti_Data = FALSE; }
+                /* the state is reported in the tag only (reference) */
+                tag->ti_Tag = (colorMap->Flags & BORDER_NOTRANSPARENCY) ? VTAG_BORDERNOTRANS_SET : VTAG_BORDERNOTRANS_CLR;
                 break;
             case VTAG_IMMEDIATE: immediate = (LONG *)tag->ti_Data; break;
             case VTAG_FULLPALETTE_SET: colorMap->AuxFlags |= CMAF_FULLPALETTE; break;
             case VTAG_FULLPALETTE_CLR: colorMap->AuxFlags &= ~CMAF_FULLPALETTE; break;
             case VTAG_FULLPALETTE_GET:
-                if (colorMap->AuxFlags & CMAF_FULLPALETTE) { tag->ti_Tag = VTAG_FULLPALETTE_SET; tag->ti_Data = TRUE; }
-                else { tag->ti_Tag = VTAG_FULLPALETTE_CLR; tag->ti_Data = FALSE; }
+                /* the state is reported in the tag only (reference) */
+                tag->ti_Tag = (colorMap->AuxFlags & CMAF_FULLPALETTE) ? VTAG_FULLPALETTE_SET : VTAG_FULLPALETTE_CLR;
                 break;
             case VC_IntermediateCLUpdate:
                 if (tag->ti_Data) colorMap->AuxFlags &= ~CMAF_NO_INTERMED_UPDATE;
                 else colorMap->AuxFlags |= CMAF_NO_INTERMED_UPDATE;
                 break;
-            case VC_IntermediateCLUpdate_Query: *((ULONG *)tag->ti_Data) = (colorMap->AuxFlags & CMAF_NO_INTERMED_UPDATE) ? FALSE : TRUE; break;
+            case VC_IntermediateCLUpdate_Query: *((ULONG *)tag->ti_Data) = (colorMap->AuxFlags & CMAF_NO_INTERMED_UPDATE) ? 0 : (ULONG)-1; break;
             case VC_NoColorPaletteLoad:
                 if (tag->ti_Data) colorMap->AuxFlags |= CMAF_NO_COLOR_LOAD;
                 else colorMap->AuxFlags &= ~CMAF_NO_COLOR_LOAD;
                 break;
-            case VC_NoColorPaletteLoad_Query: *((ULONG *)tag->ti_Data) = (colorMap->AuxFlags & CMAF_NO_COLOR_LOAD) ? TRUE : FALSE; break;
+            case VC_NoColorPaletteLoad_Query: *((ULONG *)tag->ti_Data) = (colorMap->AuxFlags & CMAF_NO_COLOR_LOAD) ? (ULONG)-1 : 0; break;
             case VC_DUALPF_Disable:
                 if (tag->ti_Data) colorMap->AuxFlags |= CMAF_DUALPF_DISABLE;
                 else colorMap->AuxFlags &= ~CMAF_DUALPF_DISABLE;
                 break;
-            case VC_DUALPF_Disable_Query: *((ULONG *)tag->ti_Data) = (colorMap->AuxFlags & CMAF_DUALPF_DISABLE) ? TRUE : FALSE; break;
+            case VC_DUALPF_Disable_Query: *((ULONG *)tag->ti_Data) = (colorMap->AuxFlags & CMAF_DUALPF_DISABLE) ? (ULONG)-1 : 0; break;
             case VTAG_USERCLIP_SET: colorMap->Flags |= USER_COPPER_CLIP; break;
             case VTAG_USERCLIP_CLR: colorMap->Flags &= ~USER_COPPER_CLIP; break;
             case VTAG_USERCLIP_GET:
-                if (colorMap->Flags & USER_COPPER_CLIP) { tag->ti_Tag = VTAG_USERCLIP_SET; tag->ti_Data = TRUE; }
-                else { tag->ti_Tag = VTAG_USERCLIP_CLR; tag->ti_Data = FALSE; }
+                /* the state is reported in the tag only (reference) */
+                tag->ti_Tag = (colorMap->Flags & USER_COPPER_CLIP) ? VTAG_USERCLIP_SET : VTAG_USERCLIP_CLR;
                 break;
             case VTAG_BATCH_CM_SET: colorMap->Flags |= VIDEOCONTROL_BATCH; break;
             case VTAG_BATCH_CM_CLR: colorMap->Flags &= ~VIDEOCONTROL_BATCH; break;
             case VTAG_BATCH_CM_GET:
-                if (colorMap->Flags & VIDEOCONTROL_BATCH) { tag->ti_Tag = VTAG_BATCH_CM_SET; tag->ti_Data = TRUE; }
-                else { tag->ti_Tag = VTAG_BATCH_CM_CLR; tag->ti_Data = FALSE; }
+                /* the state is reported in the tag only (reference) */
+                tag->ti_Tag = (colorMap->Flags & VIDEOCONTROL_BATCH) ? VTAG_BATCH_CM_SET : VTAG_BATCH_CM_CLR;
                 break;
             case VTAG_BATCH_ITEMS_SET: colorMap->cm_batch_items = (struct TagItem *)tag->ti_Data; break;
             case VTAG_BATCH_ITEMS_ADD: break;
@@ -8439,7 +8456,9 @@ static BOOL _graphics_VideoControl ( register struct GfxBase * GfxBase __asm("a6
                 tag->ti_Tag = (colorMap->VPModeID == INVALID_ID) ? VTAG_VPMODEID_CLR : VTAG_VPMODEID_SET;
                 tag->ti_Data = colorMap->VPModeID;
                 break;
-            default: result = 1; break;
+            default:
+                /* unknown tags are ignored (AmigaOS 3.1, reference) */
+                break;
         }
     }
 
@@ -8704,15 +8723,28 @@ static ULONG _graphics_GetDisplayInfoData ( register struct GfxBase * GfxBase __
                 actualDisplayID);
     }
 
+    /* Mode IDs of the default monitor describe the native monitor: lxa
+     * emulates a PAL machine (AmigaOS 3.1 reports e.g. PAL|LORES for
+     * LORES_KEY, verified on the reference machine). */
+    if ((actualDisplayID & MONITOR_ID_MASK) == DEFAULT_MONITOR_ID)
+        actualDisplayID |= PAL_MONITOR_ID;
+
     lxa_memset(buf, 0, size);
     width = graphics_display_nominal_width(actualDisplayID);
     height = graphics_display_nominal_height(actualDisplayID);
-    
+
+    /*
+     * The values below follow AmigaOS 3.1 on the reference machine.  The
+     * structures are filled only up to the V39 sizes the reference reports
+     * (DisplayInfo 48, DimensionInfo 66, MonitorInfo 88 bytes).
+     */
     switch (tagID)
     {
         case DTAG_DISP:
         {
             struct DisplayInfo di;
+            BOOL is_ntsc = ((actualDisplayID & MONITOR_ID_MASK) == NTSC_MONITOR_ID);
+            WORD xscale = graphics_display_xscale(actualDisplayID);
 
             lxa_memset(&di, 0, sizeof(di));
             di.Header.StructID = DTAG_DISP;
@@ -8720,99 +8752,100 @@ static ULONG _graphics_GetDisplayInfoData ( register struct GfxBase * GfxBase __
             di.Header.SkipID = TAG_SKIP;
             di.Header.Length = graphics_query_header_length(sizeof(di));
             di.NotAvailable = FALSE;
-            /* Phase 129: Set all relevant DIPF flags for this mode */
-            di.PropertyFlags = DIPF_IS_SPRITES | DIPF_IS_WB | DIPF_IS_DRAGGABLE | DIPF_IS_ECS;
-            if ((actualDisplayID & MONITOR_ID_MASK) == PAL_MONITOR_ID)
-                di.PropertyFlags |= DIPF_IS_PAL;
+            /* PAL, sprites, genlock, WB, draggable, beamsync, attached /
+             * resolution / border / base / priority sprite features, dbuffer */
+            di.PropertyFlags = 0x001cebe0UL;
+            if (is_ntsc)
+                di.PropertyFlags &= ~DIPF_IS_PAL;
+            if (xscale == 4)
+                di.PropertyFlags |= DIPF_IS_ECS;
             if (actualDisplayID & LACE)
                 di.PropertyFlags |= DIPF_IS_LACE;
             if (actualDisplayID & HAM)
-                di.PropertyFlags |= DIPF_IS_HAM;
+            {
+                di.PropertyFlags = (di.PropertyFlags & ~DIPF_IS_WB) | DIPF_IS_HAM;
+                if (xscale > 1)
+                    di.PropertyFlags |= DIPF_IS_AA;
+            }
             if ((actualDisplayID & EXTRAHALFBRITE_KEY) == EXTRAHALFBRITE_KEY)
-                di.PropertyFlags |= DIPF_IS_EXTRAHALFBRITE;
-            di.Resolution.x = (actualDisplayID & HIRES) ? 22 : 44;
-            di.Resolution.y = ((actualDisplayID & MONITOR_ID_MASK) == PAL_MONITOR_ID) ? 44 : 52;
-            di.PixelSpeed = (actualDisplayID & HIRES) ? 70 : 140;
+                di.PropertyFlags = (di.PropertyFlags & ~DIPF_IS_WB) | DIPF_IS_EXTRAHALFBRITE;
+            di.Resolution.x = (WORD)(44 / xscale);
+            di.Resolution.y = is_ntsc ? 52 : 44;
+            if (actualDisplayID & LACE)
+                di.Resolution.y /= 2;
+            di.PixelSpeed = (UWORD)(280 / (xscale * 2));
             di.NumStdSprites = 8;
             di.PaletteRange = 16;
-            di.SpriteResolution = di.Resolution;
+            di.SpriteResolution.x = 44;
+            di.SpriteResolution.y = is_ntsc ? 52 : 44;
             di.RedBits = 4;
             di.GreenBits = 4;
             di.BlueBits = 4;
 
-            return graphics_copy_query(buf, size, &di, sizeof(di));
+            return graphics_copy_query(buf, size, &di, 48);
         }
-        
+
         case DTAG_DIMS:
         {
             struct DimensionInfo dims;
+            WORD xscale = graphics_display_xscale(actualDisplayID);
+            WORD yscale = (actualDisplayID & LACE) ? 2 : 1;
 
             lxa_memset(&dims, 0, sizeof(dims));
             dims.Header.StructID = DTAG_DIMS;
             dims.Header.DisplayID = actualDisplayID;
             dims.Header.SkipID = TAG_SKIP;
             dims.Header.Length = graphics_query_header_length(sizeof(dims));
-            dims.MaxDepth = 8;
-            /* Phase 129: Return realistic raster ranges instead of
-             * pinned MinRaster==MaxRaster values.  Apps like PPaint's
-             * CloantoScreenManager probe DimensionInfo to decide whether
-             * a mode can render at their target size.  If Min==Max they
-             * conclude the mode is unsuitable and exit with rv=26. */
-            if (actualDisplayID & HIRES)
-            {
-                /* HIRES: 320×200 (min) up to 1280×1024 (max) */
-                dims.MinRasterWidth  = 320;
-                dims.MinRasterHeight = 200;
-                dims.MaxRasterWidth  = 1280;
-                dims.MaxRasterHeight = 1024;
-            }
-            else
-            {
-                /* LORES: 160×100 (min) up to 640×512 (max) */
-                dims.MinRasterWidth  = 160;
-                dims.MinRasterHeight = 100;
-                dims.MaxRasterWidth  = 640;
-                dims.MaxRasterHeight = 512;
-            }
+            dims.MaxDepth = ((actualDisplayID & EXTRAHALFBRITE_KEY) == EXTRAHALFBRITE_KEY) ? 6 : 8;
+            dims.MinRasterWidth  = (UWORD)(16 * xscale);
+            dims.MinRasterHeight = 1;
+            dims.MaxRasterWidth  = 16368;
+            dims.MaxRasterHeight = 16384;
             dims.Nominal.MinX = 0;
             dims.Nominal.MinY = 0;
             dims.Nominal.MaxX = width - 1;
             dims.Nominal.MaxY = height - 1;
-            dims.MaxOScan = dims.Nominal;
-            dims.VideoOScan = dims.Nominal;
             dims.TxtOScan = dims.Nominal;
             dims.StdOScan = dims.Nominal;
+            dims.MaxOScan.MinX = (WORD)(-36 * xscale);
+            dims.MaxOScan.MinY = (WORD)(-15 * yscale);
+            dims.MaxOScan.MaxX = (WORD)(width - 1 + 6 * xscale);
+            dims.MaxOScan.MaxY = (WORD)(height - 1 + 12 * yscale);
+            dims.VideoOScan = dims.MaxOScan;
+            dims.VideoOScan.MaxX = (WORD)(width - 1 + 12 * xscale);
 
-            return graphics_copy_query(buf, size, &dims, sizeof(dims));
+            return graphics_copy_query(buf, size, &dims, 66);
         }
-        
+
         case DTAG_MNTR:
         {
             struct MonitorInfo mon;
+            BOOL is_ntsc = ((actualDisplayID & MONITOR_ID_MASK) == NTSC_MONITOR_ID);
 
             lxa_memset(&mon, 0, sizeof(mon));
             mon.Header.StructID = DTAG_MNTR;
             mon.Header.DisplayID = actualDisplayID;
             mon.Header.SkipID = TAG_SKIP;
             mon.Header.Length = graphics_query_header_length(sizeof(mon));
+            mon.Mspc = is_ntsc ? NULL : (struct MonitorSpec *)GfxBase->natural_monitor;
             mon.ViewPosition.x = 0;
             mon.ViewPosition.y = 0;
-            mon.ViewResolution.x = (actualDisplayID & HIRES) ? 22 : 44;
-            mon.ViewResolution.y = ((actualDisplayID & MONITOR_ID_MASK) == PAL_MONITOR_ID) ? 44 : 52;
+            mon.ViewResolution.x = 44 / graphics_display_xscale(actualDisplayID);
+            mon.ViewResolution.y = is_ntsc ? 52 : 44;
             mon.ViewPositionRange.MinX = 0;
             mon.ViewPositionRange.MinY = 0;
             mon.ViewPositionRange.MaxX = width - 1;
             mon.ViewPositionRange.MaxY = height - 1;
             mon.TotalRows = graphics_display_total_rows(actualDisplayID);
-            mon.TotalColorClocks = (actualDisplayID & HIRES) ? 455 : 227;
+            mon.TotalColorClocks = STANDARD_COLORCLOCKS;
             mon.MinRow = 0;
             mon.Compatibility = MCOMPAT_MIXED;
             mon.MouseTicks.x = mon.ViewResolution.x;
             mon.MouseTicks.y = mon.ViewResolution.y;
             mon.DefaultViewPosition = mon.ViewPosition;
-            mon.PreferredModeID = actualDisplayID;
+            mon.PreferredModeID = (actualDisplayID & MONITOR_ID_MASK) | HIRES_KEY;
 
-            return graphics_copy_query(buf, size, &mon, sizeof(mon));
+            return graphics_copy_query(buf, size, &mon, 88);
         }
 
         case DTAG_NAME:
@@ -9220,100 +9253,24 @@ static ULONG graphics_calcivg_total_cycles(CONST struct CopList *cop_list)
     return total_cycles;
 }
 
-static ULONG graphics_calcivg_display_width(CONST struct ViewPort *vp)
-{
-    if (!vp)
-        return 0;
-
-    if (vp->DWidth > 0)
-        return (ULONG)(UWORD)vp->DWidth;
-
-    if (vp->Modes & SUPERHIRES)
-        return 1280;
-
-    if (vp->Modes & HIRES)
-        return 640;
-
-    return 320;
-}
-
-static ULONG graphics_calcivg_bitplane_cycles(CONST struct ViewPort *vp)
-{
-    CONST struct RasInfo *ras_info;
-    ULONG display_width;
-    ULONG bitplane_cycles = 0;
-
-    if (!vp)
-        return 0;
-
-    display_width = graphics_calcivg_display_width(vp);
-    ras_info = vp->RasInfo;
-
-    while (ras_info)
-    {
-        CONST struct BitMap *bit_map = ras_info->BitMap;
-        ULONG width;
-        ULONG depth;
-
-        if (!bit_map)
-        {
-            ras_info = ras_info->Next;
-            continue;
-        }
-
-        width = display_width;
-        if (width == 0)
-            width = (ULONG)bit_map->BytesPerRow * 8UL;
-
-        depth = (bit_map->Depth > 0) ? (ULONG)bit_map->Depth : 1UL;
-        bitplane_cycles += (((width + 15UL) >> 4) * depth);
-
-        ras_info = ras_info->Next;
-    }
-
-    if (bitplane_cycles == 0)
-        bitplane_cycles = (display_width + 15UL) >> 4;
-
-    return bitplane_cycles;
-}
-
 static UWORD _graphics_CalcIVG ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct View * v __asm("a0"),
                                                         register struct ViewPort * vp __asm("a1"))
 {
-    ULONG total_cycles;
-    ULONG available_cycles_per_line;
-    ULONG bitplane_cycles;
-    ULONG result;
-
+    /*
+     * Number of blank lines needed in front of a ViewPort for its copper
+     * instructions.  Measured on AmigaOS 3.1 (reference machine, 1 to 40
+     * instructions, any depth/width): 0 without instructions, else 1 line,
+     * 2 lines for an interlaced View/ViewPort.
+     */
     (void)GfxBase;
 
     DPRINTF (LOG_DEBUG, "_graphics: CalcIVG(view=0x%08lx, vp=0x%08lx)\n", (ULONG)v, (ULONG)vp);
 
-    if (!v || !vp || !vp->DspIns)
+    if (!v || !vp || !vp->DspIns || graphics_calcivg_total_cycles(vp->DspIns) == 0)
         return 0;
 
-    total_cycles = graphics_calcivg_total_cycles(vp->DspIns);
-    if (total_cycles == 0)
-        return 0;
-
-    bitplane_cycles = graphics_calcivg_bitplane_cycles(vp);
-    if (bitplane_cycles >= 114)
-        return 0;
-
-    available_cycles_per_line = 114 - bitplane_cycles;
-    if ((v->Modes | vp->Modes) & LACE)
-    {
-        available_cycles_per_line /= 2;
-        if (available_cycles_per_line == 0)
-            return 0;
-    }
-
-    result = (total_cycles + available_cycles_per_line - 1) / available_cycles_per_line;
-    if (result > 0xffffUL)
-        result = 0xffffUL;
-
-    return (UWORD)result;
+    return ((v->Modes | vp->Modes) & LACE) ? 2 : 1;
 }
 
 static LONG _graphics_AttachPalExtra ( register struct GfxBase * GfxBase __asm("a6"),

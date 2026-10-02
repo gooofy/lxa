@@ -1487,14 +1487,23 @@ static void test_write_helpers(BPTR fonts_lock)
     else
         fail("WriteFontContents writes a new .font contents file");
 
-    roundtrip = NewFontContents(fonts_lock, (CONST_STRPTR)"written.font");
-    if (roundtrip && roundtrip->fch_NumEntries == contents->fch_NumEntries)
-        pass("WriteFontContents output round-trips through NewFontContents");
-    else
-        fail("WriteFontContents output round-trips through NewFontContents");
+    /* NewFontContents() scans the font directory, so the written file is
+     * checked directly */
+    (void)roundtrip;
+    {
+        struct FontContentsHeader written;
+        BPTR fh = Open((CONST_STRPTR)"written.font", MODE_OLDFILE);
+        LONG got = fh ? Read(fh, &written, sizeof(written)) : 0;
 
-    if (roundtrip)
-        DisposeFontContents(roundtrip);
+        if (fh)
+            Close(fh);
+        if (got == sizeof(written) && written.fch_FileID == contents->fch_FileID &&
+            written.fch_NumEntries == contents->fch_NumEntries)
+            pass("WriteFontContents output contains the font contents header");
+        else
+            fail("WriteFontContents output contains the font contents header");
+    }
+
     DisposeFontContents(contents);
 
     ta.ta_Name = (STRPTR)"T:diskfont_test/test.font";

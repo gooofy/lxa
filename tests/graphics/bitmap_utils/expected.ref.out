@@ -1,0 +1,12 @@
+Testing graphics bitmap utilities...
+OK: ScalerDiv() handles zero and rounded ratios
+OK: BitMapScale() scales planar bitmaps and reports dest size
+OK: GfxNew()/GfxAssociate()/GfxLookUp() round-trip works
+OK: GfxFree() removes associated nodes
+OK: AddFont() exposes font to OpenFont()
+OK: ExtendFont() creates and attaches a font extension
+OK: RemFont() honors TE0F_NOREMFONT
+OK: StripFont() restores the original tf_Extension
+OK: CloseFont() keeps the font in the public list
+OK: RemFont() removes the font from the public list
+PASS: graphics/bitmap_utils all tests passed

@@ -2304,8 +2304,8 @@ static int test_graphics_addanimob_stub_closed(void)
     if (anim_key != &anim_second || anim_second.NextOb != &anim_first ||
         anim_second.PrevOb != NULL || anim_first.PrevOb != &anim_second ||
         anim_first.NextOb != NULL || anim_comp_a.Timer != 5 ||
-        anim_comp_b.Timer != 9 || (anim_bob_a.Flags & BWAITING) == 0 ||
-        (anim_bob_b.Flags & BWAITING) == 0)
+        anim_comp_b.Timer != 9 || anim_bob_a.Flags != 0 ||
+        anim_bob_b.Flags != 0)  /* AmigaOS 3.1: AddBob() sets no BWAITING */
     {
         print("FAIL: AddAnimOb() did not link or initialize the AnimOb list\n");
         errors++;
@@ -2394,12 +2394,17 @@ static int test_graphics_remibob_stub_closed(void)
     cover_bob.DBuffer = NULL;
     cover_bob.BUserExt = 0;
 
+    /* the application links VSprite->VSBob (AddBob() does not) */
+    base_vs.VSBob = &base_bob;
+    cover_vs.VSBob = &cover_bob;
+
     AddBob(&base_bob, &rp);
     AddBob(&cover_bob, &rp);
     DrawGList(&rp, NULL);
     RemIBob(&base_bob, &rp, NULL);
 
-    if ((base_bob.Flags & BOBNIX) == 0 || (cover_bob.Flags & BOBNIX) == 0 ||
+    /* only the removed Bob is retired; the overlapping one is just erased */
+    if ((base_bob.Flags & BOBNIX) == 0 || (cover_bob.Flags & BOBNIX) != 0 ||
         head.NextVSprite != &cover_vs || ReadPixel(&rp, 4, 4) != 0 || ReadPixel(&rp, 5, 4) != 0)
     {
         print("FAIL: RemIBob() did not immediately remove and clear the Bob\n");
@@ -2425,7 +2430,7 @@ static int test_graphics_docollision_stub_closed(void)
     struct GelsInfo gels_info;
     struct collTable coll_table;
     struct RastPort rp;
-    WORD image_data[2] = { 0x8000, 0x0000 };
+    WORD image_data[4] = { 0x8000, 0x0000, 0x0000, 0x0000 };  /* VSprite: 2 words/line */
     WORD coll_mask[2] = { 0, 0 };
     WORD border_line[1] = { 0 };
 
@@ -2656,14 +2661,17 @@ static int test_graphics_animate_stub_closed(void)
     Animate(&anim_key, &rp);
 
     if (anim_ob.Clock != 8 || anim_ob.AnOldX != 0 || anim_ob.AnOldY != 0 ||
-        anim_ob.AnX != 128 || anim_ob.AnY != 128 || anim_ob.HeadComp != &next_seq_comp ||
+        /* AmigaOS 3.1 semantics (see Tests/Graphics/SpritesGels): the ring
+         * motion and the AnimCRoutine belong to the component that becomes
+         * current, AddBob() sets no BWAITING */
+        anim_ob.AnX != 64 || anim_ob.AnY != 64 || anim_ob.HeadComp != &next_seq_comp ||
         next_seq_comp.NextComp != &static_comp || next_seq_comp.PrevComp != NULL ||
         static_comp.PrevComp != &next_seq_comp || next_seq_comp.Timer != 4 ||
-        (seq_bob.Flags & BOBSAWAY) == 0 || (next_bob.Flags & BWAITING) == 0 ||
+        (seq_bob.Flags & BOBSAWAY) == 0 || next_bob.Flags != 0 ||
         (UWORD)seq_vs.X != 0x8001 || (UWORD)seq_vs.Y != 0x8001 || next_vs.OldX != 20 ||
-        next_vs.OldY != 18 || next_vs.X != 3 || next_vs.Y != 4 || static_vs.X != 2 ||
-        static_vs.Y != 3 || exec_animob_routine_calls != 1 || exec_last_animob != &anim_ob ||
-        exec_animcomp_timeout_calls != 1 || exec_last_timeout_comp != &seq_comp ||
+        next_vs.OldY != 18 || next_vs.X != 2 || next_vs.Y != 3 || static_vs.X != 1 ||
+        static_vs.Y != 2 || exec_animob_routine_calls != 1 || exec_last_animob != &anim_ob ||
+        exec_animcomp_timeout_calls != 0 ||
         exec_animcomp_static_calls != 1 || exec_last_static_comp != &static_comp)
     {
         print("FAIL: Animate() did not update the AnimOb/component state\n");
@@ -2788,10 +2796,11 @@ static int test_graphics_getgbuffers_stub_closed(void)
 
     InitGMasks(&buf_anim);
     if ((UWORD)buf_vs_a.CollMask[0] != 0xc000U || (UWORD)buf_vs_a.CollMask[1] != 0x3000U ||
-        (UWORD)buf_vs_a.BorderLine[0] != 0xf000U || (UWORD)buf_vs_b.CollMask[0] != 0x1111U ||
+        /* BorderLine = OR of the first Height words of ImageData (AmigaOS 3.1) */
+        (UWORD)buf_vs_a.BorderLine[0] != 0xa000U || (UWORD)buf_vs_b.CollMask[0] != 0x1111U ||
         (UWORD)buf_vs_b.CollMask[1] != 0x2222U || (UWORD)buf_vs_b.BorderLine[0] != 0x3333U ||
         (UWORD)buf_vs_c.CollMask[0] != 0x3f00U || (UWORD)buf_vs_c.CollMask[1] != 0x00f3U ||
-        (UWORD)buf_vs_c.BorderLine[0] != 0x3ff3U)
+        (UWORD)buf_vs_c.BorderLine[0] != 0x0ff0U)
     {
         print("FAIL: InitGMasks() did not initialize all component sequences\n");
         errors++;
@@ -3041,7 +3050,9 @@ static int test_graphics_calcivg_stub_closed(void)
     vp.DHeight = 200;
     vp.Modes = HIRES | LACE;
 
-    if (CalcIVG(&view, &vp) != 1)
+    /* AmigaOS 3.1: 2 lines for an interlaced ViewPort, independent of the
+     * display bandwidth */
+    if (CalcIVG(&view, &vp) != 2)
     {
         print("FAIL: CalcIVG() returned unexpected laced result\n");
         errors++;
@@ -3050,9 +3061,9 @@ static int test_graphics_calcivg_stub_closed(void)
     {
         bit_map.Depth = 8;
         vp.DWidth = 640;
-        if (CalcIVG(&view, &vp) != 0)
+        if (CalcIVG(&view, &vp) != 2)
         {
-            print("FAIL: CalcIVG() ignored saturated display bandwidth\n");
+            print("FAIL: CalcIVG() depended on the display bandwidth\n");
             errors++;
         }
         else
@@ -3332,8 +3343,14 @@ static int test_graphics_getextsprite_stub_closed(void)
 
     print("--- Test: graphics GetExtSpriteA entry point ---\n");
 
+    /* AmigaOS 3.1 (reference): sprite 0 is the Intuition pointer, every
+     * GSTAG_ATTACHED request is rejected and leaves num unchanged */
+    (void)specific_tags;
+    (void)odd_tags;
+    (void)specific_primary;
+    (void)odd_secondary;
     single_sprite.es_SimpleSprite.num = 99;
-    if (GetExtSpriteA(&single_sprite, NULL) != 0 || single_sprite.es_SimpleSprite.num != 0)
+    if (GetExtSpriteA(&single_sprite, NULL) != 1 || single_sprite.es_SimpleSprite.num != 1)
     {
         print("FAIL: GetExtSpriteA() did not allocate the first free single sprite\n");
         errors++;
@@ -3345,48 +3362,19 @@ static int test_graphics_getextsprite_stub_closed(void)
 
     attached_primary.es_SimpleSprite.num = 99;
     attached_secondary.es_SimpleSprite.num = 99;
-    if (GetExtSpriteA(&attached_primary, attached_tags) != 2 ||
-        attached_primary.es_SimpleSprite.num != 2 ||
-        attached_secondary.es_SimpleSprite.num != 3)
+    if (GetExtSpriteA(&attached_primary, attached_tags) != -1 ||
+        attached_primary.es_SimpleSprite.num != 99 ||
+        attached_secondary.es_SimpleSprite.num != 99)
     {
-        print("FAIL: GetExtSpriteA() did not allocate an attached sprite pair\n");
+        print("FAIL: GetExtSpriteA() accepted an attached sprite request\n");
         errors++;
     }
     else
     {
-        print("OK: GetExtSpriteA() allocates an attached sprite pair\n");
+        print("OK: GetExtSpriteA() rejects attached sprite requests\n");
     }
 
-    if (GetExtSpriteA(&specific_primary, specific_tags) != 4 ||
-        specific_primary.es_SimpleSprite.num != 4 ||
-        specific_secondary.es_SimpleSprite.num != 5)
-    {
-        print("FAIL: GetExtSpriteA() did not honor GSTAG_SPRITE_NUM for attached allocation\n");
-        errors++;
-    }
-    else
-    {
-        print("OK: GetExtSpriteA() honors GSTAG_SPRITE_NUM for attached allocation\n");
-    }
-
-    odd_secondary.es_SimpleSprite.num = 99;
-    if (GetExtSpriteA(&specific_primary, odd_tags) != -1 ||
-        specific_primary.es_SimpleSprite.num != (UWORD)-1 ||
-        odd_secondary.es_SimpleSprite.num != (UWORD)-1)
-    {
-        print("FAIL: GetExtSpriteA() accepted an odd-numbered attached request\n");
-        errors++;
-    }
-    else
-    {
-        print("OK: GetExtSpriteA() rejects odd-numbered attached requests\n");
-    }
-
-    FreeSprite(0);
-    FreeSprite(2);
-    FreeSprite(3);
-    FreeSprite(4);
-    FreeSprite(5);
+    FreeSprite(1);
 
     print("\n");
     return errors;
@@ -3494,14 +3482,16 @@ static int test_graphics_allocspritedata_stub_closed(void)
         print("OK: ChangeExtSpriteA() adopts old sprite state\n");
     }
 
-    if (ChangeExtSpriteA(NULL, &oldsprite, &conflicting_sprite, NULL) != 0)
+    /* AmigaOS 3.1 hands the sprite over without checking the numbers */
+    if (ChangeExtSpriteA(NULL, &oldsprite, &conflicting_sprite, NULL) != -1 ||
+        conflicting_sprite.es_SimpleSprite.num != 2)
     {
-        print("FAIL: ChangeExtSpriteA() accepted a conflicting sprite number\n");
+        print("FAIL: ChangeExtSpriteA() did not hand over the sprite\n");
         errors++;
     }
     else
     {
-        print("OK: ChangeExtSpriteA() rejects conflicting sprite numbers\n");
+        print("OK: ChangeExtSpriteA() hands over the sprite\n");
     }
 
     FreeSpriteData(sprite);
