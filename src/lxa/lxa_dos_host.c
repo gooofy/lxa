@@ -883,27 +883,53 @@ int _dos_read (uint32_t fh68k, uint32_t buf68k, uint32_t len68k)
 
 int _dos_seek (uint32_t fh68k, int32_t position, int32_t mode)
 {
+    /* dos.library Seek(): returns the position *before* the seek, or -1
+     * with IoErr() ERROR_SEEK_ERROR for an invalid mode or a target outside
+     * the file (seeking past the end is an error on AmigaOS, unlike lseek) */
     DPRINTF (LOG_DEBUG, "lxa: _dos_seek(): fh=0x%08x, position=0x%08x, mode=%d\n", fh68k, position, mode);
-    LPRINTF (LOG_INFO, "lxa: _dos_seek(): fd=%d position=%d mode=%d\n", m68k_read_memory_32(fh68k+36), position, mode);
 
-    int fd   = m68k_read_memory_32 (fh68k+36);
+    int fd = m68k_read_memory_32 (fh68k+36);
+    off_t old = lseek (fd, 0, SEEK_CUR);
+    off_t base;
+    struct stat st;
 
-    int whence = 0;
-    switch (mode)
+    if (old < 0)
     {
-        case OFFSET_BEGINNING: whence = SEEK_SET; break;
-        case OFFSET_CURRENT  : whence = SEEK_CUR; break;
-        case OFFSET_END      : whence = SEEK_END; break;
-        default:
-            assert(FALSE);
+        m68k_write_memory_32 (fh68k+40, errno2Amiga()); // fh_Arg2
+        return -1;
     }
 
-    off_t o = lseek (fd, position, whence);
+    switch (mode)
+    {
+        case OFFSET_BEGINNING: base = 0; break;
+        case OFFSET_CURRENT  : base = old; break;
+        case OFFSET_END      :
+            if (fstat (fd, &st) < 0)
+            {
+                m68k_write_memory_32 (fh68k+40, errno2Amiga());
+                return -1;
+            }
+            base = st.st_size;
+            break;
+        default:
+            m68k_write_memory_32 (fh68k+40, ERROR_SEEK_ERROR);
+            return -1;
+    }
 
-    if (o<0)
-        m68k_write_memory_32 (fh68k+40, errno2Amiga()); // fh_Arg2
+    off_t target = base + position;
+    if (target < 0 || (fstat (fd, &st) == 0 && S_ISREG (st.st_mode) && target > st.st_size))
+    {
+        m68k_write_memory_32 (fh68k+40, ERROR_SEEK_ERROR);
+        return -1;
+    }
 
-    return o;
+    if (lseek (fd, target, SEEK_SET) < 0)
+    {
+        m68k_write_memory_32 (fh68k+40, errno2Amiga());
+        return -1;
+    }
+
+    return old;
 }
 
 int _dos_setfilesize(uint32_t fh68k, int32_t offset, int32_t mode)

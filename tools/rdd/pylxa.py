@@ -119,6 +119,8 @@ class Lxa:
             "lxa_add_assign": (ctypes.c_bool, [ctypes.c_char_p, ctypes.c_char_p]),
             "lxa_add_assign_path": (ctypes.c_bool, [ctypes.c_char_p, ctypes.c_char_p]),
             "lxa_add_drive": (ctypes.c_bool, [ctypes.c_char_p, ctypes.c_char_p]),
+            "lxa_trace_start": (ctypes.c_bool, [ctypes.c_char_p, ctypes.c_char_p]),
+            "lxa_trace_stop": (None, []),
             "lxa_run_cycles": (ctypes.c_int, [ctypes.c_int]),
             "lxa_run_frames": (ctypes.c_int, [ctypes.c_int]),
             "lxa_is_running": (ctypes.c_bool, []),
@@ -172,6 +174,13 @@ class Lxa:
 
     def assign_add(self, name, path):
         return self.lib.lxa_add_assign_path(name.encode(), path.encode())
+
+    def trace_start(self, spec, path):
+        """Relay trace (Phase 233): spec "graphics.library:-60,-66;dos.library:*"."""
+        return self.lib.lxa_trace_start(spec.encode(), path.encode())
+
+    def trace_stop(self):
+        self.lib.lxa_trace_stop()
 
     def drive(self, name, path):
         return self.lib.lxa_add_drive(name.encode(), path.encode())

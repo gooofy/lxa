@@ -185,24 +185,28 @@ int main(void)
         return 1;
     }
     
-    /* Try to seek way past EOF */
+    /* Seeking past EOF fails on AmigaOS 3.1 (-1, ERROR_SEEK_ERROR) and
+     * leaves the position unchanged, so the next Read() starts at 0
+     * (verified on the reference machine) */
     result = Seek(fh, 1000, OFFSET_BEGINNING);
     print("  Seek(1000) returned: ");
     print_num(result);
     print("\n");
-    
-    /* Read should return 0 (at/past EOF) */
+    if (result == -1 && IoErr() == ERROR_SEEK_ERROR) {
+        test_pass("Seek past EOF fails with ERROR_SEEK_ERROR");
+    } else {
+        test_fail("Seek past EOF", "Expected -1 / ERROR_SEEK_ERROR");
+    }
+
     result = Read(fh, buffer, 10);
     print("  Read returned: ");
     print_num(result);
     print(" bytes\n");
     
-    if (result == 0) {
-        test_pass("Read at EOF returns 0");
-    } else if (result == -1) {
-        test_pass("Read past EOF returns error");
+    if (result == 10) {
+        test_pass("Read after failed Seek starts at the old position");
     } else {
-        test_fail("Read past EOF", "Unexpected result");
+        test_fail("Read after failed Seek", "Unexpected result");
     }
     
     Close(fh);

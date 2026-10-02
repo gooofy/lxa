@@ -231,6 +231,8 @@ Built-in C: commands with full AmigaDOS template support:
 
 ## Current Status
 
+**Version 0.11.10** - Relay trace (Phase 233): `LXA_TRACE` logs library calls, and `python3 -m rdd tracediff` finds the first call where lxa and AmigaOS 3.1 differ. dos.library `Close()`/`Seek()` return values now match AmigaOS; the first API probe (utility.library) and reference-captured outputs for 54 test programs are in the suite.
+
 **Version 0.11.9** - RDD loop (Phase 216): `python3 -m rdd loop` twin-runs all scenarios, replays the goldens, clusters divergences by root cause and writes a sweep report (`doc/sweeps/`); skills `rdd-reference` and `compat-sweep`. Milestone M1 (reference oracle) is complete.
 
 **Version 0.11.8** - Reference goldens (Phase 215): `tests/golden/` holds AmigaOS 3.1 snapshot bundles for 6 scenarios; `ctest -L golden` replays them on lxa and fails on any new divergence from the reference.
