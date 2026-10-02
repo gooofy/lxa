@@ -2548,7 +2548,7 @@ int _dos_deletefile(uint32_t name68k)
 }
 
 /* Rename a file or directory */
-int _dos_rename(uint32_t old68k, uint32_t new68k)
+int _dos_rename(uint32_t old68k, uint32_t new68k, uint32_t err68k)
 {
     char *old_amiga = _mgetstr(old68k);
     char *new_amiga = _mgetstr(new68k);
@@ -2563,8 +2563,32 @@ int _dos_rename(uint32_t old68k, uint32_t new68k)
         _dos_path2linux(new_amiga, new_linux, sizeof(new_linux));
     }
     
+    {
+        /* AmigaOS 3.1 semantics: the source must exist and must not be held
+         * exclusively (exclusive lock or MODE_NEWFILE handle), and an
+         * existing target is never replaced (ERROR_OBJECT_EXISTS) */
+        struct stat st_old, st_new;
+        uint32_t err = 0;
+
+        if (stat(old_linux, &st_old) != 0)
+            err = ERROR_OBJECT_NOT_FOUND;
+        else if (_object_in_use(st_old.st_dev, st_old.st_ino, false, 0, 0))
+            err = ERROR_OBJECT_IN_USE;
+        else if (stat(new_linux, &st_new) == 0 &&
+                 !(st_new.st_dev == st_old.st_dev && st_new.st_ino == st_old.st_ino))
+            err = ERROR_OBJECT_EXISTS;
+
+        if (err) {
+            if (err68k)
+                m68k_write_memory_32(err68k, err);
+            return 0;
+        }
+    }
+
     if (rename(old_linux, new_linux) != 0) {
         DPRINTF(LOG_DEBUG, "lxa: _dos_rename(): rename failed: %s\n", strerror(errno));
+        if (err68k)
+            m68k_write_memory_32(err68k, errno2Amiga());
         return 0;
     }
     

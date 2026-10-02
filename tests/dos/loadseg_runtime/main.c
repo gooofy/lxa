@@ -17,28 +17,48 @@ extern struct ExecBase *SysBase;
 
 #define TEST_PORT_NAME "LoadSegRuntime.Parent"
 #define TEST_MESSAGE_MAGIC 0x4c535247UL
-#define GSLI_DUMMY (TAG_USER + 4000)
-#define GSLI_68KHUNK (GSLI_DUMMY + 5)
 
 struct LoaderChildMessage {
     struct Message msg;
     ULONG magic;
 };
 
-static ULONG get_seg_list_info(BPTR seglist, const struct TagItem *taglist)
+/* InternalLoadSeg() function array (dos.doc):
+ *   ReadFunc(readhandle, buffer, length)(d1/d2/d3)
+ *   AllocFunc(size, flags)(d0/d1)
+ *   FreeFunc(memory, size)(a1/d0) */
+static LONG read_calls, alloc_calls, free_calls;
+static LONG alloc_bytes, free_bytes;
+
+static LONG ReadFunc(register BPTR fh __asm("d1"), register APTR buf __asm("d2"), register LONG len __asm("d3"))
 {
-    register char *bn __asm("a6") = (char *)DOSBase;
-    register BPTR segreg __asm("d0") = seglist;
-    register const struct TagItem *tagreg __asm("a0") = taglist;
-    ULONG result;
+    read_calls++;
+    return Read(fh, buf, len);
+}
 
-    __asm__ volatile (
-        "jsr -1176(a6)"
-        : "=d"(result)
-        : "a"(bn), "d"(segreg), "a"(tagreg)
-        : "d1", "a1", "cc", "memory");
+static APTR AllocFunc(register ULONG size __asm("d0"), register ULONG flags __asm("d1"))
+{
+    alloc_calls++;
+    alloc_bytes += size;
+    return AllocMem(size, flags);
+}
 
-    return result;
+static void FreeFunc(register APTR mem __asm("a1"), register ULONG size __asm("d0"))
+{
+    free_calls++;
+    free_bytes += size;
+    FreeMem(mem, size);
+}
+
+static LONG seg_hunks(BPTR seg)
+{
+    LONG n = 0;
+
+    while (seg) {
+        n++;
+        seg = *(BPTR *)BADDR(seg);
+    }
+    return n;
 }
 
 static int tests_passed = 0;
@@ -97,43 +117,66 @@ int main(void)
 {
     BPTR seg;
     BPTR fh;
-    ULONG seginfo = 0;
-    ULONG count;
     LONG rc;
-    struct TagItem segtags[] = {
-        { GSLI_68KHUNK, (ULONG)&seginfo },
-        { TAG_DONE, 0 }
-    };
+    LONG funcs[3];
 
     print("DOS LoadSeg/RunCommand Test\n");
     print("===========================\n\n");
 
-    print("Test 1: NewLoadSeg returns a hunk seglist\n");
+    print("Test 1: NewLoadSeg returns a runnable hunk seglist\n");
     seg = NewLoadSeg((CONST_STRPTR)"SYS:Tests/Dos/LoaderChild", NULL);
     if (seg) {
-        seginfo = 0;
-        count = get_seg_list_info(seg, segtags);
-        if (count == 1 && seginfo == (ULONG)seg)
-            test_pass("NewLoadSeg + GetSegListInfo");
+        /* each hunk: size longword, link BPTR, data */
+        if (((ULONG *)BADDR(seg))[-1] > 8)
+            test_pass("NewLoadSeg hunk carries its allocation size");
         else
-            test_fail("NewLoadSeg + GetSegListInfo", "Seglist info mismatch");
+            test_fail("NewLoadSeg", "Hunk size longword missing");
+        rc = RunCommand(seg, 8192, (CONST_STRPTR)"RETURN=7\n", 9);
+        if (rc == 7)
+            test_pass("NewLoadSeg seglist runs");
+        else
+            test_fail("NewLoadSeg seglist runs", "Unexpected return code");
         UnLoadSeg(seg);
     } else {
         test_fail("NewLoadSeg", "Could not load LoaderChild");
     }
 
-    print("\nTest 2: InternalLoadSeg uses caller file handle\n");
+    print("\nTest 2: InternalLoadSeg uses the caller's function array\n");
+    funcs[0] = (LONG)ReadFunc;
+    funcs[1] = (LONG)AllocFunc;
+    funcs[2] = (LONG)FreeFunc;
     fh = Open((CONST_STRPTR)"SYS:Tests/Dos/LoaderChild", MODE_OLDFILE);
     if (fh) {
-        seg = InternalLoadSeg(fh, 0, NULL, NULL);
+        seg = InternalLoadSeg(fh, 0, funcs, NULL);
         if (seg) {
-            seginfo = 0;
-            count = get_seg_list_info(seg, segtags);
-            if (count == 1 && seginfo == (ULONG)seg)
-                test_pass("InternalLoadSeg + GetSegListInfo");
+            LONG hunks = seg_hunks(seg);
+            print("  PROBE hunks="); print_num(hunks); print(" allocs="); print_num(alloc_calls);
+            print(" frees="); print_num(free_calls); print(" abytes="); print_num(alloc_bytes); print(" fbytes="); print_num(free_bytes);
+            print(" s0="); print_num(((ULONG *)BADDR(seg))[-1]); print("\n");
+
+            if (read_calls > 0)
+                test_pass("ReadFunc used");
             else
-                test_fail("InternalLoadSeg + GetSegListInfo", "Seglist info mismatch");
-            InternalUnLoadSeg(seg, NULL);
+                test_fail("InternalLoadSeg", "ReadFunc not called");
+            if (alloc_calls == hunks)
+                test_pass("One AllocFunc call per hunk");
+            else
+                test_fail("InternalLoadSeg", "AllocFunc calls do not match the hunk count");
+            if (((ULONG *)BADDR(seg))[-1] > 8)
+                test_pass("Hunk carries its allocation size");
+            else
+                test_fail("InternalLoadSeg", "Hunk size longword missing");
+            rc = RunCommand(seg, 8192, (CONST_STRPTR)"RETURN=9\n", 9);
+            if (rc == 9)
+                test_pass("InternalLoadSeg seglist runs");
+            else
+                test_fail("InternalLoadSeg seglist runs", "Unexpected return code");
+            InternalUnLoadSeg(seg, (void (*)())FreeFunc);
+            print("  PROBE after unload frees="); print_num(free_calls); print(" fbytes="); print_num(free_bytes); print("\n");
+            if (free_calls == alloc_calls && free_bytes == alloc_bytes)
+                test_pass("InternalUnLoadSeg frees every hunk via FreeFunc");
+            else
+                test_fail("InternalUnLoadSeg", "FreeFunc calls/sizes do not match the allocations");
         } else {
             test_fail("InternalLoadSeg", "Could not load LoaderChild");
         }

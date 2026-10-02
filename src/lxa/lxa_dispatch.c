@@ -903,7 +903,9 @@ int op_illg(int level)
 
             DPRINTF(LOG_DEBUG, "lxa: op_illg(): EMU_CALL_DOS_RENAME old=0x%08x, new=0x%08x\n", old_name, new_name);
 
-            uint32_t res = _dos_rename(old_name, new_name);
+            uint32_t err = m68k_get_reg(NULL, M68K_REG_D3);
+
+            uint32_t res = _dos_rename(old_name, new_name, err);
             m68k_set_reg(M68K_REG_D0, res);
             break;
         }

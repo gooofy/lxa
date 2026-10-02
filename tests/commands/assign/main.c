@@ -90,7 +90,7 @@ static BOOL path_accessible(const char *path)
 static void cleanup_test_assigns(void)
 {
     /* Try to remove test assign - may not exist */
-    RemAssignList((STRPTR)"TESTASSIGN", (BPTR)0);
+    AssignLock((STRPTR)"TESTASSIGN", (BPTR)0);
     DeleteFile((CONST_STRPTR)"assigntestdir");
 }
 
@@ -162,14 +162,16 @@ int main(void)
     /* Test 6: Remove the assign */
     print("\nTest 6: Remove assign\n");
     
-    if (RemAssignList((STRPTR)"TESTASSIGN", (BPTR)0)) {
+    /* AssignLock(name, NULL) removes an assign (RemAssignList() only
+     * removes the directory matching a lock) */
+    if (AssignLock((STRPTR)"TESTASSIGN", (BPTR)0)) {
         if (!path_accessible("TESTASSIGN:")) {
             test_pass("Assign removed");
         } else {
             test_fail("Remove assign", "Still accessible");
         }
     } else {
-        test_fail("RemAssignList", "Failed");
+        test_fail("AssignLock(name, NULL)", "Failed");
     }
     
     /* Cleanup */

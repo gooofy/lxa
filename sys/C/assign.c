@@ -276,8 +276,22 @@ static int remove_assign(const char *name)
         return 10;  /* ERROR */
     }
     
-    /* Use RemAssignList with NULL lock to remove the assign */
-    LONG result = RemAssignList((STRPTR)namebuf, (BPTR)0);
+    /* AssignLock(name, 0) removes the whole assign (RemAssignList() only
+     * removes the directory matching a given lock) */
+    LONG result = FALSE;
+    {
+        char devname[260];
+        struct DevProc *dvp;
+
+        strcpy(devname, namebuf);
+        strcat(devname, ":");
+        dvp = GetDeviceProc((STRPTR)devname, NULL);
+        if (dvp) {
+            if (dvp->dvp_Flags & DVPF_ASSIGN)
+                result = AssignLock((STRPTR)namebuf, 0);
+            FreeDeviceProc(dvp);
+        }
+    }
     
     if (!result) {
         out_str("ASSIGN: ");

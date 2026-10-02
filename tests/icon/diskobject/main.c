@@ -335,10 +335,16 @@ int main(void)
         print("FAIL: could not create project file\n");
         errors++;
     }
-    if (!CreateDir(STR("T:phase78t_drawer")))
     {
-        print("FAIL: could not create drawer directory\n");
-        errors++;
+        /* CreateDir() returns an exclusive lock: release it */
+        BPTR drawer_lock = CreateDir(STR("T:phase78t_drawer"));
+        if (!drawer_lock)
+        {
+            print("FAIL: could not create drawer directory\n");
+            errors++;
+        }
+        else
+            UnLock(drawer_lock);
     }
     if (!SetProtection(STR("T:phase78t_tool"), 0))
     {

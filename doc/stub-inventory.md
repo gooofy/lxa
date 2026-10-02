@@ -17,7 +17,7 @@ implementing the function, never by deleting the macro.
 | commodities | 26 | 0 | 4 |
 | console | 1 | 0 | 0 |
 | datatypes | 5 | 0 | 0 |
-| dos | 7 | 1 | 10 |
+| dos | 5 | 1 | 10 |
 | exec | 7 | 4 | 0 |
 | gadtools | 0 | 3 | 6 |
 | graphics | 0 | 10 | 8 |
@@ -28,7 +28,7 @@ implementing the function, never by deleting the macro.
 | translator | 1 | 0 | 0 |
 | utility | 0 | 0 | 7 |
 | workbench | 0 | 0 | 3 |
-| **total** | **85** | **39** | **49** |
+| **total** | **83** | **39** | **49** |
 
 ## amigaguide
 
@@ -116,10 +116,8 @@ implementing the function, never by deleting the macro.
 - `AbortPkt` — stub: packet not aborted (Phase 255) (`src/rom/lxa_dos.c`)
 - `AttemptLockDosList` — stub: returns a dummy marker, no real DosList or locking (Phase 255) (`src/rom/lxa_dos.c`)
 - `FindDosEntry` — stub: always returns NULL (Phase 255) (`src/rom/lxa_dos.c`)
-- `FindSegment` — stub: resident segment list not implemented (Phase 255) (`src/rom/lxa_dos.c`)
 - `LockDosList` — stub: returns a dummy marker, no real DosList or locking (Phase 255) (`src/rom/lxa_dos.c`)
 - `NextDosEntry` — stub: always returns NULL (Phase 255) (`src/rom/lxa_dos.c`)
-- `RemSegment` — stub: resident segment list not implemented (Phase 255) (`src/rom/lxa_dos.c`)
 
 ## exec
 

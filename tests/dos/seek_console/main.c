@@ -193,12 +193,12 @@ int main(void)
     }
     
     result = Seek(fh, 100, OFFSET_BEGINNING);
+    err = IoErr();      /* before print(): Write() resets IoErr() */
     print("  Seek(100) returned: ");
     print_num(result);
     print("\n");
     
     /* AmigaOS refuses to seek beyond EOF: -1, ERROR_SEEK_ERROR */
-    err = IoErr();
     print("  IoErr: ");
     print_num(err);
     print("\n");
