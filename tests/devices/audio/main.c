@@ -1,5 +1,8 @@
 /*
- * Test for audio.device allocation, playback timing, and interrupt delivery.
+ * Test for audio.device allocation and playback timing (validated against
+ * AmigaOS 3.1, Phase 220).  The sample lives in chip memory, as the DMA
+ * requires.  Audio interrupts belong to audio.device (SetIntVector), so a
+ * program cannot add servers to INTB_AUD0; that is not tested here.
  */
 
 #include <exec/types.h>
@@ -22,7 +25,6 @@ extern struct DosLibrary *DOSBase;
 static BPTR out;
 static LONG test_pass = 0;
 static LONG test_fail = 0;
-static volatile ULONG g_audio_irq_count = 0;
 
 static void print(const char *s)
 {
@@ -98,27 +100,26 @@ static void delay_ticks(ULONG ticks)
     DeleteMsgPort(port);
 }
 
-static void AudioIRQHandler(void)
-{
-    g_audio_irq_count++;
-}
-
 int main(void)
 {
     struct MsgPort *port;
     struct IOAudio *req;
     struct IOAudio *req2;
-    struct Interrupt audio_irq;
     UBYTE alloc_map[] = { 1 };
-    BYTE waveform[800];
+    BYTE *waveform;
     LONG error;
 
     out = Output();
     print("Testing audio.device\n\n");
 
+    waveform = (BYTE *)AllocMem(800, MEMF_CHIP);
+    if (!waveform) {
+        print("FAIL: Cannot allocate chip memory\n");
+        return 20;
+    }
     {
         int i;
-        for (i = 0; i < (int)sizeof(waveform); i++) {
+        for (i = 0; i < 800; i++) {
             waveform[i] = (i & 1) ? -127 : 127;
         }
     }
@@ -193,19 +194,12 @@ int main(void)
         test_fail_msg("ADCMD_WAITCYCLE completes immediately when idle");
     }
 
-    audio_irq.is_Node.ln_Type = NT_INTERRUPT;
-    audio_irq.is_Node.ln_Pri = 0;
-    audio_irq.is_Node.ln_Name = (char *)"audio-irq";
-    audio_irq.is_Data = NULL;
-    audio_irq.is_Code = (VOID (*)())AudioIRQHandler;
-    AddIntServer(INTB_AUD0, &audio_irq);
-
     req->ioa_Request.io_Command = CMD_WRITE;
     req->ioa_Request.io_Unit = (struct Unit *)1;
     req->ioa_Request.io_Flags = ADIOF_PERVOL;
     req->ioa_Data = (UBYTE *)waveform;
-    req->ioa_Length = sizeof(waveform);
-    req->ioa_Period = 50000;
+    req->ioa_Length = 800;
+    req->ioa_Period = 500;
     req->ioa_Volume = 32;
     req->ioa_Cycles = 4;
     SendIO((struct IORequest *)req);
@@ -233,7 +227,7 @@ int main(void)
     req2->ioa_Request.io_Command = ADCMD_PERVOL;
     req2->ioa_Request.io_Unit = (struct Unit *)1;
     req2->ioa_Request.io_Flags = IOF_QUICK;
-    req2->ioa_Period = 25000;
+    req2->ioa_Period = 400;
     req2->ioa_Volume = 12;
     DoIO((struct IORequest *)req2);
     if (req2->ioa_Request.io_Error == 0) {
@@ -259,12 +253,6 @@ int main(void)
         test_fail_msg("CMD_WRITE completes after finish/playback end");
     }
 
-    if (g_audio_irq_count >= 1) {
-        test_ok("Audio interrupt server fired at end of sample cycle");
-    } else {
-        test_fail_msg("Audio interrupt server fired at end of sample cycle");
-    }
-
     req->ioa_Request.io_Command = ADCMD_FREE;
     req->ioa_Request.io_Unit = (struct Unit *)1;
     req->ioa_Request.io_Flags = IOF_QUICK;
@@ -275,7 +263,6 @@ int main(void)
         test_fail_msg("ADCMD_FREE releases allocated channel");
     }
 
-    RemIntServer(INTB_AUD0, &audio_irq);
     CloseDevice((struct IORequest *)req);
     test_ok("CloseDevice audio.device");
 
@@ -285,6 +272,7 @@ int main(void)
         test_fail_msg("CloseDevice sets io_Device to -1");
     }
 
+    FreeMem(waveform, 800);
     DeleteIORequest((struct IORequest *)req2);
     DeleteIORequest((struct IORequest *)req);
     DeleteMsgPort(port);

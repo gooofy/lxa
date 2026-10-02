@@ -1,5 +1,6 @@
 /*
- * Test for gameport.device controller, trigger, and request semantics.
+ * Test for gameport.device controller, trigger, and request semantics
+ * (validated against AmigaOS 3.1, Phase 220).
  */
 
 #include <exec/types.h>
@@ -86,17 +87,63 @@ static void test_fail_msg(const char *name)
     test_fail++;
 }
 
+static void check(BOOL ok, const char *name)
+{
+    if (ok)
+        test_ok(name);
+    else
+        test_fail_msg(name);
+}
+
+static void show_error(struct IOStdReq *req, const char *name)
+{
+    print("  ");
+    print(name);
+    print(": io_Error=");
+    print_num(req->io_Error);
+    print("\n");
+}
+
+static void set_ctype(struct IOStdReq *req, UBYTE *ctype, UBYTE value)
+{
+    *ctype = value;
+    req->io_Command = GPD_SETCTYPE;
+    req->io_Data = ctype;
+    req->io_Length = 1;
+    req->io_Actual = 0;
+    DoIO((struct IORequest *)req);
+}
+
+static UBYTE ask_ctype(struct IOStdReq *req)
+{
+    UBYTE ctype = 0xee;
+
+    req->io_Command = GPD_ASKCTYPE;
+    req->io_Data = &ctype;
+    req->io_Length = 1;
+    req->io_Actual = 0;
+    DoIO((struct IORequest *)req);
+    return ctype;
+}
+
+/*
+ * Unit 0 (the mouse port) belongs to input.device on a running system, so
+ * the controller tests use unit 1 and follow the RKRM allocation protocol:
+ * check for GPCT_NOCONTROLLER under Forbid(), set a type, and give the
+ * port back with GPCT_NOCONTROLLER before closing.
+ */
 int main(void)
 {
     struct MsgPort *port;
+    struct IOStdReq *mouse_req;
     struct IOStdReq *req;
-    struct IOStdReq *req2;
     struct IOStdReq *bad_req;
-    struct NSDeviceQueryResult query;
+    struct Device *device;
     struct GamePortTrigger trigger;
     struct GamePortTrigger trigger_out;
     struct InputEvent event;
     UBYTE ctype;
+    UBYTE type;
     LONG error;
 
     print("Testing gameport.device\n\n");
@@ -108,181 +155,138 @@ int main(void)
         return 20;
     }
 
+    mouse_req = (struct IOStdReq *)CreateIORequest(port, sizeof(struct IOStdReq));
     req = (struct IOStdReq *)CreateIORequest(port, sizeof(struct IOStdReq));
-    req2 = (struct IOStdReq *)CreateIORequest(port, sizeof(struct IOStdReq));
-    bad_req = (struct IOStdReq *)CreateIORequest(port, sizeof(struct Message));
-    if (!req || !req2 || !bad_req)
+    bad_req = (struct IOStdReq *)CreateIORequest(port, sizeof(struct IOStdReq));
+    if (!mouse_req || !req || !bad_req)
     {
         print("FAIL: Cannot create IO requests\n");
         return 20;
     }
 
-    error = OpenDevice((STRPTR)"gameport.device", 0, (struct IORequest *)req, 0);
-    if (error == 0)
-        test_ok("OpenDevice unit 0 succeeds");
-    else
-    {
-        test_fail_msg("OpenDevice unit 0 succeeds");
-        print("    error=");
-        print_num(error);
-        print("\n");
+    error = OpenDevice((STRPTR)"gameport.device", 0, (struct IORequest *)mouse_req, 0);
+    check(error == 0, "OpenDevice unit 0 succeeds");
+    error = OpenDevice((STRPTR)"gameport.device", 1, (struct IORequest *)req, 0);
+    check(error == 0, "OpenDevice unit 1 succeeds");
+    if (!mouse_req->io_Device || !req->io_Device)
         return 20;
-    }
-
-    error = OpenDevice((STRPTR)"gameport.device", 1, (struct IORequest *)req2, 0);
-    if (error == 0)
-        test_ok("OpenDevice unit 1 succeeds");
-    else
-        test_fail_msg("OpenDevice unit 1 succeeds");
+    device = req->io_Device;
 
     error = OpenDevice((STRPTR)"gameport.device", 2, (struct IORequest *)bad_req, 0);
-    if (error != 0)
-        test_ok("OpenDevice rejects invalid unit");
-    else
-    {
-        test_fail_msg("OpenDevice rejects invalid unit");
+    check(error == IOERR_OPENFAIL, "OpenDevice rejects unit 2");
+    if (error == 0)
         CloseDevice((struct IORequest *)bad_req);
-    }
 
-    error = OpenDevice((STRPTR)"gameport.device", 0, (struct IORequest *)bad_req, 0);
-    if (error != 0)
-        test_ok("OpenDevice rejects undersized IORequest");
-    else
-    {
-        test_fail_msg("OpenDevice rejects undersized IORequest");
-        CloseDevice((struct IORequest *)bad_req);
-    }
+    check(ask_ctype(mouse_req) == GPCT_MOUSE && mouse_req->io_Error == 0 && mouse_req->io_Actual == 1,
+          "GPD_ASKCTYPE: input.device owns unit 0 as GPCT_MOUSE");
 
-    req->io_Command = GPD_ASKCTYPE;
-    req->io_Flags = IOF_QUICK;
-    req->io_Data = &ctype;
-    req->io_Length = sizeof(ctype);
-    DoIO((struct IORequest *)req);
-    if (req->io_Error == 0 && ctype == GPCT_NOCONTROLLER && req->io_Actual == sizeof(ctype))
-        test_ok("GPD_ASKCTYPE reports default type");
-    else
-        test_fail_msg("GPD_ASKCTYPE reports default type");
+    Forbid();
+    type = ask_ctype(req);
+    if (type == GPCT_NOCONTROLLER)
+        set_ctype(req, &ctype, GPCT_ABSJOYSTICK);
+    Permit();
+    check(type == GPCT_NOCONTROLLER, "GPD_ASKCTYPE: unit 1 is free");
+    check(req->io_Error == 0 && req->io_Actual == 1, "GPD_SETCTYPE allocates unit 1");
+    check(ask_ctype(req) == GPCT_ABSJOYSTICK, "GPD_ASKCTYPE reports the new type");
 
-    ctype = GPCT_MOUSE;
-    req->io_Command = GPD_SETCTYPE;
-    req->io_Flags = IOF_QUICK;
-    req->io_Data = &ctype;
-    req->io_Length = sizeof(ctype);
-    DoIO((struct IORequest *)req);
-    if (req->io_Error == 0 && req->io_Actual == sizeof(ctype))
-        test_ok("GPD_SETCTYPE accepts mouse type");
-    else
-        test_fail_msg("GPD_SETCTYPE accepts mouse type");
+    set_ctype(req, &ctype, 99);
+    check(req->io_Error == 0 && req->io_Actual == 1, "GPD_SETCTYPE accepts an unknown type");
+    check(ask_ctype(req) == GPCT_ABSJOYSTICK, "an unknown type is not stored");
 
-    ctype = 99;
-    req->io_Command = GPD_SETCTYPE;
-    req->io_Flags = IOF_QUICK;
-    req->io_Data = &ctype;
-    req->io_Length = sizeof(ctype);
-    DoIO((struct IORequest *)req);
-    if (req->io_Error == GPDERR_SETCTYPE)
-        test_ok("GPD_SETCTYPE rejects invalid type");
-    else
-        test_fail_msg("GPD_SETCTYPE rejects invalid type");
-
-    ctype = 0;
-    req->io_Command = GPD_ASKCTYPE;
-    req->io_Flags = IOF_QUICK;
-    req->io_Data = &ctype;
-    req->io_Length = sizeof(ctype);
-    DoIO((struct IORequest *)req);
-    if (req->io_Error == 0 && ctype == GPCT_MOUSE)
-        test_ok("GPD_ASKCTYPE reports updated type");
-    else
-        test_fail_msg("GPD_ASKCTYPE reports updated type");
+    set_ctype(req, &ctype, (UBYTE)GPCT_ALLOCATED);
+    check(req->io_Error == 0 && ask_ctype(req) == (UBYTE)GPCT_ALLOCATED, "GPD_SETCTYPE stores GPCT_ALLOCATED");
+    set_ctype(req, &ctype, GPCT_ABSJOYSTICK);
 
     trigger.gpt_Keys = GPTF_DOWNKEYS | GPTF_UPKEYS;
     trigger.gpt_Timeout = 12;
     trigger.gpt_XDelta = 3;
     trigger.gpt_YDelta = 4;
     req->io_Command = GPD_SETTRIGGER;
-    req->io_Flags = IOF_QUICK;
     req->io_Data = &trigger;
     req->io_Length = sizeof(trigger);
     DoIO((struct IORequest *)req);
-    if (req->io_Error == 0 && req->io_Actual == sizeof(trigger))
-        test_ok("GPD_SETTRIGGER stores trigger");
-    else
-        test_fail_msg("GPD_SETTRIGGER stores trigger");
+    check(req->io_Error == 0 && req->io_Actual == sizeof(trigger), "GPD_SETTRIGGER stores trigger");
 
     trigger_out.gpt_Keys = 0;
     trigger_out.gpt_Timeout = 0;
     trigger_out.gpt_XDelta = 0;
     trigger_out.gpt_YDelta = 0;
     req->io_Command = GPD_ASKTRIGGER;
-    req->io_Flags = IOF_QUICK;
     req->io_Data = &trigger_out;
     req->io_Length = sizeof(trigger_out);
     DoIO((struct IORequest *)req);
-    if (req->io_Error == 0 &&
-        trigger_out.gpt_Keys == trigger.gpt_Keys &&
-        trigger_out.gpt_Timeout == trigger.gpt_Timeout &&
-        trigger_out.gpt_XDelta == trigger.gpt_XDelta &&
-        trigger_out.gpt_YDelta == trigger.gpt_YDelta)
-        test_ok("GPD_ASKTRIGGER returns stored trigger");
-    else
-        test_fail_msg("GPD_ASKTRIGGER returns stored trigger");
+    check(req->io_Error == 0 && req->io_Actual == sizeof(trigger_out) &&
+          trigger_out.gpt_Keys == trigger.gpt_Keys &&
+          trigger_out.gpt_Timeout == trigger.gpt_Timeout &&
+          trigger_out.gpt_XDelta == trigger.gpt_XDelta &&
+          trigger_out.gpt_YDelta == trigger.gpt_YDelta, "GPD_ASKTRIGGER returns stored trigger");
 
-    req->io_Command = NSCMD_DEVICEQUERY;
-    req->io_Flags = IOF_QUICK;
-    req->io_Data = &query;
-    req->io_Length = sizeof(query);
-    DoIO((struct IORequest *)req);
-    if (req->io_Error == 0 &&
-        req->io_Actual == sizeof(query) &&
-        query.nsdqr_DeviceType == NSDEVTYPE_GAMEPORT &&
-        query.nsdqr_SupportedCommands != NULL)
-        test_ok("NSCMD_DEVICEQUERY reports gameport capabilities");
-    else
-        test_fail_msg("NSCMD_DEVICEQUERY reports gameport capabilities");
-
+    /* standard exec commands: 3.1 rejects them; the error value of the
+     * first group is not stable, so only its presence is checked */
     req->io_Command = CMD_CLEAR;
-    req->io_Flags = IOF_QUICK;
     DoIO((struct IORequest *)req);
-    if (req->io_Error == 0)
-        test_ok("CMD_CLEAR succeeds");
-    else
-        test_fail_msg("CMD_CLEAR succeeds");
+    check(req->io_Error != 0, "CMD_CLEAR is rejected");
+    req->io_Command = CMD_RESET;
+    DoIO((struct IORequest *)req);
+    check(req->io_Error != 0, "CMD_RESET is rejected");
+    req->io_Command = CMD_FLUSH;
+    DoIO((struct IORequest *)req);
+    check(req->io_Error != 0, "CMD_FLUSH is rejected");
+    req->io_Command = CMD_STOP;
+    DoIO((struct IORequest *)req);
+    check(req->io_Error != 0, "CMD_STOP is rejected");
+    req->io_Command = CMD_START;
+    DoIO((struct IORequest *)req);
+    check(req->io_Error != 0, "CMD_START is rejected");
+    req->io_Command = CMD_WRITE;
+    DoIO((struct IORequest *)req);
+    show_error(req, "CMD_WRITE");
+    req->io_Command = CMD_UPDATE;
+    DoIO((struct IORequest *)req);
+    show_error(req, "CMD_UPDATE");
+    req->io_Command = NSCMD_DEVICEQUERY;
+    DoIO((struct IORequest *)req);
+    show_error(req, "NSCMD_DEVICEQUERY");
 
     req->io_Command = GPD_READEVENT;
-    req->io_Flags = IOF_QUICK;
     req->io_Data = &event;
     req->io_Length = sizeof(struct InputEvent);
     SendIO((struct IORequest *)req);
-    if (CheckIO((struct IORequest *)req) == NULL)
-        test_ok("GPD_READEVENT stays pending without events");
-    else
-        test_fail_msg("GPD_READEVENT stays pending without events");
+    check(CheckIO((struct IORequest *)req) == NULL, "GPD_READEVENT stays pending without events");
 
     AbortIO((struct IORequest *)req);
     WaitIO((struct IORequest *)req);
-    if (req->io_Error == IOERR_ABORTED)
-        test_ok("AbortIO aborts pending GPD_READEVENT");
-    else
-        test_fail_msg("AbortIO aborts pending GPD_READEVENT");
+    check(req->io_Error == IOERR_ABORTED, "AbortIO aborts pending GPD_READEVENT");
 
     req->io_Command = 0x7fff;
-    req->io_Flags = IOF_QUICK;
     DoIO((struct IORequest *)req);
-    if (req->io_Error == IOERR_NOCMD)
-        test_ok("Unknown command returns IOERR_NOCMD");
-    else
-        test_fail_msg("Unknown command returns IOERR_NOCMD");
+    check(req->io_Error == IOERR_NOCMD, "Unknown command returns IOERR_NOCMD");
 
-    CloseDevice((struct IORequest *)req2);
-    test_ok("CloseDevice unit 1");
+    /* the controller type survives a close/reopen */
+    CloseDevice((struct IORequest *)req);
+    error = OpenDevice((STRPTR)"gameport.device", 1, (struct IORequest *)req, 0);
+    check(error == 0, "reopening unit 1 succeeds");
+    print("  unit 1 type after reopen: ");
+    print_num(ask_ctype(req));
+    print("\n");
+
+    set_ctype(req, &ctype, GPCT_NOCONTROLLER);
+    check(req->io_Error == 0 && ask_ctype(req) == GPCT_NOCONTROLLER, "GPD_SETCTYPE frees unit 1");
+
+    RemDevice(device);
+    print("  RemDevice: LIBF_DELEXP=");
+    print_num((device->dd_Library.lib_Flags & LIBF_DELEXP) != 0);
+    print(" in DeviceList=");
+    print_num(FindName(&SysBase->DeviceList, (STRPTR)"gameport.device") == &device->dd_Library.lib_Node);
+    print("\n");
 
     CloseDevice((struct IORequest *)req);
-    test_ok("CloseDevice unit 0");
+    CloseDevice((struct IORequest *)mouse_req);
+    test_ok("CloseDevice");
 
     DeleteIORequest((struct IORequest *)bad_req);
-    DeleteIORequest((struct IORequest *)req2);
     DeleteIORequest((struct IORequest *)req);
+    DeleteIORequest((struct IORequest *)mouse_req);
     DeleteMsgPort(port);
 
     print("\n");

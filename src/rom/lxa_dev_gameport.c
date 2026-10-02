@@ -62,17 +62,7 @@ struct GameportBase
     ULONG gb_TickCounter;
 };
 
-static const UWORD gameport_supported_commands[] =
-{
-    CMD_CLEAR,
-    GPD_ASKCTYPE,
-    GPD_SETCTYPE,
-    GPD_ASKTRIGGER,
-    GPD_SETTRIGGER,
-    GPD_READEVENT,
-    NSCMD_DEVICEQUERY,
-    0
-};
+#define GAMEPORT_STDCMD_ERROR 8
 
 static void gameport_reply_request(struct IORequest *ioreq)
 {
@@ -126,7 +116,8 @@ static void gameport_remove_unit(struct GameportBase *gameportbase,
 
 static BOOL gameport_is_supported_ctype(LONG ctype)
 {
-    return ctype == GPCT_NOCONTROLLER ||
+    return ctype == GPCT_ALLOCATED ||
+           ctype == GPCT_NOCONTROLLER ||
            ctype == GPCT_MOUSE ||
            ctype == GPCT_RELJOYSTICK ||
            ctype == GPCT_ABSJOYSTICK;
@@ -292,32 +283,6 @@ static struct InputEvent *gameport_input_handler(register struct InputEvent *eve
     return events;
 }
 
-static BPTR gameport_expunge_if_possible(struct GameportBase *gameportbase)
-{
-    if (FindName(&SysBase->DeviceList,
-                 (CONST_STRPTR)gameportbase->gb_Device.dd_Library.lib_Node.ln_Name) ==
-        &gameportbase->gb_Device.dd_Library.lib_Node)
-    {
-        Remove(&gameportbase->gb_Device.dd_Library.lib_Node);
-        DPRINTF(LOG_DEBUG, "_gameport: Expunge() removed device from DeviceList\n");
-    }
-
-    if (gameportbase->gb_Device.dd_Library.lib_OpenCnt != 0)
-    {
-        gameportbase->gb_Device.dd_Library.lib_Flags |= LIBF_DELEXP;
-        DPRINTF(LOG_DEBUG, "_gameport: Expunge() deferred, open count=%u\n",
-                (unsigned int)gameportbase->gb_Device.dd_Library.lib_OpenCnt);
-        return 0;
-    }
-
-    gameportbase->gb_Device.dd_Library.lib_Flags &= ~LIBF_DELEXP;
-    _input_device_remove_handler(&gameportbase->gb_InputHandler);
-
-    DPRINTF(LOG_DEBUG, "_gameport: Expunge() finalizing removal\n");
-
-    return gameportbase->gb_SegList;
-}
-
 /*
  * Device Init
  */
@@ -350,6 +315,8 @@ static struct Library * __g_lxa_gameport_InitDev  ( register struct Library    *
         gameportbase->gb_ControllerTypes[unit] = GPCT_NOCONTROLLER;
         gameportbase->gb_OpenCounts[unit] = 0;
     }
+    /* the mouse port is owned by input.device on a running system */
+    gameportbase->gb_ControllerTypes[0] = GPCT_MOUSE;
 
     return dev;
 }
@@ -373,7 +340,8 @@ static void __g_lxa_gameport_Open ( register struct Library   *dev   __asm("a6")
     ioreq->io_Device = NULL;
     ioreq->io_Unit = NULL;
 
-    if (unit >= GAMEPORT_UNIT_COUNT || ioreq->io_Message.mn_Length < sizeof(struct IOStdReq))
+    /* AmigaOS 3.1 does not check the request size (mn_Length may be 0) */
+    if (unit >= GAMEPORT_UNIT_COUNT)
     {
         ioreq->io_Error = IOERR_OPENFAIL;
         return;
@@ -452,12 +420,6 @@ static BPTR __g_lxa_gameport_Close( register struct Library   *dev   __asm("a6")
         gameportbase->gb_Device.dd_Library.lib_OpenCnt--;
     }
 
-    if (gameportbase->gb_Device.dd_Library.lib_OpenCnt == 0 &&
-        (gameportbase->gb_Device.dd_Library.lib_Flags & LIBF_DELEXP))
-    {
-        return gameport_expunge_if_possible(gameportbase);
-    }
-
     return 0;
 }
 
@@ -466,8 +428,12 @@ static BPTR __g_lxa_gameport_Close( register struct Library   *dev   __asm("a6")
  */
 static BPTR __g_lxa_gameport_Expunge ( register struct Library   *dev   __asm("a6"))
 {
+    /* AmigaOS 3.1: RemDevice() only marks gameport.device LIBF_DELEXP; it
+     * stays in the DeviceList (input.device always has the mouse port
+     * open, so the ROM device is never unloaded) - verified, Phase 220. */
     DPRINTF(LOG_DEBUG, "_gameport: Expunge() called\n");
-    return gameport_expunge_if_possible((struct GameportBase *)dev);
+    dev->lib_Flags |= LIBF_DELEXP;
+    return 0;
 }
 
 /*
@@ -496,37 +462,21 @@ static BPTR __g_lxa_gameport_BeginIO ( register struct Library   *dev   __asm("a
 
     switch (command)
     {
-        case NSCMD_DEVICEQUERY:
-        {
-            struct NSDeviceQueryResult *result;
-
-            if (io->io_Length < (LONG)sizeof(struct NSDeviceQueryResult))
-            {
-                ioreq->io_Error = IOERR_BADLENGTH;
-                break;
-            }
-
-            if (!io->io_Data)
-            {
-                ioreq->io_Error = IOERR_BADADDRESS;
-                break;
-            }
-
-            result = (struct NSDeviceQueryResult *)io->io_Data;
-            result->nsdqr_DevQueryFormat = 0;
-            result->nsdqr_SizeAvailable = sizeof(*result);
-            result->nsdqr_DeviceType = NSDEVTYPE_GAMEPORT;
-            result->nsdqr_DeviceSubType = 0;
-            result->nsdqr_SupportedCommands = (APTR)gameport_supported_commands;
-            io->io_Actual = sizeof(*result);
-            break;
-        }
-
+        /* AmigaOS 3.1 answers the standard exec commands below with
+         * io_Error 8 (verified on the reference, Phase 220) */
         case CMD_CLEAR:
             gameportunit->gu_LastQualifier = 0;
             gameportunit->gu_LastX = 0;
             gameportunit->gu_LastY = 0;
             gameportbase->gb_TickCounter = 0;
+            ioreq->io_Error = GAMEPORT_STDCMD_ERROR;
+            break;
+
+        case CMD_RESET:
+        case CMD_STOP:
+        case CMD_START:
+        case CMD_FLUSH:
+            ioreq->io_Error = GAMEPORT_STDCMD_ERROR;
             break;
 
         case GPD_ASKCTYPE:
@@ -562,14 +512,12 @@ static BPTR __g_lxa_gameport_BeginIO ( register struct Library   *dev   __asm("a
                 break;
             }
 
+            /* 3.1 accepts any value but only stores the known types */
             ctype = *((BYTE *)io->io_Data);
-            if (!gameport_is_supported_ctype(ctype))
+            if (gameport_is_supported_ctype(ctype))
             {
-                ioreq->io_Error = GPDERR_SETCTYPE;
-                break;
+                gameportbase->gb_ControllerTypes[gameportunit->gu_UnitNum] = (UBYTE)ctype;
             }
-
-            gameportbase->gb_ControllerTypes[gameportunit->gu_UnitNum] = (UBYTE)ctype;
             io->io_Actual = sizeof(UBYTE);
             break;
         }
