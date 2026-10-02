@@ -1,0 +1,316 @@
+#!/usr/bin/env python3
+"""refctl - control headless AmigaOS 3.1 reference instances (Phase 210).
+
+  refctl boot   [--id N] [--profile aga|rtg] [--timeout S]
+  refctl ping   [--id N]
+  refctl stop   [--id N | --all]
+  refctl status
+  refctl shot   [--id N] [--out FILE]      X screenshot of the instance
+  refctl cmd    [--id N] LINE...           send lxaprobe command lines (Phase 211)
+
+Each instance N runs FS-UAE on its own Xvfb display (:N+100) with the
+emulated serial port on tcp://127.0.0.1:47100+N and its own state directory
+~/.cache/lxa/refsys/inst/N (FS-UAE base dir, logs, LXAREF: exchange dir).
+Processes are tracked by PID (never `pkill -f`, which also matches callers).
+
+Boot is complete when the guest prints its handshake on the serial line:
+"LXAREF-READY" (plain Startup-Sequence) or "LXAPROBE READY" (guest agent).
+"""
+
+import argparse
+import json
+import os
+import shutil
+import signal
+import socket
+import subprocess
+import sys
+import time
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+ROOT = os.path.dirname(os.path.dirname(HERE))
+REFSYS = os.environ.get("LXA_REFSYS_DIR", os.path.expanduser("~/.cache/lxa/refsys"))
+OS_DIR = os.environ.get("LXA_REF_OS_DIR", os.path.expanduser("~/media/sys/amiga/os/3.1"))
+KICKSTART = os.environ.get("LXA_REF_KICKSTART",
+                           os.path.join(OS_DIR, "Kickstart v3.1 r40.70 (1994)(Commodore)(A4000).rom"))
+APPS = os.environ.get("LXA_REF_APPS", os.path.normpath(os.path.join(ROOT, "..", "lxa-apps")))
+FSUAE = os.environ.get("FSUAE", shutil.which("fs-uae") or "/opt/FS-UAE/usr/bin/fs-uae")
+READY_MARKERS = (b"LXAREF-READY", b"LXAPROBE READY")
+
+
+def inst_dir(n):
+    return os.path.join(REFSYS, "inst", str(n))
+
+
+def state_path(n):
+    return os.path.join(inst_dir(n), "state.json")
+
+
+def load_state(n):
+    try:
+        with open(state_path(n)) as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {}
+
+
+def save_state(n, st):
+    os.makedirs(inst_dir(n), exist_ok=True)
+    with open(state_path(n), "w") as f:
+        json.dump(st, f, indent=1)
+
+
+def alive(pid):
+    if not pid:
+        return False
+    try:
+        os.kill(pid, 0)
+    except OSError:
+        return False
+    # zombies count as dead
+    try:
+        with open("/proc/%d/stat" % pid) as f:
+            return f.read().split()[2] != "Z"
+    except OSError:
+        return False
+
+
+def serial_port(n):
+    return 47100 + n
+
+
+def display(n):
+    return ":%d" % (100 + n)
+
+
+def render_config(n, profile):
+    d = inst_dir(n)
+    sysdir = os.path.join(d, "SYS")
+    rtg = ("graphics_card = uaegfx\ngraphics_memory = 4096" if profile == "rtg"
+           else "graphics_card = none")
+    with open(os.path.join(HERE, "lxa-ref.fs-uae.in")) as f:
+        cfg = f.read()
+    for k, v in {"@RTG_CONFIG@": rtg, "@KICKSTART@": KICKSTART, "@SYS@": sysdir,
+                 "@APPS@": APPS, "@EXCHANGE@": os.path.join(d, "exchange"),
+                 "@SERIAL_PORT@": str(serial_port(n)), "@STATE@": d}.items():
+        cfg = cfg.replace(k, v)
+    path = os.path.join(d, "ref.fs-uae")
+    with open(path, "w") as f:
+        f.write(cfg)
+    return path
+
+
+def connect(n, timeout=30.0):
+    """Connect to the instance's serial TCP port (FS-UAE listens)."""
+    deadline = time.time() + timeout
+    while True:
+        try:
+            s = socket.create_connection(("127.0.0.1", serial_port(n)), timeout=2)
+            s.settimeout(1.0)
+            return s
+        except OSError:
+            if time.time() > deadline:
+                raise
+            time.sleep(0.2)
+
+
+def read_until(sock, markers, timeout):
+    buf = b""
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        try:
+            chunk = sock.recv(4096)
+            if not chunk:
+                break
+            buf += chunk
+            for m in markers:
+                if m in buf:
+                    return buf, m
+        except socket.timeout:
+            continue
+    return buf, None
+
+
+def cmd_boot(a):
+    n = a.id
+    st = load_state(n)
+    if alive(st.get("fsuae_pid")):
+        print("refctl: instance %d already running (pid %d)" % (n, st["fsuae_pid"]))
+        return 0
+    sysdir = os.path.join(REFSYS, "SYS-%s" % a.profile)
+    if not os.path.isdir(sysdir):
+        r = subprocess.run([os.path.join(HERE, "build_refsys.sh"), "--profile", a.profile])
+        if r.returncode:
+            return r.returncode
+    d = inst_dir(n)
+    for sub in ("base", "logs", "shots", "exchange"):
+        os.makedirs(os.path.join(d, sub), exist_ok=True)
+    # Every boot starts from a fresh copy of the pristine system, so guest
+    # writes (prefs, .uaem metadata) never leak between runs or instances.
+    inst_sys = os.path.join(d, "SYS")
+    shutil.rmtree(inst_sys, ignore_errors=True)
+    shutil.copytree(sysdir, inst_sys, symlinks=True)
+    cfg = render_config(n, a.profile)
+
+    t0 = time.time()
+    xvfb = subprocess.Popen(["Xvfb", display(n), "-screen", "0", "1024x768x24", "-nolisten", "tcp"],
+                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                            start_new_session=True)
+    time.sleep(0.3)
+    env = dict(os.environ, DISPLAY=display(n), SDL_AUDIODRIVER="dummy")
+    log = open(os.path.join(d, "logs", "fs-uae.stdout"), "w")
+    uae = subprocess.Popen([FSUAE, cfg], env=env, stdout=log, stderr=subprocess.STDOUT,
+                           start_new_session=True)
+    st = {"id": n, "profile": a.profile, "xvfb_pid": xvfb.pid, "fsuae_pid": uae.pid,
+          "display": display(n), "serial_port": serial_port(n), "ready": False,
+          "started": t0}
+    save_state(n, st)
+
+    try:
+        sock = connect(n, timeout=a.timeout)
+    except OSError:
+        print("refctl: serial port of instance %d never opened" % n, file=sys.stderr)
+        return 1
+    buf, marker = read_until(sock, READY_MARKERS, max(1.0, a.timeout - (time.time() - t0)))
+    sock.close()
+    if not marker:
+        print("refctl: instance %d did not report ready within %ds (serial: %r)" % (
+            n, a.timeout, buf[-200:]), file=sys.stderr)
+        return 1
+    st["ready"] = True
+    st["agent"] = marker == b"LXAPROBE READY"
+    st["boot_seconds"] = round(time.time() - t0, 2)
+    save_state(n, st)
+    print("refctl: instance %d ready in %.1f s (%s)" % (n, st["boot_seconds"],
+                                                        "agent" if st["agent"] else "handshake"))
+    return 0
+
+
+def cmd_ping(a):
+    st = load_state(a.id)
+    if not (alive(st.get("fsuae_pid")) and st.get("ready")):
+        print("refctl: instance %d not running/ready" % a.id, file=sys.stderr)
+        return 1
+    if not st.get("agent"):
+        print("refctl: instance %d alive (no agent; handshake seen)" % a.id)
+        return 0
+    sock = connect(a.id, timeout=5)
+    sock.sendall(b"PING\n")
+    buf, m = read_until(sock, (b"PONG",), 10)
+    sock.close()
+    if not m:
+        print("refctl: no PONG from instance %d (%r)" % (a.id, buf[-120:]), file=sys.stderr)
+        return 1
+    print("refctl: instance %d PONG" % a.id)
+    return 0
+
+
+def kill_tree(pid):
+    if not alive(pid):
+        return
+    try:
+        os.killpg(pid, signal.SIGTERM)
+    except OSError:
+        try:
+            os.kill(pid, signal.SIGTERM)
+        except OSError:
+            return
+    for _ in range(30):
+        if not alive(pid):
+            return
+        time.sleep(0.1)
+    try:
+        os.killpg(pid, signal.SIGKILL)
+    except OSError:
+        pass
+
+
+def cmd_stop(a):
+    ids = []
+    if a.all:
+        base = os.path.join(REFSYS, "inst")
+        ids = [int(x) for x in os.listdir(base)] if os.path.isdir(base) else []
+    else:
+        ids = [a.id]
+    for n in ids:
+        st = load_state(n)
+        kill_tree(st.get("fsuae_pid"))
+        kill_tree(st.get("xvfb_pid"))
+        if st:
+            st["ready"] = False
+            st["fsuae_pid"] = st["xvfb_pid"] = None
+            save_state(n, st)
+        print("refctl: instance %d stopped" % n)
+    return 0
+
+
+def cmd_status(a):
+    base = os.path.join(REFSYS, "inst")
+    if not os.path.isdir(base):
+        print("refctl: no instances")
+        return 0
+    for n in sorted(int(x) for x in os.listdir(base)):
+        st = load_state(n)
+        print("instance %d: %s profile=%s display=%s serial=%s boot=%ss" % (
+            n, "running" if alive(st.get("fsuae_pid")) else "stopped", st.get("profile"),
+            st.get("display"), st.get("serial_port"), st.get("boot_seconds")))
+    return 0
+
+
+def cmd_shot(a):
+    st = load_state(a.id)
+    if not alive(st.get("xvfb_pid")):
+        print("refctl: instance %d not running" % a.id, file=sys.stderr)
+        return 1
+    out = a.out or os.path.join(inst_dir(a.id), "shots", "x-%d.png" % int(time.time()))
+    r = subprocess.run(["import", "-display", st["display"], "-window", "root", out])
+    if r.returncode == 0:
+        print(out)
+    return r.returncode
+
+
+def cmd_cmd(a):
+    sock = connect(a.id, timeout=5)
+    rc = 0
+    for line in a.lines:
+        sock.sendall(line.encode("latin-1") + b"\n")
+        buf, m = read_until(sock, (b"\nOK", b"\nERR"), a.timeout)
+        sys.stdout.write(buf.decode("latin-1", "replace"))
+        if m != b"\nOK":
+            rc = 1
+    sock.close()
+    return rc
+
+
+def main():
+    ap = argparse.ArgumentParser(description="control lxa reference instances")
+    sub = ap.add_subparsers(dest="cmd", required=True)
+    p = sub.add_parser("boot")
+    p.add_argument("--id", type=int, default=0)
+    p.add_argument("--profile", default="aga", choices=["aga", "rtg"])
+    p.add_argument("--timeout", type=int, default=90)
+    p.set_defaults(fn=cmd_boot)
+    p = sub.add_parser("ping")
+    p.add_argument("--id", type=int, default=0)
+    p.set_defaults(fn=cmd_ping)
+    p = sub.add_parser("stop")
+    p.add_argument("--id", type=int, default=0)
+    p.add_argument("--all", action="store_true")
+    p.set_defaults(fn=cmd_stop)
+    p = sub.add_parser("status")
+    p.set_defaults(fn=cmd_status)
+    p = sub.add_parser("shot")
+    p.add_argument("--id", type=int, default=0)
+    p.add_argument("--out")
+    p.set_defaults(fn=cmd_shot)
+    p = sub.add_parser("cmd")
+    p.add_argument("--id", type=int, default=0)
+    p.add_argument("--timeout", type=int, default=30)
+    p.add_argument("lines", nargs="+")
+    p.set_defaults(fn=cmd_cmd)
+    a = ap.parse_args()
+    return a.fn(a)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

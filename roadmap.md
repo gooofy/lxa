@@ -115,7 +115,7 @@ M0 and M1 are on the critical path: nothing in M2 and later is efficient without
 
 ## Next Phase
 
-> **Phase 204 — Fix menu/input introspection for scripting**. Phase 210 (reference system builder) has no code dependency on M0 and may run in parallel in a separate worktree.
+> **Phase 204 — Fix menu/input introspection for scripting**, then **Phase 211 — `lxaprobe` guest agent** (the reference system from Phase 210 is ready).
 
 ---
 
@@ -134,25 +134,6 @@ M0 and M1 are on the critical path: nothing in M2 and later is efficient without
 
 ## M1 — The Reference Oracle
 
-### Phase 210 — Reference system builder
-**Class**: Quality (infrastructure).
-
-**Feasibility spike (2026-10-02)**: a fresh Workbench 3.1 system was built by hand into `~/.cache/lxa/refsys/SYS` (5 MB, with config `~/.cache/lxa/refsys/lxa-ref.fs-uae`). It boots headless to Workbench under Xvfb in about 25 s with warp mode, on an A4000/040 with KS 40.70. Xvfb and amitools are now installed. A sample capture is at `screenshots/refsys-wb31-screenmode-prefs.png`. **RTG is not working yet**: with Picasso96 1.33 (`rtg.library` 40.2912), a `Devs/Monitors/uaegfx` driver and the `BOARDTYPE=uaegfx` tooltype, no uaegfx modes appear, and the FS-UAE log shows FindCard was never called. The most likely cause is that 1.33 predates the built-in uaegfx card ABI.
-
-- [ ] Turn the spike into `tools/refsys/build_refsys.sh`.
-  - Unpack the six Workbench 3.1 ADFs with `xdftool`.
-  - Merge Workbench, Extras, Storage, Locale and Fonts, and add `68040.library` from the Install disk.
-  - Write the HD Startup-Sequence (start `lxaprobe` when `LXAREF:` is mounted).
-  - Install Picasso96 and generate the `uaegfx` monitor icon with tooltypes in Python. The spike's icon patch works.
-  - The build is idempotent, its result checksummed, and it supports profiles `aga` and `rtg`.
-- [ ] Get RTG working: try a Picasso96 2.x release (**the user supplies it**), then define the uaegfx resolutions (the P96 settings file / Picasso96Mode) non-interactively. Confirm that ScreenMode prefs list the uaegfx modes, then fix the Workbench mode for the `rtg` profile.
-- [ ] `tools/refsys/lxa-ref.fs-uae.in`: the Canonical Reference Configuration, with port, drives and paths templated, `warp_mode = 1`, `sound_output = none`. Never modify the user's `Default.fs-uae`.
-- [ ] Run headless with a private Xvfb display per instance; this works per the spike. Note that `pkill -f fs-uae…` also matches the calling shell, so track PIDs instead.
-- [ ] Parallel instances: several FS-UAE processes with separate state dirs and ports. Measure boot-to-ready time in warp mode, with a target under 10 s.
-- [ ] Evaluate savestate resume for faster startup. Directory-backed drives can conflict with savestates; fall back to a warp boot.
-
-**Test gate**: `tools/refsys/refctl boot && refctl ping` succeeds headless, 10/10 times.
-
 ### Phase 211 — `lxaprobe` guest agent
 **Class**: Quality (infrastructure). An m68k program, built with the existing cross toolchain, lives in `tools/refsys/agent/`. It talks a line-based protocol over `serial.device`; bulk data goes through `LXAREF:` files.
 - [ ] `RUN <cmdline> [cwd]`: start an app asynchronously (`SystemTags`) and track its process.
@@ -163,6 +144,7 @@ M0 and M1 are on the critical path: nothing in M2 and later is efficient without
 - [ ] Text hook: a `SetFunction` patch of `Text()` that logs strings with RastPort coordinates. Patching is fine on the test machine.
 - [ ] `TRACE <lib> <lvo-list>`: a `SetFunction` relay that logs arguments and return values. This prepares Phase 233.
 - [ ] `QUIT`: close the app's windows and send CTRL-C; report surviving tasks and leaked memory (an `AvailMem` delta).
+- [ ] `MODES`: enumerate display modes (`NextDisplayInfo`/`GetDisplayInfoData`). Use it to finish the `rtg` profile (carried over from Phase 210): pick the Workbench uaegfx mode (e.g. 800×600×8), write `ENVARC:Sys/screenmode.prefs` in `build_refsys.sh`, and confirm that the uaegfx modes are listed.
 
 **Test gate**: agent unit scenario on the reference: run `SYS:Utilities/Clock`, wait for its window, dump the tree, snap, quit. All succeed and the tree is plausible.
 
@@ -477,3 +459,4 @@ The order below is provisional. After Phase 231/232 it is re-sorted by how often
 | 201 | Deterministic virtual time: cycle-derived VBlank/timer/DateStamp (`lxa_vclock.c`, 25 MHz virtual CPU, idle skipping), emulated-time timeouts (`EmuDeadline`), real `WaitTOF`, ReadEClock overflow fix, host stdin detached under liblxa, 38 hot-path LPRINTFs demoted, ROM built for 68020, faster `Text`/`memset`/`CopyMem`. Suite 110 s → 22 s, 20/20 runs under load green. | v0.11.0 |
 | 202 | Measurable coverage: ROM PC-bitmap coverage + disk-library vector coverage (`LXA_ROM_COVERAGE`), host gcov (`-DLXA_COVERAGE=ON`), `make coverage` → merged lcov + HTML, per-LVO table `doc/coverage/lvo-coverage.md`. Baseline: ROM 77.3 %, host 32.6 %, 787 LVOs tested. | v0.11.0 |
 | 203 | Stub telemetry: `LXA_UNIMPLEMENTED` → EMU_CALL_UNIMPLEMENTED for every stub/partial/private slot/empty exec vector (173 sites), `lxa_get_unimplemented_log()`, `lxa.log` summary, `--strict-unimplemented` (exit 125, stubs only), `tools/stub_inventory.py` → `doc/stub-inventory.md` (+117 LVOs without implementation); empty vectors/private slots no longer halt the emulator; console unknown commands return IOERR_NOCMD. | v0.11.1 |
+| 210 | Reference system builder: `tools/refsys/` (`build_refsys.sh` fresh WB 3.1 + 68040.library, profiles `aga`/`rtg` with Picasso96 2.0 + uaegfx; `refctl` boot/ping/shot/stop with per-instance Xvfb, TCP serial, fresh SYS copy). Boot to Workbench 1.6 s, 10/10 boot+ping, 8 parallel instances. | v0.11.2 |

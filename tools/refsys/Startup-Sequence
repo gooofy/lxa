@@ -1,0 +1,50 @@
+; lxa reference system (clean Workbench 3.1, HD) - built by build_refsys.sh
+C:SetPatch QUIET
+C:Version >NIL:
+FailAt 21
+C:MakeDir RAM:T RAM:Clipboards RAM:ENV RAM:ENV/Sys
+C:Copy >NIL: ENVARC: RAM:ENV ALL NOREQ
+Resident >NIL: C:Assign PURE
+Resident >NIL: C:Execute PURE
+Assign >NIL: ENV: RAM:ENV
+Assign >NIL: T: RAM:T
+Assign >NIL: CLIPS: RAM:Clipboards
+Assign >NIL: REXX: S:
+Assign >NIL: PRINTERS: DEVS:Printers
+Assign >NIL: KEYMAPS: DEVS:Keymaps
+Assign >NIL: LOCALE: SYS:Locale
+Assign >NIL: LIBS: SYS:Classes ADD
+Assign >NIL: HELP: LOCALE:Help DEFER
+BindDrivers
+C:Mount >NIL: DEVS:DOSDrivers/~(#?.info)
+IF EXISTS DEVS:Monitors
+  C:List >NIL: DEVS:Monitors/~(#?.info|VGAOnly) TO T:M LFORMAT "DEVS:Monitors/%s"
+  Execute T:M
+  C:Delete >NIL: T:M
+EndIF
+SetEnv Language "english"
+SetEnv Workbench $Workbench
+SetEnv Kickstart $Kickstart
+UnSet Workbench
+UnSet Kickstart
+C:AddDataTypes REFRESH QUIET
+C:IPrefs
+C:ConClip
+Path >NIL: RAM: C: SYS:Utilities SYS:Rexxc SYS:System S: SYS:Prefs SYS:WBStartup SYS:Tools SYS:Tools/Commodities
+IF EXISTS S:User-Startup
+  Execute S:User-Startup
+EndIF
+Resident Execute REMOVE
+Resident Assign REMOVE
+C:LoadWB
+; --- lxa RDD hook (Phase 210/211) -------------------------------------------
+; LXAREF: is the host exchange directory mounted by refctl.  The guest agent
+; owns the serial line; without it the boot handshake is a plain Echo.
+IF EXISTS LXAREF:
+  IF EXISTS C:lxaprobe
+    Run >NIL: C:lxaprobe
+  ELSE
+    Echo >SER: "LXAREF-READY"
+  EndIF
+EndIF
+EndCLI >NIL:

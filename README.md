@@ -231,6 +231,8 @@ Built-in C: commands with full AmigaDOS template support:
 
 ## Current Status
 
+**Version 0.11.2** - Reference system builder (Phase 210): `tools/refsys/` builds a fresh AmigaOS 3.1 hard-disk system from the user's Workbench ADFs and boots headless FS-UAE reference instances (A4000/040, warp mode) in about 1.6 s, as the oracle for reference-driven development.
+
 **Version 0.11.1** - Stub telemetry (Phase 203): every stub, partial implementation and empty library vector reports through `LXA_UNIMPLEMENTED`; `lxa.log` summarises which ones a run hit, `lxa --strict-unimplemented` stops at the first stub, and `doc/stub-inventory.md` is the generated work list for the remaining system-library gaps.
 
 **Version 0.11.0** - Deterministic virtual time and measurable coverage (Phases 201–202). Test drivers now run on a deterministic virtual clock (25 MHz virtual CPU, cycle-derived VBlank/timer/DateStamp, idle time skipped): the same scenario produces byte-identical results, the full suite runs in ~22 s (was ~110 s) and passes 20/20 runs under load. `lxa --deterministic` gives the same clock on the command line. `make coverage` (with `-DLXA_COVERAGE=ON`) measures ROM and host line coverage and writes the per-LVO table to `doc/coverage/lvo-coverage.md`.
