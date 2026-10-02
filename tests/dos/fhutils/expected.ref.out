@@ -1,0 +1,34 @@
+=== File Handle Utilities Test ===
+
+Test 1: ExamineFH
+  ExamineFH succeeded
+  Filename: testfile.txt
+  Size: 13
+  Type: FILE
+
+Test 2: NameFromFH
+  NameFromFH succeeded
+  Path contains: testfile.txt
+
+Test 3: ParentOfFH
+  ParentOfFH succeeded
+  Parent type: DIR
+
+Test 4: DupLockFromFH
+  DupLockFromFH path: Tests/Dos/testfile.txt
+  DupLockFromFH succeeded
+
+Test 5: OpenFromLock
+  OpenFromLock succeeded
+  Read 13 bytes: Hello, World!
+
+Test 6: CheckSignal
+  Initial CheckSignal: 0xADDR
+  After Signal: 0xADDR
+  Ctrl-C signal was detected and cleared
+  After clear: 0xADDR
+
+=== Cleanup ===
+Test file deleted
+
+=== All Tests Completed ===
