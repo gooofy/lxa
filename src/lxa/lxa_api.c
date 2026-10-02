@@ -15,6 +15,8 @@
 #include "lxa_vclock.h"
 #include "lxa_coverage.h"
 #include "lxa_relay.h"
+
+void lxa_reset_held_tasks(void);   /* lxa_dos_host.c */
 #include "lxa_unimpl.h"
 
 #include <stdio.h>
@@ -484,6 +486,7 @@ int lxa_init(const lxa_config_t *config)
 
     /* Phase 203: stub telemetry */
     lxa_unimpl_reset();
+    lxa_reset_held_tasks();
     lxa_unimpl_set_strict(config->strict_unimplemented);
     s_vblank_count = 0;
     s_cycles_since_auto_vblank = 0;
