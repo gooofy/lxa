@@ -87,6 +87,13 @@ int lxa_init(const lxa_config_t *config);
  * Shutdown the lxa emulator.
  * Frees all resources and closes displays.
  */
+/**
+ * Phase 233: relay trace of library calls (JSON lines, same format as the
+ * reference agent's TRACE_DUMP).  spec: "graphics.library:-60,-66;dos:*".
+ */
+bool lxa_trace_start(const char *spec, const char *path);
+void lxa_trace_stop(void);
+
 void lxa_shutdown(void);
 
 /*

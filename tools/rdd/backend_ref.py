@@ -21,7 +21,7 @@ import subprocess
 import sys
 import time
 
-from rdd import bundle, geometry
+from rdd import bundle, fd, geometry
 from rdd.scenario import Scenario
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -118,6 +118,7 @@ def run(scn, out_dir, build=None, use_cache=True):
     inst, lock = take_instance()
     exch = os.path.join(REFSYS, "inst", str(inst), "exchange")
     agent = None
+    tracing = False
     try:
         subprocess.run([REFCTL, "stop", "--id", str(inst)], stdout=subprocess.DEVNULL)
         shutil.rmtree(exch, ignore_errors=True)
@@ -139,7 +140,13 @@ def run(scn, out_dir, build=None, use_cache=True):
         for kind, args in scn.steps:
             step = {"step": kind, "args": args, "ok": True}
             try:
-                if kind == "launch":
+                if kind == "trace":
+                    for lib, lvos in fd.spec_to_lvos(args["spec"]):
+                        if lvos is None:
+                            lvos = sorted(fd.functions(lib), reverse=True)[:64]
+                        agent.cmd("TRACE %s %s" % (lib, ",".join(str(-v) for v in lvos)))
+                    tracing = True
+                elif kind == "launch":
                     for name, rel, add in scn.assigns():
                         agent.cmd("ASSIGN %s APPS:%s/%s%s" % (name, scn.manifest["dir"], rel,
                                                              " ADD" if add else ""))
@@ -205,6 +212,10 @@ def run(scn, out_dir, build=None, use_cache=True):
             result["steps"].append(step)
             if not step["ok"]:
                 break
+        if tracing:
+            agent.cmd("TRACE_DUMP rdd-trace.jsonl")
+            agent.cmd("TRACE_STOP")
+            shutil.copyfile(os.path.join(exch, "rdd-trace.jsonl"), os.path.join(out_dir, "trace.jsonl"))
     except AgentError as e:
         result["ok"] = False
         result["error"] = str(e)

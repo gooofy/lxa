@@ -5748,6 +5748,9 @@ void coldstart (void)
 
     SysBase->ResModules = g_ResidentModules;
     SysBase->SoftVer = VERSION;
+    /* NDK execbase.h: ChkBase holds the complement of SysBase; debuggers,
+     * reset-proof code and validity checks rely on it */
+    SysBase->ChkBase = ~(ULONG)SysBase;
 
     // Initialize SysBase LibNode (exec.library version info)
     SysBase->LibNode.lib_Node.ln_Type = NT_LIBRARY;
