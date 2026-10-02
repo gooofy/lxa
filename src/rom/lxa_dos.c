@@ -1879,6 +1879,8 @@ BPTR _dos_Open ( register struct DosLibrary * DOSBase        __asm("a6"),
             }
             
             BPTR f = MKBADDR (fh);
+            /* a successful packet leaves IoErr() == 0 (AmigaOS 3.1) */
+            SetIoErr(0);
             DPRINTF (LOG_DEBUG, "_dos: Open() ___name=%s, ___accessMode=%ld -> BPTR 0x%08lx (APTR 0x%08lx)\n",
                      ___name ? (char *)___name : "NULL", ___accessMode, f, fh);
             return f;
@@ -1990,6 +1992,10 @@ LONG _dos_Read ( register struct DosLibrary * DOSBase __asm("a6"),
             struct Process *me = U_getCurrentProcess();
             me->pr_Result2 = fh->fh_Arg2;
         }
+        else
+        {
+            SetIoErr(0);    /* successful packet (AmigaOS 3.1) */
+        }
     }
 
     return l;
@@ -2041,6 +2047,10 @@ LONG _dos_Write ( register struct DosLibrary * DOSBase __asm("a6"),
         {
             struct Process *me = U_getCurrentProcess();
             me->pr_Result2 = fh->fh_Arg2;
+        }
+        else
+        {
+            SetIoErr(0);    /* successful packet (AmigaOS 3.1) */
         }
     }
 
@@ -2099,6 +2109,10 @@ LONG _dos_Seek ( register struct DosLibrary * __libBase __asm("a6"),
         struct Process *me = U_getCurrentProcess();
         me->pr_Result2 = fh->fh_Arg2;
     }
+    else
+    {
+        SetIoErr(0);    /* successful packet (AmigaOS 3.1) */
+    }
 
     return l;
 }
@@ -2126,6 +2140,7 @@ LONG _dos_DeleteFile ( register struct DosLibrary * __libBase __asm("a6"),
         return DOSFALSE;
     }
 
+    SetIoErr(0);    /* successful packet (AmigaOS 3.1) */
     return DOSTRUE;
 }
 
@@ -2156,6 +2171,7 @@ LONG _dos_Rename ( register struct DosLibrary * __libBase __asm("a6"),
         return DOSFALSE;
     }
 
+    SetIoErr(0);    /* successful packet (AmigaOS 3.1) */
     return DOSTRUE;
 }
 
@@ -2186,6 +2202,7 @@ BPTR _dos_Lock ( register struct DosLibrary * __libBase __asm("a6"),
     }
 
     /* The lock_id from host is used directly as BPTR */
+    SetIoErr(0);    /* successful packet (AmigaOS 3.1) */
     return (BPTR)lock_id;
 }
 
@@ -2233,6 +2250,7 @@ LONG _dos_Examine ( register struct DosLibrary * __libBase __asm("a6"),
         return DOSFALSE;
     }
 
+    SetIoErr(0);    /* successful packet (AmigaOS 3.1) */
     return DOSTRUE;
 }
 
@@ -2305,6 +2323,7 @@ BPTR _dos_CreateDir ( register struct DosLibrary * __libBase __asm("a6"),
         return 0;
     }
 
+    SetIoErr(0);    /* successful packet (AmigaOS 3.1) */
     return (BPTR)lock_id;
 }
 
@@ -4300,6 +4319,7 @@ WORD _dos_SplitName ( register struct DosLibrary * DOSBase __asm("a6"),
     LONG copied = 0;
     LONG available;
     WORD position;
+    BOOL truncated = FALSE;
 
     size = (LONG)(WORD)size; /* sign-extend: GCC m68k move.w workaround */
 
@@ -4313,12 +4333,17 @@ WORD _dos_SplitName ( register struct DosLibrary * DOSBase __asm("a6"),
         return -1;
     }
 
-    if (size <= 0 || oldpos < 0)
+    if (oldpos < 0)
     {
         SetIoErr(ERROR_BAD_NUMBER);
         return -1;
     }
 
+    /* AmigaOS 3.1 (verified on the reference): at most size-1 characters are
+     * copied and the buffer is always terminated (even for size 0).  When
+     * the component filled the buffer (truncated or exactly size-1 long),
+     * the position returned is that of the separator itself rather than
+     * the character after it. */
     cursor = name;
     position = 0;
     available = size - 1;
@@ -4332,23 +4357,18 @@ WORD _dos_SplitName ( register struct DosLibrary * DOSBase __asm("a6"),
     while (*cursor && *cursor != separator)
     {
         if (copied < available)
-        {
             buf[copied++] = *cursor;
-        }
+        else
+            truncated = TRUE;
 
         cursor++;
         position++;
     }
 
-    if (size > 0)
-    {
-        buf[copied] = '\0';
-    }
+    buf[copied] = '\0';
 
     if (*cursor == separator)
-    {
-        return position + 1;
-    }
+        return (truncated || copied >= available) ? position : position + 1;
 
     return -1;
 }

@@ -16,3 +16,4 @@ Tests/Intuition/IDCMPDeltaMove: {interactive: "waits for mouse moves injected by
 Tests/Intuition/IDCMPMenuVerify: {interactive: "waits for an RMB press injected by intuition_gtest", phase: 224}
 Tests/Intuition/IDCMPSizeVerify: {interactive: "waits for a sizing-gadget drag injected by intuition_gtest", phase: 224}
 Tests/Intuition/RequesterBasic: {interactive: "waits for requester clicks injected by intuition_gtest", phase: 224}
+Tests/Dos/SoftLink:             {lxa_only: "soft links need the Fast File System; the reference has only ram-handler (MakeLink LINK_SOFT -> ERROR_NOT_IMPLEMENTED) and the emulator directory filesystem on SYS: (no soft links)"}

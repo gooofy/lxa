@@ -78,7 +78,6 @@ static BOOL streq(CONST_STRPTR a, CONST_STRPTR b)
 int main(void)
 {
     WORD pos;
-    LONG err;
     char buffer[16];
     char tiny[4];
 
@@ -106,9 +105,11 @@ int main(void)
     else
         test_fail("Tail without separator parsed", "Unexpected position or text");
 
-    print("\nTest 4: Truncation still returns next separator position\n");
+    /* A component that fills the buffer returns the position of the
+     * separator itself (not the character after it) - AmigaOS 3.1. */
+    print("\nTest 4: Truncation returns the separator position\n");
     pos = SplitName((CONST_STRPTR)"volume:component/rest", '/', (STRPTR)tiny, 7, sizeof(tiny));
-    if (pos == 17 && streq((CONST_STRPTR)tiny, (CONST_STRPTR)"com"))
+    if (pos == 16 && streq((CONST_STRPTR)tiny, (CONST_STRPTR)"com"))
         test_pass("Truncation keeps next position");
     else
         test_fail("Truncation keeps next position", "Unexpected truncation result");
@@ -116,7 +117,7 @@ int main(void)
     print("\nTest 5: Size one buffer still null terminates\n");
     tiny[0] = 'X';
     pos = SplitName((CONST_STRPTR)"abc/def", '/', (STRPTR)tiny, 0, 1);
-    if (pos == 4 && tiny[0] == '\0')
+    if (pos == 3 && tiny[0] == '\0')
         test_pass("Size one buffer supported");
     else
         test_fail("Size one buffer supported", "Unexpected size-one behavior");
@@ -128,72 +129,26 @@ int main(void)
     else
         test_fail("Empty component parsed", "Unexpected empty component result");
 
-    print("\nTest 7: Position past end returns empty tail\n");
-    pos = SplitName((CONST_STRPTR)"abc", '/', (STRPTR)buffer, 10, sizeof(buffer));
-    if (pos == -1 && streq((CONST_STRPTR)buffer, (CONST_STRPTR)""))
-        test_pass("Past-end position handled");
+    print("\nTest 7: Component that fills the buffer returns the separator position\n");
+    pos = SplitName((CONST_STRPTR)"abc/def", '/', (STRPTR)tiny, 0, sizeof(tiny));
+    if (pos == 3 && streq((CONST_STRPTR)tiny, (CONST_STRPTR)"abc"))
+        test_pass("Exact fit parsed");
     else
-        test_fail("Past-end position handled", "Unexpected past-end result");
+        test_fail("Exact fit parsed", "Unexpected position or text");
 
-    print("\nTest 8: Null name is rejected\n");
-    pos = SplitName((CONST_STRPTR)0, '/', (STRPTR)buffer, 0, sizeof(buffer));
-    if (pos == -1)
-    {
-        err = IoErr();
-        if (err == ERROR_REQUIRED_ARG_MISSING)
-            test_pass("Null name error");
-        else
-            test_fail("Null name error", "Wrong IoErr");
-    }
+    print("\nTest 8: Truncated last component returns -1\n");
+    pos = SplitName((CONST_STRPTR)"abcdef", '/', (STRPTR)tiny, 0, sizeof(tiny));
+    if (pos == -1 && streq((CONST_STRPTR)tiny, (CONST_STRPTR)"abc"))
+        test_pass("Truncated tail parsed");
     else
-    {
-        test_fail("Null name error", "Unexpected success");
-    }
+        test_fail("Truncated tail parsed", "Unexpected position or text");
 
-    print("\nTest 9: Null buffer is rejected\n");
-    pos = SplitName((CONST_STRPTR)"abc", '/', (STRPTR)0, 0, sizeof(buffer));
-    if (pos == -1)
-    {
-        err = IoErr();
-        if (err == ERROR_REQUIRED_ARG_MISSING)
-            test_pass("Null buffer error");
-        else
-            test_fail("Null buffer error", "Wrong IoErr");
-    }
+    print("\nTest 9: Trailing separator\n");
+    pos = SplitName((CONST_STRPTR)"abc/", '/', (STRPTR)buffer, 0, sizeof(buffer));
+    if (pos == 4 && streq((CONST_STRPTR)buffer, (CONST_STRPTR)"abc"))
+        test_pass("Trailing separator parsed");
     else
-    {
-        test_fail("Null buffer error", "Unexpected success");
-    }
-
-    print("\nTest 10: Zero size is rejected\n");
-    pos = SplitName((CONST_STRPTR)"abc", '/', (STRPTR)buffer, 0, 0);
-    if (pos == -1)
-    {
-        err = IoErr();
-        if (err == ERROR_BAD_NUMBER)
-            test_pass("Zero size error");
-        else
-            test_fail("Zero size error", "Wrong IoErr");
-    }
-    else
-    {
-        test_fail("Zero size error", "Unexpected success");
-    }
-
-    print("\nTest 11: Negative position is rejected\n");
-    pos = SplitName((CONST_STRPTR)"abc", '/', (STRPTR)buffer, -1, sizeof(buffer));
-    if (pos == -1)
-    {
-        err = IoErr();
-        if (err == ERROR_BAD_NUMBER)
-            test_pass("Negative position error");
-        else
-            test_fail("Negative position error", "Wrong IoErr");
-    }
-    else
-    {
-        test_fail("Negative position error", "Unexpected success");
-    }
+        test_fail("Trailing separator parsed", "Unexpected position or text");
 
     print("\nFailed: ");
     print_num(tests_failed);

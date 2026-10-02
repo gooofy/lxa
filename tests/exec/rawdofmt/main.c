@@ -175,11 +175,12 @@ int main(void)
             test_fail_msg("%x with uppercase letters");
         }
         
-        if (format_and_check("%X", args, "ABCD")) {
-            test_ok("%X uppercase");
+        /* AmigaOS 3.1: %X prints lower-case digits (verified on the reference) */
+        if (format_and_check("%X", args, "abcd")) {
+            test_ok("%X lowercase");
         } else {
             print("    Got: '"); print(g_buffer); print("'\n");
-            test_fail_msg("%X uppercase");
+            test_fail_msg("%X lowercase");
         }
     }
     

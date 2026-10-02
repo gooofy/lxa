@@ -5994,19 +5994,40 @@ void coldstart (void)
 
     /* Buffer sizes of a CLI started by the AmigaOS 3.1 shell (verified on
      * the reference: SetCurrentDirName/SetProgramName/SetPrompt keep at
-     * most 78/102/58 characters).  A longer host program path is kept. */
-    struct TagItem cli_tags[] = {
-        { ADO_DirLen,      78 },
-        { ADO_CommNameLen, binlen > 102 ? binlen : 102 },
-        { ADO_PromptLen,   58 },
-        { TAG_DONE,        0 }
-    };
-    struct CommandLineInterface *cli = (struct CommandLineInterface *) AllocDosObject (DOS_CLI, cli_tags);
+     * most 78/102/58 characters).  A longer host program path is kept.
+     * (Allocated here: utility.library tags are not available this early.) */
+    struct CommandLineInterface *cli = (struct CommandLineInterface *) AllocDosObject (DOS_CLI, (struct TagItem *)NULL);
     cli->cli_DefaultStack = (rootProc->pr_StackSize + 3) / 4;
 
     {
-        UBYTE *namebstr = (UBYTE *)BADDR(cli->cli_CommandName);
-        UBYTE *promptbstr = (UBYTE *)BADDR(cli->cli_Prompt);
+        LONG name_cap = binlen > 102 ? binlen : 102;
+        UBYTE *namebstr = AllocVec(name_cap + 2, MEMF_PUBLIC | MEMF_CLEAR);
+        UBYTE *promptbstr = AllocVec(58 + 2, MEMF_PUBLIC | MEMF_CLEAR);
+        UBYTE *setnamebstr = AllocVec(78 + 2, MEMF_PUBLIC | MEMF_CLEAR);
+
+        if (namebstr)
+        {
+            FreeVec(BADDR(cli->cli_CommandName));
+            cli->cli_CommandName = MKBADDR(namebstr);
+        }
+        else
+        {
+            namebstr = (UBYTE *)BADDR(cli->cli_CommandName);
+        }
+        if (promptbstr)
+        {
+            FreeVec(BADDR(cli->cli_Prompt));
+            cli->cli_Prompt = MKBADDR(promptbstr);
+        }
+        else
+        {
+            promptbstr = (UBYTE *)BADDR(cli->cli_Prompt);
+        }
+        if (setnamebstr)
+        {
+            FreeVec(BADDR(cli->cli_SetName));
+            cli->cli_SetName = MKBADDR(setnamebstr);
+        }
 
         namebstr[0] = (UBYTE)binlen;
         CopyMem(binfn, namebstr + 1, (ULONG)binlen);

@@ -505,6 +505,58 @@ static bool _dos_lock_info_from_fh(uint32_t fh68k, dev_t *dev_out, ino_t *ino_ou
     return true;
 }
 
+/*
+ * Object-level lock conflicts (AmigaOS 3.1, verified on the reference):
+ *   - an EXCLUSIVE_LOCK is refused (ERROR_OBJECT_IN_USE) while any other
+ *     lock or an open file handle refers to the object;
+ *   - a SHARED_LOCK (and Open()) is refused while an exclusive lock exists.
+ * Open file handles are found through the host descriptors of this process.
+ */
+static bool _dos_object_has_open_fh(dev_t dev, ino_t ino, int exclude_fd)
+{
+    DIR *d = opendir("/proc/self/fd");
+    struct dirent *de;
+    bool found = false;
+
+    if (!d)
+        return false;
+
+    while (!found && (de = readdir(d)) != NULL)
+    {
+        struct stat st;
+        int fd;
+
+        if (de->d_name[0] < '0' || de->d_name[0] > '9')
+            continue;
+        fd = atoi(de->d_name);
+        if (fd == exclude_fd || fd == dirfd(d) || fd <= 2)
+            continue;
+        if (fstat(fd, &st) == 0 && S_ISREG(st.st_mode) && st.st_dev == dev && st.st_ino == ino)
+            found = true;
+    }
+    closedir(d);
+    return found;
+}
+
+static bool _dos_object_lock_conflict(dev_t dev, ino_t ino, int exclude_lock_id, bool want_exclusive)
+{
+    for (int i = 0; i < MAX_LOCKS; i++)
+    {
+        lock_entry_t *entry = &g_locks[i];
+        struct stat st;
+
+        if (!entry->in_use || i == exclude_lock_id)
+            continue;
+        if (!want_exclusive && entry->access_mode != EXCLUSIVE_LOCK)
+            continue;
+        if (stat(entry->linux_path, &st) != 0)
+            continue;
+        if (st.st_dev == dev && st.st_ino == ino)
+            return true;
+    }
+    return false;
+}
+
 bool _dos_change_mode(uint32_t type, uint32_t object, int32_t new_mode, uint32_t err68k)
 {
     dev_t dev;
@@ -563,31 +615,13 @@ bool _dos_change_mode(uint32_t type, uint32_t object, int32_t new_mode, uint32_t
 
     if (new_mode == EXCLUSIVE_LOCK)
     {
-        for (int i = 0; i < MAX_LOCKS; i++)
+        int own_fd = (type == CHANGE_FH) ? (int)m68k_read_memory_32(fh68k + 36) : -1;
+
+        if (_dos_object_lock_conflict(dev, ino, type == CHANGE_LOCK ? (int)object : -1, true) ||
+            (type == CHANGE_LOCK && _dos_object_has_open_fh(dev, ino, own_fd)))
         {
-            lock_entry_t *entry = &g_locks[i];
-            struct stat st;
-
-            if (!entry->in_use)
-            {
-                continue;
-            }
-
-            if (type == CHANGE_LOCK && i == (int)object)
-            {
-                continue;
-            }
-
-            if (stat(entry->linux_path, &st) != 0)
-            {
-                continue;
-            }
-
-            if (st.st_dev == dev && st.st_ino == ino)
-            {
-                err = ERROR_OBJECT_IN_USE;
-                goto fail;
-            }
+            err = ERROR_OBJECT_IN_USE;
+            goto fail;
         }
     }
 
@@ -806,6 +840,16 @@ int _dos_open (uint32_t path68k, uint32_t accessMode, uint32_t fh68k)
                 break;
             default:
                 assert(FALSE);
+        }
+
+        {
+            struct stat lst;
+            if (stat(lxpath, &lst) == 0 && S_ISREG(lst.st_mode) &&
+                _dos_object_lock_conflict(lst.st_dev, lst.st_ino, -1, false))
+            {
+                m68k_write_memory_32 (fh68k+40, ERROR_OBJECT_IN_USE);  // fh_Arg2 = error code
+                return ERROR_OBJECT_IN_USE;
+            }
         }
 
         int fd = open (lxpath, flags, mode);
@@ -1870,6 +1914,13 @@ uint32_t _dos_lock(uint32_t name68k, int32_t mode)
         return 0;
     }
     DPRINTF(LOG_DEBUG, "lxa: _dos_lock: OK '%s' -> '%s'\n", amiga_path, linux_path);
+
+    if (_dos_object_lock_conflict(st.st_dev, st.st_ino, -1, mode == EXCLUSIVE_LOCK) ||
+        (mode == EXCLUSIVE_LOCK && S_ISREG(st.st_mode) && _dos_object_has_open_fh(st.st_dev, st.st_ino, -1)))
+    {
+        g_dos_last_error = ERROR_OBJECT_IN_USE;
+        return 0;
+    }
     
     /* Allocate a lock entry */
     int lock_id = _lock_alloc();
@@ -2198,14 +2249,19 @@ int _dos_examine(uint32_t lock_id, uint32_t fib68k)
         m68k_write_memory_8(fib68k + i, 0);
     }
     
-    /* Get the filename from the path */
+    /* Get the filename from the path; the root of a volume is examined as
+     * ST_ROOT named after the volume (as on AmigaOS) */
+    char volname[108];
+    bool is_root = S_ISDIR(st.st_mode) && vfs_volume_root_name(lock->linux_path, volname, sizeof(volname));
     const char *filename = strrchr(lock->linux_path, '/');
     filename = filename ? filename + 1 : lock->linux_path;
+    if (is_root)
+        filename = volname;
     
     /* Fill the FileInfoBlock */
     m68k_write_memory_32(fib68k + FIB_fib_DiskKey, (uint32_t)st.st_ino);
     
-    int32_t type = S_ISDIR(st.st_mode) ? ST_USERDIR : ST_FILE;
+    int32_t type = is_root ? ST_ROOT : S_ISDIR(st.st_mode) ? ST_USERDIR : ST_FILE;
     m68k_write_memory_32(fib68k + FIB_fib_DirEntryType, type);
     m68k_write_memory_32(fib68k + FIB_fib_EntryType, type);
     
