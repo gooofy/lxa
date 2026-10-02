@@ -5517,6 +5517,18 @@ void _bootstrap(void)
     DPRINTF (LOG_INFO, "_exec: _bootstrap(): emu_stop... done.\n");
 }
 
+/* A task that raised a CPU exception continues here (exec's default trap
+ * handler, exceptions.s): it is held - it never runs again, like the task
+ * behind AmigaOS' "Software Failure" requester - while the system goes on. */
+void _exec_TaskHeld(void)
+{
+    struct Task *me = SysBase->ThisTask;
+    LPRINTF (LOG_ERROR, "_exec: Software Failure - task '%s' held\n",
+             me && me->tc_Node.ln_Name ? me->tc_Node.ln_Name : "?");
+    for (;;)
+        Wait(0);
+}
+
 void coldstart (void)
 {
     // setup exceptions, traps, interrupts
@@ -5748,6 +5760,11 @@ void coldstart (void)
 
     SysBase->ResModules = g_ResidentModules;
     SysBase->SoftVer = VERSION;
+    /* NDK execbase.h: ChkBase holds the complement of SysBase; debuggers,
+     * reset-proof code and validity checks rely on it */
+    SysBase->ChkBase = ~(ULONG)SysBase;
+    /* default trap handler: a faulting task is held (exceptions.s) */
+    SysBase->TaskTrapCode = (APTR)_exec_DefaultTrapCode;
 
     // Initialize SysBase LibNode (exec.library version info)
     SysBase->LibNode.lib_Node.ln_Type = NT_LIBRARY;

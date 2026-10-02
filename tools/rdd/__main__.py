@@ -7,7 +7,12 @@
                python3 -m rdd golden <golden-dir>... | --all | --lint
                python3 -m rdd cluster [DIR] [--findings F.yaml...]
                python3 -m rdd suite-ref [--filter RX] [--capture]
-               python3 -m rdd loop [scenario.yaml...] [--out DIR] [--report FILE]
+               python3 -m rdd massrun crawl|lxa|ref|report [...]
+               python3 -m rdd tracediff <run>/<scenario> | <lxa.jsonl> <ref.jsonl>
+               python3 -m rdd loop [scenario.yaml...] [--out DIR] [--report FILE] [--no-compat]
+               python3 -m rdd corpus [--check] [--list]
+               python3 -m rdd compat [scenario.yaml...] [--out DIR] [--no-run] [--fail-on-drop]
+               python3 -m rdd dashboard [--db FILE] [--html FILE]
 
 (or tools/rdd.sh run ...). Each scenario runs once per backend in its own
 process; reference runs are cached (see rdd.backend_ref).  Output:
@@ -70,6 +75,7 @@ def cmd_run(a):
                                            if not r.get("ok") else "")))
     with open(os.path.join(a.out, "summary.json"), "w") as f:
         json.dump(sorted(results, key=lambda r: (r.get("scenario", ""), r.get("backend", ""))), f, indent=1)
+    a.results = results
     return 0 if all(r.get("ok") for r in results) else 1
 
 
@@ -104,16 +110,71 @@ def cmd_golden(a):
     return 1 if 1 in rcs else (77 if rcs and all(rc == 77 for rc in rcs) else 0)
 
 
+def _app_scenario_files():
+    import glob
+    return sorted(glob.glob(os.path.join(ROOT, "tests", "scenarios", "apps", "*.yaml")))
+
+
+def _scenario_names(paths):
+    from rdd.scenario import Scenario
+    return {Scenario(p).name for p in paths}
+
+
+def compat_refresh(run_dir, scenarios, clusters=None, html=None):
+    """Re-derive apps/compat.yaml from a twin run of `scenarios` and render
+    the dashboard (Phase 230).  -> (db, drops)."""
+    from rdd import compat
+    db, drops = compat.refresh(run_dir, compat.app_scenarios(scenarios), clusters=clusters)
+    path = compat.render_dashboard(db, html or os.path.join(run_dir, "dashboard.html"))
+    print("compat: %s -> %s" % (", ".join("%s %d" % kv for kv in db["ratings"].items()),
+                                os.path.relpath(compat.DB_PATH, ROOT)))
+    print("dashboard: %s" % path)
+    for app, old, new in drops:
+        print("RATING DROP %s: %s -> %s" % (app, old, new))
+    return db, drops
+
+
+def cmd_compat(a):
+    """Twin-run the app scenarios and rewrite apps/compat.yaml (Phase 230)."""
+    from rdd import cluster, report
+    import glob
+    scen = a.scenarios or _app_scenario_files()
+    a.scenarios = [os.path.abspath(s) for s in scen]
+    if not a.no_run:
+        a.backend = "both"
+        cmd_run(a)
+        report.build(a.out, None)
+        findings = sorted(glob.glob(os.path.join(ROOT, "doc", "findings", "*.yaml")))
+        cl = cluster.cluster_run(a.out, findings)
+        os.makedirs(os.path.join(a.out, "clusters"), exist_ok=True)
+        with open(os.path.join(a.out, "clusters", "clusters.json"), "w") as f:
+            json.dump(cl, f, indent=1)
+    _, drops = compat_refresh(a.out, a.scenarios, html=a.html)
+    return 1 if drops and a.fail_on_drop else 0
+
+
+def cmd_dashboard(a):
+    from rdd import compat
+    print("dashboard: %s" % compat.render_dashboard(compat.load_db(a.db), a.html))
+    return 0
+
+
 def cmd_loop(a):
     """One autonomous iteration (Phase 216): twin-run, compare, replay the
-    goldens, cluster divergences, write a sweep report."""
+    goldens, cluster divergences, refresh the compat DB (Phase 230), write a
+    sweep report."""
     import datetime
     import glob
     from rdd import cluster, golden, report
-    scen = a.scenarios or sorted(glob.glob(os.path.join(ROOT, "tests", "scenarios", "*.yaml")))
+    scen = a.scenarios or sorted(glob.glob(os.path.join(ROOT, "tests", "scenarios", "*.yaml")) +
+                                 ([] if a.no_compat else _app_scenario_files()))
     a.scenarios = [os.path.abspath(s) for s in scen]
     a.backend, a.no_cache = "both", False
-    run_rc = cmd_run(a)
+    app_names = _scenario_names([s for s in a.scenarios if os.path.dirname(s).endswith(os.path.join("scenarios", "apps"))])
+    cmd_run(a)
+    # app scenarios may fail by design (their outcome is the rating); the
+    # loop fails on a rating drop instead
+    run_rc = 1 if any(not r.get("ok") for r in a.results if r.get("scenario") not in app_names) else 0
     rows = report.build(a.out, None)
     gres = {}
     for d in golden.all_goldens():
@@ -127,6 +188,12 @@ def cmd_loop(a):
     stubs = cluster.phase_stubs(cl, a.first_phase)
     with open(os.path.join(cdir, "phase-stubs.md"), "w") as f:
         f.write(stubs)
+    drops = []
+    db = None
+    if not a.no_compat:
+        db, drops = compat_refresh(a.out, [s for s in a.scenarios
+                                           if os.path.dirname(s).endswith(os.path.join("scenarios", "apps"))],
+                                   clusters=cl)
     today = datetime.date.today().isoformat()
     md = ["# RDD loop %s" % today, "",
           "Generated by `python3 -m rdd loop` (Phase 216). Twin run of %d scenarios." % len(scen), "",
@@ -140,6 +207,10 @@ def cmd_loop(a):
     md += ["| %d | %s | %s | %s |" % (len(c["apps"]), ", ".join(map(str, c["phases"])) or "**unowned**",
                                      c["signature"].replace("|", "/"), " / ".join(c["suspect"] or []))
            for c in cl if len(c["apps"]) >= 2]
+    if db is not None:
+        md += ["", "## Compatibility DB (apps/compat.yaml)", "",
+               "Ratings: " + ", ".join("%s %d" % kv for kv in db["ratings"].items()), ""]
+        md += ["- **rating drop** %s: %s -> %s" % d for d in drops] or ["No rating dropped."]
     md += ["", "## Phase stubs", "", stubs.split("\n", 3)[-1]]
     path = a.report or os.path.join(a.out, "loop-%s.md" % today)
     os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
@@ -148,17 +219,27 @@ def cmd_loop(a):
     print("loop report: %s" % path)
     failed_goldens = [k for k, v in gres.items() if v == 1]
     unowned = [c for c in cl if not c["owned"] and len(c["apps"]) >= 2]
-    print("goldens failing: %d, unowned clusters: %d" % (len(failed_goldens), len(unowned)))
-    return 1 if failed_goldens or unowned or run_rc else 0
+    print("goldens failing: %d, unowned clusters: %d, rating drops: %d" % (len(failed_goldens), len(unowned),
+                                                                          len(drops)))
+    return 1 if failed_goldens or unowned or run_rc or drops else 0
 
 
 def main():
     if len(sys.argv) > 1 and sys.argv[1] == "suite-ref":
         from rdd import suite_ref
         return suite_ref.main(sys.argv[2:])
+    if len(sys.argv) > 1 and sys.argv[1] == "massrun":
+        from rdd import massrun
+        return massrun.main(sys.argv[2:])
+    if len(sys.argv) > 1 and sys.argv[1] == "tracediff":
+        from rdd import tracediff
+        return tracediff.main(sys.argv[2:])
     if len(sys.argv) > 1 and sys.argv[1] == "cluster":
         from rdd import cluster
         return cluster.main(sys.argv[2:])
+    if len(sys.argv) > 1 and sys.argv[1] == "corpus":
+        from rdd import corpus
+        return corpus.main(sys.argv[2:])
     ap = argparse.ArgumentParser(prog="rdd")
     sub = ap.add_subparsers(dest="cmd", required=True)
     p = sub.add_parser("run", help="run scenarios on lxa and/or the reference")
@@ -186,7 +267,22 @@ def main():
     p.add_argument("-j", "--jobs", type=int, default=8)
     p.add_argument("--report")
     p.add_argument("--first-phase", type=int, default=290)
+    p.add_argument("--no-compat", action="store_true", help="skip the app scenarios and the compat DB refresh")
     p.set_defaults(fn=cmd_loop)
+    p = sub.add_parser("compat", help="twin-run the app scenarios and rewrite apps/compat.yaml")
+    p.add_argument("scenarios", nargs="*", help="default: tests/scenarios/apps/*.yaml")
+    p.add_argument("--out", default=os.path.join(ROOT, "build", "rdd-apps"))
+    p.add_argument("--build", default=None)
+    p.add_argument("-j", "--jobs", type=int, default=6)
+    p.add_argument("--no-cache", action="store_true")
+    p.add_argument("--no-run", action="store_true", help="only consume an existing run in --out")
+    p.add_argument("--fail-on-drop", action="store_true", help="exit 1 when an app's rating dropped")
+    p.add_argument("--html", default=os.path.join(ROOT, "build", "rdd", "dashboard.html"))
+    p.set_defaults(fn=cmd_compat)
+    p = sub.add_parser("dashboard", help="render apps/compat.yaml as HTML")
+    p.add_argument("--db", default=os.path.join(ROOT, "apps", "compat.yaml"))
+    p.add_argument("--html", default=os.path.join(ROOT, "build", "rdd", "dashboard.html"))
+    p.set_defaults(fn=cmd_dashboard)
     p = sub.add_parser("golden", help="replay goldens on lxa")
     p.add_argument("dirs", nargs="*")
     p.add_argument("--all", action="store_true")

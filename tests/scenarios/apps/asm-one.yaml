@@ -1,0 +1,10 @@
+# Phase 230 launch scenario: the compat DB (apps/compat.yaml) derives the
+# rating of Asm-One from it.  Window title from the discovery twin run.
+name: app-asm-one
+app: {manifest: Asm-One}
+steps:
+  - launch
+  - wait_window: {title: "Select a Screen Mode", timeout: 30000}
+  - frames: 100
+  - snapshot: startup
+  - quit

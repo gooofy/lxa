@@ -1,0 +1,33 @@
+{
+    "dir": "AmiBlitz3",
+    "name": "AmiBlitz 3",
+    "version": "3.7.4",
+    "description": "BASIC compiler IDE (successor of Blitz Basic 2)",
+    "executable": "Amiblitz3",
+    "kind": "gui",
+    "assigns": {
+        "LIBS": "Libs"
+    },
+    "libraries": [
+        "ted.library",
+        "ab3pft.library",
+        "wizard.library",
+        "wbstart.library"
+    ],
+    "requirements": {
+        "graphics": true,
+        "intuition": true,
+        "kickstart_version": 39,
+        "profile": "aga",
+        "cpu": "68020"
+    },
+    "test": {
+        "timeout": 30,
+        "expected_returncode": 0,
+        "args": ""
+    },
+    "source": "user's FS-UAE system disk (~/media/emu/amiga/FS-UAE/hdd/system/Apps/AmiBlitz3)",
+    "notes": [
+        "wbstart.library is not bundled (optional: Workbench-start of compiled programs)"
+    ]
+}

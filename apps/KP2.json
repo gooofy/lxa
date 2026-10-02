@@ -1,0 +1,7 @@
+{
+    "dir": "KP2",
+    "alias_of": "kickpascal2",
+    "notes": [
+        "Symlink in ../lxa-apps duplicating kickpascal2 (case variant); safe to delete"
+    ]
+}

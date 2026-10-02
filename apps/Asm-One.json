@@ -1,0 +1,35 @@
+{
+    "dir": "Asm-One",
+    "name": "ASM-One",
+    "version": "1.48",
+    "description": "68000 assembler IDE for AmigaOS",
+    "executable": "bin/ASM-One/ASM-One_V1.48",
+    "kind": "gui",
+    "assigns": {
+        "LIBS": "bin/ASM-One/Libs",
+        "SOURCES": "bin/ASM-One"
+    },
+    "libraries": [
+        "reqtools.library"
+    ],
+    "env": {
+        "WORKDIR": "bin/ASM-One"
+    },
+    "requirements": {
+        "graphics": true,
+        "intuition": true,
+        "kickstart_version": 37,
+        "profile": "aga"
+    },
+    "test": {
+        "timeout": 15,
+        "expected_returncode": 0,
+        "args": ""
+    },
+    "notes": [
+        "reqtools.library is bundled under bin/ASM-One/Libs",
+        "Asks for a screen mode at first start (no prefs)",
+        "SOURCES: is required at startup (the user's S:User-Startup assigns it); without it AmigaOS asks for the volume",
+        "Migrated from ../lxa-apps/Asm-One/app.json"
+    ]
+}
