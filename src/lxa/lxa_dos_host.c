@@ -687,12 +687,48 @@ bool is_list_empty(uint32_t list_addr)
  * Check if there are other tasks running besides the current one.
  * Returns true if there are tasks in TaskReady or TaskWait.
  */
+/* Tasks held by exec's default trap handler (Software Failure) are dead:
+ * they never run again and must not keep the emulation alive. */
+#define MAX_HELD_TASKS 32
+static uint32_t g_held_tasks[MAX_HELD_TASKS];
+static int g_num_held_tasks;
+
+void lxa_note_held_task(uint32_t task)
+{
+    if (task && g_num_held_tasks < MAX_HELD_TASKS)
+        g_held_tasks[g_num_held_tasks++] = task;
+}
+
+void lxa_reset_held_tasks(void)
+{
+    g_num_held_tasks = 0;
+}
+
+static bool is_held(uint32_t task)
+{
+    for (int i = 0; i < g_num_held_tasks; i++)
+        if (g_held_tasks[i] == task)
+            return true;
+    return false;
+}
+
+/* true if the list holds a task that is not held */
+static bool list_has_live_task(uint32_t list)
+{
+    int guard = 0;
+    for (uint32_t n = m68k_read_memory_32(list); n && m68k_read_memory_32(n) && guard < 1024;
+         n = m68k_read_memory_32(n), guard++)
+        if (!is_held(n))
+            return true;
+    return false;
+}
+
 bool other_tasks_running(void)
 {
     uint32_t sysbase = m68k_read_memory_32(4);  // SysBase at address 4
     
-    bool ready_empty = is_list_empty(sysbase + EXECBASE_TASKREADY);
-    bool wait_empty = is_list_empty(sysbase + EXECBASE_TASKWAIT);
+    bool ready_empty = !list_has_live_task(sysbase + EXECBASE_TASKREADY);
+    bool wait_empty = !list_has_live_task(sysbase + EXECBASE_TASKWAIT);
     
     DPRINTF(LOG_DEBUG, "*** other_tasks_running: sysbase=0x%08x, TaskReady empty=%d, TaskWait empty=%d\n",
             sysbase, ready_empty, wait_empty);

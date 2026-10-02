@@ -1,0 +1,11 @@
+# Phase 230 launch scenario: the compat DB (apps/compat.yaml) derives the
+# rating of FinalWriter_D from it.  Window title from the discovery twin run.
+name: app-finalwriter-d
+app: {manifest: FinalWriter_D}
+steps:
+  - launch
+  - wait_window: {title: "Final Writer", timeout: 30000}
+  - wait_idle: {timeout: 20000}
+  - frames: 100
+  - snapshot: startup
+  - quit

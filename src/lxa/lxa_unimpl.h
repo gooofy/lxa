@@ -6,6 +6,7 @@
 #define LXA_UNIMPL_H
 
 #include <stdbool.h>
+#include <stdint.h>
 
 /* Exit code of a run stopped by --strict-unimplemented */
 #define LXA_EXIT_UNIMPLEMENTED 125
@@ -31,5 +32,11 @@ int  lxa_unimpl_get(lxa_unimpl_entry_t *out, int max);
 
 /* Write the per-run summary to lxa.log. */
 void lxa_unimpl_summary(void);
+
+/* Phase 232: CPU exceptions raised by emulated tasks */
+void lxa_exception_log_add(int vector, uint32_t pc, const char *task);
+int  lxa_exception_log_count(void);
+void lxa_exception_log_get(int i, int *vector, uint32_t *pc, char *task, int tasklen, int *count);
+void lxa_exception_log_reset(void);
 
 #endif /* LXA_UNIMPL_H */

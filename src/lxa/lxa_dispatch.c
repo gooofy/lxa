@@ -42,7 +42,7 @@ void m68k_write_memory_8(unsigned int address, unsigned int value)
 void m68k_write_memory_16(unsigned int address, unsigned int value)
 {
     /* Fast path: RAM write (most common case) */
-    if (__builtin_expect((address >= RAM_START) && (address + 1 <= RAM_END), 1))
+    if (__builtin_expect((address >= RAM_START) && (address <= RAM_END - 1), 1))
     {
         mwrite16_ram(address - RAM_START, (uint16_t)value);
         return;
@@ -64,7 +64,7 @@ void m68k_write_memory_16(unsigned int address, unsigned int value)
 void m68k_write_memory_32(unsigned int address, unsigned int value)
 {
     /* Fast path: RAM write (most common case) */
-    if (__builtin_expect((address >= RAM_START) && (address + 3 <= RAM_END), 1))
+    if (__builtin_expect((address >= RAM_START) && (address <= RAM_END - 3), 1))
     {
         mwrite32_ram(address - RAM_START, value);
         return;
@@ -104,11 +104,11 @@ unsigned int m68k_read_memory_8(unsigned int address)
 unsigned int m68k_read_memory_16(unsigned int address)
 {
     /* Fast path: RAM read (most common case) */
-    if (__builtin_expect((address >= RAM_START) && (address + 1 <= RAM_END), 1))
+    if (__builtin_expect((address >= RAM_START) && (address <= RAM_END - 1), 1))
         return mread16_ram(address - RAM_START);
 
     /* Fast path: ROM read (second most common) */
-    if (__builtin_expect((address >= ROM_START) && (address + 1 <= ROM_END), 0))
+    if (__builtin_expect((address >= ROM_START) && (address <= ROM_END - 1), 0))
         return mread16_rom(address - ROM_START);
 
     // if (g_trace)
@@ -121,11 +121,11 @@ unsigned int m68k_read_memory_16(unsigned int address)
 unsigned int m68k_read_memory_32(unsigned int address)
 {
     /* Fast path: RAM read (most common case) */
-    if (__builtin_expect((address >= RAM_START) && (address + 3 <= RAM_END), 1))
+    if (__builtin_expect((address >= RAM_START) && (address <= RAM_END - 3), 1))
         return mread32_ram(address - RAM_START);
 
     /* Fast path: ROM read (second most common) */
-    if (__builtin_expect((address >= ROM_START) && (address + 3 <= ROM_END), 0))
+    if (__builtin_expect((address >= ROM_START) && (address <= ROM_END - 3), 0))
         return mread32_rom(address - ROM_START);
 
     // if (g_trace)
@@ -344,14 +344,25 @@ int op_illg(int level)
             uint32_t excn = m68k_get_reg(NULL, M68K_REG_D1);
             uint32_t isp  = m68k_get_reg(NULL, M68K_REG_ISP);
 
+            /* exec's default trap handler (exceptions.s): stack =
+             * [d0][d1][exception number][SR][PC]... */
             uint32_t d0 = m68k_read_memory_32 (isp);
             uint32_t d1 = m68k_read_memory_32 (isp+4);
-            uint32_t pc = m68k_read_memory_32 (isp+10);
+            uint32_t pc = m68k_read_memory_32 (isp+14);
 
             m68k_set_reg (M68K_REG_D0, d0);
             m68k_set_reg (M68K_REG_D1, d1);
 
             LPRINTF (LOG_WARNING, "*** EXCEPTION CAUGHT: pc=0x%08x #%2d ", pc, excn);
+            {
+                uint32_t sysbase = m68k_read_memory_32(4);
+                uint32_t task = sysbase ? m68k_read_memory_32(sysbase + EXECBASE_THISTASK) : 0;
+                uint32_t tname = task ? m68k_read_memory_32(task + 10) : 0;
+                lxa_exception_log_add((int)excn, pc, tname ? _mgetstr(tname) : "");
+                /* user-mode fault: exec holds the task (exceptions.s) */
+                if (!(m68k_read_memory_16(isp + 12) & 0x2000))
+                    lxa_note_held_task(task);
+            }
 
             switch (excn)
             {
@@ -386,34 +397,16 @@ int op_illg(int level)
             hexdump (LOG_WARNING, isp, 16);
 
             /*
-             * Phase 32: Don't halt on exceptions in multitasking scenarios.
-             * 
-             * Instead of entering the debugger and halting, we just log the exception
-             * and let the exception handler return via RTE. In a real Amiga, this would
-             * typically cause the crashing task to hang or loop, but other tasks can
-             * continue running.
-             *
-             * This allows test programs (running as background processes) to detect
-             * windows that were opened before the app crashed.
-             *
-             * For debugging, use -d flag which enables verbose output.
-             *
-             * Phase 54: Trap exceptions (vectors 32-46) are always fatal.
-             * Traps like #2 (stack overflow) indicate the task cannot continue.
-             * We must halt the emulator since returning would cause undefined behavior.
+             * The faulting task is held by exec's default trap handler
+             * (Software Failure) while the other tasks continue, as on
+             * AmigaOS.  With -d the emulator stops here for debugging.
              */
-            bool is_trap = (excn >= 32 && excn <= 46);
-            
-            if (g_debug || is_trap) {
-                if (is_trap) {
-                    LPRINTF (LOG_ERROR, "*** FATAL: Trap #%d - task cannot continue\n", excn - 32);
-                    fprintf(stderr, "*** FATAL: Trap #%d at PC=0x%08x\n", excn - 32, pc);
-                }
+            if (g_debug) {
                 _debug(pc);
                 vclock_end_timeslice();
                 g_running = FALSE;
             } else {
-                LPRINTF (LOG_WARNING, "*** Exception in task - continuing (use -d to halt and debug)\n");
+                LPRINTF (LOG_WARNING, "*** Software Failure: task held (use -d to halt and debug)\n");
             }
             break;
         }

@@ -1,0 +1,31 @@
+{
+    "dir": "vim-5.3",
+    "name": "Vim",
+    "version": "5.3",
+    "description": "Vi IMproved text editor",
+    "executable": "Vim",
+    "kind": "gui",
+    "assigns": {
+        "VIM": "",
+        "HOME": "",
+        "LIBS": "libs"
+    },
+    "libraries": [
+        "arp.library"
+    ],
+    "requirements": {
+        "graphics": true,
+        "intuition": true,
+        "kickstart_version": 37,
+        "profile": "aga"
+    },
+    "test": {
+        "timeout": 20,
+        "expected_returncode": 0,
+        "args": ""
+    },
+    "notes": [
+        "arp.library is bundled in libs/",
+        "HOME: as in the user's S:User-Startup (otherwise AmigaOS asks for volume HOME)"
+    ]
+}

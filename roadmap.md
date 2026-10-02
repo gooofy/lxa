@@ -185,20 +185,14 @@ Complete (Phases 210–216, v0.11.9); see the summary table.
 
 ## M3 — Breadth: Corpus, Compat DB, Sweeps
 
-### Phase 230 — App corpus & compatibility database
-**Class**: Compatibility.
-- [ ] Write `app.json` manifests for all 19 apps in `../lxa-apps`, then add apps already present on the reference machine: ProWrite, EdWordPro, GadToolsBox3, Redit, FontView, AmigaBasic, GFABasic, Oberon, Scout, SnoopDos, MCPP, AmiBlitz3, BTII, Aztec C, ACE, AQB, and others.
-- [ ] `apps/compat.yaml` records per app: rating, the scenarios behind it, the last tested lxa version, and open divergences, each linked to a phase number. There is no free-text "known issues" list.
-- [ ] `rdd dashboard` renders the DB as HTML.
-- [ ] `python3 -m rdd loop` (Phase 216) refreshes `apps/compat.yaml` from its run and fails when a rating drops.
-
-**Test gate**: ≥35 apps catalogued, each with a rating derived automatically from its scenarios.
-
 ### Phase 231 — Shallow sweep & divergence ranking
 **Class**: Compatibility.
 - [ ] Sweep scenario for every app: launch, wait for idle, snapshot, dump the menu tree, open every menu (snapshot), Escape, quit.
 - [ ] Run it on both backends and rank the divergences: crash > no window > tree diff > pixel diff.
-- [ ] Cluster the divergences by suspected root cause across apps (Phase 216 procedure). The top clusters become phases in M4/M5 or new numbered phases.
+- [ ] Cluster the divergences by suspected root cause across apps (Phase 216 procedure). The top clusters become phases in M4/M5 or new numbered phases. Input includes the 490 still-unowned divergences of the first compat run (`apps/compat.yaml`, Phase 230).
+- [ ] First compat run, worst ratings first: lxa crashes in ADPro (jumps to PC=0xffffffff after loading `adpro.library`) and Oberon; Scout (MUI) and SnoopDos open no window; Asm-One and GadToolsBox3 never show the screen-mode requester the reference shows; vim-5.3's lxa snapshot fails ("indexed capture failed").
+- [ ] Scenario DSL: stack size for the launched program (AQB needs 64 KB) and a writable copy of the app directory (AmiBlitz3 writes into its own folder; `APPS:` is read-only on the reference), so the two `untested` apps get ratings.
+- [ ] liblxa's tracked window title does not follow `SetWindowTitles()` after the window opened (the runner works around it).
 
 **Test gate**: the first full sweep report is checked in under `doc/sweeps/`; every cluster with ≥2 apps has an owning phase.
 
@@ -276,7 +270,7 @@ The order below is provisional. After Phase 231/232 it is re-sorted by how often
 
 ### Phase 252 — BOOPSI class completeness
 - [ ] frameiclass, fillrectclass, itexticlass, frbuttonclass, groupgclass, pointerclass; a complete sysiclass.
-- [ ] colorwheel.gadget and gradientslider.gadget as disk classes.
+- [ ] colorwheel.gadget and gradientslider.gadget as disk classes (GadToolsBox3 needs colorwheel.gadget, Phase 230 compat run).
 - [ ] Gate: gallery pages (Phase 223) for each class match the reference.
 
 ### Phase 253 — datatypes: real class dispatch + WB 3.1 classes
@@ -399,4 +393,5 @@ The order below is provisional. After Phase 231/232 it is re-sorted by how often
 | 214 | Comparator, report & vision review: `tools/rdd/compare.py` (tree diff with ignore list and GadgetID pairing, pen-index pixel diff with 16 px heat-map regions, palette/Text()/stdout), `python3 -m rdd report` (composite lxa \| reference \| diff ×2 with grid, HTML, `compare-summary.json`), `findings.yaml` format + validator, skill `rdd-review`; dry run `doc/findings/2026-10-02-starter.yaml` (7 findings, routed to Phases 222–224). | v0.11.7 |
 | 215 | Golden promotion: `python3 -m rdd promote <scenario> --phase N` copies reference bundles to `tests/golden/<app>/<scenario>/` with a ratchet (known tree diffs + pixel budget + known size, each owned by a phase); `rdd golden` replays on lxa (fail on new divergence, `tighten` on improvement); one CTest per golden (label `golden`, DISABLED only via `golden.json`, `golden_lint` checks owning phases). 6 goldens (HelloWorld, SimpleGad, SimpleGTGadget, GadToolsGadgets, DOpus, DPaint V); an injected 1 px GadTools label shift fails `gadtoolsgadgets`. Python goldens instead of generated GTests: the scenario replay lives in pylxa. | v0.11.8 |
 | 216 | RDD skills & loop: skills `rdd-reference`, `compat-sweep` (parallel per-app triage in worktrees, coordinator clustering); `python3 -m rdd cluster` (mechanical tree-diff clusters with bit-level flag signatures and folded geometry + reviewed findings; owners from golden ratchets, findings and roadmap text; phase stubs for unowned clusters in ≥ 2 scenarios); `python3 -m rdd loop` (run → report → goldens → cluster → sweep report, non-zero on golden regression or unowned cluster). First loop: `doc/sweeps/2026-10-02-loop.md`, 6 scenarios, 6/6 goldens pass, 0 unowned multi-app clusters (no stubs). Compat-DB refresh moved to Phase 230. | v0.11.9 |
+| 230 | App corpus & compat DB: 36 apps catalogued (`apps/<App>.json`; 20 added from the user's FS-UAE disk, with provenance and their real third-party libraries; DOPUS/SYSINFO/KP2 are `alias_of` symlinks), `tools/rdd/corpus.py --check` (CTest `corpus_check`), one launch scenario per app (`tests/scenarios/apps/`), `python3 -m rdd compat` derives ratings from a twin run into `apps/compat.yaml` (no free-text issues; divergences linked to phases), `rdd dashboard`, `rdd loop` fails when a rating drops. First run: 1 platinum, 22 silver, 2 bronze, 6 garbage, 5 untested (3 crash the reference too). | v0.11.11 |
 | 233 | Relay-trace differential: `src/lxa/lxa_relay.c` traces calls through library jump tables (`LXA_TRACE`, `lxa_trace_start`, return detection by return address + SP, library list refreshed after `OpenLibrary`, ROM-internal calls skipped, `LXA_TRACE_INJECT` fault injection); scenario step `trace:`; reference side via lxaprobe `TRACE`; `python3 -m rdd tracediff` (NDK .fd names, clib-prototype typing, top-level calls only, first divergence in order or return value). Gate: an injected `Seek` return bug is located (`tests/rdd/test_tracediff.py`). Found and fixed: `Close()` returned 1 instead of DOSTRUE, `Seek()` returned the new position and allowed seeking past EOF; `ExecBase->ChkBase` was never set. | v0.11.10 |

@@ -1,0 +1,23 @@
+{
+    "dir": "SnoopDos",
+    "name": "SnoopDos",
+    "version": "3.11",
+    "description": "DOS/exec call monitor (patches library vectors)",
+    "executable": "snoopdos",
+    "kind": "gui",
+    "assigns": {},
+    "libraries": [],
+    "requirements": {
+        "graphics": true,
+        "intuition": true,
+        "kickstart_version": 37,
+        "profile": "aga"
+    },
+    "test": {
+        "timeout": 20,
+        "expected_returncode": 0,
+        "args": ""
+    },
+    "source": "user's FS-UAE system disk (~/media/emu/amiga/FS-UAE/hdd/system/Apps/SnoopDos)",
+    "notes": []
+}

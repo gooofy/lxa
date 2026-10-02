@@ -1,0 +1,29 @@
+{
+    "dir": "Cluster2",
+    "name": "Cluster 2",
+    "version": "2.x",
+    "description": "Oberon-like compiler IDE (custom-rendered UI)",
+    "executable": "bin/Cluster2/Editor",
+    "kind": "gui",
+    "assigns": {
+        "Cluster": "bin/Cluster2"
+    },
+    "libraries": [],
+    "env": {
+        "WORKDIR": "bin/Cluster2"
+    },
+    "requirements": {
+        "graphics": true,
+        "intuition": true,
+        "kickstart_version": 37,
+        "profile": "aga"
+    },
+    "test": {
+        "timeout": 20,
+        "expected_returncode": 0,
+        "args": ""
+    },
+    "notes": [
+        "Custom UI: no Intuition gadgets, no MenuStrip, WFLG_RMBTRAP (AGENTS 6.12)"
+    ]
+}

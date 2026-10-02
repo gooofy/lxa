@@ -1,0 +1,25 @@
+{
+    "dir": "BlitzBasic1",
+    "name": "Blitz Basic 1",
+    "version": "1.x",
+    "description": "BASIC compiler (Acid Software)",
+    "executable": "blitzbasic",
+    "kind": "gui",
+    "assigns": {},
+    "libraries": [],
+    "requirements": {
+        "graphics": true,
+        "intuition": true,
+        "kickstart_version": 33,
+        "profile": "aga"
+    },
+    "test": {
+        "timeout": 20,
+        "expected_returncode": 0,
+        "args": ""
+    },
+    "source": "user's FS-UAE system disk (~/media/emu/amiga/FS-UAE/hdd/system/Apps/BlitzBasic1)",
+    "notes": [
+        "The bundled Workbench 1.3 c/l/s/devs/libs were not copied"
+    ]
+}

@@ -15,6 +15,8 @@
 #include "lxa_vclock.h"
 #include "lxa_coverage.h"
 #include "lxa_relay.h"
+
+void lxa_reset_held_tasks(void);   /* lxa_dos_host.c */
 #include "lxa_unimpl.h"
 
 #include <stdio.h>
@@ -484,6 +486,7 @@ int lxa_init(const lxa_config_t *config)
 
     /* Phase 203: stub telemetry */
     lxa_unimpl_reset();
+    lxa_reset_held_tasks();
     lxa_unimpl_set_strict(config->strict_unimplemented);
     s_vblank_count = 0;
     s_cycles_since_auto_vblank = 0;
@@ -825,6 +828,15 @@ int lxa_get_unimplemented_log(lxa_unimplemented_t *entries, int max)
         snprintf(entries[i].first_task, sizeof(entries[i].first_task), "%s", all[i].first_task);
         entries[i].count = all[i].count;
     }
+    return total;
+}
+
+int lxa_get_exception_log(lxa_exception_t *entries, int max)
+{
+    int total = lxa_exception_log_count();
+    for (int i = 0; entries && i < total && i < max; i++)
+        lxa_exception_log_get(i, &entries[i].vector, &entries[i].pc, entries[i].task,
+                              sizeof(entries[i].task), &entries[i].count);
     return total;
 }
 

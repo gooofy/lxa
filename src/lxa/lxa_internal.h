@@ -397,6 +397,8 @@ extern   pending_bp_t *_g_pending_bps;
 int errno2Amiga(void);
 bool is_list_empty(uint32_t list_addr);
 bool other_tasks_running(void);
+void lxa_note_held_task(uint32_t task);
+void lxa_reset_held_tasks(void);
 
 int _timer_check_expired(void);
 /* Timer internals called by op_illg */

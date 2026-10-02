@@ -1,0 +1,25 @@
+{
+    "dir": "AQB",
+    "name": "AQB",
+    "version": "0.9.0a1",
+    "description": "BASIC compiler with integrated editor",
+    "executable": "aqb",
+    "kind": "gui",
+    "assigns": {
+        "AQB": ""
+    },
+    "libraries": [],
+    "requirements": {
+        "graphics": true,
+        "intuition": true,
+        "kickstart_version": 37,
+        "profile": "aga"
+    },
+    "test": {
+        "timeout": 20,
+        "expected_returncode": 0,
+        "args": ""
+    },
+    "source": "user's FS-UAE system disk (~/media/emu/amiga/FS-UAE/hdd/system/Apps/aqb)",
+    "notes": []
+}
