@@ -29,6 +29,10 @@
 #include <datatypes/datatypes.h>
 #include <datatypes/datatypesclass.h>
 #include <utility/tagitem.h>
+#include <dos/dos.h>
+#include <dos/dosextens.h>
+#include <clib/dos_protos.h>
+#include <inline/dos.h>
 
 #include "util.h"
 
@@ -77,20 +81,22 @@ char __aligned _g_datatypes_Copyright [] = "(C)opyright 2026 by G. Bartsch. Lice
 char __aligned _g_datatypes_VERSTRING [] = "\0$VER: " EXLIBNAME EXLIBVER;
 
 struct ExecBase *SysBase = NULL;
+struct DosLibrary *DOSBase = NULL;
 
 /*---------------------------------------------------------------------------
  * Error strings (DTERROR_* constants from datatypes.h)
  *---------------------------------------------------------------------------*/
 
+/* AmigaOS 3.1 texts (reference-verified, Phase 220); 2009 is V44. */
 static const char * const _dt_error_strings[] =
 {
-    /* 2000 */ "Unknown data type",
-    /* 2001 */ "Could not save",
-    /* 2002 */ "Could not open",
-    /* 2003 */ "Could not send message",
-    /* 2004 */ "Could not open clipboard",
-    /* 2005 */ "Reserved",
-    /* 2006 */ "Unknown compression",
+    /* 2000 */ "Unknown data type for %s",
+    /* 2001 */ "Couldn't save %s",
+    /* 2002 */ "Couldn't open %s",
+    /* 2003 */ "Couldn't send message",
+    /* 2004 */ "Couldn't open clipboard",
+    /* 2005 */ "Unknown data type",
+    /* 2006 */ "Unknown compression type",
     /* 2007 */ "Not enough data",
     /* 2008 */ "Invalid data",
     /* 2009 */ "Not available",
@@ -106,80 +112,44 @@ static const char * const _dt_error_strings[] =
  * Apps that scan SYS:Classes/DataTypes/ will get these from memory.
  *---------------------------------------------------------------------------*/
 
-/* IFF ILBM picture */
-static const char _dt_name_ilbm[]     = "IFF ILBM";
-static const char _dt_basename_ilbm[] = "ilbm";
-static const char _dt_pattern_ilbm[]  = "#?";
+/*
+ * Descriptors as AmigaOS 3.1 reports them (reference-verified, Phase 220):
+ * the IFF types carry a 12-byte "FORM????<type>" mask (-1 = any byte),
+ * plain files fall back to the built-in "binary" type and directories to
+ * "directory" (both GID_SYSTEM, no pattern).
+ */
+static WORD _dt_mask_ilbm[12] = { 'F','O','R','M',-1,-1,-1,-1,'I','L','B','M' };
+static WORD _dt_mask_8svx[12] = { 'F','O','R','M',-1,-1,-1,-1,'8','S','V','X' };
+static WORD _dt_mask_ftxt[12] = { 'F','O','R','M',-1,-1,-1,-1,'F','T','X','T' };
 
 static struct DataTypeHeader _dt_hdr_ilbm =
 {
-    (STRPTR)_dt_name_ilbm,
-    (STRPTR)_dt_basename_ilbm,
-    (STRPTR)_dt_pattern_ilbm,
-    NULL,                    /* mask */
-    GID_PICTURE,
-    MAKE_ID('I','L','B','M'),
-    0,                       /* masklen */
-    0,                       /* pad */
-    DTF_IFF,
-    50,                      /* priority */
+    (STRPTR)"ILBM", (STRPTR)"ilbm", (STRPTR)"#?", _dt_mask_ilbm,
+    GID_PICTURE, MAKE_ID('i','l','b','m'), 12, 0, DTF_IFF, 0,
 };
-
-/* IFF 8SVX sound */
-static const char _dt_name_8svx[]     = "IFF 8SVX";
-static const char _dt_basename_8svx[] = "8svx";
-static const char _dt_pattern_8svx[]  = "#?";
 
 static struct DataTypeHeader _dt_hdr_8svx =
 {
-    (STRPTR)_dt_name_8svx,
-    (STRPTR)_dt_basename_8svx,
-    (STRPTR)_dt_pattern_8svx,
-    NULL,
-    GID_SOUND,
-    MAKE_ID('8','S','V','X'),
-    0,
-    0,
-    DTF_IFF,
-    50,
+    (STRPTR)"8SVX", (STRPTR)"8svx", (STRPTR)"#?", _dt_mask_8svx,
+    GID_SOUND, MAKE_ID('8','s','v','x'), 12, 0, DTF_IFF, 0,
 };
-
-/* ASCII/plain text */
-static const char _dt_name_ftxt[]     = "ASCII text";
-static const char _dt_basename_ftxt[] = "ascii";
-static const char _dt_pattern_ftxt[]  = "#?";
 
 static struct DataTypeHeader _dt_hdr_ftxt =
 {
-    (STRPTR)_dt_name_ftxt,
-    (STRPTR)_dt_basename_ftxt,
-    (STRPTR)_dt_pattern_ftxt,
-    NULL,
-    GID_TEXT,
-    MAKE_ID('F','T','X','T'),
-    0,
-    0,
-    DTF_ASCII,
-    10,
+    (STRPTR)"FTXT", (STRPTR)"ascii", (STRPTR)"#?", _dt_mask_ftxt,
+    GID_TEXT, MAKE_ID('f','t','x','t'), 12, 0, DTF_IFF, 0,
 };
 
-/* Generic / RAM */
-static const char _dt_name_ram[]     = "Binary data";
-static const char _dt_basename_ram[] = "binary";
-static const char _dt_pattern_ram[]  = "#?";
-
-static struct DataTypeHeader _dt_hdr_ram =
+static struct DataTypeHeader _dt_hdr_binary =
 {
-    (STRPTR)_dt_name_ram,
-    (STRPTR)_dt_basename_ram,
-    (STRPTR)_dt_pattern_ram,
-    NULL,
-    GID_SYSTEM,
-    MAKE_ID('B','I','N',' '),
-    0,
-    0,
-    DTF_BINARY,
-    0,
+    (STRPTR)"binary", (STRPTR)"binary", NULL, NULL,
+    GID_SYSTEM, MAKE_ID('b','i','n','a'), 0, 0, DTF_BINARY, 0,
+};
+
+static struct DataTypeHeader _dt_hdr_directory =
+{
+    (STRPTR)"directory", (STRPTR)"directory", NULL, NULL,
+    GID_SYSTEM, MAKE_ID('d','i','r','e'), 0, 0, DTF_MISC, 0,
 };
 
 /*---------------------------------------------------------------------------
@@ -218,6 +188,7 @@ struct Library * __g_lxa_datatypes_InitLib ( register struct Library   *libbase 
 {
     DPRINTF (LOG_DEBUG, "_datatypes: InitLib() called\n");
     SysBase = sysb;
+    DOSBase = (struct DosLibrary *)OpenLibrary((CONST_STRPTR)"dos.library", 36);
     return libbase;
 }
 
@@ -259,21 +230,71 @@ ULONG _datatypes_Reserved ( void )
  *---------------------------------------------------------------------------*/
 
 static struct DataTypeHeader *
-_dt_header_for_source (ULONG source_type, APTR source)
+_dt_header_for_lock (BPTR lock)
 {
-    (void)source;
-    switch (source_type)
+    struct FileInfoBlock *fib;
+    struct DataTypeHeader *hdr = &_dt_hdr_binary;
+    UBYTE buf[12];
+    BPTR fh;
+    BPTR dup;
+    LONG n;
+
+    fib = (struct FileInfoBlock *)AllocDosObject(DOS_FIB, NULL);
+    if (fib)
     {
-        case DTST_FILE:
-            /* Without parsing the file, default to ILBM (most common) */
-            return &_dt_hdr_ilbm;
-        case DTST_RAM:
-            return &_dt_hdr_ram;
-        case DTST_CLIPBOARD:
-            return &_dt_hdr_ftxt;
-        default:
-            return &_dt_hdr_ram;
+        if (Examine(lock, fib) && fib->fib_DirEntryType > 0)
+            hdr = &_dt_hdr_directory;
+        FreeDosObject(DOS_FIB, fib);
+        if (hdr == &_dt_hdr_directory)
+            return hdr;
     }
+
+    dup = DupLock(lock);
+    if (!dup)
+        return hdr;
+    fh = OpenFromLock(dup);
+    if (!fh)
+    {
+        UnLock(dup);
+        return hdr;
+    }
+    n = Read(fh, buf, sizeof(buf));
+    Close(fh);
+
+    if (n == 12 && buf[0] == 'F' && buf[1] == 'O' && buf[2] == 'R' && buf[3] == 'M')
+    {
+        ULONG type = ((ULONG)buf[8] << 24) | ((ULONG)buf[9] << 16) | ((ULONG)buf[10] << 8) | buf[11];
+        if (type == MAKE_ID('I','L','B','M'))
+            hdr = &_dt_hdr_ilbm;
+        else if (type == MAKE_ID('8','S','V','X'))
+            hdr = &_dt_hdr_8svx;
+        else if (type == MAKE_ID('F','T','X','T'))
+            hdr = &_dt_hdr_ftxt;
+    }
+    return hdr;
+}
+
+static struct LXADataType *
+_dt_alloc_datatype (struct DataTypeHeader *src_hdr)
+{
+    struct LXADataType *ldt;
+
+    ldt = (struct LXADataType *)AllocMem(sizeof(struct LXADataType), MEMF_PUBLIC | MEMF_CLEAR);
+    if (!ldt)
+        return NULL;
+
+    /* Copy header so caller has stable storage */
+    ldt->ldt_HdrCopy = *src_hdr;
+    ldt->ldt_HdrPtr  = &ldt->ldt_HdrCopy;
+
+    ldt->ldt_DT.dtn_Node1.ln_Type   = NT_UNKNOWN;
+    ldt->ldt_DT.dtn_Node2.ln_Type   = NT_UNKNOWN;
+    ldt->ldt_DT.dtn_Header          = ldt->ldt_HdrPtr;
+    ldt->ldt_DT.dtn_FunctionName    = NULL;
+    ldt->ldt_DT.dtn_AttrList        = NULL;
+    ldt->ldt_DT.dtn_Length          = sizeof(struct LXADataType);
+    NEWLIST(&ldt->ldt_DT.dtn_ToolList);
+    return ldt;
 }
 
 /*---------------------------------------------------------------------------
@@ -293,28 +314,32 @@ APTR _datatypes_ObtainDataTypeA ( register struct Library *DataTypesBase __asm("
     DPRINTF (LOG_DEBUG, "_datatypes: ObtainDataTypeA() type=%ld source=0x%08lx\n",
              type, (ULONG)source);
 
-    src_hdr = _dt_header_for_source(type, source);
-
-    ldt = (struct LXADataType *)AllocMem(sizeof(struct LXADataType),
-                                         MEMF_PUBLIC | MEMF_CLEAR);
-    if (!ldt)
+    switch (type)
     {
-        LPRINTF(LOG_ERROR, "_datatypes: ObtainDataTypeA: AllocMem failed\n");
-        return NULL;
+        case DTST_FILE:
+            if (!source)
+            {
+                SetIoErr(ERROR_REQUIRED_ARG_MISSING);
+                return NULL;
+            }
+            src_hdr = _dt_header_for_lock((BPTR)source);
+            break;
+        case DTST_CLIPBOARD:
+            src_hdr = &_dt_hdr_ftxt;
+            break;
+        default:
+            /* AmigaOS 3.1: DTST_RAM (and other non-file sources) cannot be
+             * examined - NULL with ERROR_NOT_IMPLEMENTED (reference-verified). */
+            SetIoErr(ERROR_NOT_IMPLEMENTED);
+            return NULL;
     }
 
-    /* Copy header so caller has stable storage */
-    ldt->ldt_HdrCopy = *src_hdr;
-    ldt->ldt_HdrPtr  = &ldt->ldt_HdrCopy;
-
-    /* Fill in the public DataType struct */
-    ldt->ldt_DT.dtn_Node1.ln_Type   = NT_UNKNOWN;
-    ldt->ldt_DT.dtn_Node2.ln_Type   = NT_UNKNOWN;
-    ldt->ldt_DT.dtn_Header          = ldt->ldt_HdrPtr;
-    ldt->ldt_DT.dtn_FunctionName    = NULL;
-    ldt->ldt_DT.dtn_AttrList        = NULL;
-    ldt->ldt_DT.dtn_Length          = sizeof(struct LXADataType);
-    NEWLIST(&ldt->ldt_DT.dtn_ToolList);
+    ldt = _dt_alloc_datatype(src_hdr);
+    if (!ldt)
+    {
+        SetIoErr(ERROR_NO_FREE_STORE);
+        return NULL;
+    }
 
     DPRINTF (LOG_DEBUG, "_datatypes: ObtainDataTypeA: returns 0x%08lx (%s)\n",
              (ULONG)&ldt->ldt_DT, src_hdr->dth_Name);
@@ -380,40 +405,58 @@ APTR _datatypes_NewDTObjectA ( register struct Library *DataTypesBase __asm("a6"
     if (!name)
         source_type = DTST_RAM;
 
+    /*
+     * AmigaOS 3.1 (reference-verified, Phase 220):
+     *  - a file that cannot be locked fails with DTERROR_COULDNT_OPEN;
+     *  - a file whose type has no class (binary, directory) fails with
+     *    DTERROR_UNKNOWN_DATATYPE;
+     *  - a DTST_RAM object of a given group has no DTA_DataType.
+     */
+    hdr = NULL;
+    ldt = NULL;
+    if (source_type == DTST_FILE)
+    {
+        BPTR lock = Lock((CONST_STRPTR)name, ACCESS_READ);
+        if (!lock)
+        {
+            SetIoErr(DTERROR_COULDNT_OPEN);
+            return NULL;
+        }
+        hdr = _dt_header_for_lock(lock);
+        UnLock(lock);
+        if (hdr->dth_GroupID == GID_SYSTEM)
+        {
+            SetIoErr(DTERROR_UNKNOWN_DATATYPE);
+            return NULL;
+        }
+        ldt = _dt_alloc_datatype(hdr);
+        if (!ldt)
+        {
+            SetIoErr(ERROR_NO_FREE_STORE);
+            return NULL;
+        }
+    }
+    else if (source_type == DTST_CLIPBOARD)
+    {
+        hdr = &_dt_hdr_ftxt;
+        ldt = _dt_alloc_datatype(hdr);
+        if (!ldt)
+        {
+            SetIoErr(ERROR_NO_FREE_STORE);
+            return NULL;
+        }
+    }
+
     /* Allocate internal object */
     obj = (struct LXADTObject *)AllocMem(sizeof(struct LXADTObject),
                                          MEMF_PUBLIC | MEMF_CLEAR);
     if (!obj)
     {
-        LPRINTF(LOG_ERROR, "_datatypes: NewDTObjectA: AllocMem failed\n");
+        if (ldt)
+            FreeMem(ldt, sizeof(struct LXADataType));
+        SetIoErr(ERROR_NO_FREE_STORE);
         return NULL;
     }
-
-    /* Determine data type */
-    hdr = _dt_header_for_source(source_type, name);
-    if (group_id)
-    {
-        /* Caller wants a specific group — find best match */
-        if      (group_id == GID_PICTURE)    hdr = &_dt_hdr_ilbm;
-        else if (group_id == GID_SOUND)      hdr = &_dt_hdr_8svx;
-        else if (group_id == GID_TEXT)       hdr = &_dt_hdr_ftxt;
-        else                                  hdr = &_dt_hdr_ram;
-    }
-
-    /* Allocate DataType node for back-pointer */
-    ldt = (struct LXADataType *)AllocMem(sizeof(struct LXADataType),
-                                         MEMF_PUBLIC | MEMF_CLEAR);
-    if (!ldt)
-    {
-        FreeMem(obj, sizeof(struct LXADTObject));
-        LPRINTF(LOG_ERROR, "_datatypes: NewDTObjectA: AllocMem for DataType failed\n");
-        return NULL;
-    }
-    ldt->ldt_HdrCopy = *hdr;
-    ldt->ldt_HdrPtr  = &ldt->ldt_HdrCopy;
-    ldt->ldt_DT.dtn_Header  = ldt->ldt_HdrPtr;
-    ldt->ldt_DT.dtn_Length  = sizeof(struct LXADataType);
-    NEWLIST(&ldt->ldt_DT.dtn_ToolList);
 
     /* Initialise DTSpecialInfo — MEMF_CLEAR already zeroed the semaphore fields */
     /* InitSemaphore not called here: semaphore is unused in this implementation */
@@ -421,13 +464,13 @@ APTR _datatypes_NewDTObjectA ( register struct Library *DataTypesBase __asm("a6"
     /* Wire gadget SpecialInfo to the DTSpecialInfo */
     obj->ldo_Gadget.SpecialInfo = (APTR)&obj->ldo_SI;
 
-    obj->ldo_DataType  = &ldt->ldt_DT;
-    obj->ldo_GroupID   = group_id ? group_id : hdr->dth_GroupID;
+    obj->ldo_DataType  = ldt ? &ldt->ldt_DT : NULL;
+    obj->ldo_GroupID   = group_id ? group_id : (hdr ? hdr->dth_GroupID : 0);
     obj->ldo_SourceType = source_type;
     obj->ldo_Name      = (STRPTR)name;   /* borrowed pointer */
 
     DPRINTF (LOG_DEBUG, "_datatypes: NewDTObjectA: returns obj=0x%08lx (%s)\n",
-             (ULONG)obj, hdr->dth_Name);
+             (ULONG)obj, hdr ? (char *)hdr->dth_Name : "RAM");
 
     return (APTR)obj;
 }
@@ -537,7 +580,10 @@ ULONG _datatypes_SetDTAttrsA ( register struct Library *DataTypesBase __asm("a6"
         }
     }
 
-    return count;
+    /* The result is the class's OM_SET "needs refresh" value, not a tag
+     * count: AmigaOS 3.1 returns 0 for the scroll attributes (Phase 220). */
+    (void)count;
+    return 0;
 }
 
 /*---------------------------------------------------------------------------
