@@ -1,0 +1,13 @@
+SetOwner Test
+=============
+
+Test 1: The standard filesystems do not support ACTION_SET_OWNER
+  PASS: SetOwner reports ERROR_ACTION_NOT_KNOWN
+
+Test 2: The packet is rejected before the object is looked up
+  PASS: Missing object reports ERROR_ACTION_NOT_KNOWN
+
+Test 3: Examine() reports no owner
+  PASS: Owner fields are zero
+
+Failed: 0

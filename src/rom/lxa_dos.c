@@ -2638,11 +2638,19 @@ static BPTR lxa_dos_loadseg_handle(struct DosLibrary *DOSBase,
             "_dos: LoadSeg() reading hunk header, table_size=%ld, hunk_first_slot=%ld, last_hunk_slot=%ld\n",
             table_size, hunk_first_slot, last_hunk_slot);
 
-    hunk_table = AllocVec((table_size + 2) * 4, MEMF_CLEAR);
+    /* the hunk table is allocated (and freed) through the loader's
+     * AllocFunc/FreeFunc too, as on AmigaOS 3.1 */
+    hunk_table = lxa_ld_alloc(DOSBase, funcs, (table_size + 2) * 4, MEMF_PUBLIC | MEMF_CLEAR);
     if (!hunk_table)
     {
         SetIoErr(ERROR_NO_FREE_STORE);
         goto finish;
+    }
+    hunk_table++;
+    {
+        ULONG k;
+        for (k = 0; k <= table_size; k++)
+            hunk_table[k] = 0;
     }
 
     {
@@ -2821,13 +2829,13 @@ finish:
                     if (hunk_table[i])
                         lxa_ld_free(DOSBase, funcs, (ULONG *)BADDR(hunk_table[i]) - 1);
                 }
-                FreeVec(hunk_table);
+                lxa_ld_free(DOSBase, funcs, hunk_table - 1);
             }
             hunk_first = 0;
         }
         else if (hunk_table)
         {
-            FreeVec(hunk_table);
+            lxa_ld_free(DOSBase, funcs, hunk_table - 1);
         }
     }
 
@@ -3132,148 +3140,93 @@ void _dos_Delay ( register struct DosLibrary * __libBase __asm("a6"),
     DeleteMsgPort(port);
 }
 
+static CONST_STRPTR lxa_dos_shell_path(struct DosLibrary *DOSBase)
+{
+    static const char * const candidates[] = { "SYS:System/Shell", "System:Shell", NULL };
+    int i;
+
+    for (i = 0; candidates[i]; i++)
+    {
+        BPTR lock = Lock((CONST_STRPTR)candidates[i], SHARED_LOCK);
+        if (lock)
+        {
+            UnLock(lock);
+            return (CONST_STRPTR)candidates[i];
+        }
+    }
+    return NULL;
+}
+
 LONG _dos_Execute ( register struct DosLibrary * DOSBase __asm("a6"),
                                     register CONST_STRPTR ___string  __asm("d1"),
                                     register BPTR ___file  __asm("d2"),
                                     register BPTR ___file2  __asm("d3"))
 {
-    DPRINTF (LOG_DEBUG, "_dos: Execute('%s', input=0x%08lx, output=0x%08lx) called.\n", 
-             ___string ? ___string : (CONST_STRPTR)"NULL", ___file, ___file2);
-    
-    /* 
-     * Execute(command, input, output)
-     * 
-     * If command is not empty: execute it as a command line
-     * If input is non-zero: read additional commands from that file handle
-     *   (commands are executed one per line until EOF)
-     * Output is used for any output from the commands
-     *
-     * Returns:
-     *   For compatibility with existing tests, we return SystemTagList's result:
-     *   -1 if the command could not be loaded
-     *   0  if execution completed (command's return code is not propagated)
-     *
-     * Note: True AmigaDOS Execute returns DOSTRUE (-1) on success, DOSFALSE (0) on failure,
-     * but our tests expect the old behavior.
+    /*
+     * Execute(command, input, output) - AmigaOS 3.1 semantics (verified on
+     * the reference): a shell runs 'command' and then reads further
+     * commands from 'input' until EOF.  The result is DOSTRUE once the
+     * shell could be started - the commands' return codes are not
+     * returned (an unknown command is reported by the shell).
      */
-    
-    LONG rc = 0;  /* Success by default (old behavior) */
-    
-    /* First, execute the command string if provided */
-    if (___string && *___string) {
-        struct TagItem tags[3];
-        tags[0].ti_Tag = SYS_Output;
-        tags[0].ti_Data = ___file2 ? (ULONG)___file2 : (ULONG)Output();
-        tags[1].ti_Tag = TAG_DONE;
-        tags[1].ti_Data = 0;
-        
+    BPTR out = ___file2 ? ___file2 : Output();
+    struct TagItem tags[3];
+
+    DPRINTF (LOG_DEBUG, "_dos: Execute('%s', input=0x%08lx, output=0x%08lx) called.\n",
+             ___string ? ___string : (CONST_STRPTR)"NULL", ___file, ___file2);
+
+    tags[0].ti_Tag = SYS_Output;
+    tags[0].ti_Data = (ULONG)out;
+    tags[1].ti_Tag = TAG_DONE;
+    tags[1].ti_Data = 0;
+
+    if (___string && *___string)
+    {
         LONG sysrc = _dos_SystemTagList(DOSBase, ___string, tags);
-        
-        if (sysrc == -1) {
-            /* System failed to load - try as script via Shell */
-            STRPTR shellName = (STRPTR)"SYS:System/Shell";
-            
-            /* Allocate buffer for "Shell script args" */
-            ULONG cmdLen = strlen((char *)shellName) + 1 + strlen((char *)___string) + 1;
-            STRPTR cmdBuf = AllocVec(cmdLen, MEMF_PUBLIC);
-            
-            if (cmdBuf) {
-                strcpy((char *)cmdBuf, (char *)shellName);
-                strcat((char *)cmdBuf, " ");
-                strcat((char *)cmdBuf, (char *)___string);
-                
-                DPRINTF(LOG_DEBUG, "_dos: Execute: System failed, trying as script: '%s'\n", cmdBuf);
-                
-                sysrc = _dos_SystemTagList(DOSBase, cmdBuf, tags);
-                
-                FreeVec(cmdBuf);
-            } else {
-                SetIoErr(ERROR_NO_FREE_STORE);
-                return -1;  /* Failed to allocate */
-            }
-        }
-        
-        if (sysrc == -1) {
-            return -1;  /* Command could not be loaded */
+
+        if (sysrc == -1)
+        {
+            /* report like the shell does */
+            char name[64];
+            int n = 0;
+            CONST_STRPTR p = ___string;
+
+            while (*p == ' ')
+                p++;
+            while (*p && *p != ' ' && *p != '\n' && n < (int)sizeof(name) - 1)
+                name[n++] = *p++;
+            name[n] = '\0';
+
+            FPuts(out, (CONST_STRPTR)name);
+            FPuts(out, (CONST_STRPTR)": Unknown command\n");
+            FPuts(out, (CONST_STRPTR)name);
+            FPuts(out, (CONST_STRPTR)" failed returncode 10\n");
+            Flush(out);
+            SetIoErr(ERROR_OBJECT_NOT_FOUND);
         }
     }
-    
-    /* If input file handle is provided, read and execute commands from it */
-    if (___file) {
-        /* Read commands line by line from input */
-        #define EXEC_LINE_BUF_SIZE 512
-        STRPTR lineBuf = AllocVec(EXEC_LINE_BUF_SIZE, MEMF_PUBLIC);
-        
-        if (!lineBuf) {
-            SetIoErr(ERROR_NO_FREE_STORE);
-            return -1;
+
+    if (___file)
+    {
+        CONST_STRPTR shell = lxa_dos_shell_path(DOSBase);
+
+        if (!shell)
+        {
+            SetIoErr(ERROR_OBJECT_NOT_FOUND);
+            return DOSFALSE;
         }
-        
-        while (1) {
-            /* Read a line from input */
-            STRPTR line = FGets(___file, lineBuf, EXEC_LINE_BUF_SIZE - 1);
-            
-            if (!line) {
-                /* EOF or error */
-                break;
-            }
-            
-            /* Strip trailing newline */
-            LONG len = 0;
-            while (line[len]) len++;
-            if (len > 0 && (line[len-1] == '\n' || line[len-1] == '\r')) {
-                line[len-1] = '\0';
-                len--;
-            }
-            if (len > 0 && (line[len-1] == '\n' || line[len-1] == '\r')) {
-                line[len-1] = '\0';
-                len--;
-            }
-            
-            /* Skip empty lines and comments */
-            if (len == 0 || line[0] == ';') {
-                continue;
-            }
-            
-            DPRINTF(LOG_DEBUG, "_dos: Execute: Running line from file: '%s'\n", line);
-            
-            /* Execute this line */
-            struct TagItem tags[3];
-            tags[0].ti_Tag = SYS_Output;
-            tags[0].ti_Data = ___file2 ? (ULONG)___file2 : (ULONG)Output();
-            tags[1].ti_Tag = TAG_DONE;
-            tags[1].ti_Data = 0;
-            
-            LONG sysrc = _dos_SystemTagList(DOSBase, line, tags);
-            
-            if (sysrc == -1) {
-                /* Try as script via Shell */
-                STRPTR shellName = (STRPTR)"SYS:System/Shell";
-                ULONG cmdLen = strlen((char *)shellName) + 1 + strlen((char *)line) + 1;
-                STRPTR cmdBuf = AllocVec(cmdLen, MEMF_PUBLIC);
-                
-                if (cmdBuf) {
-                    strcpy((char *)cmdBuf, (char *)shellName);
-                    strcat((char *)cmdBuf, " ");
-                    strcat((char *)cmdBuf, (char *)line);
-                    
-                    sysrc = _dos_SystemTagList(DOSBase, cmdBuf, tags);
-                    FreeVec(cmdBuf);
-                }
-            }
-            
-            /* Note: Execute continues even if individual commands fail */
-            /* but we track if any command failed to load */
-            if (sysrc == -1) {
-                rc = -1;
-            }
-        }
-        
-        FreeVec(lineBuf);
-        #undef EXEC_LINE_BUF_SIZE
+
+        /* the shell reads its commands from the (non-interactive) input */
+        tags[1].ti_Tag = SYS_Input;
+        tags[1].ti_Data = (ULONG)___file;
+        tags[2].ti_Tag = TAG_DONE;
+        tags[2].ti_Data = 0;
+
+        if (_dos_SystemTagList(DOSBase, shell, tags) == -1)
+            return DOSFALSE;
     }
-    
-    return rc;
+
+    return DOSTRUE;
 }
 
 void *_dos_AllocDosObject (register struct DosLibrary *DOSBase __asm("a6"),
@@ -5315,8 +5268,12 @@ struct Process * _dos_CreateNewProc ( register struct DosLibrary * DOSBase __asm
     BOOL   do_cli    =          GetTagData(NP_Cli      , 0                    , tags);
     APTR   windowPtr = (APTR)   GetTagData(NP_WindowPtr, 0                    , tags);
     BOOL   freeSeglist =        GetTagData(NP_FreeSeglist, FALSE              , tags);
-    BOOL   closeInput  =        GetTagData(NP_CloseInput, FALSE               , tags);
-    BOOL   closeOutput =        GetTagData(NP_CloseOutput, FALSE              , tags);
+    /* dos/dostags.h: NP_CloseInput/NP_CloseOutput default to TRUE - an
+     * explicitly passed NP_Input/NP_Output is closed when the process
+     * exits (AmigaOS 3.1).  lxa's implicit default streams are inherited
+     * from the parent and therefore never closed. */
+    BOOL   closeInput  =        GetTagData(NP_CloseInput, tag_exists(NP_Input, tags), tags);
+    BOOL   closeOutput =        GetTagData(NP_CloseOutput, tag_exists(NP_Output, tags), tags);
            inp       =          GetTagData(NP_Input    , inp                  , tags);
            outp      =          GetTagData(NP_Output   , outp                 , tags);
     char  *args      = (char*)  GetTagData(NP_Arguments, (ULONG)NULL          , tags);
@@ -5523,6 +5480,8 @@ LONG _dos_RunCommand ( register struct DosLibrary * DOSBase __asm("a6"),
         { NP_Cli, TRUE },
         { NP_Input, 0 },
         { NP_Output, 0 },
+        { NP_CloseInput, FALSE },
+        { NP_CloseOutput, FALSE },
         { NP_Arguments, 0 },
         { NP_CurrentDir, 0 },
         { NP_FreeSeglist, FALSE },
@@ -5572,10 +5531,10 @@ LONG _dos_RunCommand ( register struct DosLibrary * DOSBase __asm("a6"),
         procTags[2].ti_Data = (ULONG)stack;
         procTags[4].ti_Data = me->pr_CIS;
         procTags[5].ti_Data = me->pr_COS;
-        procTags[6].ti_Data = (ULONG)paramptr;
-        procTags[7].ti_Data = (ULONG)curDir;
-        procTags[9].ti_Data = (ULONG)lxa_dos_runcommand_exit_cleanup;
-        procTags[10].ti_Data = (ULONG)blk;
+        procTags[8].ti_Data = (ULONG)paramptr;
+        procTags[9].ti_Data = (ULONG)curDir;
+        procTags[11].ti_Data = (ULONG)lxa_dos_runcommand_exit_cleanup;
+        procTags[12].ti_Data = (ULONG)blk;
 
         child = _dos_CreateNewProc(DOSBase, procTags);
         if (!child)
@@ -6054,6 +6013,8 @@ LONG _dos_SystemTagList ( register struct DosLibrary * DOSBase __asm("a6"),
         { NP_Cli, TRUE },
         { NP_Input, input },
         { NP_Output, output },
+        { NP_CloseInput, FALSE },
+        { NP_CloseOutput, FALSE },
         { NP_Arguments, (ULONG)args },
         { NP_CurrentDir, (ULONG)curDir },
         { NP_WindowPtr, (ULONG)childWindowPtr },

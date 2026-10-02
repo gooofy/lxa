@@ -139,7 +139,6 @@ int main(void)
     dp.dp_Arg6 = 0;
     SetIoErr(0);
     result = CliInitRun(&dp);
-    print("  PROBE result="); print_num(result); print(" ioerr="); print_num(IoErr() == (LONG)me ? -999 : IoErr()); print("\n");
     if (result == 0 && IoErr() == (LONG)me)
         test_pass("Missing input rejected with process pointer");
     else
@@ -165,7 +164,6 @@ int main(void)
     dp.dp_Arg6 = 0;
     SetIoErr(0);
     result = CliInitRun(&dp);
-    print("  PROBE result="); print_num(result); print(" ioerr="); print_num(IoErr() == (LONG)me ? -999 : IoErr()); print("\n");
     cli = Cli();
     if (result == FNF_VALIDFLAGS && IoErr() == 0 && cli != NULL)
         test_pass("Default Run init succeeded");
@@ -213,7 +211,6 @@ int main(void)
     dp.dp_Arg6 = 1;
     SetIoErr(0);
     result = CliInitRun(&dp);
-    print("  PROBE result="); print_num(result); print(" ioerr="); print_num(IoErr() == (LONG)me ? -999 : IoErr()); print("\n");
     cli = Cli();
     if (result == (FNF_VALIDFLAGS | FNF_USERINPUT | FNF_RUNOUTPUT) && IoErr() == 0 && cli != NULL &&
         cli->cli_StandardOutput != 0)

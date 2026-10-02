@@ -78,7 +78,14 @@ static void test_fail(const char *name, const char *reason)
 /* Check if a path can be locked */
 static BOOL path_accessible(const char *path)
 {
-    BPTR lock = Lock((CONST_STRPTR)path, SHARED_LOCK);
+    /* no "Please insert volume" requester for a removed assign */
+    struct Process *me = (struct Process *)FindTask(NULL);
+    APTR old_window_ptr = me->pr_WindowPtr;
+    BPTR lock;
+
+    me->pr_WindowPtr = (APTR)-1;
+    lock = Lock((CONST_STRPTR)path, SHARED_LOCK);
+    me->pr_WindowPtr = old_window_ptr;
     if (lock) {
         UnLock(lock);
         return TRUE;

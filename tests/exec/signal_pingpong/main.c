@@ -153,6 +153,9 @@ int main(void)
             { NP_StackSize, 8192 },
             { NP_Input, Input() },
             { NP_Output, Output() },
+            /* the parent's streams must stay open (NP_Close* default TRUE) */
+            { NP_CloseInput, FALSE },
+            { NP_CloseOutput, FALSE },
             { TAG_DONE, 0 }
         };
         childProc = CreateNewProc(tags);

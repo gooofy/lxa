@@ -16,3 +16,5 @@ Tests/Intuition/IDCMPDeltaMove: {interactive: "waits for mouse moves injected by
 Tests/Intuition/IDCMPMenuVerify: {interactive: "waits for an RMB press injected by intuition_gtest", phase: 224}
 Tests/Intuition/IDCMPSizeVerify: {interactive: "waits for a sizing-gadget drag injected by intuition_gtest", phase: 224}
 Tests/Intuition/RequesterBasic: {interactive: "waits for requester clicks injected by intuition_gtest", phase: 224}
+Tests/Dos/CliInitNewcli:        {lxa_only: "feeds CliInitNewcli() a hand-built startup packet; dos.doc leaves the packet format undefined (private to the system's shell start-up), lxa uses the AROS layout and AmigaOS 3.1 hangs on it"}
+Tests/Dos/CliInitRun:           {lxa_only: "feeds CliInitRun() hand-built Run packets; dos.doc leaves the packet format undefined (private to Run/System start-up), lxa uses the AROS layout which AmigaOS 3.1 does not accept"}

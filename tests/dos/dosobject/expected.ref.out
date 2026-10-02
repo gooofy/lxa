@@ -1,0 +1,49 @@
+AllocDosObject/FreeDosObject Test
+=================================
+
+Test 1: DOS_FILEHANDLE (type 0)
+  Allocated at 0xADDR
+  PASS: fh_Pos/fh_End initialized to -1
+  PASS: DOS_FILEHANDLE alloc/free
+
+Test 2: DOS_EXALLCONTROL (type 1)
+  Allocated at 0xADDR
+  PASS: eac_LastKey initialized to 0
+  PASS: eac_MatchString initialized to NULL
+  PASS: DOS_EXALLCONTROL alloc/free
+
+Test 3: DOS_FIB (type 2)
+  Allocated at 0xADDR
+  PASS: fib_DiskKey initialized to 0
+  PASS: DOS_FIB alloc/free
+
+Test 4: DOS_STDPKT (type 3)
+  Allocated at 0xADDR
+  PASS: dp_Link -> preceding Message
+  PASS: Message ln_Name -> DosPacket
+  PASS: DOS_STDPKT alloc/free
+
+Test 5: DOS_CLI (type 4)
+  Allocated at 0xADDR
+  PASS: DOS_CLI alloc/free
+
+Test 5b: DOS packet helper compatibility
+  PASS: SendPkt stores reply port
+  PASS: SendPkt queues the linked message
+  PASS: ReplyPkt returns the packet with result fields
+
+Test 6: DOS_RDARGS (type 5)
+  Allocated at 0xADDR
+  PASS: DOS_RDARGS alloc/free
+
+Test 7: Invalid type (type 99)
+  IoErr = 0
+  PASS: Invalid type returns NULL (no crash)
+
+Test 8: Multiple alloc/free cycles
+  10 cycles completed
+  PASS: Multiple alloc/free cycles
+
+=== Test Summary ===
+Passed: 17
+Failed: 0

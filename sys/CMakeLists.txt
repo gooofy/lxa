@@ -101,6 +101,7 @@ set(C_COMMANDS
     delete
     dir
     eval
+    execute
     filenote
     getenv
     info

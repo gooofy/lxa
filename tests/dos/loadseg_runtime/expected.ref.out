@@ -1,0 +1,23 @@
+DOS LoadSeg/RunCommand Test
+===========================
+
+Test 1: NewLoadSeg returns a runnable hunk seglist
+  PASS: NewLoadSeg hunk carries its allocation size
+  PASS: NewLoadSeg seglist runs
+
+Test 2: InternalLoadSeg uses the caller's function array
+  PASS: ReadFunc used
+  PASS: AllocFunc per hunk + hunk table, table freed via FreeFunc
+  PASS: Hunk carries its allocation size
+  PASS: InternalLoadSeg seglist runs
+  PASS: InternalUnLoadSeg frees every hunk via FreeFunc
+
+Test 3: RunCommand executes loaded program with arguments
+  PASS: RunCommand returns child exit code
+
+Test 4: CreateNewProc launches child process with message port
+  PASS: CreateNewProc child sends message via port
+
+=== Test Summary ===
+Passed: 9
+Failed: 0

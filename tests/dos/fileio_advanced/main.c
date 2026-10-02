@@ -189,13 +189,16 @@ int main(void)
      * leaves the position unchanged, so the next Read() starts at 0
      * (verified on the reference machine) */
     result = Seek(fh, 1000, OFFSET_BEGINNING);
+    {
+    LONG seek_err = IoErr();    /* before print(): Write() resets IoErr() */
     print("  Seek(1000) returned: ");
     print_num(result);
     print("\n");
-    if (result == -1 && IoErr() == ERROR_SEEK_ERROR) {
+    if (result == -1 && seek_err == ERROR_SEEK_ERROR) {
         test_pass("Seek past EOF fails with ERROR_SEEK_ERROR");
     } else {
         test_fail("Seek past EOF", "Expected -1 / ERROR_SEEK_ERROR");
+    }
     }
 
     result = Read(fh, buffer, 10);

@@ -150,18 +150,17 @@ int main(void)
         seg = InternalLoadSeg(fh, 0, funcs, NULL);
         if (seg) {
             LONG hunks = seg_hunks(seg);
-            print("  PROBE hunks="); print_num(hunks); print(" allocs="); print_num(alloc_calls);
-            print(" frees="); print_num(free_calls); print(" abytes="); print_num(alloc_bytes); print(" fbytes="); print_num(free_bytes);
-            print(" s0="); print_num(((ULONG *)BADDR(seg))[-1]); print("\n");
 
             if (read_calls > 0)
                 test_pass("ReadFunc used");
             else
                 test_fail("InternalLoadSeg", "ReadFunc not called");
-            if (alloc_calls == hunks)
-                test_pass("One AllocFunc call per hunk");
+            /* AmigaOS 3.1: one allocation per hunk plus the hunk table,
+             * which is released again before InternalLoadSeg() returns */
+            if (alloc_calls == hunks + 1 && free_calls == 1)
+                test_pass("AllocFunc per hunk + hunk table, table freed via FreeFunc");
             else
-                test_fail("InternalLoadSeg", "AllocFunc calls do not match the hunk count");
+                test_fail("InternalLoadSeg", "AllocFunc/FreeFunc calls do not match");
             if (((ULONG *)BADDR(seg))[-1] > 8)
                 test_pass("Hunk carries its allocation size");
             else
@@ -172,7 +171,6 @@ int main(void)
             else
                 test_fail("InternalLoadSeg seglist runs", "Unexpected return code");
             InternalUnLoadSeg(seg, (void (*)())FreeFunc);
-            print("  PROBE after unload frees="); print_num(free_calls); print(" fbytes="); print_num(free_bytes); print("\n");
             if (free_calls == alloc_calls && free_bytes == alloc_bytes)
                 test_pass("InternalUnLoadSeg frees every hunk via FreeFunc");
             else

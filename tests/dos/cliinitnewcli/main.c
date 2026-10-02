@@ -132,7 +132,6 @@ int main(void)
     dp.dp_Arg4 = std_input;
 
     result = CliInitNewcli(&dp);
-    print("  PROBE result="); print_num(result); print(" ioerr="); print_num(IoErr() == (LONG)me ? -999 : IoErr()); print("\n");
     cli = Cli();
     if (result == 0 && IoErr() == 0 && cli != NULL)
         test_pass("CLI allocated and call succeeded");
