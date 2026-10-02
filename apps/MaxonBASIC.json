@@ -1,0 +1,25 @@
+{
+    "dir": "MaxonBASIC",
+    "name": "MaxonBASIC",
+    "version": "3.00",
+    "description": "BASIC compiler IDE (German)",
+    "executable": "bin/MaxonBASIC/MaxonBASIC",
+    "kind": "gui",
+    "assigns": {},
+    "libraries": [],
+    "env": {
+        "WORKDIR": "bin/MaxonBASIC"
+    },
+    "requirements": {
+        "graphics": true,
+        "intuition": true,
+        "kickstart_version": 37,
+        "profile": "aga"
+    },
+    "test": {
+        "timeout": 20,
+        "expected_returncode": 0,
+        "args": ""
+    },
+    "notes": []
+}

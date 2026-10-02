@@ -3,6 +3,7 @@
 #include "lxa_api.h"
 #include "lxa_vclock.h"
 #include "lxa_coverage.h"
+#include "lxa_relay.h"
 #include "lxa_unimpl.h"
 
 
@@ -604,6 +605,8 @@ void cpu_instr_callback(int pc)
 {
     /* Phase 202: ROM coverage (no-op unless LXA_ROM_COVERAGE is set) */
     lxa_coverage_mark((uint32_t)pc);
+    /* Phase 233: relay trace (no-op unless LXA_TRACE / lxa_trace_start) */
+    lxa_relay_check((uint32_t)pc);
 
     /* Always record PC in trace buffer for post-mortem debugging */
     g_trace_buf[g_trace_buf_idx] = pc;
@@ -1588,6 +1591,7 @@ int main(int argc, char **argv, char **envp)
     vclock_config_t vcfg = { .deterministic = deterministic };
     vclock_init(&vcfg);
     lxa_coverage_init();
+    lxa_relay_init_from_env();
 
     /*
      * Phase 6.5: Set up timer-driven preemptive multitasking
@@ -1735,6 +1739,7 @@ int main(int argc, char **argv, char **envp)
 
     _audio_shutdown();
     lxa_coverage_flush();
+    lxa_relay_stop();
     lxa_unimpl_summary();
 
     if (profile_path)

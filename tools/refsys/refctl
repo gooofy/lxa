@@ -33,7 +33,8 @@ REFSYS = os.environ.get("LXA_REFSYS_DIR", os.path.expanduser("~/.cache/lxa/refsy
 OS_DIR = os.environ.get("LXA_REF_OS_DIR", os.path.expanduser("~/media/sys/amiga/os/3.1"))
 KICKSTART = os.environ.get("LXA_REF_KICKSTART",
                            os.path.join(OS_DIR, "Kickstart v3.1 r40.70 (1994)(Commodore)(A4000).rom"))
-APPS = os.environ.get("LXA_REF_APPS", os.path.normpath(os.path.join(ROOT, "..", "lxa-apps")))
+APPS = (os.environ.get("LXA_REF_APPS") or os.environ.get("LXA_APPS")
+        or os.path.normpath(os.path.join(ROOT, "..", "lxa-apps")))
 FSUAE = os.environ.get("FSUAE", shutil.which("fs-uae") or "/opt/FS-UAE/usr/bin/fs-uae")
 READY_MARKERS = (b"LXAREF-READY", b"LXAPROBE READY")
 

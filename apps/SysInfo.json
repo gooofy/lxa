@@ -1,0 +1,27 @@
+{
+    "dir": "SysInfo",
+    "name": "SysInfo",
+    "version": "4.4",
+    "description": "System information utility",
+    "executable": "bin/SysInfo/SysInfo",
+    "kind": "gui",
+    "assigns": {},
+    "libraries": [],
+    "env": {
+        "WORKDIR": "bin/SysInfo"
+    },
+    "requirements": {
+        "graphics": true,
+        "intuition": true,
+        "kickstart_version": 37,
+        "profile": "aga"
+    },
+    "test": {
+        "timeout": 20,
+        "expected_returncode": 0,
+        "args": ""
+    },
+    "notes": [
+        "Probes battclock/misc/potgo resources (Phase 234)"
+    ]
+}

@@ -83,7 +83,14 @@ records the reference bundle plus a ratchet of the current lxa divergence;
 after a fix, `golden` prints `tighten` — re-promote so the gain is locked in.
 Never edit a golden's reference bundle (rule 4).
 
-## 5. Troubleshooting
+## 5. Relay traces
+
+Add `- trace: "lib:Func,Func;lib:*"` before `launch` in a scenario; both
+backends write `trace.jsonl` next to the bundles. `python3 -m rdd tracediff
+<run>/<scenario>` aligns the application's top-level calls and reports the
+first divergence (AGENTS.md §6.25). Use it before guessing at a cause.
+
+## 6. Troubleshooting
 
 - `ERR timeout` from WAIT_WINDOW: check the title (exact prefix match) and
   that the program exists on the reference (`LXAREF:bin/` for samples).

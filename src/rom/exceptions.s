@@ -301,247 +301,189 @@ _exec_Supervisor:
 
 1:  rts
 
+    /*
+     * CPU exceptions and TRAP #0-#14 (AmigaOS convention, RKRM Exec "Traps"):
+     * the exception number (longword) is pushed on the supervisor stack on
+     * top of the exception frame and control passes to ThisTask->tc_TrapCode
+     * (exec's default when there is no task or no handler).  A handler
+     * removes the number (addq.l #4,sp) and returns with RTE.  All registers
+     * are as they were at the fault.
+     */
+    .set tc_TrapCode, 50
+    .set TaskTrapCode, 304
+
     .globl _handleVec02
 _handleVec02:
-    movem.l  d0/d1, -(a7)
-    move.l   #5, d0                                 | EMU_CALL_EXCEPTION
-    move.l   #2, d1                                 | vector number
-    illegal                                         | emucall
-    movem.l  (a7)+, d0/d1
-    rte
+    move.l      #2, -(a7)                           | exception number on top of the frame
+    bra         _dispatchTrap
 
     .globl _handleVec03
 _handleVec03:
-    movem.l  d0/d1, -(a7)
-    move.l   #5, d0                                 | EMU_CALL_EXCEPTION
-    move.l   #3, d1                                 | vector number
-    illegal                                         | emucall
-    movem.l  (a7)+, d0/d1;
-    rte
+    move.l      #3, -(a7)                           | exception number on top of the frame
+    bra         _dispatchTrap
 
     .globl _handleVec04
 _handleVec04:
-    movem.l  d0/d1, -(a7)
-    move.l   #5, d0                                 | EMU_CALL_EXCEPTION
-    move.l   #4, d1                                 | vector number
-    illegal                                         | emucall
-    movem.l  (a7)+, d0/d1
-    rte
+    move.l      #4, -(a7)                           | exception number on top of the frame
+    bra         _dispatchTrap
 
     .globl _handleVec05
 _handleVec05:
-    movem.l  d0/d1, -(a7)
-    move.l   #5, d0                                 | EMU_CALL_EXCEPTION
-    move.l   #5, d1                                 | vector number
-    illegal                                         | emucall
-    movem.l  (a7)+, d0/d1
-    rte;
+    move.l      #5, -(a7)                           | exception number on top of the frame
+    bra         _dispatchTrap
 
     .globl _handleVec06
 _handleVec06:
-    movem.l  d0/d1, -(a7)
-    move.l   #5, d0                                 | EMU_CALL_EXCEPTION
-    move.l   #6, d1                                 | vector number
-    illegal                                         | emucall
-    movem.l  (a7)+, d0/d1
-    rte;
+    move.l      #6, -(a7)                           | exception number on top of the frame
+    bra         _dispatchTrap
 
     .globl _handleVec07
 _handleVec07:
-    movem.l  d0/d1, -(a7)
-    move.l   #5, d0                                 | EMU_CALL_EXCEPTION
-    move.l   #7, d1                                 | vector number
-    illegal                                         | emucall
-    movem.l  (a7)+, d0/d1
-    rte
+    move.l      #7, -(a7)                           | exception number on top of the frame
+    bra         _dispatchTrap
 
-    /* privilege violation (may be caused by Supervisor()) */
     .globl _handleVec08
 _handleVec08:
     cmp.l       #_exec_Supervisor, 2(a7)            | was this caused by a Supervisor() call?
-    bne.s       2f                                  | no -> regular exception handler
+    bne.s       2f                                  | no -> regular exception
     move.l      #1f, 2(a7)                          | fix return address in exception stack frame
     jmp         (a5)                                | call user function to be executed in supervisor mode
 1:
     rts
-
 2:
-    movem.l     d0/d1, -(a7)                        | save registers
-    move.l      #5, d0                              | EMU_CALL_EXCEPTION
-    move.l      #8, d1                              | vector number
-    illegal                                         | emucall
-    movem.l     (a7)+, d0/d1;                       | restore registers
-    rte
+    move.l      #8, -(a7)
+    bra         _dispatchTrap
 
     .globl _handleVec09
 _handleVec09:
-    movem.l  d0/d1, -(a7)
-    move.l   #5, d0                                 | EMU_CALL_EXCEPTION
-    move.l   #9, d1                                 | vector number
-    illegal                                         | emucall
-    movem.l  (a7)+, d0/d1
-    rte
+    move.l      #9, -(a7)                           | exception number on top of the frame
+    bra         _dispatchTrap
 
     .globl _handleVec10
 _handleVec10:
-    movem.l  d0/d1, -(a7)
-    move.l   #5, d0                                 | EMU_CALL_EXCEPTION
-    move.l   #10, d1                                | vector number
-    illegal                                         | emucall
-    movem.l  (a7)+, d0/d1
-    rte
+    move.l      #10, -(a7)                           | exception number on top of the frame
+    bra         _dispatchTrap
 
     .globl _handleVec11
 _handleVec11:
-    movem.l  d0/d1, -(a7)          
-    move.l   #5, d0                                 | EMU_CALL_EXCEPTION
-    move.l   #11, d1                                | vector number
-    illegal                                         | emucall
-    movem.l  (a7)+, d0/d1
-    rte
-
-    /*
-     * Trap handler - dispatches to task's tc_TrapCode if set
-     *
-     * On entry from trap #N instruction:
-     *   Stack contains: [SR] [PC of instruction after trap]
-     *
-     * If tc_TrapCode is set, we call it with:
-     *   D0 = trap number (0-15)
-     *   D1 = pointer to exception frame on stack (not used by most handlers)
-     *   A6 = ExecBase
-     *
-     * The trap handler can:
-     *   - Handle the trap and return (RTE will continue after trap instruction)
-     *   - Not return (e.g., longjmp, exit task)
-     *
-     * Per RKRM, trap #2 is commonly used for stack overflow checking.
-     * The Oberon runtime uses trap #2 to check stack limits.
-     *
-     * Task structure offsets:
-     *   tc_TrapData = 46
-     *   tc_TrapCode = 50
-     *   tc_SPReg    = 54
-     */
-
-    .set tc_TrapData, 46
-    .set tc_TrapCode, 50
-
-    /* Generic trap dispatcher - called with trap number in D1 */
-_handleTrap:
-    movem.l  d0-d1/a0-a1/a6, -(a7)                  | save registers
-    move.l   d1, d0                                 | trap number -> d0
-
-    move.l   4, a6                                  | SysBase -> a6
-    move.l   ThisTask(a6), a0                       | SysBase->ThisTask -> a0
-    move.l   a0, d1                                 | copy to d1 for NULL test
-    beq.s    __handleTrap_default                   | ThisTask == NULL -> use default handler
-
-    move.l   tc_TrapCode(a0), a1                    | ThisTask->tc_TrapCode -> a1
-    move.l   a1, d1                                 | copy to d1 for NULL test
-    beq.s    __handleTrap_default                   | tc_TrapCode == NULL -> use default handler
-
-    /* Call the task's trap handler */
-    /* D0 = trap number, A1 = trap handler, A6 = SysBase */
-    move.l   tc_TrapData(a0), a0                    | ThisTask->tc_TrapData -> a0 (passed in a0)
-    movem.l  (a7)+, d0-d1/a0-a1/a6                  | restore registers
-    movem.l  d0-d1/a0-a1/a6, -(a7)                  | save them again for handler's use
-    move.l   d1, d0                                 | trap number -> d0 again
-    move.l   4, a6                                  | SysBase -> a6
-    move.l   ThisTask(a6), a0                       | ThisTask -> a0
-    move.l   tc_TrapCode(a0), a1                    | tc_TrapCode -> a1
-    move.l   tc_TrapData(a0), a0                    | tc_TrapData -> a0
-    jsr      (a1)                                   | call trap handler
-    movem.l  (a7)+, d0-d1/a0-a1/a6                  | restore registers
-    rte                                             | return from exception
-
-__handleTrap_default:
-    /* Default handler: call EMU_CALL_EXCEPTION with vector number 32+trap# */
-    move.l   d0, d1                                 | trap number -> d1
-    add.l    #32, d1                                | vector number = 32 + trap#
-    move.l   #5, d0                                 | EMU_CALL_EXCEPTION
-    illegal                                         | emucall
-    movem.l  (a7)+, d0-d1/a0-a1/a6                  | restore registers
-    rte
-
-    /* Individual trap handlers - each sets trap number and calls dispatcher */
+    move.l      #11, -(a7)                           | exception number on top of the frame
+    bra         _dispatchTrap
 
     .globl _handleTrap0
 _handleTrap0:
-    move.l   #0, d1
-    bra      _handleTrap
+    move.l      #32, -(a7)
+    bra         _dispatchTrap
 
     .globl _handleTrap1
 _handleTrap1:
-    move.l   #1, d1
-    bra      _handleTrap
+    move.l      #33, -(a7)
+    bra         _dispatchTrap
 
     .globl _handleTrap2
 _handleTrap2:
-    move.l   #2, d1
-    bra      _handleTrap
+    move.l      #34, -(a7)
+    bra         _dispatchTrap
 
     .globl _handleTrap3
 _handleTrap3:
-    move.l   #3, d1
-    bra      _handleTrap
+    move.l      #35, -(a7)
+    bra         _dispatchTrap
 
     .globl _handleTrap4
 _handleTrap4:
-    move.l   #4, d1
-    bra      _handleTrap
+    move.l      #36, -(a7)
+    bra         _dispatchTrap
 
     .globl _handleTrap5
 _handleTrap5:
-    move.l   #5, d1
-    bra      _handleTrap
+    move.l      #37, -(a7)
+    bra         _dispatchTrap
 
     .globl _handleTrap6
 _handleTrap6:
-    move.l   #6, d1
-    bra      _handleTrap
+    move.l      #38, -(a7)
+    bra         _dispatchTrap
 
     .globl _handleTrap7
 _handleTrap7:
-    move.l   #7, d1
-    bra      _handleTrap
+    move.l      #39, -(a7)
+    bra         _dispatchTrap
 
     .globl _handleTrap8
 _handleTrap8:
-    move.l   #8, d1
-    bra      _handleTrap
+    move.l      #40, -(a7)
+    bra         _dispatchTrap
 
     .globl _handleTrap9
 _handleTrap9:
-    move.l   #9, d1
-    bra      _handleTrap
+    move.l      #41, -(a7)
+    bra         _dispatchTrap
 
     .globl _handleTrap10
 _handleTrap10:
-    move.l   #10, d1
-    bra      _handleTrap
+    move.l      #42, -(a7)
+    bra         _dispatchTrap
 
     .globl _handleTrap11
 _handleTrap11:
-    move.l   #11, d1
-    bra      _handleTrap
+    move.l      #43, -(a7)
+    bra         _dispatchTrap
 
     .globl _handleTrap12
 _handleTrap12:
-    move.l   #12, d1
-    bra      _handleTrap
+    move.l      #44, -(a7)
+    bra         _dispatchTrap
 
     .globl _handleTrap13
 _handleTrap13:
-    move.l   #13, d1
-    bra      _handleTrap
+    move.l      #45, -(a7)
+    bra         _dispatchTrap
 
     .globl _handleTrap14
 _handleTrap14:
-    move.l   #14, d1
-    bra      _handleTrap
+    move.l      #46, -(a7)
+    bra         _dispatchTrap
 
-    /* Note: trap #15 is used by lxa for EMU_CALL, don't override it */
+_dispatchTrap:
+    subq.l      #4, a7                              | slot for the handler address
+    move.l      a0, -(a7)
+    move.l      4, a0                               | SysBase
+    move.l      ThisTask(a0), a0
+    cmp.w       #0, a0
+    beq.s       1f
+    move.l      tc_TrapCode(a0), a0
+    cmp.w       #0, a0
+    bne.s       2f
+1:  move.l      4, a0
+    move.l      TaskTrapCode(a0), a0
+    cmp.w       #0, a0
+    bne.s       2f
+    lea         __exec_DefaultTrapCode, a0
+2:  move.l      a0, 4(a7)                           | handler -> slot
+    move.l      (a7)+, a0
+    rts                                             | "return" into the handler: stack = [number][frame]
+
+    /*
+     * exec's default trap handler (SysBase->TaskTrapCode): a CPU exception in
+     * a task is a "Software Failure": the host logs it, and a task that
+     * faulted in user mode is held (it continues in _exec_TaskHeld, which
+     * never returns) while all other tasks keep running.  A fault in
+     * supervisor mode is logged and execution continues after RTE.
+     * Stack on entry: [number.l] [SR.w] [PC.l] ...
+     */
+    .globl __exec_DefaultTrapCode
+__exec_DefaultTrapCode:
+    movem.l     d0/d1, -(a7)
+    move.l      8(a7), d1                           | exception number
+    move.l      #5, d0                              | EMU_CALL_EXCEPTION
+    illegal                                         | emucall (host log + exception record)
+    movem.l     (a7)+, d0/d1
+    btst        #5, 4(a7)                           | S bit of the saved SR
+    bne.s       1f
+    move.l      #__exec_TaskHeld, 6(a7)              | resume the task in _exec_TaskHeld
+    andi.w      #0x3fff, 4(a7)                      | ... without trace bits
+1:  addq.l      #4, a7                              | pop the exception number
+    rte
 
 	.globl _exec_SetSR
 _exec_SetSR:

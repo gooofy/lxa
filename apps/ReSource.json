@@ -1,0 +1,33 @@
+{
+    "dir": "ReSource",
+    "name": "ReSource",
+    "version": "6.06",
+    "description": "Interactive disassembler",
+    "executable": "ReSource",
+    "kind": "gui",
+    "assigns": {
+        "LIBS": "libs"
+    },
+    "libraries": [
+        "ReSourceutil.library",
+        "ReSourcehelp.library",
+        "ReSourcesyms.library",
+        "simpleasm.library",
+        "fpsupport.library"
+    ],
+    "requirements": {
+        "graphics": true,
+        "intuition": true,
+        "kickstart_version": 37,
+        "profile": "aga"
+    },
+    "test": {
+        "timeout": 20,
+        "expected_returncode": 0,
+        "args": ""
+    },
+    "source": "user's FS-UAE system disk (~/media/emu/amiga/FS-UAE/hdd/system/Apps/RS)",
+    "notes": [
+        "Libraries bundled in libs/"
+    ]
+}

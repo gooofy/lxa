@@ -493,6 +493,19 @@ if(BUILD_GTESTS AND GTEST_FOUND)
             ENVIRONMENT "LXA_BUILD=${CMAKE_BINARY_DIR}"
         )
 
+        # Phase 230: every app in ../lxa-apps (LXA_APPS) has a valid manifest
+        # apps/<App>.json whose executable and assigns exist.  Skipped (77)
+        # when the corpus is not installed; the schema is checked regardless.
+        add_test(
+            NAME corpus_check
+            COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/rdd/corpus.py --check
+        )
+        set_tests_properties(corpus_check PROPERTIES
+            TIMEOUT 60
+            LABELS "rdd"
+            SKIP_RETURN_CODE 77
+        )
+
         # Phase 215: reference goldens (tests/golden/<app>/<scenario>), one
         # test per golden.  Picked up at configure time; a golden is
         # quarantined via "disabled": {"phase": N} in its golden.json.

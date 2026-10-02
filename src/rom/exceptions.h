@@ -8,6 +8,7 @@ ULONG exec_Supervisor ( register struct ExecBase * __libBase __asm("a6"), regist
 ULONG exec_SetSR      ( register struct ExecBase * SysBase __asm("a6"), register ULONG newSR __asm("d0"), register ULONG mask __asm("d1"));
 
 void  handleVec02     ( void );
+void  _exec_DefaultTrapCode ( void );
 void  handleVec03     ( void );
 void  handleVec04     ( void );
 void  handleVec05     ( void );

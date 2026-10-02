@@ -1,0 +1,10 @@
+# Phase 230 launch scenario: the compat DB (apps/compat.yaml) derives the
+# rating of Typeface from it.  Window title from the discovery twin run.
+name: app-typeface
+app: {manifest: Typeface}
+steps:
+  - launch
+  - wait_window: {title: "topaz/8", timeout: 30000}
+  - frames: 100
+  - snapshot: startup
+  - quit
