@@ -1,0 +1,25 @@
+Testing pixel array functions...
+
+OK: Resources allocated
+
+Test 1: WritePixelLine8 / ReadPixelLine8 round-trip...
+  OK: WritePixelLine8 succeeded
+  OK: ReadPixelLine8 round-trip matches
+
+Test 2: WritePixelArray8 / ReadPixelArray8 round-trip...
+  OK: WritePixelArray8 succeeded (16 pixels)
+  OK: ReadPixelArray8 round-trip matches
+
+Test 3: WritePixelLine8 pixels readable by ReadPixel...
+  OK: ReadPixel matches WritePixelLine8 output
+
+Test 4: ReadPixelLine8 reads WritePixel output...
+  OK: ReadPixelLine8 correctly reads WritePixel output
+
+Test 5: ReadPixelArray8 on cleared bitmap...
+  OK: Cleared bitmap reads as all zeros
+
+Test 6: Single pixel via WritePixelArray8...
+  OK: Single pixel round-trip works
+
+PASS: pixel_array8 all tests passed

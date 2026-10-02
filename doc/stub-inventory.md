@@ -20,7 +20,7 @@ implementing the function, never by deleting the macro.
 | dos | 5 | 1 | 10 |
 | exec | 7 | 4 | 0 |
 | gadtools | 0 | 2 | 6 |
-| graphics | 0 | 10 | 8 |
+| graphics | 0 | 9 | 8 |
 | icon | 0 | 2 | 0 |
 | intuition | 3 | 17 | 11 |
 | layers | 0 | 1 | 0 |
@@ -29,7 +29,7 @@ implementing the function, never by deleting the macro.
 | translator | 1 | 0 | 0 |
 | utility | 0 | 0 | 7 |
 | workbench | 0 | 0 | 3 |
-| **total** | **83** | **39** | **49** |
+| **total** | **83** | **38** | **49** |
 
 ## amigaguide
 
@@ -150,7 +150,6 @@ implementing the function, never by deleting the macro.
 - `AskSoftStyle` — partial: reports all styles regardless of font (Phase 256) (`src/rom/lxa_graphics.c`)
 - `AttemptLockLayerRom` — partial: always succeeds, layer is not locked (Phase 256) (`src/rom/lxa_graphics.c`)
 - `BltPattern` — partial: ignores RastPort AreaPtrn (Phase 256) (`src/rom/lxa_graphics.c`)
-- `GetRPAttrsA` — partial: RPTAG_DrawBounds returns empty bounds (Phase 256) (`src/rom/lxa_graphics.c`)
 - `LoadView` — partial: only updates GfxBase->ActiView (Phase 256) (`src/rom/lxa_graphics.c`)
 - `LockLayerRom` — partial: no-op, layer is not locked (Phase 256) (`src/rom/lxa_graphics.c`)
 - `MakeVPort` — partial: builds empty placeholder copper list, UCopIns ignored (Phase 256) (`src/rom/lxa_graphics.c`)

@@ -1,0 +1,19 @@
+Testing ClipBlit...
+
+OK: Resources allocated
+
+Test 1: ClipBlit without layers...
+  OK: Pixels copied without layers
+
+Test 2: ClipBlit with layer...
+  OK: ClipBlit with layer used layer coordinates
+  OK: ReadPixel outside the layer returned -1
+  OK: ClipBlit with layer clipped to visible region
+
+Test 3: ClipBlit with different minterm...
+  OK: ClipBlit minterm 0x50 inverted destination bits
+
+Test 4: ClipBlit honors source layer visibility...
+  OK: ClipBlit skipped obscured source pixels
+
+PASS: clipblit all tests passed

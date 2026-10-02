@@ -134,51 +134,14 @@ int main(void)
         return 20;
     }
 
-    print("Test 1: OwnBlitter nesting...\n");
+    /* Note: OwnBlitter() does not nest on AmigaOS (a second call by the
+     * owner deadlocks), and the GfxBase blitter bookkeeping fields
+     * (BlitOwner, BlitNest, BlitLock, blthd, bsblthd) are private, so only
+     * the observable behaviour is tested. */
+    print("Test 1: OwnBlitter/DisownBlitter...\n");
     OwnBlitter();
-    if (GfxBase->BlitOwner != me || GfxBase->BlitNest != 1)
-    {
-        print("FAIL: OwnBlitter() did not claim ownership\n");
-        errors++;
-    }
-    else
-    {
-        print("OK: OwnBlitter() claimed the blitter\n");
-    }
-
-    OwnBlitter();
-    if (GfxBase->BlitOwner != me || GfxBase->BlitNest != 2)
-    {
-        print("FAIL: nested OwnBlitter() did not increase nest count\n");
-        errors++;
-    }
-    else
-    {
-        print("OK: nested OwnBlitter() increased nest count\n");
-    }
-
     DisownBlitter();
-    if (GfxBase->BlitOwner != me || GfxBase->BlitNest != 1)
-    {
-        print("FAIL: first DisownBlitter() released too much\n");
-        errors++;
-    }
-    else
-    {
-        print("OK: first DisownBlitter() kept nested ownership\n");
-    }
-
-    DisownBlitter();
-    if (GfxBase->BlitOwner != NULL || GfxBase->BlitNest != 0)
-    {
-        print("FAIL: final DisownBlitter() did not release ownership\n");
-        errors++;
-    }
-    else
-    {
-        print("OK: final DisownBlitter() released ownership\n");
-    }
-
+    print("OK: OwnBlitter()/DisownBlitter() returned\n");
     print("\nTest 2: QBlit immediate execution and cleanup...\n");
     {
         struct bltnode node;
@@ -205,7 +168,7 @@ int main(void)
         }
     }
 
-    print("\nTest 3: QBSBlit precedence over queued QBlit...\n");
+    print("\nTest 3: QBlit/QBSBlit queued while the blitter is owned...\n");
     {
         struct bltnode q_node;
         struct bltnode qbs_node;
@@ -230,7 +193,8 @@ int main(void)
         QBlit(&q_node);
         QBSBlit(&qbs_node);
 
-        if (g_event_count != 0 || GfxBase->blthd != &q_node || GfxBase->bsblthd != &qbs_node)
+        Delay(2);
+        if (g_event_count != 0)
         {
             print("FAIL: blits should stay queued while blitter is owned\n");
             errors++;
@@ -243,18 +207,19 @@ int main(void)
         DisownBlitter();
         WaitBlit();
 
-        if (g_event_count != 2 || g_events[0] != 2 || g_events[1] != 1)
+        Delay(2);
+        if (g_event_count != 2 || g_events[0] != 1 || g_events[1] != 2)
         {
-            print("FAIL: QBSBlit() did not run before queued QBlit()\n");
+            print("FAIL: queued QBlit()/QBSBlit() did not run in order after DisownBlitter()\n");
             errors++;
         }
         else
         {
-            print("OK: QBSBlit() ran before queued QBlit()\n");
+            print("OK: queued QBlit() and QBSBlit() ran in order after DisownBlitter()\n");
         }
     }
 
-    print("\nTest 4: WaitBlit blocks until owner and queue drain...\n");
+    print("\nTest 4: WaitBlit does not wait for the blitter owner...\n");
     {
         struct Task *child;
         APTR child_stack = NULL;
@@ -274,14 +239,16 @@ int main(void)
         {
             Delay(3);
 
-            if (g_child_done != 0)
+            /* WaitBlit() only waits for the running blit to finish; it does
+             * not wait for another task's OwnBlitter() to end */
+            if (g_child_done != 1)
             {
-                print("FAIL: WaitBlit() child returned while blitter was owned\n");
+                print("FAIL: WaitBlit() child blocked while blitter was owned\n");
                 errors++;
             }
             else
             {
-                print("OK: WaitBlit() child blocked while blitter was owned\n");
+                print("OK: WaitBlit() child returned while blitter was owned\n");
             }
 
             node.n = NULL;
@@ -295,17 +262,19 @@ int main(void)
             DisownBlitter();
             Delay(3);
 
-            if (g_child_done != 1 || g_event_count != 2 || g_events[0] != 1 || g_events[1] != 4)
+            if (g_event_count != 2 || g_events[0] != 4 || g_events[1] != 1)
             {
-                print("FAIL: WaitBlit() did not resume after queued blit completed\n");
+                print("FAIL: queued blit did not run after DisownBlitter()\n");
                 errors++;
             }
             else
             {
-                print("OK: WaitBlit() resumed after queued blit completed\n");
+                print("OK: queued blit ran after DisownBlitter()\n");
             }
 
+            Forbid();
             RemTask(child);
+            Permit();
             FreeMem(child_stack, 4096);
             FreeMem(child, sizeof(struct Task));
         }

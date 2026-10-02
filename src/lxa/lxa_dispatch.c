@@ -1623,6 +1623,7 @@ int op_illg(int level)
              *   +21  UBYTE  planeMask
              *   +22  UWORD  pixelMaskBpr
              *   +24  ULONG  pixelMask (m68k addr or 0)
+             *   +28  UWORD  maskMode (1 = BltMaskBitMapRastPort semantics)
              *
              * struct BitMap layout (offsets within m68k memory):
              *   +0   UWORD  BytesPerRow
@@ -1653,6 +1654,7 @@ int op_illg(int level)
             uint8_t  planeMask     = m68k_read_memory_8(args_ptr + 21);
             uint16_t pixelMaskBpr  = m68k_read_memory_16(args_ptr + 22);
             uint32_t pixelMaskAddr = m68k_read_memory_32(args_ptr + 24);
+            uint16_t maskMode      = m68k_read_memory_16(args_ptr + 28);
 
             #undef READ_W
 
@@ -1851,22 +1853,44 @@ int op_illg(int level)
                         int d_byte = d_bit_idx >> 3;
                         int d_bit  = 7 - (d_bit_idx & 7);
 
-                        /* Pixel mask check */
+                        /* Pixel mask bit (aligned with the source) */
+                        uint8_t maskBit = 1;
                         if (pixelMaskAddr) {
                             int pm_idx = s_bit_idx;
                             int pm_byte = pm_idx >> 3;
                             int pm_b    = 7 - (pm_idx & 7);
-                            if (!((pmRow[pm_byte] >> pm_b) & 1))
+                            maskBit = (pmRow[pm_byte] >> pm_b) & 1;
+                            if (!maskBit && !maskMode)
                                 continue;
                         }
 
                         uint8_t srcBit = (srcRow[s_byte] >> s_bit) & 1;
                         uint8_t dstBit = (dstRow[d_byte] >> d_bit) & 1;
                         uint8_t newBit = 0;
-                        if ((minterm & 0x10) && !srcBit && !dstBit) newBit = 1;
-                        if ((minterm & 0x20) && !srcBit &&  dstBit) newBit = 1;
-                        if ((minterm & 0x40) &&  srcBit && !dstBit) newBit = 1;
-                        if ((minterm & 0x80) &&  srcBit &&  dstBit) newBit = 1;
+                        if (maskMode) {
+                            /*
+                             * BltMaskBitMapRastPort() as AmigaOS 3.1 renders
+                             * it (measured on the reference machine): an
+                             * XOR / masked minterm / XOR sequence.  With
+                             * T = S ^ D, the middle pass computes
+                             *   M=1: ~((m80 & ~T) | (m40 & T))
+                             *   M=0: ~((m20 & ~T) | (m10 & T))
+                             * and the result is that value XOR S.  For the
+                             * documented minterms 0xE0 (copy through mask)
+                             * and 0x20 (inverted source through mask) the
+                             * destination outside the mask is preserved.
+                             */
+                            uint8_t t = srcBit ^ dstBit;
+                            uint8_t hi = maskBit ? ((minterm & 0x80) ? 1 : 0) : ((minterm & 0x20) ? 1 : 0);
+                            uint8_t lo = maskBit ? ((minterm & 0x40) ? 1 : 0) : ((minterm & 0x10) ? 1 : 0);
+                            uint8_t mid = (uint8_t)(!((hi && !t) || (lo && t)));
+                            newBit = mid ^ srcBit;
+                        } else {
+                            if ((minterm & 0x10) && !srcBit && !dstBit) newBit = 1;
+                            if ((minterm & 0x20) && !srcBit &&  dstBit) newBit = 1;
+                            if ((minterm & 0x40) &&  srcBit && !dstBit) newBit = 1;
+                            if ((minterm & 0x80) &&  srcBit &&  dstBit) newBit = 1;
+                        }
 
                         if (newBit)
                             dstRow[d_byte] |=  (uint8_t)(1 << d_bit);

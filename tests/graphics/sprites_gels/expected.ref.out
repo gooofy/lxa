@@ -1,0 +1,37 @@
+Testing Sprite and GEL APIs...
+OK: GetSprite() specific allocation succeeded
+OK: GetSprite() automatic allocation returned first free sprite (1)
+OK: GetSprite() reports exhaustion
+OK: FreeSprite() released the slot
+OK: GetExtSpriteA() allocates the first free sprite
+OK: GetExtSpriteA() honors GSTAG_SPRITE_NUM
+OK: GetExtSpriteA() rejects GSTAG_ATTACHED requests
+OK: AllocSpriteDataA() converts bitmap planes into sprite data
+OK: AllocSpriteDataA() applies x replication tags
+OK: AllocSpriteDataA() marks attached sprite data
+OK: AllocSpriteDataA() accepts old sprite data format
+OK: AllocSpriteDataA() rounds width 12 up to one word
+OK: FreeSpriteData() frees sprite data without disturbing IoErr
+OK: FreeSpriteData(NULL) is a no-op
+OK: ChangeExtSpriteA() hands the sprite and position to the new data
+OK: ChangeSprite()/MoveSprite() updated sprite state
+OK: InitGels() initialized sentinels
+OK: AddVSprite() sorts by Y/X
+OK: SortGList() reordered the list
+OK: RemVSprite() unlinked the VSprite
+OK: InitMasks() builds VSprite CollMask and BorderLine
+OK: InitMasks() builds Bob CollMask and BorderLine
+OK: SetCollision() stores the requested collision vectors
+OK: DoCollision() reports boundary hits
+OK: DoCollision() dispatches gel collision callback
+OK: AddAnimOb() prepends AnimObs and adds component Bobs
+OK: Animate() updates motion, switches sequences, and calls routines
+OK: InitGMasks() initializes every component sequence mask
+OK: GetGBuffers() allocates save, mask, border, and DBuf buffers
+OK: FreeGBuffers() released the AnimOb buffers
+OK: AddBob()/DrawGList() drew the Bobs and saved the background
+OK: RemIBob() immediately clears and unlinks the Bob
+OK: DrawGList() redraws overlapping Bob after RemIBob()
+OK: RemBob macro is honored by DrawGList()
+
+PASS: graphics/sprites_gels all tests passed

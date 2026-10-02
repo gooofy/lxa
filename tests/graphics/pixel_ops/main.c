@@ -24,6 +24,9 @@ extern struct GfxBase *GfxBase;
 #define JAM2        1
 #define COMPLEMENT  2
 #endif
+#ifndef INVERSVID
+#define INVERSVID   4
+#endif
 
 static void print(const char *s)
 {
@@ -107,32 +110,9 @@ int main(void)
         print("OK: WritePixel/ReadPixel color 0 at (40,40)\n");
     }
 
-    /* Test ReadPixel out of bounds (negative X) */
-    color = ReadPixel(&rp, -1, 0);
-    if (color != -1) {
-        print("FAIL: ReadPixel(-1,0) != -1\n");
-        errors++;
-    } else {
-        print("OK: ReadPixel out of bounds X returns -1\n");
-    }
-
-    /* Test ReadPixel out of bounds (Y too large) */
-    color = ReadPixel(&rp, 0, 100);
-    if (color != -1) {
-        print("FAIL: ReadPixel(0,100) != -1\n");
-        errors++;
-    } else {
-        print("OK: ReadPixel out of bounds Y returns -1\n");
-    }
-
-    /* Test WritePixel out of bounds */
-    result = WritePixel(&rp, -1, 0);
-    if (result != -1) {
-        print("FAIL: WritePixel(-1,0) != -1\n");
-        errors++;
-    } else {
-        print("OK: WritePixel out of bounds returns -1\n");
-    }
+    /* Out-of-bounds coordinates are not tested: on a RastPort without a
+     * Layer AmigaOS does not clip WritePixel()/ReadPixel() (it accesses the
+     * memory outside the planes), so such calls are invalid input. */
 
     /* Test corner pixels */
     SetAPen(&rp, 3);
@@ -164,15 +144,63 @@ int main(void)
     }
 
     SetDrMd(&rp, COMPLEMENT);
-    SetAPen(&rp, 3);  /* XOR with 3 */
+    SetAPen(&rp, 3);
     WritePixel(&rp, 50, 50);
     color = ReadPixel(&rp, 50, 50);
-    /* 1 XOR 3 = 2 */
-    if (color == 1) {
-        print("FAIL: COMPLEMENT mode did not change pixel\n");
+    /* COMPLEMENT inverts every plane enabled in rp->Mask: 1 ^ 3 = 2 */
+    if (color != 2) {
+        print("FAIL: COMPLEMENT mode did not invert all planes\n");
         errors++;
     } else {
-        print("OK: COMPLEMENT mode toggled pixel\n");
+        print("OK: COMPLEMENT mode toggled pixel (1 -> 2)\n");
+    }
+
+    /* The APen does not matter: inverting again with APen 1 gives 2 ^ 3 = 1 */
+    SetAPen(&rp, 1);
+    WritePixel(&rp, 50, 50);
+    color = ReadPixel(&rp, 50, 50);
+    if (color != 1) {
+        print("FAIL: COMPLEMENT mode depends on APen\n");
+        errors++;
+    } else {
+        print("OK: COMPLEMENT mode ignores APen (2 -> 1)\n");
+    }
+
+    /* rp->Mask limits the inverted planes: 1 ^ 2 = 3 */
+    SetWriteMask(&rp, 2);
+    WritePixel(&rp, 50, 50);
+    color = ReadPixel(&rp, 50, 50);
+    SetWriteMask(&rp, 0xFF);
+    if (color != 3) {
+        print("FAIL: COMPLEMENT mode ignored the write mask\n");
+        errors++;
+    } else {
+        print("OK: COMPLEMENT mode honours the write mask (1 -> 3)\n");
+    }
+
+    /* JAM1|INVERSVID draws nothing (the inverted solid pattern is empty) */
+    SetDrMd(&rp, JAM1 | INVERSVID);
+    SetAPen(&rp, 2);
+    SetBPen(&rp, 1);
+    WritePixel(&rp, 52, 52);
+    color = ReadPixel(&rp, 52, 52);
+    if (color != 0) {
+        print("FAIL: JAM1|INVERSVID WritePixel drew a pixel\n");
+        errors++;
+    } else {
+        print("OK: JAM1|INVERSVID WritePixel draws nothing\n");
+    }
+
+    /* JAM2|INVERSVID draws with the background pen */
+    SetDrMd(&rp, JAM2 | INVERSVID);
+    WritePixel(&rp, 52, 52);
+    color = ReadPixel(&rp, 52, 52);
+    SetDrMd(&rp, JAM2);
+    if (color != 1) {
+        print("FAIL: JAM2|INVERSVID WritePixel did not use BPen\n");
+        errors++;
+    } else {
+        print("OK: JAM2|INVERSVID WritePixel uses BPen\n");
     }
 
     /* Cleanup */

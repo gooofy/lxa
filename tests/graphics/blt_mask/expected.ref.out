@@ -1,0 +1,18 @@
+Testing BltMaskBitMapRastPort...
+
+OK: Resources allocated
+
+Test 1: Basic masked blit...
+  OK: Masked blit respected checkerboard mask
+
+Test 2: Masked blit with minterm 0xE0 (copy through mask)...
+  OK: Minterm 0xE0 copied the source where the mask is set
+  OK: Minterm 0xE0 preserved the destination outside the mask
+
+Test 3: Masked blit with minterm 0x50...
+  OK: Minterm 0x50 inverted the destination rectangle
+
+Test 4: Masked blit with minterm 0x20 (inverted source through mask)...
+  OK: Minterm 0x20 wrote the inverted source through the mask
+
+PASS: blt_mask all tests passed

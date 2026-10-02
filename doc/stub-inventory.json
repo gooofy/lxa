@@ -793,14 +793,6 @@
  },
  {
   "lib": "graphics",
-  "function": "GetRPAttrsA",
-  "kind": "partial",
-  "detail": "partial: RPTAG_DrawBounds returns empty bounds (Phase 256)",
-  "file": "src/rom/lxa_graphics.c",
-  "symbol": "_graphics_GetRPAttrsA"
- },
- {
-  "lib": "graphics",
   "function": "private2",
   "kind": "private",
   "detail": "private/reserved slot",

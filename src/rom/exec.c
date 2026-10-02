@@ -5940,6 +5940,7 @@ void coldstart (void)
     GfxBase->DisplayFlags = PAL | REALLY_PAL;  /* PAL crystal (matches VBlankFrequency=50) */
     GfxBase->VBlank = 50;                      /* PAL VBlank rate */
     GfxBase->ChipRevBits0 = SETCHIPREV_ECS;   /* ECS chipset (HR_AGNUS + HR_DENISE) */
+    GfxBase->SpriteReserved = 0x01;          /* sprite 0 is the Intuition pointer (as on AmigaOS 3.1) */
 
     /* Additional GfxBase fields that some apps read directly.
      * Per Phase 109 audit — apps may check these at startup and fail silently
@@ -5954,9 +5955,10 @@ void coldstart (void)
      * structures. NULL is the correct initial value (no copper list, no sprites,
      * no view loaded yet). ActiView is set when LoadView() is called. */
 
-    /* Phase 151: populate GfxBase->MonitorList with default/pal/ntsc system
-     * MonitorSpec nodes so apps that enumerate the list (DPaint Screen Format
-     * dialog, etc.) see the standard monitors instead of an empty list. */
+    /* Phase 151/220: populate GfxBase->MonitorList with the native
+     * pal.monitor (as AmigaOS 3.1 does on a PAL machine without
+     * DEVS:Monitors) so apps that enumerate the list (DPaint Screen Format
+     * dialog, etc.) see the system monitor instead of an empty list. */
     {
         extern void graphics_init_monitor_list(struct GfxBase *gfxBase);
         graphics_init_monitor_list(GfxBase);

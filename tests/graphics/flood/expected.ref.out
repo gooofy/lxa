@@ -1,0 +1,15 @@
+Testing Flood()...
+
+=== Test 1: Fill empty bitmap ===
+OK: Flood returned TRUE
+OK: All 4096 pixels filled
+
+=== Test 2: Mode 1 flood (fill same color) ===
+OK: Before flood, white pixel count known
+OK: Mode 1 flood returned TRUE
+OK: Rectangle filled correctly with mode 1
+
+=== Test 3: Flood at outline pen pixel (boundary) ===
+OK: Flood at outline pen pixel behaved correctly
+
+PASS: Flood() all tests passed

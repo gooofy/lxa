@@ -1,0 +1,20 @@
+Testing BltPattern()...
+
+=== Test 1: BltPattern without mask ===
+OK: Rectangle filled without mask
+OK: Outside rectangle not filled
+
+=== Test 2: BltPattern with mask ===
+OK: Mask pattern applied
+OK: Checkerboard pattern correct
+
+=== Test 3: BltPattern with zero mask ===
+OK: Zero mask drew nothing
+
+=== Test 4: BltPattern with full mask ===
+OK: Full mask filled all pixels
+
+=== Test 5: BltPattern with larger area ===
+OK: Larger area pattern applied
+
+PASS: BltPattern() all tests passed

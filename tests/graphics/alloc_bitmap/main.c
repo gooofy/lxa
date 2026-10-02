@@ -43,7 +43,6 @@ static int verify_zeroed_plane(PLANEPTR plane, ULONG width, ULONG height)
 int main(void)
 {
     struct BitMap *bm;
-    struct BitMap *manual;
     ULONG plane;
     int errors = 0;
 
@@ -87,14 +86,15 @@ int main(void)
             print("OK: Depth=3\n");
         }
 
-        if ((bm->Flags & (BMF_STANDARD | BMF_CLEAR)) != (BMF_STANDARD | BMF_CLEAR))
+        /* AmigaOS 3.1 does not store the allocation flags in BitMap.Flags */
+        if (bm->Flags != 0)
         {
-            print("FAIL: Flags missing BMF_STANDARD or BMF_CLEAR\n");
+            print("FAIL: Flags != 0\n");
             errors++;
         }
         else
         {
-            print("OK: Flags include BMF_STANDARD and BMF_CLEAR\n");
+            print("OK: Flags = 0 (allocation flags are not stored)\n");
         }
 
         for (plane = 0; plane < bm->Depth; plane++)
@@ -134,14 +134,14 @@ int main(void)
     }
     else
     {
-        if ((bm->Flags & BMF_STANDARD) == 0 || (bm->Flags & BMF_CLEAR) != 0)
+        if (bm->Flags != 0)
         {
-            print("FAIL: Flags incorrect for non-cleared allocation\n");
+            print("FAIL: Flags != 0 for non-cleared allocation\n");
             errors++;
         }
         else
         {
-            print("OK: Non-cleared allocation preserves public flags\n");
+            print("OK: Non-cleared allocation leaves Flags = 0\n");
         }
 
         ((UBYTE *)bm->Planes[0])[0] = 0x5A;
@@ -161,33 +161,8 @@ int main(void)
         print("OK: FreeBitMap() released second bitmap\n");
     }
 
-    manual = (struct BitMap *)AllocMem(sizeof(struct BitMap), MEMF_PUBLIC | MEMF_CLEAR);
-    if (!manual)
-    {
-        print("FAIL: AllocMem for manual bitmap returned NULL\n");
-        errors++;
-    }
-    else
-    {
-        manual->BytesPerRow = 4;
-        manual->Rows = 1;
-        manual->Depth = 2;
-        manual->Flags = BMF_STANDARD;
-        manual->Planes[0] = AllocRaster(32, 1);
-        manual->Planes[1] = (PLANEPTR)-1;
-
-        if (!manual->Planes[0])
-        {
-            print("FAIL: AllocRaster for manual bitmap returned NULL\n");
-            errors++;
-            FreeMem(manual, sizeof(struct BitMap));
-        }
-        else
-        {
-            FreeBitMap(manual);
-            print("OK: FreeBitMap() ignored special plane pointers safely\n");
-        }
-    }
+    /* FreeBitMap() is only valid for AllocBitMap() results: freeing a
+     * hand-built BitMap hangs AmigaOS, so that is not tested here. */
 
     FreeBitMap(NULL);
     print("OK: FreeBitMap(NULL) is safe\n");

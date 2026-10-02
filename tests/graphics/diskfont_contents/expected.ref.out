@@ -1,0 +1,37 @@
+Diskfont contents test
+======================
+OK: NewFontContents preserves file ID
+OK: NewFontContents lists the font files of the font directory
+OK: NewFontContents reads size, style and flags from the font file
+OK: DisposeFontContents accepts NewFontContents result
+OK: NewFontContents builds proportional font contents
+OK: NewFontContents copies proportional entry
+OK: DisposeFontContents accepts proportional NewFontContents result
+OK: NewFontContents rejects missing .font suffix
+OK: NewFontContents rejects invalid file IDs
+OK: DisposeFontContents accepts NULL
+OK: AssignPath updates FONTS: for AvailFonts regression
+OK: AvailFonts reports full buffer size for disk entries
+OK: AvailFonts fits a buffer one byte smaller than reported
+OK: AvailFonts returns additional bytes needed for short buffer
+OK: AvailFonts fills exact-size disk buffer
+OK: AvailFonts reports bitmap, proportional, and color disk entries
+OK: AvailFonts packs disk font names inside caller buffer
+OK: AvailFonts preserves disk entry metadata including proportional and color flags
+OK: AvailFonts fills tagged disk buffer
+OK: AvailFonts packs tagged entries with inline names, NULL tags, and proportional/color flags
+OK: OpenDiskFont registers font by basename with correct size
+OK: OpenDiskFont relocates bitmap CharLoc data
+OK: CloseFont accepts bitmap disk font loaded from path
+OK: OpenDiskFont preserves proportional spacing tables
+OK: OpenDiskFont relocates CharSpace and CharKern data
+OK: TextLength uses proportional diskfont CharKern and CharSpace
+OK: TextExtent uses proportional diskfont CharKern and glyph width
+OK: FontExtent uses proportional diskfont spacing tables
+OK: CloseFont accepts proportional bitmap disk font loaded from path
+OK: OpenDiskFont preserves color font style and modulo
+OK: Text renders multi-plane diskfont glyph colors from all planes
+OK: Text confines multi-plane diskfont rendering to glyph bounds
+OK: Text advances cursor by color font nominal width
+OK: CloseFont accepts multi-plane color disk font loaded from path
+PASS: diskfont contents helpers passed

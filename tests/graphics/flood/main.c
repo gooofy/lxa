@@ -156,37 +156,9 @@ int main(void)
         print("OK: Flood at outline pen pixel behaved correctly\n");
     }
 
-    /* Test 4: Flood with no TmpRas (should fail gracefully) */
-    print("\n=== Test 4: Flood without TmpRas ===\n");
-    rp.TmpRas = NULL;
-    SetRast(&rp, 0);
-    SetAPen(&rp, 1);
-    
-    result = Flood(&rp, 0, 32, 32);
-    
-    if (result) {
-        print("FAIL: Flood without TmpRas should return FALSE\n");
-        errors++;
-    } else {
-        print("OK: Flood without TmpRas returned FALSE\n");
-    }
-    
-    /* Restore TmpRas for remaining tests */
-    rp.TmpRas = &tmpras;
-
-    /* Test 5: Flood out of bounds */
-    print("\n=== Test 5: Flood out of bounds ===\n");
-    SetRast(&rp, 0);
-    SetAPen(&rp, 1);
-    
-    result = Flood(&rp, 0, -10, -10);
-    
-    if (result) {
-        print("FAIL: Out of bounds flood should return FALSE\n");
-        errors++;
-    } else {
-        print("OK: Out of bounds flood returned FALSE\n");
-    }
+    /* Flood() without a TmpRas or with a seed outside the bitmap is not
+     * tested: AmigaOS requires a TmpRas and does not clip the seed on a
+     * RastPort without a Layer, so both are invalid input. */
 
     /* Cleanup */
     FreeRaster(tmpras_buffer, 64, 64);
