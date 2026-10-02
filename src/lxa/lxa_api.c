@@ -14,6 +14,7 @@
 #include "lxa_copper.h"
 #include "lxa_vclock.h"
 #include "lxa_coverage.h"
+#include "lxa_relay.h"
 #include "lxa_unimpl.h"
 
 #include <stdio.h>
@@ -476,6 +477,7 @@ int lxa_init(const lxa_config_t *config)
     };
     vclock_init(&vcfg);
     lxa_coverage_init();
+    lxa_relay_init_from_env();
 
     extern bool g_console_stdin_detached;
     g_console_stdin_detached = true;
@@ -519,6 +521,17 @@ int lxa_init(const lxa_config_t *config)
     return 0;
 }
 
+/* Phase 233: relay trace of library calls (see lxa_relay.h) */
+bool lxa_trace_start(const char *spec, const char *path)
+{
+    return lxa_relay_start(spec, path);
+}
+
+void lxa_trace_stop(void)
+{
+    lxa_relay_stop();
+}
+
 void lxa_shutdown(void)
 {
     if (!g_api_initialized) return;
@@ -530,6 +543,7 @@ void lxa_shutdown(void)
     }
 
     lxa_coverage_flush();
+    lxa_relay_stop();
     lxa_unimpl_summary();
 
     /* Shutdown display */
@@ -811,6 +825,15 @@ int lxa_get_unimplemented_log(lxa_unimplemented_t *entries, int max)
         snprintf(entries[i].first_task, sizeof(entries[i].first_task), "%s", all[i].first_task);
         entries[i].count = all[i].count;
     }
+    return total;
+}
+
+int lxa_get_exception_log(lxa_exception_t *entries, int max)
+{
+    int total = lxa_exception_log_count();
+    for (int i = 0; entries && i < total && i < max; i++)
+        lxa_exception_log_get(i, &entries[i].vector, &entries[i].pc, entries[i].task,
+                              sizeof(entries[i].task), &entries[i].count);
     return total;
 }
 

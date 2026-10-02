@@ -1,0 +1,36 @@
+{
+    "dir": "kickpascal2",
+    "name": "KickPascal 2",
+    "version": "2.0",
+    "description": "Integrated Pascal development environment",
+    "executable": "bin/KP2/KP",
+    "kind": "gui",
+    "assigns": {
+        "KP2": "bin/KP2",
+        "KP": "bin/KP2",
+        "LIBS": "bin/KP2/libs",
+        "S": "bin/KP2/s",
+        "KP-DEMOS": "bin/KP2/KP-DEMOS"
+    },
+    "libraries": [
+        "rct.library"
+    ],
+    "env": {
+        "WORKDIR": "bin/KP2"
+    },
+    "requirements": {
+        "graphics": true,
+        "intuition": true,
+        "kickstart_version": 34,
+        "profile": "aga"
+    },
+    "test": {
+        "timeout": 10,
+        "expected_returncode": 0,
+        "args": ""
+    },
+    "notes": [
+        "Configuration file: S:Pascal.config",
+        "Migrated from ../lxa-apps/kickpascal2/app.json (DEVS/L/T assigns dropped (they replaced system dirs), FONTS dropped (no fonts dir))"
+    ]
+}

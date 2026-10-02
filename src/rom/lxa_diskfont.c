@@ -420,12 +420,9 @@ static BOOL _df_read_file(CONST_STRPTR path, UBYTE **data_out, ULONG *size_out)
     if (!fh)
         return FALSE;
 
-    /* Seek() returns the previous position: seek to the end, then back */
-    if (Seek(fh, 0, OFFSET_END) < 0)
-        size = -1;
-    else
-        size = Seek(fh, 0, OFFSET_BEGINNING);
-    if (size <= 0)
+    /* Seek() returns the previous position: seek to the end, then the
+     * seek back to the start yields the file size */
+    if (Seek(fh, 0, OFFSET_END) < 0 || (size = Seek(fh, 0, OFFSET_BEGINNING)) <= 0)
     {
         Close(fh);
         return FALSE;

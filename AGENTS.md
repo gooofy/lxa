@@ -505,6 +505,27 @@ Reference screenshots taken from FS-UAE (or any other emulator) often include **
 
 **Rule**: Re-capture references on lxa (or on a real Amiga at the documented default mode) before asserting pixel-accurate equality. Do not change Workbench/screen geometry to match an overscan-captured reference image.
 
+### 6.25 Relay Trace and `tracediff` (Phase 233)
+
+When an app behaves differently on lxa and the cause is unclear, compare its **library calls** with real AmigaOS before forming hypotheses (the WINE `+relay` workflow):
+
+```yaml
+# tests/scenarios/<x>.yaml
+steps:
+  - trace: "dos.library:Open,Seek,Close;graphics.library:Text"   # NDK names or LVOs; lib:* = all
+  - launch
+  ...
+```
+```bash
+cd tools && python3 -m rdd run ../tests/scenarios/<x>.yaml --out ../build/rdd-trace
+python3 -m rdd tracediff ../build/rdd-trace/<x>        # first divergence: call order or return value
+```
+
+- lxa side: `LXA_TRACE=<spec>` / `LXA_TRACE_FILE` or `lxa_trace_start()` (pylxa `trace_start`); reference side: lxaprobe `TRACE`. Same JSON-lines format.
+- Only top-level calls of the application are compared: calls from lxa's ROM code and calls nested inside another traced call are library-internal. Arguments and return values are typed by the NDK clib prototypes (pointers/BPTRs compare as NULL/non-NULL; VOID returns are ignored).
+- `LXA_TRACE_INJECT="lib:lvo:delta"` offsets a function's return values — a deliberate bug for testing the tool (`tests/rdd/test_tracediff.py`).
+- First catches: `Close()` returned 1 instead of DOSTRUE; `Seek()` returned the new instead of the old position (and allowed seeking past EOF).
+
 ## 7. Quick Start
 1. Check `roadmap.md`.
 2. Load `lxa-workflow` to understand the process.

@@ -1902,8 +1902,10 @@ LONG _dos_Close ( register struct DosLibrary * __libBase __asm("a6"),
 
     struct FileHandle *fh = (struct FileHandle *) BADDR(file);
 
+    /* Close() returns DOSTRUE (-1) on success and DOSFALSE on failure
+     * (verified on AmigaOS 3.1 with the trace-fileio relay trace) */
     if (!fh)
-        return 1;
+        return DOSTRUE;
 
     int l = 0;
     
@@ -1937,7 +1939,7 @@ LONG _dos_Close ( register struct DosLibrary * __libBase __asm("a6"),
     /* Free the FileHandle */
     FreeDosObject (DOS_FILEHANDLE, fh);
 
-    return l >= 0 ? 1 : l;
+    return l >= 0 ? DOSTRUE : DOSFALSE;
 }
 
 LONG _dos_Read ( register struct DosLibrary * DOSBase __asm("a6"),

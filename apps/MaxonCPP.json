@@ -1,0 +1,29 @@
+{
+    "dir": "MaxonCPP",
+    "name": "MaxonDevelop (Maxon C++ 4 Pro)",
+    "version": "4.0",
+    "description": "C/C++ IDE",
+    "executable": "MaxonDevelop",
+    "kind": "gui",
+    "assigns": {
+        "MDEV": ""
+    },
+    "libraries": [
+        "hothelp.library"
+    ],
+    "requirements": {
+        "graphics": true,
+        "intuition": true,
+        "kickstart_version": 39,
+        "profile": "aga"
+    },
+    "test": {
+        "timeout": 30,
+        "expected_returncode": 0,
+        "args": ""
+    },
+    "source": "user's FS-UAE system disk (~/media/emu/amiga/FS-UAE/hdd/system/Apps/MCPP4.0_PRO)",
+    "notes": [
+        "hothelp.library is not available (optional online help)"
+    ]
+}

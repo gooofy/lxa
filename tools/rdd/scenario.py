@@ -20,6 +20,9 @@ A scenario is one YAML file, executed unchanged on both backends:
       - key: {rawkey: 0x44, qualifier: 0}
       - snapshot: startup               # or {name: x, window: "title"}
       - quit                            # or {timeout: ms}
+      # - trace: "graphics.library:Text,Move;dos.library:*"
+      #   relay trace from here on (may precede launch) -> <bundle dir>/../trace.jsonl,
+      #   compared with `python3 -m rdd tracediff` (Phase 233)
 
 Steps run in order; a failing step fails the backend run (the bundles taken
 so far are kept). See doc/rdd-snapshot.md for the bundle produced by
@@ -37,7 +40,7 @@ APPS_META = os.path.join(ROOT, "apps")
 APPS_DIR = os.environ.get("LXA_APPS", os.path.normpath(os.path.join(ROOT, "..", "lxa-apps")))
 
 STEP_KINDS = {"launch", "wait_window", "wait_idle", "frames", "click", "menu", "type",
-              "key", "snapshot", "quit"}
+              "key", "snapshot", "quit", "trace"}
 
 # assigns that exist on a stock system and are extended, not replaced
 SYSTEM_ASSIGNS = {"LIBS", "FONTS", "DEVS", "S", "L", "C", "KEYMAPS", "LOCALE", "HELP",
@@ -74,6 +77,8 @@ def normalise_step(step):
         args = {"name": str(arg)}
     elif kind == "key":
         args = {"rawkey": int(arg)}
+    elif kind == "trace":
+        args = {"spec": str(arg)}
     else:
         raise ScenarioError("step %s takes a mapping, got %r" % (kind, arg))
     return kind, args
@@ -101,8 +106,9 @@ class Scenario:
             with open(mpath) as f:
                 self.manifest = json.load(f)
         self.steps = [normalise_step(s) for s in doc.get("steps", [])]
-        if not self.steps or self.steps[0][0] != "launch":
-            raise ScenarioError("%s: the first step must be launch" % path)
+        first = [k for k, _ in self.steps if k != "trace"]
+        if not first or first[0] != "launch":
+            raise ScenarioError("%s: the first step must be launch (trace may precede it)" % path)
 
     # -- what to run on each backend ----------------------------------------------
     def lxa_program(self):

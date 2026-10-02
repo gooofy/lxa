@@ -1,0 +1,27 @@
+{
+    "dir": "ppaint",
+    "name": "Personal Paint",
+    "version": "6.x",
+    "description": "Cloanto bitmap paint program",
+    "executable": "ppaint",
+    "kind": "gui",
+    "assigns": {
+        "PPaint": "",
+        "FONTS": "fonts"
+    },
+    "libraries": [],
+    "requirements": {
+        "graphics": true,
+        "intuition": true,
+        "kickstart_version": 37,
+        "profile": "aga"
+    },
+    "test": {
+        "timeout": 30,
+        "expected_returncode": 0,
+        "args": ""
+    },
+    "notes": [
+        "Probes RTG display IDs (AGENTS 6.16)"
+    ]
+}

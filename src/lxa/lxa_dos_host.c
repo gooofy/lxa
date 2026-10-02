@@ -965,44 +965,41 @@ int _dos_read (uint32_t fh68k, uint32_t buf68k, uint32_t len68k)
 
 int _dos_seek (uint32_t fh68k, int32_t position, int32_t mode)
 {
-    /*
-     * AmigaDOS Seek() semantics (verified on AmigaOS 3.1): returns the
-     * position *before* the seek, or -1 with ERROR_SEEK_ERROR when the
-     * target lies before the start or beyond the end of the file (the
-     * position is then unchanged).
-     */
+    /* dos.library Seek(): returns the position *before* the seek, or -1
+     * with IoErr() ERROR_SEEK_ERROR for an invalid mode or a target outside
+     * the file (seeking past the end is an error on AmigaOS, unlike lseek) */
+    DPRINTF (LOG_DEBUG, "lxa: _dos_seek(): fh=0x%08x, position=0x%08x, mode=%d\n", fh68k, position, mode);
+
     int fd = m68k_read_memory_32 (fh68k+36);
-    off_t old_pos, size, target;
+    off_t old = lseek (fd, 0, SEEK_CUR);
+    off_t base;
     struct stat st;
 
-    DPRINTF (LOG_DEBUG, "lxa: _dos_seek(): fh=0x%08x fd=%d position=%d mode=%d\n", fh68k, fd, position, mode);
-
-    old_pos = lseek (fd, 0, SEEK_CUR);
-    if (old_pos < 0)
+    if (old < 0)
     {
         m68k_write_memory_32 (fh68k+40, errno2Amiga()); // fh_Arg2
         return -1;
     }
 
-    if (fstat (fd, &st) == 0 && S_ISREG (st.st_mode))
-        size = st.st_size;
-    else
-    {
-        size = lseek (fd, 0, SEEK_END);
-        lseek (fd, old_pos, SEEK_SET);
-    }
-
     switch (mode)
     {
-        case OFFSET_BEGINNING: target = position; break;
-        case OFFSET_CURRENT  : target = old_pos + position; break;
-        case OFFSET_END      : target = size + position; break;
+        case OFFSET_BEGINNING: base = 0; break;
+        case OFFSET_CURRENT  : base = old; break;
+        case OFFSET_END      :
+            if (fstat (fd, &st) < 0)
+            {
+                m68k_write_memory_32 (fh68k+40, errno2Amiga());
+                return -1;
+            }
+            base = st.st_size;
+            break;
         default:
             m68k_write_memory_32 (fh68k+40, ERROR_SEEK_ERROR);
             return -1;
     }
 
-    if (target < 0 || (size >= 0 && target > size))
+    off_t target = base + position;
+    if (target < 0 || (fstat (fd, &st) == 0 && S_ISREG (st.st_mode) && target > st.st_size))
     {
         m68k_write_memory_32 (fh68k+40, ERROR_SEEK_ERROR);
         return -1;
@@ -1014,7 +1011,7 @@ int _dos_seek (uint32_t fh68k, int32_t position, int32_t mode)
         return -1;
     }
 
-    return (int)old_pos;
+    return old;
 }
 
 int _dos_setfilesize(uint32_t fh68k, int32_t offset, int32_t mode)

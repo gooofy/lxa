@@ -1,0 +1,10 @@
+# Phase 230 launch scenario: the compat DB (apps/compat.yaml) derives the
+# rating of SIGMAth from it.  Window title from the discovery twin run.
+name: app-sigmath
+app: {manifest: SIGMAth}
+steps:
+  - launch
+  - wait_window: {title: "Analysis", timeout: 30000}
+  - frames: 100
+  - snapshot: startup
+  - quit
