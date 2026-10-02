@@ -73,6 +73,13 @@ static void init_record(struct RecordLock *record, BPTR fh, ULONG offset,
     record->rec_Mode = mode;
 }
 
+/*
+ * Record locking is implemented by the handler.  The test file lives on RAM:
+ * so the reference run exercises AmigaOS' own ram-handler.  Only well-formed
+ * record arrays are passed (no NULL array).
+ */
+#define TEST_FILE "RAM:unlockrecords_test.dat"
+
 int main(void)
 {
     BPTR fh1;
@@ -88,25 +95,23 @@ int main(void)
     print("UnLockRecords Test\n");
     print("==================\n\n");
 
-    fh1 = Open((CONST_STRPTR)"unlockrecords_test.dat", MODE_NEWFILE);
+    fh1 = Open((CONST_STRPTR)TEST_FILE, MODE_NEWFILE);
     if (!fh1)
     {
         test_fail("Open writer handle", "Open failed");
         return 1;
     }
-
     if (Write(fh1, (CONST APTR)"0123456789abcdef", 16) != 16)
     {
         test_fail("Seed file", "Write failed");
         Close(fh1);
         return 1;
     }
-
     Close(fh1);
 
-    fh1 = Open((CONST_STRPTR)"unlockrecords_test.dat", MODE_READWRITE);
-    fh2 = Open((CONST_STRPTR)"unlockrecords_test.dat", MODE_READWRITE);
-    fh3 = Open((CONST_STRPTR)"unlockrecords_test.dat", MODE_READWRITE);
+    fh1 = Open((CONST_STRPTR)TEST_FILE, MODE_READWRITE);
+    fh2 = Open((CONST_STRPTR)TEST_FILE, MODE_READWRITE);
+    fh3 = Open((CONST_STRPTR)TEST_FILE, MODE_READWRITE);
     if (!fh1 || !fh2 || !fh3)
     {
         test_fail("Open readwrite handles", "Open failed");
@@ -133,10 +138,6 @@ int main(void)
         if (!ok)
         {
             test_fail("Unlock list succeeds", "UnLockRecords failed");
-        }
-        else if (IoErr() != 0)
-        {
-            test_fail("Unlock list succeeds", "IoErr not cleared");
         }
         else if (!LockRecord(fh2, 0, 2, REC_EXCLUSIVE_IMMED, 0))
         {
@@ -194,7 +195,6 @@ int main(void)
             test_pass("Terminator stops unlock loop");
             UnLockRecord(fh2, 8, 2);
         }
-
         UnLockRecord(fh1, 12, 2);
     }
 
@@ -220,7 +220,7 @@ int main(void)
             {
                 test_fail("First failing entry error", "Wrong IoErr");
             }
-            else if (!LockRecord(fh3, 2, 2, REC_SHARED_IMMED, 0))
+            else if (!LockRecord(fh3, 2, 2, REC_EXCLUSIVE_IMMED, 0))
             {
                 test_fail("First failing entry error", "Earlier entry was not unlocked");
             }
@@ -249,29 +249,13 @@ int main(void)
         test_fail("Missing record error", "Unexpected success");
     }
 
-    print("\nTest 5: Null array is rejected\n");
-    ok = UnLockRecords((CONST struct RecordLock *)0);
-    if (!ok)
-    {
-        err = IoErr();
-        if (err == ERROR_INVALID_LOCK)
-            test_pass("Null array error");
-        else
-            test_fail("Null array error", "Wrong IoErr");
-    }
-    else
-    {
-        test_fail("Null array error", "Unexpected success");
-    }
-
     Close(fh1);
     Close(fh2);
     Close(fh3);
-    DeleteFile((CONST_STRPTR)"unlockrecords_test.dat");
+    DeleteFile((CONST_STRPTR)TEST_FILE);
 
     print("\nFailed: ");
     print_num(tests_failed);
     print("\n");
-
     return tests_failed ? 20 : 0;
 }

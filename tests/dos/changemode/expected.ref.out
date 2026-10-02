@@ -1,0 +1,24 @@
+ChangeMode Test
+===============
+
+Test 1: Shared lock can become exclusive when alone
+  PASS: Shared->exclusive lock
+
+Test 2: An exclusive lock keeps other lockers out
+  PASS: Shared lock refused
+
+Test 3: Lock can return to shared mode
+  PASS: Exclusive->shared lock
+  PASS: Second shared lock after downgrade
+
+Test 4: Exclusive upgrade is rejected while another shared lock exists
+  PASS: Exclusive upgrade conflict
+
+Test 5: Exclusive upgrade is rejected while the file is open
+  PASS: Open with shared lock held
+  PASS: Exclusive upgrade with open file
+
+Test 6: Filehandle ChangeMode accepts shared mode
+  PASS: Filehandle shared mode
+
+Failed: 0

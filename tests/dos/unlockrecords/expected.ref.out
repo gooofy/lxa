@@ -1,0 +1,16 @@
+UnLockRecords Test
+==================
+
+Test 1: UnlockRecords releases every listed record
+  PASS: Unlock list succeeds
+
+Test 2: UnlockRecords stops at the terminator entry
+  PASS: Terminator stops unlock loop
+
+Test 3: UnlockRecords reports the first failing entry
+  PASS: First failing entry error
+
+Test 4: Missing record entry fails
+  PASS: Missing record error
+
+Failed: 0

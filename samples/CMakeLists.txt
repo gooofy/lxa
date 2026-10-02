@@ -140,6 +140,7 @@ set(TESTS_LIST
     "../tests/dos/dir_enum|main|Tests/Dos/DirEnum"
     "../tests/dos/examine_edge|main|Tests/Dos/ExamineEdge"
     "../tests/dos/fileio_advanced|main|Tests/Dos/FileIOAdvanced"
+    "../tests/dos/softlink|main|Tests/Dos/SoftLink"
     "../tests/dos/fileio_errors|main|Tests/Dos/FileIOErrors"
     "../tests/dos/lock_examine|main|Tests/Dos/LockExamine"
     "../tests/dos/lockrecord|main|Tests/Dos/LockRecord"

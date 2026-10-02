@@ -12,6 +12,36 @@
 #include <stdio.h>
 #include <string.h>
 
+/* MatchNext() returns entries in filesystem order (hash order on FFS, host
+ * order elsewhere): collect the "Found" lines and print them sorted. */
+static char found_lines[16][80];
+static int found_count;
+
+static void found_add(const char *line)
+{
+    if (found_count < 16) {
+        strncpy(found_lines[found_count], line, 79);
+        found_lines[found_count][79] = '\0';
+        found_count++;
+    }
+}
+
+static void found_flush(void)
+{
+    int i, j;
+    for (i = 0; i < found_count; i++)
+        for (j = i + 1; j < found_count; j++)
+            if (strcmp(found_lines[i], found_lines[j]) > 0) {
+                char tmp[80];
+                strcpy(tmp, found_lines[i]);
+                strcpy(found_lines[i], found_lines[j]);
+                strcpy(found_lines[j], tmp);
+            }
+    for (i = 0; i < found_count; i++)
+        printf("%s", found_lines[i]);
+    found_count = 0;
+}
+
 int main(int argc, char **argv)
 {
     BPTR fh;
@@ -57,14 +87,17 @@ int main(int argc, char **argv)
     error = MatchFirst((CONST_STRPTR)"#?.txt", ap);
     
     while (error == 0) {
-        printf("  Found: %s (size=%ld)\n", 
-               ap->ap_Info.fib_FileName, 
-               (long)ap->ap_Info.fib_Size);
+        char line[80];
+        sprintf(line, "  Found: %s (size=%ld)\n",
+                ap->ap_Info.fib_FileName,
+                (long)ap->ap_Info.fib_Size);
+        found_add(line);
         count++;
         error = MatchNext(ap);
     }
     
     MatchEnd(ap);
+    found_flush();
     
     printf("  Total .txt files found: %d\n", count);
     if (count == 2) {
@@ -83,12 +116,15 @@ int main(int argc, char **argv)
     error = MatchFirst((CONST_STRPTR)"#?.dat", ap);
     
     while (error == 0) {
-        printf("  Found: %s\n", ap->ap_Info.fib_FileName);
+        char line[80];
+        sprintf(line, "  Found: %s\n", ap->ap_Info.fib_FileName);
+        found_add(line);
         count++;
         error = MatchNext(ap);
     }
     
     MatchEnd(ap);
+    found_flush();
     
     printf("  Total .dat files found: %d\n", count);
     if (count == 1) {
@@ -107,12 +143,15 @@ int main(int argc, char **argv)
     error = MatchFirst((CONST_STRPTR)"test#?", ap);
     
     while (error == 0) {
-        printf("  Found: %s\n", ap->ap_Info.fib_FileName);
+        char line[80];
+        sprintf(line, "  Found: %s\n", ap->ap_Info.fib_FileName);
+        found_add(line);
         count++;
         error = MatchNext(ap);
     }
     
     MatchEnd(ap);
+    found_flush();
     
     printf("  Total test* files found: %d\n", count);
     if (count == 3) {

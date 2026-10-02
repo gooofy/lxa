@@ -1,0 +1,35 @@
+Path Navigation Test
+====================
+
+Initial directory: :
+
+Test 1: Creating test directories...
+  Created TestDir
+  Created TestDir/SubDir
+
+Test 2: Navigate down (relative paths)...
+  Start: :
+  After cd TestDir: :TestDir
+  After cd SubDir: :TestDir/SubDir
+
+Test 3: Navigate up with / (single parent)...
+  Start: :TestDir/SubDir
+  Lock("/") => :TestDir
+  PASS: Path is absolute
+  After cd /: :TestDir
+
+Test 4: Navigate up with // (two parents)...
+  Start: :TestDir/SubDir
+  Lock("//") => :
+  PASS: At volume root
+  After cd //: :
+
+Test 5: Combined path (/Sibling)...
+  Start: :TestDir
+  Created SiblingDir
+  Lock("/SiblingDir") => :SiblingDir
+  PASS: Combined parent + relative path works
+
+Cleanup...
+
+PASS

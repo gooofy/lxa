@@ -74,11 +74,43 @@ static void test_fail(const char *name, const char *reason)
     tests_failed++;
 }
 
+/*
+ * ReadArgs() parses the command line from Input() (where the shell put it),
+ * not from pr_Arguments: parse each test line from a CSource buffer instead
+ * (the documented way to run ReadArgs on an arbitrary string).
+ */
+static struct RDArgs *parse_args(const char *tmpl, LONG *argv, const char *line)
+{
+    struct RDArgs *rd = (struct RDArgs *)AllocDosObject(DOS_RDARGS, NULL);
+    LONG len = 0;
+
+    if (!rd)
+        return NULL;
+    while (line[len]) len++;
+    rd->RDA_Source.CS_Buffer = (UBYTE *)line;
+    rd->RDA_Source.CS_Length = len;
+    rd->RDA_Source.CS_CurChr = 0;
+    rd->RDA_Flags |= RDAF_NOPROMPT;
+    if (!ReadArgs((CONST_STRPTR)tmpl, argv, rd)) {
+        LONG err = IoErr();
+        FreeDosObject(DOS_RDARGS, rd);
+        SetIoErr(err);
+        return NULL;
+    }
+    return rd;
+}
+
+static void free_args(struct RDArgs *rd)
+{
+    FreeArgs(rd);
+    FreeDosObject(DOS_RDARGS, rd);
+}
+
 int main(void)
 {
     struct RDArgs *rda;
     LONG args[5] = {0, 0, 0, 0, 0};
-    struct Process *me = (struct Process *)FindTask(NULL);
+    const char *cmdline;
     
     print("ReadArgs Empty/Edge-case Input Test\n");
     print("====================================\n\n");
@@ -86,17 +118,17 @@ int main(void)
     /* Test 1: Empty input with optional argument */
     print("Test 1: Empty input with optional argument\n");
     
-    me->pr_Arguments = (STRPTR)"\n";
+    cmdline = "\n";
     args[0] = 0;
     
-    rda = ReadArgs((CONST_STRPTR)"FILE", args, NULL);
+    rda = parse_args("FILE", args, cmdline);
     if (rda) {
         if (args[0] == 0) {
             test_pass("Optional arg not set with empty input");
         } else {
             test_fail("Optional arg", "Unexpected value set");
         }
-        FreeArgs(rda);
+        free_args(rda);
     } else {
         test_fail("Empty with optional", "ReadArgs unexpectedly failed");
     }
@@ -104,10 +136,10 @@ int main(void)
     /* Test 2: Empty input with required argument (should fail) */
     print("\nTest 2: Empty input with required argument (should fail)\n");
     
-    me->pr_Arguments = (STRPTR)"\n";
+    cmdline = "\n";
     args[0] = 0;
     
-    rda = ReadArgs((CONST_STRPTR)"FILE/A", args, NULL);
+    rda = parse_args("FILE/A", args, cmdline);
     if (!rda) {
         LONG err = IoErr();
         print("  IoErr = ");
@@ -121,23 +153,23 @@ int main(void)
         }
     } else {
         test_fail("Empty with required", "Should have failed");
-        FreeArgs(rda);
+        free_args(rda);
     }
     
     /* Test 3: Whitespace-only input with optional argument */
     print("\nTest 3: Whitespace-only input with optional argument\n");
     
-    me->pr_Arguments = (STRPTR)"   \n";
+    cmdline = "   \n";
     args[0] = 0;
     
-    rda = ReadArgs((CONST_STRPTR)"FILE", args, NULL);
+    rda = parse_args("FILE", args, cmdline);
     if (rda) {
         if (args[0] == 0) {
             test_pass("Whitespace treated as empty");
         } else {
             test_fail("Whitespace input", "Should not set arg");
         }
-        FreeArgs(rda);
+        free_args(rda);
     } else {
         test_fail("Whitespace with optional", "ReadArgs unexpectedly failed");
     }
@@ -145,10 +177,10 @@ int main(void)
     /* Test 4: Leading whitespace handling */
     print("\nTest 4: Leading whitespace handling\n");
     
-    me->pr_Arguments = (STRPTR)"   testfile.txt\n";
+    cmdline = "   testfile.txt\n";
     args[0] = 0;
     
-    rda = ReadArgs((CONST_STRPTR)"FILE/A", args, NULL);
+    rda = parse_args("FILE/A", args, cmdline);
     if (rda) {
         if (args[0]) {
             print("  FILE = '");
@@ -158,7 +190,7 @@ int main(void)
         } else {
             test_fail("Leading whitespace", "Arg not set");
         }
-        FreeArgs(rda);
+        free_args(rda);
     } else {
         test_fail("Leading whitespace", "ReadArgs failed");
     }
@@ -166,10 +198,10 @@ int main(void)
     /* Test 5: Trailing whitespace handling */
     print("\nTest 5: Trailing whitespace handling\n");
     
-    me->pr_Arguments = (STRPTR)"testfile.txt   \n";
+    cmdline = "testfile.txt   \n";
     args[0] = 0;
     
-    rda = ReadArgs((CONST_STRPTR)"FILE/A", args, NULL);
+    rda = parse_args("FILE/A", args, cmdline);
     if (rda) {
         if (args[0]) {
             print("  FILE = '");
@@ -179,7 +211,7 @@ int main(void)
         } else {
             test_fail("Trailing whitespace", "Arg not set");
         }
-        FreeArgs(rda);
+        free_args(rda);
     } else {
         test_fail("Trailing whitespace", "ReadArgs failed");
     }
@@ -187,10 +219,10 @@ int main(void)
     /* Test 6: Empty quoted string "" */
     print("\nTest 6: Empty quoted string \"\"\n");
     
-    me->pr_Arguments = (STRPTR)"\"\"\n";
+    cmdline = "\"\"\n";
     args[0] = 0;
     
-    rda = ReadArgs((CONST_STRPTR)"FILE/A", args, NULL);
+    rda = parse_args("FILE/A", args, cmdline);
     if (rda) {
         if (args[0]) {
             char *str = (char *)args[0];
@@ -205,7 +237,7 @@ int main(void)
         } else {
             test_fail("Empty quoted string", "Arg not set");
         }
-        FreeArgs(rda);
+        free_args(rda);
     } else {
         /* Some implementations might reject empty string for /A */
         LONG err = IoErr();
@@ -218,12 +250,12 @@ int main(void)
     /* Test 7: Multiple optional args with partial input */
     print("\nTest 7: Multiple optional args with partial input\n");
     
-    me->pr_Arguments = (STRPTR)"first\n";
+    cmdline = "first\n";
     args[0] = 0;
     args[1] = 0;
     args[2] = 0;
     
-    rda = ReadArgs((CONST_STRPTR)"A1,A2,A3", args, NULL);
+    rda = parse_args("A1,A2,A3", args, cmdline);
     if (rda) {
         int count = 0;
         if (args[0]) count++;
@@ -239,7 +271,7 @@ int main(void)
         } else {
             test_pass("Partial args handled");
         }
-        FreeArgs(rda);
+        free_args(rda);
     } else {
         test_fail("Partial args", "ReadArgs failed");
     }
@@ -247,17 +279,17 @@ int main(void)
     /* Test 8: Switch with empty input */
     print("\nTest 8: Switch with empty input\n");
     
-    me->pr_Arguments = (STRPTR)"\n";
+    cmdline = "\n";
     args[0] = 0;
     
-    rda = ReadArgs((CONST_STRPTR)"VERBOSE/S", args, NULL);
+    rda = parse_args("VERBOSE/S", args, cmdline);
     if (rda) {
         if (args[0] == 0) {
             test_pass("Switch not set with empty input");
         } else {
             test_fail("Switch with empty", "Should not be set");
         }
-        FreeArgs(rda);
+        free_args(rda);
     } else {
         test_fail("Switch with empty", "ReadArgs unexpectedly failed");
     }

@@ -10,10 +10,12 @@
 #include <stdio.h>
 #include <string.h>
 
-/* We use Printf directly since it uses VFPrintf internally */
+/* All output goes through dos.library (Printf -> VFPrintf), never stdio:
+ * mixing the two buffered streams makes the output order depend on buffer
+ * sizes. */
 void test_vprintf_basic(void)
 {
-    printf("=== VPrintf Basic Tests ===\n");
+    Printf((CONST_STRPTR)"=== VPrintf Basic Tests ===\n");
     
     /* Test string formatting */
     Printf((CONST_STRPTR)"String test: %s\n", (LONG)"hello");
@@ -42,7 +44,7 @@ void test_vprintf_basic(void)
 
 void test_vprintf_width(void)
 {
-    printf("\n=== VPrintf Width Tests ===\n");
+    Printf((CONST_STRPTR)"\n=== VPrintf Width Tests ===\n");
     
     /* Test width with numbers */
     Printf((CONST_STRPTR)"Width 8: [%8ld]\n", 42);
@@ -62,7 +64,7 @@ void test_vprintf_width(void)
 
 void test_vprintf_multiple_args(void)
 {
-    printf("\n=== VPrintf Multiple Args Tests ===\n");
+    Printf((CONST_STRPTR)"\n=== VPrintf Multiple Args Tests ===\n");
     
     /* Multiple arguments in one call */
     Printf((CONST_STRPTR)"Multiple: %s=%ld (0x%lx)\n", 
@@ -78,13 +80,13 @@ void test_vfprintf_to_file(void)
     UBYTE buffer[256];
     LONG args[3];
     
-    printf("\n=== VFPrintf to File Tests ===\n");
+    Printf((CONST_STRPTR)"\n=== VFPrintf to File Tests ===\n");
     
     /* Write to file using VFPrintf */
     fh = Open((CONST_STRPTR)"T:testfile.txt", MODE_NEWFILE);
     if (!fh)
     {
-        printf("FAIL: Cannot create test file\n");
+        Printf((CONST_STRPTR)"FAIL: Cannot create test file\n");
         return;
     }
     
@@ -99,15 +101,15 @@ void test_vfprintf_to_file(void)
     fh = Open((CONST_STRPTR)"T:testfile.txt", MODE_OLDFILE);
     if (!fh)
     {
-        printf("FAIL: Cannot open test file\n");
+        Printf((CONST_STRPTR)"FAIL: Cannot open test file\n");
         return;
     }
     
     FGets(fh, buffer, sizeof(buffer));
     Close(fh);
     
-    printf("Read from file: %s", buffer);
-    printf("VFPrintf file test PASSED\n");
+    Printf((CONST_STRPTR)"Read from file: %s", (LONG)buffer);
+    Printf((CONST_STRPTR)"VFPrintf file test PASSED\n");
 }
 
 int main(int argc, char **argv)
@@ -120,6 +122,6 @@ int main(int argc, char **argv)
     /* Cleanup */
     DeleteFile((CONST_STRPTR)"T:testfile.txt");
     
-    printf("\nAll VPrintf tests completed.\n");
+    Printf((CONST_STRPTR)"\nAll VPrintf tests completed.\n");
     return 0;
 }

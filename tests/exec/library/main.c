@@ -405,7 +405,9 @@ static void ensure_dir(CONST_STRPTR path)
         return;
     }
 
-    CreateDir(path);
+    lock = CreateDir(path);
+    if (lock)
+        UnLock(lock);   /* CreateDir() returns an exclusive lock */
 }
 
 static BOOL create_otag_file(CONST_STRPTR path)

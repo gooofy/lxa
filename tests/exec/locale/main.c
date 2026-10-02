@@ -127,7 +127,9 @@ static void make_dir_if_needed(const char *path)
         return;
     }
 
-    CreateDir((STRPTR)path);
+    lock = CreateDir((STRPTR)path);
+    if (lock)
+        UnLock(lock);   /* CreateDir() returns an exclusive lock */
 }
 
 static void write_be32(UBYTE *p, ULONG value)

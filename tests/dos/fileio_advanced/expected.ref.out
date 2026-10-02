@@ -1,0 +1,65 @@
+File I/O Edge Cases Test
+========================
+
+Test 1: Create initial file
+  PASS: Create file with 5 bytes
+
+Test 2: MODE_READWRITE (open existing)
+  PASS: MODE_READWRITE pos at start
+  PASS: MODE_READWRITE read existing data
+  PASS: MODE_READWRITE write at end
+
+Test 3: Verify combined content
+  Content: 'HelloWorld'
+  PASS: Content is 'HelloWorld'
+
+Test 4: Seek beyond EOF
+  Seek(1000) returned: -1
+  PASS: Seek past EOF fails with ERROR_SEEK_ERROR
+  Read returned: 10 bytes
+  PASS: Read after failed Seek starts at the old position
+
+Test 5: Large write/read (1KB)
+  Wrote 1024 bytes
+  PASS: Large write (1024 bytes)
+  Read 1024 bytes
+  PASS: Large read with data verification
+
+Test 6: SetFileSize semantics
+  PASS: SetFileSize truncate from beginning
+  PASS: SetFileSize truncated file contents
+  PASS: SetFileSize resize from current position
+  PASS: SetFileSize extend from end
+  PASS: SetFileSize extension zero-fills
+
+Test 6b: SetFileDate semantics
+  PASS: SetFileDate returns success
+  PASS: SetFileDate updates Examine datestamp
+
+Test 6c: Metadata and lock helpers
+  PASS: SameLock identifies duplicate lock
+  PASS: SameLock reports same volume
+  PASS: Info returns volume statistics
+  PASS: SetComment updates fib_Comment
+  PASS: SetProtection updates fib_Protection
+
+Test 6d: ExAll enumeration
+  PASS: ExAll returns file and directory entries
+  PASS: ExAll match string filters entries
+
+Test 6e: MakeLink hard link
+  PASS: MakeLink creates hard link
+  PASS: MakeLink hard link preserves file data
+  Hard link entry type: -3, size: 8
+  PASS: Examine reports the hard link as a plain file
+
+Test 7: MODE_NEWFILE truncates existing
+  File size now: 2 bytes
+  PASS: MODE_NEWFILE truncates
+
+Cleanup
+  Files deleted
+
+=== Test Summary ===
+Passed: 27
+Failed: 0

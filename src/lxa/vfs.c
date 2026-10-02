@@ -1287,6 +1287,69 @@ int vfs_assign_list(const char **names, const char **paths, int max_count)
     return count;
 }
 
+bool vfs_is_drive_root(const char *linux_path)
+{
+    char normalized[PATH_MAX];
+
+    if (!linux_path || !normalize_host_path(linux_path, normalized, sizeof(normalized)))
+        return false;
+
+    for (drive_map_t *drive = g_drive_maps; drive; drive = drive->next) {
+        if (drive->linux_path && strcmp(drive->linux_path, normalized) == 0)
+            return true;
+    }
+    return false;
+}
+
+/* Name of the volume whose root is linux_path (see vfs_is_volume_root()). */
+bool vfs_volume_root_name(const char *linux_path, char *name, size_t maxlen)
+{
+    char normalized[PATH_MAX];
+    assign_entry_t *sys;
+
+    if (!linux_path || !name || maxlen == 0 ||
+        !normalize_host_path(linux_path, normalized, sizeof(normalized)))
+        return false;
+
+    for (drive_map_t *drive = g_drive_maps; drive; drive = drive->next) {
+        if (drive->linux_path && drive->amiga_name && strcmp(drive->linux_path, normalized) == 0) {
+            snprintf(name, maxlen, "%s", drive->amiga_name);
+            return true;
+        }
+    }
+    sys = find_assign("SYS");
+    if (sys) {
+        for (assign_path_t *p = sys->paths; p; p = p->next) {
+            if (p->linux_path && strcmp(p->linux_path, normalized) == 0) {
+                snprintf(name, maxlen, "%s", sys->name);
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+/* Root of a volume: a drive, or the directories the SYS: assign points to
+ * (SYS: is the boot volume; lxa may map it as an assign to host dirs). */
+bool vfs_is_volume_root(const char *linux_path)
+{
+    char normalized[PATH_MAX];
+    assign_entry_t *sys;
+
+    if (vfs_is_drive_root(linux_path))
+        return true;
+    if (!linux_path || !normalize_host_path(linux_path, normalized, sizeof(normalized)))
+        return false;
+    sys = find_assign("SYS");
+    if (!sys)
+        return false;
+    for (assign_path_t *p = sys->paths; p; p = p->next) {
+        if (p->linux_path && strcmp(p->linux_path, normalized) == 0)
+            return true;
+    }
+    return false;
+}
+
 bool vfs_path_to_amiga(const char *linux_path, char *amiga_path, size_t maxlen)
 {
     char normalized_input[PATH_MAX];
