@@ -1159,6 +1159,7 @@ static void test_open_color_disk_font_path(void)
     rp.BgPen = 0;
     rp.DrawMode = JAM1;
 
+    SetRast(&rp, 0);              /* AllocRaster() memory is not cleared */
     SetFont(&rp, font);
     Move(&rp, 0, font->tf_Baseline);
     Text(&rp, (CONST_STRPTR)"A", 1);

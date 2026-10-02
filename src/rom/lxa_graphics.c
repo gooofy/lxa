@@ -1027,11 +1027,11 @@ static WORD graphics_vsprite_boundary_flags(CONST struct GelsInfo *gelsInfo,
     WORD bottom;
     WORD flags = 0;
 
-    if (!gelsInfo || !vSprite ||
-        (vSprite->HitMask & (1U << BORDERHIT)) == 0)
-    {
+    /* AmigaOS 3.1 (verified on the reference machine) checks the
+     * boundary for every VSprite with a non-zero HitMask, not only for
+     * those with the BORDERHIT bit set. */
+    if (!gelsInfo || !vSprite || vSprite->HitMask == 0)
         return 0;
-    }
 
     if (!graphics_vsprite_get_occupied_bounds(vSprite, &left, &top, &right, &bottom))
         return 0;
@@ -1138,7 +1138,8 @@ static BOOL graphics_vsprites_old_bounds_overlap(CONST struct VSprite *left_vspr
 static VOID graphics_clear_bob_immediately(struct GfxBase *GfxBase,
                                            struct RastPort *rp,
                                            struct VSprite *vSprite,
-                                           struct VSprite *tail)
+                                           struct VSprite *tail,
+                                           BOOL retire)
 {
     struct Bob *bob;
     struct VSprite *other;
@@ -1157,7 +1158,7 @@ static VOID graphics_clear_bob_immediately(struct GfxBase *GfxBase,
     while (other && other != tail)
     {
         if (other->VSBob && graphics_vsprites_old_bounds_overlap(vSprite, other))
-            graphics_clear_bob_immediately(GfxBase, rp, other, tail);
+            graphics_clear_bob_immediately(GfxBase, rp, other, tail, FALSE);
         other = other->NextVSprite;
     }
 
@@ -1171,8 +1172,13 @@ static VOID graphics_clear_bob_immediately(struct GfxBase *GfxBase,
                             (LONG)(vSprite->OldY + vSprite->Height - 1));
     }
 
-    bob->Flags &= ~(BWAITING | BDRAWN);
-    bob->Flags |= BOBNIX;
+    /* only the removed Bob is retired; overlapping Bobs are just erased
+     * and redrawn by the next DrawGList() (AmigaOS 3.1, reference) */
+    if (retire)
+    {
+        bob->Flags &= ~(BWAITING | BDRAWN);
+        bob->Flags |= BOBNIX;
+    }
 }
 
 static VOID graphics_init_gels_sentinel(struct VSprite *vSprite, WORD x, WORD y)
@@ -2844,9 +2850,9 @@ static VOID _graphics_AddBob ( register struct GfxBase * GfxBase __asm("a6"),
     if (!bob || !rp || !rp->GelsInfo || !bob->BobVSprite)
         return;
 
+    /* AmigaOS 3.1 (reference) neither sets BWAITING nor VSprite->VSBob
+     * (the application links VSBob itself, see RKRM). */
     bob->Flags &= BUSERFLAGS;
-    bob->Flags |= BWAITING;
-    bob->BobVSprite->VSBob = bob;
     _graphics_AddVSprite(GfxBase, bob->BobVSprite, rp);
 }
 
@@ -2868,9 +2874,6 @@ static VOID _graphics_AddVSprite ( register struct GfxBase * GfxBase __asm("a6")
     vSprite->OldY = vSprite->Y;
     vSprite->DrawPath = NULL;
     vSprite->ClearPath = NULL;
-
-    if (vSprite->PrevVSprite || vSprite->NextVSprite)
-        _graphics_RemVSprite(GfxBase, vSprite);
 
     graphics_insert_vsprite_sorted(gelsInfo->gelHead, gelsInfo->gelTail, vSprite);
 
@@ -2961,6 +2964,8 @@ static VOID _graphics_DrawGList ( register struct GfxBase * GfxBase __asm("a6"),
 
         if (current->VSBob && (current->VSBob->Flags & BOBSAWAY))
         {
+            /* erase the retired Bob (restore its background) first */
+            graphics_clear_bob_immediately(GfxBase, rp, current, tail, TRUE);
             _graphics_RemVSprite(GfxBase, current);
             current->VSBob->Flags |= BOBNIX;
             current->VSBob->Flags &= ~BDRAWN;
@@ -2974,10 +2979,13 @@ static VOID _graphics_DrawGList ( register struct GfxBase * GfxBase __asm("a6"),
         current->OldX = current->X;
         current->OldY = current->Y;
 
+        /* AmigaOS 3.1 (reference): the Bob flags are not changed by a
+         * normal draw; a saved background is marked in the VSprite */
         if (current->VSBob)
         {
-            current->VSBob->Flags |= BDRAWN;
             current->VSBob->Flags &= ~(BOBNIX | BWAITING);
+            if (current->Flags & SAVEBACK)
+                current->Flags |= BACKSAVED;
         }
 
         current = next;
@@ -3011,7 +3019,8 @@ static VOID _graphics_InitGels ( register struct GfxBase * GfxBase __asm("a6"),
     gelsInfo->firstBlissObj = NULL;
     gelsInfo->lastBlissObj = NULL;
 
-    graphics_init_gels_sentinel(head, -32768, -32768);
+    /* AmigaOS 3.1 uses 0x8001 (-32767) for the head sentinel (reference) */
+    graphics_init_gels_sentinel(head, -32767, -32767);
     graphics_init_gels_sentinel(tail, 32767, 32767);
 
     if (head)
@@ -3053,6 +3062,13 @@ static VOID _graphics_InitMasks ( register struct GfxBase * GfxBase __asm("a6"),
 
     words_per_plane = (WORD)(vSprite->Height * words_per_line);
 
+    /* A hardware VSprite stores its two planes interleaved per line */
+    if (vSprite->Flags & VSPRITE)
+    {
+        for (count = 0; count < vSprite->Height; count++)
+            vSprite->CollMask[count] = vSprite->ImageData[2 * count] | vSprite->ImageData[2 * count + 1];
+    }
+    else
     for (count = 0; count < words_per_plane; count++)
     {
         WORD data = vSprite->ImageData[count];
@@ -3064,13 +3080,16 @@ static VOID _graphics_InitMasks ( register struct GfxBase * GfxBase __asm("a6"),
         vSprite->CollMask[count] = data;
     }
 
+    /* AmigaOS 3.1 (verified on the reference machine) builds the
+     * BorderLine from the first Height lines of ImageData (the first plane
+     * of a Bob, the interleaved plane words of a VSprite). */
     for (count = 0; count < words_per_line; count++)
     {
-        WORD data = vSprite->CollMask[count];
+        WORD data = vSprite->ImageData[count];
         WORD row;
 
         for (row = 1; row < vSprite->Height; row++)
-            data |= vSprite->CollMask[count + (row * words_per_line)];
+            data |= vSprite->ImageData[count + (row * words_per_line)];
 
         vSprite->BorderLine[count] = data;
     }
@@ -3095,7 +3114,7 @@ static VOID _graphics_RemIBob ( register struct GfxBase * GfxBase __asm("a6"),
     vSprite = bob->BobVSprite;
     tail = (rp && rp->GelsInfo) ? rp->GelsInfo->gelTail : NULL;
 
-    graphics_clear_bob_immediately(GfxBase, rp, vSprite, tail);
+    graphics_clear_bob_immediately(GfxBase, rp, vSprite, tail, TRUE);
     _graphics_RemVSprite(GfxBase, vSprite);
 
     (void)vp;
@@ -3109,15 +3128,12 @@ static VOID _graphics_RemVSprite ( register struct GfxBase * GfxBase __asm("a6")
     if (!vSprite)
         return;
 
+    /* AmigaOS 3.1 unlinks the VSprite but leaves its own NextVSprite /
+     * PrevVSprite pointers unchanged (verified on the reference). */
     if (vSprite->PrevVSprite)
         vSprite->PrevVSprite->NextVSprite = vSprite->NextVSprite;
     if (vSprite->NextVSprite)
         vSprite->NextVSprite->PrevVSprite = vSprite->PrevVSprite;
-
-    vSprite->PrevVSprite = NULL;
-    vSprite->NextVSprite = NULL;
-    vSprite->DrawPath = NULL;
-    vSprite->ClearPath = NULL;
 
     (void)GfxBase;
 }
@@ -3286,7 +3302,9 @@ static VOID _graphics_Animate ( register struct GfxBase * GfxBase __asm("a6"),
                     new_vsprite->OldX = current_vsprite->X;
                 }
 
-                if (sequence_comp->Flags & RINGTRIGGER)
+                /* the ring motion is triggered by the component that
+                 * becomes current (AmigaOS 3.1, reference) */
+                if (next_sequence->Flags & RINGTRIGGER)
                 {
                     current_animob->AnY += current_animob->RingYTrans;
                     current_animob->AnX += current_animob->RingXTrans;
@@ -3306,6 +3324,11 @@ static VOID _graphics_Animate ( register struct GfxBase * GfxBase __asm("a6"),
 
                 if (sequence_comp->AnimBob)
                     sequence_comp->AnimBob->Flags |= BOBSAWAY;
+
+                /* the routine of the component that is now current runs
+                 * (AmigaOS 3.1, verified on the reference machine) */
+                sequence_comp = next_sequence;
+                current_comp = next_sequence;
             }
             else if (current_vsprite)
             {
@@ -5854,6 +5877,43 @@ static VOID _graphics_FreeSprite ( register struct GfxBase * GfxBase __asm("a6")
     Enable();
 }
 
+/*
+ * Write the hardware SPRxPOS/SPRxCTL words of a SimpleSprite.  AmigaOS 3.1
+ * (verified on the reference machine) places a sprite at display position
+ * x + DxOffset + 0x81, y + DyOffset + 0x2C (lores, non-interlaced
+ * ViewPort; a NULL ViewPort means no offset).
+ */
+static VOID graphics_sprite_write_posctl(struct ViewPort *vp, struct SimpleSprite *sprite)
+{
+    LONG hstart = sprite->x;
+    LONG vstart = sprite->y;
+    LONG vstop;
+
+    if (vp)
+    {
+        hstart += vp->DxOffset;
+        vstart += vp->DyOffset;
+        if (vp->Modes & SUPERHIRES)
+            hstart >>= 2;
+        else if (vp->Modes & HIRES)
+            hstart >>= 1;
+        if (vp->Modes & LACE)
+            vstart >>= 1;
+    }
+    hstart += 0x81;
+    vstart += 0x2C;
+    vstop = vstart + sprite->height;
+
+    if (!sprite->posctldata)
+        return;
+
+    sprite->posctldata[0] = (UWORD)(((vstart & 0xFF) << 8) | ((hstart >> 1) & 0xFF));
+    sprite->posctldata[1] = (UWORD)(((vstop & 0xFF) << 8) |
+                                    ((vstart & 0x100) ? 0x04 : 0) |
+                                    ((vstop & 0x100) ? 0x02 : 0) |
+                                    (hstart & 1));
+}
+
 static VOID _graphics_ChangeSprite ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct ViewPort * vp __asm("a0"),
                                                         register struct SimpleSprite * sprite __asm("a1"),
@@ -5866,6 +5926,7 @@ static VOID _graphics_ChangeSprite ( register struct GfxBase * GfxBase __asm("a6
         return;
 
     sprite->posctldata = newData;
+    graphics_sprite_write_posctl(vp, sprite);
 
     (void)GfxBase;
 }
@@ -5887,16 +5948,10 @@ static VOID _graphics_MoveSprite ( register struct GfxBase * GfxBase __asm("a6")
     if (!sprite)
         return;
 
-    if (vp)
-    {
-        sprite->x = (UWORD)(x + vp->DxOffset);
-        sprite->y = (UWORD)(y + vp->DyOffset);
-    }
-    else
-    {
-        sprite->x = (UWORD)x;
-        sprite->y = (UWORD)y;
-    }
+    /* x/y are stored as given (ViewPort relative) */
+    sprite->x = (UWORD)x;
+    sprite->y = (UWORD)y;
+    graphics_sprite_write_posctl(vp, sprite);
 
     (void)GfxBase;
 }
@@ -9820,21 +9875,21 @@ static LONG _graphics_GetExtSpriteA ( register struct GfxBase       *GfxBase __a
         }
     }
 
-    if (attached_tag && !attached_sprite)
-    {
-        ss->es_SimpleSprite.num = (UWORD)-1;
+    /* AmigaOS 3.1 (verified on the reference machine) rejects every
+     * GSTAG_ATTACHED request and leaves the sprites' num fields unchanged
+     * when the allocation fails. */
+    (void)attached_sprite;
+    if (attached_tag)
         return -1;
-    }
 
     result = graphics_reserve_sprite_slots(GfxBase,
                                            requested_num,
-                                           (attached_sprite != NULL),
+                                           FALSE,
                                            &primary_num,
                                            &secondary_num);
 
-    ss->es_SimpleSprite.num = primary_num;
-    if (attached_sprite)
-        attached_sprite->es_SimpleSprite.num = secondary_num;
+    if (result >= 0)
+        ss->es_SimpleSprite.num = primary_num;
 
     return result;
 }
@@ -10449,8 +10504,11 @@ static struct ExtSprite * _graphics_AllocSpriteDataA ( register struct GfxBase *
         }
     }
 
-    if (width == 0 || width > 64 || (width & 15) != 0)
+    /* The sprite width is rounded up to 16, 32 or 64 pixels; 0 means 16
+     * (AmigaOS 3.1, verified on the reference machine). */
+    if (width > 64)
         return NULL;
+    width = (width <= 16) ? 16 : (width <= 32) ? 32 : 64;
 
     if (xrep < -2 || xrep > 2 || yrep < -2 || yrep > 2)
         return NULL;
@@ -10633,7 +10691,6 @@ static LONG _graphics_ChangeExtSpriteA ( register struct GfxBase * GfxBase __asm
                                                         register CONST struct TagItem * tags __asm("a3"))
 {
     (void)tags;
-    (void)vp;
 
     DPRINTF (LOG_DEBUG, "_graphics: ChangeExtSpriteA() vp=0x%08lx old=0x%08lx new=0x%08lx tags=0x%08lx\n",
              (ULONG)vp, (ULONG)oldsprite, (ULONG)newsprite, (ULONG)tags);
@@ -10641,23 +10698,15 @@ static LONG _graphics_ChangeExtSpriteA ( register struct GfxBase * GfxBase __asm
     if (!GfxBase || !oldsprite || !newsprite)
         return 0;
 
-    if (!newsprite->es_SimpleSprite.posctldata ||
-        newsprite->es_SimpleSprite.height == 0 ||
-        newsprite->es_wordwidth == 0)
-        return 0;
-
-    if (oldsprite->es_SimpleSprite.num > 7)
-        return 0;
-
-    if (newsprite->es_SimpleSprite.num != 0 &&
-        newsprite->es_SimpleSprite.num != oldsprite->es_SimpleSprite.num)
-        return 0;
-
+    /* AmigaOS 3.1 (verified on the reference machine) hands the hardware
+     * sprite and position of the old sprite to the new one without
+     * further checks and returns -1. */
     newsprite->es_SimpleSprite.num = oldsprite->es_SimpleSprite.num;
     newsprite->es_SimpleSprite.x = oldsprite->es_SimpleSprite.x;
     newsprite->es_SimpleSprite.y = oldsprite->es_SimpleSprite.y;
+    graphics_sprite_write_posctl(vp, &newsprite->es_SimpleSprite);
 
-    return 1;
+    return -1;
 }
 
 static VOID _graphics_FreeSpriteData ( register struct GfxBase * GfxBase __asm("a6"),
