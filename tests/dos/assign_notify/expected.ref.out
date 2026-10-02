@@ -1,0 +1,27 @@
+DOS Assign/Notify Test
+======================
+
+Test 1: AssignLate
+  PASS: AssignLate resolves target
+
+Test 2: AssignAdd multi-path
+  PASS: AssignAdd iterates both directories
+
+Test 3: RemAssignList specific path
+  PASS: RemAssignList removes one path
+
+Test 4: GetDeviceProc multi-assign iteration
+  PASS: GetDeviceProc first target
+  PASS: GetDeviceProc reports no more entries
+
+Test 5: StartNotify/EndNotify message delivery
+  PASS: StartNotify delivered message
+
+Test 6: SetProgramDir / GetProgramDir
+  PASS: SetProgramDir updates PROGDIR lock
+
+Test 7: DeviceProc via assign
+  PASS: DeviceProc resolves assign-backed port
+
+Passed: 8
+Failed: 0

@@ -1,0 +1,31 @@
+COPY Command Test
+=================
+
+Setup: Creating test files
+  Created source.txt
+
+Test 1: Copy single file to new name
+  PASS: Copy file content matches
+
+Test 2: Copy file to existing directory
+  Created destdir
+  PASS: Copy to directory
+
+Test 3: Copy multiple files to directory
+  PASS: Copy multiple files
+
+Test 4: Directory structure for recursive copy
+  PASS: Source directory structure created
+
+Test 5: Verify file content integrity
+  PASS: File content integrity
+
+Test 6: Copy non-existent file (error case)
+  PASS: Non-existent source detected
+
+Cleanup: Removing test files
+  Cleanup complete
+
+=== Test Summary ===
+Passed: 6
+Failed: 0

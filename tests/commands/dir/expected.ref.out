@@ -1,0 +1,41 @@
+DIR Command Test
+================
+
+Setup: Creating test files and directories
+  Created test1.txt
+  Created test2.txt
+  Created test.doc
+  Created readme.md
+  Created testdir
+  Created emptydir
+
+Test 1: Verify test file setup
+  PASS: All test files created
+
+Test 2: Verify test directories
+  PASS: Test directories created
+
+Test 3: Verify files in subdirectory
+  PASS: Subdirectory files exist
+
+Test 4: Directory enumeration test
+  PASS: Directory enumeration (2 files)
+
+Test 5: Empty directory enumeration
+  PASS: Empty directory (0 files)
+
+Test 6: Pattern matching (#?.txt)
+  PASS: Pattern matching #?.txt
+
+Test 7: Directory detection for DIRS filter
+  PASS: Directory detection (DIRS filter)
+
+Test 8: File detection for FILES filter
+  PASS: File detection (FILES filter)
+
+Cleanup: Removing test files
+  Cleanup complete
+
+=== Test Summary ===
+Passed: 8
+Failed: 0

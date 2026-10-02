@@ -1,0 +1,13 @@
+FreeDosEntry Test
+=================
+
+Test 1: Frees entries returned by MakeDosEntry without leaking memory
+  PASS: Free MakeDosEntry result
+
+Test 2: Accepts NULL without disturbing IoErr
+  PASS: NULL is a no-op
+
+Test 3: Frees a single entry without disturbing IoErr
+  PASS: Single entry free
+
+Failed: 0

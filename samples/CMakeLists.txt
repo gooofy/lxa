@@ -388,6 +388,26 @@ foreach(test_info ${TESTS_LIST})
     )
 endforeach()
 
+# === API conformance probes (Phase 222) ===
+# tests/probes/<lib>/<name>.c -> SYS:Tests/Probes/<lib>/<name>; expected
+# output (tests/probes/<lib>/<name>.ref.out) comes from real AmigaOS 3.1.
+file(GLOB PROBE_SOURCES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/../tests/probes/*/*.c")
+foreach(src ${PROBE_SOURCES})
+    get_filename_component(name ${src} NAME_WE)
+    get_filename_component(libdir ${src} DIRECTORY)
+    get_filename_component(lib ${libdir} NAME)
+    set(output "${CMAKE_CURRENT_BINARY_DIR}/Samples/Tests/Probes/${lib}/${name}")
+    file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/Samples/Tests/Probes/${lib}")
+    add_custom_command(
+        OUTPUT ${output}
+        COMMAND ${M68K_GCC_BIN} ${SAMPLES_CFLAGS} -I${CMAKE_CURRENT_SOURCE_DIR}/../tests/probes
+                ${SAMPLES_LDFLAGS} -o ${output} ${src}
+        DEPENDS ${src} ${CMAKE_CURRENT_SOURCE_DIR}/../tests/probes/probe.h
+        COMMENT "Building Probe: ${lib}/${name}"
+    )
+    list(APPEND ALL_SAMPLES ${output})
+endforeach()
+
 # Custom target to build all samples
 add_custom_target(lxa-samples ALL DEPENDS ${ALL_SAMPLES})
 

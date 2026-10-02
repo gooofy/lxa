@@ -1,0 +1,18 @@
+Testing IDCMP_REQSET and IDCMP_REQCLEAR...
+OK: Screen opened
+OK: Window opened with REQSET|REQCLEAR
+Test 1: Request() posts IDCMP_REQSET...
+  OK: IDCMP_REQSET received
+Test 2: EndRequest() posts IDCMP_REQCLEAR...
+  OK: IDCMP_REQCLEAR received
+Test 3: Two requesters produce correct message sequence...
+  OK: First IDCMP_REQSET received
+  OK: Second IDCMP_REQSET received
+  OK: First IDCMP_REQCLEAR received
+  OK: Second IDCMP_REQCLEAR received
+Test 4: No messages without IDCMP flags...
+  OK: IDCMP_REQSET received with flag set
+  OK: No IDCMP_REQCLEAR when flag not set
+OK: Window closed
+OK: Screen closed
+PASS: idcmp_reqset all tests passed

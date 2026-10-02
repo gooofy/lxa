@@ -1,0 +1,22 @@
+UnLockRecord Test
+=================
+
+Test 1: Unlock succeeds for matching lock
+  PASS: Matching unlock succeeds
+
+Test 2: Unlock releases record for other handles
+  PASS: Unlock releases record
+
+Test 3: Wrong handle cannot unlock record
+  PASS: Wrong handle error
+
+Test 4: Offset and length must match
+  PASS: Exact range required
+
+Test 5: Unlocking missing record fails
+  PASS: Missing record error
+
+Test 6: Null handle is rejected
+  PASS: Null handle error
+
+Failed: 0

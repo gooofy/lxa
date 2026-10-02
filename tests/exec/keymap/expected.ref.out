@@ -1,0 +1,36 @@
+Keymap Library Tests
+===================
+
+Test 1: AskKeyMapDefault / SetKeyMapDefault
+  OK: AskKeyMapDefault returns non-NULL default
+  OK: SetKeyMapDefault installs supplied keymap pointer
+  OK: SetKeyMapDefault accepts NULL keymap
+  OK: SetKeyMapDefault restores original keymap
+
+Test 2: MapRawKey
+  OK: MapRawKey maps raw A to lowercase character
+  OK: MapRawKey maps shifted raw A to uppercase character
+  OK: MapRawKey maps control-A to control code
+  OK: MapRawKey reports overflow for undersized string buffer
+  OK: MapRawKey ignores key-up events
+
+Test 3: MapRawKey dead-key handling
+  OK: MapRawKey keeps dead key silent when pressed alone
+  OK: MapRawKey combines dead key with deadable key output
+
+Test 4: MapANSI
+  OK: MapANSI encodes lowercase A to raw key and qualifier
+  OK: MapANSI encodes uppercase A with shift qualifier
+  OK: MapANSI encodes tab to raw tab key
+  OK: MapANSI encodes F1 escape sequence
+  OK: MapANSI emits dead-key prefix for deadable output
+  OK: MapANSI reports overflow when no WORD slots are available
+  OK: MapANSI returns zero for unmappable character
+
+Test 5: KeyMap structure
+  OK: KeyMap structure size matches NDK layout
+  OK: KeyMap structure exposes low/high table pointers
+
+Checks passed: 20
+Checks failed: 0
+PASS: Keymap library tests passed

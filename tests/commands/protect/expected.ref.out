@@ -1,0 +1,27 @@
+PROTECT DOS Function Test
+=========================
+
+Test 1: Read initial protection
+  PASS: Read protection bits
+
+Test 2: Set all permissions (prot=0)
+  PASS: All RWE permissions granted
+
+Test 3: Remove write permission
+  PASS: Write permission removed
+
+Test 4: Remove execute permission
+  PASS: Execute permission removed
+
+Test 5: Remove read permission
+  PASS: Read permission removed
+
+Test 6: Non-existent file (should fail)
+  PASS: Non-existent file correctly rejected
+
+Cleanup: Removing test files
+  Done
+
+=== Test Summary ===
+Passed: 6
+Failed: 0

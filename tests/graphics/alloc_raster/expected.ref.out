@@ -1,0 +1,21 @@
+Testing AllocRaster()/FreeRaster()...
+OK: AllocRaster(320, 200) succeeded
+OK: RASSIZE(320, 200) = 8000
+OK: AllocRaster(320, 200) returned CHIP memory
+OK: Raster memory is accessible
+OK: FreeRaster() completed
+OK: AllocRaster(64, 64) succeeded
+OK: RASSIZE(64, 64) = 512
+OK: AllocRaster(64, 64) returned CHIP memory
+OK: FreeRaster(64, 64) completed
+OK: AllocRaster(17, 10) succeeded
+OK: RASSIZE(17, 10) = 40
+OK: AllocRaster(17, 10) returned CHIP memory
+OK: FreeRaster(17, 10) completed
+OK: RASSIZE(1, 1) = 2
+OK: AllocRaster(1, 1) returned CHIP memory
+OK: FreeRaster(1, 1) completed
+OK: FreeRaster(NULL) is safe
+Testing multiple alloc/free cycles...
+OK: 10 alloc/free cycles completed
+PASS: AllocRaster/FreeRaster all tests passed
