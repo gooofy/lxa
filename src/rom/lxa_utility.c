@@ -965,29 +965,38 @@ static ULONG _utility_UDivMod32 ( register struct UtilityBase * UtilityBase __as
     return quotient;
 }
 
-static LONG _utility_Stricmp ( register struct UtilityBase * UtilityBase __asm("a6"),
-														register CONST_STRPTR string1 __asm("a0"),
-														register CONST_STRPTR string2 __asm("a1"))
+/* Case mapping of utility.library 3.1 (ISO-8859-1, no locale installed):
+ * a-z and 0xe0-0xfe map to upper case 0x20 lower; 0xff has no upper case.
+ * Stricmp()/Strnicmp() compare the upper-cased characters.  Verified on
+ * AmigaOS 3.1 by tests/probes/utility/basics.c. */
+static inline UBYTE util_upper(UBYTE c)
 {
-    /* Case-insensitive string comparison */
-    while (*string1 && *string2) {
-        char c1 = *string1;
-        char c2 = *string2;
-        
-        /* Convert to lowercase for comparison */
-        if (c1 >= 'A' && c1 <= 'Z') c1 += 32;
-        if (c2 >= 'A' && c2 <= 'Z') c2 += 32;
-        
-        if (c1 != c2) {
-            return (LONG)((UBYTE)c1 - (UBYTE)c2);
-        }
-        
-        string1++;
-        string2++;
-    }
-    
-    /* Return difference of terminating characters */
-    return (LONG)((UBYTE)*string1 - (UBYTE)*string2);
+    if ((c >= 'a' && c <= 'z') || (c >= 0xe0 && c <= 0xfe))
+        return c - 0x20;
+    return c;
+}
+
+static inline UBYTE util_lower(UBYTE c)
+{
+    if ((c >= 'A' && c <= 'Z') || (c >= 0xc0 && c <= 0xde))
+        return c + 0x20;
+    return c;
+}
+
+static LONG _utility_Stricmp ( register struct UtilityBase * UtilityBase __asm("a6"),
+                                                        register CONST_STRPTR string1 __asm("a0"),
+                                                        register CONST_STRPTR string2 __asm("a1"))
+{
+    UBYTE c1, c2;
+
+    (void)UtilityBase;
+
+    do {
+        c1 = util_upper((UBYTE)*string1++);
+        c2 = util_upper((UBYTE)*string2++);
+    } while (c1 && c1 == c2);
+
+    return (LONG)c1 - (LONG)c2;
 }
 
 static LONG _utility_Strnicmp ( register struct UtilityBase * UtilityBase __asm("a6"),
@@ -995,63 +1004,35 @@ static LONG _utility_Strnicmp ( register struct UtilityBase * UtilityBase __asm(
                                 register CONST_STRPTR string2 __asm("a1"),
                                 register LONG length __asm("d0"))
 {
-    length = (LONG)(WORD)length; /* sign-extend: GCC m68k move.w workaround */
+    UBYTE c1, c2;
+
+    (void)UtilityBase;
 
     DPRINTF (LOG_DEBUG, "_utility: Strnicmp() called, length=%ld\n", length);
 
     if (length <= 0)
         return 0;
 
-    while (length > 0 && *string1 && *string2)
-    {
-        char c1 = *string1;
-        char c2 = *string2;
+    do {
+        c1 = util_upper((UBYTE)*string1++);
+        c2 = util_upper((UBYTE)*string2++);
+    } while (--length > 0 && c1 && c1 == c2);
 
-        /* Convert to lowercase for comparison */
-        if (c1 >= 'A' && c1 <= 'Z') c1 += 32;
-        if (c2 >= 'A' && c2 <= 'Z') c2 += 32;
-
-        if (c1 != c2)
-        {
-            return (LONG)((UBYTE)c1 - (UBYTE)c2);
-        }
-
-        string1++;
-        string2++;
-        length--;
-    }
-
-    /* If we've compared 'length' characters, strings are equal up to that point */
-    if (length == 0)
-        return 0;
-
-    /* Return difference of terminating characters */
-    return (LONG)((UBYTE)*string1 - (UBYTE)*string2);
+    return (LONG)c1 - (LONG)c2;
 }
 
 static UBYTE _utility_ToUpper ( register struct UtilityBase *UtilityBase __asm("a6"),
                                          register UBYTE               c           __asm("d0"))
 {
-    DPRINTF (LOG_DEBUG, "_utility: ToUpper() called.\n");
-
-    // FIXME: take locale into account
-
-    if ((c>96) && (c<123)) return c ^ 0x20;
-    if ((c >= 0xe0) && (c <= 0xee) && (c != 0xe7)) return c-0x20;
-
-    return c;
+    (void)UtilityBase;
+    return util_upper(c);
 }
 
 static UBYTE _utility_ToLower ( register struct UtilityBase *UtilityBase __asm("a6"),
                                          register UBYTE               c           __asm("d0"))
 {
-    DPRINTF (LOG_DEBUG, "_utility: ToLower() called.\n");
-
-    // FIXME: take locale into account
-
-    if ((c>0x40) && (c<0x5b)) return c | 0x60;
-    if ((c>=0xc0) && (c<=0xde) && (c!=0xd7)) return c + 0x20;
-    return c;
+    (void)UtilityBase;
+    return util_lower(c);
 }
 
 static VOID _utility_ApplyTagChanges ( register struct UtilityBase * UtilityBase __asm("a6"),

@@ -43,6 +43,12 @@ int main(void)
         probe_ch('\n');
     }
 
+    P_LONG("Strnicmp(abcX, ABCY, 0x7fffffff) sign",
+           Strnicmp((STRPTR)"abcX", (STRPTR)"ABCY", 0x7fffffff) < 0 ? -1 : 1);
+    P_LONG("Strnicmp(abcX, ABCY, 0x10003) sign",
+           Strnicmp((STRPTR)"abcX", (STRPTR)"ABCY", 0x10003) < 0 ? -1 : 1);
+    P_LONG("Strnicmp(abcX, ABCY, 0) ", Strnicmp((STRPTR)"abcX", (STRPTR)"ABCY", 0));
+
     P_SECTION("ToUpper/ToLower");
     for (i = 0; i < 256; i++) {
         upper[i] = ToUpper(i);
