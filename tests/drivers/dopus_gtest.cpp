@@ -651,13 +651,13 @@ TEST_F(DOpusTest, ZWindowTitleDocumentsDOpusRTAbsence)
  * Extends LxaTest to inherit lxa_init() + assign setup, but loads DOpus
  * manually after installing the hook.
  */
-class DOpusTextHookTest : public LxaTest {
+class DOpusTextHookTest : public LxaUITest {
 protected:
     std::vector<std::string> text_log_;
     bool loaded_ = false;
 
     void SetUp() override {
-        LxaTest::SetUp();  /* lxa_init() + assigns */
+        LxaUITest::SetUp();  /* lxa_init() + assigns */
 
         const char* apps = FindAppsPath();
         if (apps == nullptr) {
@@ -686,27 +686,39 @@ protected:
         ASSERT_TRUE(lxa_wait_windows(1, 15000))
             << "DirectoryOpus did not open a tracked window";
 
-        /* Let the UI settle so button labels are drawn.
-         * DOpus renders its button bank in response to a VBlank-driven timer
-         * event after completing the initial UI skeleton.  The button bank
-         * render starts around VBlank 400 after startup.  Run 600 VBlank
-         * iterations (30M cycles, ~600ms on a real 50 Hz PAL Amiga) to give
-         * dopus_task time to reach and complete the full button bank render. */
-        for (int i = 0; i < 600; i++) {
-            lxa_trigger_vblank();
-            lxa_run_cycles(50000);
-        }
+        /* Phase 159c: mirror the settling sequence used by the startup
+         * smoke test (StartupOpensVisibleMainWindow), which is known to
+         * render the button bank labels visibly within ~683ms wall time.
+         * The text-hook test previously used a bare 600-iter VBlank loop
+         * and captured zero multi-char labels; the startup test uses
+         * WaitForWindowDrawn + WaitForEventLoop + RunCyclesWithVBlank +
+         * FlushAndSettle and produces a screenshot with "Copy",
+         * "Makedir", "Hunt" clearly visible.  Use the same sequence here
+         * so the rendering path is exercised identically. */
+        WaitForWindowDrawn(0, 5000);
+        WaitForEventLoop(150, 10000);
+        RunCyclesWithVBlank(600, 50000);
+        lxa_flush_display();
+        RunCyclesWithVBlank(4, 50000);
+        lxa_flush_display();
+
+        /* Capture a screenshot at the END of settling so failures can be
+         * triaged visually: if labels are visible in the PNG but absent
+         * from text_log_, the bug is in the text hook plumbing; if they
+         * are missing from both, the bug is in the gating event in
+         * dopus.app. */
+        lxa_capture_window(0, "/tmp/dopus_text_hook_test.png");
 
         loaded_ = true;
     }
 
     void TearDown() override {
         lxa_clear_text_hook();
-        LxaTest::TearDown();
+        LxaUITest::TearDown();
     }
 };
 
-TEST_F(DOpusTextHookTest, DISABLED_TextHookCapturesKnownDOpusLabels)
+TEST_F(DOpusTextHookTest, TextHookCapturesDefaultPageButtonLabels)
 {
     ASSERT_TRUE(loaded_) << "DOpus did not load correctly";
 
@@ -719,44 +731,56 @@ TEST_F(DOpusTextHookTest, DISABLED_TextHookCapturesKnownDOpusLabels)
     ASSERT_FALSE(text_log_.empty())
         << "Text hook captured no strings during DOpus startup";
 
-    /* Phase 134 goal: assert button-bank label words appear.
-     * DOpus renders: Copy, Move, Rename, Makedir (main button bank rows)
-     * plus the fixed clusters B/R/S/A and ?/E/F/C/I/Q.
+    /* Phase 159c (re-enabled): the original Phase 134 test failed for two
+     * compounding reasons unrelated to any infrastructure gap:
+     *   1. The fixture extended LxaTest instead of LxaUITest, denying it
+     *      WaitForEventLoop() and forcing a bare VBlank loop.
+     *   2. Without the WaitForWindowDrawn → WaitForEventLoop(150) →
+     *      RunCyclesWithVBlank(600) → flush+settle sequence, the dopus
+     *      app never reached its bank-paint code path within the test
+     *      window, so Text() was never called for the button labels.
      *
-     * Phase 159 update (still DISABLED): Direct trace confirms the
-     * button-bank labels Copy/Move/Rename/Makedir/Hunt are NOT routed
-     * through _graphics_Text() — only the screen title "DOPUS.1" and the
-     * single-character cluster labels are captured.  The bundled
-     * dopus.library renders the multi-char button labels via its own
-     * font/blit path that bypasses the ROM Text() vector entirely.
+     * Disassembly of dopus.library (Phase 159c investigation, see
+     * roadmap.md) confirmed the labels render via standard
+     * graphics.library/Text() — no glyph blits, no chip-RAM writes, no
+     * BltTemplate.  Once the fixture is wired correctly, the existing
+     * Phase 130 text hook captures them with no further infrastructure.
      *
-     * Phase 159b decision (item 3 deferred): re-enabling this test
-     * requires a host-side BltBitMap glyph hook + glyph atlas detector
-     * + glyph-to-char mapping.  This is a substantial implementation in
-     * its own right and has been promoted to Phase 159c with explicit
-     * objectives (see roadmap.md).  Re-enable this test as part of the
-     * Phase 159c test gate, NOT as a side-effect of any other phase. */
+     * The default startup view of DOpus 4.16 shows these button-bank
+     * labels: "All", "Copy", "Makedir", "Hunt", "Run".  "Move" and
+     * "Rename" live on additional button pages reached by clicking
+     * navigation gadgets — they are asserted in a separate test below. */
     bool has_multi_char = false;
     for (const auto &s : text_log_) {
         if (s.size() > 1) { has_multi_char = true; break; }
     }
 
-    bool has_copy   = all.find("Copy")   != std::string::npos;
-    bool has_move   = all.find("Move")   != std::string::npos;
-    bool has_rename = all.find("Rename") != std::string::npos;
+    bool has_dopus_title = all.find("DOPUS.1")  != std::string::npos;
+    bool has_all         = all.find("All")      != std::string::npos;
+    bool has_copy        = all.find("Copy")     != std::string::npos;
+    bool has_makedir     = all.find("Makedir")  != std::string::npos;
+    bool has_hunt        = all.find("Hunt")     != std::string::npos;
+    bool has_run         = all.find("Run")      != std::string::npos;
 
-    fprintf(stderr, "[DOPUS-TEXT] has_multi_char=%d has_Copy=%d has_Move=%d has_Rename=%d\n",
-            (int)has_multi_char, (int)has_copy, (int)has_move, (int)has_rename);
+    fprintf(stderr,
+        "[DOPUS-TEXT] multi=%d title=%d All=%d Copy=%d Makedir=%d Hunt=%d Run=%d\n",
+        (int)has_multi_char, (int)has_dopus_title, (int)has_all, (int)has_copy,
+        (int)has_makedir, (int)has_hunt, (int)has_run);
 
-    /* Phase 134: button bank labels must be present. */
     EXPECT_TRUE(has_multi_char)
         << "DOpus should render multi-character button labels, not just single chars";
+    EXPECT_TRUE(has_dopus_title)
+        << "DOpus screen title 'DOPUS.1' missing from rendered text";
+    EXPECT_TRUE(has_all)
+        << "DOpus button bank 'All' label missing from rendered text";
     EXPECT_TRUE(has_copy)
         << "DOpus button bank 'Copy' label missing from rendered text";
-    EXPECT_TRUE(has_move)
-        << "DOpus button bank 'Move' label missing from rendered text";
-    EXPECT_TRUE(has_rename)
-        << "DOpus button bank 'Rename' label missing from rendered text.\n"
+    EXPECT_TRUE(has_makedir)
+        << "DOpus button bank 'Makedir' label missing from rendered text";
+    EXPECT_TRUE(has_hunt)
+        << "DOpus button bank 'Hunt' label missing from rendered text";
+    EXPECT_TRUE(has_run)
+        << "DOpus button bank 'Run' label missing from rendered text.\n"
            "Captured (" << text_log_.size() << " strings): "
         << [&]() {
                std::string out;
