@@ -1,0 +1,31 @@
+=== MatchFirst/MatchNext/MatchEnd Test ===
+
+Setup: Creating test files...
+Created: test1.txt, test2.txt, test3.dat
+
+Test 1: Match #?.txt files
+  Found: test1.txt (size=5)
+  Found: test2.txt (size=5)
+  Total .txt files found: 2
+  PASS: Found expected 2 .txt files
+
+Test 2: Match #?.dat files
+  Found: test3.dat
+  Total .dat files found: 1
+  PASS: Found expected 1 .dat file
+
+Test 3: Match test#? files
+  Found: test1.txt
+  Found: test2.txt
+  Found: test3.dat
+  Total test* files found: 3
+  PASS: Found expected 3 test* files
+
+Test 4: Match nonexistent#?.xyz
+  Files found: 0
+  PASS: No files found as expected
+
+=== Cleanup ===
+Test files deleted
+
+=== All Tests Completed ===

@@ -1,0 +1,19 @@
+SameDevice Test
+===============
+
+Test 1: Duplicate locks on the same object report the same device
+  PASS: Duplicate locks share a device
+
+Test 2: Different objects on the same volume report the same device
+  PASS: Same volume shares a device
+
+Test 3: Locks on different devices report DOSFALSE
+  PASS: Different devices compare false
+
+Test 4: NULL first lock returns DOSFALSE
+  PASS: NULL first lock rejected
+
+Test 5: NULL second lock returns DOSFALSE
+  PASS: NULL second lock rejected
+
+Failed: 0

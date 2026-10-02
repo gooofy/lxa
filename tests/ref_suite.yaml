@@ -12,6 +12,7 @@ Tests/Console/kp2_test:         {interactive: "reads keys injected by console_gt
 Tests/Console/raw_events_unit:  {interactive: "waits for special-key reports injected by console_gtest", phase: 224}
 Tests/Console/setmode:          {interactive: "reads RAW input injected by console_gtest", phase: 224}
 Tests/Devices/Keyboard:         {interactive: "waits for a SHIFT key press injected by devices_gtest", phase: 224}
+Tests/Intuition/DisplayAlert:   {interactive: "DisplayAlert() blocks until the user clicks a mouse button", phase: 224}
 Tests/Intuition/IDCMPDeltaMove: {interactive: "waits for mouse moves injected by intuition_gtest", phase: 224}
 Tests/Intuition/IDCMPMenuVerify: {interactive: "waits for an RMB press injected by intuition_gtest", phase: 224}
 Tests/Intuition/IDCMPSizeVerify: {interactive: "waits for a sizing-gadget drag injected by intuition_gtest", phase: 224}
@@ -20,3 +21,9 @@ Tests/Graphics/Copper:          {lxa_only: "reads back the write-only COLORxx cu
 Tests/Graphics/RegionsExt:      {lxa_only: "RectInRegion()/PointInRegion() are AROS extensions lxa provides in graphics.library's private LVO slots -642/-648, which do not exist in AmigaOS 3.1; also lxa's NULL tolerance of DisposeRegion()/ClearRegion()"}
 Tests/Graphics/DiskfontExt:     {lxa_only: "diskfont.library V45+ API (GetDiskFontCtrl, SetDiskFontCtrlA, outline fonts, WriteFontContents, WriteDiskFontHeaderA, ObtainCharsetInfo) is not in the AmigaOS 3.1 diskfont.library V40 of the reference"}
 Tests/Graphics/DisplayExt:      {lxa_only: "lxa's deliberate display database extensions (Phase 129): virtualised unknown mode IDs and DTAG_NAME mode names; AmigaOS 3.1 without DEVS:Monitors returns NULL/0 for both"}
+Tests/Dos/CliInitNewcli:        {lxa_only: "feeds CliInitNewcli() a hand-built startup packet; dos.doc leaves the packet format undefined (private to the system's shell start-up), lxa uses the AROS layout and AmigaOS 3.1 hangs on it"}
+Tests/Dos/CliInitRun:           {lxa_only: "feeds CliInitRun() hand-built Run packets; dos.doc leaves the packet format undefined (private to Run/System start-up), lxa uses the AROS layout which AmigaOS 3.1 does not accept"}
+Tests/Dos/SoftLink:             {lxa_only: "soft links need the Fast File System; the reference has only ram-handler (MakeLink LINK_SOFT -> ERROR_NOT_IMPLEMENTED) and the emulator directory filesystem on SYS: (no soft links)"}
+Tests/Intuition/InvalidArgs:    {lxa_only: "invalid OpenWindow/OpenScreen arguments (negative WA_Height hangs AmigaOS 3.1, a bogus NW_EXTENDED pointer is dereferenced); checks lxa's sanitizing"}
+Tests/Icon/IconV44:             {lxa_only: "icon.library V44 API (IconControlA, LayoutIconA, DrawIconStateA, GetIconRectangleA, ChangeToSelectedIconColor); the AmigaOS 3.1 reference has icon.library V40 without these vectors"}
+Tests/Workbench/AppObjectsV44:  {lxa_only: "workbench.library V44 API (OpenWorkbenchObjectA, WorkbenchControlA, drop zones, ...); the AmigaOS 3.1 reference has workbench.library V40 without these vectors (calling them hangs it), its WBInfo() blocks in a modal requester, and stale-handle tolerance is lxa-only"}

@@ -1,0 +1,39 @@
+Testing Gadget Refresh Functions...
+
+OK: Screen opened
+OK: Window opened
+
+Test 1: AddGadget inserts at head...
+  OK: AddGadget inserted first gadget at position 0
+
+Test 2: AddGadget appends with position ~0...
+  OK: AddGadget appended gadget at end
+
+Test 3: AddGList appends a gadget chain and reports insertion position...
+  OK: AddGList appended both gadgets and returned position 2
+
+Test 4: RemoveGadget returns the removed ordinal position...
+  OK: RemoveGadget removed gadget3 at ordinal 2
+
+Test 5: AddGList inserts at a specific position...
+  OK: AddGList inserted the chain at ordinal 1
+
+Test 6: RemoveGList returns the start ordinal position...
+  OK: RemoveGList removed two gadgets starting at ordinal 1
+
+Test 7: RefreshGList and RefreshGadgets redraw without changing list links...
+  OK: Refresh helpers preserved gadget list links
+
+Test 8: OffGadget and OnGadget toggle the disabled flag...
+  OK: OnGadget/OffGadget update GFLG_DISABLED
+
+Test 9: ActivateGadget ignores non-string boolean gadgets...
+  ActivateGadget(boolean) returned TRUE, not SELECTED
+
+Test 10: ActivateGadget activates string gadgets and recomputes NumChars...
+  OK: ActivateGadget selected string gadget and updated NumChars
+
+OK: Window closed
+OK: Screen closed
+
+PASS: gadget_refresh all tests completed

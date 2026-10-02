@@ -108,6 +108,12 @@ uint32_t copper_get_skip_count(void)  { return g_copper_skips; }
  * Returns the number of instructions executed (each instruction is two
  * 16-bit words, so 4 bytes).
  */
+/* COPJMP1/2 written by the copper itself: the copper jumps (no recursion,
+ * which overflowed the host stack for lists that jump to themselves -
+ * Fred Fish QMouse) */
+static bool     s_copper_active;
+static uint32_t s_copper_jump;
+
 static uint32_t copper_run_at(uint32_t start_addr)
 {
     if (start_addr == 0) {
@@ -123,6 +129,9 @@ static uint32_t copper_run_at(uint32_t start_addr)
 
     uint32_t pc = start_addr;
     uint32_t executed = 0;
+
+    s_copper_active = true;
+    s_copper_jump = 0;
 
     /*
      * Track whether the previous instruction was a SKIP whose condition
@@ -170,6 +179,10 @@ static uint32_t copper_run_at(uint32_t start_addr)
             DPRINTF(LOG_DEBUG, "copper: MOVE 0x%04x -> 0x%03x\n", w1, reg);
             _handle_custom_write_ext(reg, w1);
             g_copper_moves++;
+            if (s_copper_jump) {
+                pc = s_copper_jump;
+                s_copper_jump = 0;
+            }
         }
         else if ((w1 & 0x0001) == 0)
         {
@@ -202,6 +215,8 @@ static uint32_t copper_run_at(uint32_t start_addr)
                     (w0 >> 8) & 0xFF, w0 & 0xFE);
         }
     }
+
+    s_copper_active = false;
 
     if (executed >= COPPER_MAX_INSTRUCTIONS) {
         DPRINTF(LOG_DEBUG,
@@ -252,6 +267,10 @@ void copper_jump(int which)
     }
     uint32_t addr = (which == 2) ? g_cop2lc : g_cop1lc;
     if (addr == 0) {
+        return;
+    }
+    if (s_copper_active) {          /* strobe from inside the copper list */
+        s_copper_jump = addr;
         return;
     }
     g_copper_runs++;

@@ -96,8 +96,8 @@ static void print_ioerr(const char *label)
 
 static void cleanup(void)
 {
-    RemAssignList((STRPTR)"MULTIASSIGN", 0);
-    RemAssignList((STRPTR)"LATEASSIGN", 0);
+    AssignLock((STRPTR)"MULTIASSIGN", 0);
+    AssignLock((STRPTR)"LATEASSIGN", 0);
     DeleteFile((CONST_STRPTR)"notifytest/file.txt");
     DeleteFile((CONST_STRPTR)"notifytest");
     DeleteFile((CONST_STRPTR)"assign_a/file_a.txt");
@@ -195,8 +195,9 @@ int main(void)
     }
 
     print("\nTest 5: StartNotify/EndNotify message delivery\n");
-    if (!CreateDir((CONST_STRPTR)"notifytest")) {
-        BPTR notify_lock = Lock((CONST_STRPTR)"notifytest", SHARED_LOCK);
+    {
+        /* CreateDir() returns an exclusive lock: release it */
+        BPTR notify_lock = CreateDir((CONST_STRPTR)"notifytest");
         if (notify_lock) UnLock(notify_lock);
     }
     port = CreateMsgPort();

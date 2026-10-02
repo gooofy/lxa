@@ -1,0 +1,10 @@
+GetFileSysTask Test
+===================
+
+Test 1: Current process returns pr_FileSystemTask
+  PASS: Current process filesystem task
+
+Test 2: NULL pr_FileSystemTask returns NULL
+  PASS: NULL filesystem task
+
+Failed: 0

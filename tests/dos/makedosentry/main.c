@@ -17,9 +17,7 @@ static void free_makedosentry_result(struct DosList *node)
     if (!node)
         return;
 
-    if (node->dol_Name)
-        FreeVec((APTR)BADDR(node->dol_Name));
-    FreeVec(node);
+    FreeDosEntry(node);
 }
 
 static void print(const char *s)
@@ -108,6 +106,21 @@ static LONG bstr_equals(struct DosList *node, const char *expected)
     return buffer[len + 1] == '\0';
 }
 
+static BOOL long_name_copied(struct DosList *node, const char *name, ULONG len)
+{
+    UBYTE *buffer = (UBYTE *)BADDR(node->dol_Name);
+    ULONG i;
+
+    if (!buffer || buffer[0] != (UBYTE)len)
+        return FALSE;
+    for (i = 0; i < len; i++)
+    {
+        if (buffer[i + 1] != (UBYTE)name[i])
+            return FALSE;
+    }
+    return buffer[len + 1] == '\0';
+}
+
 int main(void)
 {
     struct DosList *node;
@@ -137,26 +150,18 @@ int main(void)
         test_fail("Create assign entry", "Assign entry was not initialized correctly");
     free_makedosentry_result(node);
 
-    print("\nTest 3: Truncates names longer than 255 characters to BCPL length\n");
+    print("\nTest 3: Names longer than 255 characters are copied whole, the length byte wraps\n");
     for (i = 0; i < 300; i++)
         long_name[i] = 'A' + (i % 26);
     long_name[300] = '\0';
 
     node = MakeDosEntry((CONST_STRPTR)long_name, DLT_VOLUME);
     err = IoErr();
-    if (node && err == 0 && node->dol_Type == DLT_VOLUME && bstr_equals(node, long_name))
-        test_pass("Truncate long name");
+    if (node && err == 0 && node->dol_Type == DLT_VOLUME && long_name_copied(node, long_name, 300))
+        test_pass("Long name copied");
     else
-        test_fail("Truncate long name", "Long-name handling did not produce a valid BCPL string");
+        test_fail("Long name copied", "Long-name handling did not match AmigaOS");
     free_makedosentry_result(node);
-
-    print("\nTest 4: Rejects NULL names\n");
-    node = MakeDosEntry(NULL, DLT_DEVICE);
-    err = IoErr();
-    if (!node && err == ERROR_REQUIRED_ARG_MISSING)
-        test_pass("Reject NULL name");
-    else
-        test_fail("Reject NULL name", "NULL name handling behaved incorrectly");
 
     print("\nFailed: ");
     print_num(tests_failed);

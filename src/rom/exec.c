@@ -23,6 +23,7 @@
 #include <libraries/mathffp.h>
 
 #include <graphics/gfxbase.h>
+#include <graphics/monitor.h>
 
 #include <intuition/intuitionbase.h>
 
@@ -47,8 +48,8 @@ extern struct MsgPort *lxa_dos_host_console_port(void);
 
 #define EXEC_FUNCTABLE_ENTRY(___off) (NUM_EXEC_FUNCS+(___off/6))
 
-#define VERSION  1
-#define REVISION 1
+#define VERSION  40     /* exec.library 40.10 = Kickstart 3.1 (as on the reference) */
+#define REVISION 10
 
 /* Library init calling convention per RKRM:
  * D0 = Library pointer
@@ -487,7 +488,8 @@ static struct Library *exec_register_resident_node(struct ExecBase *SysBase,
         lib_base->lib_IdString     = (APTR)resident->rt_IdString;
         lib_base->lib_Version      = resident->rt_Version;
 
-        AddTail(target_list, (struct Node *)lib_base);
+        if (target_list)
+            AddTail(target_list, (struct Node *)lib_base);
     }
 
     return lib_base;
@@ -3393,8 +3395,8 @@ APTR _exec_OpenResource ( register struct ExecBase * SysBase __asm("a6"),
  * Format string specifiers:
  *   %[-][0][width][.precision][l]d - signed decimal
  *   %[-][0][width][.precision][l]u - unsigned decimal
- *   %[-][0][width][.precision][l]x - lowercase hex
- *   %[-][0][width][.precision][l]X - uppercase hex
+ *   %[-][0][width][.precision][l]x - upper-case hex (sic, AmigaOS 3.1)
+ *   %[-][0][width][.precision][l]X - lower-case hex (sic, AmigaOS 3.1)
  *   %[-][width]s - string
  *   %[-][width]c - character
  *   %b - BSTR (BCPL string with length byte)
@@ -3658,8 +3660,10 @@ APTR _exec_RawDoFmt ( register struct ExecBase * SysBase __asm("a6"),
                     value = *args++;
                 }
 
-                /* AmigaOS RawDoFmt always uses uppercase hex for both %x and %X */
-                const char *hexDigits = "0123456789ABCDEF";
+                /* AmigaOS 3.1 RawDoFmt (verified on the reference machine):
+                 * %x prints upper-case digits, %X lower-case ones. */
+                const char *hexDigits = (specifier == 'X') ? "0123456789abcdef"
+                                                           : "0123456789ABCDEF";
 
                 char buf[9];
                 char *p = buf + sizeof(buf) - 1;
@@ -3785,8 +3789,17 @@ APTR _exec_RawDoFmt ( register struct ExecBase * SysBase __asm("a6"),
             case 'c':
             case 'C':
             {
-                /* Character */
-                char ch = (char)*args++;
+                /* Character: %c takes a WORD, %lc a LONG (low byte printed) */
+                char ch;
+                if (isLong)
+                {
+                    ch = (char)*(ULONG *)args;
+                    args += 2;
+                }
+                else
+                {
+                    ch = (char)*args++;
+                }
 
                 if (!leftAlign)
                 {
@@ -5297,6 +5310,13 @@ struct Library *registerBuiltInLib (ULONG dSize, struct Resident *romTAG)
      * where LibBase is declared as struct Library* instead of the actual library type).
      * The 5th parameter (segList) is 0 for ROM-based libraries.
      */
+    /* Phase 235: with LXA_OVERRIDE the library stays private to lxa's ROM
+     * (the ROM keeps using it) and OpenLibrary() loads the user's binary */
+    if (emucall1(EMU_CALL_LIB_OVERRIDDEN, (ULONG)romTAG->rt_Name))
+    {
+        LPRINTF (LOG_WARNING, "_exec: LXA_OVERRIDE: %s comes from LIBS: (diagnostic mode)\n", romTAG->rt_Name);
+        return exec_register_resident_node(SysBase, NULL, romTAG, 0);
+    }
     return exec_register_resident_node(SysBase, &SysBase->LibList, romTAG, 0);
 }
 
@@ -5394,7 +5414,8 @@ void _bootstrap(void)
             BPTR dirLock = Lock((STRPTR)dirbuf, ACCESS_READ);
             if (dirLock) {
                 struct Process *me = U_getCurrentProcess();
-                me->pr_CurrentDir = dirLock;
+                /* CurrentDir() also records the name in cli_SetName */
+                CurrentDir(dirLock);
                 me->pr_HomeDir = DupLock(dirLock);  /* Also set HomeDir for PROGDIR: */
                 DPRINTF (LOG_INFO, "_exec: _bootstrap(): current dir lock=0x%08lx\n", dirLock);
             } else {
@@ -5819,8 +5840,8 @@ void coldstart (void)
     /* Initialize GfxBase display dimensions - default to PAL resolution */
     GfxBase->NormalDisplayRows = 256;
     GfxBase->NormalDisplayColumns = 640;
-    GfxBase->MaxDisplayRow = 312;     /* PAL max */
-    GfxBase->MaxDisplayColumn = 640;
+    GfxBase->MaxDisplayRow = 311;     /* PAL: 312 lines (AmigaOS 3.1 reference) */
+    GfxBase->MaxDisplayColumn = 455;  /* AmigaOS 3.1 reference value */
     GfxBase->DisplayFlags = PAL | REALLY_PAL;  /* PAL crystal (matches VBlankFrequency=50) */
     GfxBase->VBlank = 50;                      /* PAL VBlank rate */
     GfxBase->ChipRevBits0 = SETCHIPREV_ECS;   /* ECS chipset (HR_AGNUS + HR_DENISE) */
@@ -5829,11 +5850,11 @@ void coldstart (void)
     /* Additional GfxBase fields that some apps read directly.
      * Per Phase 109 audit — apps may check these at startup and fail silently
      * if they find zeros. */
-    GfxBase->NormalDPMX = 22;                  /* ~22 dots per mm (horizontal) for PAL hi-res */
-    GfxBase->NormalDPMY = 22;                  /* ~22 dots per mm (vertical) for PAL non-lace */
-    GfxBase->MicrosPerLine = 64;               /* ~64 microseconds per raster line (PAL) */
+    GfxBase->NormalDPMX = 1226;                /* dots per metre, AmigaOS 3.1 reference (PAL) */
+    GfxBase->NormalDPMY = 1299;
+    GfxBase->MicrosPerLine = 16285;            /* 1/256 us per raster line, AmigaOS 3.1 reference */
     GfxBase->MinDisplayColumn = 0x71;          /* Standard left edge of display (ECS) */
-    GfxBase->monitor_id = 0;                   /* Default (PAL) monitor */
+    GfxBase->monitor_id = PAL_MONITOR_ID >> 16; /* PAL monitor (AmigaOS 3.1 reference: 2) */
     GfxBase->TopLine = 0;                      /* Top visible line offset */
     /* copinit, SimpleSprites, ActiView left NULL — they require actual data
      * structures. NULL is the correct initial value (no copper list, no sprites,
@@ -5987,28 +6008,61 @@ void coldstart (void)
 
     //BPTR oldpath = 0;
 
-    struct CommandLineInterface *cli = (struct CommandLineInterface *) AllocDosObject (DOS_CLI, (struct TagItem *)NULL);
-    cli->cli_DefaultStack = (rootProc->pr_StackSize + 3) / 4;
-
-    /* cli_CommandDir is left at 0 (NULL) — command path is managed by the shell
+    /* cli_CommandDir is left at 0 (NULL) - command path is managed by the shell
      * via the Path command and DOS path list. The initial bootstrap process
      * doesn't need a pre-populated command directory path. */
     char *binfn = AllocVec (1024, MEMF_CLEAR);
     emucall1 (EMU_CALL_LOADFILE, (ULONG) binfn);
+    LONG binlen = strlen(binfn);
+    if (binlen > 255)
+        binlen = 255;
+
+    /* Buffer sizes of a CLI started by the AmigaOS 3.1 shell (verified on
+     * the reference: SetCurrentDirName/SetProgramName/SetPrompt keep at
+     * most 78/102/58 characters).  A longer host program path is kept.
+     * (Allocated here: utility.library tags are not available this early.) */
+    struct CommandLineInterface *cli = (struct CommandLineInterface *) AllocDosObject (DOS_CLI, (struct TagItem *)NULL);
+    cli->cli_DefaultStack = (rootProc->pr_StackSize + 3) / 4;
+
     {
-        LONG binlen = strlen(binfn);
-        UBYTE *binbstr = AllocVec((ULONG)binlen + 2, MEMF_PUBLIC | MEMF_CLEAR);
-        if (binbstr)
+        LONG name_cap = binlen > 102 ? binlen : 102;
+        UBYTE *namebstr = AllocVec(name_cap + 2, MEMF_PUBLIC | MEMF_CLEAR);
+        UBYTE *promptbstr = AllocVec(58 + 2, MEMF_PUBLIC | MEMF_CLEAR);
+        UBYTE *setnamebstr = AllocVec(78 + 2, MEMF_PUBLIC | MEMF_CLEAR);
+
+        if (namebstr)
         {
-            binbstr[0] = (UBYTE)binlen;
-            CopyMem(binfn, binbstr + 1, (ULONG)binlen);
-            FreeVec(binfn);
-            cli->cli_CommandName = MKBADDR(binbstr);
+            FreeVec(BADDR(cli->cli_CommandName));
+            cli->cli_CommandName = MKBADDR(namebstr);
         }
         else
         {
-            cli->cli_CommandName = MKBADDR(binfn);
+            namebstr = (UBYTE *)BADDR(cli->cli_CommandName);
         }
+        if (promptbstr)
+        {
+            FreeVec(BADDR(cli->cli_Prompt));
+            cli->cli_Prompt = MKBADDR(promptbstr);
+        }
+        else
+        {
+            promptbstr = (UBYTE *)BADDR(cli->cli_Prompt);
+        }
+        if (setnamebstr)
+        {
+            FreeVec(BADDR(cli->cli_SetName));
+            cli->cli_SetName = MKBADDR(setnamebstr);
+        }
+
+        namebstr[0] = (UBYTE)binlen;
+        CopyMem(binfn, namebstr + 1, (ULONG)binlen);
+        namebstr[binlen + 1] = '\0';
+        FreeVec(binfn);
+
+        /* the default shell prompt */
+        promptbstr[0] = 4;
+        CopyMem((APTR)"%N> ", promptbstr + 1, 4);
+        promptbstr[5] = '\0';
     }
 
     // Get command line arguments

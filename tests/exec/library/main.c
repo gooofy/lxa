@@ -405,7 +405,9 @@ static void ensure_dir(CONST_STRPTR path)
         return;
     }
 
-    CreateDir(path);
+    lock = CreateDir(path);   /* exclusive lock: release it */
+    if (lock)
+        UnLock(lock);
 }
 
 static BOOL create_otag_file(CONST_STRPTR path)
@@ -1867,14 +1869,15 @@ static int test_dos_setowner_stub_closed(void)
     }
     Close(fh);
 
+    /* AmigaOS 3.1 filesystems do not know ACTION_SET_OWNER */
     ok = SetOwner((CONST_STRPTR)"T:lib_setowner_probe", 0x12345678);
-    if (ok == DOSTRUE)
+    if (ok == DOSFALSE && IoErr() == ERROR_ACTION_NOT_KNOWN)
     {
-        print("OK: SetOwner() no longer behaves like a stub\n");
+        print("OK: SetOwner() reports ERROR_ACTION_NOT_KNOWN like AmigaOS 3.1\n");
     }
     else
     {
-        print("FAIL: SetOwner() unexpectedly failed\n");
+        print("FAIL: SetOwner() did not report ERROR_ACTION_NOT_KNOWN\n");
         errors++;
     }
 
@@ -1889,9 +1892,6 @@ static int test_dos_addsegment_stub_closed(void)
     int errors = 0;
     BPTR seg;
     LONG ok;
-    struct RootNode *root;
-    struct DosInfo *dos_info;
-    BPTR old_head;
     struct Segment *entry;
 
     print("--- Test: DOS AddSegment entry point ---\n");
@@ -1903,19 +1903,10 @@ static int test_dos_addsegment_stub_closed(void)
         return 1;
     }
 
-    root = DOSBase ? DOSBase->dl_Root : NULL;
-    dos_info = root ? (struct DosInfo *)BADDR(root->rn_Info) : NULL;
-    if (!dos_info)
-    {
-        print("FAIL: DOS info is not initialized for AddSegment probe\n\n");
-        UnLoadSeg(seg);
-        return 1;
-    }
-
-    old_head = dos_info->di_ResList;
-    ok = AddSegment((CONST_STRPTR)"EXECADDSEG", seg, 0);
-    entry = (struct Segment *)BADDR(dos_info->di_ResList);
-    if (ok == DOSTRUE && IoErr() == 0 && entry && entry->seg_Seg == seg && entry->seg_Next == old_head)
+    /* public API only: AmigaOS 3.1 keeps the resident list privately */
+    ok = AddSegment((CONST_STRPTR)"EXECADDSEG", seg, 1);
+    entry = FindSegment((CONST_STRPTR)"EXECADDSEG", NULL, FALSE);
+    if (ok == DOSTRUE && entry && entry->seg_Seg == seg && entry->seg_UC == 1)
     {
         print("OK: AddSegment() no longer behaves like a stub\n");
     }
@@ -1927,9 +1918,11 @@ static int test_dos_addsegment_stub_closed(void)
 
     if (entry && entry->seg_Seg == seg)
     {
-        dos_info->di_ResList = entry->seg_Next;
-        UnLoadSeg(seg);
-        FreeVec(entry);
+        if (!RemSegment(entry))     /* RemSegment() unloads the seglist */
+        {
+            print("FAIL: RemSegment() failed\n");
+            errors++;
+        }
     }
     else
     {

@@ -1,0 +1,16 @@
+ErrorReport Test
+================
+
+Test 1: Unknown codes return DOSTRUE immediately and leave IoErr untouched
+  PASS: Unknown code immediate return
+
+Test 2: pr_WindowPtr == -1 disables requester display
+  PASS: Disabled requester path
+
+Test 3: Recognized error honors disabled-requester contract
+  PASS: Recognized disabled-requester path
+
+Test 4: Invalid report payload still returns safely when requester is disabled
+  PASS: Invalid payload disabled-requester path
+
+Failed: 0

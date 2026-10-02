@@ -1,0 +1,12 @@
+# Phase 231 sweep scenario, generated from tests/scenarios/apps/directoryopus.yaml
+# by `python3 -m rdd sweep gen` - edit the app scenario, not this file.
+name: sweep-directoryopus
+app: {manifest: DirectoryOpus}
+steps:
+  - launch
+  - wait_window: {title: "DOPUS", timeout: 30000}
+  - wait_idle: {timeout: 20000}
+  - frames: 100
+  - snapshot: startup
+  - menus
+  - quit

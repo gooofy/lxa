@@ -1,0 +1,44 @@
+Testing menu bar interaction and selection...
+
+--- Test 1: Open screen and window with menus ---
+OK: Screen opened
+  BarHeight=10
+  hires BarHBorder=5
+  hires BarVBorder=1
+  hires BarHeight=10
+  hires-lace BarHBorder=5
+  hires-lace BarVBorder=1
+  hires-lace BarHeight=10
+OK: Window opened
+
+--- Test 2: Setup menu structure ---
+OK: SetMenuStrip() succeeded
+  BarHBorder=2
+  BarVBorder=1
+  menu1.JazzX=-4
+  menu1.JazzY=-4
+  menu1.BeatX=83
+  menu1.BeatY=33
+  menu2.JazzX=-4
+  menu2.JazzY=-4
+  menu2.BeatX=83
+  menu2.BeatY=23
+OK: window->MenuStrip correctly set
+
+--- Test 3: Simulate menu selection via right-click ---
+  Menu bar click X=32
+  Menu bar click Y=5
+  Menu item click X=130
+  Menu item click Y=16
+Note: IDCMP_MENUPICK not received (menu tracking may not be complete)
+
+--- Test 4: Verify menu encoding macros ---
+OK: FULLMENUNUM(1,2,NOSUB) encodes/decodes correctly
+OK: MENUNUM(MENUNULL) returns NOMENU
+
+--- Test 5: Cleanup ---
+OK: ClearMenuStrip() called
+OK: Window closed
+OK: Screen closed
+
+PASS: menu_select tests completed

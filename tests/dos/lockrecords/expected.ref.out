@@ -1,0 +1,10 @@
+LockRecords Test
+================
+
+Test 1: Multiple records lock successfully
+  PASS: LockRecords success
+
+Test 2: Conflicting later entry rolls back earlier locks
+  PASS: Rollback on failure
+
+Failed: 0

@@ -33,10 +33,10 @@
 
 #include "util.h"
 
-#define VERSION    39
+#define VERSION    40
 #define REVISION   1
 #define EXLIBNAME  "gadtools"
-#define EXLIBVER   " 39.1 (2025/02/02)"
+#define EXLIBVER   " 40.1 (2025/02/02)"
 
 char __aligned _g_gadtools_ExLibName [] = EXLIBNAME ".library";
 char __aligned _g_gadtools_ExLibID   [] = EXLIBNAME EXLIBVER;
@@ -68,6 +68,10 @@ struct GadgetContext {
 };
 
 #define GT_CONTEXT_MAGIC 0x47544358UL
+
+/* GadgetType bit AmigaOS 3.1 GadTools sets on every gadget it creates
+ * (including the context gadget, which has no class bits at all). */
+#define LXA_GTYP_GADTOOLS 0x0100
 
 enum gt_kind
 {
@@ -121,15 +125,26 @@ struct gt_format_state
     ULONG remaining;
 };
 
+/* The context gadget is a plain struct Gadget of type GTYP_GADTOOLS (0x0100,
+ * no gadget class bits), zero size, GFLG_GADGHNONE and SpecialInfo NULL -
+ * exactly as AmigaOS 3.1 GadTools creates it (Phase 220 reference probe).
+ * lxa's private bookkeeping lives directly behind the Gadget in the same
+ * allocation. */
+struct GTContextGadget {
+    struct Gadget  gadget;
+    struct GadgetContext context;
+};
+
 static struct GadgetContext *gt_get_context(struct Gadget *gad)
 {
     struct GadgetContext *context;
 
-    if (!gad || gad->GadgetType != GTYP_CUSTOMGADGET)
+    if (!gad || gad->GadgetType != LXA_GTYP_GADTOOLS || gad->SpecialInfo ||
+        gad->Width != 0 || gad->Height != 0)
         return NULL;
 
-    context = (struct GadgetContext *)gad->SpecialInfo;
-    if (!context || context->magic != GT_CONTEXT_MAGIC)
+    context = &((struct GTContextGadget *)gad)->context;
+    if (context->magic != GT_CONTEXT_MAGIC)
         return NULL;
 
     return context;
@@ -1083,6 +1098,10 @@ struct Gadget * _gadtools_CreateGadgetA ( register struct GadToolsBase *GadTools
     if (!ng)
         return NULL;
 
+    /* An MX gadget without labels cannot be created (AmigaOS 3.1). */
+    if (kind == MX_KIND && !GetTagData(GTMX_Labels, 0, taglist))
+        return NULL;
+
     /* Parse GT_Underscore tag — this is common to all gadget kinds */
     us = (UBYTE)GetTagData(GT_Underscore, 0, taglist);
 
@@ -1112,7 +1131,7 @@ struct Gadget * _gadtools_CreateGadgetA ( register struct GadToolsBase *GadTools
         case BUTTON_KIND:
         {
             data->kind = GT_KIND_BUTTON;
-            newgad->GadgetType = GTYP_BOOLGADGET;
+            newgad->GadgetType = LXA_GTYP_GADTOOLS | GTYP_BOOLGADGET;
             newgad->Activation = GACT_RELVERIFY;
             newgad->Flags = GFLG_GADGHCOMP;
 
@@ -1138,7 +1157,7 @@ struct Gadget * _gadtools_CreateGadgetA ( register struct GadToolsBase *GadTools
             WORD len;
 
             data->kind = (kind == INTEGER_KIND) ? GT_KIND_INTEGER : GT_KIND_STRING;
-            newgad->GadgetType = GTYP_STRGADGET;
+            newgad->GadgetType = LXA_GTYP_GADTOOLS | GTYP_STRGADGET;
             newgad->Activation = GACT_RELVERIFY;
             newgad->Flags = GFLG_GADGHCOMP;
 
@@ -1251,7 +1270,7 @@ struct Gadget * _gadtools_CreateGadgetA ( register struct GadToolsBase *GadTools
             WORD cb_w, cb_h;
 
             data->kind = GT_KIND_CHECKBOX;
-            newgad->GadgetType = GTYP_BOOLGADGET;
+            newgad->GadgetType = LXA_GTYP_GADTOOLS | GTYP_BOOLGADGET;
             newgad->Activation = GACT_RELVERIFY | GACT_TOGGLESELECT;
             newgad->Flags = GFLG_GADGHCOMP;
 
@@ -1320,7 +1339,7 @@ struct Gadget * _gadtools_CreateGadgetA ( register struct GadToolsBase *GadTools
             UBYTE justification;
 
             data->kind = GT_KIND_SLIDER;
-            newgad->GadgetType = GTYP_PROPGADGET;
+            newgad->GadgetType = LXA_GTYP_GADTOOLS | GTYP_PROPGADGET;
             newgad->Activation = GACT_RELVERIFY | GACT_IMMEDIATE;
             newgad->Flags = GFLG_GADGHCOMP;
 
@@ -1465,7 +1484,7 @@ struct Gadget * _gadtools_CreateGadgetA ( register struct GadToolsBase *GadTools
             /* Store gadget width in max_pixel_len so gt_update_cycle_label_display
              * can re-centre the label in the right sub-region [22, gadWidth-1]. */
             data->max_pixel_len = (ULONG)ng->ng_Width;
-            newgad->GadgetType = GTYP_BOOLGADGET;
+            newgad->GadgetType = LXA_GTYP_GADTOOLS | GTYP_BOOLGADGET;
             newgad->Activation = GACT_RELVERIFY;
             newgad->Flags = GFLG_GADGHCOMP;
 
@@ -1523,7 +1542,7 @@ struct Gadget * _gadtools_CreateGadgetA ( register struct GadToolsBase *GadTools
         case PALETTE_KIND:
             data->kind = (kind == MX_KIND) ? GT_KIND_MX :
                          (kind == LISTVIEW_KIND) ? GT_KIND_LISTVIEW : GT_KIND_PALETTE;
-            newgad->GadgetType = GTYP_PROPGADGET;
+            newgad->GadgetType = LXA_GTYP_GADTOOLS | GTYP_PROPGADGET;
             newgad->Activation = GACT_RELVERIFY;
             newgad->Flags = GFLG_GADGHCOMP;
 
@@ -1540,7 +1559,7 @@ struct Gadget * _gadtools_CreateGadgetA ( register struct GadToolsBase *GadTools
             UWORD pot, body;
 
             data->kind = GT_KIND_SCROLLER;
-            newgad->GadgetType = GTYP_PROPGADGET;
+            newgad->GadgetType = LXA_GTYP_GADTOOLS | GTYP_PROPGADGET;
             newgad->Activation = GACT_RELVERIFY | GACT_IMMEDIATE;
             newgad->Flags = GFLG_GADGHCOMP;
 
@@ -1626,7 +1645,9 @@ struct Gadget * _gadtools_CreateGadgetA ( register struct GadToolsBase *GadTools
         case TEXT_KIND:
         case NUMBER_KIND:
             data->kind = (kind == TEXT_KIND) ? GT_KIND_TEXT : GT_KIND_NUMBER;
-            newgad->GadgetType = GTYP_BOOLGADGET;
+            /* Display-only: a GadTools gadget without an Intuition gadget
+             * class (AmigaOS 3.1 GadgetType 0x0100). */
+            newgad->GadgetType = LXA_GTYP_GADTOOLS;
             newgad->Flags = GFLG_GADGHNONE;
 
             /* Create text label — default placement is PLACETEXT_LEFT */
@@ -1635,10 +1656,12 @@ struct Gadget * _gadtools_CreateGadgetA ( register struct GadToolsBase *GadTools
                                                   ng->ng_Width, ng->ng_Height, us);
             break;
         default:
-            newgad->GadgetType = GTYP_BOOLGADGET;
+            newgad->GadgetType = LXA_GTYP_GADTOOLS | GTYP_BOOLGADGET;
             newgad->Flags = GFLG_GADGHCOMP;
             break;
     }
+
+    newgad->GadgetType |= LXA_GTYP_GADTOOLS;
 
     /* Link to previous gadget */
     if (gad) {
@@ -1671,16 +1694,10 @@ void _gadtools_FreeGadgets ( register struct GadToolsBase *GadToolsBase __asm("a
 
     if (gt_is_context_gadget(gad))
     {
-        struct GadgetContext *context = gt_get_context(gad);
         struct Gadget *first = gad->NextGadget;
 
-        if (context)
-        {
-            context->magic = 0;
-            FreeMem(context, sizeof(*context));
-        }
-
-        FreeMem(gad, sizeof(struct Gadget));
+        gt_get_context(gad)->magic = 0;
+        FreeMem(gad, sizeof(struct GTContextGadget));
         gad = first;
     }
 
@@ -1983,12 +2000,19 @@ static BOOL gt_validate_newmenu_array(const struct NewMenu *newmenu)
     return have_title;
 }
 
-static WORD gt_menu_label_width(CONST_STRPTR label)
-{
-    if (!label || label == NM_BARLABEL)
-        return 0;
+#define GT_SUBMENU_INDICATOR "\xbb"
 
-    return gt_strlen(label) * 8;
+static struct IntuiText *gt_alloc_menu_itext(STRPTR label)
+{
+    struct IntuiText *itext = AllocMem(sizeof(struct IntuiText), MEMF_CLEAR | MEMF_PUBLIC);
+
+    if (itext)
+    {
+        itext->DrawMode = JAM1;
+        itext->TopEdge = 1;
+        itext->IText = label;
+    }
+    return itext;
 }
 
 static BOOL gt_is_separator_item(const struct MenuItem *item)
@@ -2005,113 +2029,178 @@ static BOOL gt_is_separator_item(const struct MenuItem *item)
     return it->IText[0] == '-';
 }
 
-static WORD gt_measure_menu_item_width(struct MenuItem *item)
+/*
+ * Menu layout (LayoutMenuItemsA / LayoutMenusA).
+ *
+ * The geometry rules were measured on AmigaOS 3.1 (Phase 220 probes,
+ * tests/gadtools/menu_api):
+ *  - item height = font YSize + 1, separator height 6; items stack from 0,
+ *    sub-items from -1;
+ *  - label at LeftEdge 2, or checkmark width + 2 for CHECKIT items, TopEdge 1;
+ *  - width = max(label left + label width) + max(right part) + 3, the
+ *    right part being 6 + Amiga-key width + command char width (COMMSEQ) or
+ *    6 + width of the sub-menu indicator; the indicator sits at width - 2 -
+ *    its own width;
+ *  - sub-items start at parent width - parent width / 4;
+ *  - old-look checkmark/Amiga-key widths are CHECKWIDTH/COMMWIDTH (hires) or
+ *    LOWCHECKWIDTH/LOWCOMMWIDTH, new-look ones come from the DrawInfo images
+ *    (15/23 for topaz 8);
+ *  - menu titles: width = text width + 8, first title at 2, 8 pixels apart,
+ *    Menu.TopEdge/Height stay 0; top-level items are at least title width
+ *    + 1 wide.
+ */
+struct gt_menu_layout
 {
-    struct IntuiText *it;
-    WORD width = 16;
+    struct RastPort rp;
+    struct TextFont *font;
+    struct TextAttr *textattr;
+    UBYTE front_pen;
+    WORD check_width;
+    WORD comm_width;
+    WORD item_height;
+};
 
-    if (!item)
+static __attribute__((noinline)) WORD gt_menu_text_width(struct gt_menu_layout *ml, CONST_STRPTR text)
+{
+    if (!text || text == (CONST_STRPTR)NM_BARLABEL)
         return 0;
-
-    if (gt_is_separator_item(item))
-        return 24;
-
-    if ((item->Flags & ITEMTEXT) && item->ItemFill)
-    {
-        it = (struct IntuiText *)item->ItemFill;
-        width += gt_menu_label_width(it->IText);
-    }
-    else if (item->ItemFill)
-    {
-        width += item->Width;
-    }
-
-    if (item->Flags & CHECKIT)
-        width += 12;
-
-    if (item->Flags & COMMSEQ)
-        width += 28;
-
-    if (item->SubItem)
-        width += 12;
-
-    if (width < 40)
-        width = 40;
-
-    return width;
+    return (WORD)TextLength(&ml->rp, (STRPTR)text, gt_strlen(text));
 }
 
-static BOOL gt_layout_menu_item_chain(struct MenuItem *firstitem, WORD left_edge,
-                                      struct TextAttr *textattr, UBYTE front_pen,
-                                      WORD *out_width, WORD *out_height)
+static void gt_menu_layout_init(struct gt_menu_layout *ml, struct VisualInfo *vi,
+                                struct TagItem *taglist, BOOL *ok)
+{
+    struct Screen *screen = vi ? vi->vi_Screen : NULL;
+    struct DrawInfo *dri = vi ? vi->vi_DrawInfo : NULL;
+    BOOL newlook = (BOOL)GetTagData(GTMN_NewLookMenus, FALSE, taglist);
+    BOOL hires = screen ? ((screen->ViewPort.Modes & HIRES) != 0) : TRUE;
+    struct Image *check = (struct Image *)GetTagData(GTMN_Checkmark, 0, taglist);
+    struct Image *amigakey_img = (struct Image *)GetTagData(GTMN_AmigaKey, 0, taglist);
+    UBYTE default_pen = 0;
+
+    InitRastPort(&ml->rp);
+    ml->textattr = (struct TextAttr *)GetTagData(GTMN_TextAttr, 0, taglist);
+    if (!ml->textattr && screen)
+        ml->textattr = screen->Font;
+    ml->font = ml->textattr ? OpenFont(ml->textattr) : NULL;
+    if (ml->font)
+        SetFont(&ml->rp, ml->font);
+    else if (GfxBase->DefaultFont)
+        SetFont(&ml->rp, GfxBase->DefaultFont);
+    ml->item_height = ml->rp.TxHeight + 1;
+
+    if (dri && dri->dri_NumPens > BARDETAILPEN)
+        default_pen = (UBYTE)dri->dri_Pens[newlook ? BARDETAILPEN : DETAILPEN];
+    else
+        default_pen = newlook ? 1 : 0;
+    ml->front_pen = (UBYTE)GetTagData(GTMN_FrontPen, default_pen, taglist);
+
+    if (newlook)
+    {
+        if (!check && dri)
+            check = dri->dri_CheckMark;
+        if (!amigakey_img && dri)
+            amigakey_img = dri->dri_AmigaKey;
+        ml->check_width = check ? check->Width : 15;
+        ml->comm_width = amigakey_img ? amigakey_img->Width : 23;
+    }
+    else
+    {
+        ml->check_width = check ? check->Width : (hires ? CHECKWIDTH : LOWCHECKWIDTH);
+        ml->comm_width = amigakey_img ? amigakey_img->Width : (hires ? COMMWIDTH : LOWCOMMWIDTH);
+    }
+
+    if (ok)
+        *ok = TRUE;
+}
+
+static void gt_menu_layout_done(struct gt_menu_layout *ml)
+{
+    if (ml->font)
+        CloseFont(ml->font);
+    ml->font = NULL;
+}
+
+static BOOL gt_layout_menu_item_chain(struct gt_menu_layout *ml, struct MenuItem *firstitem,
+                                      WORD left_edge, WORD top_edge, WORD min_width)
 {
     struct MenuItem *item;
-    struct IntuiText *it;
-    WORD max_width = 0;
-    WORD y = 0;
-
-    if (!firstitem)
-    {
-        if (out_width)
-            *out_width = 0;
-        if (out_height)
-            *out_height = 0;
-        return TRUE;
-    }
+    WORD max_label = 0, max_right = 0;
+    WORD width;
+    WORD y = top_edge;
 
     for (item = firstitem; item; item = item->NextItem)
     {
-        WORD needed = gt_measure_menu_item_width(item);
-        if (needed > max_width)
-            max_width = needed;
-    }
+        WORD left = 2, text = 0, right = 0;
 
-    if (max_width == 0)
-        max_width = 40;
+        if (gt_is_separator_item(item))
+            continue;
+        if (item->Flags & CHECKIT)
+            left = ml->check_width + 2;
+        if ((item->Flags & ITEMTEXT) && item->ItemFill)
+            text = gt_menu_text_width(ml, ((struct IntuiText *)item->ItemFill)->IText);
+        else if (item->ItemFill)
+            text = ((struct Image *)item->ItemFill)->Width;
+        if (item->Flags & COMMSEQ)
+        {
+            char cmd[2];
+            cmd[0] = (char)item->Command;
+            cmd[1] = 0;
+            right = 6 + ml->comm_width + gt_menu_text_width(ml, (CONST_STRPTR)cmd);
+        }
+        if (item->SubItem)
+        {
+            WORD sub = 6 + gt_menu_text_width(ml, (CONST_STRPTR)GT_SUBMENU_INDICATOR);
+            if (sub > right)
+                right = sub;
+        }
+        if (left + text > max_label)
+            max_label = left + text;
+        if (right > max_right)
+            max_right = right;
+    }
+    if (max_label == 0)
+        max_label = 2;
+
+    width = max_label + max_right + 3;
+    if (width < min_width)
+        width = min_width;
 
     for (item = firstitem; item; item = item->NextItem)
     {
         item->LeftEdge = left_edge;
         item->TopEdge = y;
-        item->Width = max_width;
-
-        if (item->Height <= 0)
-            item->Height = gt_is_separator_item(item) ? 6 : 10;
+        item->Width = width;
+        item->Height = gt_is_separator_item(item) ? 6 : ml->item_height;
 
         if ((item->Flags & ITEMTEXT) && item->ItemFill)
         {
-            it = (struct IntuiText *)item->ItemFill;
-            it->FrontPen = front_pen;
-            it->ITextFont = textattr;
-            if (gt_is_separator_item(item))
+            struct IntuiText *it = (struct IntuiText *)item->ItemFill;
+
+            it->FrontPen = ml->front_pen;
+            it->BackPen = 0;
+            it->ITextFont = ml->textattr;
+            it->LeftEdge = gt_is_separator_item(item) ? 2 : ((item->Flags & CHECKIT) ? ml->check_width + 2 : 2);
+            it->TopEdge = gt_is_separator_item(item) ? 0 : 1;
+            if (it->NextText)
             {
-                it->LeftEdge = 2;
-                it->TopEdge = 0;
-            }
-            else
-            {
-                it->LeftEdge = (item->Flags & CHECKIT) ? 14 : 2;
-                it->TopEdge = 1;
+                struct IntuiText *ind = it->NextText;
+
+                ind->FrontPen = ml->front_pen;
+                ind->ITextFont = ml->textattr;
+                ind->TopEdge = 1;
+                ind->LeftEdge = width - 2 - gt_menu_text_width(ml, ind->IText);
             }
         }
 
         if (item->SubItem)
         {
-            WORD dummy_width;
-            WORD dummy_height;
-
-            if (!gt_layout_menu_item_chain(item->SubItem, max_width, textattr,
-                                           front_pen, &dummy_width, &dummy_height))
+            if (!gt_layout_menu_item_chain(ml, item->SubItem, width - width / 4, -1, 0))
                 return FALSE;
         }
 
         y += item->Height;
     }
-
-    if (out_width)
-        *out_width = max_width;
-    if (out_height)
-        *out_height = y;
 
     return TRUE;
 }
@@ -2134,7 +2223,6 @@ struct Menu * _gadtools_CreateMenusA ( register struct GadToolsBase *GadToolsBas
     struct MenuItem *lastSubItem = NULL;
     struct IntuiText *itext;
     struct NewMenu *nm;
-    WORD menuLeft = 0;
     BOOL menu_image;
 
     DPRINTF (LOG_DEBUG, "_gadtools: CreateMenusA() newmenu=0x%08lx\n", (ULONG)newmenu);
@@ -2175,10 +2263,7 @@ struct Menu * _gadtools_CreateMenusA ( register struct GadToolsBase *GadToolsBas
                     return NULL;
                 }
 
-                menu->LeftEdge = menuLeft;
-                menu->TopEdge = 0;
-                menu->Width = 80;  /* Will be adjusted by LayoutMenusA */
-                menu->Height = 10;
+                /* Geometry stays 0 until LayoutMenusA() (AmigaOS 3.1). */
                 menu->Flags = MENUENABLED;
                 menu->MenuName = nm->nm_Label;
                 menu->FirstItem = NULL;
@@ -2187,15 +2272,6 @@ struct Menu * _gadtools_CreateMenusA ( register struct GadToolsBase *GadToolsBas
                 /* Apply flags from NewMenu */
                 if (nm->nm_Flags & NM_MENUDISABLED)
                     menu->Flags &= ~MENUENABLED;
-
-                /* Estimate width for next menu position */
-                if (nm->nm_Label) {
-                    int len = 0;
-                    CONST_STRPTR s = nm->nm_Label;
-                    while (*s++) len++;
-                    menu->Width = (len + 2) * 8;  /* Rough estimate */
-                }
-                menuLeft += menu->Width;
 
                 /* Link to menu chain */
                 if (!firstMenu) {
@@ -2232,10 +2308,7 @@ struct Menu * _gadtools_CreateMenusA ( register struct GadToolsBase *GadToolsBas
                     return NULL;
                 }
 
-                item->LeftEdge = 0;
-                item->TopEdge = lastItem ? (lastItem->TopEdge + lastItem->Height) : 0;
-                item->Width = 150;  /* Will be adjusted by LayoutMenuItemsA */
-                item->Height = 10;
+                /* Geometry stays 0 until LayoutMenuItemsA() (AmigaOS 3.1). */
                 item->Flags = ITEMTEXT | ITEMENABLED | HIGHCOMP;
                 item->MutualExclude = nm->nm_MutualExclude;
                 item->NextItem = NULL;
@@ -2258,23 +2331,12 @@ struct Menu * _gadtools_CreateMenusA ( register struct GadToolsBase *GadToolsBas
                     }
                     item->ItemFill = itext;
                     item->Flags &= ~ITEMENABLED;  /* Separators are not selectable */
-                    item->Height = 6;  /* Shorter height for separators */
                 } else if (menu_image) {
                     item->ItemFill = (APTR)nm->nm_Label;
                     item->Flags &= ~ITEMTEXT;
                 } else {
                     /* Create IntuiText for the label */
-                    itext = AllocMem(sizeof(struct IntuiText), MEMF_CLEAR | MEMF_PUBLIC);
-                    if (itext) {
-                        itext->FrontPen = 0;  /* Will use screen colors */
-                        itext->BackPen = 1;
-                        itext->DrawMode = JAM1;
-                        itext->LeftEdge = 2;
-                        itext->TopEdge = 1;
-                        itext->ITextFont = NULL;
-                        itext->IText = (STRPTR)nm->nm_Label;
-                        itext->NextText = NULL;
-                    }
+                    itext = gt_alloc_menu_itext((STRPTR)nm->nm_Label);
                     item->ItemFill = itext;
                 }
 
@@ -2333,10 +2395,6 @@ struct Menu * _gadtools_CreateMenusA ( register struct GadToolsBase *GadToolsBas
                     return NULL;
                 }
 
-                subitem->LeftEdge = currentItem->Width;
-                subitem->TopEdge = lastSubItem ? (lastSubItem->TopEdge + lastSubItem->Height) : 0;
-                subitem->Width = 120;
-                subitem->Height = 10;
                 subitem->Flags = ITEMTEXT | ITEMENABLED | HIGHCOMP;
                 subitem->MutualExclude = nm->nm_MutualExclude;
                 subitem->NextItem = NULL;
@@ -2354,20 +2412,11 @@ struct Menu * _gadtools_CreateMenusA ( register struct GadToolsBase *GadToolsBas
                     }
                     subitem->ItemFill = itext;
                     subitem->Flags &= ~ITEMENABLED;
-                    subitem->Height = 6;
                 } else if (menu_image) {
                     subitem->ItemFill = (APTR)nm->nm_Label;
                     subitem->Flags &= ~ITEMTEXT;
                 } else {
-                    itext = AllocMem(sizeof(struct IntuiText), MEMF_CLEAR | MEMF_PUBLIC);
-                    if (itext) {
-                        itext->FrontPen = 0;
-                        itext->BackPen = 1;
-                        itext->DrawMode = JAM1;
-                        itext->LeftEdge = 2;
-                        itext->TopEdge = 1;
-                        itext->IText = (STRPTR)nm->nm_Label;
-                    }
+                    itext = gt_alloc_menu_itext((STRPTR)nm->nm_Label);
                     subitem->ItemFill = itext;
                 }
 
@@ -2391,6 +2440,12 @@ struct Menu * _gadtools_CreateMenusA ( register struct GadToolsBase *GadToolsBas
 
                 /* Link to parent item */
                 if (!currentItem->SubItem) {
+                    /* The parent's label gets the sub-menu indicator as
+                     * NextText (AmigaOS 3.1: "\xbb", placed by layout). */
+                    if ((currentItem->Flags & ITEMTEXT) && currentItem->ItemFill &&
+                        !gt_is_separator_item(currentItem))
+                        ((struct IntuiText *)currentItem->ItemFill)->NextText =
+                            gt_alloc_menu_itext((STRPTR)GT_SUBMENU_INDICATOR);
                     currentItem->SubItem = subitem;
                 } else if (lastSubItem) {
                     lastSubItem->NextItem = subitem;
@@ -2417,9 +2472,12 @@ static void FreeMenuItems(struct MenuItem *item)
             FreeMenuItems(item->SubItem);
         }
 
-        /* Free the IntuiText if we created one */
+        /* Free the IntuiText (and sub-menu indicator) if we created one */
         if ((item->Flags & ITEMTEXT) && item->ItemFill) {
-            FreeMem(item->ItemFill, sizeof(struct IntuiText));
+            struct IntuiText *it = (struct IntuiText *)item->ItemFill;
+            if (it->NextText)
+                FreeMem(it->NextText, sizeof(struct IntuiText));
+            FreeMem(it, sizeof(struct IntuiText));
         }
 
         FreeMem(item, sizeof(struct MenuItem) + sizeof(APTR));
@@ -2453,29 +2511,18 @@ BOOL _gadtools_LayoutMenuItemsA ( register struct GadToolsBase *GadToolsBase __a
                                   register APTR vi __asm("a1"),
                                   register struct TagItem *taglist __asm("a2") )
 {
-    struct TextAttr *textattr;
-    struct VisualInfo *visual_info;
-    UBYTE front_pen;
-    WORD width;
-    WORD height;
+    struct gt_menu_layout ml;
+    BOOL ok;
 
     DPRINTF (LOG_DEBUG, "_gadtools: LayoutMenuItemsA()\n");
 
     if (!firstitem)
         return FALSE;
 
-    textattr = (struct TextAttr *)GetTagData(GTMN_TextAttr, 0, taglist);
-    if (!textattr && vi)
-    {
-        visual_info = (struct VisualInfo *)vi;
-        if (visual_info->vi_Screen)
-            textattr = visual_info->vi_Screen->Font;
-    }
-
-    front_pen = (UBYTE)GetTagData(GTMN_FrontPen, 0, taglist);
-
-    return gt_layout_menu_item_chain(firstitem, 0, textattr, front_pen,
-                                     &width, &height);
+    gt_menu_layout_init(&ml, (struct VisualInfo *)vi, taglist, &ok);
+    ok = gt_layout_menu_item_chain(&ml, firstitem, 0, 0, 0);
+    gt_menu_layout_done(&ml);
+    return ok;
 }
 
 /* LayoutMenusA - Layout entire menu structure */
@@ -2485,60 +2532,108 @@ BOOL _gadtools_LayoutMenusA ( register struct GadToolsBase *GadToolsBase __asm("
                               register struct TagItem *taglist __asm("a2") )
 {
     struct Menu *menu;
-    struct VisualInfo *visual_info;
-    struct Screen *screen = NULL;
-    struct TextAttr *textattr;
-    WORD left = 0;
-    WORD width;
-    WORD height;
+    struct gt_menu_layout ml;
+    WORD left = 2;
+    BOOL ok = TRUE;
 
     DPRINTF (LOG_DEBUG, "_gadtools: LayoutMenusA()\n");
 
     if (!firstmenu)
         return FALSE;
 
-    visual_info = (struct VisualInfo *)vi;
-    if (visual_info)
-        screen = visual_info->vi_Screen;
+    gt_menu_layout_init(&ml, (struct VisualInfo *)vi, taglist, &ok);
 
-    textattr = (struct TextAttr *)GetTagData(GTMN_TextAttr, 0, taglist);
-    if (!textattr && screen)
-        textattr = screen->Font;
-
-    for (menu = firstmenu; menu; menu = menu->NextMenu)
+    for (menu = firstmenu; menu && ok; menu = menu->NextMenu)
     {
         menu->LeftEdge = left;
-        menu->TopEdge = 0;
-        menu->Height = screen ? (screen->BarHeight + 1) : 10;
-        menu->Width = gt_menu_label_width(menu->MenuName) + 16;
-        if (menu->Width < 24)
-            menu->Width = 24;
+        menu->Width = gt_menu_text_width(&ml, menu->MenuName) + 8;
 
         if (menu->FirstItem)
-        {
-            if (!gt_layout_menu_item_chain(menu->FirstItem, 0, textattr,
-                                           (UBYTE)GetTagData(GTMN_FrontPen, 0, taglist),
-                                           &width, &height))
-                return FALSE;
-        }
+            ok = gt_layout_menu_item_chain(&ml, menu->FirstItem, 0, 0, menu->Width + 1);
 
-        left += menu->Width;
+        left += menu->Width + 8;
     }
 
-    return TRUE;
+    gt_menu_layout_done(&ml);
+    return ok;
 }
 
 /*
  * Event Handling Functions
  */
 
+/* GadTools hands the application a private copy of every IntuiMessage
+ * (AmigaOS 3.1: GT_GetIMsg()/GT_FilterIMsg() never return the original
+ * pointer; GT_PostFilterIMsg() maps the copy back to the original). */
+#define GT_IMSG_MAGIC 0x47544D53UL
+
+struct GTIMsgCopy {
+    struct ExtIntuiMessage  copy;
+    struct IntuiMessage    *original;
+    ULONG                   magic;
+};
+
+static struct GTIMsgCopy *gt_imsg_copy(struct IntuiMessage *imsg)
+{
+    struct GTIMsgCopy *c = (struct GTIMsgCopy *)imsg;
+
+    if (c && c->magic == GT_IMSG_MAGIC)
+        return c;
+    return NULL;
+}
+
+static struct IntuiMessage *gt_filter_imsg(struct IntuiMessage *imsg)
+{
+    struct GTIMsgCopy *c;
+
+    if (!imsg)
+        return NULL;
+
+    c = AllocMem(sizeof(struct GTIMsgCopy), MEMF_PUBLIC | MEMF_CLEAR);
+    if (!c)
+        return imsg;  /* out of memory: hand out the original */
+
+    CopyMem(imsg, &c->copy, sizeof(struct IntuiMessage));
+    c->original = imsg;
+    c->magic = GT_IMSG_MAGIC;
+    return &c->copy.eim_IntuiMessage;
+}
+
+static struct IntuiMessage *gt_postfilter_imsg(struct IntuiMessage *imsg)
+{
+    struct GTIMsgCopy *c = gt_imsg_copy(imsg);
+    struct IntuiMessage *orig;
+
+    if (!c)
+        return imsg;
+
+    orig = c->original;
+    c->magic = 0;
+    FreeMem(c, sizeof(struct GTIMsgCopy));
+    return orig;
+}
+
 /* GT_GetIMsg - Get an IntuiMessage, filtering GadTools messages */
 struct IntuiMessage * _gadtools_GT_GetIMsg ( register struct GadToolsBase *GadToolsBase __asm("a6"),
                                              register struct MsgPort *iport __asm("a0") )
 {
+    struct IntuiMessage *imsg;
+
     DPRINTF (LOG_DEBUG, "_gadtools: GT_GetIMsg() iport=0x%08lx\n", (ULONG)iport);
-    /* Just call GetMsg - no filtering needed for stub */
-    return (struct IntuiMessage *)GetMsg(iport);
+
+    if (!iport)
+        return NULL;
+
+    while ((imsg = (struct IntuiMessage *)GetMsg(iport)) != NULL)
+    {
+        struct IntuiMessage *filtered = gt_filter_imsg(imsg);
+
+        if (filtered)
+            return filtered;
+        ReplyMsg((struct Message *)imsg);
+    }
+
+    return NULL;
 }
 
 /* GT_ReplyIMsg - Reply to an IntuiMessage from GT_GetIMsg */
@@ -2547,7 +2642,7 @@ void _gadtools_GT_ReplyIMsg ( register struct GadToolsBase *GadToolsBase __asm("
 {
     DPRINTF (LOG_DEBUG, "_gadtools: GT_ReplyIMsg() imsg=0x%08lx\n", (ULONG)imsg);
     if (imsg) {
-        ReplyMsg((struct Message *)imsg);
+        ReplyMsg((struct Message *)gt_postfilter_imsg(imsg));
     }
 }
 
@@ -2600,53 +2695,44 @@ void _gadtools_GT_EndRefresh ( register struct GadToolsBase *GadToolsBase __asm(
 struct IntuiMessage * _gadtools_GT_FilterIMsg ( register struct GadToolsBase *GadToolsBase __asm("a6"),
                                                 register struct IntuiMessage *imsg __asm("a1") )
 {
-    LXA_UNIMPLEMENTED("gadtools", "GT_FilterIMsg", "partial: returns the message unfiltered (Phase 256)");
+    LXA_UNIMPLEMENTED("gadtools", "GT_FilterIMsg", "partial: hands out a private copy but never consumes GadTools-internal gadget events (Phase 256)");
 
     DPRINTF (LOG_DEBUG, "_gadtools: GT_FilterIMsg() imsg=0x%08lx\n", (ULONG)imsg);
-    return imsg;  /* No filtering in stub */
+    return gt_filter_imsg(imsg);
 }
 
 /* GT_PostFilterIMsg - Post-filter an IntuiMessage */
 struct IntuiMessage * _gadtools_GT_PostFilterIMsg ( register struct GadToolsBase *GadToolsBase __asm("a6"),
                                                     register struct IntuiMessage *imsg __asm("a1") )
 {
-    LXA_UNIMPLEMENTED("gadtools", "GT_PostFilterIMsg", "partial: returns the message unfiltered (Phase 256)");
-
     DPRINTF (LOG_DEBUG, "_gadtools: GT_PostFilterIMsg() imsg=0x%08lx\n", (ULONG)imsg);
-    return imsg;  /* No filtering in stub */
+    return gt_postfilter_imsg(imsg);
 }
 
 /* CreateContext - Create a gadget list context */
 struct Gadget * _gadtools_CreateContext ( register struct GadToolsBase *GadToolsBase __asm("a6"),
                                           register struct Gadget **glistptr __asm("a0") )
 {
+    struct GTContextGadget *block;
     struct Gadget *context;
-    struct GadgetContext *context_data;
 
     DPRINTF (LOG_DEBUG, "_gadtools: CreateContext() glistptr=0x%08lx\n", (ULONG)glistptr);
 
     if (!glistptr)
         return NULL;
 
-    /* Allocate a dummy context gadget */
-    context = AllocMem(sizeof(struct Gadget), MEMF_CLEAR | MEMF_PUBLIC);
-    if (!context)
+    block = AllocMem(sizeof(struct GTContextGadget), MEMF_CLEAR | MEMF_PUBLIC);
+    if (!block)
         return NULL;
 
-    context_data = AllocMem(sizeof(struct GadgetContext), MEMF_CLEAR | MEMF_PUBLIC);
-    if (!context_data)
-    {
-        FreeMem(context, sizeof(struct Gadget));
-        return NULL;
-    }
+    context = &block->gadget;
+    block->context.magic = GT_CONTEXT_MAGIC;
+    block->context.gc_Last = context;
 
-    context_data->magic = GT_CONTEXT_MAGIC;
-    context_data->gc_Last = context;
-
-    /* The context gadget is a placeholder, not a real gadget */
-    context->GadgetType = GTYP_CUSTOMGADGET;
+    /* Invisible, zero-size placeholder that stays in the window's gadget
+     * list (it is the list head the application passes to WA_Gadgets). */
+    context->GadgetType = LXA_GTYP_GADTOOLS;
     context->Flags = GFLG_GADGHNONE;
-    context->SpecialInfo = context_data;
 
     *glistptr = context;
 

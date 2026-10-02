@@ -12,6 +12,8 @@
 #include <exec/types.h>
 #include <exec/memory.h>
 #include <exec/ports.h>
+#include <exec/io.h>
+#include <devices/input.h>
 #include <devices/inputevent.h>
 #include <graphics/gfx.h>
 #include <graphics/rastport.h>
@@ -41,6 +43,29 @@ static void print(const char *s)
     Write(out, (CONST APTR)s, len);
 }
 
+static BOOL write_input_event(struct InputEvent *ev)
+{
+    struct MsgPort *port = CreateMsgPort();
+    struct IOStdReq *io = NULL;
+    BOOL ok = FALSE;
+
+    if (!port)
+        return FALSE;
+    io = (struct IOStdReq *)CreateIORequest(port, sizeof(struct IOStdReq));
+    if (io && OpenDevice((CONST_STRPTR)"input.device", 0, (struct IORequest *)io, 0) == 0) {
+        io->io_Command = IND_WRITEEVENT;
+        io->io_Data = (APTR)ev;
+        io->io_Length = sizeof(*ev);
+        io->io_Flags = 0;
+        ok = DoIO((struct IORequest *)io) == 0;
+        CloseDevice((struct IORequest *)io);
+    }
+    if (io)
+        DeleteIORequest((struct IORequest *)io);
+    DeleteMsgPort(port);
+    return ok;
+}
+
 int main(void)
 {
     struct NewScreen ns1, ns2;
@@ -56,11 +81,7 @@ int main(void)
     /* ========== Test 1: Screen linking ========== */
     print("\n--- Test 1: Screen linking to IntuitionBase ---\n");
 
-    /* Verify IntuitionBase starts with no screens */
-    if (IntuitionBase->FirstScreen != NULL) {
-        /* There may be existing screens - that's OK, just note it */
-        print("Note: FirstScreen is not NULL at start\n");
-    }
+    /* Workbench may or may not be open: that's fine */
 
     /* Open first screen */
     ns1.LeftEdge = 0;
@@ -90,14 +111,6 @@ int main(void)
         errors++;
     } else {
         print("OK: Screen 1 is FirstScreen\n");
-    }
-
-    /* Verify screen1 is ActiveScreen */
-    if (IntuitionBase->ActiveScreen != screen1) {
-        print("FAIL: Screen 1 not set as ActiveScreen\n");
-        errors++;
-    } else {
-        print("OK: Screen 1 is ActiveScreen\n");
     }
 
     /* Open second screen */
@@ -150,7 +163,7 @@ int main(void)
     nw.DetailPen = 0;
     nw.BlockPen = 1;
     nw.IDCMPFlags = IDCMP_CLOSEWINDOW | IDCMP_MOUSEBUTTONS | IDCMP_RAWKEY;
-    nw.Flags = WFLG_CLOSEGADGET | WFLG_DRAGBAR;
+    nw.Flags = WFLG_CLOSEGADGET | WFLG_DRAGBAR | WFLG_ACTIVATE;
     nw.FirstGadget = NULL;
     nw.CheckMark = NULL;
     nw.Title = (UBYTE *)"Input Test";
@@ -231,7 +244,36 @@ int main(void)
         }
     }
 
-    print("\n--- Test 4: Intuition() dispatches RAWKEY input ---\n");
+    print("\n--- Test 4: RAWKEY input reaches the active window ---\n");
+    {
+        /* window activation is asynchronous on AmigaOS */
+        int ticks;
+        for (ticks = 0; ticks < 100 && !(window->Flags & WFLG_WINDOWACTIVE); ticks++)
+            Delay(1);
+    }
+    if (!(window->Flags & WFLG_WINDOWACTIVE)) {
+        print("FAIL: WFLG_ACTIVATE window did not become active\n");
+        errors++;
+    } else if (IntuitionBase->ActiveScreen != screen2) {
+        print("FAIL: ActiveScreen is not the screen of the active window\n");
+        errors++;
+    } else {
+        print("OK: ActiveScreen is the screen of the active window\n");
+    }
+
+    /* Intuition() is Intuition's input handler entry: an IECLASS_NULL event
+     * passes through without effect */
+    event.ie_NextEvent = NULL;
+    event.ie_Class = IECLASS_NULL;
+    event.ie_SubClass = 0;
+    event.ie_Code = 0;
+    event.ie_Qualifier = 0;
+    event.ie_X = 0;
+    event.ie_Y = 0;
+    event.ie_EventAddress = NULL;
+    Intuition(&event);
+
+    /* keyboard input reaches Intuition through input.device */
     event.ie_NextEvent = NULL;
     event.ie_Class = IECLASS_RAWKEY;
     event.ie_SubClass = 0;
@@ -240,22 +282,33 @@ int main(void)
     event.ie_X = 0;
     event.ie_Y = 0;
     event.ie_EventAddress = NULL;
+    if (!write_input_event(&event)) {
+        print("FAIL: could not write the event to input.device\n");
+        errors++;
+    }
 
-    Intuition(&event);
-
-    imsg = (struct IntuiMessage *)GetMsg(window->UserPort);
+    {
+        int ticks;
+        imsg = NULL;
+        for (ticks = 0; ticks < 100; ticks++) {
+            imsg = (struct IntuiMessage *)GetMsg(window->UserPort);
+            if (imsg)
+                break;
+            Delay(1);
+        }
+    }
     if (imsg == NULL) {
-        print("FAIL: Intuition() did not deliver IDCMP_RAWKEY\n");
+        print("FAIL: input.device did not deliver IDCMP_RAWKEY\n");
         errors++;
     } else {
         if (imsg->Class != IDCMP_RAWKEY ||
             imsg->Code != 0x20 ||
             imsg->Qualifier != IEQUALIFIER_LSHIFT ||
             imsg->IDCMPWindow != window) {
-            print("FAIL: Intuition() delivered the wrong IDCMP payload\n");
+            print("FAIL: input.device delivered the wrong IDCMP payload\n");
             errors++;
         } else {
-            print("OK: Intuition() routes synthetic RAWKEY input to the active window\n");
+            print("OK: input.device routes RAWKEY input to the active window\n");
         }
         ReplyMsg((struct Message *)imsg);
     }

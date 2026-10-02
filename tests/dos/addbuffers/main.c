@@ -1,9 +1,21 @@
 #include <exec/types.h>
 #include <dos/dos.h>
+#include <dos/dosextens.h>
+#include <clib/exec_protos.h>
 #include <clib/dos_protos.h>
+#include <inline/exec.h>
 #include <inline/dos.h>
 
 extern struct DosLibrary *DOSBase;
+extern struct ExecBase *SysBase;
+
+/*
+ * AddBuffers() on devices without a buffer cache
+ *
+ * Only volumes that cannot be damaged are used: on AmigaOS 3.1 these
+ * calls on SYS: (or an assign into it) really act on the boot volume.
+ * Expected results come from the AmigaOS 3.1 reference.
+ */
 
 static int tests_failed = 0;
 
@@ -45,70 +57,54 @@ static void print_num(LONG n)
     print(buf);
 }
 
-static void test_pass(const char *name)
+static void expect(const char *name, LONG ok, LONG want_ok, LONG want_err)
 {
-    print("  PASS: ");
-    print(name);
-    print("\n");
-}
+    LONG err = IoErr();
 
-static void test_fail(const char *name, const char *reason)
-{
-    print("  FAIL: ");
+    print("  ");
     print(name);
-    print(" - ");
-    print(reason);
-    print("\n");
-    tests_failed++;
+    print(": result=");
+    print_num(ok);
+    print(" IoErr=");
+    print_num(err);
+    if (ok == want_ok && err == want_err)
+    {
+        print("  PASS\n");
+    }
+    else
+    {
+        print("  FAIL\n");
+        tests_failed++;
+    }
 }
 
 int main(void)
 {
-    LONG ok;
-    LONG err;
+    struct Process *me = (struct Process *)FindTask(NULL);
+    APTR old_window_ptr = me->pr_WindowPtr;
+
+    me->pr_WindowPtr = (APTR)-1;   /* no "insert volume" requesters */
 
     print("AddBuffers Test\n");
     print("===============\n\n");
 
-    print("Test 1: Rejects NULL filesystem names\n");
-    ok = AddBuffers(NULL, 1);
-    err = IoErr();
-    if (ok == DOSFALSE && err == ERROR_REQUIRED_ARG_MISSING)
-        test_pass("Reject NULL filesystem");
-    else
-        test_fail("Reject NULL filesystem", "NULL filesystem handling behaved incorrectly");
+    print("Test 1: Unknown devices are not mounted\n");
+    SetIoErr(0);
+    expect("AddBuffers NODEV: 1", AddBuffers((CONST_STRPTR)"NODEV:", 1), DOSFALSE, ERROR_DEVICE_NOT_MOUNTED);
+    SetIoErr(0);
+    expect("AddBuffers NODEV:x 5", AddBuffers((CONST_STRPTR)"NODEV:x", 5), DOSFALSE, ERROR_DEVICE_NOT_MOUNTED);
+    print("\nTest 2: NIL: has no handler\n");
+    SetIoErr(0);
+    expect("AddBuffers NIL: 1", AddBuffers((CONST_STRPTR)"NIL:", 1), DOSFALSE, ERROR_DEVICE_NOT_MOUNTED);
+    print("\nTest 3: The RAM: handler does not know ACTION_MORE_CACHE\n");
+    SetIoErr(0);
+    expect("AddBuffers RAM: 1", AddBuffers((CONST_STRPTR)"RAM:", 1), DOSFALSE, ERROR_ACTION_NOT_KNOWN);
+    SetIoErr(0);
+    expect("AddBuffers RAM: 0", AddBuffers((CONST_STRPTR)"RAM:", 0), DOSFALSE, ERROR_ACTION_NOT_KNOWN);
+    SetIoErr(0);
+    expect("AddBuffers RAM: -1", AddBuffers((CONST_STRPTR)"RAM:", -1), DOSFALSE, ERROR_ACTION_NOT_KNOWN);
 
-    print("\nTest 2: Rejects filesystem names without a trailing ':' device syntax\n");
-    ok = AddBuffers((CONST_STRPTR)"SYS", 1);
-    err = IoErr();
-    if (ok == DOSFALSE && err == ERROR_INVALID_COMPONENT_NAME)
-        test_pass("Reject missing colon");
-    else
-        test_fail("Reject missing colon", "Filesystem syntax validation behaved incorrectly");
-
-    print("\nTest 3: Rejects assigns because AddBuffers requires a real device\n");
-    ok = AddBuffers((CONST_STRPTR)"C:", 1);
-    err = IoErr();
-    if (ok == DOSFALSE && err == ERROR_DEVICE_NOT_MOUNTED)
-        test_pass("Reject assign");
-    else
-        test_fail("Reject assign", "Assign inputs should fail as non-device targets");
-
-    print("\nTest 4: Cleanly reports unsupported hosted cache packets instead of hitting the stub\n");
-    ok = AddBuffers((CONST_STRPTR)"HOME:", 1);
-    err = IoErr();
-    if (ok == DOSFALSE && err == ERROR_ACTION_NOT_KNOWN)
-        test_pass("Report unsupported addbuffers action");
-    else
-        test_fail("Report unsupported addbuffers action", "Expected ACTION_MORE_CACHE to fail cleanly in the current hosted stack");
-
-    print("\nTest 5: Uses the same public path for negative buffer deltas\n");
-    ok = AddBuffers((CONST_STRPTR)"HOME:", -1);
-    err = IoErr();
-    if (ok == DOSFALSE && err == ERROR_ACTION_NOT_KNOWN)
-        test_pass("Report unsupported negative addbuffers action");
-    else
-        test_fail("Report unsupported negative addbuffers action", "Expected negative ACTION_MORE_CACHE requests to fail cleanly in the current hosted stack");
+    me->pr_WindowPtr = old_window_ptr;
 
     print("\nFailed: ");
     print_num(tests_failed);

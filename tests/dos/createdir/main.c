@@ -171,8 +171,7 @@ int main(void)
     
     lock = CreateDir((CONST_STRPTR)"testdir1");
     if (lock) {
-        /* Some systems allow this and just return lock to existing */
-        test_pass("CreateDir existing (returned lock)");
+        test_fail("CreateDir existing", "Should have failed");
         UnLock(lock);
     } else {
         LONG err = IoErr();
@@ -182,7 +181,7 @@ int main(void)
             print("  IoErr = ");
             print_num(err);
             print("\n");
-            test_pass("CreateDir existing (failed)");
+            test_fail("CreateDir existing", "Expected ERROR_OBJECT_EXISTS");
         }
     }
     

@@ -1,0 +1,15 @@
+# Cluster ownership (Phase 231): which scheduled roadmap phase owns a
+# divergence cluster.  `python3 -m rdd cluster` / `rdd sweep` match each
+# cluster signature against these regular expressions (first match wins);
+# `golden_lint`-style rule: every phase named here must exist in roadmap.md.
+# Keep entries specific - a cluster that no rule matches is reported as
+# unowned and gets a phase stub.
+- {match: '^screen\.(display_id|wbor|menu_hborder|menu_vborder|bar_)', phase: 223, why: "screen chrome / Workbench geometry"}
+- {match: '^screen\.flags', phase: 223, why: "Workbench screen flags"}
+- {match: '^palette pen', phase: 223, why: "Workbench default palette"}
+- {match: '^sysgadget ', phase: 223, why: "system gadget set, types and geometry"}
+- {match: '^window\.(border|count|flags|min_|max_|title)', phase: 222, why: "222d: OpenWindowTags defaults and border geometry"}
+- {match: '^(menu|item)[ .]', phase: 222, why: "222e/222d: menu and item layout (LayoutMenusA, SetMenuStrip)"}
+- {match: '^gadget[ .]', phase: 222, why: "222e: GadTools gadget creation and geometry"}
+- {match: 'Text\(\) strings missing in lxa', phase: 231, why: "per-app missing content, triaged per app"}
+- {match: 'stdout differs', phase: 231, why: "per-app output, triaged per app"}

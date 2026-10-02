@@ -176,14 +176,21 @@ int main(void)
         print("OK: UserPort still exists after flag change\n");
     }
 
-    print("OK: Generating replied IDCMP cleanup traffic...\n");
+    print("OK: Generating IDCMP_CHANGEWINDOW traffic...\n");
     if (!ModifyIDCMP(window, IDCMP_CHANGEWINDOW)) {
         print("FAIL: ModifyIDCMP() failed to switch to IDCMP_CHANGEWINDOW\n");
         errors++;
     } else {
-        struct IntuiMessage *msg;
+        struct IntuiMessage *msg = NULL;
+        int ticks;
+        /* MoveWindow() is deferred to the input handler on AmigaOS: wait */
         MoveWindow(window, 5, 0);
-        msg = (struct IntuiMessage *)GetMsg(window->UserPort);
+        for (ticks = 0; ticks < 100; ticks++) {
+            msg = (struct IntuiMessage *)GetMsg(window->UserPort);
+            if (msg)
+                break;
+            Delay(1);
+        }
         if (msg == NULL) {
             print("FAIL: Expected IDCMP_CHANGEWINDOW after MoveWindow\n");
             errors++;
@@ -192,15 +199,9 @@ int main(void)
             ReplyMsg((struct Message *)msg);
             errors++;
         } else {
+            /* replied messages go back to Intuition (WindowPort is private) */
             ReplyMsg((struct Message *)msg);
-            msg = (struct IntuiMessage *)GetMsg(window->WindowPort);
-            if (window->WindowPort == NULL || msg == NULL) {
-                print("FAIL: Replied IDCMP message did not reach WindowPort cleanup queue\n");
-                errors++;
-            } else {
-                FreeMem(msg, sizeof(struct IntuiMessage));
-                print("OK: Replied IDCMP message queued for cleanup on WindowPort\n");
-            }
+            print("OK: IDCMP_CHANGEWINDOW received and replied\n");
         }
     }
 

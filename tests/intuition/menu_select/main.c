@@ -172,6 +172,29 @@ int main(void)
     }
     print("OK: Screen opened\n");
     print_num("  BarHeight=", screen->BarHeight);
+    {
+        /* bar borders depend on the resolution */
+        struct NewScreen hns = ns;
+        struct Screen *hs;
+        hns.Width = 640;
+        hns.ViewModes = HIRES;
+        hs = OpenScreen(&hns);
+        if (hs) {
+            print_num("  hires BarHBorder=", hs->BarHBorder);
+            print_num("  hires BarVBorder=", hs->BarVBorder);
+            print_num("  hires BarHeight=", hs->BarHeight);
+            CloseScreen(hs);
+        }
+        hns.Height = 400;
+        hns.ViewModes = HIRES | LACE;
+        hs = OpenScreen(&hns);
+        if (hs) {
+            print_num("  hires-lace BarHBorder=", hs->BarHBorder);
+            print_num("  hires-lace BarVBorder=", hs->BarVBorder);
+            print_num("  hires-lace BarHeight=", hs->BarHeight);
+            CloseScreen(hs);
+        }
+    }
 
     /* Open a window */
     nw.LeftEdge = 10;
@@ -305,6 +328,17 @@ int main(void)
     } else {
         print("OK: SetMenuStrip() succeeded\n");
     }
+
+    print_num("  BarHBorder=", screen->BarHBorder);
+    print_num("  BarVBorder=", screen->BarVBorder);
+    print_num("  menu1.JazzX=", menu1.JazzX);
+    print_num("  menu1.JazzY=", menu1.JazzY);
+    print_num("  menu1.BeatX=", menu1.BeatX);
+    print_num("  menu1.BeatY=", menu1.BeatY);
+    print_num("  menu2.JazzX=", menu2.JazzX);
+    print_num("  menu2.JazzY=", menu2.JazzY);
+    print_num("  menu2.BeatX=", menu2.BeatX);
+    print_num("  menu2.BeatY=", menu2.BeatY);
 
     if (window->MenuStrip != &menu1) {
         print("FAIL: window->MenuStrip not set\n");

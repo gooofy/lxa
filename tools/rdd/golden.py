@@ -235,4 +235,7 @@ def lint(root=GOLDEN_ROOT, roadmap=os.path.join(ROOT, "roadmap.md")):
         dis = g.get("disabled")
         if dis and str(dis.get("phase")) not in phases:
             problems.append("%s: disabled by unscheduled phase %s" % (rel, dis.get("phase")))
+    if root == GOLDEN_ROOT:
+        from rdd import cluster
+        problems += cluster.lint_owners(roadmap=roadmap)
     return problems

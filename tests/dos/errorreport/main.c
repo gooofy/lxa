@@ -77,11 +77,11 @@ int main(void)
     print("ErrorReport Test\n");
     print("================\n\n");
 
-    print("Test 1: Unknown codes return immediately and preserve ErrorReport contract\n");
+    print("Test 1: Unknown codes return DOSTRUE immediately and leave IoErr untouched\n");
     SetIoErr(7);
     ok = ErrorReport(9999, REPORT_STREAM, 0, NULL);
     err = IoErr();
-    if (ok == DOSTRUE && err == 9999)
+    if (ok == DOSTRUE && err == 7)
         test_pass("Unknown code immediate return");
     else
         test_fail("Unknown code immediate return", "Wrong result or IoErr");

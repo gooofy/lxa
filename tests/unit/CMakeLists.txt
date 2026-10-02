@@ -42,6 +42,7 @@ target_include_directories(test_stubs PUBLIC
 add_executable(test_vfs
     test_vfs.c
     ${LXA_SRC_DIR}/vfs.c
+    ${LXA_SRC_DIR}/lxa_override.c
     ${LXA_SRC_DIR}/config.c
 )
 target_include_directories(test_vfs PRIVATE
@@ -63,6 +64,7 @@ add_executable(test_config
     test_config.c
     ${LXA_SRC_DIR}/config.c
     ${LXA_SRC_DIR}/vfs.c
+    ${LXA_SRC_DIR}/lxa_override.c
 )
 target_include_directories(test_config PRIVATE
     ${UNITY_DIR}

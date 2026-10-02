@@ -109,13 +109,6 @@ int main(void)
         mem_leaked = 0;
     }
     
-    print("  Memory before: ");
-    print_num(mem_before);
-    print("\n  Memory after: ");
-    print_num(mem_after);
-    print("\n  Potential leak: ");
-    print_num(mem_leaked);
-    print(" bytes\n");
     
     /* Accept up to 256 bytes variance from system activity */
     if (mem_leaked <= 256) {
@@ -151,13 +144,6 @@ int main(void)
     }
     
     print("  Acquired 20 locks, released all\n");
-    print("  Memory before: ");
-    print_num(mem_before);
-    print("\n  Memory after: ");
-    print_num(mem_after);
-    print("\n  Potential leak: ");
-    print_num(mem_leaked);
-    print(" bytes\n");
     
     if (mem_leaked <= 512) {
         test_pass("No significant leak with multiple locks");
@@ -186,13 +172,6 @@ int main(void)
     }
     
     print("  Completed 100 lock/unlock cycles\n");
-    print("  Memory before: ");
-    print_num(mem_before);
-    print("\n  Memory after: ");
-    print_num(mem_after);
-    print("\n  Potential leak: ");
-    print_num(mem_leaked);
-    print(" bytes\n");
     
     /* 100 cycles should not leak more than 1KB */
     if (mem_leaked <= 1024) {
@@ -226,13 +205,6 @@ int main(void)
     }
     
     print("  20 DupLock/UnLock cycles\n");
-    print("  Memory before: ");
-    print_num(mem_before);
-    print("\n  Memory after: ");
-    print_num(mem_after);
-    print("\n  Potential leak: ");
-    print_num(mem_leaked);
-    print(" bytes\n");
     
     if (mem_leaked <= 512) {
         test_pass("No significant leak with DupLock");
@@ -265,13 +237,6 @@ int main(void)
     }
     
     print("  10 ParentDir cycles\n");
-    print("  Memory before: ");
-    print_num(mem_before);
-    print("\n  Memory after: ");
-    print_num(mem_after);
-    print("\n  Potential leak: ");
-    print_num(mem_leaked);
-    print(" bytes\n");
     
     if (mem_leaked <= 512) {
         test_pass("No significant leak with ParentDir");

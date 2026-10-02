@@ -1,0 +1,32 @@
+Testing IDCMP input infrastructure...
+
+--- Test 1: Screen linking to IntuitionBase ---
+OK: Screen 1 opened
+OK: Screen 1 is FirstScreen
+OK: Screen 2 opened
+OK: Screen 2 is FirstScreen
+OK: Screen 1 is NextScreen of Screen 2
+
+--- Test 2: Window IDCMP port setup ---
+OK: Window opened
+OK: Window UserPort created
+OK: IDCMP_CLOSEWINDOW flag set
+OK: IDCMP_MOUSEBUTTONS flag set
+OK: IDCMP_RAWKEY flag set
+OK: Window linked to screen
+
+--- Test 3: WaitTOF input processing ---
+OK: WaitTOF called (input processing hook)
+OK: No spurious IDCMP messages (expected in headless mode)
+
+--- Test 4: RAWKEY input reaches the active window ---
+OK: ActiveScreen is the screen of the active window
+OK: input.device routes RAWKEY input to the active window
+
+--- Cleanup ---
+OK: Window closed
+OK: Screen 2 closed
+OK: Screen 1 is FirstScreen after Screen 2 closed
+OK: Screen 1 closed
+
+PASS: idcmp_input all tests passed

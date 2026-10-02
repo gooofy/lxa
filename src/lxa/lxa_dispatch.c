@@ -12,6 +12,7 @@
 #include "config.h"
 #include "lxa_vclock.h"
 #include "lxa_unimpl.h"
+#include "lxa_override.h"
 
 /* Forward declarations for float/double helpers defined later in this file */
 static float ffp_to_host_float(uint32_t raw);
@@ -225,6 +226,13 @@ int op_illg(int level)
                 vclock_end_timeslice();
                 g_running = FALSE;
             }
+            break;
+        }
+
+        case EMU_CALL_LIB_OVERRIDDEN:
+        {
+            uint32_t name = m68k_get_reg(NULL, M68K_REG_D1);
+            m68k_set_reg(M68K_REG_D0, name && lxa_override_lookup(_mgetstr(name), NULL, 0) ? 1 : 0);
             break;
         }
 
@@ -857,6 +865,12 @@ int op_illg(int level)
             break;
         }
 
+        case EMU_CALL_DOS_LASTERROR:
+        {
+            m68k_set_reg(M68K_REG_D0, _dos_last_error());
+            break;
+        }
+
         case EMU_CALL_DOS_CREATEDIR:
         {
             uint32_t name = m68k_get_reg(NULL, M68K_REG_D1);
@@ -924,20 +938,6 @@ int op_illg(int level)
             DPRINTF(LOG_DEBUG, "lxa: op_illg(): EMU_CALL_DOS_SETCOMMENT name=0x%08x, comment=0x%08x\n", name, comment);
 
             uint32_t res = _dos_setcomment(name, comment);
-            m68k_set_reg(M68K_REG_D0, res);
-            break;
-        }
-
-        case EMU_CALL_DOS_SETOWNER:
-        {
-            uint32_t name = m68k_get_reg(NULL, M68K_REG_D1);
-            uint32_t owner = m68k_get_reg(NULL, M68K_REG_D2);
-            uint32_t err = m68k_get_reg(NULL, M68K_REG_D3);
-
-            DPRINTF(LOG_DEBUG, "lxa: op_illg(): EMU_CALL_DOS_SETOWNER name=0x%08x, owner=0x%08x, err=0x%08x\n",
-                    name, owner, err);
-
-            uint32_t res = _dos_setowner(name, owner, err);
             m68k_set_reg(M68K_REG_D0, res);
             break;
         }

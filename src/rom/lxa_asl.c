@@ -36,10 +36,10 @@
 
 #include "util.h"
 
-#define VERSION    39
+#define VERSION    40
 #define REVISION   2
 #define EXLIBNAME  "asl"
-#define EXLIBVER   " 39.2 (2025/02/03)"
+#define EXLIBVER   " 40.2 (2025/02/03)"
 
 char __aligned _g_asl_ExLibName [] = EXLIBNAME ".library";
 char __aligned _g_asl_ExLibID   [] = EXLIBNAME EXLIBVER;
@@ -882,7 +882,9 @@ static void parse_sm_tags(struct LXAScreenModeRequester *sm, struct TagItem *tag
         }
     }
 
-    asl_set_screenmode_selection(sm, sm->sm_DisplayID, sm->sm_DisplayWidth, sm->sm_DisplayHeight, sm->sm_DisplayDepth);
+    /* The sm_Display* / sm_BitMap* fields only change when the user confirms
+     * the requester (asl_set_screenmode_selection); the Initial* tags are
+     * stored verbatim (AmigaOS 3.1 reference: no validation at alloc time). */
 }
 
 /* Display the file requester window and handle interaction */
@@ -1800,7 +1802,13 @@ APTR _asl_AllocAslRequest ( register struct AslBase *AslBase __asm("a6"),
                 sm->sm_TopEdge = -1;
                 sm->sm_Width = 320;
                 sm->sm_Height = 180;
+                /* ASLSM_InitialDisplay* defaults (asl.doc, verified on 3.1):
+                 * 640x200x2, DisplayID 0; sm_BitMapWidth/Height stay 0 until
+                 * a mode has been chosen. */
                 sm->sm_DisplayID = LORES_KEY;
+                sm->sm_DisplayWidth = 640;
+                sm->sm_DisplayHeight = 200;
+                sm->sm_DisplayDepth = 2;
                 sm->sm_DoWidth = TRUE;
                 sm->sm_DoHeight = TRUE;
                 sm->sm_DoDepth = TRUE;

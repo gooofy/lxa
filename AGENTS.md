@@ -526,6 +526,17 @@ python3 -m rdd tracediff ../build/rdd-trace/<x>        # first divergence: call 
 - `LXA_TRACE_INJECT="lib:lvo:delta"` offsets a function's return values — a deliberate bug for testing the tool (`tests/rdd/test_tracediff.py`).
 - First catches: `Close()` returned 1 instead of DOSTRUE; `Seek()` returned the new instead of the old position (and allowed seeking past EOF).
 
+### 6.26 Library Override Mode (Phase 235, diagnostic only)
+
+To bisect whether a divergence lives in one of lxa's libraries or below it, run with the user's own AmigaOS 3.1 binary of that library:
+
+```bash
+LXA_OVERRIDE=iffparse,asl lxa ...        # or pylxa / GTest drivers (read at lxa_init)
+LXA_OVERRIDE_DIR=/path/to/Libs           # default: ~/.cache/lxa/refsys/SYS-aga/Libs
+```
+
+The built-in library stays private to lxa's ROM and `OpenLibrary()` loads `LIBS:<name>` from that directory. Only hardware-independent libraries that 3.1 itself loads from disk are accepted (asl, iffparse, diskfont, locale, commodities, datatypes, amigaguide, math*, rexxsyslib, ...). If the app behaves like on the reference with the override, the bug is in lxa's library; if not, it is below (exec/graphics/intuition/dos). Never commit or ship those binaries; lxa's own implementations stay mandatory (§1). `tests/exec/libident` prints which implementation answered.
+
 ## 7. Quick Start
 1. Check `roadmap.md`.
 2. Load `lxa-workflow` to understand the process.

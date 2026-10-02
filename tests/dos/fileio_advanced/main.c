@@ -79,14 +79,15 @@ int main(void)
 {
     BPTR fh;
     LONG result;
+    LONG err;
     UBYTE buffer[128];
     const char *test_file = "fileio_advanced.txt";
     const char *test_file_abs = "SYS:Tests/Dos/fileio_advanced.txt";
     const char *exall_dir = "SYS:Tests/Dos/exall_dir";
     const char *exall_dir_nested = "SYS:Tests/Dos/exall_dir/nested";
     const char *exall_file = "SYS:Tests/Dos/exall_dir/sample.txt";
-    const char *soft_link = "SYS:Tests/Dos/soft_link_test.lnk";
-    const char *hard_link = "SYS:Tests/Dos/hard_link_test.txt";
+    const char *link_target = "RAM:link_target.txt";
+    const char *hard_link = "RAM:hard_link_test.txt";
     
     print("File I/O Edge Cases Test\n");
     print("========================\n\n");
@@ -189,10 +190,11 @@ int main(void)
      * leaves the position unchanged, so the next Read() starts at 0
      * (verified on the reference machine) */
     result = Seek(fh, 1000, OFFSET_BEGINNING);
+    err = IoErr();      /* before print(): a successful Write() clears IoErr() */
     print("  Seek(1000) returned: ");
     print_num(result);
     print("\n");
-    if (result == -1 && IoErr() == ERROR_SEEK_ERROR) {
+    if (result == -1 && err == ERROR_SEEK_ERROR) {
         test_pass("Seek past EOF fails with ERROR_SEEK_ERROR");
     } else {
         test_fail("Seek past EOF", "Expected -1 / ERROR_SEEK_ERROR");
@@ -543,7 +545,11 @@ int main(void)
                 }
 
                 ExAllEnd(dir_lock, (struct ExAllData *)exall_buf, sizeof(exall_buf), ED_OWNER, eac);
-                if (ParsePatternNoCase((CONST_STRPTR)"sample.txt", pattern_buf, sizeof(pattern_buf)) != 0) {
+                /* A new scan starts with eac_LastKey = 0; ParsePatternNoCase()
+                 * returns 0 for a literal pattern, which is still a valid
+                 * match string. */
+                eac->eac_LastKey = 0;
+                if (ParsePatternNoCase((CONST_STRPTR)"sample.txt", pattern_buf, sizeof(pattern_buf)) >= 0) {
                     eac->eac_MatchString = (STRPTR)pattern_buf;
                 }
 
@@ -574,41 +580,22 @@ int main(void)
         }
     }
 
-    /* Test 6e: MakeLink/ReadLink soft links */
-    print("\nTest 6e: MakeLink and ReadLink\n");
+    /* Test 6e: MakeLink hard links.  Run on RAM: (AmigaOS' ram-handler on the
+     * reference).  Soft links are covered by Tests/Dos/SoftLink: neither the
+     * ram-handler nor the reference's SYS: filesystem implements them. */
+    print("\nTest 6e: MakeLink hard link\n");
     {
-        char link_target[128];
         char hard_link_data[16];
+        struct FileInfoBlock *link_fib;
         BPTR target_lock;
 
-        DeleteFile((CONST_STRPTR)soft_link);
-        DeleteFile((CONST_STRPTR)hard_link);
-        Delay(2);
-        result = MakeLink((CONST_STRPTR)soft_link, (LONG)(CONST_STRPTR)test_file_abs, LINK_SOFT);
-        if (result) {
-            test_pass("MakeLink creates soft link");
-        } else {
-            print("  IoErr: ");
-            print_num(IoErr());
-            print("\n");
-            test_fail("MakeLink creates soft link", "MakeLink failed");
+        fh = Open((CONST_STRPTR)link_target, MODE_NEWFILE);
+        if (fh) {
+            Write(fh, (CONST APTR)"HardLink", 8);
+            Close(fh);
         }
 
-        result = ReadLink(NULL, 0, (CONST_STRPTR)soft_link, (STRPTR)link_target, sizeof(link_target));
-        if (result >= 0 && strcmp(link_target, test_file_abs) == 0) {
-            test_pass("ReadLink returns soft-link target");
-        } else {
-            print("  ReadLink result=");
-            print_num(result);
-            print(", target='");
-            print(link_target);
-            print("', IoErr=");
-            print_num(IoErr());
-            print("\n");
-            test_fail("ReadLink returns soft-link target", "Unexpected target");
-        }
-
-        target_lock = Lock((CONST_STRPTR)test_file_abs, SHARED_LOCK);
+        target_lock = Lock((CONST_STRPTR)link_target, SHARED_LOCK);
         if (!target_lock) {
             test_fail("MakeLink hard-link setup", "Lock failed");
         } else {
@@ -616,9 +603,6 @@ int main(void)
             if (result) {
                 test_pass("MakeLink creates hard link");
             } else {
-                print("  Hard-link IoErr: ");
-                print_num(IoErr());
-                print("\n");
                 test_fail("MakeLink creates hard link", "MakeLink failed");
             }
 
@@ -631,23 +615,35 @@ int main(void)
         } else {
             result = Read(fh, hard_link_data, sizeof(hard_link_data));
             Close(fh);
-            if (result == 8 &&
-                hard_link_data[0] == 'H' &&
-                hard_link_data[1] == 'e' &&
-                hard_link_data[2] == 'l' &&
-                hard_link_data[3] == 'l' &&
-                hard_link_data[4] == 0 &&
-                hard_link_data[5] == 0 &&
-                hard_link_data[6] == 0 &&
-                hard_link_data[7] == 0) {
+            if (result == 8 && strncmp(hard_link_data, "HardLink", 8) == 0) {
                 test_pass("MakeLink hard link preserves file data");
             } else {
                 test_fail("MakeLink hard link preserves file data", "Unexpected hard-link contents");
             }
         }
 
-        DeleteFile((CONST_STRPTR)soft_link);
+        link_fib = (struct FileInfoBlock *)AllocDosObject(DOS_FIB, NULL);
+        target_lock = Lock((CONST_STRPTR)hard_link, SHARED_LOCK);
+        if (link_fib && target_lock && Examine(target_lock, link_fib)) {
+            print("  Hard link entry type: ");
+            print_num(link_fib->fib_DirEntryType);
+            print(", size: ");
+            print_num(link_fib->fib_Size);
+            print("\n");
+            if (link_fib->fib_DirEntryType == ST_FILE && link_fib->fib_Size == 8)
+                test_pass("Examine reports the hard link as a plain file");
+            else
+                test_fail("Examine reports the hard link as a plain file", "Unexpected type or size");
+        } else {
+            test_fail("Examine hard link", "Lock/Examine failed");
+        }
+        if (target_lock)
+            UnLock(target_lock);
+        if (link_fib)
+            FreeDosObject(DOS_FIB, link_fib);
+
         DeleteFile((CONST_STRPTR)hard_link);
+        DeleteFile((CONST_STRPTR)link_target);
     }
 
     /* Test 7: MODE_NEWFILE truncates existing */

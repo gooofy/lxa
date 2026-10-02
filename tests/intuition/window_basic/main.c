@@ -35,6 +35,25 @@ static void print(const char *s)
     Write(out, (CONST APTR)s, len);
 }
 
+/* ZipWindow() is deferred to the input handler on AmigaOS: wait for the
+ * IDCMP_CHANGEWINDOW message (max. ~2 s) */
+static void wait_change(struct Window *w)
+{
+    struct IntuiMessage *msg;
+    int ticks;
+    BOOL seen = FALSE;
+
+    for (ticks = 0; ticks < 100 && !seen; ticks++) {
+        while ((msg = (struct IntuiMessage *)GetMsg(w->UserPort)) != NULL) {
+            if (msg->Class == IDCMP_CHANGEWINDOW)
+                seen = TRUE;
+            ReplyMsg((struct Message *)msg);
+        }
+        if (!seen)
+            Delay(1);
+    }
+}
+
 int main(void)
 {
     struct NewScreen ns;
@@ -340,33 +359,7 @@ int main(void)
         }
     }
 
-    /* Negative WA_Height values must be sanitized rather than wrapped */
-    {
-        struct TagItem tags[] = {
-            { WA_CustomScreen, (ULONG)screen },
-            { WA_Left, 0 },
-            { WA_Top, 12 },
-            { WA_Width, 320 },
-            { WA_Height, (ULONG)-3 },
-            { TAG_DONE, 0 }
-        };
-
-        tag_window = OpenWindowTagList(NULL, tags);
-        if (!tag_window) {
-            print("FAIL: OpenWindowTagList() negative-height window returned NULL\n");
-            errors++;
-        } else if (tag_window->Width != 320 || tag_window->Height != (screen->Height - 12)) {
-            print("FAIL: OpenWindowTagList() did not sanitize negative WA_Height\n");
-            errors++;
-        } else {
-            print("OK: OpenWindowTagList() sanitizes negative WA_Height\n");
-        }
-
-        if (tag_window) {
-            CloseWindow(tag_window);
-            tag_window = NULL;
-        }
-    }
+    /* invalid WA_Height values: see Tests/Intuition/InvalidArgs (lxa only) */
 
     /* WA_AutoAdjust must keep oversized/off-screen coordinates visible */
     {
@@ -398,39 +391,7 @@ int main(void)
         }
     }
 
-    /* Bogus NW_EXTENDED tag pointers must be ignored instead of re-parsed */
-    {
-        struct ExtNewWindow ext = {0};
-
-        ext.LeftEdge = 16;
-        ext.TopEdge = 20;
-        ext.Width = 120;
-        ext.Height = 60;
-        ext.DetailPen = 0;
-        ext.BlockPen = 1;
-        ext.Flags = WFLG_NW_EXTENDED | WFLG_CLOSEGADGET;
-        ext.Title = (UBYTE *)"Ext Window";
-        ext.Screen = screen;
-        ext.Type = CUSTOMSCREEN;
-        ext.Extension = (struct TagItem *)1;
-
-        tag_window = OpenWindow((struct NewWindow *)&ext);
-        if (!tag_window) {
-            print("FAIL: OpenWindow() rejected bogus NW_EXTENDED window\n");
-            errors++;
-        } else if (tag_window->LeftEdge != 16 || tag_window->TopEdge != 20 ||
-                   tag_window->Width != 120 || tag_window->Height != 60) {
-            print("FAIL: OpenWindow() misread bogus NW_EXTENDED fields\n");
-            errors++;
-        } else {
-            print("OK: OpenWindow() ignores bogus NW_EXTENDED tag pointers\n");
-        }
-
-        if (tag_window) {
-            CloseWindow(tag_window);
-            tag_window = NULL;
-        }
-    }
+    /* bogus NW_EXTENDED pointers: see Tests/Intuition/InvalidArgs (lxa only) */
 
     /* SuperBitMap windows must create a SuperBitMap content layer */
     {
@@ -497,6 +458,7 @@ int main(void)
             { WA_Width, 120 },
             { WA_Height, 60 },
             { WA_Zoom, (ULONG)zoom_box },
+            { WA_IDCMP, IDCMP_CHANGEWINDOW },
             { TAG_DONE, 0 }
         };
 
@@ -506,12 +468,14 @@ int main(void)
             errors++;
         } else {
             ZipWindow(tag_window);
+            wait_change(tag_window);
             if (tag_window->LeftEdge != 40 || tag_window->TopEdge != 50 ||
                 tag_window->Width != 140 || tag_window->Height != 70) {
                 print("FAIL: ZipWindow() did not apply WA_Zoom coordinates\n");
                 errors++;
             } else {
                 ZipWindow(tag_window);
+                wait_change(tag_window);
                 if (tag_window->LeftEdge != 10 || tag_window->TopEdge != 12 ||
                     tag_window->Width != 120 || tag_window->Height != 60) {
                     print("FAIL: ZipWindow() did not restore original window box\n");

@@ -63,13 +63,29 @@ static void test_fail(const char *name, const char *reason)
     tests_failed++;
 }
 
+/* Expect ChangeMode()/Lock() to fail with ERROR_OBJECT_IN_USE */
+static void expect_in_use(const char *name, BOOL ok)
+{
+    if (ok)
+        test_fail(name, "Unexpected success");
+    else if (IoErr() != ERROR_OBJECT_IN_USE)
+        test_fail(name, "Wrong IoErr");
+    else
+        test_pass(name);
+}
+
+/*
+ * Only well-formed requests are exercised: ChangeMode() with an invalid type,
+ * mode or object hands garbage to the handler on AmigaOS (an invalid type
+ * hangs the reference machine).  Exclusive file-handle modes differ between
+ * handlers and are not tested either.
+ */
 int main(void)
 {
     BPTR lock1;
     BPTR lock2;
     BPTR fh;
     BOOL ok;
-    LONG err;
 
     print("ChangeMode Test\n");
     print("===============\n\n");
@@ -80,7 +96,6 @@ int main(void)
         test_fail("Create test file", "Open failed");
         return 1;
     }
-
     if (Write(fh, (CONST APTR)"mode", 4) != 4)
     {
         test_fail("Seed test file", "Write failed");
@@ -90,157 +105,69 @@ int main(void)
     Close(fh);
 
     lock1 = Lock((CONST_STRPTR)"changemode_test.dat", SHARED_LOCK);
-    lock2 = Lock((CONST_STRPTR)"changemode_test.dat", SHARED_LOCK);
-    fh = Open((CONST_STRPTR)"changemode_test.dat", MODE_READWRITE);
-
-    if (!lock1 || !lock2 || !fh)
+    if (!lock1)
     {
-        test_fail("Open objects", "Could not open required lock/filehandle");
-        if (lock1)
-            UnLock(lock1);
-        if (lock2)
-            UnLock(lock2);
-        if (fh)
-            Close(fh);
+        test_fail("Lock test file", "Lock failed");
         DeleteFile((CONST_STRPTR)"changemode_test.dat");
         return 1;
     }
 
     print("Test 1: Shared lock can become exclusive when alone\n");
-    UnLock(lock2);
-    lock2 = 0;
     ok = ChangeMode(CHANGE_LOCK, lock1, EXCLUSIVE_LOCK);
     if (ok)
         test_pass("Shared->exclusive lock");
     else
         test_fail("Shared->exclusive lock", "Call failed");
 
-    print("\nTest 2: Lock can return to shared mode\n");
+    print("\nTest 2: An exclusive lock keeps other lockers out\n");
+    lock2 = Lock((CONST_STRPTR)"changemode_test.dat", SHARED_LOCK);
+    expect_in_use("Shared lock refused", lock2 != 0);
+    if (lock2)
+        UnLock(lock2);
+
+    print("\nTest 3: Lock can return to shared mode\n");
     ok = ChangeMode(CHANGE_LOCK, lock1, SHARED_LOCK);
     if (ok)
         test_pass("Exclusive->shared lock");
     else
         test_fail("Exclusive->shared lock", "Call failed");
 
-    print("\nTest 3: Exclusive upgrade is rejected while another shared lock exists\n");
     lock2 = Lock((CONST_STRPTR)"changemode_test.dat", SHARED_LOCK);
-    if (!lock2)
-    {
-        test_fail("Reopen second lock", "Lock failed");
-    }
-    else
-    {
-        ok = ChangeMode(CHANGE_LOCK, lock1, EXCLUSIVE_LOCK);
-        if (!ok)
-        {
-            err = IoErr();
-            if (err == ERROR_OBJECT_IN_USE)
-                test_pass("Exclusive upgrade conflict");
-            else
-                test_fail("Exclusive upgrade conflict", "Wrong IoErr");
-        }
-        else
-        {
-            test_fail("Exclusive upgrade conflict", "Unexpected success");
-        }
-    }
-
-    print("\nTest 4: Filehandle ChangeMode accepts shared mode\n");
     if (lock2)
-    {
-        UnLock(lock2);
-        lock2 = 0;
-    }
-    ok = ChangeMode(CHANGE_FH, fh, SHARED_LOCK);
-    if (ok)
-        test_pass("Filehandle shared mode");
+        test_pass("Second shared lock after downgrade");
     else
-        test_fail("Filehandle shared mode", "Call failed");
+        test_fail("Second shared lock after downgrade", "Lock failed");
 
-    print("\nTest 5: Filehandle exclusive mode conflicts with outstanding shared lock\n");
-    ok = ChangeMode(CHANGE_FH, fh, EXCLUSIVE_LOCK);
-    if (!ok)
-    {
-        err = IoErr();
-        if (err == ERROR_OBJECT_IN_USE)
-            test_pass("Filehandle exclusive conflict");
-        else
-            test_fail("Filehandle exclusive conflict", "Wrong IoErr");
-    }
-    else
-    {
-        test_fail("Filehandle exclusive conflict", "Unexpected success");
-    }
-
-    print("\nTest 6: Invalid type is rejected\n");
-    ok = ChangeMode(99, lock1, SHARED_LOCK);
-    if (!ok)
-    {
-        err = IoErr();
-        if (err == ERROR_BAD_NUMBER)
-            test_pass("Invalid type error");
-        else
-            test_fail("Invalid type error", "Wrong IoErr");
-    }
-    else
-    {
-        test_fail("Invalid type error", "Unexpected success");
-    }
-
-    print("\nTest 7: Invalid new mode is rejected\n");
-    ok = ChangeMode(CHANGE_LOCK, lock1, 99);
-    if (!ok)
-    {
-        err = IoErr();
-        if (err == ERROR_BAD_NUMBER)
-            test_pass("Invalid mode error");
-        else
-            test_fail("Invalid mode error", "Wrong IoErr");
-    }
-    else
-    {
-        test_fail("Invalid mode error", "Unexpected success");
-    }
-
-    print("\nTest 8: Invalid lock is rejected\n");
-    ok = ChangeMode(CHANGE_LOCK, 0, SHARED_LOCK);
-    if (!ok)
-    {
-        err = IoErr();
-        if (err == ERROR_INVALID_LOCK)
-            test_pass("Invalid lock error");
-        else
-            test_fail("Invalid lock error", "Wrong IoErr");
-    }
-    else
-    {
-        test_fail("Invalid lock error", "Unexpected success");
-    }
-
-    print("\nTest 9: Wrong filehandle type is rejected\n");
-    ok = ChangeMode(CHANGE_FH, lock1, SHARED_LOCK);
-    if (!ok)
-    {
-        err = IoErr();
-        if (err == ERROR_OBJECT_WRONG_TYPE)
-            test_pass("Wrong FH object type");
-        else
-            test_fail("Wrong FH object type", "Wrong IoErr");
-    }
-    else
-    {
-        test_fail("Wrong FH object type", "Unexpected success");
-    }
-
+    print("\nTest 4: Exclusive upgrade is rejected while another shared lock exists\n");
+    expect_in_use("Exclusive upgrade conflict", ChangeMode(CHANGE_LOCK, lock1, EXCLUSIVE_LOCK));
     if (lock2)
         UnLock(lock2);
+
+    print("\nTest 5: Exclusive upgrade is rejected while the file is open\n");
+    fh = Open((CONST_STRPTR)"changemode_test.dat", MODE_OLDFILE);
+    if (!fh)
+    {
+        test_fail("Open with shared lock held", "Open failed");
+    }
+    else
+    {
+        test_pass("Open with shared lock held");
+        expect_in_use("Exclusive upgrade with open file", ChangeMode(CHANGE_LOCK, lock1, EXCLUSIVE_LOCK));
+
+        print("\nTest 6: Filehandle ChangeMode accepts shared mode\n");
+        ok = ChangeMode(CHANGE_FH, fh, SHARED_LOCK);
+        if (ok)
+            test_pass("Filehandle shared mode");
+        else
+            test_fail("Filehandle shared mode", "Call failed");
+        Close(fh);
+    }
+
     UnLock(lock1);
-    Close(fh);
     DeleteFile((CONST_STRPTR)"changemode_test.dat");
 
     print("\nFailed: ");
     print_num(tests_failed);
     print("\n");
-
     return tests_failed ? 20 : 0;
 }

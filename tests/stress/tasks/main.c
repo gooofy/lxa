@@ -153,6 +153,9 @@ static struct Process *create_stress_task(APTR entry, const char *name)
         { NP_StackSize, 4096 },
         { NP_Input, Input() },
         { NP_Output, Output() },
+        /* the parent's streams must stay open (NP_Close* default TRUE) */
+        { NP_CloseInput, FALSE },
+        { NP_CloseOutput, FALSE },
         { TAG_DONE, 0 }
     };
 
@@ -267,13 +270,6 @@ int main(void)
         mem_leaked = 0;
     }
     
-    print("  Memory before: ");
-    print_num(mem_before);
-    print("\n  Memory after: ");
-    print_num(mem_after);
-    print("\n  Potential leak: ");
-    print_num(mem_leaked);
-    print(" bytes\n");
     
     /* Allow some overhead (4KB) for internal structures */
     if (failed == 0 && completed == SEQUENTIAL_TASK_COUNT && mem_leaked <= 8192) {
@@ -415,13 +411,6 @@ int main(void)
         mem_leaked = 0;
     }
     
-    print("  Memory before: ");
-    print_num(mem_before);
-    print("\n  Memory after: ");
-    print_num(mem_after);
-    print("\n  Potential leak: ");
-    print_num(mem_leaked);
-    print(" bytes\n");
     
     if (mem_leaked <= 4096) {
         test_pass("Memory cleanup after task termination");

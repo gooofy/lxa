@@ -1,0 +1,11 @@
+Relabel Test
+============
+
+Test 1: Unknown devices are not mounted
+  Relabel NODEV:: result=0 IoErr=218  PASS
+  Relabel NODEV: BAD:NAME: result=0 IoErr=218  PASS
+
+Test 2: NIL: has no handler
+  Relabel NIL:: result=0 IoErr=218  PASS
+
+Failed: 0

@@ -1,0 +1,16 @@
+AddBuffers Test
+===============
+
+Test 1: Unknown devices are not mounted
+  AddBuffers NODEV: 1: result=0 IoErr=218  PASS
+  AddBuffers NODEV:x 5: result=0 IoErr=218  PASS
+
+Test 2: NIL: has no handler
+  AddBuffers NIL: 1: result=0 IoErr=218  PASS
+
+Test 3: The RAM: handler does not know ACTION_MORE_CACHE
+  AddBuffers RAM: 1: result=0 IoErr=209  PASS
+  AddBuffers RAM: 0: result=0 IoErr=209  PASS
+  AddBuffers RAM: -1: result=0 IoErr=209  PASS
+
+Failed: 0

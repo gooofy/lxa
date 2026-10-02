@@ -143,13 +143,16 @@ int main(void)
         if (!Examine(lock, fib)) {
             test_fail("Examine", "Examine failed");
         } else {
+            /* ExNext() order is defined by the filesystem (hash order on
+             * FFS, host order elsewhere): collect the names and print them
+             * sorted. */
+            static char names[21][32];
+            int i, j, k;
             count = 0;
             while (ExNext(lock, fib)) {
-                print("  ");
-                print_num(count + 1);
-                print(": ");
-                print((char *)fib->fib_FileName);
-                print("\n");
+                for (k = 0; k < 31 && fib->fib_FileName[k]; k++)
+                    names[count][k] = fib->fib_FileName[k];
+                names[count][k] = '\0';
                 count++;
                 
                 /* Safety limit */
@@ -160,6 +163,26 @@ int main(void)
             }
             
             LONG err = IoErr();
+
+            for (i = 0; i < count; i++) {
+                for (j = i + 1; j < count; j++) {
+                    for (k = 0; names[i][k] && names[i][k] == names[j][k]; k++)
+                        ;
+                    if ((unsigned char)names[i][k] > (unsigned char)names[j][k]) {
+                        char tmp[32];
+                        for (k = 0; k < 32; k++) tmp[k] = names[i][k];
+                        for (k = 0; k < 32; k++) names[i][k] = names[j][k];
+                        for (k = 0; k < 32; k++) names[j][k] = tmp[k];
+                    }
+                }
+            }
+            for (i = 0; i < count; i++) {
+                print("  ");
+                print_num(i + 1);
+                print(": ");
+                print(names[i]);
+                print("\n");
+            }
             
             print("  Total entries: ");
             print_num(count);
