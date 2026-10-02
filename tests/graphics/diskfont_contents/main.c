@@ -22,6 +22,13 @@ extern struct GfxBase *GfxBase;
 
 struct Library *DiskfontBase;
 
+/*
+ * This file is built twice: as Tests/Graphics/DiskfontContents (the
+ * diskfont.library V40 API of AmigaOS 3.1, reference-validated) and, with
+ * DISKFONT_EXT defined by tests/graphics/diskfont_ext/main.c, as the
+ * lxa-only Tests/Graphics/DiskfontExt (V45+ API).
+ */
+
 static LONG errors;
 static const char g_fake_bullet_name[] = "bullet.library";
 
@@ -828,7 +835,15 @@ static void test_avail_fonts(void)
     }
 
     shortage = AvailFonts(buffer, buffer_size - 1, AFF_DISK);
-    if (shortage == 1)
+    /* the reported size counts the font name once per entry, but entries
+     * of one .font file share their name, so one byte less still fits */
+    if (shortage == 0)
+        pass("AvailFonts fits a buffer one byte smaller than reported");
+    else
+        fail("AvailFonts fits a buffer one byte smaller than reported");
+
+    shortage = AvailFonts(buffer, 8, AFF_DISK);
+    if (shortage == needed - 8)
         pass("AvailFonts returns additional bytes needed for short buffer");
     else
         fail("AvailFonts returns additional bytes needed for short buffer");
@@ -1171,6 +1186,12 @@ static void test_open_color_disk_font_path(void)
     pass("CloseFont accepts multi-plane color disk font loaded from path");
 }
 
+/*
+ * NewFontContents() builds the contents from the font files found in the
+ * font's directory (AmigaOS 3.1, reference machine), not from the existing
+ * .font file: test.font lists test8 and test12, but only test/test12
+ * exists.  Flags are the file's tf_Flags plus FPF_DISKFONT.
+ */
 static void test_new_font_contents(BPTR fonts_lock)
 {
     struct FontContentsHeader *contents;
@@ -1188,35 +1209,24 @@ static void test_new_font_contents(BPTR fonts_lock)
     else
         fail("NewFontContents preserves file ID");
 
-    if (contents->fch_NumEntries == 2)
-        pass("NewFontContents preserves entry count");
+    if (contents->fch_NumEntries == 1)
+        pass("NewFontContents lists the font files of the font directory");
     else
-        fail("NewFontContents preserves entry count");
+        fail("NewFontContents lists the font files of the font directory");
 
     entries = (struct FontContents *)(contents + 1);
 
-    if (streq((const char *)entries[0].fc_FileName, "test/test8") &&
-        entries[0].fc_YSize == 8 &&
-        entries[0].fc_Style == 0 &&
-        entries[0].fc_Flags == FPF_ROMFONT)
+    if (contents->fch_NumEntries >= 1 &&
+        streq((const char *)entries[0].fc_FileName, "test/test12") &&
+        entries[0].fc_YSize == 12 &&
+        entries[0].fc_Style == FS_NORMAL &&
+        entries[0].fc_Flags == (FPF_DESIGNED | FPF_DISKFONT))
     {
-        pass("NewFontContents copies first entry");
+        pass("NewFontContents reads size, style and flags from the font file");
     }
     else
     {
-        fail("NewFontContents copies first entry");
-    }
-
-    if (streq((const char *)entries[1].fc_FileName, "test/test12") &&
-        entries[1].fc_YSize == 12 &&
-        entries[1].fc_Style == FSF_BOLD &&
-        entries[1].fc_Flags == FPF_DISKFONT)
-    {
-        pass("NewFontContents copies second entry");
-    }
-    else
-    {
-        fail("NewFontContents copies second entry");
+        fail("NewFontContents reads size, style and flags from the font file");
     }
 
     DisposeFontContents(contents);
@@ -1226,35 +1236,36 @@ static void test_new_font_contents(BPTR fonts_lock)
 static void test_new_tagged_font_contents(BPTR fonts_lock)
 {
     struct FontContentsHeader *contents;
-    struct TFontContents *entries;
+    struct FontContents *entries;
 
     contents = NewFontContents(fonts_lock, (CONST_STRPTR)"prop.font");
     if (!contents)
     {
-        fail("NewFontContents returns tagged data for proportional .font file");
+        fail("NewFontContents returns data for proportional .font file");
         return;
     }
 
-    if (contents->fch_FileID == TFCH_ID && contents->fch_NumEntries == 1)
-        pass("NewFontContents preserves tagged proportional file metadata");
+    /* the font file is not tagged, so the result uses FCH_ID */
+    if (contents->fch_FileID == FCH_ID && contents->fch_NumEntries == 1)
+        pass("NewFontContents builds proportional font contents");
     else
-        fail("NewFontContents preserves tagged proportional file metadata");
+        fail("NewFontContents builds proportional font contents");
 
-    entries = (struct TFontContents *)(contents + 1);
-    if (streq((const char *)entries[0].tfc_FileName, "prop/prop12") &&
-        entries[0].tfc_TagCount == 0 &&
-        entries[0].tfc_YSize == 12 &&
-        entries[0].tfc_Flags == (FPF_DISKFONT | FPF_PROPORTIONAL))
+    entries = (struct FontContents *)(contents + 1);
+    if (contents->fch_NumEntries >= 1 &&
+        streq((const char *)entries[0].fc_FileName, "prop/prop12") &&
+        entries[0].fc_YSize == 12 &&
+        entries[0].fc_Flags == (FPF_DESIGNED | FPF_DISKFONT | FPF_PROPORTIONAL))
     {
-        pass("NewFontContents copies tagged proportional entry");
+        pass("NewFontContents copies proportional entry");
     }
     else
     {
-        fail("NewFontContents copies tagged proportional entry");
+        fail("NewFontContents copies proportional entry");
     }
 
     DisposeFontContents(contents);
-    pass("DisposeFontContents accepts tagged proportional NewFontContents result");
+    pass("DisposeFontContents accepts proportional NewFontContents result");
 }
 
 static void test_invalid_inputs(BPTR fonts_lock)
@@ -1558,7 +1569,6 @@ int main(void)
         !create_color_font_contents_file("color.font") ||
         !create_invalid_contents_file("broken.font") ||
         !create_otag_file("outline.otag") ||
-        !create_font_contents_file("writtenfont.font") ||
         !create_bitmap_font_file("test/test12", "test.font") ||
         !create_proportional_font_file("prop/prop12", "prop.font") ||
         !create_color_font_file("color/color12", "color.font"))
@@ -1569,6 +1579,16 @@ int main(void)
         return 20;
     }
 
+#ifdef DISKFONT_EXT
+    if (!create_font_contents_file("writtenfont.font"))
+    {
+        print("FAIL: Cannot create test font files\n");
+        CurrentDir(old_dir);
+        CloseLibrary(DiskfontBase);
+        return 20;
+    }
+#endif
+
     fonts_lock = Lock((CONST_STRPTR)"T:diskfont_test", SHARED_LOCK);
     if (!fonts_lock)
     {
@@ -1578,10 +1598,11 @@ int main(void)
         return 20;
     }
 
+#ifndef DISKFONT_EXT
+    /* diskfont.library V40 (AmigaOS 3.1) API */
     test_new_font_contents(fonts_lock);
     test_new_tagged_font_contents(fonts_lock);
     test_invalid_inputs(fonts_lock);
-    test_diskfont_ctrl();
 
     if (AssignPath((STRPTR)"FONTS", (STRPTR)"T:diskfont_test"))
     {
@@ -1597,8 +1618,14 @@ int main(void)
     test_open_disk_font_path();
     test_open_proportional_disk_font_path();
     test_open_color_disk_font_path();
+#else
+    /* diskfont.library V45+ API (not in AmigaOS 3.1): GetDiskFontCtrl,
+     * SetDiskFontCtrlA, outline fonts, WriteFontContents,
+     * WriteDiskFontHeaderA, ObtainCharsetInfo */
+    test_diskfont_ctrl();
     test_outline_helpers();
     test_write_helpers(fonts_lock);
+#endif
 
     UnLock(fonts_lock);
     CurrentDir(old_dir);

@@ -48,6 +48,7 @@ TEST_F(GraphicsTest, ColorsPens) { RunGraphicsTest("ColorsPens"); }
 TEST_F(GraphicsTest, Copper) { RunGraphicsTest("Copper"); }
 TEST_F(GraphicsTest, DisplayViewPort) { RunGraphicsTest("DisplayViewPort"); }
 TEST_F(GraphicsTest, DiskfontContents) { RunGraphicsTest("DiskfontContents"); }
+TEST_F(GraphicsTest, DiskfontExt) { RunGraphicsTest("DiskfontExt"); }
 TEST_F(GraphicsTest, DrawEllipse) { RunGraphicsTest("DrawEllipse"); }
 TEST_F(GraphicsTest, Flood) { RunGraphicsTest("Flood"); }
 TEST_F(GraphicsTest, HwBlitter) { RunGraphicsTest("HwBlitter"); }
