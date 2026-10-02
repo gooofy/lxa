@@ -1,0 +1,31 @@
+Testing input.device
+OK: input.device opened
+OK: OpenDevice stored InputBase
+OK: IND_ADDHANDLER adds lower priority handler
+OK: IND_ADDHANDLER adds higher priority handler
+OK: IND_WRITEEVENT succeeded
+OK: Both handlers received rawkey event
+OK: Rawkey class delivered
+OK: Handler chain preserves priority ordering and mutations
+OK: Event coordinates preserved
+OK: IND_WRITEEVENT rawkey does not change PeekQualifier
+OK: IND_WRITEEVENT preserves transient key qualifier bits
+OK: Handlers receive transient key qualifier bits
+OK: PeekQualifier ignores written key qualifiers
+OK: PeekQualifier clears key qualifiers on release snapshot
+OK: IND_ADDEVENT (V47) is an unknown command on V40
+OK: IND_SETMPORT accepted byte payload
+OK: IND_SETMTYPE accepted byte payload
+OK: IND_SETTHRESH accepted timeval
+OK: IND_SETTHRESH left the request timeval unchanged
+OK: IND_SETPERIOD accepted timeval
+OK: IND_SETPERIOD left the request timeval unchanged
+OK: Handlers received rawmouse event
+OK: IND_WRITEEVENT mouse button does not change PeekQualifier
+OK: IND_WRITEEVENT preserves transient mouse qualifier bits
+OK: PeekQualifier ignores written mouse qualifiers
+OK: PeekQualifier clears mouse qualifiers on release snapshot
+OK: IND_REMHANDLER removed first handler
+OK: IND_REMHANDLER removed second handler
+OK: Removed handlers stop receiving events
+PASS: input.device tests passed

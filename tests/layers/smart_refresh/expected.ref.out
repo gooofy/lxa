@@ -1,0 +1,41 @@
+Testing SMART_REFRESH backing store...
+
+Test 1: Basic SMART_REFRESH backing store...
+OK: Initial content pen=3 at (30,30)
+OK: Background pen=0 at (5,5)
+OK: Front layer created, back layer partially obscured
+OK: Back layer has obscured ClipRects (backing store allocated)
+OK: Front layer drawn with pen=5
+OK: Front layer deleted, checking back layer restoration...
+OK: Restored content pen=3 at (30,30) after uncover
+OK: Restored content pen=3 at (25,25)
+OK: Background pen=0 at (5,5) after uncover
+
+Test 2: MoveLayer backing store save/restore...
+OK: Initial content pen=7 at (40,40)
+OK: Front layer moved to overlap back layer
+OK: Back layer has obscured ClipRects after MoveLayer
+OK: Front layer moved away, checking restoration...
+OK: Restored content pen=7 at (40,40) after MoveLayer
+OK: Restored content pen=7 at (35,35)
+OK: Background pen=0 at (5,5) preserved
+
+Test 3: SIMPLE_REFRESH has no backing store...
+OK: SIMPLE_REFRESH layer has no backing-store ClipRects
+
+Test 4: Full obscure/uncover...
+OK: Back layer filled with pen=11
+OK: Back layer is fully obscured
+OK: Fully obscured content pen=11 restored
+OK: Center pixel pen=11 restored
+
+Test 5: Drawing while partially obscured...
+OK: Visible-area draw pen=6 at (25,25)
+OK: Obscured-area draw pen=6 at (40,40) after uncover
+OK: Obscured corner pen=6 at (50,50) after uncover
+OK: Background pen=0 at (5,5)
+
+Cleaning up...
+OK: Cleanup complete
+
+PASS: layers/smart_refresh all tests passed

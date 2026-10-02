@@ -1,0 +1,20 @@
+Testing printer.device
+
+  OK: OpenDevice accepts unit 1
+  OK: OpenDevice stores device and unit pointers
+  second OpenDevice: error=-1
+  NSCMD_DEVICEQUERY: io_Error=-3 io_Actual=12345
+  CMD_STOP: io_Error=0 io_Actual=12345
+  CMD_START: io_Error=0 io_Actual=12345
+  CMD_FLUSH: io_Error=0 io_Actual=12345
+  CMD_RESET: io_Error=0 io_Actual=12345
+  CMD_CLEAR: io_Error=-3 io_Actual=12345
+  CMD_UPDATE: io_Error=-3 io_Actual=12345
+  CMD_READ: io_Error=-3 io_Actual=12345
+  CMD_INVALID: io_Error=-3 io_Actual=12345
+  command 0x7fff: io_Error=-3 io_Actual=12345
+  PRD_DUMPRPORT SPECIAL_NOPRINT: io_Error=2 io_DestCols=0 io_DestRows=0
+  PRD_DUMPRPORT: io_Error=2 io_DestCols=0 io_DestRows=0
+  OK: CloseDevice
+
+PASS: All 3 tests passed!

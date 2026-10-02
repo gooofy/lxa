@@ -222,6 +222,29 @@ int main(void)
     error = OpenDevice("trackdisk.device", 0, (struct IORequest *)req, 0);
     if (error == 0)
         test_ok("OpenDevice unit 0");
+
+    /* outside devices_gtest (e.g. rdd suite-ref) DF0: has no disk image */
+    if (error == 0)
+    {
+        UBYTE probe[TD_SECTOR];
+
+        req->iotd_Req.io_Command = CMD_READ;
+        req->iotd_Req.io_Flags = IOF_QUICK;
+        req->iotd_Req.io_Data = probe;
+        req->iotd_Req.io_Length = TD_SECTOR;
+        req->iotd_Req.io_Offset = 0;
+        DoIO((struct IORequest *)req);
+        if (req->iotd_Req.io_Error == TDERR_DiskChanged)
+        {
+            print("SKIP: no disk image in DF0:\n");
+            CloseDevice((struct IORequest *)req);
+            DeleteFile("DF0:trackdisk_test.adf");
+            DeleteFile("DF1:trackdisk_test.adf");
+            FreeMem(req, sizeof(struct IOExtTD));
+            FreeMem(port, sizeof(struct MsgPort));
+            return 0;
+        }
+    }
     else {
         test_fail_msg("OpenDevice unit 0");
         print("    error="); print_num(error); print("\n");
