@@ -23,6 +23,7 @@
 #include <libraries/mathffp.h>
 
 #include <graphics/gfxbase.h>
+#include <graphics/monitor.h>
 
 #include <intuition/intuitionbase.h>
 
@@ -5839,8 +5840,8 @@ void coldstart (void)
     /* Initialize GfxBase display dimensions - default to PAL resolution */
     GfxBase->NormalDisplayRows = 256;
     GfxBase->NormalDisplayColumns = 640;
-    GfxBase->MaxDisplayRow = 312;     /* PAL max */
-    GfxBase->MaxDisplayColumn = 640;
+    GfxBase->MaxDisplayRow = 311;     /* PAL: 312 lines (AmigaOS 3.1 reference) */
+    GfxBase->MaxDisplayColumn = 455;  /* AmigaOS 3.1 reference value */
     GfxBase->DisplayFlags = PAL | REALLY_PAL;  /* PAL crystal (matches VBlankFrequency=50) */
     GfxBase->VBlank = 50;                      /* PAL VBlank rate */
     GfxBase->ChipRevBits0 = SETCHIPREV_ECS;   /* ECS chipset (HR_AGNUS + HR_DENISE) */
@@ -5848,11 +5849,11 @@ void coldstart (void)
     /* Additional GfxBase fields that some apps read directly.
      * Per Phase 109 audit — apps may check these at startup and fail silently
      * if they find zeros. */
-    GfxBase->NormalDPMX = 22;                  /* ~22 dots per mm (horizontal) for PAL hi-res */
-    GfxBase->NormalDPMY = 22;                  /* ~22 dots per mm (vertical) for PAL non-lace */
-    GfxBase->MicrosPerLine = 64;               /* ~64 microseconds per raster line (PAL) */
+    GfxBase->NormalDPMX = 1226;                /* dots per metre, AmigaOS 3.1 reference (PAL) */
+    GfxBase->NormalDPMY = 1299;
+    GfxBase->MicrosPerLine = 16285;            /* 1/256 us per raster line, AmigaOS 3.1 reference */
     GfxBase->MinDisplayColumn = 0x71;          /* Standard left edge of display (ECS) */
-    GfxBase->monitor_id = 0;                   /* Default (PAL) monitor */
+    GfxBase->monitor_id = PAL_MONITOR_ID >> 16; /* PAL monitor (AmigaOS 3.1 reference: 2) */
     GfxBase->TopLine = 0;                      /* Top visible line offset */
     /* copinit, SimpleSprites, ActiView left NULL — they require actual data
      * structures. NULL is the correct initial value (no copper list, no sprites,

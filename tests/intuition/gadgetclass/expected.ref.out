@@ -1,0 +1,41 @@
+Testing GadgetClass...
+Creating gadgetclass object...
+gadgetclass object created
+  GetAttr(GA_Left) not supported
+  GetAttr(GA_Top) not supported
+  GetAttr(GA_Width) not supported
+  GetAttr(GA_Height) not supported
+  GetAttr(GA_ID) not supported
+  GetAttr(GA_UserData) not supported
+  GetAttr(GA_Disabled) not supported
+  GetAttr(GA_Selected) not supported
+gadgetclass object disposed
+
+Creating buttongclass object...
+buttongclass object created
+  GetAttr(GA_ID) not supported
+  GetAttr(GA_Disabled) not supported
+  GetAttr(GA_Selected) not supported
+buttongclass object disposed
+
+Creating propgclass object...
+propgclass object created
+  GetAttr(GA_ID) not supported
+  GetAttr(PGA_Top) = 25
+  GetAttr(PGA_Visible) not supported
+  GetAttr(PGA_Total) not supported
+  GetAttr(PGA_Freedom) = 4
+  GetAttr(GA_Disabled) not supported
+propgclass object disposed
+
+Creating strgclass object...
+strgclass object created
+  GetAttr(GA_ID) not supported
+  GetAttr(STRINGA_TextVal) = 'hello'
+  GetAttr(STRINGA_LongVal) = 0
+  GetAttr(STRINGA_MaxChars) not supported
+  GetAttr(STRINGA_BufferPos) not supported
+  GetAttr(GA_Disabled) not supported
+strgclass object disposed
+
+All gadget class tests passed!

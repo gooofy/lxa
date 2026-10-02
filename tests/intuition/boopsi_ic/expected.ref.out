@@ -1,0 +1,60 @@
+BOOPSI IC Test Suite
+====================
+
+Opened intuition.library v40
+
+--- Test 1: propgclass creation with PGA tags
+PASS: propgclass object created
+  PGA_Top = 25 (expected 25)
+PASS: PGA_Top correct
+PASS: GetAttr(PGA_Visible) not supported
+PASS: GetAttr(PGA_Total) not supported
+PASS: GetAttr(GA_ID) not supported
+PASS: propgclass disposed
+
+--- Test 2: strgclass creation with STRINGA tags
+PASS: strgclass object created
+  STRINGA_LongVal = 42 (expected 42)
+PASS: STRINGA_LongVal correct
+  STRINGA_TextVal = '42' (expected '42')
+PASS: GetAttr(STRINGA_TextVal) returned
+PASS: GetAttr(GA_ID) not supported
+PASS: strgclass disposed
+
+--- Test 3: icclass creation and disposal
+PASS: icclass object created
+PASS: icclass disposed
+
+--- Test 4: modelclass creation and disposal
+PASS: modelclass object created
+PASS: modelclass disposed
+
+--- Test 5: ICA_TARGET/ICA_MAP prop-string linking
+PASS: Window opened
+PASS: propgclass with ICA_MAP created
+PASS: strgclass with ICA_TARGET created
+PASS: SetGadgetAttrs(ICA_TARGET) called successfully
+PASS: Gadgets added to window and refreshed
+  PGA_Top after AddGList = 25 (expected 25)
+PASS: PGA_Top preserved after AddGList
+PASS: Gadgets removed from window
+PASS: strgclass disposed
+PASS: propgclass disposed
+PASS: Window closed
+
+--- Test 6: SetGadgetAttrs and DoGadgetMethodA dispatch through gadget class
+PASS: Window opened
+PASS: propgclass object created
+PASS: propgclass added to window
+  DoGadgetMethodA(OM_GET PGA_Top) on an enabled gadget returned 0, value 0
+  SetGadgetAttrs(PGA_Top) returned 0
+  SetGadgetAttrs(PGA_Top, unchanged) returned 0
+  SetGadgetAttrs() returned 0
+PASS: SetGadgetAttrs updated gadget and class attributes
+  DoGadgetMethodA(OM_GET PGA_Top) returned 0, value 0
+PASS: propgclass disposed
+PASS: Window closed
+
+====================
+Results: 6 tests, 31 passed, 0 failed
+All Tests Completed Successfully!

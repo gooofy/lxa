@@ -1,0 +1,20 @@
+Testing gadget hit testing and interaction...
+
+--- Test 1: Open screen and window ---
+OK: Screen opened
+OK: Window opened
+OK: Found CLOSE gadget
+OK: Found DEPTH gadget
+
+--- Test 2: Verify gadget geometry ---
+OK: Close gadget positioned in left area
+OK: Depth gadget positioned in right area
+
+--- Test 3: No spurious IDCMP_CLOSEWINDOW ---
+OK: No IDCMP_CLOSEWINDOW without a click
+
+--- Test 4: Cleanup ---
+OK: Window closed
+OK: Screen closed
+
+PASS: gadget_click all tests passed

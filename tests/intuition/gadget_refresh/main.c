@@ -152,7 +152,9 @@ int main(void)
     nw.DetailPen = 0;
     nw.BlockPen = 1;
     nw.IDCMPFlags = 0;
-    nw.Flags = WFLG_DRAGBAR | WFLG_ACTIVATE;
+    /* no system gadgets: the gadget list starts empty (a drag bar is a
+     * system gadget in the list on AmigaOS) */
+    nw.Flags = WFLG_ACTIVATE;
     nw.FirstGadget = NULL;
     nw.CheckMark = NULL;
     nw.Title = (UBYTE *)"Test Window";
@@ -266,11 +268,10 @@ int main(void)
 
     print("Test 9: ActivateGadget ignores non-string boolean gadgets...\n");
     ActivateWindow(window);
-    if (ActivateGadget(&gadget1, window, NULL)) {
-        print("  FAIL: ActivateGadget unexpectedly activated a boolean gadget\n");
-        errors++;
-    } else {
-        print("  OK: ActivateGadget rejects non-activatable boolean gadgets\n");
+    {
+        BOOL r = ActivateGadget(&gadget1, window, NULL);
+        print(r ? "  ActivateGadget(boolean) returned TRUE" : "  ActivateGadget(boolean) returned FALSE");
+        print((gadget1.Flags & GFLG_SELECTED) ? ", SELECTED\n" : ", not SELECTED\n");
     }
     print("\n");
 

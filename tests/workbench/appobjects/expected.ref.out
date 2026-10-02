@@ -1,0 +1,6 @@
+Testing workbench.library compatibility functions...
+Test 1: AppWindow/AppIcon/AppMenuItem lifecycle...
+OK: AddApp* returns allocated opaque handles
+OK: RemoveApp* releases valid handles
+OK: AppWindow bookkeeping stays reusable after removals
+PASS: workbench/appobjects all tests passed

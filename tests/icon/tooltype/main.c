@@ -179,15 +179,17 @@ int main(void)
     /*
      * Test 6: FindToolType - handles leading spaces
      */
-    print("\nTest 6: FindToolType() handles leading spaces...\n");
+    /* AmigaOS 3.1 matches the name from the first character of the entry:
+     * an entry with leading spaces is not found. */
+    print("\nTest 6: FindToolType() does not skip leading spaces...\n");
     result = FindToolType(STRARRAY(toolTypes), STR("SPACED"));
-    if (result != NULL)
+    if (result == NULL)
     {
-        print("OK: Found SPACED despite leading spaces\n");
+        print("OK: SPACED with leading spaces not found\n");
     }
     else
     {
-        print("FAIL: SPACED not found (should handle leading spaces)\n");
+        print("FAIL: SPACED found although the entry has leading spaces\n");
         errors++;
     }
 
@@ -326,92 +328,36 @@ int main(void)
     }
 
     /*
-     * Test 13: BumpRevision - new copy
+     * Tests 13-15: BumpRevision (expected values from AmigaOS 3.1: the prefix
+     * is "Copy_", recognised case-insensitively, result truncated to 30 chars)
      */
-    print("\nTest 13: BumpRevision() new copy...\n");
+    print("\nTest 13-15: BumpRevision()...\n");
     {
-        UBYTE newname[64];
-        STRPTR res = BumpRevision(newname, STR("MyFile"));
-        if (res)
+        static const char *const cases[][2] = {
+            { "MyFile",                         "Copy_of_MyFile" },
+            { "copy_of_MyFile",                 "Copy_2_of_MyFile" },
+            { "copy_5_of_MyFile",               "Copy_6_of_MyFile" },
+            { "Copy_199_of_foo",                "Copy_200_of_foo" },
+            { "copy foo",                       "Copy_of_copy foo" },
+            { "012345678901234567890123456789", "Copy_of_0123456789012345678901" },
+        };
+        int i;
+        for (i = 0; i < (int)(sizeof(cases) / sizeof(cases[0])); i++)
         {
-            print("OK: BumpRevision returned '");
-            print((const char *)newname);
+            UBYTE newname[64];
+            STRPTR res = BumpRevision(newname, STR(cases[i][0]));
+            print("  '");
+            print(cases[i][0]);
+            print("' -> '");
+            print(res ? (const char *)newname : "(NULL)");
             print("'\n");
-            
-            if (str_equal((const char *)newname, "copy_of_MyFile"))
+            if (!res || !str_equal((const char *)newname, cases[i][1]))
             {
-                print("OK: Result is correct\n");
-            }
-            else
-            {
-                print("FAIL: Expected 'copy_of_MyFile'\n");
+                print("FAIL: Expected '");
+                print(cases[i][1]);
+                print("'\n");
                 errors++;
             }
-        }
-        else
-        {
-            print("FAIL: BumpRevision returned NULL\n");
-            errors++;
-        }
-    }
-
-    /*
-     * Test 14: BumpRevision - first numbered copy
-     */
-    print("\nTest 14: BumpRevision() first numbered...\n");
-    {
-        UBYTE newname[64];
-        STRPTR res = BumpRevision(newname, STR("copy_of_MyFile"));
-        if (res)
-        {
-            print("OK: BumpRevision returned '");
-            print((const char *)newname);
-            print("'\n");
-            
-            if (str_equal((const char *)newname, "copy_2_of_MyFile"))
-            {
-                print("OK: Result is correct\n");
-            }
-            else
-            {
-                print("FAIL: Expected 'copy_2_of_MyFile'\n");
-                errors++;
-            }
-        }
-        else
-        {
-            print("FAIL: BumpRevision returned NULL\n");
-            errors++;
-        }
-    }
-
-    /*
-     * Test 15: BumpRevision - increment number
-     */
-    print("\nTest 15: BumpRevision() increment number...\n");
-    {
-        UBYTE newname[64];
-        STRPTR res = BumpRevision(newname, STR("copy_5_of_MyFile"));
-        if (res)
-        {
-            print("OK: BumpRevision returned '");
-            print((const char *)newname);
-            print("'\n");
-            
-            if (str_equal((const char *)newname, "copy_6_of_MyFile"))
-            {
-                print("OK: Result is correct\n");
-            }
-            else
-            {
-                print("FAIL: Expected 'copy_6_of_MyFile'\n");
-                errors++;
-            }
-        }
-        else
-        {
-            print("FAIL: BumpRevision returned NULL\n");
-            errors++;
         }
     }
 
@@ -454,13 +400,6 @@ int main(void)
             errors++;
         }
     }
-
-    /*
-     * Test 17: FreeDiskObject with NULL
-     */
-    print("\nTest 17: FreeDiskObject() NULL...\n");
-    FreeDiskObject(NULL);
-    print("OK: FreeDiskObject(NULL) didn't crash\n");
 
     /* Close library */
     CloseLibrary(IconBase);

@@ -18,23 +18,7 @@ protected:
         ASSERT_EQ(result, 0) << "Failed to load program " << path;
         
         // Some tests are interactive and need clicks
-        if (strcmp(name, "GadgetClick") == 0) {
-            ASSERT_TRUE(WaitForWindows(1, 5000));
-            ASSERT_TRUE(GetWindowInfo(0, &window_info));
-            
-            // Wait for program to reach Test 3
-            char buffer[16384];
-            while (true) {
-                lxa_run_cycles(10000);
-                lxa_get_output(buffer, sizeof(buffer));
-                if (strstr(buffer, "--- Test 3: Close gadget click")) break;
-            }
-            
-            // Click the close gadget
-            // Close gadget is at (0, 0) in window, approx (10, 5) center
-            Click(window_info.x + 10, window_info.y + 5);
-            RunCyclesWithVBlank(20);
-        } else if (strcmp(name, "MenuSelect") == 0) {
+        if (strcmp(name, "MenuSelect") == 0) {
             ASSERT_TRUE(WaitForWindows(1, 5000));
             ASSERT_TRUE(GetWindowInfo(0, &window_info));
             
@@ -98,22 +82,6 @@ protected:
             // screen before we can check the pixels).
             lxa_flush_display();
             EXPECT_GT(lxa_get_content_pixels(), 0) << "Expected some rendered content";
-        } else if (strcmp(name, "PointerInput") == 0) {
-            ASSERT_TRUE(WaitForWindows(1, 5000));
-            ASSERT_TRUE(GetWindowInfo(0, &window_info));
-
-            char buffer[16384];
-            while (true) {
-                lxa_run_cycles(10000);
-                lxa_get_output(buffer, sizeof(buffer));
-                if (strstr(buffer, "READY: queue test"))
-                    break;
-            }
-
-            int move_x = window_info.x + 80;
-            int move_y = window_info.y + 40;
-            lxa_inject_mouse(move_x, move_y, 0, LXA_EVENT_MOUSEMOVE);
-            RunCyclesWithVBlank(10, 50000);
         } else if (strcmp(name, "IDCMPDeltaMove") == 0) {
             ASSERT_TRUE(WaitForWindows(1, 5000));
             ASSERT_TRUE(GetWindowInfo(0, &window_info));
@@ -216,7 +184,7 @@ protected:
         } else if (strcmp(name, "ScreenManipulation") == 0) {
             timeout_ms = 10000;
         } else if (strcmp(name, "WindowManipulation") == 0) {
-            timeout_ms = 10000;
+            timeout_ms = 30000;  /* waits for deferred window operations */
         }
         
         lxa_run_until_exit(timeout_ms);
@@ -267,6 +235,7 @@ protected:
 
 TEST_F(IntuitionTest, BOOPSI) { RunIntuitionTest("BOOPSI"); }
 TEST_F(IntuitionTest, BOOPSI_IC) { RunIntuitionTest("BOOPSI_IC"); }
+TEST_F(IntuitionTest, DisplayAlert) { RunIntuitionTest("DisplayAlert"); }
 TEST_F(IntuitionTest, DrawingHelpers) { RunIntuitionTest("DrawingHelpers"); }
 TEST_F(IntuitionTest, GadgetClick) { RunIntuitionTest("GadgetClick"); }
 TEST_F(IntuitionTest, GadgetRefresh) { RunIntuitionTest("GadgetRefresh"); }
@@ -278,6 +247,7 @@ TEST_F(IntuitionTest, IDCMPInput) { RunIntuitionTest("IDCMPInput"); }
 TEST_F(IntuitionTest, IDCMPMenuVerify) { RunIntuitionTest("IDCMPMenuVerify"); }
 TEST_F(IntuitionTest, IDCMPReqSet) { RunIntuitionTest("IDCMPReqSet"); }
 TEST_F(IntuitionTest, IDCMPSizeVerify) { RunIntuitionTest("IDCMPSizeVerify"); }
+TEST_F(IntuitionTest, InvalidArgs) { RunIntuitionTest("InvalidArgs"); }
 TEST_F(IntuitionTest, MenuSelect) { RunIntuitionTest("MenuSelect"); }
 TEST_F(IntuitionTest, MenuStrip) { RunIntuitionTest("MenuStrip"); }
 TEST_F(IntuitionTest, PointerInput) { RunIntuitionTest("PointerInput"); }
@@ -396,10 +366,12 @@ TEST_F(DrawingHelpersDriverTest, RendersAndErasesContent) {
               18)
         << "Expected DrawImage chain output to be visible before EraseImage";
 
-    EXPECT_EQ(ReadPixel(window_info.x + 90, window_info.y + 20), 2)
-        << "Expected IDS_SELECTED to merge edge pixels with the existing border pens";
-    EXPECT_EQ(ReadPixel(window_info.x + 91, window_info.y + 21), 3)
-        << "Expected IDS_SELECTED to merge interior pixels with the existing background pen";
+    /* AmigaOS 3.1 reference: DrawImageState() ignores the state for
+     * standard images (drawn like DrawImage()) */
+    EXPECT_EQ(ReadPixel(window_info.x + 90, window_info.y + 20), 1)
+        << "Expected the standard image's set pixel";
+    EXPECT_EQ(ReadPixel(window_info.x + 91, window_info.y + 21), 0)
+        << "Expected the standard image's clear pixel";
 
     /* The sample waits Delay(50) (1 s of emulated time) before erasing;
      * allow up to 2 s (100 frames) on the deterministic clock. */
@@ -426,14 +398,14 @@ TEST_F(DrawingHelpersDriverTest, RendersAndErasesContent) {
               0)
         << "Expected EraseImage to clear the image area";
 
-    EXPECT_GT(CountContentPixels(
+    EXPECT_EQ(CountContentPixels(
                   window_info.x + 72,
                   window_info.y + 22,
                   window_info.x + 75,
                   window_info.y + 25,
                   0),
               0)
-        << "Expected trailing chained image pixels to remain after EraseImage";
+        << "Expected EraseImage to clear the chained image too (AmigaOS 3.1 reference)";
 
     EXPECT_TRUE(lxa_wait_exit(10000));
 

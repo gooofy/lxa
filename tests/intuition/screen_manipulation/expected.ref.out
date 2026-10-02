@@ -1,0 +1,52 @@
+Testing Screen Manipulation Functions...
+
+Test -1: OpenIntuition()...
+  OK: OpenIntuition() opens Workbench once and is idempotent
+
+OK: Workbench screen opened
+OK: Screen 1 opened
+OK: Screen 2 opened
+
+Test 0: WBenchToBack()...
+  OK: WBenchToBack moves Workbench to the back
+
+Test 0b: WBenchToFront()...
+  OK: WBenchToFront restores Workbench to the front
+
+Test 0c: GetScreenData(workbench)...
+  OK: GetScreenData() copies Workbench public fields
+
+Test 1: ScreenToBack(screen2)...
+  OK: ScreenToBack moves screen2 behind screen1
+
+Test 2: ScreenToFront(screen2)...
+  OK: ScreenToFront restores screen2 to the front
+
+Test 3: ScreenDepth(screen1, SDEPTH_TOBACK, NULL)...
+  OK: ScreenDepth(TOBACK) keeps screen1 at the back
+
+Test 4: ScreenDepth(screen1, SDEPTH_TOFRONT, NULL)...
+  OK: ScreenDepth(TOFRONT) moves screen1 to the front
+
+Test 5: ScreenPosition(screen1, SPOS_RELATIVE, 10, 20, 0, 0)...
+  pos 0,20
+  OK: ScreenPosition(SPOS_RELATIVE) updates coordinates
+
+Test 6: MoveScreen(screen1, -4, 6)...
+  pos 0,26
+  OK: MoveScreen applies relative movement
+
+Test 7: ScreenPosition(screen1, SPOS_ABSOLUTE, 3, 7, 0, 0)...
+  pos 0,7
+  OK: ScreenPosition(SPOS_ABSOLUTE) sets absolute coordinates
+
+Test 8: GetScreenData(screen1)...
+  OK: GetScreenData() copies the screen structure
+
+OK: Screen 2 closed
+OK: Screen 1 closed
+
+Test 9: CloseWorkBench() with a window open on Workbench...
+  OK: CloseWorkBench refuses while windows are open
+
+PASS: screen_manipulation all tests completed

@@ -1,0 +1,57 @@
+BOOPSI class lifecycle tests
+===========================
+Test: MakeClass without a superclass
+PASS: MakeClass creates a class without superclass
+PASS: FreeClass frees the class without superclass
+Test: private classes and DoMethodA/CoerceMethodA
+PASS: MakeClass creates private rootclass subclass
+PASS: MakeClass creates private subclass from pointer
+PASS: NewObject creates subclass instance
+PASS: GetAttr reads object instance data
+PASS: SetAttrs updates object instance data
+PASS: SetAttrs changed TESTA_Value
+PASS: DoMethodA dispatches subclass method
+PASS: CoerceMethodA dispatches exact superclass method
+PASS: FreeClass frees private subclass
+PASS: FreeClass frees private base class
+Test: public class AddClass/RemoveClass/FreeClass lifecycle
+PASS: MakeClass creates public class
+PASS: AddClass marks class public
+PASS: MakeClass rejects duplicate public class ID
+PASS: NewObject finds public class by name
+PASS: public class object stores tags
+PASS: FreeClass reports busy class when objects still exist
+PASS: FreeClass removes busy public class from class list
+PASS: removed public class is no longer discoverable
+PASS: FreeClass succeeds after outstanding objects are disposed
+Test: MakeClass resolves public imageclass superclass
+PASS: MakeClass creates subclass from imageclass
+PASS: imageclass subclass has resolved superclass
+PASS: FreeClass frees imageclass subclass
+Test: modelclass member add/remove and update broadcast
+PASS: MakeClass creates model observer class
+PASS: NewObject creates modelclass object
+PASS: observer members created
+  OM_ADDMEMBER (first) returned 1
+  OM_ADDMEMBER (second) returned 1
+  OM_UPDATE returned 1
+PASS: first model member receives update value
+PASS: first model member tracks update count
+PASS: second model member receives update value
+  OM_REMMEMBER returned 1
+  OM_UPDATE after removal returned 1
+PASS: remaining member still receives later updates
+PASS: removed member stops receiving updates
+PASS: FreeClass frees observer class
+Test: NextObject iterates BOOPSI lists safely
+PASS: MakeClass creates iterator class
+PASS: iterator members created
+PASS: first object added to Exec list
+PASS: second object added to Exec list
+PASS: NextObject returns the first object
+PASS: returned object can be removed during iteration
+PASS: NextObject advances to the next object after removal
+PASS: second object can be removed from the list
+PASS: NextObject returns NULL at end of list
+PASS: FreeClass frees iterator class
+All tests passed!

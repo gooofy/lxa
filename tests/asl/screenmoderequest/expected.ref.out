@@ -1,0 +1,18 @@
+ASL ScreenModeRequester Test
+============================
+
+Opened asl.library v40
+PASS: Basic screen mode allocation works
+  DisplayID: 0xADDR
+  Width: 640
+  Height: 200
+  Depth: 2
+PASS: Tagged screen mode allocation works
+  DisplayID: 0xADDR
+  Width: 640
+  Height: 200
+  Depth: 2
+  BitMapWidth: 0
+  BitMapHeight: 0
+
+PASS

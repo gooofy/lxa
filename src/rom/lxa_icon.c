@@ -64,22 +64,6 @@ static int strncasecmp_simple(const char *s1, const char *s2, ULONG n)
     return tolower_simple(*s1) - tolower_simple(*s2);
 }
 
-/* Helper: compare n chars */
-static int strncmp_simple(const char *s1, const char *s2, ULONG n)
-{
-    while (n > 0 && *s1 && *s2)
-    {
-        if (*s1 != *s2)
-            return *s1 - *s2;
-        s1++;
-        s2++;
-        n--;
-    }
-    if (n == 0)
-        return 0;
-    return *s1 - *s2;
-}
-
 #define VERSION    44
 #define REVISION   1
 #define EXLIBNAME  "icon"
@@ -1203,10 +1187,9 @@ UBYTE * _icon_FindToolType ( register struct IconBase *IconBase      __asm("a6")
     {
         const char *tt = (const char *)*toolTypeArray;
         
-        /* Skip leading spaces */
-        while (*tt == ' ' || *tt == '\t')
-            tt++;
-        
+        /* No leading-space skipping: AmigaOS 3.1 matches from the first
+         * character (reference-verified, Phase 220). */
+
         /* Skip comments (lines starting with parentheses) */
         if (*tt == '(')
         {
@@ -1285,60 +1268,71 @@ STRPTR _icon_BumpRevision ( register struct IconBase *IconBase __asm("a6"),
                             register STRPTR           newname  __asm("a0"),
                             register CONST_STRPTR     oldname  __asm("a1"))
 {
+    /*
+     * AmigaOS 3.1 (reference-verified): "foo" -> "Copy_of_foo",
+     * "copy_of_foo" -> "Copy_2_of_foo", "copy_<n>_of_foo" -> "Copy_<n+1>_of_foo".
+     * The prefix match is case-insensitive; the result is truncated to the
+     * DOS name size of 30 characters.
+     */
+    const char *old;
+    const char *rest;
+    char digits[12];
+    char *dst;
+    ULONG num = 0;
+    int nd = 0;
+    int i;
+
     DPRINTF (LOG_DEBUG, "_icon: BumpRevision() called oldname='%s'\n", STRORNULL(oldname));
-    
+
     if (!newname || !oldname)
         return NULL;
-    
-    /* Copy oldname to newname, appending "copy_of_" prefix or incrementing copy number */
-    const char *old = (const char *)oldname;
-    char *dst = (char *)newname;
-    
-    /* Check if it already starts with "copy_of_" or "copy_<n>_of_" */
-    if (strncmp_simple(old, "copy_of_", 8) == 0)
+
+    old = (const char *)oldname;
+    rest = old;
+
+    if (strncasecmp_simple(old, "copy_of_", 8) == 0)
     {
-        /* Already a copy, add number: "copy_2_of_<rest>" */
-        strcpy(dst, "copy_2_of_");
-        strcat(dst, old + 8);
+        num = 2;
+        rest = old + 8;
     }
-    else if (strncmp_simple(old, "copy_", 5) == 0 && old[5] >= '0' && old[5] <= '9')
+    else if (strncasecmp_simple(old, "copy_", 5) == 0 && old[5] >= '0' && old[5] <= '9')
     {
-        /* Has a number, increment it */
-        int num = 0;
         const char *p = old + 5;
+        ULONG n = 0;
         while (*p >= '0' && *p <= '9')
         {
-            num = num * 10 + (*p - '0');
+            n = n * 10 + (ULONG)(*p - '0');
             p++;
         }
-        if (strncmp_simple(p, "_of_", 4) == 0)
+        if (strncasecmp_simple(p, "_of_", 4) == 0)
         {
-            /* Build "copy_<num+1>_of_<rest>" */
-            num++;
-            strcpy(dst, "copy_");
-            dst += 5;
-            /* Convert num to string - simple integer to string */
-            if (num >= 10)
-            {
-                *dst++ = '0' + (num / 10);
-                num = num % 10;
-            }
-            *dst++ = '0' + num;
-            strcpy(dst, "_of_");
-            strcat(dst, p + 4);
-        }
-        else
-        {
-            strcpy(dst, "copy_of_");
-            strcat(dst, old);
+            num = n + 1;
+            rest = p + 4;
         }
     }
-    else
+
+    dst = (char *)newname;
+    strcpy(dst, "Copy_");
+    dst += 5;
+    if (num)
     {
-        strcpy(dst, "copy_of_");
-        strcat(dst, old);
+        do
+        {
+            digits[nd++] = (char)('0' + (num % 10));
+            num /= 10;
+        } while (num && nd < 10);
+        for (i = nd - 1; i >= 0; i--)
+            *dst++ = digits[i];
+        *dst++ = '_';
     }
-    
+    strcpy(dst, "of_");
+    dst += 3;
+
+    /* copy the remainder, truncating the whole name to 30 characters */
+    while (*rest && (dst - (char *)newname) < 30)
+        *dst++ = *rest++;
+    *dst = '\0';
+
     return newname;
 }
 
