@@ -16,3 +16,5 @@ Tests/Intuition/IDCMPDeltaMove: {interactive: "waits for mouse moves injected by
 Tests/Intuition/IDCMPMenuVerify: {interactive: "waits for an RMB press injected by intuition_gtest", phase: 224}
 Tests/Intuition/IDCMPSizeVerify: {interactive: "waits for a sizing-gadget drag injected by intuition_gtest", phase: 224}
 Tests/Intuition/RequesterBasic: {interactive: "waits for requester clicks injected by intuition_gtest", phase: 224}
+Tests/Icon/IconV44:             {lxa_only: "icon.library V44 API (IconControlA, LayoutIconA, DrawIconStateA, GetIconRectangleA, ChangeToSelectedIconColor); the AmigaOS 3.1 reference has icon.library V40 without these vectors"}
+Tests/Workbench/AppObjectsV44:  {lxa_only: "workbench.library V44 API (OpenWorkbenchObjectA, WorkbenchControlA, drop zones, ...); the AmigaOS 3.1 reference has workbench.library V40 without these vectors (calling them hangs it), its WBInfo() blocks in a modal requester, and stale-handle tolerance is lxa-only"}

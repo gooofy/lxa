@@ -40,6 +40,17 @@ static void expect_true(BOOL condition, const char *message)
     }
 }
 
+static void expect_eq(LONG got, LONG want, const char *message)
+{
+    if (got == want)
+        printf("OK: %s\n", message);
+    else
+    {
+        printf("FAIL: %s (got %ld, want %ld)\n", message, (long)got, (long)want);
+        g_failures++;
+    }
+}
+
 static BOOL bytes_equal(const char *a, const char *b, LONG len)
 {
     LONG i;
@@ -173,10 +184,9 @@ static void verify_basic_read(struct IFFHandle *iff)
     if (!open_read_file(iff, &file))
         return;
 
-    expect_true(CurrentChunk(NULL) == NULL, "CurrentChunk NULL");
-    expect_true(CurrentChunk(iff) != NULL && CurrentChunk(iff)->cn_ID == ID_FORM,
-                "CurrentChunk after OpenIFF is FORM");
-    expect_true(FindPropContext(iff) != NULL, "FindPropContext inside FORM");
+    /* AmigaOS 3.1: before the first ParseIFF() there is no context yet */
+    expect_true(CurrentChunk(iff) == NULL, "CurrentChunk is NULL right after OpenIFF");
+    expect_true(FindPropContext(iff) == NULL, "FindPropContext is NULL right after OpenIFF");
 
     while ((error = ParseIFF(iff, IFFPARSE_RAWSTEP)) == 0 || error == IFFERR_EOC)
     {
@@ -202,7 +212,7 @@ static void verify_basic_read(struct IFFHandle *iff)
             memset(rest, 0, sizeof(rest));
             expect_true(parent != NULL && parent->cn_ID == ID_FORM, "ParentChunk NAME -> FORM");
             expect_true(ReadChunkRecords(iff, first, 4, 2) == 2, "ReadChunkRecords NAME");
-            expect_true(ReadChunkBytes(iff, rest, sizeof(rest) - 1) == 14, "ReadChunkBytes NAME remainder");
+            expect_eq(ReadChunkBytes(iff, rest, sizeof(rest) - 1), 13, "ReadChunkBytes NAME remainder (pad byte not returned)");
             expect_true(bytes_equal(first, name_data, 8), "NAME first records content");
             expect_true(strcmp(rest, " FileABCDWXYZ") == 0, "NAME remainder content");
             name_seen++;
@@ -217,7 +227,7 @@ static void verify_basic_read(struct IFFHandle *iff)
             memset(rest, 0, sizeof(rest));
             expect_true(parent != NULL && parent->cn_ID == ID_FORM, "ParentChunk DATA -> FORM");
             expect_true(ReadChunkRecords(iff, first, 3, 2) == 2, "ReadChunkRecords DATA");
-            expect_true(ReadChunkBytes(iff, rest, sizeof(rest) - 1) == 18, "ReadChunkBytes DATA remainder");
+            expect_eq(ReadChunkBytes(iff, rest, sizeof(rest) - 1), 17, "ReadChunkBytes DATA remainder (pad byte not returned)");
             expect_true(bytes_equal(first, data_data, 6), "DATA first records content");
             expect_true(strcmp(rest, " IFF World!123456") == 0, "DATA remainder content");
             data_seen++;
@@ -253,6 +263,9 @@ static void verify_property_collection_handlers(struct IFFHandle *iff)
     exit_hook.h_SubEntry = NULL;
     exit_hook.h_Data = NULL;
 
+    /* CollectionChunk() installs an entry handler: the EntryHandler() for
+     * the same chunk below shadows it, so on AmigaOS 3.1 no collection is
+     * stored in this pass (verify_collection_unshadowed() covers it). */
     expect_true(PropChunk(iff, ID_TEST, ID_NAME) == 0, "PropChunk NAME declaration");
     expect_true(CollectionChunk(iff, ID_TEST, ID_DATA) == 0, "CollectionChunk DATA declaration");
     expect_true(EntryHandler(iff, ID_TEST, ID_DATA, IFFSLI_ROOT, &entry_hook, &g_entry_hits) == 0,
@@ -265,7 +278,26 @@ static void verify_property_collection_handlers(struct IFFHandle *iff)
         struct ContextNode *cn;
 
         if (error == IFFERR_EOC)
+        {
+            /* Collection items are stored when their chunk is left */
+            struct CollectionItem *ci = FindCollection(iff, ID_TEST, ID_DATA);
+            cn = CurrentChunk(iff);
+            printf("  STEP EOC %s: collection=%s size=%ld next=%s\n",
+                   cn ? (cn->cn_ID == ID_DATA ? "DATA" : cn->cn_ID == ID_NAME ? "NAME" :
+                         cn->cn_ID == ID_FORM ? "FORM" : "other") : "none",
+                   ci ? "yes" : "no", ci ? (long)ci->ci_Size : -1L,
+                   (ci && ci->ci_Next) ? "yes" : "no");
+            if (ci && cn && cn->cn_ID == ID_FORM)
+            {
+                expect_eq(ci->ci_Size, 23, "CollectionItem DATA size (unpadded)");
+                expect_true(bytes_equal((const char *)ci->ci_Data, data_data, strlen(data_data)),
+                            "CollectionItem DATA prefix");
+                expect_true(bytes_equal((const char *)ci->ci_Data + strlen(data_data), data_extra,
+                                        strlen(data_extra)),
+                            "CollectionItem DATA suffix");
+            }
             continue;
+        }
 
         cn = CurrentChunk(iff);
         if (!cn)
@@ -278,7 +310,7 @@ static void verify_property_collection_handlers(struct IFFHandle *iff)
             expect_true(prop != NULL, "FindProp NAME while in scope");
             if (prop)
             {
-                expect_true(prop->sp_Size == 22, "StoredProperty NAME size");
+                expect_eq(prop->sp_Size, 21, "StoredProperty NAME size (unpadded)");
                 expect_true(bytes_equal((const char *)prop->sp_Data, name_data, strlen(name_data)),
                             "StoredProperty NAME prefix");
                 expect_true(bytes_equal((const char *)prop->sp_Data + strlen(name_data),
@@ -294,20 +326,7 @@ static void verify_property_collection_handlers(struct IFFHandle *iff)
             struct CollectionItem *collection = FindCollection(iff, ID_TEST, ID_DATA);
 
             expect_true(prop != NULL, "FindProp NAME still visible in DATA scope");
-            expect_true(collection != NULL && collection->ci_Next != NULL,
-                        "FindCollection DATA while in scope");
-            if (collection && collection->ci_Next)
-            {
-                expect_true(collection->ci_Next->ci_Size == 24, "CollectionItem DATA size");
-                expect_true(bytes_equal((const char *)collection->ci_Next->ci_Data,
-                                        data_data,
-                                        strlen(data_data)),
-                            "CollectionItem DATA prefix");
-                expect_true(bytes_equal((const char *)collection->ci_Next->ci_Data + strlen(data_data),
-                                        data_extra,
-                                        strlen(data_extra)),
-                            "CollectionItem DATA suffix");
-            }
+            printf("  STEP DATA entry: collection=%s\n", collection ? "yes" : "no");
             collection_checked = 1;
         }
     }
@@ -318,6 +337,43 @@ static void verify_property_collection_handlers(struct IFFHandle *iff)
     expect_true(g_entry_hits == 1, "Entry handler invoked once");
     expect_true(g_exit_hits == 1, "Exit handler invoked once");
 
+    close_read_file(iff, file);
+}
+
+/*
+ * CollectionChunk() without a shadowing EntryHandler(): the collection
+ * handler stores every DATA chunk as it is entered.
+ */
+static void verify_collection_unshadowed(struct IFFHandle *iff)
+{
+    BPTR file;
+    LONG error;
+
+    if (!open_read_file(iff, &file))
+        return;
+
+    expect_true(CollectionChunk(iff, ID_TEST, ID_DATA) == 0, "CollectionChunk DATA declaration (alone)");
+    while ((error = ParseIFF(iff, IFFPARSE_STEP)) == 0 || error == IFFERR_EOC)
+    {
+        struct ContextNode *cn = CurrentChunk(iff);
+        struct CollectionItem *ci = FindCollection(iff, ID_TEST, ID_DATA);
+
+        printf("  STEP %s %s: collection=%s size=%ld next=%s\n",
+               error == IFFERR_EOC ? "EOC" : "entry",
+               cn ? (cn->cn_ID == ID_DATA ? "DATA" : cn->cn_ID == ID_NAME ? "NAME" :
+                     cn->cn_ID == ID_FORM ? "FORM" : "other") : "none",
+               ci ? "yes" : "no", ci ? (long)ci->ci_Size : -1L,
+               (ci && ci->ci_Next) ? "yes" : "no");
+        if (ci && error == IFFERR_EOC && cn && cn->cn_ID == ID_FORM)
+        {
+            expect_true(bytes_equal((const char *)ci->ci_Data, data_data, strlen(data_data)),
+                        "CollectionItem DATA prefix (alone)");
+            expect_true(bytes_equal((const char *)ci->ci_Data + strlen(data_data), data_extra,
+                                    strlen(data_extra)),
+                        "CollectionItem DATA suffix (alone)");
+        }
+    }
+    expect_true(error == IFFERR_EOF, "ParseIFF STEP reaches EOF (collection alone)");
     close_read_file(iff, file);
 }
 
@@ -400,7 +456,7 @@ static void verify_clipboard_roundtrip(void)
         error = ParseIFF(iff, IFFPARSE_SCAN);
         expect_true(error == 0, "ParseIFF clipboard stops on DATA entry");
         memset(buffer, 0, sizeof(buffer));
-        expect_true(ReadChunkBytes(iff, buffer, sizeof(buffer) - 1) == 24, "ReadChunkBytes clipboard DATA");
+        expect_eq(ReadChunkBytes(iff, buffer, sizeof(buffer) - 1), 23, "ReadChunkBytes clipboard DATA (pad byte not returned)");
         expect_true(bytes_equal(buffer, data_data, strlen(data_data)), "Clipboard DATA prefix");
         expect_true(bytes_equal(buffer + strlen(data_data), data_extra, strlen(data_extra)),
                     "Clipboard DATA suffix");
@@ -439,6 +495,7 @@ int main(void)
     expect_true(write_test_file(iff), "Create IFF test file");
     verify_basic_read(iff);
     verify_property_collection_handlers(iff);
+    verify_collection_unshadowed(iff);
     verify_stop_conditions(iff);
     verify_clipboard_roundtrip();
 

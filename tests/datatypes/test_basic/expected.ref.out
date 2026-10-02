@@ -1,0 +1,65 @@
+datatypes.library basic test
+PASS: Opened datatypes.library
+
+ObtainDataTypeA(DTST_RAM)
+PASS: ObtainDataTypeA(DTST_RAM) returns NULL
+PASS: IoErr() is ERROR_NOT_IMPLEMENTED
+
+ObtainDataTypeA(DTST_FILE, T:dt_test.ilbm)
+PASS: ObtainDataTypeA succeeded
+PASS: DataType has header
+  Name=ILBM BaseName=ilbm Pattern=#?
+  GroupID=pict ID=ilbm Flags=0x0002 Priority=0 MaskLen=12
+
+ObtainDataTypeA(DTST_FILE, T:dt_test.8svx)
+PASS: ObtainDataTypeA succeeded
+PASS: DataType has header
+  Name=8SVX BaseName=8svx Pattern=#?
+  GroupID=soun ID=8svx Flags=0x0002 Priority=0 MaskLen=12
+
+ObtainDataTypeA(DTST_FILE, T:dt_test.ftxt)
+PASS: ObtainDataTypeA succeeded
+PASS: DataType has header
+  Name=FTXT BaseName=ascii Pattern=#?
+  GroupID=text ID=ftxt Flags=0x0002 Priority=0 MaskLen=12
+
+ObtainDataTypeA(DTST_FILE, T:dt_test.bin)
+PASS: ObtainDataTypeA succeeded
+PASS: DataType has header
+  Name=binary BaseName=binary Pattern=(null)
+  GroupID=syst ID=bina Flags=0x0000 Priority=0 MaskLen=0
+
+ObtainDataTypeA(DTST_FILE, T:)
+PASS: ObtainDataTypeA succeeded
+PASS: DataType has header
+  Name=directory BaseName=directory Pattern=(null)
+  GroupID=syst ID=dire Flags=0x0003 Priority=0 MaskLen=0
+
+NewDTObjectA error paths
+PASS: NewDTObjectA(binary file) fails
+PASS: IoErr() is DTERROR_UNKNOWN_DATATYPE
+PASS: NewDTObjectA(missing file) fails
+PASS: IoErr() is DTERROR_COULDNT_OPEN
+
+NewDTObjectA(DTST_RAM, GID_PICTURE)
+PASS: NewDTObjectA succeeded
+  GetDTAttrsA returned 3
+  TopVert: 0 TotalVert: 0
+PASS: RAM object has no DTA_DataType
+  SetDTAttrsA returned 0
+  TopVert: 10 TotalVert: 100
+PASS: Set attributes verified
+PASS: DisposeDTObject succeeded
+
+GetDTString
+  2000: Unknown data type for %s
+  2001: Couldn't save %s
+  2002: Couldn't open %s
+  2003: Couldn't send message
+  2004: Couldn't open clipboard
+  2005: Unknown data type
+  2006: Unknown compression type
+  2007: Not enough data
+  2008: Invalid data
+
+All tests PASSED!
