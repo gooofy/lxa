@@ -24,3 +24,5 @@ Tests/Devices/Scsi: {lxa_only: "lxa's scsi.device emulates in-memory disks on it
 Tests/Devices/Trackdisk: {lxa_only: "needs disks in DF0:/DF1: (host ADF images set up by devices_gtest); the reference floppy drives are empty"}
 Tests/Console/keymap_unit: {interactive: "reads a key remapped by CD_SETKEYMAP, injected by console_gtest", phase: 224}
 Tests/Console/scrollback_unit: {lxa_only: "tests lxa's CD_SETUPSCROLLBACK/CD_SETSCROLLBACKPOSITION, V47 (AmigaOS 3.2) console commands; the 3.1 console.device answers IOERR_NOCMD"}
+Tests/Layers/VisibilityV45: {lxa_only: "HideLayer/ShowLayer/LayerOccluded/SetLayerInfoBounds are V45 layers.library functions that the AmigaOS 3.1 (V40) layers.library does not have"}
+Tests/Layers/TagLayers: {lxa_only: "AddLayerInfoTag/CreateLayerTagList are layers.library extensions (AROS-style tag API) beyond the AmigaOS 3.1 (V40) function table"}

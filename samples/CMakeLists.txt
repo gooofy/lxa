@@ -296,6 +296,7 @@ set(TESTS_LIST
     "../tests/layers/scroll_layer|main|Tests/Layers/ScrollLayer"
     "../tests/layers/tag_layers|main|Tests/Layers/TagLayers"
     "../tests/layers/visibility|main|Tests/Layers/Visibility"
+    "../tests/layers/visibility_v45|main|Tests/Layers/VisibilityV45"
     "../tests/layers/smart_refresh|main|Tests/Layers/SmartRefresh"
     "../tests/shell/alias|main|Tests/Shell/Alias/Test"
     "../tests/shell/controlflow|main|Tests/Shell/ControlFlow/Test"

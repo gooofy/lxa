@@ -519,7 +519,8 @@ static struct ClipRect *AppendClipRectIntersection(struct Layer_Info *li,
 
 static struct ClipRect *ClipClipRectListToRegion(struct Layer_Info *li,
                                                  const struct ClipRect *source_list,
-                                                 const struct Region *region)
+                                                 const struct Region *region,
+                                                 WORD dx, WORD dy)
 {
     struct ClipRect *head = NULL;
     struct ClipRect *tail = NULL;
@@ -534,8 +535,14 @@ static struct ClipRect *ClipClipRectListToRegion(struct Layer_Info *li,
         for (source = source_list; source != NULL; source = source->Next)
         {
             struct Rectangle intersection;
+            struct Rectangle rect = rr->bounds;
 
-            if (!IntersectRectangles(&source->bounds, &rr->bounds, &intersection))
+            rect.MinX += dx;
+            rect.MaxX += dx;
+            rect.MinY += dy;
+            rect.MaxY += dy;
+
+            if (!IntersectRectangles(&source->bounds, &rect, &intersection))
                 continue;
 
             if (!AppendClipRectIntersection(li, &head, &tail, source, &intersection))
@@ -560,7 +567,10 @@ static struct ClipRect *ApplyLayerClipRegion(struct Layer *layer,
     if (!layer->ClipRegion)
         return visible;
 
-    clipped = ClipClipRectListToRegion(layer->LayerInfo, visible, layer->ClipRegion);
+    /* the clip region is in layer coordinates (AmigaOS 3.1, Phase 220) */
+    clipped = ClipClipRectListToRegion(layer->LayerInfo, visible, layer->ClipRegion,
+                                       layer->bounds.MinX - layer->Scroll_X,
+                                       layer->bounds.MinY - layer->Scroll_Y);
     FreeClipRectList(layer->LayerInfo, visible);
     return clipped;
 }
@@ -928,7 +938,11 @@ static void AddDamageToLayer(struct Layer *layer, struct Rectangle *rect)
             return;
     }
 
-    /* Add the rectangle to the damage region */
+    /* The DamageList is in layer coordinates (AmigaOS 3.1, Phase 220) */
+    clipped.MinX -= layer->bounds.MinX - layer->Scroll_X;
+    clipped.MaxX -= layer->bounds.MinX - layer->Scroll_X;
+    clipped.MinY -= layer->bounds.MinY - layer->Scroll_Y;
+    clipped.MaxY -= layer->bounds.MinY - layer->Scroll_Y;
     OrRectRegion(layer->DamageList, &clipped);
 
     /* Set the LAYERREFRESH flag to indicate this layer needs refresh */
@@ -1243,6 +1257,10 @@ static struct Layer * CreateLayerInternal ( struct LayersBase  *LayersBase,
 
     /* Initialize semaphore */
     InitSemaphore(&layer->Lock);
+
+    /* every layer has a (layer-relative) DamageList region, as on 3.1;
+     * apps may OrRectRegion() into it directly */
+    layer->DamageList = NewRegion();
 
     /* Set up RastPort for this layer */
     layer->rp = AllocMem(sizeof(struct RastPort), MEMF_PUBLIC | MEMF_CLEAR);
@@ -1576,9 +1594,7 @@ static LONG _layers_MoveLayer ( register struct LayersBase *LayersBase __asm("a6
     if (!layer)
         return FALSE;
 
-    if (IsBackdropLayer(layer))
-        return FALSE;
-
+    /* backdrop layers can be moved and sized (AmigaOS 3.1, Phase 220) */
     struct Layer_Info *li = layer->LayerInfo;
 
     ObtainSemaphore(&layer->Lock);
@@ -1618,9 +1634,7 @@ static LONG _layers_SizeLayer ( register struct LayersBase *LayersBase __asm("a6
     if (!layer)
         return FALSE;
 
-    if (IsBackdropLayer(layer))
-        return FALSE;
-
+    /* backdrop layers can be moved and sized (AmigaOS 3.1, Phase 220) */
     struct Layer_Info *li = layer->LayerInfo;
 
     ObtainSemaphore(&layer->Lock);
@@ -1648,7 +1662,7 @@ static LONG _layers_SizeLayer ( register struct LayersBase *LayersBase __asm("a6
  *
  * For non-SuperBitMap layers the scroll offsets are accumulated and only
  * shift the layer's coordinate origin, as on AmigaOS 3.1.  For SuperBitMap
- * layers, we'd need SyncSBitMap/CopySBitMap which we don't implement yet.
+ * layers the view into the SuperBitMap moves (SyncSBitMap/CopySBitMap).
  */
 static VOID _layers_ScrollLayer ( register struct LayersBase *LayersBase __asm("a6"),
                                   register LONG               dummy      __asm("a0"),
@@ -1656,8 +1670,6 @@ static VOID _layers_ScrollLayer ( register struct LayersBase *LayersBase __asm("
                                   register LONG               dx         __asm("d0"),
                                   register LONG               dy         __asm("d1"))
 {
-    LXA_UNIMPLEMENTED("layers", "ScrollLayer", "partial: SuperBitMap layers only update scroll offsets, no SyncSBitMap/CopySBitMap (Phase 256)");
-
     /* GCC m68k inline stubs may use move.w for d-register args, leaving
      * upper 16 bits with garbage.  Sign-extend from WORD to LONG. */
     dx = (LONG)(WORD)dx;
@@ -1675,11 +1687,13 @@ static VOID _layers_ScrollLayer ( register struct LayersBase *LayersBase __asm("
 
     if (layer->Flags & LAYERSUPER)
     {
-        /* SuperBitMap layer: adjust scroll offsets (opposite sign per AROS) */
-        layer->Scroll_X -= dx;
-        layer->Scroll_Y -= dy;
-
-        /* TODO: SyncSBitMap/CopySBitMap for full SuperBitMap support */
+        /* SuperBitMap layer: save the visible part, move the view into the
+         * SuperBitMap (super = x_layer + Scroll, as Sync/CopySBitMap use
+         * it on AmigaOS 3.1) and show the new part */
+        SyncSBitMap(layer);
+        layer->Scroll_X += dx;
+        layer->Scroll_Y += dy;
+        CopySBitMap(layer);
     }
     else
     {
@@ -1727,7 +1741,9 @@ static LONG _layers_BeginUpdate ( register struct LayersBase *LayersBase __asm("
     {
         struct ClipRect *new_head = ClipClipRectListToRegion(layer->LayerInfo,
                                                              layer->ClipRect,
-                                                             layer->DamageList);
+                                                             layer->DamageList,
+                                                             layer->bounds.MinX - layer->Scroll_X,
+                                                             layer->bounds.MinY - layer->Scroll_Y);
 
         if (!new_head)
             return FALSE;
@@ -1773,11 +1789,10 @@ static VOID _layers_EndUpdate ( register struct LayersBase *LayersBase __asm("a6
     /* Clear damage if requested */
     if (flag)
     {
+        /* AmigaOS 3.1 keeps the (now empty) DamageList region */
         if (layer->DamageList)
         {
-            /* Free DamageList Region via graphics.library DisposeRegion */
-            DisposeRegion(layer->DamageList);
-            layer->DamageList = NULL;
+            ClearRegion(layer->DamageList);
         }
         layer->Flags &= ~LAYERREFRESH;
     }
@@ -2017,22 +2032,20 @@ static struct Layer * _layers_WhichLayer ( register struct LayersBase *LayersBas
     layer = li->top_layer;
     while (layer)
     {
-        /* Skip hidden layers */
-        if (!(layer->Flags & LAYERHIDDEN))
+        /* the frontmost (not hidden) layer whose bounds contain the point;
+         * a layer's clip region does not matter (AmigaOS 3.1, Phase 220) */
+        if (!(layer->Flags & LAYERHIDDEN) &&
+            x >= layer->bounds.MinX && x <= layer->bounds.MaxX &&
+            y >= layer->bounds.MinY && y <= layer->bounds.MaxY)
         {
-            struct ClipRect *cr = layer->ClipRect;
-
-            while (cr)
+            /* V45 SetLayerInfoBounds() limits */
+            if ((li->bounds.MaxX > li->bounds.MinX || li->bounds.MaxY > li->bounds.MinY) &&
+                (x < li->bounds.MinX || x > li->bounds.MaxX ||
+                 y < li->bounds.MinY || y > li->bounds.MaxY))
             {
-                if (!cr->obscured &&
-                    x >= cr->bounds.MinX && x <= cr->bounds.MaxX &&
-                    y >= cr->bounds.MinY && y <= cr->bounds.MaxY)
-                {
-                    return layer;
-                }
-
-                cr = cr->Next;
+                return NULL;
             }
+            return layer;
         }
         layer = layer->back;
     }
@@ -2189,9 +2202,7 @@ static LONG _layers_MoveSizeLayer ( register struct LayersBase *LayersBase __asm
     if (!layer)
         return FALSE;
 
-    if (IsBackdropLayer(layer))
-        return FALSE;
-
+    /* backdrop layers can be moved and sized (AmigaOS 3.1, Phase 220) */
     struct Layer_Info *li = layer->LayerInfo;
 
     ObtainSemaphore(&layer->Lock);

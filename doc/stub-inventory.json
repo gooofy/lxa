@@ -1152,14 +1152,6 @@
   "symbol": "_intuition_private10"
  },
  {
-  "lib": "layers",
-  "function": "ScrollLayer",
-  "kind": "partial",
-  "detail": "partial: SuperBitMap layers only update scroll offsets, no SyncSBitMap/CopySBitMap (Phase 256)",
-  "file": "src/rom/lxa_layers.c",
-  "symbol": "_layers_ScrollLayer"
- },
- {
   "lib": "rexxsyslib",
   "function": "CreateArgstring",
   "kind": "stub",
