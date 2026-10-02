@@ -1,0 +1,57 @@
+Exec Signal Tests
+=================
+
+Initial tc_SigAlloc: 0xFFFF
+
+Test 1: AllocSignal(-1) auto-select
+    Allocated signal: 31
+  OK: AllocSignal(-1) returned valid signal
+  OK: Signal bit set in tc_SigAlloc
+
+Test 2: Multiple AllocSignal
+  OK: Allocated two more signals
+  OK: All signal numbers are unique
+
+Test 3: AllocSignal with specific number
+  OK: AllocSignal(specific) returned requested number
+
+Test 4: AllocSignal already-allocated signal
+  OK: AllocSignal returns -1 for already-allocated signal
+
+Test 5: SetSignal - read signals
+  OK: SetSignal(0,0) reads signals without modification
+
+Test 6: SetSignal - set signals
+  OK: SetSignal successfully set signal bit
+  OK: SetSignal successfully cleared signal bit
+
+Test 7: SetSignal - selective modification
+  OK: SetSignal selectively clears only specified signals
+
+Test 8: FreeSignal
+  OK: FreeSignal cleared bit in tc_SigAlloc
+  OK: Freed signal can be re-allocated
+
+Test 9: FreeSignal(-1) safety
+  OK: FreeSignal(-1) did not crash
+
+Test 10: Wait records tc_SigWait
+  OK: Wait returned the pending signal mask
+  OK: Wait left its signal set in tc_SigWait
+  OK: Wait consumed the returned signal bit
+
+Test 11: Wait handles SIGBREAKF_CTRL_C
+  OK: Wait returned SIGBREAKF_CTRL_C
+  OK: tc_SigWait holds the full Wait() signal set
+  OK: Wait consumed SIGBREAKF_CTRL_C
+
+Test 12: SetExcept basics
+    Initial tc_SigExcept: 0x0
+  OK: SetExcept enabled exception bit
+  OK: SetExcept disabled exception bit
+
+=============================
+Tests passed: 21
+Tests failed: 0
+
+PASS: All signal tests passed!

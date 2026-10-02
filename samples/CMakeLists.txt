@@ -118,6 +118,7 @@ set(TESTS_LIST
     "../tests/exec/null_safety|main|Tests/Exec/NullSafety"
     "../tests/exec/tasks|main|Tests/Exec/Tasks"
     "../tests/exec/library|main|Tests/Exec/Library"
+    "../tests/exec/library_lxa|main|Tests/Exec/LibraryLxa"
     "../tests/exec/exec_verify|main|Tests/Exec/ExecVerify"
     "../tests/exec/interrupts|main|Tests/Exec/Interrupts"
     "../tests/exec/stub_probe|main|Tests/Exec/StubProbe"

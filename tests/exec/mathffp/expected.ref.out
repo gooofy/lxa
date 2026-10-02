@@ -1,0 +1,84 @@
+Testing mathffp.library
+
+  OK: OpenLibrary mathffp.library
+  OK: OpenLibrary mathieeesingbas.library
+  OK: OpenLibrary mathtrans.library
+  OK: SPFix(SPFlt(0)) = 0
+  OK: SPFix(SPFlt(1)) = 1
+  OK: SPFix(SPFlt(-1)) = -1
+  OK: SPFix(SPFlt(42)) = 42
+  OK: SPFix(SPFlt(-32768)) = -32768
+  OK: SPFix(10/3) truncates toward zero
+  OK: SPFix(-10/3) truncates toward zero
+  OK: SPFix(SPFlt(N)) round-trips for -100..100
+  OK: SPTst(0) = 0
+  OK: SPTst(5) = 1
+  OK: SPTst(-5) = -1
+  OK: SPCmp(10, 20) = -1
+  OK: SPCmp(20, 10) = 1
+  OK: SPCmp(-7, -3) = -1
+  OK: SPCmp(12, 12) = 0
+  OK: SPAbs(-5) = 5
+  OK: SPAbs(5) = 5
+  OK: SPAbs(0) = 0
+  OK: SPNeg(7) = -7
+  OK: SPNeg(-7) = 7
+  OK: SPNeg(0) = 0
+  OK: SPAdd(3, 4) = 7
+  OK: SPAdd(-10, 3) = -7
+  OK: SPAdd(-5, 5) = 0
+  OK: SPAdd(9, 0) = 9
+  OK: SPSub(10, 3) = 3 - 10 = -7
+  OK: SPSub(3, 10) = 10 - 3 = 7
+  OK: SPSub(-5, -8) = -8 - -5 = -3
+  OK: SPSub(9, 9) = 0
+  OK: SPMul(6, 7) = 42
+  OK: SPMul(-5, 3) = -15
+  OK: SPMul(0, 99) = 0
+  OK: SPDiv(6, 42) = 7
+  OK: SPDiv(4, 100) = 25
+  OK: SPDiv(-3, 21) = -7
+  OK: SPDiv(5, 0) = 0
+  OK: SPFloor(37/10) = 3
+  OK: SPFloor(-37/10) = -4
+  OK: SPFloor(1/2) = 0
+  OK: SPFloor(-30/10) = -3
+  OK: SPCeil(37/10) = 4
+  OK: SPCeil(-37/10) = -3
+  OK: SPCeil(1/2) = 1
+  OK: SPCeil(-30/10) = -3
+  OK: SPSin(0) ~= 0
+  OK: SPCos(0) ~= 1
+  OK: SPSin(pi/2) ~= 1
+  OK: SPCos(pi) ~= -1
+  OK: SPTan(pi/4) ~= 1
+  OK: SPAtan(1) ~= pi/4
+  OK: SPAsin(0) ~= 0
+  OK: SPAsin(1) ~= pi/2
+  OK: SPAcos(1) ~= 0
+  OK: SPAcos(0) ~= pi/2
+  OK: SPSincos(pi/2) sin ~= 1
+  OK: SPSincos(pi/2) cos ~= 0
+  OK: SPSinh(0) ~= 0
+  OK: SPCosh(0) ~= 1
+  OK: SPTanh(0) ~= 0
+  OK: SPExp(0) ~= 1
+  OK: SPLog(1) ~= 0
+  OK: SPLog10(10) ~= 1
+  OK: SPPow(3, 2) ~= 8
+  OK: SPSqrt(9) ~= 3
+  OK: SPTieee(0) = 0.0f
+  OK: SPTieee(1) = 1.0f
+  OK: SPFieee(+0.0f) = FFP 0
+  OK: SPFieee(-0.0f) = FFP 0
+  OK: SPFieee(1.0f) = 1
+  OK: SPFieee(-2.5f) truncates to -2
+  OK: SPFieee(+inf) saturates to max FFP
+  OK: SPFieee(-inf) saturates to min FFP
+  OK: SPFieee(NaN) collapses to FFP 0
+  OK: SPFieee(subnormal) underflows to FFP 0
+  OK: CloseLibrary mathtrans.library
+  OK: CloseLibrary mathieeesingbas.library
+  OK: CloseLibrary
+
+PASS: All 80 tests passed!

@@ -1,0 +1,19 @@
+Testing expansion.library ConfigDev chain APIs
+OK: FindConfigDev returns NULL when no board matches
+OK: FindConfigDev finds the first added board
+OK: FindConfigDev continues after previous match
+OK: FindConfigDev reaches tail entry
+OK: FindConfigDev returns NULL after last entry
+OK: FindConfigDev finds later manufacturer match
+OK: FindConfigDev matches manufacturer with wildcard product
+OK: FindConfigDev matches product with wildcard manufacturer
+OK: FindConfigDev matches exact manufacturer and product
+OK: FindConfigDev returns NULL for missing manufacturer
+OK: RemConfigDev keeps earlier entries accessible
+OK: RemConfigDev unlinks removed middle entry
+OK: Removed entry no longer matches searches
+OK: Re-added entry is appended to tail
+OK: Removing an entry promotes the next match
+OK: Removing tail leaves remaining entry last
+OK: Removing final entry leaves no test board
+PASS: expansion ConfigDev chain tests passed

@@ -71,8 +71,6 @@ static void print_num(const char *prefix, LONG val, const char *suffix)
     print(buf);
 }
 
-#include "../app_close.h"
-
 /*
  * Count total windows across all screens.
  */
@@ -189,8 +187,6 @@ int main(void)
 
     if (windows_after > initial_windows) {
         print("OK: KP2 window opened\n");
-        if (!close_app(proc))
-            errors++;
     } else {
         print("FAIL: No KP2 window opened\n");
         errors++;

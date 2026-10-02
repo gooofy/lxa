@@ -85,6 +85,10 @@ TEST_F(ExecTest, Library) {
     RunExecTest("Library");
 }
 
+TEST_F(ExecTest, LibraryLxa) {
+    RunExecTest("LibraryLxa");
+}
+
 TEST_F(ExecTest, MathIeeeSingBas) {
     RunExecTest("MathIeeeSingBas");
 }

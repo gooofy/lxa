@@ -2,7 +2,7 @@
  * Test: exec/null_safety (lxa only, Phase 220)
  *
  * lxa tolerates invalid input that real AmigaOS 3.1 does not survive
- * (NULL semaphores, Cause(NULL), ParseDate() with a NULL DateStamp, which
+ * (NULL semaphores, Cause(NULL), CloseLibrary(NULL), ParseDate() with a NULL DateStamp, which
  * the V38-40 locale.library writes through).  These checks were moved out
  * of the reference-validated programs (Tests/Exec/Sync, Interrupts, Locale)
  * so lxa keeps its tolerance under test; they cannot run on the reference
@@ -82,6 +82,8 @@ int main(void)
 
     Cause(NULL);
     check(TRUE, "Cause(NULL) did not crash");
+    CloseLibrary(NULL);
+    check(TRUE, "CloseLibrary(NULL) did not crash");
 
     LocaleBase = (struct LocaleBase *)OpenLibrary((STRPTR)"locale.library", 38);
     if (LocaleBase)
