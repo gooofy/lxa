@@ -1,0 +1,11 @@
+# Sweep scenario (Phase 231 pattern): open every menu of the RKM SimpleMenu sample.
+name: sweep-simplemenu
+app:
+  sample: SimpleMenu
+steps:
+  - launch
+  - frames: 10
+  - wait_idle
+  - snapshot: startup
+  - menus
+  - quit

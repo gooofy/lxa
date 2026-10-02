@@ -1,0 +1,12 @@
+# Phase 231 sweep scenario, generated from tests/scenarios/apps/sonix2.yaml
+# by `python3 -m rdd sweep gen` - edit the app scenario, not this file.
+name: sweep-sonix2
+app: {manifest: Sonix2}
+steps:
+  - launch
+  - frames: 150
+  - wait_idle: {timeout: 20000}
+  - frames: 100
+  - snapshot: startup
+  - menus
+  - quit

@@ -1,0 +1,11 @@
+# Phase 231 sweep scenario, generated from tests/scenarios/apps/asm-one.yaml
+# by `python3 -m rdd sweep gen` - edit the app scenario, not this file.
+name: sweep-asm-one
+app: {manifest: Asm-One}
+steps:
+  - launch
+  - wait_window: {title: "Select a Screen Mode", timeout: 30000}
+  - frames: 100
+  - snapshot: startup
+  - menus
+  - quit

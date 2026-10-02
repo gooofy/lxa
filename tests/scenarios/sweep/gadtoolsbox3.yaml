@@ -1,0 +1,11 @@
+# Phase 231 sweep scenario, generated from tests/scenarios/apps/gadtoolsbox3.yaml
+# by `python3 -m rdd sweep gen` - edit the app scenario, not this file.
+name: sweep-gadtoolsbox3
+app: {manifest: GadToolsBox3}
+steps:
+  - launch
+  - wait_window: {title: "Select Screen Mode", timeout: 30000}
+  - frames: 100
+  - snapshot: startup
+  - menus
+  - quit

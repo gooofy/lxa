@@ -1,0 +1,11 @@
+# Phase 231 sweep scenario, generated from tests/scenarios/apps/maxoncpp.yaml
+# by `python3 -m rdd sweep gen` - edit the app scenario, not this file.
+name: sweep-maxoncpp
+app: {manifest: MaxonCPP}
+steps:
+  - launch
+  - wait_window: {title: "MaxonDev", timeout: 30000}
+  - frames: 100
+  - snapshot: startup
+  - menus
+  - quit
