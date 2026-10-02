@@ -1,0 +1,3 @@
+WaitForChar=0
+Read=0
+PASS: stdin_eof

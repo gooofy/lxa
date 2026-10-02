@@ -1,0 +1,32 @@
+Testing console.device async CMD_READ
+======================================
+
+OK: intuition.library opened
+OK: Window opened
+OK: Message port created
+OK: IO request created
+OK: Reply port stored in IO request
+OK: console.device opened
+OK: OpenDevice stored device pointer
+OK: Device open count incremented
+OK: Second open increments device open count
+OK: CloseDevice decremented open count
+
+Test 1: CMD_READ goes async when no input
+OK: IOF_QUICK cleared - request went async
+OK: CheckIO reports pending async read
+
+Test 2: AbortIO cancels pending read
+OK: Request is still pending
+OK: AbortIO called
+OK: Request aborted with IOERR_ABORTED
+
+Test 3: CMD_WRITE works normally
+OK: CMD_WRITE completed successfully
+
+PASS: All console async tests completed
+OK: console.device closed
+OK: CloseDevice cleared device pointer
+OK: Final close restored open count
+OK: Window closed
+OK: Cleanup complete

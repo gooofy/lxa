@@ -527,6 +527,25 @@ if(BUILD_GTESTS AND GTEST_FOUND)
         )
         set_tests_properties(golden_lint PROPERTIES TIMEOUT 60 LABELS "golden;meta")
 
+        # Phase 220: lxa output of every test program equals the output
+        # captured on real AmigaOS 3.1 (tests/**/expected.ref.out).
+        foreach(_shard 0 1 2 3)
+            add_test(
+                NAME ref_expected_outputs_${_shard}
+                COMMAND ${Python3_EXECUTABLE} -m rdd suite-ref --lxa-check
+                    --shard ${_shard}/4 -j 4 --build ${CMAKE_BINARY_DIR}
+                WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/tools
+            )
+            set_tests_properties(ref_expected_outputs_${_shard} PROPERTIES
+                TIMEOUT 300 LABELS "rdd;golden")
+        endforeach()
+        add_test(
+            NAME ref_suite_lint
+            COMMAND ${Python3_EXECUTABLE} -m rdd suite-ref --lint --build ${CMAKE_BINARY_DIR}
+            WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/tools
+        )
+        set_tests_properties(ref_suite_lint PROPERTIES TIMEOUT 60 LABELS "rdd;meta")
+
         # Phase 211: the RDD reference machine (real AmigaOS 3.1 under
         # FS-UAE) with the lxaprobe agent.  Skipped (exit 77) when the
         # user's AmigaOS media or FS-UAE are not installed.

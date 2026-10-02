@@ -1,0 +1,25 @@
+UnLoadSeg Test
+==============
+
+Test 1: UnLoadSeg(NULL)
+  PASS: UnLoadSeg(NULL) did not crash
+
+Test 2: LoadSeg + verify seglist + UnLoadSeg
+  LoadSeg returned seglist: 0xADDR
+  Hunk 1 at 0xADDR, next=0xADDR
+  Hunk 2 at 0xADDR, next=0xADDR
+  Hunk 3 at 0xADDR, next=0xADDR
+  Seglist has 3 hunk(s)
+  PASS: Seglist chain is valid
+  PASS: UnLoadSeg completed without crash
+
+Test 3: Multiple LoadSeg/UnLoadSeg cycles
+  5 cycles completed
+  PASS: Multiple LoadSeg/UnLoadSeg cycles
+
+Test 4: LoadSeg non-existent file
+  PASS: LoadSeg non-existent returns NULL
+
+=== Test Summary ===
+Passed: 5
+Failed: 0

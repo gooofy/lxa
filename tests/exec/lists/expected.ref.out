@@ -1,0 +1,69 @@
+Exec List Manipulation Tests
+============================
+
+Test 1: Initialize empty list
+  OK: New list is empty
+  OK: lh_Head points to lh_Tail
+  OK: lh_Tail is NULL
+  OK: lh_TailPred points to lh_Head
+
+Test 2: AddHead
+  OK: List not empty after AddHead
+  OK: lh_Head points to added node
+  OK: List has exactly 1 node
+
+Test 3: AddTail
+  OK: List has 2 nodes after AddTail
+  OK: lh_TailPred points to new tail
+
+Test 4: Multiple AddHead
+  OK: New head is node 2
+  OK: List has 3 nodes
+
+Test 5: RemHead
+  OK: RemHead returned correct node
+  OK: List has 2 nodes after RemHead
+
+Test 6: Remove specific node
+  OK: List has 3 nodes after Remove
+  OK: Removed node is properly unlinked
+
+Test 7: RemHead until empty
+  OK: Removed 3 nodes, list is empty
+
+Test 8: RemHead on empty list
+  OK: RemHead on empty list returns NULL
+
+Test 9: Enqueue (priority ordering)
+  OK: Highest priority (10) is at head
+  OK: Equal priority nodes maintain FIFO order
+  OK: Priority ordering is correct
+
+Test 10: FindName
+  OK: FindName found 'Beta'
+  OK: FindName found 'Alpha'
+  OK: FindName returns NULL for non-existent name
+
+Test 11: Insert
+  OK: Insert placed node correctly
+  OK: List has 3 nodes after Insert
+
+Test 12: Insert at head (pred=NULL)
+  OK: Insert with NULL pred added at head
+
+Test 13: RemTail
+  OK: RemTail returned last node
+  OK: List has 2 nodes after RemTail
+  OK: TailPred updated correctly after RemTail
+
+Test 14: RemTail until empty
+  OK: RemTail emptied list correctly
+
+Test 15: RemTail on empty list
+  OK: RemTail on empty list returns NULL
+
+=============================
+Tests passed: 31
+Tests failed: 0
+
+PASS: All list tests passed!

@@ -1,0 +1,44 @@
+Testing layers.library locking functions...
+OK: LayersBase available
+
+Setting up test environment...
+OK: NewLayerInfo() succeeded
+OK: BitMap allocated
+
+Test 1: LockLayerInfo/UnlockLayerInfo...
+OK: LockLayerInfo() called
+OK: LockLayersCount unchanged by LockLayerInfo
+OK: UnlockLayerInfo() called
+
+Test 2: Creating test layers...
+OK: Layer1 created
+OK: Layer2 created
+
+Test 3: LockLayer/UnlockLayer...
+OK: LockLayer() on layer1
+OK: Nested LockLayer() on layer1
+OK: First UnlockLayer()
+OK: Second UnlockLayer()
+
+Test 4: LockLayers/UnlockLayers...
+OK: LockLayers() called
+OK: LockLayersCount is 1
+OK: Nested LockLayersCount is 2
+OK: After first unlock, LockLayersCount is 1
+OK: After second unlock, LockLayersCount is 0
+
+Test 5: WhichLayer with locking...
+OK: WhichLayer found layer2 at (75,75)
+OK: WhichLayer returns NULL for point outside layers
+OK: WhichLayer test complete
+
+Test 6: Layer ordering...
+OK: Layer2 is top layer (most recently created upfront)
+OK: Layer1 is behind layer2
+
+Cleaning up...
+OK: Deleted layer2
+OK: Deleted layer1
+OK: Cleanup complete
+
+PASS: layers/locking all tests passed

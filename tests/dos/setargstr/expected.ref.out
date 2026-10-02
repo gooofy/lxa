@@ -1,0 +1,19 @@
+SetArgStr Test
+==============
+
+Test 1: Returns previous pr_Arguments pointer
+  PASS: Returns previous argument string
+
+Test 2: Updated value is returned on the next swap
+  PASS: Updated argument string
+
+Test 3: NULL is accepted and returned from later restore
+  PASS: NULL argument string
+
+Test 4: Restoring the original pointer reports prior NULL
+  PASS: Restore original argument string
+
+Test 5: Task callers return NULL
+  PASS: Task callers return NULL
+
+Failed: 0

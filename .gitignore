@@ -188,3 +188,9 @@ tests/console/sgr_unit/sgr_unit
 
 # Auto-generated test screenshots
 screenshots/lxa-tests/
+
+# RDD: reference outputs are checked in (Phase 220)
+!expected.ref.out
+__pycache__/
+*.pyc
+.claude/worktrees/
