@@ -110,7 +110,7 @@ def cluster_run(run_dir, finding_files=(), roadmap=os.path.join(ROOT, "roadmap.m
     with open(roadmap) as f:
         rm = f.read()
     clusters = {}
-    owners = golden_owners()
+    gowners = golden_owners()
 
     def add(sig, suspect, scenario, evidence, phase=None, category=None):
         c = clusters.setdefault(sig, {"signature": sig, "suspect": suspect, "apps": [], "evidence": [],
@@ -125,7 +125,7 @@ def cluster_run(run_dir, finding_files=(), roadmap=os.path.join(ROOT, "roadmap.m
         with open(os.path.join(run_dir, r["compare"])) as f:
             res = json.load(f)
         for sig, suspect, ev, key in signatures(r["scenario"], res):
-            add(sig, list(suspect) if suspect else None, r["scenario"], ev, owners.get(key))
+            add(sig, list(suspect) if suspect else None, r["scenario"], ev, gowners.get(key))
     for path in finding_files:
         with open(path) as f:
             doc = yaml.safe_load(f)
