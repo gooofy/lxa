@@ -1,0 +1,7 @@
+{
+    "dir": "DOPUS",
+    "alias_of": "DirectoryOpus",
+    "notes": [
+        "Symlink in ../lxa-apps duplicating DirectoryOpus (case variant); safe to delete"
+    ]
+}

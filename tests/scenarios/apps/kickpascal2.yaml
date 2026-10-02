@@ -1,0 +1,10 @@
+# Phase 230 launch scenario: the compat DB (apps/compat.yaml) derives the
+# rating of kickpascal2 from it.  Window title from the discovery twin run.
+name: app-kickpascal2
+app: {manifest: kickpascal2}
+steps:
+  - launch
+  - wait_window: {title: "KICK-PASCAL", timeout: 30000}
+  - frames: 100
+  - snapshot: startup
+  - quit

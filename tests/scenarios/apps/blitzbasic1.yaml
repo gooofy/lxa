@@ -1,0 +1,11 @@
+# Phase 230 launch scenario: the compat DB (apps/compat.yaml) derives the
+# rating of BlitzBasic1 from it.  Window title from the discovery twin run.
+name: app-blitzbasic1
+app: {manifest: BlitzBasic1}
+steps:
+  - launch
+  - frames: 150
+  - wait_idle: {timeout: 20000}
+  - frames: 100
+  - snapshot: startup
+  - quit

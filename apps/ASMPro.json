@@ -1,0 +1,30 @@
+{
+    "dir": "ASMPro",
+    "name": "Asm-Pro",
+    "version": "1.17",
+    "description": "68000 assembler IDE (ASM-One successor)",
+    "executable": "AsmPro",
+    "kind": "gui",
+    "assigns": {
+        "asmpro": "",
+        "LIBS": "Libs"
+    },
+    "libraries": [
+        "reqtools.library"
+    ],
+    "requirements": {
+        "graphics": true,
+        "intuition": true,
+        "kickstart_version": 37,
+        "profile": "aga"
+    },
+    "test": {
+        "timeout": 20,
+        "expected_returncode": 0,
+        "args": ""
+    },
+    "source": "user's FS-UAE system disk (~/media/emu/amiga/FS-UAE/hdd/system/Apps/ASMPro)",
+    "notes": [
+        "reqtools.library copied into Libs/ from the user's FS-UAE system Libs"
+    ]
+}

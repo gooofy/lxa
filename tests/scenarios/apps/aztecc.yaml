@@ -1,0 +1,9 @@
+# Phase 230 launch scenario: the compat DB (apps/compat.yaml) derives the
+# rating of AztecC from it.  Window title from the discovery twin run.
+name: app-aztecc
+app: {manifest: AztecC}
+steps:
+  - launch
+  - frames: 100
+  - snapshot: {name: startup, screen: false}
+  - quit

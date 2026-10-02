@@ -1,0 +1,24 @@
+{
+    "dir": "Sonix 2",
+    "name": "Sonix",
+    "version": "2.0",
+    "description": "Aegis music sequencer",
+    "executable": "Sonix",
+    "kind": "gui",
+    "assigns": {},
+    "libraries": [],
+    "requirements": {
+        "graphics": true,
+        "intuition": true,
+        "kickstart_version": 33,
+        "profile": "aga"
+    },
+    "test": {
+        "timeout": 20,
+        "expected_returncode": 0,
+        "args": ""
+    },
+    "notes": [
+        "No Sonix: assign: the reference agent cannot assign paths with spaces"
+    ]
+}

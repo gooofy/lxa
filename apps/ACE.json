@@ -1,0 +1,36 @@
+{
+    "dir": "ACE",
+    "name": "ACE BASIC (AIDE)",
+    "version": "2.4b / AIDE 2.04",
+    "description": "ACE BASIC compiler with the AIDE integrated environment",
+    "executable": "aide/AIDE v2.04",
+    "kind": "gui",
+    "assigns": {
+        "ACE": "",
+        "ACElib": "lib",
+        "ACEinclude": "include",
+        "ACEbmaps": "bmaps",
+        "LIBS": "aide/libs"
+    },
+    "libraries": [
+        "mrt.library"
+    ],
+    "env": {
+        "WORKDIR": "aide"
+    },
+    "requirements": {
+        "graphics": true,
+        "intuition": true,
+        "kickstart_version": 37,
+        "profile": "aga"
+    },
+    "test": {
+        "timeout": 20,
+        "expected_returncode": 0,
+        "args": ""
+    },
+    "source": "user's FS-UAE system disk (~/media/emu/amiga/FS-UAE/hdd/system/Apps/ACE)",
+    "notes": [
+        "Assigns from the user's S:User-Startup; mrt.library bundled in aide/libs"
+    ]
+}

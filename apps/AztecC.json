@@ -1,0 +1,28 @@
+{
+    "dir": "AztecC",
+    "name": "Aztec C",
+    "version": "5.x",
+    "description": "Manx Aztec C compiler (command line)",
+    "executable": "Bin/cc",
+    "kind": "cli",
+    "assigns": {},
+    "libraries": [],
+    "env": {
+        "WORKDIR": "Bin"
+    },
+    "requirements": {
+        "graphics": false,
+        "intuition": false,
+        "kickstart_version": 37,
+        "profile": "aga"
+    },
+    "test": {
+        "timeout": 10,
+        "expected_returncode": 0,
+        "args": ""
+    },
+    "source": "user's FS-UAE system disk (~/media/emu/amiga/FS-UAE/hdd/system/Apps/Aztec)",
+    "notes": [
+        "CLI tool: started without arguments it prints its usage"
+    ]
+}

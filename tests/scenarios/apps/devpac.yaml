@@ -1,0 +1,10 @@
+# Phase 230 launch scenario: the compat DB (apps/compat.yaml) derives the
+# rating of DevPac from it.  Window title from the discovery twin run.
+name: app-devpac
+app: {manifest: DevPac}
+steps:
+  - launch
+  - wait_window: {title: "Untitled", timeout: 30000}
+  - frames: 100
+  - snapshot: startup
+  - quit

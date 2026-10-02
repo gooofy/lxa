@@ -141,10 +141,13 @@ def run(scn, out_dir, build=None, use_cache=True):
             try:
                 if kind == "launch":
                     for name, rel, add in scn.assigns():
-                        agent.cmd("ASSIGN %s APPS:%s/%s%s" % (name, scn.manifest["dir"], rel,
-                                                             " ADD" if add else ""))
+                        path = "APPS:%s" % scn.manifest["dir"] + ("/" + rel if rel not in ("", ".") else "")
+                        agent.cmd("ASSIGN %s %s%s" % (name, path, " ADD" if add else ""))
                     agent.cmd("TEXT_START")
-                    agent.cmd(("RUN >rdd-stdout.txt %s %s" % (scn.ref_program(), scn.args)).rstrip())
+                    prog = scn.ref_program()
+                    if " " in prog:
+                        prog = '"%s"' % prog
+                    agent.cmd(("RUN >rdd-stdout.txt %s %s" % (prog, scn.args)).rstrip())
                     agent.cmd("DELAY 1")
                 elif kind == "wait_window":
                     agent.cmd("WAIT_WINDOW %s %d" % (args.get("title", ""), args.get("timeout", 10000)),

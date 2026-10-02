@@ -1,0 +1,11 @@
+# Phase 230 launch scenario: the compat DB (apps/compat.yaml) derives the
+# rating of AmigaBasic from it.  Window title from the discovery twin run.
+name: app-amigabasic
+app: {manifest: AmigaBasic}
+steps:
+  - launch
+  - wait_window: {title: "BASIC", timeout: 30000}
+  - wait_idle: {timeout: 20000}
+  - frames: 100
+  - snapshot: startup
+  - quit
