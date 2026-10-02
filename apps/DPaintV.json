@@ -1,0 +1,14 @@
+{
+    "dir": "DPaintV",
+    "name": "Deluxe Paint V",
+    "version": "5.2",
+    "description": "Electronic Arts' bitmap paint program",
+    "executable": "bin/DPaintV/DPaint",
+    "assigns": {
+        "LIBS": "bin/DPaintV/Libs"
+    },
+    "libraries": ["rexxsyslib.library"],
+    "requirements": {"graphics": true, "intuition": true, "kickstart_version": 37, "profile": "aga"},
+    "test": {"timeout": 20, "expected_returncode": 0, "args": ""},
+    "notes": ["Probes display modes at startup (Screen Format dialog)"]
+}

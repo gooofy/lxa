@@ -881,6 +881,12 @@ bool lxa_is_idle(void)
     if (lh_Head != lh_Tail_addr)
         return false;
 
+    /* The running task is not on TaskReady: the system is only idle when
+     * ThisTask is not running (it waits, or the dispatcher idles). */
+    uint32_t this_task = m68k_read_memory_32(sysbase + 276);   /* ExecBase.ThisTask */
+    if (this_task && m68k_read_memory_8(this_task + 15) == 2)   /* tc_State == TS_RUN */
+        return false;
+
     /*
      * Phase 201: Intuition renders menus and gadget imagery from the
      * VBlank input handler.  The system is only idle once that interrupt

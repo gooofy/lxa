@@ -8,8 +8,11 @@
  * Bulk data (trees, snapshots, logs) is written to files in LXAREF:.
  *
  *   PING                         -> PONG
- *   RUN <cmdline>                start a program asynchronously (CLI process,
- *                                current dir = the program's directory)
+ *   RUN [>file] <cmdline>        start a program asynchronously (CLI process,
+ *                                current dir = the program's directory);
+ *                                >file sends its output to LXAREF:file
+ *   ASSIGN <name> <path> [ADD]   create or extend a logical assign
+ *   DELAY <ticks>                let <ticks> frames (1/50 s) pass
  *   WAIT_WINDOW <substr> [ms]    wait for a window whose title contains substr
  *   WAIT_IDLE [ms]               wait until the program's tasks all wait and
  *                                their window ports are empty
@@ -313,13 +316,24 @@ static void delay_ticks(LONG ticks)
 
 static void cmd_run(char *args)
 {
-    char prog[256];
+    char prog[256], outname[160];
     char *p = args, *d = prog;
-    BPTR seg, lock, dir;
+    BPTR seg, lock, dir, outfh;
     char *slash;
 
     while (*p == ' ')
         p++;
+    outname[0] = 0;
+    if (*p == '>')
+    {
+        int k = 0;
+        p++;
+        while (*p && *p != ' ' && k < (int)sizeof(outname) - 1)
+            outname[k++] = *p++;
+        outname[k] = 0;
+        while (*p == ' ')
+            p++;
+    }
     if (*p == '"')
     {
         p++;
@@ -362,6 +376,14 @@ static void cmd_run(char *args)
 
     snapshot_windows();
     mem_before = avail_flushed();
+    if (outname[0])
+    {
+        char path[200];
+        snprintf(path, sizeof(path), "LXAREF:%s", outname);
+        outfh = Open((STRPTR)path, MODE_NEWFILE);
+    }
+    else
+        outfh = Open((STRPTR)"NIL:", MODE_NEWFILE);
 
     {
         static char argline[512];
@@ -372,10 +394,13 @@ static void cmd_run(char *args)
                                      NP_CurrentDir, (ULONG)dir,
                                      NP_HomeDir, (ULONG)(dir ? DupLock(dir) : 0),
                                      NP_Input, (ULONG)Open((STRPTR)"NIL:", MODE_OLDFILE),
-                                     NP_Output, (ULONG)Open((STRPTR)"NIL:", MODE_NEWFILE),
+                                     NP_Output, (ULONG)outfh,
                                      NP_CloseInput, TRUE,
                                      NP_CloseOutput, TRUE,
                                      NP_Cli, TRUE,
+                                     /* GetProgramName() must return the program, not the
+                                      * agent (DPaint reads its own executable) */
+                                     NP_CommandName, (ULONG)prog,
                                      NP_Arguments, (ULONG)argline,
                                      NP_StackSize, 32768,
                                      TAG_DONE);
@@ -655,7 +680,7 @@ static void cmd_dump_tree(char *file)
 static void cmd_snap(char *args)
 {
     char file[128];
-    struct Screen *s = IntuitionBase->ActiveScreen ? IntuitionBase->ActiveScreen : IntuitionBase->FirstScreen;
+    struct Screen *s = IntuitionBase->FirstScreen;   /* the front screen */
     struct RastPort *rp;
     WORD x0 = 0, y0 = 0, w, h;
     int ncolors, i, x, y;
@@ -746,7 +771,7 @@ static void move_to(WORD x, WORD y, UWORD qual)
     struct InputEvent ie;
     struct IEPointerPixel pp;
     memset(&ie, 0, sizeof(ie));
-    pp.iepp_Screen = IntuitionBase->ActiveScreen ? IntuitionBase->ActiveScreen : IntuitionBase->FirstScreen;
+    pp.iepp_Screen = IntuitionBase->FirstScreen;   /* coordinates on the front screen */
     pp.iepp_Position.X = x;
     pp.iepp_Position.Y = y;
     ie.ie_Class = IECLASS_NEWPOINTERPOS;
@@ -1051,9 +1076,31 @@ static void cmd_text(const char *cmd, char *args)
 /* ------------------------------------------------------------------ */
 
 #define TRACE_MAX_FN   64
-#define TRACE_LOG_MAX  8192
+#define TRACE_LOG_MAX  4096
 struct trace_fn { struct Library *lib; WORD lvo; APTR orig; UWORD *stub; char libname[24]; };
-struct trace_rec { UBYTE fn; UBYTE ret; struct Task *task; ULONG regs[15]; };
+/* str[i]: printable C string that d1, d2, a0, a1 point to (if any) */
+struct trace_rec { UBYTE fn; UBYTE ret; struct Task *task; ULONG regs[15]; char str[4][40]; };
+
+static void trace_str(char *dst, ULONG addr)
+{
+    const UBYTE *p = (const UBYTE *)addr;
+    int i;
+    dst[0] = 0;
+    if (addr < 0x400 || !TypeOfMem((APTR)addr))
+        return;
+    for (i = 0; i < 39; i++)
+    {
+        if (!p[i])
+            break;
+        if (p[i] < 0x20 || (p[i] >= 0x7F && p[i] < 0xA0))
+        {
+            dst[0] = 0;
+            return;
+        }
+        dst[i] = p[i];
+    }
+    dst[i] = 0;          /* longer strings are truncated to 39 chars */
+}
 static struct trace_fn trace_fns[TRACE_MAX_FN];
 static int trace_nfn;
 static struct trace_rec *tracelog;
@@ -1077,6 +1124,10 @@ static void trace_entry(register ULONG idx __asm("d0"), register ULONG *regs __a
         tracelog[i].ret = 0;
         tracelog[i].task = SysBase->ThisTask;
         memcpy(tracelog[i].regs, regs, 15 * 4);
+        trace_str(tracelog[i].str[0], regs[1]);   /* d1 */
+        trace_str(tracelog[i].str[1], regs[2]);   /* d2 */
+        trace_str(tracelog[i].str[2], regs[8]);   /* a0 */
+        trace_str(tracelog[i].str[3], regs[9]);   /* a1 */
     }
 }
 
@@ -1192,9 +1243,24 @@ static void cmd_trace_dump(char *file)
         if (r->ret)
             out_printf(",\"ret\":%lu}\n", r->regs[0]);
         else
-            out_printf(",\"d\":[%lu,%lu,%lu,%lu,%lu,%lu,%lu,%lu],\"a\":[%lu,%lu,%lu,%lu]}\n",
+        {
+            static const char *names[4] = {"d1", "d2", "a0", "a1"};
+            int k;
+            out_printf(",\"d\":[%lu,%lu,%lu,%lu,%lu,%lu,%lu,%lu],\"a\":[%lu,%lu,%lu,%lu],\"str\":{",
                        r->regs[0], r->regs[1], r->regs[2], r->regs[3], r->regs[4], r->regs[5],
                        r->regs[6], r->regs[7], r->regs[8], r->regs[9], r->regs[10], r->regs[11]);
+            for (k = 0; k < 4; k++)
+            {
+                if (k)
+                    out_printf(",");
+                out_printf("\"%s\":", names[k]);
+                if (r->str[k][0])
+                    out_jstr(r->str[k]);
+                else
+                    out_printf("null");
+            }
+            out_printf("}}\n");
+        }
     }
     out_close();
     reply("OK");
@@ -1313,6 +1379,41 @@ static void cmd_quit(char *args)
 }
 
 /* ------------------------------------------------------------------ */
+/* ASSIGN                                                              */
+/* ------------------------------------------------------------------ */
+
+static void cmd_assign(char *args)
+{
+    char name[64], path[256], mode[8];
+    BPTR lock;
+    int n = sscanf(args, "%63s %255s %7s", name, path, mode);
+    BOOL ok;
+
+    if (n < 2)
+    {
+        reply("ERR usage: ASSIGN <name> <path> [ADD]");
+        return;
+    }
+    if (name[strlen(name) - 1] == ':')
+        name[strlen(name) - 1] = 0;
+    lock = Lock((STRPTR)path, SHARED_LOCK);
+    if (!lock)
+    {
+        reply("ERR no such directory %s", path);
+        return;
+    }
+    ok = (n == 3 && !stricmp(mode, "ADD")) ? AssignAdd((STRPTR)name, lock)
+                                             : AssignLock((STRPTR)name, lock);
+    if (!ok)
+    {
+        UnLock(lock);
+        reply("ERR assign %s: failed", name);
+        return;
+    }
+    reply("OK");
+}
+
+/* ------------------------------------------------------------------ */
 /* SETCLOCK                                                            */
 /* ------------------------------------------------------------------ */
 
@@ -1408,6 +1509,13 @@ int main(void)
             cmd_quit(args);
         else if (!strcmp(cmd, "SETCLOCK"))
             cmd_setclock(args);
+        else if (!strcmp(cmd, "ASSIGN"))
+            cmd_assign(args);
+        else if (!strcmp(cmd, "DELAY"))
+        {
+            delay_ticks(atol(args));
+            reply("OK");
+        }
         else if (!strcmp(cmd, "BYE"))
         {
             reply("OK");

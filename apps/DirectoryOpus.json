@@ -1,0 +1,15 @@
+{
+    "dir": "DirectoryOpus",
+    "name": "Directory Opus",
+    "version": "4.16",
+    "description": "Two-pane file manager",
+    "executable": "bin/DOPUS/DirectoryOpus",
+    "assigns": {
+        "DOpus": "bin/DOPUS",
+        "LIBS": "bin/DOPUS/libs"
+    },
+    "libraries": ["dopus.library", "arp.library"],
+    "requirements": {"graphics": true, "intuition": true, "kickstart_version": 37, "profile": "aga"},
+    "test": {"timeout": 20, "expected_returncode": 0, "args": ""},
+    "notes": ["Reads DOpus:S/DirectoryOpus.CFG; dopus.library from DOpus:libs"]
+}

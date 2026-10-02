@@ -12413,8 +12413,11 @@ VOID _intuition_ActivateWindow ( register struct IntuitionBase * IntuitionBase _
         _render_window_frame(prevActive);
     }
 
-    /* Activate the new window */
+    /* Activate the new window; ActiveScreen is the screen of the active
+     * window (intuition/intuitionbase.h) */
     IntuitionBase->ActiveWindow = window;
+    if (window->WScreen)
+        IntuitionBase->ActiveScreen = window->WScreen;
     window->Flags |= WFLG_WINDOWACTIVE;
     _post_idcmp_message(window, IDCMP_ACTIVEWINDOW, 0, 0,
                         window, 0, 0);

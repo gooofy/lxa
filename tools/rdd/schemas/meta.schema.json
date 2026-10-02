@@ -14,7 +14,7 @@
     "refsys_checksum": {"type": "string"},
     "window": {"type": ["integer", "null"]},
     "screen": {
-      "type": "object",
+      "type": ["object", "null"],
       "required": ["width", "height", "depth"],
       "properties": {"width": {"type": "integer"}, "height": {"type": "integer"},
                      "depth": {"type": "integer"}}

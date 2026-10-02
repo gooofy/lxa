@@ -41,8 +41,9 @@ LXASNAP1 <width> <height> <depth> <ncolors>\n
 
 The reference reads pixels with `ReadPixel()` from the screen RastPort and
 the palette with `GetRGB32()`; lxa reads the screen BitMap planes and its
-display palette. `WINDOW n` (n-th window of the active screen's
-`FirstWindow` chain) crops the window rectangle out of the screen. Pen
+display palette. Snapshots and pointer coordinates refer to the **front
+screen** (`IntuitionBase->FirstScreen`). `WINDOW n` (n-th window of the front
+screen's `FirstWindow` chain) crops the window rectangle out of the screen. Pen
 indices make the comparison independent of colour depth and RGB rounding;
 the palette is compared separately.
 

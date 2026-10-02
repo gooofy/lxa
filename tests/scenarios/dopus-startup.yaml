@@ -1,0 +1,10 @@
+# Starter scenario (Phase 213): Directory Opus 4 startup.
+name: dopus-startup
+app:
+  manifest: DirectoryOpus
+steps:
+  - launch
+  - wait_window: {title: "DOPUS", timeout: 30000}
+  - wait_idle: {timeout: 20000}
+  - frames: 50
+  - snapshot: startup

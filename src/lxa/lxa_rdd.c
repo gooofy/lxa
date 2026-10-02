@@ -254,14 +254,11 @@ int lxa_dump_tree_json(const char *path)
 /* Pen-index capture (LXASNAP1)                                        */
 /* ------------------------------------------------------------------ */
 
+/* the front-most screen: what the user sees (agent: SNAP) */
 static uint32_t active_screen(void)
 {
     uint32_t ib = intuition_base();
-    uint32_t s;
-    if (!ib)
-        return 0;
-    s = rd32(ib + OFF_IB_ACTSCR);
-    return s ? s : rd32(ib + OFF_IB_FIRSTSCR);
+    return ib ? rd32(ib + OFF_IB_FIRSTSCR) : 0;
 }
 
 static int read_pen(uint32_t bm, int depth, int x, int y)
@@ -278,7 +275,10 @@ static int read_pen(uint32_t bm, int depth, int x, int y)
 
 static bool capture_indexed(uint32_t scr, int x0, int y0, int w, int h, const char *path)
 {
-    uint32_t bm = scr + OFF_SCR_BM;
+    /* the screen RastPort's BitMap is authoritative (custom-bitmap screens) */
+    uint32_t bm = rd32(scr + OFF_SCR_RP + OFF_RP_BITMAP);
+    if (!bm)
+        bm = scr + OFF_SCR_BM;
     int depth = rd8(bm + OFF_BM_DEPTH);
     int rows = rd16(bm + OFF_BM_ROWS), cols = rd16(bm + OFF_BM_BPR) * 8;
     int ncolors = 1 << (depth > 8 ? 8 : depth), i, x, y;

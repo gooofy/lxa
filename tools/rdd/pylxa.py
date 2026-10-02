@@ -60,7 +60,7 @@ def _find(build, *parts):
 class Lxa:
     """One emulator session."""
 
-    def __init__(self, build=None, rootless=True, strict_unimplemented=False,
+    def __init__(self, build=None, rootless=False, strict_unimplemented=False,
                  apps=None, extra_assigns=None):
         self.build = build or os.environ.get("LXA_BUILD", os.path.join(ROOT, "build"))
         libpath = _find(self.build, "host", "lib", "liblxa.so")
@@ -82,6 +82,9 @@ class Lxa:
         self.assign("SYS", samples)
         self.assign_add("SYS", system)
         self.assign("LIBS", os.path.join(system, "Libs"))
+        disklibs = os.path.join(self.build, "target", "sys", "Libs")   # lxa's disk libraries
+        if os.path.isdir(disklibs):
+            self.assign_add("LIBS", disklibs)
         self.assign("C", os.path.join(self.build, "target", "sys", "C"))
         apps = apps or os.path.normpath(os.path.join(ROOT, "..", "lxa-apps"))
         if os.path.isdir(apps):

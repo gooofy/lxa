@@ -1,24 +1,28 @@
 # lxa App Corpus
 
-Real AmigaOS applications used for compatibility testing live **outside** this
-repository in the sibling checkout `../lxa-apps/` (they are not redistributable).
-This directory holds the metadata that *is* checked in:
+Real AmigaOS applications used for compatibility testing live **outside**
+this repository in the sibling directory `../lxa-apps/` (they are not
+redistributable, and that directory is not version-controlled). This
+directory holds the metadata that *is* checked in:
 
+- `<App>.json` — one manifest per app (below).
 - `compat.yaml` — the compatibility database (Phase 230): one entry per app with
   its rating, the scenarios behind the rating, the last tested lxa version and
   the open divergences, each linked to a roadmap phase number.
 
 ## Manifest requirement
 
-**Every app directory in `../lxa-apps/<App>/` must contain an `app.json`
-manifest.** Apps without a manifest are not part of the corpus: the scenario
-runner (`tools/rdd`), the sweeps (Phase 231) and the compat DB ignore them, and
-`tools/rdd/corpus.py --check` reports them as errors.
+**Every app in `../lxa-apps/` must have a manifest `apps/<App>.json` here.**
+Apps without a manifest are not part of the corpus: the scenario runner
+(`tools/rdd`), the sweeps (Phase 231) and the compat DB ignore them, and
+`tools/rdd/corpus.py --check` reports them as errors. (Older manifests inside
+`../lxa-apps/<App>/app.json` are migrated here.)
 
-Minimal manifest:
+Minimal manifest (`apps/Asm-One.json`):
 
 ```json
 {
+    "dir": "Asm-One",
     "name": "ASM-One",
     "version": "1.48",
     "description": "68000 assembler IDE for AmigaOS",
@@ -34,9 +38,10 @@ Minimal manifest:
 
 | Field | Meaning |
 |---|---|
+| `dir` | Directory under `../lxa-apps/` (= `APPS:<dir>` on both backends). |
 | `name`, `version`, `description` | Identification, shown in the compat dashboard. |
 | `executable` | Path relative to the app directory. |
-| `assigns` | Logical assigns (relative to the app directory) the app needs. `LIBS`, `FONTS`, … are *prepended* to the system assign. |
+| `assigns` | Logical assigns (relative to the app directory) the app needs, declared explicitly so both backends get them (real AmigaOS does not add a program's `libs/` to `LIBS:`). System assigns (`LIBS`, `FONTS`, `DEVS`, `S`, `L`, `C`, …) are extended (`ADD`), others are created. |
 | `libraries` | Disk libraries the app opens. Third-party libraries must be present as real binaries (AGENTS.md §1: never stubbed). |
 | `env.WORKDIR` | Current directory at launch, relative to the app directory. |
 | `requirements` | `graphics`/`intuition` flags, minimum Kickstart version, optional `profile` (`aga` / `rtg`). |

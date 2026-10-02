@@ -85,11 +85,14 @@ def write_bundle(out_dir, backend, scenario, snapshot, snap_bytes, tree_path,
                  window=None, extra_meta=None):
     os.makedirs(out_dir, exist_ok=True)
     files = []
-    w, h, depth, palette, pens = read_snap(snap_bytes)
-    write_palette_png(os.path.join(out_dir, "screen.png"), w, h, palette, pens)
-    with open(os.path.join(out_dir, "palette.json"), "w") as f:
-        json.dump(palette, f)
-    files += ["screen.png", "palette.json"]
+    screen = None
+    if snap_bytes is not None:              # None: snapshot without pixels
+        w, h, depth, palette, pens = read_snap(snap_bytes)
+        write_palette_png(os.path.join(out_dir, "screen.png"), w, h, palette, pens)
+        with open(os.path.join(out_dir, "palette.json"), "w") as f:
+            json.dump(palette, f)
+        files += ["screen.png", "palette.json"]
+        screen = {"width": w, "height": h, "depth": depth}
 
     with open(tree_path) as f:
         tree = json.load(f)
@@ -116,8 +119,7 @@ def write_bundle(out_dir, backend, scenario, snapshot, snap_bytes, tree_path,
         files.append("unimplemented.json")
 
     meta = {"schema": "lxa-bundle/1", "backend": backend, "scenario": scenario,
-            "snapshot": snapshot, "window": window,
-            "screen": {"width": w, "height": h, "depth": depth}, "files": files}
+            "snapshot": snapshot, "window": window, "screen": screen, "files": files}
     meta.update(extra_meta or {})
     with open(os.path.join(out_dir, "meta.json"), "w") as f:
         json.dump(meta, f, indent=1, sort_keys=True)
@@ -143,7 +145,8 @@ def validate_bundle(path):
 
     meta = load("meta.json")
     tree = load("tree.json")
-    palette = load("palette.json")
+    has_screen = bool(meta) and "screen.png" in meta.get("files", [])
+    palette = load("palette.json") if has_screen else None
     if jsonschema:
         for doc, schema in ((meta, "meta.schema.json"), (tree, "tree.schema.json")):
             if doc is not None:
@@ -158,11 +161,15 @@ def validate_bundle(path):
         if tree and tree.get("backend") != meta.get("backend"):
             problems.append("tree backend %s != meta backend %s" % (tree.get("backend"), meta.get("backend")))
     try:
+        if not has_screen:
+            raise StopIteration
         w, h, pens = read_palette_png(os.path.join(path, "screen.png"))
         if meta and (w, h) != (meta["screen"]["width"], meta["screen"]["height"]):
             problems.append("screen.png size %dx%d != meta" % (w, h))
         if palette is not None and pens and max(pens) >= len(palette):
             problems.append("pen %d outside palette of %d" % (max(pens), len(palette)))
+    except StopIteration:
+        pass
     except (OSError, ValueError, KeyError, zlib.error, struct.error) as e:
         problems.append("screen.png: %s" % e)
     if os.path.exists(os.path.join(path, "text.jsonl")):

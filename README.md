@@ -231,6 +231,8 @@ Built-in C: commands with full AmigaDOS template support:
 
 ## Current Status
 
+**Version 0.11.6** - Twin runner (Phase 213): one YAML scenario (`tests/scenarios/`) runs unchanged on lxa and on real AmigaOS 3.1 (`cd tools && python3 -m rdd run ../tests/scenarios/*.yaml`), producing comparable snapshot bundles from both. The first runs already exposed divergences in Directory Opus and Deluxe Paint V startup.
+
 **Version 0.11.5** - Snapshot bundles (Phase 212): lxa and the real-AmigaOS reference now emit identical artefacts (Intuition tree JSON, pen-index snapshots, Text() logs; format in `doc/rdd-snapshot.md`). `tools/rdd/pylxa.py` drives lxa from Python through the new `liblxa.so`.
 
 **Version 0.11.4** - Reference guest agent (Phase 211): `lxaprobe` runs on the real AmigaOS 3.1 reference machine and, over the serial line, launches programs, waits for windows, dumps the Intuition tree as JSON, takes pen-index snapshots, injects input, hooks `Text()`, traces library calls and lists display modes. The `rtg` reference profile runs Workbench on an 800×600 uaegfx mode.
