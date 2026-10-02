@@ -396,6 +396,12 @@ inline const char* FindThirdPartyLibsPath() {
 inline const char* FindAppsPath() {
     static std::string apps_path;
     char resolved[PATH_MAX];
+    /* LXA_APPS overrides the search (git worktrees live elsewhere) */
+    const char* env = getenv("LXA_APPS");
+    if (env && *env && access(env, F_OK) == 0) {
+        apps_path = realpath(env, resolved) ? resolved : env;
+        return apps_path.c_str();
+    }
     const char* locations[] = {
         "../lxa-apps",
         "../../lxa-apps",
