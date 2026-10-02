@@ -43,9 +43,31 @@ speed (and conflict with directory-backed drives).
 
 - `aga` — Workbench on PAL Hires 640×256, 4 colours, topaz 8, default prefs.
 - `rtg` — adds Picasso96 2.0 (from the user's AmigaOS 3.9 media,
-  `LXA_REF_P96_DIR`) with FS-UAE's `uaegfx` board (4 MB). The card
-  initialises; switching Workbench to a uaegfx mode is Phase 211 work
-  (needs the mode IDs, which `lxaprobe` enumerates).
+  `LXA_REF_P96_DIR`) with FS-UAE's `uaegfx` board (4 MB); Workbench runs on
+  `UAE: 800x600 8bit` (`0x50041000`) via `ENVARC:Sys/screenmode.prefs`.
+
+## Guest agent (`agent/lxaprobe.c`)
+
+Started by the Startup-Sequence when `LXAREF:` is mounted; built by
+`build_refsys.sh`. One command per line on the serial port, replies end with
+`OK` or `ERR <reason>`; bulk output goes to files in `LXAREF:` (the
+instance's `exchange/` directory). Drive it with `refctl cmd`:
+
+```bash
+tools/refsys/refctl cmd --id 0 "SETCLOCK 1704067200" "RUN SYS:Utilities/Clock" \
+    "WAIT_WINDOW Clock" "WAIT_IDLE" "DUMP_TREE tree.json" "SNAP screen.snap" "QUIT"
+```
+
+Commands: `PING`, `RUN`, `WAIT_WINDOW`, `WAIT_IDLE`, `DUMP_TREE` (schema
+`lxa-tree/1`), `SNAP` (`LXASNAP1` pen indices + palette), `MOVE`/`CLICK`/
+`PRESS`/`RELEASE`/`KEY`/`TYPE`/`MENU` (input.device), `TEXT_START`/
+`TEXT_DUMP`/`TEXT_STOP` (Text() hook), `TRACE`/`TRACE_DUMP`/`TRACE_STOP`
+(SetFunction relay logging arguments and return values), `MODES`, `QUIT`
+(reports surviving tasks and the flushed `AvailMem` delta), `SETCLOCK`,
+`BYE`. See the header of `lxaprobe.c` for the syntax.
+
+`tools/refsys/selftest.py` (ctest `refsys_selftest`, label `refsys`) runs
+the Clock scenario end to end; it is skipped without the user's media.
 
 ## Media (user-supplied, never committed)
 

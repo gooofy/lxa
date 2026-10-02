@@ -115,7 +115,7 @@ M0 and M1 are on the critical path: nothing in M2 and later is efficient without
 
 ## Next Phase
 
-> **Phase 211 — `lxaprobe` guest agent** (M0 is complete; the reference system from Phase 210 is ready).
+> **Phase 212 — Snapshot bundle schema & lxa backend parity**.
 
 ---
 
@@ -126,20 +126,6 @@ Complete (Phases 200–204, v0.11.3); see the summary table.
 ---
 
 ## M1 — The Reference Oracle
-
-### Phase 211 — `lxaprobe` guest agent
-**Class**: Quality (infrastructure). An m68k program, built with the existing cross toolchain, lives in `tools/refsys/agent/`. It talks a line-based protocol over `serial.device`; bulk data goes through `LXAREF:` files.
-- [ ] `RUN <cmdline> [cwd]`: start an app asynchronously (`SystemTags`) and track its process.
-- [ ] `WAIT_WINDOW <title-substr>` and `WAIT_IDLE`: idle means every task of the app is blocked in `Wait()` with an empty UserPort and input.device is drained. This mirrors `lxa_wait_idle`.
-- [ ] `DUMP_TREE`: screens, windows, gadgets (type, geometry, flags, GadgetID, IntuiText labels), menus with item geometry, IDCMP flags and fonts, written as JSON in **the same schema as liblxa** (Phase 212).
-- [ ] `SNAP [screen|window N]`: dump the bitmap as pen indices plus palette (read through `ReadPixelArray8`/`ReadPixel`, not an emulator screenshot), so overscan and scaling cannot distort it.
-- [ ] Input: absolute mouse moves, clicks, keys and qualifiers through `input.device` `IND_WRITEEVENT`. Menu selection by path works the same way as Phase 204.
-- [ ] Text hook: a `SetFunction` patch of `Text()` that logs strings with RastPort coordinates. Patching is fine on the test machine.
-- [ ] `TRACE <lib> <lvo-list>`: a `SetFunction` relay that logs arguments and return values. This prepares Phase 233.
-- [ ] `QUIT`: close the app's windows and send CTRL-C; report surviving tasks and leaked memory (an `AvailMem` delta).
-- [ ] `MODES`: enumerate display modes (`NextDisplayInfo`/`GetDisplayInfoData`). Use it to finish the `rtg` profile (carried over from Phase 210): pick the Workbench uaegfx mode (e.g. 800×600×8), write `ENVARC:Sys/screenmode.prefs` in `build_refsys.sh`, and confirm that the uaegfx modes are listed.
-
-**Test gate**: agent unit scenario on the reference: run `SYS:Utilities/Clock`, wait for its window, dump the tree, snap, quit. All succeed and the tree is plausible.
 
 ### Phase 212 — Snapshot bundle schema & lxa backend parity
 **Class**: Quality (infrastructure).
@@ -454,3 +440,4 @@ The order below is provisional. After Phase 231/232 it is re-sorted by how often
 | 203 | Stub telemetry: `LXA_UNIMPLEMENTED` → EMU_CALL_UNIMPLEMENTED for every stub/partial/private slot/empty exec vector (173 sites), `lxa_get_unimplemented_log()`, `lxa.log` summary, `--strict-unimplemented` (exit 125, stubs only), `tools/stub_inventory.py` → `doc/stub-inventory.md` (+117 LVOs without implementation); empty vectors/private slots no longer halt the emulator; console unknown commands return IOERR_NOCMD. | v0.11.1 |
 | 204 | Menu/input scripting API: `lxa_select_menu_path()`, `lxa_find_menu_path()`, `lxa_get_menu_rect()` (live MenuStrip geometry), non-atomic `lxa_inject_drag_begin/_step/_end`, `lxa_get_qualifier_state()`; Intuition now opens menus on a menu-button press over the screen bar with no window under the pointer; MaxonBASIC/KickPascal/ASM-One menu tests migrated; `MenuPixelStateDuringDrag`. | v0.11.3 |
 | 210 | Reference system builder: `tools/refsys/` (`build_refsys.sh` fresh WB 3.1 + 68040.library, profiles `aga`/`rtg` with Picasso96 2.0 + uaegfx; `refctl` boot/ping/shot/stop with per-instance Xvfb, TCP serial, fresh SYS copy). Boot to Workbench 1.6 s, 10/10 boot+ping, 8 parallel instances. | v0.11.2 |
+| 211 | `lxaprobe` guest agent (`tools/refsys/agent/`): serial line protocol (PING, RUN, WAIT_WINDOW, WAIT_IDLE, DUMP_TREE lxa-tree/1, SNAP pen-index, MOVE/CLICK/PRESS/RELEASE/KEY/TYPE/MENU via input.device, Text() hook, SetFunction TRACE relay, MODES, QUIT with survivor/memory check, SETCLOCK); `rtg` profile Workbench on uaegfx 800×600×8; `refsys_selftest` ctest (Clock scenario). | v0.11.4 |

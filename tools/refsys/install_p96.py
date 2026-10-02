@@ -87,6 +87,25 @@ def set_tooltypes(info_bytes, tooltypes):
     return bytes(data[:tt_start]) + new + bytes(data[pos:])
 
 
+# Workbench mode of the `rtg` profile: UAE 800x600, 8 bit (uaegfx mode list
+# captured with `lxaprobe MODES` on this configuration, Phase 211).
+RTG_WB_MODE = (0x50041000, 800, 600, 8)
+
+
+def write_screenmode_prefs(sysdir, mode):
+    """ENVARC:Sys/screenmode.prefs: IFF FORM PREF with PRHD + SCRM."""
+    display_id, width, height, depth = mode
+    prhd = struct.pack(">BBI", 0, 0, 0)
+    scrm = struct.pack(">4IIHHHH", 0, 0, 0, 0, display_id, width, height, depth, 1)  # SMF_AUTOSCROLL
+    body = b"PREF" + b"PRHD" + struct.pack(">I", len(prhd)) + prhd + b"\0" * (len(prhd) & 1) \
+        + b"SCRM" + struct.pack(">I", len(scrm)) + scrm
+    data = b"FORM" + struct.pack(">I", len(body)) + body
+    d = os.path.join(sysdir, "Prefs", "Env-Archive", "Sys")
+    os.makedirs(d, exist_ok=True)
+    with open(os.path.join(d, "screenmode.prefs"), "wb") as f:
+        f.write(data)
+
+
 def main():
     if len(sys.argv) != 3:
         print(__doc__)
@@ -132,7 +151,9 @@ def main():
     if os.path.exists(template):
         icon = set_tooltypes(open(template, "rb").read(), ["BOARDTYPE=uaegfx"])
         open(os.path.join(mon_dir, "uaegfx.info"), "wb").write(icon)
-    print("install_p96: Picasso96 installed (driver %s)" % ("found" if driver else "MISSING"))
+    write_screenmode_prefs(sysdir, RTG_WB_MODE)
+    print("install_p96: Picasso96 installed (driver %s), Workbench mode 0x%08x" % (
+        "found" if driver else "MISSING", RTG_WB_MODE[0]))
     return 0
 
 

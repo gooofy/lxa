@@ -195,11 +195,10 @@ def cmd_ping(a):
         print("refctl: instance %d alive (no agent; handshake seen)" % a.id)
         return 0
     sock = connect(a.id, timeout=5)
-    sock.sendall(b"PING\n")
-    buf, m = read_until(sock, (b"PONG",), 10)
+    ok, lines = agent_command(sock, "PING", 10)
     sock.close()
-    if not m:
-        print("refctl: no PONG from instance %d (%r)" % (a.id, buf[-120:]), file=sys.stderr)
+    if not ok or "PONG" not in lines:
+        print("refctl: no PONG from instance %d (%r)" % (a.id, lines), file=sys.stderr)
         return 1
     print("refctl: instance %d PONG" % a.id)
     return 0
@@ -269,15 +268,43 @@ def cmd_shot(a):
     return r.returncode
 
 
+def agent_command(sock, line, timeout=30.0):
+    """Send one lxaprobe command; return (ok, reply_lines)."""
+    sock.sendall(line.encode("latin-1") + b"\n")
+    buf = b""
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        while b"\n" in buf:
+            ln, buf = buf.split(b"\n", 1)
+            text = ln.decode("latin-1").rstrip("\r")
+            agent_command.lines.append(text)
+            if text == "OK" or text.startswith("ERR"):
+                lines, agent_command.lines = agent_command.lines, []
+                return text == "OK", lines
+        try:
+            chunk = sock.recv(4096)
+            if not chunk:
+                break
+            buf += chunk
+        except socket.timeout:
+            continue
+    lines, agent_command.lines = agent_command.lines, []
+    return False, lines + ["ERR timeout"]
+
+
+agent_command.lines = []
+
+
 def cmd_cmd(a):
     sock = connect(a.id, timeout=5)
     rc = 0
     for line in a.lines:
-        sock.sendall(line.encode("latin-1") + b"\n")
-        buf, m = read_until(sock, (b"\nOK", b"\nERR"), a.timeout)
-        sys.stdout.write(buf.decode("latin-1", "replace"))
-        if m != b"\nOK":
+        ok, lines = agent_command(sock, line, a.timeout)
+        for ln in lines:
+            print(ln)
+        if not ok:
             rc = 1
+            break
     sock.close()
     return rc
 

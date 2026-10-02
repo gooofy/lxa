@@ -231,6 +231,8 @@ Built-in C: commands with full AmigaDOS template support:
 
 ## Current Status
 
+**Version 0.11.4** - Reference guest agent (Phase 211): `lxaprobe` runs on the real AmigaOS 3.1 reference machine and, over the serial line, launches programs, waits for windows, dumps the Intuition tree as JSON, takes pen-index snapshots, injects input, hooks `Text()`, traces library calls and lists display modes. The `rtg` reference profile runs Workbench on an 800×600 uaegfx mode.
+
 **Version 0.11.3** - Menu/input scripting (Phase 204): tests select menu entries by path (`lxa_select_menu_path(0, "Project/Save As...")`) using the live MenuStrip geometry, split drags into begin/step/end to inspect state mid-drag, and read the current input qualifier. Completes milestone M0.
 
 **Version 0.11.2** - Reference system builder (Phase 210): `tools/refsys/` builds a fresh AmigaOS 3.1 hard-disk system from the user's Workbench ADFs and boots headless FS-UAE reference instances (A4000/040, warp mode) in about 1.6 s, as the oracle for reference-driven development.

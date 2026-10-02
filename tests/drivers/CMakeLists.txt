@@ -481,6 +481,20 @@ if(BUILD_GTESTS AND GTEST_FOUND)
             TIMEOUT 60
             LABELS "meta"
         )
+
+        # Phase 211: the RDD reference machine (real AmigaOS 3.1 under
+        # FS-UAE) with the lxaprobe agent.  Skipped (exit 77) when the
+        # user's AmigaOS media or FS-UAE are not installed.
+        add_test(
+            NAME refsys_selftest
+            COMMAND ${Python3_EXECUTABLE}
+                ${CMAKE_SOURCE_DIR}/tools/refsys/selftest.py --id 9
+        )
+        set_tests_properties(refsys_selftest PROPERTIES
+            TIMEOUT 120
+            LABELS "refsys"
+            SKIP_RETURN_CODE 77
+        )
     else()
         message(WARNING "Python3 not found; shard_coverage_check test will not be registered")
      endif()

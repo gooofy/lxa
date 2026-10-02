@@ -98,9 +98,11 @@ elif [ "$PROFILE" != aga ]; then
     die "unknown profile $PROFILE (aga|rtg)"
 fi
 
-# lxaprobe guest agent (Phase 211), if built
-AGENT=$HERE/agent/lxaprobe
-[ -f "$AGENT" ] && cp "$AGENT" "$SYS/C/lxaprobe"
+# lxaprobe guest agent (Phase 211)
+M68K_GCC=${M68K_GCC:-/opt/amiga/bin/m68k-amigaos-gcc}
+"$M68K_GCC" -O2 -Wall -Werror -mcrt=nix20 -o "$WORK/lxaprobe" "$HERE/agent/lxaprobe.c" \
+    || die "cannot build the lxaprobe agent"
+cp "$WORK/lxaprobe" "$SYS/C/lxaprobe"
 
 echo "$PROFILE" > "$SYS/S/lxaref-profile"
 
