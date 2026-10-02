@@ -1,0 +1,45 @@
+AmigaOS Struct Offset Verification
+==================================
+
+--- Node / MinNode ---
+--- List / MinList ---
+--- MsgPort / Message ---
+--- Task ---
+--- Library ---
+--- IORequest / IOStdReq ---
+--- MemChunk / MemHeader ---
+--- Interrupt / IntVector / SoftIntList ---
+--- ExecBase ---
+--- SignalSemaphore ---
+--- DateStamp ---
+--- FileInfoBlock ---
+--- FileLock ---
+--- Process ---
+--- CommandLineInterface ---
+--- DosPacket ---
+--- DosLibrary / RootNode / CliProcList / DosInfo / Segment ---
+--- BitMap ---
+--- GfxBase ---
+--- ViewPort / RasInfo / ColorMap ---
+--- AreaInfo / TmpRas / GelsInfo ---
+--- RastPort ---
+--- TextAttr / TextFont ---
+--- IntuitionBase ---
+--- Screen ---
+--- Requester ---
+--- Menu / MenuItem ---
+--- Gadget ---
+--- PropInfo ---
+--- StringInfo ---
+--- IntuiText ---
+--- Border ---
+--- Image ---
+--- IntuiMessage ---
+--- Window ---
+--- KeyMap ---
+
+==================================
+Checks passed: 633
+Checks failed: 0
+
+PASS: All struct offset checks passed!

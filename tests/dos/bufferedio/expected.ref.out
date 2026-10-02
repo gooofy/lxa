@@ -1,0 +1,17 @@
+Buffered DOS I/O Test
+=====================
+
+Test 1: SetVBuf and FWrite/FRead
+  PASS: SetVBuf full buffering
+  PASS: FWrite returns written blocks
+  PASS: FRead returns expected blocks
+
+Test 2: UnGetC survives buffered mode
+  PASS: UnGetC with buffered stream
+
+Test 3: Line buffering with FPuts and VFPrintf
+  PASS: FPuts wrote first line
+  PASS: VFPrintf formatted second line
+
+Passed: 6
+Failed: 0

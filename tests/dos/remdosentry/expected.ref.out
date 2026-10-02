@@ -1,0 +1,19 @@
+RemDosEntry Test
+================
+
+Test 1: Removes the head entry
+  PASS: Remove head entry
+
+Test 2: Removes a middle entry
+  PASS: Remove middle entry
+
+Test 3: Removes the tail entry
+  PASS: Remove tail entry
+
+Test 4: Missing entries are rejected without mutating the list
+  PASS: Reject missing entry
+
+Test 5: NULL entries are rejected
+  PASS: Reject NULL entry
+
+Failed: 0

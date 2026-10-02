@@ -1,0 +1,16 @@
+SetConsoleTask Test
+===================
+
+Test 1: Returns previous console task and installs new port
+  PASS: Installs first console task
+
+Test 2: Replacing console task returns prior port
+  PASS: Replaces console task
+
+Test 3: Setting NULL clears console task
+  PASS: Clears console task
+
+Test 4: Restoring original console task reports previous NULL
+  PASS: Restores original console task
+
+Failed: 0

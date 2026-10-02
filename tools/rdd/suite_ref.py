@@ -268,6 +268,33 @@ def expected_path(p):
     return os.path.join(ROOT, p["src"], "expected.ref.out")
 
 
+def lxa_check(a):
+    """Every program with an expected.ref.out must exit 0 on lxa with the
+    same normalised stdout (Phase 220)."""
+    progs = [p for p in programs(a.build) if os.path.exists(expected_path(p))]
+    if a.filter:
+        progs = [p for p in progs if re.search(a.filter, p["name"])]
+    if a.shard:
+        i, n = (int(v) for v in a.shard.split("/"))
+        progs = progs[i::n]
+    res = run_lxa(progs, a.build, a.jobs, a.timeout)
+    bad = 0
+    for p in progs:
+        x = res[p["name"]]
+        with open(expected_path(p), encoding="latin-1") as f:
+            want = normalise(f.read())
+        got = normalise(x["stdout"])
+        if x["status"] != "exit" or x.get("rc") or got != want:
+            bad += 1
+            print("FAIL %s: status=%s rc=%s" % (p["name"], x["status"], x.get("rc")))
+            import difflib
+            for ln in list(difflib.unified_diff(want.split("\n"), got.split("\n"), "expected.ref.out",
+                                                "lxa", lineterm="", n=1))[:30]:
+                print("    " + ln)
+    print("%d programs checked against expected.ref.out, %d failed" % (len(progs), bad))
+    return 1 if bad else 0
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(prog="rdd suite-ref")
     ap.add_argument("--filter")
@@ -280,6 +307,9 @@ def main(argv=None):
     ap.add_argument("--lxa-one")
     ap.add_argument("--lint", action="store_true", help="check tests/ref_suite.yaml")
     ap.add_argument("--ref-only", action="store_true", help="skip the lxa runs")
+    ap.add_argument("--lxa-check", action="store_true",
+                    help="CTest mode: lxa output must equal every expected.ref.out (no reference needed)")
+    ap.add_argument("--shard", help="i/n: only every n-th program, starting at i (with --lxa-check)")
     a = ap.parse_args(argv)
     a.build = os.path.abspath(a.build)
     if a.lint:
@@ -288,6 +318,8 @@ def main(argv=None):
         for pr in probs:
             print(pr)
         return 1 if probs else 0
+    if a.lxa_check:
+        return lxa_check(a)
     if a.lxa_one:
         sys.stdout.write(json.dumps(run_lxa_one(a.lxa_one, a.build, a.timeout), ensure_ascii=True) + "\n")
         return 0
@@ -314,7 +346,7 @@ def main(argv=None):
         rows.append(row)
         with open(os.path.join(a.out, _flat(p["name"]) + ".json"), "w") as f:
             json.dump({"ref": r, "lxa": x, "class": cls}, f, indent=1)
-        if a.capture and cls in ("pass", "output") and r["stdout"].strip():
+        if a.capture and cls == "pass" and r["stdout"].strip():
             with open(exp, "w", encoding="latin-1") as f:
                 f.write(normalise(r["stdout"]))
     with open(os.path.join(a.out, "summary.json"), "w") as f:

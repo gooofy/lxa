@@ -1,0 +1,16 @@
+SetFileSysTask Test
+=====================
+
+Test 1: Returns previous filesystem task and installs new port
+  PASS: Installs first filesystem task
+
+Test 2: Replacing filesystem task returns prior port
+  PASS: Replaces filesystem task
+
+Test 3: Setting NULL clears filesystem task
+  PASS: Clears filesystem task
+
+Test 4: Restoring original filesystem task reports previous NULL
+  PASS: Restores original filesystem task
+
+Failed: 0
