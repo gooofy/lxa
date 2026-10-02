@@ -1,8 +1,8 @@
 /*
  * lxa diskfont.library implementation
  *
- * Provides font loading from disk (FONTS: assign) and font enumeration.
- * Currently a minimal implementation with stubs for most functions.
+ * Provides font loading from disk (FONTS: assign), font enumeration
+ * (AvailFonts), font contents handling and scaled disk fonts.
  */
 
 #include <exec/types.h>

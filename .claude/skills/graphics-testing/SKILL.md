@@ -118,19 +118,19 @@ int CountContentPixels(int x1, int y1, int x2, int y2, int bg_color = 0);
 
 ## 9. Screen-Mode–Aware Testing
 
-Apps that probe display modes at startup may exit early with rv=26 or open probe windows that are immediately discarded. As of Phase 129 (v0.9.3), ECS mode emulation is complete. Modern productivity apps (PPaint, FinalWriter) probe for **RTG / P96 display IDs** — they will remain blocked until Phases 137–139 land.
+Apps that probe display modes at startup may exit early with rv=26 or open probe windows that are immediately discarded. As of Phase 129 (v0.9.3), ECS mode emulation is complete. Modern productivity apps (PPaint, FinalWriter) probe for **RTG / P96 display IDs** — they will remain blocked until Phases 241–243 land.
 
 **Symptom diagnosis**:
 
 | Symptom | Likely cause |
 |---|---|
-| App exits (rv ≥ 26), flood of `FindDisplayInfo`/`GetDisplayInfoData` in log | RTG mode probe — app needs P96 (Phase 137+) |
+| App exits (rv ≥ 26), flood of `FindDisplayInfo`/`GetDisplayInfoData` in log | RTG mode probe — app needs P96 (Phase 241+) |
 | App exits but no display-info flood | Different root cause; check OpenLibrary failures first |
-| App opens probe windows briefly then exits | RTG screen-open attempt fails (Phase 137+) |
+| App opens probe windows briefly then exits | RTG screen-open attempt fails (Phase 241+) |
 
 **ECS-era apps** (DPaint, DevPac, ASM-One, etc.): Phase 129 ECS virtualisation covers these. If an ECS app still exits early, check `g_known_display_ids[]` and `GetDisplayInfoData(DTAG_DIMS)` ranges.
 
-**RTG apps** (PPaint, FinalWriter, productivity/IDE apps): do not attempt ECS workarounds. Write survival-only tests until Phase 139 lands; then upgrade to full UI assertions.
+**RTG apps** (PPaint, FinalWriter, productivity/IDE apps): do not attempt ECS workarounds. Write survival-only tests until Phase 243 lands; then upgrade to full UI assertions.
 
 ## 10. Text Extraction (Phase 130+)
 
@@ -175,7 +175,7 @@ TEST_F(MyAppTest, EditorStatusBarRenders) {
 
 ## 8. Visual Investigation of Failure Artifacts
 
-When a captured screenshot needs human-readable visual analysis — especially when a pixel assertion fires but the defect is not obvious from numbers alone — attach the captured PNG directly to your assistant message. The current OpenCode coding harness supports image input natively; no external CLI tool, model selection, or API key is required.
+When a captured screenshot needs human-readable visual analysis — especially when a pixel assertion fires but the defect is not obvious from numbers alone — open the captured PNG with the `Read` tool. Claude Code reads images natively; no external CLI tool, model selection, or API key is required.
 
 ### Typical debugging workflow
 1. Run the GTest driver to reproduce the visual defect and collect an artifact:
@@ -201,15 +201,15 @@ When a captured screenshot needs human-readable visual analysis — especially w
 - The retired CLI helper (`tools/screenshot_review.py`) has been moved to `attic/`. Do not invoke it; use the native image-input capability instead.
 - Never embed image-analysis API calls in test code; visual triage is for developer investigation only.
 
-## 11. RTG / Picasso96 Testing (Phase 137+)
+## 11. RTG / Picasso96 Testing (Phase 241+)
 
-After Phase 137 lands, RTG bitmaps and screens become testable. Key patterns:
+After Phase 241 lands, RTG bitmaps and screens become testable. Key patterns:
 
 **Detecting RTG bitmaps in tests** — RTG bitmaps have `GetBitMapAttr(bm, BMA_DEPTH)` returning 15, 16, 24, or 32. The `BMF_RTG` internal flag distinguishes them from planar bitmaps. Never call `ReadPixel()` (which goes through planar rendering) on an RTG bitmap — use `p96ReadPixelArray()` instead.
 
 **P96 pixel verification pattern**:
 ```cpp
-// After Phase 138 lands:
+// After Phase 242 lands:
 struct RenderInfo ri;
 p96LockBitMap(bm, (struct TagItem *)nullptr);  // returns ri
 uint32_t *pixels = (uint32_t *)ri.Memory;
@@ -218,7 +218,7 @@ EXPECT_EQ(pixel & 0x00FFFFFF, 0x00FF0000u);  // red pixel at (x,y)
 p96UnlockBitMap(bm, &ri);
 ```
 
-**RTG screen test structure** — follow `rtg_gtest.cpp` (added in Phase 137) as the reference driver. Use `LxaUITest` base class; open screen with `SA_Depth=32` and a P96 mode ID; assert screen opens without crash; use `p96GetBitMapAttr` to verify depth.
+**RTG screen test structure** — follow `rtg_gtest.cpp` (added in Phase 241) as the reference driver. Use `LxaUITest` base class; open screen with `SA_Depth=32` and a P96 mode ID; assert screen opens without crash; use `p96GetBitMapAttr` to verify depth.
 
 **cybergraphics shim testing** — add a `cgx_gtest.cpp` companion that opens `cybergraphics.library` and calls the same functions via CGX names. Both libraries must return identical results for the same underlying RTG bitmap.
 

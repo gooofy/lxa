@@ -1359,7 +1359,7 @@ STRPTR _icon_BumpRevisionLength ( register struct IconBase *IconBase  __asm("a6"
 }
 
 /****************************************************************************/
-/* V44+ functions (stubs for now)                                           */
+/* V44+ functions                                                            */
 /****************************************************************************/
 
 struct DiskObject * _icon_DupDiskObjectA ( register struct IconBase       *IconBase __asm("a6"),

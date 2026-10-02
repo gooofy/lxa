@@ -16,6 +16,16 @@ This document is the entry point for AI agents working on the `lxa` codebase. Tr
 - **No Pooling Sections in `roadmap.md`**: The roadmap must not contain catch-all lists like "Deferred Test Failures", "Known Limitations", "TODO", or "Backlog". Every issue is either a TODO bullet inside an existing scheduled phase (same root cause) **or** promoted into its own numbered phase with explicit objectives, sub-problems, TODO checkboxes, and a test gate. The only retrospective section permitted is the `## Completed Phases (Summary)` table.
 - **Every `DISABLED_` GTest Must Be the Objective of a Scheduled Phase**: When you quarantine a test with the `DISABLED_` prefix, you must in the same commit create (or extend) a numbered phase whose explicit objective is to fix the root cause and re-enable the test. A `DISABLED_` test without an owning phase is forbidden.
 
+## 1a. Reference-Driven Development (RDD)
+
+Since v0.11 lxa is developed against a **real AmigaOS 3.1 reference machine** (FS-UAE, see `roadmap.md` "Canonical Reference Configuration" and the `rdd-reference` skill). These rules are mandatory:
+
+1. **Real AmigaOS 3.1 is the oracle.** The RKRM and NDK explain *why*; the reference machine settles *what*. Expected values (goldens, `expected.ref.out`, probe outputs) come from the reference backend, never from lxa and never from a hand-written guess.
+2. **Structure first, then pixels, then vision.** Compare Intuition trees, then pen-index pixels; use Claude vision only for triage and explanation. Every vision finding becomes a deterministic tree or pixel assertion before the phase closes (`rdd-review` skill).
+3. **Breadth before depth.** Sweep many apps shallowly, cluster divergences by root cause, fix in order of frequency (`compat-sweep` skill).
+4. **Goldens are never edited to match lxa.** A golden comes only from the reference backend. If you believe a golden is wrong, re-capture it on the reference.
+5. **Clean-room.** Observe AmigaOS only as a black box: run it, probe it, trace it. **Never consult leaked AmigaOS source or Kickstart disassembly** (material under `~/media/sys/amiga/os/` is off limits for implementation). Disassembling *applications* remains allowed (§6.20). Porting **AROS** code is allowed (it is a clean-room reimplementation); keep its licence headers and record it in `doc/third-party-code.md`.
+
 ## 2. Standard Workflow
 1. Read `roadmap.md` and identify the active phase or the follow-up you are explicitly parking.
 2. Load the relevant skills before editing code or documentation.
@@ -36,7 +46,7 @@ Prefer these helpers over brittle coordinate-only scripts whenever the test can 
 
 ### Visual Investigation of Failure Artifacts
 
-When a GTest driver captures a failure artifact via `lxa_capture_window()` or `lxa_capture_screen()` and the pixel-level assertion message alone does not explain the visual defect, attach the captured PNG directly to your assistant message. The current OpenCode coding harness supports image input natively — no external tool or API key is required. Ask the assistant to describe layout, clipping, text rendering, or menu artifacts, then translate the findings into a deterministic pixel/geometry assertion so the defect is caught automatically in future runs.
+When a GTest driver captures a failure artifact via `lxa_capture_window()` or `lxa_capture_screen()` and the pixel-level assertion message alone does not explain the visual defect, open the captured PNG with the `Read` tool — Claude Code reads images natively, no external tool or API key is required. Describe layout, clipping, text rendering, or menu artifacts, then translate the findings into a deterministic tree/pixel/geometry assertion so the defect is caught automatically in future runs (RDD principle 2 below).
 
 See the `graphics-testing` skill for the full capture-and-review workflow.
 
@@ -64,6 +74,12 @@ Load the specific skill relevant to your task:
   - Specific strategies for headless Graphics/Intuition testing.
   - **Host-side driver patterns** for interactive testing.
   - BitMap verification techniques.
+
+- **`rdd-reference`**: operating the FS-UAE reference system (`tools/refsys/`), the `lxaprobe` guest agent and the twin runner (`tools/rdd/`).
+
+- **`rdd-review`**: protocol for comparing lxa vs reference snapshot bundles (tree diff → pen-index diff → vision triage) and writing `findings.yaml`.
+
+- **`compat-sweep`**: running app sweeps, clustering divergences by root cause, maintaining `apps/compat.yaml`.
 
 ## 5. Build & Test Quick Reference
 
@@ -342,7 +358,7 @@ this flag dynamically via `ModifyIDCMP()`.
 
 Many apps probe available display modes at startup using `GetDisplayInfoData()`, `BestModeIDA()`, and `NextDisplayInfo()`. As of Phase 129 (v0.9.3), lxa's ECS mode database covers 36 entries (DEFAULT/NTSC/PAL × 12 ECS modes) with realistic raster ranges and virtualisation of unknown IDs. The ECS emulation is considered complete.
 
-**RTG supersedes ECS for modern apps**: PPaint, FinalWriter, and other productivity apps probe for P96 display IDs, not ECS modes. Their ECS-path failures are not investigated further. These apps are validation targets for Phase 139 (RTG app validation) after Phases 137–138 deliver the RTG infrastructure.
+**RTG supersedes ECS for modern apps**: PPaint, FinalWriter, and other productivity apps probe for P96 display IDs, not ECS modes. Their ECS-path failures are not investigated further. These apps are validation targets for Phase 243 (RTG app validation) after Phases 241–242 deliver the RTG infrastructure.
 
 **ECS key constraints** (still relevant for legacy apps):
 - `g_known_display_ids[]` in `lxa_graphics.c`: the authoritative list. Adding an ID requires `GetDisplayInfoData(DTAG_DIMS)` to also return plausible `MinRaster`/`MaxRaster` ranges.
@@ -382,11 +398,11 @@ EXPECT_TRUE(std::any_of(text_log_.begin(), text_log_.end(),
 
 Until Phase 130 lands, use pixel-region counting (the existing approach) or DPRINTF log scanning as a proxy. Do not attempt to implement text extraction via ad-hoc DPRINTF log parsing — wait for the hook.
 
-### 6.19 RTG / Picasso96 Architecture (Phases 137–139)
+### 6.19 RTG / Picasso96 Architecture (Phases 241–243)
 
-lxa's display strategy is RTG-first via Picasso96 (`Picasso96API.library`). Agents working on Phases 137–139 need these orientation points:
+lxa's display strategy is RTG-first via Picasso96 (`Picasso96API.library`). Agents working on Phases 241–243 need these orientation points:
 
-**Chunky BitMap flag**: Phase 137 introduces `BMF_RTG` (or an equivalent internal flag) in `BitMap.Flags` to distinguish chunky RTG bitmaps from classic planar bitmaps. Before touching any graphics code that iterates `bm->Planes[]`, check this flag — RTG bitmaps store all pixels in `bm->Planes[0]` as a contiguous RGBA buffer.
+**Chunky BitMap flag**: Phase 241 introduces `BMF_RTG` (or an equivalent internal flag) in `BitMap.Flags` to distinguish chunky RTG bitmaps from classic planar bitmaps. Before touching any graphics code that iterates `bm->Planes[]`, check this flag — RTG bitmaps store all pixels in `bm->Planes[0]` as a contiguous RGBA buffer.
 
 **SDL2 RTG path**: `display_update_rtg()` in `display.c` accepts a raw 32-bit RGBA buffer and uploads it to an `SDL_PIXELFORMAT_RGBA32` texture. The planar path (`display_update_planar()`) is unchanged. Do not mix the two paths for the same display handle.
 

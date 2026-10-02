@@ -21,9 +21,10 @@ This skill guides you through the project management, versioning, and build proc
    - Validate (Tests + Coverage). The full suite must be green — see "Done Definition" below.
    - **If you added tests to a sharded driver**: verify you updated the corresponding FILTER string in `tests/drivers/CMakeLists.txt`. Run `tools/check_shard_coverage.py` if available.
    - Update `roadmap.md` per the maintenance rules below.
-   - If you intentionally defer unfinished work, add it to the "Deferred Test Failures" or "Known Open Limitations" section with an explicit justification — the deferral must be unambiguous.
+   - If you intentionally defer unfinished work, put it either as a TODO bullet in an existing scheduled phase with the same root cause, or as a new numbered phase with objectives and a test gate. **Never** create pooling sections ("Deferred Test Failures", "Known Limitations", "Backlog", …) — see AGENTS.md §1.
    - Remove or rewrite roadmap items that would incorrectly re-implement third-party libraries; document that those libraries must be loaded from disk instead.
-   - **RTG phases (137–139)**: `Picasso96API.library` and `cybergraphics.library` are disk libraries — never add P96/CGX ROM stubs. They are compiled via `add_disk_library()` in `sys/CMakeLists.txt`. New RTG bitmap code goes in `lxa_graphics.c` (the `BMF_RTG` chunky path); new P96 API code goes in `lxa_p96.c`.
+   - **RTG phases (M4, 240–243)**: `Picasso96API.library` and `cybergraphics.library` are disk libraries — never add P96/CGX ROM stubs. They are compiled via `add_disk_library()` in `sys/CMakeLists.txt`. New RTG bitmap code goes in `lxa_graphics.c` (the `BMF_RTG` chunky path); new P96 API code goes in `lxa_p96.c`.
+   - **RDD**: expected values come from the reference machine (AGENTS.md §1a). If a phase introduces new behaviour that can be observed on AmigaOS 3.1, add a reference golden (scenario, probe output or `expected.ref.out`) rather than a hand-written expectation.
    - Update `README.md`.
    - Update Version Number.
 
@@ -32,15 +33,15 @@ The roadmap is **future-focused**. Every commit that completes or defers work mu
 
 1. **Completed phases** collapse to a single one-line row in the `## Completed Phases (Summary)` table — no verbose write-ups remain in the roadmap (they live in the git commit message instead).
 2. **Promote the next phase**: whenever you finish a phase, identify the next phase from the planned-work sections and surface it in the `## Next Phase` heading at the top so the next agent sees it immediately.
-3. **Deferred test failures**: any `DISABLED_` GTest must have a corresponding bullet under `## Deferred Test Failures` with the test name, file, root-cause hypothesis, and a short rationale for the deferral.
-4. **Length budget**: keep `roadmap.md` under ~250 lines. If it grows past that, compact older completed phases further or move detail to the relevant skill.
+3. **Deferred test failures**: any `DISABLED_` GTest must be the explicit objective of a scheduled, numbered phase (a TODO naming the test, its file and the root-cause hypothesis). There is no "Deferred Test Failures" section.
+4. **Length budget**: keep `roadmap.md` under ~600 lines. If it grows past that, compact completed phases further or move detail to the relevant skill or `doc/`.
 5. **No stale "next phase" pointers**: never leave the roadmap with an unclear "what comes next" — that is what triggered Phase 136-c's overhaul.
 
 ### "Done" Definition
 1. Functionality works.
 2. 100% Test Coverage.
 3. No warnings.
-4. **Full test suite is green**: `ctest --test-dir build -j16 --timeout 180` reports zero failures and zero timeouts. Inherited "pre-existing" failures must either be fixed or formally quarantined as `DISABLED_<TestName>` with a corresponding entry under `## Deferred Test Failures` in `roadmap.md`. Hand-waving "N pre-existing failures, unrelated to my phase" is forbidden.
+4. **Full test suite is green**: `ctest --test-dir build -j16 --timeout 180` reports zero failures and zero timeouts. Inherited "pre-existing" failures must either be fixed or formally quarantined as `DISABLED_<TestName>` owned by a scheduled roadmap phase. Hand-waving "N pre-existing failures, unrelated to my phase" is forbidden.
 5. Documentation updated.
 
 ## 2. Version Management

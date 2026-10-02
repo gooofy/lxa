@@ -114,20 +114,11 @@ M0 and M1 are on the critical path: nothing in M2 and later is efficient without
 
 ## Next Phase
 
-> **Phase 200 — Roadmap & agent-docs reset**, followed directly by **Phase 201 — Deterministic virtual time**. Phase 210 (reference system builder) has no code dependency on 201 and may run in parallel in a separate worktree.
+> **Phase 201 — Deterministic virtual time**. Phase 210 (reference system builder) has no code dependency on 201 and may run in parallel in a separate worktree.
 
 ---
 
 ## M0 — Foundations
-
-### Phase 200 — Roadmap & agent-docs reset
-**Class**: Quality (process).
-- [ ] Update `AGENTS.md` for Claude Code: replace the OpenCode references, add the RDD principles above, add the clean-room rule, and point to the new skills.
-- [ ] Fix the `lxa-workflow` skill: it still tells agents to use "Deferred Test Failures" / "Known Open Limitations" sections, which contradicts the no-pooling policy. Also update the length budget and the RTG phase numbers.
-- [ ] Remove stale "stub" comments found in the audit: `exec.c:1111` (AddIntServer is implemented) and the `lxa_diskfont.c:5` and `lxa_icon.c:1362` headers.
-- [ ] Write `apps/README` stating the manifest requirement (enforced in Phase 230).
-
-**Test gate**: docs consistent; `grep -ri opencode AGENTS.md .claude/` is empty.
 
 ### Phase 201 — Deterministic virtual time
 **Class**: Quality (root cause of flakiness).
@@ -505,3 +496,4 @@ The order below is provisional. After Phase 231/232 it is re-sorted by how often
 | Phase | Title | Version |
 |---|---|---|
 | 1–159c | Legacy era: core emulator, exec/dos/graphics/intuition/layers/gadtools/etc., host test API, 19-app driver suite. See `doc/roadmap-legacy.md` and git history. | ≤ v0.10.14 |
+| 200 | Roadmap & agent-docs reset: AGENTS.md for Claude Code + RDD/clean-room rules, workflow skill de-pooled, stale stub comments removed, `apps/README.md` manifest rule. | v0.10.15 |

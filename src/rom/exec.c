@@ -1108,12 +1108,9 @@ struct Interrupt * _exec_SetIntVector ( register struct ExecBase * SysBase __asm
 /*
  * AddIntServer - Add an interrupt server to a chain
  *
- * This is a stub implementation that does nothing. In a real Amiga,
- * this would add the interrupt handler to the specified interrupt
- * chain (e.g., INTB_VERTB for vertical blank).
- *
- * Since we don't have hardware interrupts, we silently accept the
- * call but never actually call the handler.
+ * Inserts the server into the priority-sorted server list of the given
+ * interrupt (e.g. INTB_VERTB); the chain is run by the emulated interrupt
+ * dispatcher.
  */
 void _exec_AddIntServer ( register struct ExecBase * SysBase __asm("a6"),
                                                         register LONG ___intNumber  __asm("d0"),
@@ -1134,8 +1131,6 @@ void _exec_AddIntServer ( register struct ExecBase * SysBase __asm("a6"),
 
 /*
  * RemIntServer - Remove an interrupt server from a chain
- *
- * Stub implementation - just silently accepts the call.
  */
 void _exec_RemIntServer ( register struct ExecBase * SysBase __asm("a6"),
                                                         register LONG ___intNumber  __asm("d0"),
