@@ -1,0 +1,17 @@
+# Phase 224: Tests/Intuition/IDCMPSizeVerify validated on AmigaOS 3.1 with the input intuition_gtest
+# injects; stdout must match on both systems.
+name: interactive-IDCMPSizeVerify
+app:
+  sample: Tests/Intuition/IDCMPSizeVerify
+steps:
+  - launch
+  - wait_output: "READY: click sizing gadget"
+  - press: {anchor: size_gadget, xy: [-1, -1]}
+  - move: {anchor: size_gadget, xy: [9, 9]}
+  - release: {anchor: size_gadget, xy: [9, 9]}
+  - wait_output: "READY: click sizing gadget again"
+  - press: {anchor: size_gadget, xy: [-1, -1]}
+  - move: {anchor: size_gadget, xy: [4, 4]}
+  - release: {anchor: size_gadget, xy: [4, 4]}
+  - frames: 50
+  - snapshot: {name: end, screen: false}

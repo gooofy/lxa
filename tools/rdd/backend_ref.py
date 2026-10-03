@@ -137,6 +137,8 @@ def run(scn, out_dir, build=None, use_cache=True):
             with open(os.path.join(exch, "rdd-tree.json")) as f:
                 return json.load(f)
 
+        gesture_tree = [None]
+
         def settle():
             """after input: wait until idle, but a program that polls never
             looks idle - then a short delay is enough"""
@@ -203,7 +205,17 @@ def run(scn, out_dir, build=None, use_cache=True):
                     agent.cmd("CLICK %d %d L" % (x, y))
                     settle()
                 elif kind in ("move", "press", "release"):
-                    x, y = geometry.click_point(tree(), args)
+                    # a gesture stays anchored where it started: while a
+                    # verify/menu state is active the window may be missing
+                    # from the tree, so fall back to the last tree that had it
+                    try:
+                        t = tree()
+                        x, y = geometry.click_point(t, args)
+                        gesture_tree[0] = t
+                    except LookupError:
+                        if gesture_tree[0] is None:
+                            raise
+                        x, y = geometry.click_point(gesture_tree[0], args)
                     b = "R" if args.get("button", "L") == "R" else "L"
                     agent.cmd({"move": "MOVE %d %d", "press": "PRESS %d %d " + b,
                                "release": "RELEASE %d %d " + b}[kind] % (x, y))

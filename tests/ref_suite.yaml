@@ -15,9 +15,9 @@ Tests/Console/raw_events_unit:  {interactive: "waits for special-key reports inj
 Tests/Console/setmode:          {interactive: "reads RAW input injected by console_gtest", validated_by: tests/scenarios/interactive/setmode.yaml}
 Tests/Devices/Keyboard:         {interactive: "waits for a SHIFT key press injected by devices_gtest", phase: 224}
 Tests/Intuition/DisplayAlert:   {interactive: "DisplayAlert() blocks until the user clicks a mouse button", phase: 224}
-Tests/Intuition/IDCMPDeltaMove: {interactive: "waits for mouse moves injected by intuition_gtest", phase: 224}
-Tests/Intuition/IDCMPMenuVerify: {interactive: "waits for an RMB press injected by intuition_gtest", phase: 224}
-Tests/Intuition/IDCMPSizeVerify: {interactive: "waits for a sizing-gadget drag injected by intuition_gtest", phase: 224}
+Tests/Intuition/IDCMPDeltaMove: {interactive: "waits for mouse moves injected by intuition_gtest", phase: 222}
+Tests/Intuition/IDCMPMenuVerify: {interactive: "waits for an RMB press injected by intuition_gtest", validated_by: tests/scenarios/interactive/IDCMPMenuVerify.yaml}
+Tests/Intuition/IDCMPSizeVerify: {interactive: "waits for a sizing-gadget drag injected by intuition_gtest", validated_by: tests/scenarios/interactive/IDCMPSizeVerify.yaml}
 Tests/Intuition/RequesterBasic: {interactive: "waits for requester clicks injected by intuition_gtest", phase: 224}
 Tests/Devices/ParallelLoopback: {lxa_only: "I/O through lxa's emulated loopback peer on the parallel port; the reference port has nothing connected, so CMD_WRITE never completes (peer-independent semantics: Tests/Devices/Parallel)"}
 Tests/Devices/PrinterPeer: {lxa_only: "output to lxa's emulated always-online printer; the reference has no printer at its port, so output never completes there (printer-independent semantics: Tests/Devices/Printer)"}

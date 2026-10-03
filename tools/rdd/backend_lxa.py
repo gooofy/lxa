@@ -70,6 +70,7 @@ def run(scn, out_dir, build=None):
             result["snapshots"].append(snap_name)
 
         held = [0]   # mouse buttons held by press/release steps
+        gesture_tree = [None]
 
         for kind, args in scn.steps:
             step = {"step": kind, "args": args, "ok": True}
@@ -94,7 +95,17 @@ def run(scn, out_dir, build=None):
                     lxa.click(x, y, MOUSE_LEFT)
                     lxa.wait_idle()
                 elif kind in ("move", "press", "release"):
-                    x, y = geometry.click_point(tree(), args)
+                    # a gesture stays anchored where it started: while a
+                    # verify/menu state is active the window may be missing
+                    # from the tree, so fall back to the last tree that had it
+                    try:
+                        t = tree()
+                        x, y = geometry.click_point(t, args)
+                        gesture_tree[0] = t
+                    except LookupError:
+                        if gesture_tree[0] is None:
+                            raise
+                        x, y = geometry.click_point(gesture_tree[0], args)
                     bit = MOUSE_RIGHT if args.get("button", "L") == "R" else MOUSE_LEFT
                     if kind == "press":
                         held[0] |= bit
