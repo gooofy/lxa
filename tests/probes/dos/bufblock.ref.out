@@ -62,3 +62,7 @@ Seek(0, BEGINNING) with buffered output = 2
 FPuts AB, Seek 0, FPuts x: 2 bytes "xB"
 FGetC = 48
 0123, FGetC, FPuts w: 4 bytes "0w23"
+-- VFPrintf length
+VFPrintf("%05ld|x\n", -1) = 9
+VFPrintf("%03ld|%03ld|\n", -1, -2) = 11
+file ('?' = NUL): 20 bytes "-0001?|x\n-01?|-02?|\n"

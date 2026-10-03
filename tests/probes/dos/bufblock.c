@@ -291,6 +291,18 @@ int main(void)
     Close(fh);
     dump("0123, FGetC, FPuts w");
 
+    P_SECTION("VFPrintf length");
+    {
+        LONG a[2];
+        a[0] = -1;
+        a[1] = -2;
+        fh = Open((STRPTR)F, MODE_NEWFILE);
+        P_LONG("VFPrintf(\"%05ld|x\\n\", -1)", VFPrintf(fh, (STRPTR)"%05ld|x\n", a));
+        P_LONG("VFPrintf(\"%03ld|%03ld|\\n\", -1, -2)", VFPrintf(fh, (STRPTR)"%03ld|%03ld|\n", a));
+        Close(fh);
+        dump("file ('?' = NUL)");
+    }
+
     /* Output() is not probed here: it is a file on the reference (RUN >x)
      * but the host console on lxa, which flushes at '\n' like a console
      * window (tests/scenarios/interactive/conbuf.yaml covers consoles). */
