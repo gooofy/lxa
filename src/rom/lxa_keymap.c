@@ -19,10 +19,6 @@
 
 #include "util.h"
 
-/* IPTR is a pointer-sized integer type */
-#ifndef IPTR
-#define IPTR ULONG
-#endif
 
 #define VERSION    40
 #define REVISION   1
@@ -47,189 +43,228 @@ struct KeymapBase {
 };
 
 /****************************************************************************/
-/* Default US keymap                                                         */
+/* Default keymap: "usa", identical to the AmigaOS 3.1 built-in keymap      */
+/* (tests/probes/keymap/tables.c dumps it on both systems).                 */
 /****************************************************************************/
 
-/* Simplified key types for low keymap (0x00-0x3F) */
-#define N  KC_NOQUAL
-#define S  KCF_SHIFT
-#define A  KCF_ALT
-#define C  KCF_CONTROL
-#define V  KC_VANILLA
-#define ST KCF_STRING
-#define NOP KCF_NOP
+static const UBYTE km_d12[] = { DPF_MOD, 0x10, DPF_MOD, 0x16, 0x00, 0xa9, 0x00, 0xa9, 0x00, 0x05, 0x00, 0x05, 0x00, 0x85, 0x00, 0x85, 0x65, 0xe9, 0xe8, 0xea, 0x65, 0xeb, 0x45, 0xc9, 0xc8, 0xca, 0x45, 0xcb };
+static const UBYTE km_d15[] = { DPF_MOD, 0x10, DPF_MOD, 0x16, 0x00, 0xa4, 0x00, 0xa5, 0x00, 0x19, 0x00, 0x19, 0x00, 0x99, 0x00, 0x99, 0x79, 0xfd, 0x79, 0x79, 0x79, 0xff, 0x59, 0xdd, 0x59, 0x59, 0x59, 0x59 };
+static const UBYTE km_d16[] = { DPF_MOD, 0x10, DPF_MOD, 0x16, 0x00, 0xb5, 0x00, 0xb5, 0x00, 0x15, 0x00, 0x15, 0x00, 0x95, 0x00, 0x95, 0x75, 0xfa, 0xf9, 0xfb, 0x75, 0xfc, 0x55, 0xda, 0xd9, 0xdb, 0x55, 0xdc };
+static const UBYTE km_d17[] = { DPF_MOD, 0x10, DPF_MOD, 0x16, 0x00, 0xa1, 0x00, 0xa6, 0x00, 0x09, 0x00, 0x09, 0x00, 0x89, 0x00, 0x89, 0x69, 0xed, 0xec, 0xee, 0x69, 0xef, 0x49, 0xcd, 0xcc, 0xce, 0x49, 0xcf };
+static const UBYTE km_d18[] = { DPF_MOD, 0x10, DPF_MOD, 0x16, 0x00, 0xf8, 0x00, 0xd8, 0x00, 0x0f, 0x00, 0x0f, 0x00, 0x8f, 0x00, 0x8f, 0x6f, 0xf3, 0xf2, 0xf4, 0xf5, 0xf6, 0x4f, 0xd3, 0xd2, 0xd4, 0xd5, 0xd6 };
+static const UBYTE km_d20[] = { DPF_MOD, 0x10, DPF_MOD, 0x16, 0x00, 0xe6, 0x00, 0xc6, 0x00, 0x01, 0x00, 0x01, 0x00, 0x81, 0x00, 0x81, 0x61, 0xe1, 0xe0, 0xe2, 0xe3, 0xe4, 0x41, 0xc1, 0xc0, 0xc2, 0xc3, 0xc4 };
+static const UBYTE km_d23[] = { 0x00, 0x66, 0x00, 0x46, DPF_DEAD, 0x01, DPF_DEAD, 0x01, 0x00, 0x06, 0x00, 0x06, 0x00, 0x86, 0x00, 0x86 };
+static const UBYTE km_d24[] = { 0x00, 0x67, 0x00, 0x47, DPF_DEAD, 0x02, DPF_DEAD, 0x02, 0x00, 0x07, 0x00, 0x07, 0x00, 0x87, 0x00, 0x87 };
+static const UBYTE km_d25[] = { 0x00, 0x68, 0x00, 0x48, DPF_DEAD, 0x03, DPF_DEAD, 0x03, 0x00, 0x08, 0x00, 0x08, 0x00, 0x88, 0x00, 0x88 };
+static const UBYTE km_d26[] = { 0x00, 0x6a, 0x00, 0x4a, DPF_DEAD, 0x04, DPF_DEAD, 0x04, 0x00, 0x0a, 0x00, 0x0a, 0x00, 0x8a, 0x00, 0x8a };
+static const UBYTE km_d27[] = { 0x00, 0x6b, 0x00, 0x4b, DPF_DEAD, 0x05, DPF_DEAD, 0x05, 0x00, 0x0b, 0x00, 0x0b, 0x00, 0x8b, 0x00, 0x8b };
+static const UBYTE km_d36[] = { DPF_MOD, 0x10, DPF_MOD, 0x16, 0x00, 0xad, 0x00, 0xaf, 0x00, 0x0e, 0x00, 0x0e, 0x00, 0x8e, 0x00, 0x8e, 0x6e, 0x6e, 0x6e, 0x6e, 0xf1, 0x6e, 0x4e, 0x4e, 0x4e, 0x4e, 0xd1, 0x4e };
+static const UBYTE km_d40[] = { DPF_MOD, 0x04, 0x00, 0xa0, 0x20, 0xb4, 0x60, 0x5e, 0x7e, 0xa8 };
+static const UBYTE km_d42[] = { 0x01, 0x04, 0x02, 0x05, 0x09, 0x9b, 0x5a };
+static const UBYTE km_d47[] = { 0x04, 0x04, 0x04, 0x08, 0x9b, 0x34, 0x30, 0x7e, 0x9b, 0x35, 0x30, 0x7e };
+static const UBYTE km_d48[] = { 0x04, 0x04, 0x04, 0x08, 0x9b, 0x34, 0x31, 0x7e, 0x9b, 0x35, 0x31, 0x7e };
+static const UBYTE km_d49[] = { 0x04, 0x04, 0x04, 0x08, 0x9b, 0x34, 0x32, 0x7e, 0x9b, 0x35, 0x32, 0x7e };
+static const UBYTE km_d4b[] = { 0x04, 0x04, 0x04, 0x08, 0x9b, 0x32, 0x30, 0x7e, 0x9b, 0x33, 0x30, 0x7e };
+static const UBYTE km_d4c[] = { 0x02, 0x04, 0x02, 0x06, 0x9b, 0x41, 0x9b, 0x54 };
+static const UBYTE km_d4d[] = { 0x02, 0x04, 0x02, 0x06, 0x9b, 0x42, 0x9b, 0x53 };
+static const UBYTE km_d4e[] = { 0x02, 0x04, 0x03, 0x06, 0x9b, 0x43, 0x9b, 0x20, 0x40 };
+static const UBYTE km_d4f[] = { 0x02, 0x04, 0x03, 0x06, 0x9b, 0x44, 0x9b, 0x20, 0x41 };
+static const UBYTE km_d50[] = { 0x03, 0x04, 0x04, 0x07, 0x9b, 0x30, 0x7e, 0x9b, 0x31, 0x30, 0x7e };
+static const UBYTE km_d51[] = { 0x03, 0x04, 0x04, 0x07, 0x9b, 0x31, 0x7e, 0x9b, 0x31, 0x31, 0x7e };
+static const UBYTE km_d52[] = { 0x03, 0x04, 0x04, 0x07, 0x9b, 0x32, 0x7e, 0x9b, 0x31, 0x32, 0x7e };
+static const UBYTE km_d53[] = { 0x03, 0x04, 0x04, 0x07, 0x9b, 0x33, 0x7e, 0x9b, 0x31, 0x33, 0x7e };
+static const UBYTE km_d54[] = { 0x03, 0x04, 0x04, 0x07, 0x9b, 0x34, 0x7e, 0x9b, 0x31, 0x34, 0x7e };
+static const UBYTE km_d55[] = { 0x03, 0x04, 0x04, 0x07, 0x9b, 0x35, 0x7e, 0x9b, 0x31, 0x35, 0x7e };
+static const UBYTE km_d56[] = { 0x03, 0x04, 0x04, 0x07, 0x9b, 0x36, 0x7e, 0x9b, 0x31, 0x36, 0x7e };
+static const UBYTE km_d57[] = { 0x03, 0x04, 0x04, 0x07, 0x9b, 0x37, 0x7e, 0x9b, 0x31, 0x37, 0x7e };
+static const UBYTE km_d58[] = { 0x03, 0x04, 0x04, 0x07, 0x9b, 0x38, 0x7e, 0x9b, 0x31, 0x38, 0x7e };
+static const UBYTE km_d59[] = { 0x03, 0x04, 0x04, 0x07, 0x9b, 0x39, 0x7e, 0x9b, 0x31, 0x39, 0x7e };
+static const UBYTE km_d5f[] = { 0x03, 0x02, 0x9b, 0x3f, 0x7e };
+static const UBYTE km_d6e[] = { 0x04, 0x04, 0x04, 0x08, 0x9b, 0x34, 0x33, 0x7e, 0x9b, 0x35, 0x33, 0x7e };
+static const UBYTE km_d6f[] = { 0x04, 0x04, 0x04, 0x08, 0x9b, 0x32, 0x31, 0x7e, 0x9b, 0x33, 0x31, 0x7e };
+static const UBYTE km_d70[] = { 0x04, 0x04, 0x04, 0x08, 0x9b, 0x34, 0x34, 0x7e, 0x9b, 0x35, 0x34, 0x7e };
+static const UBYTE km_d71[] = { 0x04, 0x04, 0x04, 0x08, 0x9b, 0x34, 0x35, 0x7e, 0x9b, 0x35, 0x35, 0x7e };
 
 static const UBYTE lokeymaptypes[] =
 {
-    V,    V,    V,    V,    V,    V,    V,    V,    /* 00-07 */
-    V,    V,    V,    V,    S,    V,    NOP,  N,    /* 08-0F */
-    V,    V,    V,    V,    V,    V,    V,    V,    /* 10-17: q-i */
-    V,    V,    V,    V,    NOP,  N,    N,    N,    /* 18-1F: o-p */
-    V,    V,    V,    V,    V,    V,    V,    V,    /* 20-27: a-k */
-    V,    S,    S,    NOP,  NOP,  N,    N,    N,    /* 28-2F: l */
-    S|A,  V,    V,    V,    V,    V,    V,    V,    /* 30-37: z-m */
-    S,    S,    S,    NOP,  N,    N,    N,    N,    /* 38-3F */
+    0x07, 0x03, 0x07, 0x03, 0x03, 0x03, 0x07, 0x03,
+    0x03, 0x03, 0x03, 0x07, 0x01, 0x07, 0x80, 0x00,
+    0x07, 0x07, 0x27, 0x07, 0x07, 0x27, 0x27, 0x27,
+    0x27, 0x07, 0x07, 0x07, 0x80, 0x00, 0x00, 0x00,
+    0x27, 0x07, 0x07, 0x27, 0x27, 0x27, 0x27, 0x27,
+    0x07, 0x01, 0x01, 0x80, 0x80, 0x00, 0x00, 0x00,
+    0x03, 0x07, 0x07, 0x07, 0x07, 0x07, 0x27, 0x07,
+    0x01, 0x01, 0x01, 0x80, 0x00, 0x00, 0x00, 0x00,
 };
 
-/* Key mappings for low keymap - simplified US layout */
-static const IPTR lokeymap[] =
+static const ULONG lokeymap[] =
 {
-    /* 00 */ '`'|('~'<<8),                                   /* grave/tilde */
-    /* 01 */ '1'|('!'<<8),                                   /* 1/! */
-    /* 02 */ '2'|('@'<<8),                                   /* 2/@ */
-    /* 03 */ '3'|('#'<<8),                                   /* 3/# */
-    /* 04 */ '4'|('$'<<8),                                   /* 4/$ */
-    /* 05 */ '5'|('%'<<8),                                   /* 5/% */
-    /* 06 */ '6'|('^'<<8),                                   /* 6/^ */
-    /* 07 */ '7'|('&'<<8),                                   /* 7/& */
-    /* 08 */ '8'|('*'<<8),                                   /* 8 asterisk */
-    /* 09 */ '9'|('('<<8),                                   /* 9/( */
-    /* 0A */ '0'|(')'<<8),                                   /* 0/) */
-    /* 0B */ '-'|('_'<<8),                                   /* -/_ */
-    /* 0C */ '='|('+'<<8),                                   /* =/+ */
-    /* 0D */ '\\'|('|'<<8),                                  /* \/| */
-    /* 0E */ 0,                                              /* NOP */
-    /* 0F */ '0',                                            /* numeric 0 */
-    /* 10 */ 'q'|('Q'<<8)|('q'<<16)|('Q'<<24),              /* q/Q */
-    /* 11 */ 'w'|('W'<<8)|('w'<<16)|('W'<<24),              /* w/W */
-    /* 12 */ 'e'|('E'<<8)|('e'<<16)|('E'<<24),              /* e/E */
-    /* 13 */ 'r'|('R'<<8)|('r'<<16)|('R'<<24),              /* r/R */
-    /* 14 */ 't'|('T'<<8)|('t'<<16)|('T'<<24),              /* t/T */
-    /* 15 */ 'y'|('Y'<<8)|('y'<<16)|('Y'<<24),              /* y/Y */
-    /* 16 */ 'u'|('U'<<8)|('u'<<16)|('U'<<24),              /* u/U */
-    /* 17 */ 'i'|('I'<<8)|('i'<<16)|('I'<<24),              /* i/I */
-    /* 18 */ 'o'|('O'<<8)|('o'<<16)|('O'<<24),              /* o/O */
-    /* 19 */ 'p'|('P'<<8)|('p'<<16)|('P'<<24),              /* p/P */
-    /* 1A */ '['|(('{'<<8)),                                 /* [/{ */
-    /* 1B */ ']'|(('}'<<8)),                                 /* ]/} */
-    /* 1C */ 0,                                              /* NOP */
-    /* 1D */ '1',                                            /* numeric 1 */
-    /* 1E */ '2',                                            /* numeric 2 */
-    /* 1F */ '3',                                            /* numeric 3 */
-    /* 20 */ 'a'|('A'<<8)|('a'<<16)|('A'<<24),              /* a/A */
-    /* 21 */ 's'|('S'<<8)|('s'<<16)|('S'<<24),              /* s/S */
-    /* 22 */ 'd'|('D'<<8)|('d'<<16)|('D'<<24),              /* d/D */
-    /* 23 */ 'f'|('F'<<8)|('f'<<16)|('F'<<24),              /* f/F */
-    /* 24 */ 'g'|('G'<<8)|('g'<<16)|('G'<<24),              /* g/G */
-    /* 25 */ 'h'|('H'<<8)|('h'<<16)|('H'<<24),              /* h/H */
-    /* 26 */ 'j'|('J'<<8)|('j'<<16)|('J'<<24),              /* j/J */
-    /* 27 */ 'k'|('K'<<8)|('k'<<16)|('K'<<24),              /* k/K */
-    /* 28 */ 'l'|('L'<<8)|('l'<<16)|('L'<<24),              /* l/L */
-    /* 29 */ ';'|(':'<<8),                                   /* ;/: */
-    /* 2A */ '\''|('"'<<8),                                  /* '/" */
-    /* 2B */ 0,                                              /* NOP */
-    /* 2C */ 0,                                              /* NOP */
-    /* 2D */ '4',                                            /* numeric 4 */
-    /* 2E */ '5',                                            /* numeric 5 */
-    /* 2F */ '6',                                            /* numeric 6 */
-    /* 30 */ 0,                                              /* NOP (int backslash) */
-    /* 31 */ 'z'|('Z'<<8)|('z'<<16)|('Z'<<24),              /* z/Z */
-    /* 32 */ 'x'|('X'<<8)|('x'<<16)|('X'<<24),              /* x/X */
-    /* 33 */ 'c'|('C'<<8)|('c'<<16)|('C'<<24),              /* c/C */
-    /* 34 */ 'v'|('V'<<8)|('v'<<16)|('V'<<24),              /* v/V */
-    /* 35 */ 'b'|('B'<<8)|('b'<<16)|('B'<<24),              /* b/B */
-    /* 36 */ 'n'|('N'<<8)|('n'<<16)|('N'<<24),              /* n/N */
-    /* 37 */ 'm'|('M'<<8)|('m'<<16)|('M'<<24),              /* m/M */
-    /* 38 */ ','|('<'<<8),                                   /* ,/< */
-    /* 39 */ '.'|('>'<<8),                                   /* ./> */
-    /* 3A */ '/'|('?'<<8),                                   /* ?/? */
-    /* 3B */ 0,                                              /* NOP */
-    /* 3C */ '.',                                            /* numeric . */
-    /* 3D */ '7',                                            /* numeric 7 */
-    /* 3E */ '8',                                            /* numeric 8 */
-    /* 3F */ '9',                                            /* numeric 9 */
+    /* 00 */ 0x7e607e60,
+    /* 01 */ 0x21b92131,
+    /* 02 */ 0x40b24032,
+    /* 03 */ 0x23b32333,
+    /* 04 */ 0x24a22434,
+    /* 05 */ 0x25bc2535,
+    /* 06 */ 0x5ebd5e36,
+    /* 07 */ 0x26be2637,
+    /* 08 */ 0x2ab72a38,
+    /* 09 */ 0x28ab2839,
+    /* 0a */ 0x29bb2930,
+    /* 0b */ 0x5f2d5f2d,
+    /* 0c */ 0x2b3d2b3d,
+    /* 0d */ 0x7c5c7c5c,
+    /* 0e */ 0,
+    /* 0f */ 0x00000030,
+    /* 10 */ 0xc5e55171,
+    /* 11 */ 0xb0b05777,
+    /* 12 */ (ULONG)km_d12,
+    /* 13 */ 0xaeae5272,
+    /* 14 */ 0xdefe5474,
+    /* 15 */ (ULONG)km_d15,
+    /* 16 */ (ULONG)km_d16,
+    /* 17 */ (ULONG)km_d17,
+    /* 18 */ (ULONG)km_d18,
+    /* 19 */ 0xb6b65070,
+    /* 1a */ 0x7b5b7b5b,
+    /* 1b */ 0x7d5d7d5d,
+    /* 1c */ 0,
+    /* 1d */ 0x00000031,
+    /* 1e */ 0x00000032,
+    /* 1f */ 0x00000033,
+    /* 20 */ (ULONG)km_d20,
+    /* 21 */ 0xa7df5373,
+    /* 22 */ 0xd0f04464,
+    /* 23 */ (ULONG)km_d23,
+    /* 24 */ (ULONG)km_d24,
+    /* 25 */ (ULONG)km_d25,
+    /* 26 */ (ULONG)km_d26,
+    /* 27 */ (ULONG)km_d27,
+    /* 28 */ 0xa3a34c6c,
+    /* 29 */ 0x3a3b3a3b,
+    /* 2a */ 0x22272227,
+    /* 2b */ 0,
+    /* 2c */ 0,
+    /* 2d */ 0x00000034,
+    /* 2e */ 0x00000035,
+    /* 2f */ 0x00000036,
+    /* 30 */ 0xbbab3e3c,
+    /* 31 */ 0xacb15a7a,
+    /* 32 */ 0xf7d75878,
+    /* 33 */ 0xc7e74363,
+    /* 34 */ 0xaaaa5676,
+    /* 35 */ 0xbaba4262,
+    /* 36 */ (ULONG)km_d36,
+    /* 37 */ 0xbfb84d6d,
+    /* 38 */ 0x3c2c3c2c,
+    /* 39 */ 0x3e2e3e2e,
+    /* 3a */ 0x3f2f3f2f,
+    /* 3b */ 0,
+    /* 3c */ 0x0000002e,
+    /* 3d */ 0x00000037,
+    /* 3e */ 0x00000038,
+    /* 3f */ 0x00000039,
 };
 
-/* Capsable keys (bitfield) - letters are capsable */
 static const UBYTE locapsable[] =
 {
-    0x00, 0x00,                                              /* 00-0F */
-    0xFF, 0x03,                                              /* 10-1F: q-s */
-    0xFF, 0x03,                                              /* 20-2F: a-s */
-    0xFE, 0x00,                                              /* 30-3F: z-m */
+    0x00, 0x00, 0xff, 0x03, 0xff, 0x01, 0xfe, 0x00,
 };
 
-/* Repeatable keys (bitfield) - most keys repeatable */
 static const UBYTE lorepeatable[] =
 {
-    0xFF, 0xFF, 0xFF, 0xFF,                                  /* all keys repeatable */
-    0xFF, 0xFF, 0xFF, 0xFF,
+    0xff, 0xbf, 0xff, 0xef, 0xff, 0xef, 0xff, 0xf7,
 };
 
-/* Simplified key types for high keymap (0x40-0x77) */
 static const UBYTE hikeymaptypes[] =
 {
-    N,    N,    N,    N,    N,    N,    N,    N,    /* 40-47: space, backspace, tab, enter, ret, esc, del, ins */
-    N,    N,    N,    S,    N,    N,    N,    N,    /* 48-4F */
-    ST,   ST,   ST,   ST,   ST,   ST,   ST,   ST,   /* 50-57: F1-F8 */
-    ST,   ST,   N,    N,    N,    N,    N,    N,    /* 58-5F: F9-F10 */
-    NOP,  NOP,  NOP,  NOP,  NOP,  NOP,  NOP,  NOP,  /* 60-67 */
-    NOP,  NOP,  NOP,  NOP,  NOP,  NOP,  NOP,  NOP,  /* 68-6F */
-    NOP,  NOP,  NOP,  NOP,  NOP,  NOP,  NOP,  NOP,  /* 70-77 */
+    0x22, 0x00, 0x41, 0x00, 0x04, 0x02, 0x00, 0x41,
+    0x41, 0x41, 0x00, 0x41, 0x41, 0x41, 0x41, 0x41,
+    0x41, 0x41, 0x41, 0x41, 0x41, 0x41, 0x41, 0x41,
+    0x41, 0x41, 0x00, 0x00, 0x00, 0x00, 0x00, 0x40,
+    0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80,
+    0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x41, 0x41,
+    0x41, 0x41, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80,
 };
 
-/* High keymap key mappings */
-static const IPTR hikeymap[] =
+static const ULONG hikeymap[] =
 {
-    /* 40 */ ' '|(' '<<8)|(' '<<16)|(' '<<24),              /* space */
-    /* 41 */ '\b'|('\b'<<8)|('\b'<<16)|('\b'<<24),          /* backspace */
-    /* 42 */ '\t'|('\t'<<8)|('\t'<<16)|('\t'<<24),          /* tab */
-    /* 43 */ '\r'|('\r'<<8)|('\r'<<16)|('\r'<<24),          /* enter */
-    /* 44 */ '\r'|('\r'<<8)|('\r'<<16)|('\r'<<24),          /* return */
-    /* 45 */ 0x1B|(0x1B<<8)|(0x1B<<16)|(0x1B<<24),          /* escape */
-    /* 46 */ 0x7F|(0x7F<<8)|(0x7F<<16)|(0x7F<<24),          /* del */
-    /* 47 */ 0,                                              /* insert (NOP) */
-    /* 48 */ 0,                                              /* page up */
-    /* 49 */ 0,                                              /* page down */
-    /* 4A */ '-',                                            /* numeric - */
-    /* 4B */ 0,                                              /* F11 */
-    /* 4C */ 0,                                              /* cursor up */
-    /* 4D */ 0,                                              /* cursor down */
-    /* 4E */ 0,                                              /* cursor right */
-    /* 4F */ 0,                                              /* cursor left */
-    /* 50 */ (IPTR)"\x9B\x30\x7E",                          /* F1: CSI 0 ~ */
-    /* 51 */ (IPTR)"\x9B\x31\x7E",                          /* F2: CSI 1 ~ */
-    /* 52 */ (IPTR)"\x9B\x32\x7E",                          /* F3: CSI 2 ~ */
-    /* 53 */ (IPTR)"\x9B\x33\x7E",                          /* F4: CSI 3 ~ */
-    /* 54 */ (IPTR)"\x9B\x34\x7E",                          /* F5: CSI 4 ~ */
-    /* 55 */ (IPTR)"\x9B\x35\x7E",                          /* F6: CSI 5 ~ */
-    /* 56 */ (IPTR)"\x9B\x36\x7E",                          /* F7: CSI 6 ~ */
-    /* 57 */ (IPTR)"\x9B\x37\x7E",                          /* F8: CSI 7 ~ */
-    /* 58 */ (IPTR)"\x9B\x38\x7E",                          /* F9: CSI 8 ~ */
-    /* 59 */ (IPTR)"\x9B\x39\x7E",                          /* F10: CSI 9 ~ */
-    /* 5A */ 0,                                              /* numeric ( */
-    /* 5B */ 0,                                              /* numeric ) */
-    /* 5C */ 0,                                              /* numeric / */
-    /* 5D */ 0,                                              /* numeric * */
-    /* 5E */ '+',                                            /* numeric + */
-    /* 5F */ 0,                                              /* help */
-    /* 60-77 */ 0, 0, 0, 0, 0, 0, 0, 0,                      /* NOP */
-                0, 0, 0, 0, 0, 0, 0, 0,
-                0, 0, 0, 0, 0, 0, 0, 0,
+    /* 40 */ (ULONG)km_d40,
+    /* 41 */ 0x00000008,
+    /* 42 */ (ULONG)km_d42,
+    /* 43 */ 0x0000000d,
+    /* 44 */ 0x00000a0d,
+    /* 45 */ 0x00009b1b,
+    /* 46 */ 0x0000007f,
+    /* 47 */ (ULONG)km_d47,
+    /* 48 */ (ULONG)km_d48,
+    /* 49 */ (ULONG)km_d49,
+    /* 4a */ 0x0000002d,
+    /* 4b */ (ULONG)km_d4b,
+    /* 4c */ (ULONG)km_d4c,
+    /* 4d */ (ULONG)km_d4d,
+    /* 4e */ (ULONG)km_d4e,
+    /* 4f */ (ULONG)km_d4f,
+    /* 50 */ (ULONG)km_d50,
+    /* 51 */ (ULONG)km_d51,
+    /* 52 */ (ULONG)km_d52,
+    /* 53 */ (ULONG)km_d53,
+    /* 54 */ (ULONG)km_d54,
+    /* 55 */ (ULONG)km_d55,
+    /* 56 */ (ULONG)km_d56,
+    /* 57 */ (ULONG)km_d57,
+    /* 58 */ (ULONG)km_d58,
+    /* 59 */ (ULONG)km_d59,
+    /* 5a */ 0x00000028,
+    /* 5b */ 0x00000029,
+    /* 5c */ 0x0000002f,
+    /* 5d */ 0x0000002a,
+    /* 5e */ 0x0000002b,
+    /* 5f */ (ULONG)km_d5f,
+    /* 60 */ 0,
+    /* 61 */ 0,
+    /* 62 */ 0,
+    /* 63 */ 0,
+    /* 64 */ 0,
+    /* 65 */ 0,
+    /* 66 */ 0,
+    /* 67 */ 0,
+    /* 68 */ 0,
+    /* 69 */ 0,
+    /* 6a */ 0,
+    /* 6b */ 0,
+    /* 6c */ 0,
+    /* 6d */ 0,
+    /* 6e */ (ULONG)km_d6e,
+    /* 6f */ (ULONG)km_d6f,
+    /* 70 */ (ULONG)km_d70,
+    /* 71 */ (ULONG)km_d71,
+    /* 72 */ 0,
+    /* 73 */ 0,
+    /* 74 */ 0,
+    /* 75 */ 0,
+    /* 76 */ 0,
+    /* 77 */ 0,
 };
 
-/* High keymap capsable/repeatable */
 static const UBYTE hicapsable[] =
 {
-    0x00, 0x00, 0x00, 0x00,                                  /* no capsable keys */
-    0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 };
 
 static const UBYTE hirepeatable[] =
 {
-    0xFF, 0xFF, 0xFF, 0xFF,                                  /* all keys repeatable */
-    0xFF, 0xFF, 0xFF, 0xFF,
+    0x47, 0xff, 0xff, 0x7f, 0x00, 0x80, 0x00,
 };
 
 /* Default keymap structure */
 static struct KeyMap default_keymap =
 {
     (UBYTE *)lokeymaptypes,
-    (IPTR *)lokeymap,
+    (ULONG *)lokeymap,
     (UBYTE *)locapsable,
     (UBYTE *)lorepeatable,
     (UBYTE *)hikeymaptypes,
-    (IPTR *)hikeymap,
+    (ULONG *)hikeymap,
     (UBYTE *)hicapsable,
     (UBYTE *)hirepeatable,
 };
@@ -238,106 +273,19 @@ static struct KeyMap default_keymap =
 /* Helper functions                                                          */
 /****************************************************************************/
 
-#define GetBitProperty(ubytearray, idx) \
-    ( (ubytearray)[(idx) / 8] & ( 1 << ((idx) & 0x07) ))
+#define NUM_KEYS 0x78   /* 0x00-0x3f low map, 0x40-0x77 high map */
 
-#define GetMapChar(key_mapping, idx) \
-    ( ((key_mapping) >> ((3 - (idx)) * 8)) & 0x000000FF )
+/* number of entries (characters / strings / dead descriptors) per type */
+static const UBYTE g_num_entries[8] = { 1, 2, 2, 4, 2, 4, 4, 8 };
 
-/* Qualifier conversion table from KCF_xxx to index
- * Index vertically: (keytype & KC_VANILLA)
- * Index horizontally: KCF_xxx qualifier combination for keypress.
- * Returns index of the byte describing the keypress.
- * -1 means invalid key, -2 means Ctrl-c alike combination (clear bits 5 and 6)
- *
- * On the Amiga, if a keypress has qualifiers set which are not set in the
- * keymap-type, those qualifiers are simply ignored.
- */
-static const BYTE keymaptype_table[8][8] =
+/* IEQUALIFIER low byte for each entry of each key type (KCF_ bits & 7) */
+static const UBYTE g_entry_qual[8][8] =
 {
-    /* KCF_NOQUAL (0) */
-    { 3, 3, 3, 3, 3, 3, 3, 3 },
-    /* KCF_SHIFT (1) */
-    { 3, 2, 3, 2, 3, 2, 3, 2 },
-    /* KCF_ALT (2) */
-    { 3, 3, 2, 2, 3, 3, 2, 2 },
-    /* KCF_SHIFT|KCF_ALT (3) */
-    { 3, 2, 1, 0, 3, 2, 1, 0 },
-    /* KCF_CONTROL (4) */
-    { 3, 3, 3, 3, 2, 2, 2, 2 },
-    /* KCF_SHIFT|KCF_CONTROL (5) */
-    { 3, 2, 3, 2, 1, 0, 1, 0 },
-    /* KCF_ALT|KCF_CONTROL (6) */
-    { 3, 3, 2, 2, 1, 1, 0, 0 },
-    /* KCF_SHIFT|KCF_ALT|KCF_CONTROL (7) = KC_VANILLA */
-    { 3, 2, 1, 0, -2, -1, -1, -1 }
-};
-
-/* String table indices
- * Index vertically: (keytype & KC_VANILLA)
- * Index horizontally: KCF_xxx qualifier combination for keypress.
- * Returns the number of the string descriptor.
- *
- * On the Amiga, if a keypress has qualifiers set which are not set in the
- * keymap-type, those qualifiers are simply ignored.
- */
-static const BYTE keymapstr_table[8][8] =
-{
-    /* KCF_NOQUAL (0) */
-    { 0, 0, 0, 0, 0, 0, 0, 0 },
-    /* KCF_SHIFT (1) */
-    { 0, 1, 0, 1, 0, 1, 0, 1 },
-    /* KCF_ALT (2) */
-    { 0, 0, 1, 1, 0, 0, 1, 1 },
-    /* KCF_SHIFT|KCF_ALT (3) */
-    { 0, 1, 2, 3, 0, 1, 2, 3 },
-    /* KCF_CONTROL (4) */
-    { 0, 0, 0, 0, 1, 1, 1, 1 },
-    /* KCF_SHIFT|KCF_CONTROL (5) */
-    { 0, 1, 0, 1, 2, 3, 2, 3 },
-    /* KCF_ALT|KCF_CONTROL (6) */
-    { 0, 0, 1, 1, 2, 2, 3, 3 },
-    /* KCF_SHIFT|KCF_ALT|KCF_CONTROL (7) = KC_VANILLA */
-    { 0, 1, 2, 3, 4, 5, 6, 7 }
-};
-
-struct BufInfo
-{
-    UBYTE *Buffer;
-    LONG   BufLength;
-    LONG   CharsWritten;
-};
-
-struct KeyInfo
-{
-    UBYTE Key_MapType;
-    IPTR  Key_Mapping;
-    UBYTE KCFQual;
-};
-
-static BOOL GetKeyInfo(struct KeyInfo *ki, UWORD code, UWORD qual, struct KeyMap *km);
-
-static const UBYTE mapansi_num_keys[] = { 1, 2, 2, 4, 2, 4, 4, 4 };
-static const UWORD mapansi_qualifiers[8][4] =
-{
-    { 0, },
-    { 0, IEQUALIFIER_LSHIFT, },
-    { 0, IEQUALIFIER_LALT, },
+    { 0 },
+    { 0, IEQUALIFIER_LSHIFT },
+    { 0, IEQUALIFIER_LALT },
     { 0, IEQUALIFIER_LSHIFT, IEQUALIFIER_LALT, IEQUALIFIER_LSHIFT | IEQUALIFIER_LALT },
-    { 0, IEQUALIFIER_CONTROL, },
-    { 0, IEQUALIFIER_LSHIFT, IEQUALIFIER_CONTROL, IEQUALIFIER_LSHIFT | IEQUALIFIER_CONTROL },
-    { 0, IEQUALIFIER_LALT, IEQUALIFIER_CONTROL, IEQUALIFIER_LALT | IEQUALIFIER_CONTROL },
-    { 0, IEQUALIFIER_LSHIFT, IEQUALIFIER_LALT, IEQUALIFIER_LSHIFT | IEQUALIFIER_LALT },
-};
-
-static const UBYTE mapansi_num_keys_dead[] = { 1, 2, 2, 4, 2, 4, 4, 8 };
-static const UWORD mapansi_qualifiers_dead[8][8] =
-{
-    { 0, },
-    { 0, IEQUALIFIER_LSHIFT, },
-    { 0, IEQUALIFIER_LALT, },
-    { 0, IEQUALIFIER_LSHIFT, IEQUALIFIER_LALT, IEQUALIFIER_LSHIFT | IEQUALIFIER_LALT },
-    { 0, IEQUALIFIER_CONTROL, },
+    { 0, IEQUALIFIER_CONTROL },
     { 0, IEQUALIFIER_LSHIFT, IEQUALIFIER_CONTROL, IEQUALIFIER_LSHIFT | IEQUALIFIER_CONTROL },
     { 0, IEQUALIFIER_LALT, IEQUALIFIER_CONTROL, IEQUALIFIER_LALT | IEQUALIFIER_CONTROL },
     { 0, IEQUALIFIER_LSHIFT, IEQUALIFIER_LALT, IEQUALIFIER_LSHIFT | IEQUALIFIER_LALT,
@@ -346,118 +294,115 @@ static const UWORD mapansi_qualifiers_dead[8][8] =
       IEQUALIFIER_CONTROL | IEQUALIFIER_LALT | IEQUALIFIER_LSHIFT },
 };
 
-static BOOL WriteToBuffer(struct BufInfo *bufinfo, const UBYTE *string, LONG numchars)
+static UBYTE key_type(const struct KeyMap *km, UWORD code)
 {
-    if (bufinfo->CharsWritten + numchars > bufinfo->BufLength)
+    return code < 0x40 ? km->km_LoKeyMapTypes[code] : km->km_HiKeyMapTypes[code - 0x40];
+}
+
+static ULONG key_map(const struct KeyMap *km, UWORD code)
+{
+    return code < 0x40 ? km->km_LoKeyMap[code] : km->km_HiKeyMap[code - 0x40];
+}
+
+static BOOL key_bit(const UBYTE *lo, const UBYTE *hi, UWORD code)
+{
+    if (code < 0x40)
+        return (lo[code >> 3] >> (code & 7)) & 1;
+    code -= 0x40;
+    return (hi[code >> 3] >> (code & 7)) & 1;
+}
+
+/*
+ * Entry index of a key press: the KCF_SHIFT/ALT/CONTROL qualifiers that
+ * the key type does not list are ignored, the remaining ones select the
+ * entry in the order of g_entry_qual.
+ */
+static WORD entry_index(UBYTE type, UBYTE kcf)
+{
+    WORD idx = 0, bit = 0;
+    UBYTE t;
+
+    for (t = 1; t <= KCF_CONTROL; t <<= 1)
+    {
+        if (type & t)
+        {
+            if (kcf & t)
+                idx |= 1 << bit;
+            bit++;
+        }
+    }
+    return idx;
+}
+
+struct KeyPress
+{
+    UBYTE type;
+    ULONG map;
+    UBYTE kcf;      /* KCF_SHIFT/ALT/CONTROL of the press */
+};
+
+/* Decode code + qualifier; FALSE if the key produces nothing. */
+static BOOL get_key_press(struct KeyPress *kp, UWORD code, UWORD qual, const struct KeyMap *km)
+{
+    if (code >= NUM_KEYS)
+        return FALSE;   /* also rejects key-up codes (IECODE_UP_PREFIX) */
+
+    kp->type = key_type(km, code);
+    kp->map  = key_map(km, code);
+    kp->kcf  = 0;
+
+    if ((qual & IEQUALIFIER_REPEAT) && !key_bit(km->km_LoRepeatable, km->km_HiRepeatable, code))
         return FALSE;
 
-    /* Copy characters to buffer */
-    for (LONG i = 0; i < numchars; i++)
-    {
-        bufinfo->Buffer[i] = string[i];
-    }
-    
-    bufinfo->Buffer += numchars;
-    bufinfo->CharsWritten += numchars;
+    if (qual & (IEQUALIFIER_LSHIFT | IEQUALIFIER_RSHIFT))
+        kp->kcf |= KCF_SHIFT;
+    if ((qual & IEQUALIFIER_CAPSLOCK) && key_bit(km->km_LoCapsable, km->km_HiCapsable, code))
+        kp->kcf |= KCF_SHIFT;
+    if (qual & (IEQUALIFIER_LALT | IEQUALIFIER_RALT))
+        kp->kcf |= KCF_ALT;
+    if (qual & IEQUALIFIER_CONTROL)
+        kp->kcf |= KCF_CONTROL;
 
     return TRUE;
 }
 
-static WORD GetDeadKeyIndex(UWORD code, UWORD qual, struct KeyMap *km)
+/* Dead key descriptor value (index | factor << 4) of a previous key, or -1. */
+static WORD dead_key_value(UBYTE code, UBYTE qual, const struct KeyMap *km)
 {
-    struct KeyInfo ki;
+    struct KeyPress kp;
+    const UBYTE *d;
+    WORD idx;
 
-    if ((code < 0x78) && GetKeyInfo(&ki, code, qual, km))
-    {
-        if (ki.Key_MapType & KCF_DEAD)
-        {
-            BYTE idx = keymapstr_table[ki.Key_MapType & KC_VANILLA][ki.KCFQual];
+    if (!get_key_press(&kp, code, qual, km))
+        return -1;
+    if ((kp.type & KCF_NOP) || !(kp.type & KCF_DEAD))
+        return -1;
 
-            if (idx != -1)
-            {
-                const UBYTE *dead_descr = (const UBYTE *)ki.Key_Mapping;
-
-                if (dead_descr[idx * 2] == DPF_DEAD)
-                    return dead_descr[idx * 2 + 1] & 0x00FF;
-            }
-        }
-    }
-
-    return -1;
+    idx = entry_index(kp.type, kp.kcf);
+    d = (const UBYTE *)kp.map;
+    if (d[idx * 2] != DPF_DEAD)
+        return -1;
+    return d[idx * 2 + 1];
 }
 
-static BOOL GetKeyInfo(struct KeyInfo *ki, UWORD code, UWORD qual, struct KeyMap *km)
+/* Control-key mapping of a KC_VANILLA key: the first of the four
+ * characters, starting at the one the shift/alt state selects, that lies
+ * in 0x40-0x7f gives (c & 0x1f), plus bit 7 with alt. */
+static BOOL vanilla_control(ULONG map, UBYTE kcf, UBYTE *out)
 {
-    BOOL valid = TRUE;
+    WORD start = ((kcf & KCF_SHIFT) ? 1 : 0) + ((kcf & KCF_ALT) ? 2 : 0);
+    WORD i;
 
-    if (code & IECODE_UP_PREFIX)
+    for (i = 0; i < 4; i++)
     {
-        valid = FALSE;
-    }
-    else if (code >= 128)
-    {
-        valid = FALSE;
-    }
-    else
-    {
-        BYTE capsable;
-        BYTE repeatable;
-
-        ki->KCFQual = KC_NOQUAL;
-
-        code &= ~IECODE_UP_PREFIX;
-
-        /* Convert IEQUALIFIER_xxx to KCF_xxx */
-        if (qual & (IEQUALIFIER_LSHIFT|IEQUALIFIER_RSHIFT))
-            ki->KCFQual |= KCF_SHIFT;
-
-        if (qual & (IEQUALIFIER_LALT|IEQUALIFIER_RALT))
-            ki->KCFQual |= KCF_ALT;
-
-        if (qual & IEQUALIFIER_CONTROL)
-            ki->KCFQual |= KCF_CONTROL;
-
-        /* Get the key info */
-        if (code <= 0x3F)
+        UBYTE c = (UBYTE)(map >> (((start + i) & 3) * 8));
+        if ((c & 0xc0) == 0x40)
         {
-            /* Low keymap */
-            ki->Key_MapType = km->km_LoKeyMapTypes[code];
-            ki->Key_Mapping = km->km_LoKeyMap[code];
-            capsable    = GetBitProperty(km->km_LoCapsable,   code);
-            repeatable  = GetBitProperty(km->km_LoRepeatable, code);
-        }
-        else
-        {
-            code -= 0x40;
-            if (code < 0x38)
-            {
-                /* High keymap */
-                ki->Key_MapType = km->km_HiKeyMapTypes[code];
-                ki->Key_Mapping = km->km_HiKeyMap[code];
-                capsable    = GetBitProperty(km->km_HiCapsable,   code);
-                repeatable  = GetBitProperty(km->km_HiRepeatable, code);
-            }
-            else
-            {
-                valid = FALSE;
-            }
-        }
-
-        if (valid)
-        {
-            if ((qual & IEQUALIFIER_REPEAT) && (!repeatable))
-            {
-                valid = FALSE;
-            }
-            else
-            {
-                if ((qual & IEQUALIFIER_CAPSLOCK) && capsable)
-                    ki->KCFQual |= KCF_SHIFT;
-            }
+            *out = (UBYTE)((c & 0x1f) | ((kcf & KCF_ALT) ? 0x80 : 0));
+            return TRUE;
         }
     }
-
-    return valid;
+    return FALSE;
 }
 
 /****************************************************************************/
@@ -471,16 +416,16 @@ struct KeymapBase * __g_lxa_keymap_InitLib ( register struct KeymapBase *kmb    
     DPRINTF (LOG_DEBUG, "_keymap: InitLib() called\n");
     kmb->SegList = seglist;
     kmb->DefaultKeymap = &default_keymap;
-    
+
     /* Initialize KeyMapResource */
     kmb->KeymapResource.kr_Node.ln_Type = NT_RESOURCE;
     kmb->KeymapResource.kr_Node.ln_Name = "keymap.resource";
-    
+
     /* Initialize the list manually */
     kmb->KeymapResource.kr_List.lh_Head = (struct Node *)&kmb->KeymapResource.kr_List.lh_Tail;
     kmb->KeymapResource.kr_List.lh_Tail = NULL;
     kmb->KeymapResource.kr_List.lh_TailPred = (struct Node *)&kmb->KeymapResource.kr_List.lh_Head;
-    
+
     return kmb;
 }
 
@@ -535,161 +480,161 @@ WORD _keymap_MapRawKey ( register struct KeymapBase  *KeymapBase __asm("a6"),
                          register LONG                length     __asm("d1"),
                          register struct KeyMap      *keyMap     __asm("a2"))
 {
-    struct BufInfo bufinfo;
-    struct KeyInfo ki;
-    UWORD code, qual;
+    struct KeyPress kp;
+    const UBYTE *out = NULL;
+    UBYTE ch;
+    WORD len = 0, i;
+    WORD buflen = (WORD)length;
 
     DPRINTF (LOG_DEBUG, "_keymap: MapRawKey() called class=%d code=0x%04x qual=0x%04x\n",
              event ? event->ie_Class : 0,
              event ? event->ie_Code : 0,
              event ? event->ie_Qualifier : 0);
 
-    bufinfo.Buffer       = (UBYTE *)buffer;
-    bufinfo.BufLength    = length;
-    bufinfo.CharsWritten = 0L;
-
     if (!keyMap)
         keyMap = KeymapBase->DefaultKeymap;
 
-    if (!keyMap)
-        goto done;
+    if (!keyMap || !event || event->ie_Class != IECLASS_RAWKEY)
+        return 0;
 
-    /* Don't handle non-rawkey events */
-    if (!event || event->ie_Class != IECLASS_RAWKEY)
-        goto done;
+    if (!get_key_press(&kp, event->ie_Code, event->ie_Qualifier, keyMap))
+        return 0;
 
-    code = event->ie_Code;
-    qual = event->ie_Qualifier;
+    if (kp.type & KCF_NOP)
+        return 0;
 
-    /* Only codes under 0x78 are valid keyboard codes */
-    if ((code >= 0x78) || (!GetKeyInfo(&ki, code, qual, keyMap)))
-        goto done;
-
-    /* Handle different key types */
-    switch (ki.Key_MapType & (KC_NOQUAL|KCF_STRING|KCF_DEAD|KCF_NOP))
+    if (kp.type & KCF_STRING)
     {
-        case KC_NOQUAL:
+        const UBYTE *d = (const UBYTE *)kp.map;
+        WORD idx = entry_index(kp.type, kp.kcf);
+
+        len = d[idx * 2];
+        out = d + d[idx * 2 + 1];
+    }
+    else if (kp.type & KCF_DEAD)
+    {
+        const UBYTE *d = (const UBYTE *)kp.map;
+        WORD idx = entry_index(kp.type, kp.kcf);
+        UBYTE flag = d[idx * 2];
+        UBYTE val  = d[idx * 2 + 1];
+
+        if (flag == DPF_DEAD)
+            return 0;           /* a dead key itself produces nothing */
+
+        if (flag & DPF_MOD)
         {
-            BYTE idx;
-            UBYTE c;
+            WORD dk = 0;
+            WORD v1 = dead_key_value(event->ie_Prev1DownCode, event->ie_Prev1DownQual, keyMap);
 
-            idx = keymaptype_table[ki.Key_MapType & KC_VANILLA][ki.KCFQual];
-
-            if (idx != -1)
+            if (v1 >= 0)
             {
-                if (idx == -2)
-                {
-                    /* CTRL handling - clear bits 5 and 6 */
-                    idx = 3;
-                    c = GetMapChar(ki.Key_Mapping, idx);
-                    c &= ~((1 << 5)|(1 << 6));
-                }
-                else
-                {
-                    c = GetMapChar(ki.Key_Mapping, idx);
-                }
+                WORD fac = v1 >> DP_2DFACSHIFT;
 
-                if (c != 0)
+                dk = v1 & DP_2DINDEXMASK;
+                if (fac)
                 {
-                    if (!WriteToBuffer(&bufinfo, &c, 1))
-                        goto overflow;
+                    WORD v2 = dead_key_value(event->ie_Prev2DownCode, event->ie_Prev2DownQual, keyMap);
+
+                    dk *= fac;
+                    if (v2 >= 0)
+                        dk += v2 & DP_2DINDEXMASK;
                 }
             }
-            break;
+            ch = d[val + dk];
         }
-
-        case KCF_STRING:
+        else
         {
-            BYTE idx;
-
-            idx = keymapstr_table[ki.Key_MapType & KC_VANILLA][ki.KCFQual];
-
-            if (idx != -1)
-            {
-                const UBYTE *str_descrs = (const UBYTE *)ki.Key_Mapping;
-                UBYTE len, offset;
-
-                /* Each string descriptor uses two bytes */
-                idx *= 2;
-
-                /* Get string info from descriptor table */
-                len    = str_descrs[idx];
-                offset = str_descrs[idx + 1];
-
-                /* Write string to buffer */
-                if (!WriteToBuffer(&bufinfo, &(str_descrs[offset]), len))
-                    goto overflow;
-            }
-            break;
+            ch = val;
         }
-
-        case KCF_DEAD:
+        out = &ch;
+        len = 1;
+    }
+    else
+    {
+        if ((kp.kcf & KCF_CONTROL) && (kp.type & KC_VANILLA) == KC_VANILLA &&
+            vanilla_control(kp.map, kp.kcf, &ch))
         {
-            BYTE idx;
-
-            idx = keymapstr_table[ki.Key_MapType & KC_VANILLA][ki.KCFQual];
-
-            if (idx != -1)
-            {
-                const UBYTE *dead_descr = (const UBYTE *)ki.Key_Mapping;
-                UBYTE dead_type;
-                UBYTE dead_val;
-
-                idx *= 2;
-                dead_type = dead_descr[idx];
-                dead_val = dead_descr[idx + 1];
-
-                if (dead_type == 0)
-                {
-                    if (!WriteToBuffer(&bufinfo, &dead_val, 1))
-                        goto overflow;
-                }
-                else if (dead_type == DPF_MOD)
-                {
-                    WORD dk_idx = 0;
-                    WORD dki_1;
-
-                    dki_1 = GetDeadKeyIndex(event->ie_Prev1DownCode, event->ie_Prev1DownQual, keyMap);
-                    if (dki_1 != -1)
-                    {
-                        dk_idx = dki_1;
-
-                        if (dki_1 >> DP_2DFACSHIFT)
-                        {
-                            WORD dki_2;
-
-                            dk_idx = (dki_1 & DP_2DINDEXMASK) * (dki_1 >> DP_2DFACSHIFT);
-
-                            dki_2 = GetDeadKeyIndex(event->ie_Prev2DownCode, event->ie_Prev2DownQual, keyMap);
-                            if (dki_2 != -1)
-                                dk_idx += (dki_2 & DP_2DINDEXMASK);
-                        }
-                    }
-
-                    dead_val = dead_descr[dead_val + dk_idx];
-                    if (!WriteToBuffer(&bufinfo, &dead_val, 1))
-                        goto overflow;
-                }
-            }
-            break;
+            /* Ctrl on a vanilla key */
         }
-
-        case KCF_NOP:
-            /* Do nothing */
-            break;
-
-        default:
-            DPRINTF (LOG_WARNING, "_keymap: Invalid keymap type for code 0x%04x\n", event->ie_Code);
-            break;
+        else
+        {
+            /* KC_VANILLA has no Ctrl entries: Ctrl is ignored here */
+            WORD idx = entry_index(kp.type & KC_VANILLA, kp.kcf);
+            if (idx > 3)
+                idx &= 3;
+            ch = (UBYTE)(kp.map >> (idx * 8));
+        }
+        out = &ch;
+        len = 1;
     }
 
-done:
-    DPRINTF (LOG_DEBUG, "_keymap: MapRawKey() returning %ld chars\n", bufinfo.CharsWritten);
-    return (WORD)bufinfo.CharsWritten;
-    
-overflow:
-    DPRINTF (LOG_WARNING, "_keymap: MapRawKey() buffer overflow\n");
-    return -1;
+    if (len > buflen)
+    {
+        DPRINTF (LOG_DEBUG, "_keymap: MapRawKey() buffer overflow\n");
+        return -1;
+    }
+
+    for (i = 0; i < len; i++)
+        buffer[i] = out[i];
+
+    return len;
+}
+
+/****************************************************************************/
+/* MapANSI                                                                   */
+/****************************************************************************/
+
+/* a way to type one or more characters */
+struct AnsiCand
+{
+    WORD  len;      /* characters of the input consumed (0 = none found) */
+    WORD  dead;     /* dead key index needed before the key (0 = none) */
+    UBYTE code;
+    UBYTE qual;
+    BOOL  ctrl;     /* found through the vanilla control rule */
+};
+
+static WORD qual_bits(UBYTE q)
+{
+    WORD n = 0;
+    while (q)
+    {
+        n += q & 1;
+        q >>= 1;
+    }
+    return n;
+}
+
+/* pairs of prefix dead keys a dead index needs: 1 single, 2 double */
+static WORD dead_pairs(WORD dead, WORD max_dead)
+{
+    return dead == 0 ? 0 : (dead <= max_dead ? 1 : 2);
+}
+
+/* keys are scanned upwards; a later candidate replaces the current one
+ * only if it is strictly better */
+static void offer(struct AnsiCand *best, WORD len, WORD dead, WORD max_dead,
+                  UBYTE code, UBYTE qual)
+{
+    if (best->len)
+    {
+        if (len < best->len)
+            return;
+        if (len == best->len)
+        {
+            WORD np = dead_pairs(dead, max_dead), bp = dead_pairs(best->dead, max_dead);
+
+            if (np > bp)
+                return;
+            if (np == bp && qual_bits(qual) >= qual_bits(best->qual))
+                return;
+        }
+    }
+    best->len  = len;
+    best->dead = dead;
+    best->code = code;
+    best->qual = qual;
+    best->ctrl = FALSE;
 }
 
 LONG _keymap_MapANSI ( register struct KeymapBase *KeymapBase __asm("a6"),
@@ -699,298 +644,209 @@ LONG _keymap_MapANSI ( register struct KeymapBase *KeymapBase __asm("a6"),
                        register LONG               length     __asm("d1"),
                        register struct KeyMap     *keyMap     __asm("a2"))
 {
-    LONG orig_length = length;
-    LONG max_dead_index = 0;
-    LONG max_double_dead_index = 0;
-    LONG num_deads = 0;
-    UBYTE dead_code[16];
-    UBYTE dead_qual[16];
-    UBYTE double_dead_code[16];
-    UBYTE double_dead_qual[16];
-    const UBYTE *types;
-    const IPTR *descrs;
-    LONG base_code;
-    LONG code;
-    LONG k;
-    UBYTE *out = (UBYTE *)buffer;
+    UBYTE dead_code[16], dead_qual[16];
+    BOOL  dead_valid[16];
+    WORD  max_dead = 0;
+    BOOL  have_double = FALSE;
     const UBYTE *in = (const UBYTE *)string;
+    UBYTE *out = (UBYTE *)buffer;
+    LONG pairs = 0;
+    UWORD code;
+    WORD k;
 
     DPRINTF (LOG_DEBUG, "_keymap: MapANSI() called count=%ld length=%ld\n", count, length);
 
     if (!keyMap)
         keyMap = KeymapBase->DefaultKeymap;
-
     if (!keyMap)
-        return 0;
+        return -2;
 
-    types = keyMap->km_HiKeyMapTypes + (0x68 - 0x40);
-    descrs = keyMap->km_HiKeyMap + (0x68 - 0x40);
-    base_code = 0x40;
-    code = 0x67 - 0x40;
+    /* collect the dead keys: for each index the first key needing the
+     * fewest qualifiers */
+    for (k = 0; k < 16; k++)
+        dead_valid[k] = FALSE;
 
-    for (k = 0; k < (LONG)sizeof(dead_qual); k++)
+    for (code = 0; code < NUM_KEYS; code++)
     {
-        dead_qual[k] = 0xFF;
-        double_dead_qual[k] = 0xFF;
-    }
+        UBYTE type = key_type(keyMap, code);
+        const UBYTE *d = (const UBYTE *)key_map(keyMap, code);
 
-    do
-    {
-        do
+        if ((type & KCF_NOP) || !(type & KCF_DEAD))
+            continue;
+
+        for (k = 0; k < g_num_entries[type & 7]; k++)
         {
-            UBYTE type = *--types;
-            IPTR descr = *--descrs;
-
-            if (((type & KCF_NOP) == 0) && ((type & KCF_DEAD) != 0))
+            if (d[k * 2] == DPF_DEAD)
             {
-                LONG num = mapansi_num_keys_dead[type & 7];
+                WORD idx = d[k * 2 + 1] & DP_2DINDEXMASK;
+                UBYTE q = g_entry_qual[type & 7][k];
 
-                for (k = 0; k < num; k++)
+                if (d[k * 2 + 1] >> DP_2DFACSHIFT)
+                    have_double = TRUE;
+                if (idx > max_dead)
+                    max_dead = idx;
+                if (!dead_valid[idx] || qual_bits(q) < qual_bits(dead_qual[idx]))
                 {
-                    const UBYTE *str_descr = (const UBYTE *)descr;
-
-                    if (str_descr[2 * k] == DPF_DEAD)
-                    {
-                        LONG index = str_descr[2 * k + 1] & DP_2DINDEXMASK;
-                        LONG double_dead = str_descr[2 * k + 1] >> DP_2DFACSHIFT;
-                        UBYTE my_qual = (UBYTE)mapansi_qualifiers_dead[type & 7][k];
-
-                        if ((index > max_dead_index) || ((dead_qual[index] & my_qual) == my_qual))
-                        {
-                            dead_code[index] = (UBYTE)(base_code + code);
-                            dead_qual[index] = my_qual;
-                            if (index > max_dead_index)
-                                max_dead_index = index;
-                        }
-
-                        if (double_dead)
-                        {
-                            if ((index > max_double_dead_index) || ((double_dead_qual[index] & my_qual) == my_qual))
-                            {
-                                double_dead_code[index] = (UBYTE)(base_code + code);
-                                double_dead_qual[index] = my_qual;
-                                if (index > max_double_dead_index)
-                                    max_double_dead_index = index;
-                            }
-                        }
-                    }
+                    dead_valid[idx] = TRUE;
+                    dead_code[idx]  = (UBYTE)code;
+                    dead_qual[idx]  = q;
                 }
             }
-        } while (--code >= 0);
-
-        types = keyMap->km_LoKeyMapTypes + 0x40;
-        descrs = keyMap->km_LoKeyMap + 0x40;
-        base_code -= 0x40;
-        code = 0x3F;
-    } while (base_code >= 0);
-
-    num_deads = (max_double_dead_index + 1) * (max_dead_index + 1);
+        }
+    }
 
     while (count > 0)
     {
-        LONG found_len = 0;
-        ULONG found_code = 0;
-        ULONG found_qual = ~0UL;
-        ULONG dead_key_index = 0;
-        UBYTE my_char = *in;
+        struct AnsiCand best;
+        UBYTE c = *in;
+        WORD need;
 
-        types = keyMap->km_HiKeyMapTypes + (0x68 - 0x40);
-        descrs = keyMap->km_HiKeyMap + (0x68 - 0x40);
-        base_code = 0x40;
-        code = 0x67 - 0x40;
-
-        do
-        {
-            do
-            {
-                UBYTE type = *--types;
-                IPTR descr = *--descrs;
-
-                if (type & KCF_NOP)
-                {
-                    continue;
-                }
-                else if (type & KCF_DEAD)
-                {
-                    if (found_len <= 1)
-                    {
-                        LONG num = mapansi_num_keys_dead[type & 7];
-                        const UBYTE *str_descr = (const UBYTE *)descr;
-
-                        for (k = 0; k < num; k++)
-                        {
-                            switch (str_descr[2 * k])
-                            {
-                                case 0:
-                                {
-                                    if (str_descr[2 * k + 1] == my_char)
-                                    {
-                                        ULONG my_qual = mapansi_qualifiers_dead[type & 7][k];
-
-                                        if ((found_qual & my_qual) == my_qual)
-                                        {
-                                            found_len = 1;
-                                            found_code = (ULONG)(base_code + code);
-                                            found_qual = my_qual;
-                                            dead_key_index = 0;
-                                        }
-                                    }
-                                    break;
-                                }
-
-                                case DPF_MOD:
-                                {
-                                    const UBYTE *dead_keys = str_descr + str_descr[2 * k + 1];
-
-                                    for (LONG l = 0; l < num_deads; l++)
-                                    {
-                                        if (dead_keys[l] == my_char)
-                                        {
-                                            ULONG my_qual = mapansi_qualifiers_dead[type & 7][k];
-
-                                            if ((found_len == 0) ||
-                                                ((l <= (LONG)dead_key_index) && ((found_qual & my_qual) == my_qual)))
-                                            {
-                                                found_len = 1;
-                                                found_code = (ULONG)(base_code + code);
-                                                found_qual = my_qual;
-                                                dead_key_index = (ULONG)l;
-                                            }
-                                        }
-                                    }
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                }
-                else if (type & KCF_STRING)
-                {
-                    LONG num = mapansi_num_keys_dead[type & 7];
-                    const UBYTE *str_descr = (const UBYTE *)descr;
-
-                    for (k = 0; k < num; k++)
-                    {
-                        LONG len = str_descr[2 * k];
-                        const UBYTE *key_str = str_descr + str_descr[2 * k + 1];
-
-                        if ((len <= count) && (len >= found_len))
-                        {
-                            LONG i = 0;
-
-                            while ((i < len) && (in[i] == key_str[i]))
-                                i++;
-
-                            if (i == len)
-                            {
-                                ULONG my_qual = mapansi_qualifiers_dead[type & 7][k];
-
-                                if ((len > found_len) || dead_key_index || ((found_qual & my_qual) == my_qual))
-                                {
-                                    found_len = len;
-                                    found_code = (ULONG)(base_code + code);
-                                    found_qual = my_qual;
-                                    dead_key_index = 0;
-                                }
-                            }
-                        }
-                    }
-                }
-                else if (found_len <= 1)
-                {
-                    LONG num = mapansi_num_keys[type & 7];
-                    IPTR descr2 = descr;
-
-                    for (k = 0; k < num; k++)
-                    {
-                        if ((UBYTE)descr == my_char)
-                        {
-                            ULONG my_qual = mapansi_qualifiers[type & 7][k];
-
-                            if (dead_key_index || ((found_qual & my_qual) == my_qual))
-                            {
-                                found_len = 1;
-                                found_code = (ULONG)(base_code + code);
-                                found_qual = my_qual;
-                                dead_key_index = 0;
-                            }
-                            break;
-                        }
-                        descr >>= 8;
-                    }
-
-                    if (((type & 7) == KC_VANILLA) && ((my_char & 0x60) == 0) && ((found_len == 0) || (dead_key_index != 0)))
-                    {
-                        UBYTE my_qual = IEQUALIFIER_CONTROL;
-
-                        if (my_char & 0x80)
-                        {
-                            my_qual |= IEQUALIFIER_LALT;
-                            descr2 = (descr2 >> 16) | (descr2 << 16);
-                        }
-
-                        if (((descr2 & 0xC0) == 0x40) && ((descr2 & 0x1F) != (my_char & 0x1F)))
-                        {
-                            my_qual |= IEQUALIFIER_LSHIFT;
-                            descr2 >>= 8;
-                        }
-
-                        k = 0;
-                        while ((k < 4) && ((descr2 & 0xC0) != 0x40))
-                        {
-                            k++;
-                            descr2 >>= 8;
-                        }
-
-                        if ((k < 4) && ((descr2 & 0x1F) == (my_char & 0x1F)))
-                        {
-                            found_len = 1;
-                            found_code = (ULONG)(base_code + code);
-                            found_qual = my_qual;
-                            dead_key_index = 0;
-                        }
-                    }
-                }
-            } while (--code >= 0);
-
-            types = keyMap->km_LoKeyMapTypes + 0x40;
-            descrs = keyMap->km_LoKeyMap + 0x40;
-            base_code -= 0x40;
-            code = 0x3F;
-        } while (base_code >= 0);
-
-        if (found_len == 0)
-            return 0;
-
-        length -= 1 + (dead_key_index != 0) + (dead_key_index > (ULONG)max_dead_index);
-        if (length < 0)
+        if (length <= 0)
             return -1;
 
-        if (dead_key_index != 0)
+        best.len = 0;
+        best.dead = 0;
+        best.code = 0;
+        best.qual = 0;
+        best.ctrl = FALSE;
+
+        for (code = 0; code < NUM_KEYS; code++)
         {
-            if (dead_key_index > (ULONG)max_dead_index)
+            UBYTE type = key_type(keyMap, code);
+            ULONG map  = key_map(keyMap, code);
+            WORD  n    = g_num_entries[type & 7];
+
+            if (type & KCF_NOP)
+                continue;
+
+            if (type & KCF_STRING)
             {
-                *out++ = double_dead_code[dead_key_index % (max_dead_index + 1)];
-                *out++ = double_dead_qual[dead_key_index % (max_dead_index + 1)];
-                dead_key_index /= (ULONG)(max_dead_index + 1);
-                *out++ = double_dead_code[dead_key_index];
-                *out++ = double_dead_qual[dead_key_index];
+                const UBYTE *d = (const UBYTE *)map;
+
+                for (k = 0; k < n; k++)
+                {
+                    WORD slen = d[k * 2], i;
+                    const UBYTE *s = d + d[k * 2 + 1];
+
+                    if (slen == 0 || slen > count)
+                        continue;
+                    for (i = 0; i < slen && in[i] == s[i]; i++)
+                        ;
+                    if (i == slen)
+                        offer(&best, slen, 0, max_dead, (UBYTE)code, g_entry_qual[type & 7][k]);
+                }
+            }
+            else if (type & KCF_DEAD)
+            {
+                const UBYTE *d = (const UBYTE *)map;
+
+                for (k = 0; k < n; k++)
+                {
+                    UBYTE q = g_entry_qual[type & 7][k];
+
+                    if (d[k * 2] == 0)
+                    {
+                        if (d[k * 2 + 1] == c)
+                            offer(&best, 1, 0, max_dead, (UBYTE)code, q);
+                    }
+                    else if (d[k * 2] & DPF_MOD)
+                    {
+                        const UBYTE *t = d + d[k * 2 + 1];
+                        WORD size = max_dead + 1, i;
+
+                        if (have_double)
+                            size += max_dead * max_dead;
+
+                        for (i = 0; i < size; i++)
+                        {
+                            if (t[i] != c)
+                                continue;
+                            if (i > 0)
+                            {
+                                if (i <= max_dead)
+                                {
+                                    if (!dead_valid[i])
+                                        continue;
+                                }
+                                else
+                                {
+                                    WORD p1 = (i - 1) % max_dead + 1;
+                                    WORD p2 = (i - p1) / max_dead;
+
+                                    if (!dead_valid[p1] || !dead_valid[p2])
+                                        continue;
+                                }
+                            }
+                            offer(&best, 1, i, max_dead, (UBYTE)code, q);
+                        }
+                    }
+                }
             }
             else
             {
-                *out++ = dead_code[dead_key_index];
-                *out++ = dead_qual[dead_key_index];
+                for (k = 0; k < n; k++)
+                    if ((UBYTE)(map >> (k * 8)) == c)
+                        offer(&best, 1, 0, max_dead, (UBYTE)code, g_entry_qual[type & 7][k]);
+
+                /* Ctrl on a vanilla key: taken only if nothing better is known */
+                if ((type & KC_VANILLA) == KC_VANILLA && (c & 0x60) == 0 &&
+                    (best.len == 0 || best.dead != 0))
+                {
+                    UBYTE q = IEQUALIFIER_CONTROL | ((c & 0x80) ? IEQUALIFIER_LALT : 0);
+                    UBYTE b0 = (UBYTE)map, b1 = (UBYTE)(map >> 8);
+                    BOOL hit = FALSE;
+
+                    if ((b0 & 0xc0) == 0x40 && (b0 & 0x1f) == (c & 0x1f))
+                        hit = TRUE;
+                    else if ((b1 & 0xc0) == 0x40 && (b1 & 0x1f) == (c & 0x1f))
+                    {
+                        hit = TRUE;
+                        q |= IEQUALIFIER_LSHIFT;
+                    }
+                    if (hit)
+                    {
+                        best.len  = 1;
+                        best.dead = 0;
+                        best.code = (UBYTE)code;
+                        best.qual = q;
+                        best.ctrl = TRUE;
+                    }
+                }
             }
         }
 
-        *out++ = (UBYTE)found_code;
-        *out++ = (UBYTE)found_qual;
+        if (best.len == 0)
+            return 0;
 
-        count -= found_len;
-        in += found_len;
+        need = 1 + dead_pairs(best.dead, max_dead);
+        if (need > length)
+            return -1;
+
+        if (best.dead > max_dead)
+        {
+            WORD p1 = (best.dead - 1) % max_dead + 1;
+            WORD p2 = (best.dead - p1) / max_dead;
+
+            *out++ = dead_code[p2];
+            *out++ = dead_qual[p2];
+            *out++ = dead_code[p1];
+            *out++ = dead_qual[p1];
+        }
+        else if (best.dead)
+        {
+            *out++ = dead_code[best.dead];
+            *out++ = dead_qual[best.dead];
+        }
+        *out++ = best.code;
+        *out++ = best.qual;
+
+        length -= need;
+        pairs  += need;
+        count  -= best.len;
+        in     += best.len;
     }
 
-    return orig_length - length;
+    return pairs;
 }
 
 /****************************************************************************/
