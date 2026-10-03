@@ -1,0 +1,58 @@
+-- Allocate/Deallocate (private MemHeader, 1024 bytes)
+initial: free 1024 chunks @0+1024
+Allocate(10) offset = 0
+after 10: free 1008 chunks @16+1008
+Allocate(8) offset = 16
+Allocate(1) offset = 24
+Allocate(100) offset = 32
+after 4 allocations: free 888 chunks @136+888
+Allocate(0) offset = -1
+Allocate(2000) offset = -1
+Allocate(1024) offset = -1
+after failed allocations: free 888 chunks @136+888
+Deallocate b: free 896 chunks @16+8 @136+888
+Deallocate a (merges with b): free 912 chunks @0+24 @136+888
+Allocate(24) offset = 0
+after Allocate(24): free 888 chunks @136+888
+Allocate(16) offset (first fit) = 136
+after Allocate(16): free 872 chunks @152+872
+Deallocate c, d: free 984 chunks @24+112 @152+872
+Deallocate last: free 1000 chunks @24+1000
+Deallocate the 24 bytes: free 1024 chunks @0+1024
+Allocate(1024) whole = 0
+full: free 0 chunks
+Allocate(8) from full = -1
+Deallocate 64@64, 32@256, 64@128 (out of order): free 160 chunks @64+128 @256+32
+Deallocate 64@192 (bridges): free 224 chunks @64+224
+-- AllocMem/AllocVec
+AllocMem(0) = NULL
+AllocVec(0) = NULL
+AllocMem(0x7ffffff0) = NULL
+AllocVec(0x7ffffff0) = NULL
+AllocMem(64, MEMF_CLEAR) byte sum = 0
+AllocMem alignment (addr & 7) = 0
+AllocVec(100, MEMF_CLEAR) byte sum = 0
+AllocVec alignment (addr & 3) = 0
+AllocVec size longword before block = 104
+FreeVec(NULL) survived = 1
+-- AllocEntry/FreeEntry
+AllocEntry ok (bit 31 clear) = TRUE
+ml_NumEntries = 3
+ln_Type = 0
+entry 0: length 30, addr non-NULL
+entry 1: length 8, addr non-NULL
+entry 2: length 0, addr NULL
+entry 0 MEMF_CLEAR sum = 0
+AllocEntry failure result = 0x80010001
+-- pools
+CreatePool = non-NULL
+AllocPooled x8 (MEMF_CLEAR) byte sum = 0
+AllocPooled(2000) (> puddle) = non-NULL
+large AllocPooled byte sum = 0
+DeletePool(NULL) survived = 1
+-- CopyMem/CopyMemQuick
+CopyMem alignment/length matrix hash = 0xbd0d891a
+CopyMemQuick 32 = 00 00 00 00 01 02 03 04 02 04 06 08 03 06 09 0c 04 08 0c 10 05 0a 0f 14 06 0c 12 18 07 0e 15 1c 08 10 18 20 00 00 00 00
+CopyMemQuick 0 first long unchanged = 1
+-- InitStruct
+InitStruct = 00 00 11 90 04 22 33 80 08 44 55 66 77 21 aa bb 52 12 34 00 00 00 00 00 de ad be ef 99 00 00 00 00 00 00 00 00 00 00 00

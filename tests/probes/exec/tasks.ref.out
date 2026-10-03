@@ -1,0 +1,37 @@
+-- FindTask
+FindTask(NULL) == ThisTask = TRUE
+ln_Type (process) = 13
+tc_State = "RUN"
+FindTask(missing) = NULL
+-- SetTaskPri
+SetTaskPri(me, 3) old = 0
+ln_Pri now = 3
+SetTaskPri(me, -128) old = 3
+SetTaskPri(me, 127) old = -128
+-- subtask life cycle
+subtask ln_Type = 1
+subtask tc_State after AddTask (higher pri, now waiting) = "WAIT"
+subtask tc_SigWait = 0x00001000
+subtask tc_SigAlloc = 0x0000ffff
+FindTask(name) finds it = TRUE
+SetTaskPri(sub, -5) old = 1
+tc_State after SetTaskPri = "WAIT"
+tc_State after Signal (lower pri) = "READY"
+subtask has not run yet = 0
+subtask ran after main waited = 1
+FindTask(name) after exit = NULL
+-- RemTask of a waiting task
+FindTask finds it = TRUE
+FindTask after RemTask = NULL
+-- scheduling order
+tc_State of a (Forbid) = "READY"
+run order (c pri 5, main pri 0, a,b pri -1) = "cMab"
+-- Forbid/Disable nesting
+TDNestCnt normal = -1
+TDNestCnt Forbid = 0
+TDNestCnt Forbid x2 = 1
+TDNestCnt after Permit x2 = -1
+IDNestCnt normal = -1
+IDNestCnt Disable = 0
+IDNestCnt Disable x2 = 1
+IDNestCnt after Enable x2 = -1

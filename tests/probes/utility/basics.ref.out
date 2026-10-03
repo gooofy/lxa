@@ -1,0 +1,52 @@
+-- Stricmp/Strnicmp
+pair 0: stricmp sign = 0, strnicmp(3) sign = 0
+pair 1: stricmp sign = -1, strnicmp(3) sign = -1
+pair 2: stricmp sign = 1, strnicmp(3) sign = 1
+pair 3: stricmp sign = 0, strnicmp(3) sign = 0
+pair 4: stricmp sign = 1, strnicmp(3) sign = 1
+pair 5: stricmp sign = -1, strnicmp(3) sign = -1
+pair 6: stricmp sign = 0, strnicmp(3) sign = 0
+pair 7: stricmp sign = -1, strnicmp(3) sign = 0
+pair 8: stricmp sign = -1, strnicmp(3) sign = -1
+pair 9: stricmp sign = 1, strnicmp(3) sign = 1
+pair 10: stricmp sign = -1, strnicmp(3) sign = 0
+Strnicmp(abcX, ABCY, 0x7fffffff) sign = -1
+Strnicmp(abcX, ABCY, 0x10003) sign = -1
+Strnicmp(abcX, ABCY, 0)  = 0
+-- ToUpper/ToLower
+ToUpper table hash = 0x633122e5
+ToLower table hash = 0xb02964a5
+ToUpper 0xe0..0xff = c0 c1 c2 c3 c4 c5 c6 c7 c8 c9 ca cb cc cd ce cf d0 d1 d2 d3 d4 d5 d6 d7 d8 d9 da db dc dd de ff
+ToLower 0xc0..0xdf = e0 e1 e2 e3 e4 e5 e6 e7 e8 e9 ea eb ec ed ee ef f0 f1 f2 f3 f4 f5 f6 f7 f8 f9 fa fb fc fd fe df
+-- Amiga2Date/Date2Amiga/CheckDate
+Amiga2Date 0: 1978-1-1 0:0:0 wday 0 back 0x00000000
+Amiga2Date 1: 1978-1-1 0:0:1 wday 0 back 0x00000001
+Amiga2Date 2: 1978-1-1 0:0:59 wday 0 back 0x0000003b
+Amiga2Date 3: 1978-1-1 23:59:59 wday 0 back 0x0001517f
+Amiga2Date 4: 1978-1-2 0:0:0 wday 1 back 0x00015180
+Amiga2Date 5: 1978-12-31 23:59:59 wday 0 back 0x01e1337f
+Amiga2Date 6: 1979-12-31 23:59:59 wday 1 back 0x03c266ff
+Amiga2Date 7: 1980-1-1 0:0:0 wday 2 back 0x03c26700
+Amiga2Date 8: 1999-1-2 0:0:0 wday 6 back 0x27812280
+Amiga2Date 9: 2009-9-9 1:46:40 wday 3 back 0x3b9aca00
+Amiga2Date 10: 2046-1-19 3:14:7 wday 5 back 0x7fffffff
+Amiga2Date 11: 2114-2-7 6:28:15 wday 3 back 0xffffffff
+CheckDate 2000-02-29 = 0x29aecd00
+CheckDate 1900-02-29 = 0x00000000
+CheckDate 1977-02-29 = 0x00000000
+CheckDate 1978-04-31 = 0x00000000
+CheckDate 1978-13-01 = 0x00000000
+CheckDate hour 24 = 0x00000000
+-- SMult32/UMult32/SDivMod32/UDivMod32
+SMult32(-7, 6) = 0xffffffd6
+SMult32(0x10000, 0x10000) = 0x00000000
+UMult32(0xffffffff, 2) = 0xfffffffe
+UMult32(123456, 654321) = 0xcedabe40
+-- TagItems
+GetTagData(+1) = 11
+GetTagData(+3 skipped) = -1
+GetTagData(+4) = 44
+GetTagData(missing) = -1
+FindTagItem(+2) index = 2
+TagInArray(+2) = TRUE
+TagInArray(+7) = FALSE

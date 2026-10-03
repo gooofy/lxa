@@ -485,6 +485,12 @@ int op_illg(int level)
             break;
         }
 
+        case EMU_CALL_SUPERVISOR:
+            /* the illegal-instruction callback runs before the exception
+             * is taken: SR still holds the caller's mode */
+            m68k_set_reg(M68K_REG_D0, (m68k_get_reg(NULL, M68K_REG_SR) & 0x2000) ? 1 : 0);
+            break;
+
         case EMU_CALL_DELAY:
         {
             /*

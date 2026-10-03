@@ -536,7 +536,41 @@ static void exec_finish_interrupt_dispatch(struct Interrupt *interrupt)
         interrupt->is_Node.ln_Type = NT_INTERRUPT;
 }
 
-static struct Resident *g_ResidentModules[36];
+static struct Resident *g_ResidentModules[37];
+
+/* exec's own RomTag: FindResident("exec.library") finds it on AmigaOS
+ * (reference-verified, Tests/Probes/exec/libraries).  rt_Flags 0: lxa
+ * initialises exec in coldstart(), never through InitCode(). */
+static const char g_exec_idstring[] = "exec 40.10 (lxa)\r\n";
+static const struct Resident g_exec_romtag = {
+    RTC_MATCHWORD, (struct Resident *)&g_exec_romtag, (APTR)(&g_exec_romtag + 1),
+    0, 40, NT_LIBRARY, 105, (char *)"exec.library", (char *)g_exec_idstring, NULL
+};
+
+/* exec.library's standard library vectors (Open/Close/Expunge/Reserved) */
+static struct Library *_exec_LibOpen(register struct ExecBase *SysBase __asm("a6"))
+{
+    SysBase->LibNode.lib_OpenCnt++;
+    SysBase->LibNode.lib_Flags &= ~LIBF_DELEXP;
+    return &SysBase->LibNode;
+}
+
+static BPTR _exec_LibClose(register struct ExecBase *SysBase __asm("a6"))
+{
+    SysBase->LibNode.lib_OpenCnt--;
+    return 0;
+}
+
+static BPTR _exec_LibExpunge(register struct ExecBase *SysBase __asm("a6"))
+{
+    /* exec is never expunged */
+    return 0;
+}
+
+static ULONG _exec_LibNull(void)
+{
+    return 0;
+}
 
 static struct List *exec_get_resident_target_list(struct ExecBase *SysBase,
                                                   UBYTE resident_type)
@@ -747,7 +781,11 @@ void _exec_InitStruct ( register struct ExecBase * SysBase __asm("a6"),
     UBYTE *dst = (UBYTE *) ___memory;
 
     ULONG off=0;
-    while (*it)
+    /* AmigaOS 3.1 (reference-verified, Tests/Probes/exec/memory): every
+     * command byte is fetched from an even table address, WORD/LONG data
+     * follows at the next even address, and the destination is never
+     * re-aligned (an odd current offset stays odd). */
+    while (*(it = (UBYTE *) ALIGN ((ULONG)it, 2)))
     {
         UBYTE action = *it>>6 & 3;
 
@@ -779,7 +817,6 @@ void _exec_InitStruct ( register struct ExecBase * SysBase __asm("a6"),
             case 0: // LONG
             case 1: // WORD
                 it  = (UBYTE*) ALIGN ((ULONG)it , 2);
-                dst = (UBYTE*) ALIGN ((ULONG)dst, 2);
                 break;
             case 2: // BYTE
                 break;
@@ -977,7 +1014,7 @@ struct Library * _exec_MakeLibrary ( register struct ExecBase * SysBase __asm("a
 
 
 
-void _exec_MakeFunctions ( register struct ExecBase * SysBase __asm("a6"),
+ULONG _exec_MakeFunctions ( register struct ExecBase * SysBase __asm("a6"),
                            register APTR ___target  __asm("a0"),
                            register const APTR ___functionArray  __asm("a1"),
                            register const APTR ___funcDispBase  __asm("a2"))
@@ -1014,6 +1051,8 @@ void _exec_MakeFunctions ( register struct ExecBase * SysBase __asm("a6"),
         }
     }
     DPRINTF (LOG_DEBUG, "_exec: MakeFunctions done, %d entries set.\n", n);
+    /* result: size of the jump table built (reference-verified) */
+    return (n - 1) * sizeof(struct JumpVec);
 }
 
 struct Resident * _exec_FindResident ( register struct ExecBase * SysBase __asm("a6"),
@@ -1139,6 +1178,9 @@ void _exec_Debug ( register struct ExecBase * SysBase __asm("a6"),
     DPRINTF (LOG_DEBUG, "_exec: Debug called, flags=0x%08lx\n", ___flags);
 }
 
+#define LXA_SFF_SAR (1 << 15)
+static void exec_preempt(struct ExecBase *SysBase);
+
 void _exec_Disable ( register struct ExecBase * SysBase __asm("a6"))
 {
     DPRINTF (LOG_DEBUG, "_exec: Disable() called.\n");
@@ -1153,7 +1195,11 @@ void _exec_Enable ( register struct ExecBase * SysBase __asm("a6"))
     DPRINTF (LOG_DEBUG, "_exec: Enable() called.\n");
     SysBase->IDNestCnt--;
     if (SysBase->IDNestCnt<0)
+    {
         custom->intena = 0xc000; // 1100 0000 0000 0000
+        if (SysBase->TDNestCnt < 0 && (SysBase->SysFlags & LXA_SFF_SAR))
+            exec_preempt(SysBase);
+    }
 }
 
 void _exec_Forbid ( register struct ExecBase * SysBase __asm("a6"))
@@ -1168,6 +1214,8 @@ void _exec_Permit ( register struct ExecBase * SysBase __asm("a6"))
     DPRINTF (LOG_DEBUG, "_exec: Permit() called.\n");
     SysBase->TDNestCnt--;
     DPRINTF (LOG_DEBUG, "_exec: Permit() --> SysBase->TDNestCnt=%d\n", SysBase->TDNestCnt);
+    if (SysBase->TDNestCnt < 0 && SysBase->IDNestCnt < 0 && (SysBase->SysFlags & LXA_SFF_SAR))
+        exec_preempt(SysBase);
 }
 
 APTR _exec_SuperState ( register struct ExecBase * SysBase __asm("a6"))
@@ -2021,6 +2069,8 @@ APTR _exec_AddTask ( register struct ExecBase *SysBase __asm("a6"),
 
     Enable();
 
+    exec_preempt(SysBase);
+
     return task;
 }
 
@@ -2284,6 +2334,8 @@ BYTE _exec_SetTaskPri ( register struct ExecBase * SysBase __asm("a6"),
 
     Enable();
 
+    exec_preempt(SysBase);
+
     DPRINTF (LOG_DEBUG, "_exec: SetTaskPri() returning old priority %d\n", oldPri);
     return oldPri;
 }
@@ -2504,6 +2556,50 @@ ULONG _exec_Wait ( register struct ExecBase * SysBase __asm("a6"),
     return rcvd;
 }
 
+/*
+ * exec_preempt() - give the CPU to a higher-priority ready task now.
+ *
+ * AmigaOS switches tasks as soon as a task of higher priority than the
+ * running one becomes ready (Signal, AddTask, SetTaskPri, Permit, Enable),
+ * not only at the next quantum (reference-verified, Phase 222a probes
+ * Tests/Probes/exec/tasks + semaphores).  While multitasking or interrupts
+ * are disabled the switch is deferred (SFF_SAR) until Permit()/Enable().
+ * In interrupt code (supervisor mode) nothing happens here: the interrupt
+ * exit runs Schedule(), which sees the higher-priority task.
+ */
+static void exec_preempt(struct ExecBase *SysBase)
+{
+    struct Task *me = SysBase->ThisTask;
+    struct Node *head;
+
+    if (!me || me->tc_State != TS_RUN)
+        return;
+    head = SysBase->TaskReady.lh_Head;
+    if (!head->ln_Succ || head->ln_Pri <= me->tc_Node.ln_Pri)
+        return;
+    if (SysBase->TDNestCnt >= 0 || SysBase->IDNestCnt >= 0)
+    {
+        SysBase->SysFlags |= LXA_SFF_SAR;
+        return;
+    }
+    if (emucall0(EMU_CALL_SUPERVISOR))
+        return;
+
+    SysBase->SysFlags &= ~LXA_SFF_SAR;
+    Disable();
+    me->tc_State = TS_READY;
+    Enqueue(&SysBase->TaskReady, &me->tc_Node);
+    asm volatile (
+        "   move.l  a5, -(a7)               \n"
+        "   move.l  4, a6                   \n"
+        "   move.l  #_exec_Switch, a5       \n"
+        "   jsr     -30(a6)                 \n"     // Supervisor(Switch)
+        "   move.l  (a7)+, a5               \n"
+        : : : "cc", "d0", "d1", "a0", "a1", "a6", "memory"
+    );
+    Enable();
+}
+
 void _exec_Signal ( register struct ExecBase * SysBase __asm("a6"),
                                                         register struct Task * ___task  __asm("a1"),
                                                         register ULONG ___signalSet  __asm("d0"))
@@ -2624,6 +2720,8 @@ void _exec_Signal ( register struct ExecBase * SysBase __asm("a6"),
     }
 
     Enable();
+
+    exec_preempt(SysBase);
 
     DPRINTF (LOG_DEBUG, "_exec: Signal() done\n");
 }
@@ -2957,14 +3055,16 @@ void _exec_AddLibrary ( register struct ExecBase * SysBase __asm("a6"),
     DPRINTF (LOG_DEBUG, "_exec: AddLibrary complete\n");
 }
 
-void _exec_RemLibrary ( register struct ExecBase * SysBase __asm("a6"),
+ULONG _exec_RemLibrary ( register struct ExecBase * SysBase __asm("a6"),
                                                         register struct Library * ___library  __asm("a1"))
 {
     DPRINTF (LOG_DEBUG, "_exec: RemLibrary called, library=0x%08lx name='%s'\n",
              (ULONG)___library, STRORNULL(___library ? ___library->lib_Node.ln_Name : NULL));
 
+    BPTR seglist = 0;
+
     if (!___library)
-        return;
+        return 0;
 
     /* Call the library's expunge vector (LVO -18, offset 3) */
     /* This attempts to remove the library from memory */
@@ -2980,7 +3080,8 @@ void _exec_RemLibrary ( register struct ExecBase * SysBase __asm("a6"),
     {
         DPRINTF (LOG_DEBUG, "_exec: Calling library expunge vector at 0x%08lx\n", (ULONG)expunge_fn);
         /* Call: BPTR Expunge(struct Library *lib __asm("d0")) */
-        BPTR seglist = expunge_fn(___library);
+        /* the Expunge result is RemLibrary's result (reference-verified) */
+        seglist = expunge_fn(___library);
         DPRINTF (LOG_DEBUG, "_exec: Expunge returned seglist=0x%08lx\n", (ULONG)seglist);
     }
     else
@@ -2991,6 +3092,7 @@ void _exec_RemLibrary ( register struct ExecBase * SysBase __asm("a6"),
     Permit();
 
     DPRINTF (LOG_DEBUG, "_exec: RemLibrary complete\n");
+    return (ULONG)seglist;
 }
 
 struct Library * _exec_OldOpenLibrary ( register struct ExecBase *SysBase __asm("a6"),
@@ -3493,22 +3595,143 @@ APTR _exec_OpenResource ( register struct ExecBase * SysBase __asm("a6"),
 /*
  * RawDoFmt - Core formatting engine for Printf, etc.
  *
- * Format string specifiers:
- *   %[-][0][width][.precision][l]d - signed decimal
- *   %[-][0][width][.precision][l]u - unsigned decimal
- *   %[-][0][width][.precision][l]x - upper-case hex (sic, AmigaOS 3.1)
- *   %[-][0][width][.precision][l]X - lower-case hex (sic, AmigaOS 3.1)
- *   %[-][width]s - string
- *   %[-][width]c - character
- *   %b - BSTR (BCPL string with length byte)
- *   %% - literal %
+ * Behaviour of AmigaOS 3.1 (with locale.library running, as on every
+ * booted Workbench), established by Tests/Probes/exec/rawdofmt on the
+ * reference machine (Phase 222a):
+ *
+ *   %[n$][flags][width][.limit][l...]conv
+ *
+ *   flags   any sequence of '-' (left-justify) and '0' (pad with '0')
+ *   width   decimal minimum field width
+ *   .limit  maximum field length; it truncates every conversion, numbers
+ *           included ("%.3d" of 32767 -> "327").  '.' without digits
+ *           sets no limit
+ *   l       LONG argument (repeatable); otherwise d/u/x/c take a WORD
+ *   conv    d D (signed), u U (unsigned), x (upper-case hex!), X (lower-
+ *           case hex!), c (character, may be NUL), s (C string, NULL ->
+ *           ""), b (BSTR); any other character is printed by itself,
+ *           without the '%' and without padding; NUL ends the format
+ *   n$      positional argument (n >= 1).  A conversion without n$
+ *           takes the current argument number and advances it; n$ sets
+ *           it.  Argument n lives at the sum of the sizes of arguments
+ *           1..n-1 (the size an argument was last given in the format;
+ *           unused numbers occupy nothing).  "%$" and "%0$" print the '%'
+ *           literally.
+ *
+ *   Zero padding a negative d/D conversion prints '-', the zeros, and
+ *   then the (limited) field length starting after the sign, i.e. one
+ *   character more: the terminating NUL of the number, or the next digit
+ *   when the limit cut it ("%05ld" of -12 -> "-0012\0").
  *
  * The putChProc callback is called for each character with:
  *   D0 = character
  *   A3 = putChData
  *
- * Returns pointer to end of dataStream (past last argument used)
+ * Returns pointer to end of dataStream (past the last argument).
  */
+
+#define RDF_MAXARGS 64
+
+struct rdf_spec
+{
+    const UBYTE *next;      /* format position after the conversion   */
+    UWORD        argnum;    /* 1-based argument number (0: none)       */
+    UBYTE        conv;      /* conversion character (0: end of format) */
+    UBYTE        isLong;
+    UBYTE        leftAlign;
+    UBYTE        zeroPad;
+    UBYTE        literal;   /* "%$", "%0$": print '%' and resume after it */
+    WORD         width;
+    WORD         limit;     /* -1: none */
+};
+
+/* parse one conversion; fmt points behind the '%' */
+static void rdf_parse(const UBYTE *fmt, UWORD *cur, struct rdf_spec *sp)
+{
+    const UBYTE *p = fmt;
+    ULONG n = 0;
+    BOOL digits = FALSE;
+
+    sp->literal = 0;
+    sp->argnum = 0;
+
+    while (*p >= '0' && *p <= '9')
+    {
+        n = n * 10 + (*p++ - '0');
+        digits = TRUE;
+    }
+    if (*p == '$')
+    {
+        if (!digits || n == 0)
+        {
+            sp->literal = 1;
+            sp->next = fmt;
+            sp->conv = '%';
+            return;
+        }
+        *cur = (UWORD)(n > RDF_MAXARGS ? RDF_MAXARGS : n);
+        sp->argnum = *cur;
+        fmt = p + 1;
+    }
+    else
+    {
+        sp->argnum = (*cur)++;
+        if (*cur > RDF_MAXARGS)
+            *cur = RDF_MAXARGS;
+    }
+
+    p = fmt;
+    sp->leftAlign = 0;
+    sp->zeroPad = 0;
+    while (*p == '-' || *p == '0')
+    {
+        if (*p == '-')
+            sp->leftAlign = 1;
+        else
+            sp->zeroPad = 1;
+        p++;
+    }
+
+    sp->width = 0;
+    while (*p >= '0' && *p <= '9')
+        sp->width = sp->width * 10 + (*p++ - '0');
+
+    sp->limit = -1;
+    if (*p == '.')
+    {
+        p++;
+        if (*p >= '0' && *p <= '9')
+        {
+            sp->limit = 0;
+            while (*p >= '0' && *p <= '9')
+                sp->limit = sp->limit * 10 + (*p++ - '0');
+        }
+    }
+
+    sp->isLong = 0;
+    while (*p == 'l')
+    {
+        sp->isLong = 1;
+        p++;
+    }
+
+    sp->conv = *p;
+    sp->next = *p ? p + 1 : p;
+}
+
+/* argument size of a conversion, 0 if it takes none */
+static UBYTE rdf_argsize(const struct rdf_spec *sp)
+{
+    switch (sp->conv)
+    {
+        case 'd': case 'D': case 'u': case 'U': case 'x': case 'X': case 'c':
+            return sp->isLong ? 4 : 2;
+        case 's': case 'b':
+            return 4;
+    }
+    return 0;
+}
+
 APTR _exec_RawDoFmt ( register struct ExecBase * SysBase __asm("a6"),
                                                         register CONST_STRPTR ___formatString  __asm("a0"),
                                                         register const APTR ___dataStream  __asm("a1"),
@@ -3518,8 +3741,11 @@ APTR _exec_RawDoFmt ( register struct ExecBase * SysBase __asm("a6"),
     DPRINTF (LOG_DEBUG, "_exec: RawDoFmt called fmt='%s', dataStream=0x%08lx\n",
              ___formatString, ___dataStream);
 
-    const UBYTE *fmt = (const UBYTE *)___formatString;
-    UWORD *args = (UWORD *)___dataStream;
+    const UBYTE *fmt;
+    UBYTE sizes[RDF_MAXARGS + 1];
+    UWORD offsets[RDF_MAXARGS + 1];
+    UWORD cur, i, maxarg = 0, total = 0;
+    struct rdf_spec sp;
 
     /* Helper to output a character via putChProc */
     #define PUT_CHAR(ch) do { \
@@ -3535,6 +3761,36 @@ APTR _exec_RawDoFmt ( register struct ExecBase * SysBase __asm("a6"),
         ___putChData = __data; \
     } while(0)
 
+    /* pass 1: the size of every argument (the last use decides) */
+    for (i = 0; i <= RDF_MAXARGS; i++)
+        sizes[i] = 0;
+    cur = 1;
+    fmt = (const UBYTE *)___formatString;
+    while (*fmt)
+    {
+        if (*fmt++ != '%')
+            continue;
+        rdf_parse(fmt, &cur, &sp);
+        fmt = sp.next;
+        if (sp.literal || !sp.conv)
+            continue;
+        if (rdf_argsize(&sp))
+        {
+            sizes[sp.argnum] = rdf_argsize(&sp);
+            if (sp.argnum > maxarg)
+                maxarg = sp.argnum;
+        }
+    }
+    for (i = 1; i <= RDF_MAXARGS; i++)
+    {
+        offsets[i] = total;
+        if (i <= maxarg)
+            total += sizes[i];
+    }
+
+    /* pass 2: format */
+    cur = 1;
+    fmt = (const UBYTE *)___formatString;
     while (*fmt)
     {
         if (*fmt != '%')
@@ -3542,393 +3798,133 @@ APTR _exec_RawDoFmt ( register struct ExecBase * SysBase __asm("a6"),
             PUT_CHAR(*fmt++);
             continue;
         }
-
-        fmt++; /* Skip '%' */
-
-        if (*fmt == '%')
+        rdf_parse(++fmt, &cur, &sp);
+        fmt = sp.next;
+        if (sp.literal)
         {
             PUT_CHAR('%');
-            fmt++;
             continue;
         }
+        if (!sp.conv)
+            break;
 
-        /* Parse flags */
-        int leftAlign = 0;
-        int zeroPad = 0;
+        const UBYTE *arg = (const UBYTE *)___dataStream + offsets[sp.argnum];
+        char buf[16];
+        const UBYTE *field = (const UBYTE *)buf;
+        LONG len = 0;
+        BOOL negative = FALSE;
+        ULONG value = 0;
 
-        while (*fmt == '-' || *fmt == '0')
+        switch (sp.conv)
         {
-            if (*fmt == '-') leftAlign = 1;
-            if (*fmt == '0' && !leftAlign) zeroPad = 1;
-            fmt++;
-        }
-
-        /* Parse width */
-        int width = 0;
-        while (*fmt >= '0' && *fmt <= '9')
-        {
-            width = width * 10 + (*fmt - '0');
-            fmt++;
-        }
-
-        /* Parse precision (for strings) */
-        int precision = -1;
-        if (*fmt == '.')
-        {
-            fmt++;
-            precision = 0;
-            while (*fmt >= '0' && *fmt <= '9')
-            {
-                precision = precision * 10 + (*fmt - '0');
-                fmt++;
-            }
-        }
-
-        /* Parse size modifier */
-        int isLong = 0;
-        if (*fmt == 'l')
-        {
-            isLong = 1;
-            fmt++;
-        }
-
-        /* Parse conversion specifier */
-        char specifier = *fmt++;
-
-        switch (specifier)
-        {
-            case 'd':
-            case 'D':
-            {
-                /* Signed decimal */
-                LONG value;
-                if (isLong)
-                {
-                    value = *(LONG *)args;
-                    args += 2;
-                }
+            case 'd': case 'D': case 'u': case 'U': case 'x': case 'X': case 'c':
+                if (sp.isLong)
+                    value = *(const ULONG *)arg;
+                else if (sp.conv == 'd' || sp.conv == 'D')
+                    value = (ULONG)(LONG)*(const WORD *)arg;
                 else
-                {
-                    value = (WORD)*args++;
-                }
-
-                /* Convert to string */
-                char buf[12];
-                char *p = buf + sizeof(buf) - 1;
-                *p = '\0';
-
-                int negative = 0;
-                ULONG uval;
-                if (value < 0)
-                {
-                    negative = 1;
-                    uval = (ULONG)(-value);
-                }
-                else
-                {
-                    uval = (ULONG)value;
-                }
-
-                do
-                {
-                    *--p = '0' + (uval % 10);
-                    uval /= 10;
-                } while (uval);
-
-                /* Output with padding.
-                 * For zero-padded negative numbers, output sign first,
-                 * then zeros, then digits (e.g. "-0005" not "000-5").
-                 */
-                int len = (buf + sizeof(buf) - 1) - p;
-                int signLen = negative ? 1 : 0;
-
-                if (!leftAlign)
-                {
-                    if (zeroPad)
-                    {
-                        /* Sign before zero-padding */
-                        if (negative)
-                            PUT_CHAR('-');
-
-                        while (len + signLen < width)
-                        {
-                            PUT_CHAR('0');
-                            width--;
-                        }
-                    }
-                    else
-                    {
-                        /* Space padding: sign is part of the string */
-                        if (negative)
-                            *--p = '-';
-
-                        len = (buf + sizeof(buf) - 1) - p;
-
-                        while (len < width)
-                        {
-                            PUT_CHAR(' ');
-                            width--;
-                        }
-                    }
-                }
-                else
-                {
-                    /* Left-aligned: prepend sign to digit string */
-                    if (negative)
-                    {
-                        *--p = '-';
-                        len++;
-                    }
-                }
-
-                while (*p)
-                    PUT_CHAR(*p++);
-
-                if (leftAlign)
-                {
-                    while (len < width)
-                    {
-                        PUT_CHAR(' ');
-                        width--;
-                    }
-                }
+                    value = *(const UWORD *)arg;
                 break;
-            }
+        }
 
-            case 'u':
-            case 'U':
+        switch (sp.conv)
+        {
+            case 'd': case 'D': case 'u': case 'U':
             {
-                /* Unsigned decimal */
-                ULONG value;
-                if (isLong)
+                char tmp[12];
+                int n = 0;
+                if ((sp.conv == 'd' || sp.conv == 'D') && (LONG)value < 0)
                 {
-                    value = *(ULONG *)args;
-                    args += 2;
+                    negative = TRUE;
+                    value = (ULONG)(-(LONG)value);
                 }
-                else
-                {
-                    value = *args++;
-                }
-
-                char buf[11];
-                char *p = buf + sizeof(buf) - 1;
-                *p = '\0';
-
                 do
                 {
-                    *--p = '0' + (value % 10);
+                    tmp[n++] = (char)('0' + value % 10);
                     value /= 10;
                 } while (value);
-
-                int len = (buf + sizeof(buf) - 1) - p;
-                char padChar = zeroPad ? '0' : ' ';
-
-                if (!leftAlign)
-                {
-                    while (len < width)
-                    {
-                        PUT_CHAR(padChar);
-                        width--;
-                    }
-                }
-
-                while (*p)
-                    PUT_CHAR(*p++);
-
-                if (leftAlign)
-                {
-                    while (len < width)
-                    {
-                        PUT_CHAR(' ');
-                        width--;
-                    }
-                }
+                if (negative)
+                    buf[len++] = '-';
+                while (n)
+                    buf[len++] = tmp[--n];
+                buf[len] = 0;
                 break;
             }
-
-            case 'x':
-            case 'X':
+            case 'x': case 'X':
             {
-                /* Hexadecimal */
-                ULONG value;
-                if (isLong)
-                {
-                    value = *(ULONG *)args;
-                    args += 2;
-                }
-                else
-                {
-                    value = *args++;
-                }
-
-                /* AmigaOS 3.1 RawDoFmt (verified on the reference machine):
-                 * %x prints upper-case digits, %X lower-case ones. */
-                const char *hexDigits = (specifier == 'X') ? "0123456789abcdef"
-                                                           : "0123456789ABCDEF";
-
-                char buf[9];
-                char *p = buf + sizeof(buf) - 1;
-                *p = '\0';
-
+                const char *hex = sp.conv == 'X' ? "0123456789abcdef" : "0123456789ABCDEF";
+                char tmp[8];
+                int n = 0;
                 do
                 {
-                    *--p = hexDigits[value & 0xF];
+                    tmp[n++] = hex[value & 15];
                     value >>= 4;
                 } while (value);
-
-                int len = (buf + sizeof(buf) - 1) - p;
-                char padChar = zeroPad ? '0' : ' ';
-
-                if (!leftAlign)
-                {
-                    while (len < width)
-                    {
-                        PUT_CHAR(padChar);
-                        width--;
-                    }
-                }
-
-                while (*p)
-                    PUT_CHAR(*p++);
-
-                if (leftAlign)
-                {
-                    while (len < width)
-                    {
-                        PUT_CHAR(' ');
-                        width--;
-                    }
-                }
+                while (n)
+                    buf[len++] = tmp[--n];
+                buf[len] = 0;
                 break;
             }
-
-            case 's':
-            case 'S':
-            {
-                /* String */
-                char *str = (char *)*(ULONG *)args;
-                args += 2;
-
-                if (!str)
-                    str = "";
-
-                int len = 0;
-                char *s = str;
-                while (*s && (precision < 0 || len < precision))
-                {
-                    len++;
-                    s++;
-                }
-
-                if (!leftAlign)
-                {
-                    while (len < width)
-                    {
-                        PUT_CHAR(' ');
-                        width--;
-                    }
-                }
-
-                s = str;
-                int printed = 0;
-                while (*s && (precision < 0 || printed < precision))
-                {
-                    PUT_CHAR(*s++);
-                    printed++;
-                }
-
-                if (leftAlign)
-                {
-                    while (printed < width)
-                    {
-                        PUT_CHAR(' ');
-                        printed++;
-                    }
-                }
-                break;
-            }
-
-            case 'b':
-            case 'B':
-            {
-                /* BSTR - BCPL string with length byte */
-                BPTR bstr = *(BPTR *)args;
-                args += 2;
-
-                UBYTE *str = (UBYTE *)BADDR(bstr);
-                int len = 0;
-
-                if (str)
-                {
-                    len = str[0];  /* First byte is length */
-                    str++;         /* Skip length byte */
-                }
-
-                if (!leftAlign)
-                {
-                    while (len < width)
-                    {
-                        PUT_CHAR(' ');
-                        width--;
-                    }
-                }
-
-                for (int i = 0; i < len; i++)
-                    PUT_CHAR(str[i]);
-
-                if (leftAlign)
-                {
-                    while (len < width)
-                    {
-                        PUT_CHAR(' ');
-                        width--;
-                    }
-                }
-                break;
-            }
-
             case 'c':
-            case 'C':
+                buf[0] = (char)value;
+                buf[1] = 0;
+                len = 1;
+                break;
+            case 's':
+                field = *(const UBYTE * const *)arg;
+                if (!field)
+                    field = (const UBYTE *)"";
+                while (field[len])
+                    len++;
+                break;
+            case 'b':
             {
-                /* Character: %c takes a WORD, %lc a LONG (low byte printed) */
-                char ch;
-                if (isLong)
+                BPTR b = *(const BPTR *)arg;
+                const UBYTE *bs = (const UBYTE *)BADDR(b);
+                if (bs)
                 {
-                    ch = (char)*(ULONG *)args;
-                    args += 2;
+                    len = bs[0];
+                    field = bs + 1;
                 }
                 else
-                {
-                    ch = (char)*args++;
-                }
-
-                if (!leftAlign)
-                {
-                    while (1 < width)
-                    {
-                        PUT_CHAR(' ');
-                        width--;
-                    }
-                }
-
-                PUT_CHAR(ch);
-
-                if (leftAlign)
-                {
-                    while (1 < width)
-                    {
-                        PUT_CHAR(' ');
-                        width--;
-                    }
-                }
+                    field = (const UBYTE *)"";
                 break;
             }
-
             default:
-                /* Unknown format, output as-is */
-                PUT_CHAR('%');
-                PUT_CHAR(specifier);
-                break;
+                /* unknown conversion: the character itself, no padding */
+                PUT_CHAR(sp.conv);
+                continue;
+        }
+
+        if (sp.limit >= 0 && len > sp.limit)
+            len = sp.limit;
+
+        if (sp.width > len && !sp.leftAlign)
+        {
+            WORD pad = sp.width - len;
+            if (sp.zeroPad && negative)
+            {
+                PUT_CHAR('-');
+                while (pad--)
+                    PUT_CHAR('0');
+                field++;            /* sic: still len characters (3.1) */
+            }
+            else
+            {
+                UBYTE pc = sp.zeroPad ? '0' : ' ';
+                while (pad--)
+                    PUT_CHAR(pc);
+            }
+        }
+
+        for (LONG k = 0; k < len; k++)
+            PUT_CHAR(field[k]);
+
+        if (sp.leftAlign)
+        {
+            LONG pad = sp.width - len;
+            while (pad-- > 0)
+                PUT_CHAR(' ');
         }
     }
 
@@ -3937,8 +3933,8 @@ APTR _exec_RawDoFmt ( register struct ExecBase * SysBase __asm("a6"),
 
     #undef PUT_CHAR
 
-    DPRINTF (LOG_DEBUG, "_exec: RawDoFmt done, returning args=0x%08lx\n", args);
-    return (APTR)args;
+    DPRINTF (LOG_DEBUG, "_exec: RawDoFmt done, data used=%ld\n", (LONG)total);
+    return (APTR)((UBYTE *)___dataStream + total);
 }
 
 ULONG exec_GetCC ( register struct ExecBase * SysBase __asm("a6"));
@@ -4377,22 +4373,50 @@ void _exec_ReleaseSemaphore ( register struct ExecBase * SysBase __asm("a6"),
         if (___sigSem->ss_QueueCount >= 0 &&
             ___sigSem->ss_WaitQueue.mlh_Head->mln_Succ != NULL)
         {
-            struct SemaphoreRequest *sr;
+            /* Wake-up rules as in AROS releasesemaphore.c: a shared head
+             * request (sr_Waiter bit 0 = SM_SHARED) grants every shared
+             * waiter at once (ss_Owner NULL); an exclusive head request is
+             * granted alone.  sr_Waiter NULL (after clearing SM_SHARED)
+             * marks a Procure() SemaphoreMessage, which is replied. */
+            struct SemaphoreRequest *sr =
+                (struct SemaphoreRequest *)___sigSem->ss_WaitQueue.mlh_Head;
 
-            /* Get first waiter */
-            sr = (struct SemaphoreRequest *)___sigSem->ss_WaitQueue.mlh_Head;
-
-            /* Remove from wait queue */
-            Remove((struct Node *)sr);
-
-            /* Set new owner */
-            ___sigSem->ss_NestCount = 1;
-            ___sigSem->ss_Owner = sr->sr_Waiter;
-
-            /* Signal the waiter */
-            if (sr->sr_Waiter)
+            if (((ULONG)sr->sr_Waiter & SM_SHARED) == SM_SHARED)
             {
-                Signal(sr->sr_Waiter, SIGF_SINGLE);
+                struct SemaphoreRequest *next;
+                ___sigSem->ss_Owner = NULL;
+                for (; (next = (struct SemaphoreRequest *)sr->sr_Link.mln_Succ) != NULL; sr = next)
+                {
+                    if (((ULONG)sr->sr_Waiter & SM_SHARED) != SM_SHARED)
+                        continue;
+                    Remove((struct Node *)sr);
+                    sr->sr_Waiter = (struct Task *)((ULONG)sr->sr_Waiter & ~SM_SHARED);
+                    ___sigSem->ss_NestCount++;
+                    if (sr->sr_Waiter)
+                        Signal(sr->sr_Waiter, SIGF_SINGLE);
+                    else
+                    {
+                        ((struct SemaphoreMessage *)sr)->ssm_Semaphore = ___sigSem;
+                        ReplyMsg((struct Message *)sr);
+                    }
+                }
+            }
+            else
+            {
+                struct SemaphoreMessage *sm = (struct SemaphoreMessage *)sr;
+                Remove((struct Node *)sr);
+                ___sigSem->ss_NestCount++;
+                if (sr->sr_Waiter)
+                {
+                    ___sigSem->ss_Owner = sr->sr_Waiter;
+                    Signal(sr->sr_Waiter, SIGF_SINGLE);
+                }
+                else
+                {
+                    ___sigSem->ss_Owner = (struct Task *)sm->ssm_Semaphore;
+                    sm->ssm_Semaphore = ___sigSem;
+                    ReplyMsg((struct Message *)sr);
+                }
             }
         }
         else
@@ -4840,6 +4864,10 @@ APTR _exec_CreateIORequest ( register struct ExecBase * SysBase __asm("a6"),
     {
         /* Initialize it. */
         ret->io_Message.mn_ReplyPort = (struct MsgPort *)___port;
+        /* AmigaOS 3.1 marks a fresh request as replied, so CheckIO()
+         * and WaitIO() on a never-sent request return at once
+         * (reference-verified, Tests/Probes/exec/libraries) */
+        ret->io_Message.mn_Node.ln_Type = NT_REPLYMSG;
 
         /* This size is needed to free the memory at DeleteIORequest() time. */
         ret->io_Message.mn_Length = ___size;
@@ -5720,6 +5748,10 @@ void coldstart (void)
         g_ExecJumpTable[i].jmp = JMPINSTR;
     }
 
+    g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(  -6)].vec = _exec_LibOpen;
+    g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY( -12)].vec = _exec_LibClose;
+    g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY( -18)].vec = _exec_LibExpunge;
+    g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY( -24)].vec = _exec_LibNull;
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY( -30)].vec = exec_Supervisor;
     //g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-36)].vec = _exec_ExitIntr;
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY( -42)].vec = exec_Schedule;
@@ -5843,42 +5875,43 @@ void coldstart (void)
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-1014)].vec = _exec_AllocVecPooled;   /* V39+ */
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-1020)].vec = _exec_FreeVecPooled;    /* V39+ */
 
-    g_ResidentModules[0] = __lxa_dos_ROMTag;
-    g_ResidentModules[1] = __lxa_utility_ROMTag;
-    g_ResidentModules[2] = __lxa_mathffp_ROMTag;
-    g_ResidentModules[3] = __lxa_mathtrans_ROMTag;
-    g_ResidentModules[4] = __lxa_mathieeedoubbas_ROMTag;
-    g_ResidentModules[5] = __lxa_mathieeedoubtrans_ROMTag;
-    g_ResidentModules[6] = __lxa_mathieeesingbas_ROMTag;
-    g_ResidentModules[7] = __lxa_graphics_ROMTag;
-    g_ResidentModules[8] = __lxa_intuition_ROMTag;
-    g_ResidentModules[9] = __lxa_layers_ROMTag;
-    g_ResidentModules[10] = __lxa_expansion_ROMTag;
-    g_ResidentModules[11] = __lxa_icon_ROMTag;
-    g_ResidentModules[12] = __lxa_diskfont_ROMTag;
-    g_ResidentModules[13] = __lxa_keymap_ROMTag;
-    g_ResidentModules[14] = __lxa_translator_ROMTag;
-    g_ResidentModules[15] = __lxa_locale_ROMTag;
-    g_ResidentModules[16] = __lxa_gadtools_ROMTag;
-    g_ResidentModules[17] = __lxa_workbench_ROMTag;
-    g_ResidentModules[18] = __lxa_asl_ROMTag;
-    g_ResidentModules[19] = __lxa_iffparse_ROMTag;
-    g_ResidentModules[20] = __lxa_input_ROMTag;
-    g_ResidentModules[21] = __lxa_console_ROMTag;
-    g_ResidentModules[22] = __lxa_timer_ROMTag;
-    g_ResidentModules[23] = __lxa_clipboard_ROMTag;
-    g_ResidentModules[24] = __lxa_audio_ROMTag;
-    g_ResidentModules[25] = __lxa_gameport_ROMTag;
-    g_ResidentModules[26] = __lxa_keyboard_ROMTag;
-    g_ResidentModules[27] = __lxa_narrator_ROMTag;
-    g_ResidentModules[28] = __lxa_parallel_ROMTag;
-    g_ResidentModules[29] = __lxa_printer_ROMTag;
-    g_ResidentModules[30] = __lxa_ramdrive_ROMTag;
-    g_ResidentModules[31] = __lxa_scsi_ROMTag;
-    g_ResidentModules[32] = __lxa_serial_ROMTag;
-    g_ResidentModules[33] = __lxa_trackdisk_ROMTag;
-    g_ResidentModules[34] = __lxa_commodities_ROMTag;
-    g_ResidentModules[35] = NULL;
+    g_ResidentModules[0] = (struct Resident *)&g_exec_romtag;
+    g_ResidentModules[1] = __lxa_dos_ROMTag;
+    g_ResidentModules[2] = __lxa_utility_ROMTag;
+    g_ResidentModules[3] = __lxa_mathffp_ROMTag;
+    g_ResidentModules[4] = __lxa_mathtrans_ROMTag;
+    g_ResidentModules[5] = __lxa_mathieeedoubbas_ROMTag;
+    g_ResidentModules[6] = __lxa_mathieeedoubtrans_ROMTag;
+    g_ResidentModules[7] = __lxa_mathieeesingbas_ROMTag;
+    g_ResidentModules[8] = __lxa_graphics_ROMTag;
+    g_ResidentModules[9] = __lxa_intuition_ROMTag;
+    g_ResidentModules[10] = __lxa_layers_ROMTag;
+    g_ResidentModules[11] = __lxa_expansion_ROMTag;
+    g_ResidentModules[12] = __lxa_icon_ROMTag;
+    g_ResidentModules[13] = __lxa_diskfont_ROMTag;
+    g_ResidentModules[14] = __lxa_keymap_ROMTag;
+    g_ResidentModules[15] = __lxa_translator_ROMTag;
+    g_ResidentModules[16] = __lxa_locale_ROMTag;
+    g_ResidentModules[17] = __lxa_gadtools_ROMTag;
+    g_ResidentModules[18] = __lxa_workbench_ROMTag;
+    g_ResidentModules[19] = __lxa_asl_ROMTag;
+    g_ResidentModules[20] = __lxa_iffparse_ROMTag;
+    g_ResidentModules[21] = __lxa_input_ROMTag;
+    g_ResidentModules[22] = __lxa_console_ROMTag;
+    g_ResidentModules[23] = __lxa_timer_ROMTag;
+    g_ResidentModules[24] = __lxa_clipboard_ROMTag;
+    g_ResidentModules[25] = __lxa_audio_ROMTag;
+    g_ResidentModules[26] = __lxa_gameport_ROMTag;
+    g_ResidentModules[27] = __lxa_keyboard_ROMTag;
+    g_ResidentModules[28] = __lxa_narrator_ROMTag;
+    g_ResidentModules[29] = __lxa_parallel_ROMTag;
+    g_ResidentModules[30] = __lxa_printer_ROMTag;
+    g_ResidentModules[31] = __lxa_ramdrive_ROMTag;
+    g_ResidentModules[32] = __lxa_scsi_ROMTag;
+    g_ResidentModules[33] = __lxa_serial_ROMTag;
+    g_ResidentModules[34] = __lxa_trackdisk_ROMTag;
+    g_ResidentModules[35] = __lxa_commodities_ROMTag;
+    g_ResidentModules[36] = NULL;
 
     SysBase->ResModules = g_ResidentModules;
     SysBase->SoftVer = VERSION;
@@ -5894,6 +5927,10 @@ void coldstart (void)
     SysBase->LibNode.lib_Version  = VERSION;
     SysBase->LibNode.lib_Revision = REVISION;
     SysBase->LibNode.lib_IdString = "exec 1.1 (2024/01/01)";
+    /* AmigaOS 3.1 exec: 137 public vectors (lib_NegSize 822, reference-
+     * verified); lxa's extra private vectors below -822 stay callable */
+    SysBase->LibNode.lib_NegSize  = 822;
+    SysBase->LibNode.lib_PosSize  = sizeof(struct ExecBase);
 
     // set up memory management
 
@@ -5928,6 +5965,8 @@ void coldstart (void)
 
     NEWLIST (&SysBase->LibList);
     SysBase->LibList.lh_Type = NT_LIBRARY;
+    /* exec.library is a member of its own library list */
+    AddTail (&SysBase->LibList, &SysBase->LibNode.lib_Node);
 
     DOSBase       = (struct DosLibrary    *) registerBuiltInLib (sizeof(*DOSBase)       , __lxa_dos_ROMTag       );
     UtilityBase   = (struct UtilityBase   *) registerBuiltInLib (sizeof(*UtilityBase)   , __lxa_utility_ROMTag   );

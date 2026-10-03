@@ -1,0 +1,77 @@
+-- OpenLibrary
+OpenLibrary(exec) == SysBase = TRUE
+OpenLibrary(exec, 99) = NULL
+OpenLibrary(missing) = NULL
+OpenLibrary(EXEC.LIBRARY) = NULL
+lib_OpenCnt delta after OpenLibrary = 1
+lib_OpenCnt delta after CloseLibrary = 0
+utility lib_Version = 40
+utility ln_Type = 9
+exec lib_Version = 40
+exec lib_NegSize = 822
+CloseLibrary(NULL) survived = 1
+-- MakeLibrary (absolute vectors)
+MakeLibrary = non-NULL
+lib_NegSize = 36
+lib_PosSize = 40
+lib_OpenCnt = 0
+lib_Flags = 0
+ln_Type = 0
+jump opcodes = 0x4ef9 0x4ef9 0x4ef9 0x4ef9 0x4ef9 0x4ef9
+vector 5 target = TRUE
+call LVO -30 (f1: 2x+1) with 20 = 41
+call LVO -36 (f2: x+1000) with 20 = 1020
+lib_Flags after AddLibrary = 4
+lib_Flags after SumLibrary = 4
+OpenLibrary(lxaprobe, 7) via Open vector = TRUE
+lib_OpenCnt = 1
+OpenLibrary(lxaprobe, 8) = NULL
+lib_OpenCnt after failed version = 1
+SetFunction returns old vector = TRUE
+lib_Flags after SetFunction = 4
+call LVO -30 after SetFunction (neg) with 20 = -20
+call LVO -30 restored with 20 = 41
+lib_OpenCnt after close = 0
+RemLibrary (Expunge returns 0) = 0
+still in LibList = TRUE
+FindName after Remove = NULL
+-- MakeLibrary (relative vectors)
+MakeLibrary(relative) = non-NULL
+lib_NegSize = 32
+lib_PosSize = 34
+call LVO -30 (f2) with 5 = 1005
+-- MakeFunctions
+MakeFunctions size = 12
+call -6 (neg) with 9 = -9
+call -12 (2x+1) with 9 = 19
+-- devices
+CreateIORequest ln_Type = 7
+CreateIORequest mn_Length = 40
+CreateIORequest io_Error = 0
+OpenDevice(missing) = -1
+io_Error = -1
+io_Device = NULL
+OpenDevice(timer, unit 99) = -1
+io_Error = -1
+OpenDevice(timer, VBLANK) = 0
+io_Error = 0
+io_Device = non-NULL
+ln_Type of request = 7
+device ln_Type = 3
+device name = "timer.device"
+DoIO(TR_ADDREQUEST) = 0
+ln_Type after DoIO = 7
+DoIO(bad command) = -3
+io_Error = -3
+lib_OpenCnt delta after CloseDevice = -1
+CreateIORequest(NULL port) = NULL
+DeleteIORequest(NULL) survived = 1
+-- resources/residents
+OpenResource(missing) = NULL
+OpenResource(ciaa.resource) = non-NULL
+FindResident(exec.library) = non-NULL
+FindResident(missing) = NULL
+rt_MatchWord = 0x00004afc
+rt_MatchTag points to itself = TRUE
+rt_Type = 9
+rt_Version = 40
