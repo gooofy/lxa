@@ -177,7 +177,7 @@ int main(void)
     nw.Height = 120;
     nw.DetailPen = 0;
     nw.BlockPen = 1;
-    nw.IDCMPFlags = IDCMP_RAWKEY;
+    nw.IDCMPFlags = 0;      /* with IDCMP_RAWKEY the console gets no keys (AmigaOS 3.1, tests/console/idcmp_console) */
     nw.Flags = WFLG_SMART_REFRESH | WFLG_ACTIVATE | WFLG_CLOSEGADGET;
     nw.Title = (UBYTE *)"Console Keymap Test";
     nw.Type = WBENCHSCREEN;

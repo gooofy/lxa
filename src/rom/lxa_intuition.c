@@ -171,7 +171,15 @@ struct LXAWindowState {
     WORD open_left, open_top;     /* position at OpenWindow() time */
     WORD zip_box[4];              /* ZipWindow() alternate box (no WA_Zoom) */
     BOOL zip_valid;
+    struct MsgPort *console_port;       /* attached console.device unit's input port */
+    struct MsgPort *console_reply_port; /* Intuition-owned reply port for it */
 };
+
+/* the input events Intuition passes on to an attached console.device unit */
+#define LXA_CONSOLE_INPUT_CLASSES (IDCMP_RAWKEY | IDCMP_MOUSEBUTTONS | IDCMP_MOUSEMOVE | \
+                                   IDCMP_GADGETDOWN | IDCMP_GADGETUP | IDCMP_CLOSEWINDOW | \
+                                   IDCMP_NEWSIZE | IDCMP_REFRESHWINDOW | IDCMP_ACTIVEWINDOW | \
+                                   IDCMP_INACTIVEWINDOW | IDCMP_CHANGEWINDOW)
 
 struct LXAIntuiMessage {
     struct IntuiMessage msg;
@@ -560,6 +568,11 @@ static VOID _intuition_remove_window_state(struct LXAIntuitionBase *base, const 
         return;
 
     Remove(&state->node);
+    if (state->console_reply_port)
+    {
+        _flush_idcmp_port(state->console_reply_port);
+        FreeMem(state->console_reply_port, sizeof(struct MsgPort));
+    }
     FreeMem(state, sizeof(*state));
 }
 
@@ -7148,20 +7161,40 @@ LONG lxa_force_full_redraw_all(void)
  * Internal function to post an IDCMP message to a window
  * Returns TRUE if message was posted, FALSE if window not interested
  */
+/*
+ * console.device (lxa_dev_console.c) registers the port on which it wants
+ * the input events of a window that the window's own IDCMP does not take;
+ * NULL detaches.  Unreplied messages stay valid: the reply port is
+ * Intuition's and lives until the window closes.
+ */
+VOID _intuition_set_console_port(struct Window *window, struct MsgPort *port, BOOL attach)
+{
+    struct LXAWindowState *state;
+
+    if (attach)
+    {
+        state = _intuition_ensure_window_state((struct LXAIntuitionBase *)IntuitionBase, window);
+        if (state)
+            state->console_port = port;
+    }
+    else
+    {
+        state = _intuition_find_window_state((struct LXAIntuitionBase *)IntuitionBase, window);
+        if (state && state->console_port == port)
+            state->console_port = NULL;
+    }
+}
+
 static BOOL _post_idcmp_message(struct Window *window, ULONG class, UWORD code,
                                  UWORD qualifier, APTR iaddress, WORD mouseX, WORD mouseY)
 {
     struct LXAWindowState *state;
     struct LXAIntuiMessage *rawkey_msg;
     struct IntuiMessage *imsg;
+    struct MsgPort *target, *reply;
     ULONG msg_size;
     
-    if (!window || !window->UserPort || !window->WindowPort) {
-        return FALSE;
-    }
-    
-    /* Check if window is interested in this message class */
-    if (!(window->IDCMPFlags & class)) {
+    if (!window) {
         return FALSE;
     }
 
@@ -7174,13 +7207,41 @@ static BOOL _post_idcmp_message(struct Window *window, ULONG class, UWORD code,
         return FALSE;
     }
 
-    if (class == IDCMP_MOUSEMOVE && state)
+    if (window->IDCMPFlags & class)
+    {
+        if (!window->UserPort || !window->WindowPort)
+            return FALSE;
+        target = window->UserPort;
+        reply = window->WindowPort;
+        _reap_window_idcmp_replies(window);
+    }
+    else
+    {
+        /* An input event the window's IDCMP does not take goes on to the
+         * console.device unit attached to the window, if any - with
+         * IDCMP_RAWKEY/VANILLAKEY/MOUSEBUTTONS set, the console sees none
+         * of those events (AmigaOS 3.1, tests/console/idcmp_console). */
+        if (!state->console_port || !(class & LXA_CONSOLE_INPUT_CLASSES))
+            return FALSE;
+        if (!state->console_reply_port)
+        {
+            state->console_reply_port = (struct MsgPort *)AllocMem(sizeof(struct MsgPort), MEMF_PUBLIC | MEMF_CLEAR);
+            if (!state->console_reply_port)
+                return FALSE;
+            state->console_reply_port->mp_Node.ln_Type = NT_MSGPORT;
+            state->console_reply_port->mp_Flags = PA_IGNORE;
+            NewList(&state->console_reply_port->mp_MsgList);
+        }
+        _flush_idcmp_port(state->console_reply_port);
+        target = state->console_port;
+        reply = state->console_reply_port;
+    }
+
+    if (class == IDCMP_MOUSEMOVE)
     {
         if (state->pending_mousemoves >= state->mouse_queue)
             return FALSE;
     }
-    
-    _reap_window_idcmp_replies(window);
 
     msg_size = sizeof(struct IntuiMessage);
     if (class == IDCMP_RAWKEY)
@@ -7197,7 +7258,7 @@ static BOOL _post_idcmp_message(struct Window *window, ULONG class, UWORD code,
     /* Fill in the message */
     imsg->ExecMessage.mn_Node.ln_Type = NT_MESSAGE;
     imsg->ExecMessage.mn_Length = msg_size;
-    imsg->ExecMessage.mn_ReplyPort = window->WindowPort;
+    imsg->ExecMessage.mn_ReplyPort = reply;
     
     imsg->Class = class;
     imsg->Code = code;
@@ -7232,8 +7293,8 @@ static BOOL _post_idcmp_message(struct Window *window, ULONG class, UWORD code,
     window->MouseX = mouseX;
     window->MouseY = mouseY;
     
-    /* Post the message to the window's UserPort */
-    PutMsg(window->UserPort, (struct Message *)imsg);
+    /* Post the message to the window's UserPort (or the console's port) */
+    PutMsg(target, (struct Message *)imsg);
 
     if (class == IDCMP_MOUSEMOVE && state)
         state->pending_mousemoves++;

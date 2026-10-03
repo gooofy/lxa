@@ -1,0 +1,1247 @@
+{
+ "backend": "ref",
+ "schema": "lxa-tree/1",
+ "screens": [
+  {
+   "bar_hborder": 5,
+   "bar_height": 10,
+   "bar_vborder": 1,
+   "default_title": "Typeface",
+   "depth": 2,
+   "display_id": 32768,
+   "flags": 16914,
+   "font": {
+    "baseline": 6,
+    "name": "topaz.font",
+    "xsize": 8,
+    "ysize": 8
+   },
+   "height": 256,
+   "left": 0,
+   "menu_hborder": 4,
+   "menu_vborder": 2,
+   "title": "Typeface",
+   "top": 0,
+   "wbor": [
+    4,
+    2,
+    4,
+    2
+   ],
+   "width": 640,
+   "windows": [
+    {
+     "app": true,
+     "block_pen": 1,
+     "border": [
+      4,
+      11,
+      4,
+      10
+     ],
+     "detail_pen": 0,
+     "flags": 606220847,
+     "font": {
+      "baseline": 6,
+      "name": "topaz.font",
+      "xsize": 8,
+      "ysize": 8
+     },
+     "gadgets": [
+      {
+       "activation": 32769,
+       "flags": 32788,
+       "height": 11,
+       "id": 0,
+       "left": -22,
+       "text": [],
+       "top": 0,
+       "type": 32837,
+       "width": 24
+      },
+      {
+       "activation": 32769,
+       "flags": 32788,
+       "height": 11,
+       "id": 0,
+       "left": -45,
+       "text": [],
+       "top": 0,
+       "type": 32869,
+       "width": 24
+      },
+      {
+       "activation": 32769,
+       "flags": 32796,
+       "height": 10,
+       "id": 0,
+       "left": -17,
+       "text": [],
+       "top": -9,
+       "type": 32789,
+       "width": 18
+      },
+      {
+       "activation": 32769,
+       "flags": 32772,
+       "height": 11,
+       "id": 0,
+       "left": 0,
+       "text": [],
+       "top": 0,
+       "type": 32901,
+       "width": 20
+      },
+      {
+       "activation": 32768,
+       "flags": 32804,
+       "height": 10,
+       "id": 0,
+       "left": 0,
+       "text": [],
+       "top": 0,
+       "type": 32805,
+       "width": 0
+      },
+      {
+       "activation": 1,
+       "flags": 32864,
+       "height": -21,
+       "id": 0,
+       "left": 4,
+       "text": [],
+       "top": 11,
+       "type": 5,
+       "width": -8
+      }
+     ],
+     "height": 205,
+     "idcmp": 63702875,
+     "left": 43,
+     "max_height": 65535,
+     "max_width": 65535,
+     "menus": [
+      {
+       "flags": 1,
+       "height": 0,
+       "items": [
+        {
+         "command": 79,
+         "flags": 86,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Open Font...",
+         "top": 0,
+         "width": 154
+        },
+        {
+         "command": 83,
+         "flags": 86,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Save Font...",
+         "top": 9,
+         "width": 154
+        },
+        {
+         "command": 68,
+         "flags": 86,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Change Dir...",
+         "top": 18,
+         "width": 154
+        },
+        {
+         "command": 73,
+         "flags": 86,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Preview...",
+         "top": 27,
+         "width": 154
+        },
+        {
+         "command": 0,
+         "flags": 192,
+         "height": 6,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": null,
+         "top": 36,
+         "width": 154
+        },
+        {
+         "command": 80,
+         "flags": 86,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Preferences...",
+         "top": 42,
+         "width": 154
+        },
+        {
+         "command": 63,
+         "flags": 86,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "About...",
+         "top": 51,
+         "width": 154
+        },
+        {
+         "command": 0,
+         "flags": 192,
+         "height": 6,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": null,
+         "top": 60,
+         "width": 154
+        },
+        {
+         "command": 81,
+         "flags": 86,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Quit",
+         "top": 66,
+         "width": 154
+        }
+       ],
+       "left": 2,
+       "title": "Project",
+       "top": 0,
+       "width": 64
+      },
+      {
+       "flags": 1,
+       "height": 0,
+       "items": [
+        {
+         "command": 69,
+         "flags": 86,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Edit Parameters...",
+         "top": 0,
+         "width": 186
+        },
+        {
+         "command": 0,
+         "flags": 82,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Edit Character...",
+         "top": 9,
+         "width": 186
+        },
+        {
+         "command": 0,
+         "flags": 192,
+         "height": 6,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": null,
+         "top": 18,
+         "width": 186
+        },
+        {
+         "command": 0,
+         "flags": 82,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Move Left",
+         "top": 24,
+         "width": 186
+        },
+        {
+         "command": 0,
+         "flags": 82,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Move Right",
+         "top": 33,
+         "width": 186
+        },
+        {
+         "command": 0,
+         "flags": 82,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Move Up",
+         "top": 42,
+         "width": 186
+        },
+        {
+         "command": 0,
+         "flags": 82,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Move Down",
+         "top": 51,
+         "width": 186
+        },
+        {
+         "command": 0,
+         "flags": 192,
+         "height": 6,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": null,
+         "top": 60,
+         "width": 186
+        },
+        {
+         "command": 82,
+         "flags": 86,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Reset Kerning...",
+         "top": 66,
+         "width": 186
+        },
+        {
+         "command": 0,
+         "flags": 192,
+         "height": 6,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": null,
+         "top": 75,
+         "width": 186
+        },
+        {
+         "command": 65,
+         "flags": 86,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Cascade Windows",
+         "top": 81,
+         "width": 186
+        }
+       ],
+       "left": 74,
+       "title": "Font",
+       "top": 0,
+       "width": 40
+      },
+      {
+       "flags": 1,
+       "height": 0,
+       "items": [
+        {
+         "command": 84,
+         "flags": 86,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Update",
+         "top": 0,
+         "width": 106
+        },
+        {
+         "command": 72,
+         "flags": 86,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Show All",
+         "top": 9,
+         "width": 106
+        },
+        {
+         "command": 76,
+         "flags": 86,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Clear",
+         "top": 18,
+         "width": 106
+        }
+       ],
+       "left": 122,
+       "title": "Preview",
+       "top": 0,
+       "width": 64
+      }
+     ],
+     "min_height": 87,
+     "min_width": 352,
+     "screen_title": "Typeface",
+     "title": "Font Preview",
+     "top": 25,
+     "width": 553
+    },
+    {
+     "app": true,
+     "block_pen": 1,
+     "border": [
+      4,
+      11,
+      4,
+      2
+     ],
+     "detail_pen": 0,
+     "flags": 69341742,
+     "font": {
+      "baseline": 6,
+      "name": "topaz.font",
+      "xsize": 8,
+      "ysize": 8
+     },
+     "gadgets": [
+      {
+       "activation": 32769,
+       "flags": 32788,
+       "height": 11,
+       "id": 0,
+       "left": -22,
+       "text": [],
+       "top": 0,
+       "type": 32837,
+       "width": 24
+      },
+      {
+       "activation": 32769,
+       "flags": 32772,
+       "height": 11,
+       "id": 0,
+       "left": 0,
+       "text": [],
+       "top": 0,
+       "type": 32901,
+       "width": 20
+      },
+      {
+       "activation": 32768,
+       "flags": 32804,
+       "height": 10,
+       "id": 0,
+       "left": 0,
+       "text": [],
+       "top": 0,
+       "type": 32805,
+       "width": 0
+      },
+      {
+       "activation": 1,
+       "flags": 32864,
+       "height": -13,
+       "id": 0,
+       "left": 4,
+       "text": [],
+       "top": 11,
+       "type": 5,
+       "width": -8
+      }
+     ],
+     "height": 129,
+     "idcmp": 63702875,
+     "left": 0,
+     "max_height": 465,
+     "max_width": 194,
+     "menus": [
+      {
+       "flags": 257,
+       "height": 0,
+       "items": [
+        {
+         "command": 79,
+         "flags": 86,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Open Font...",
+         "top": 0,
+         "width": 154
+        },
+        {
+         "command": 83,
+         "flags": 86,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Save Font...",
+         "top": 9,
+         "width": 154
+        },
+        {
+         "command": 68,
+         "flags": 86,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Change Dir...",
+         "top": 18,
+         "width": 154
+        },
+        {
+         "command": 73,
+         "flags": 8278,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Preview...",
+         "top": 27,
+         "width": 154
+        },
+        {
+         "command": 0,
+         "flags": 192,
+         "height": 6,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": null,
+         "top": 36,
+         "width": 154
+        },
+        {
+         "command": 80,
+         "flags": 86,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Preferences...",
+         "top": 42,
+         "width": 154
+        },
+        {
+         "command": 63,
+         "flags": 86,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "About...",
+         "top": 51,
+         "width": 154
+        },
+        {
+         "command": 0,
+         "flags": 192,
+         "height": 6,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": null,
+         "top": 60,
+         "width": 154
+        },
+        {
+         "command": 81,
+         "flags": 86,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Quit",
+         "top": 66,
+         "width": 154
+        }
+       ],
+       "left": 2,
+       "title": "Project",
+       "top": 0,
+       "width": 64
+      },
+      {
+       "flags": 1,
+       "height": 0,
+       "items": [
+        {
+         "command": 69,
+         "flags": 86,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Edit Parameters...",
+         "top": 0,
+         "width": 186
+        },
+        {
+         "command": 0,
+         "flags": 82,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Edit Character...",
+         "top": 9,
+         "width": 186
+        },
+        {
+         "command": 0,
+         "flags": 192,
+         "height": 6,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": null,
+         "top": 18,
+         "width": 186
+        },
+        {
+         "command": 0,
+         "flags": 82,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Move Left",
+         "top": 24,
+         "width": 186
+        },
+        {
+         "command": 0,
+         "flags": 82,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Move Right",
+         "top": 33,
+         "width": 186
+        },
+        {
+         "command": 0,
+         "flags": 82,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Move Up",
+         "top": 42,
+         "width": 186
+        },
+        {
+         "command": 0,
+         "flags": 82,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Move Down",
+         "top": 51,
+         "width": 186
+        },
+        {
+         "command": 0,
+         "flags": 192,
+         "height": 6,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": null,
+         "top": 60,
+         "width": 186
+        },
+        {
+         "command": 82,
+         "flags": 86,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Reset Kerning...",
+         "top": 66,
+         "width": 186
+        },
+        {
+         "command": 0,
+         "flags": 192,
+         "height": 6,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": null,
+         "top": 75,
+         "width": 186
+        },
+        {
+         "command": 65,
+         "flags": 86,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Cascade Windows",
+         "top": 81,
+         "width": 186
+        }
+       ],
+       "left": 74,
+       "title": "Font",
+       "top": 0,
+       "width": 40
+      }
+     ],
+     "min_height": 129,
+     "min_width": 194,
+     "screen_title": "Typeface",
+     "title": "topaz/8",
+     "top": 11,
+     "width": 194
+    }
+   ]
+  },
+  {
+   "bar_hborder": 5,
+   "bar_height": 10,
+   "bar_vborder": 1,
+   "default_title": "Workbench Screen",
+   "depth": 2,
+   "display_id": 32768,
+   "flags": 1553,
+   "font": {
+    "baseline": 6,
+    "name": "topaz.font",
+    "xsize": 8,
+    "ysize": 8
+   },
+   "height": 256,
+   "left": 0,
+   "menu_hborder": 4,
+   "menu_vborder": 2,
+   "title": "Workbench Screen",
+   "top": 0,
+   "wbor": [
+    4,
+    2,
+    4,
+    2
+   ],
+   "width": 640,
+   "windows": [
+    {
+     "app": false,
+     "block_pen": 1,
+     "border": [
+      0,
+      0,
+      0,
+      0
+     ],
+     "detail_pen": 0,
+     "flags": 35658560,
+     "font": {
+      "baseline": 6,
+      "name": "topaz.font",
+      "xsize": 8,
+      "ysize": 8
+     },
+     "gadgets": [],
+     "height": 245,
+     "idcmp": 885614,
+     "left": 0,
+     "max_height": 245,
+     "max_width": 640,
+     "menus": [
+      {
+       "flags": 1,
+       "height": 0,
+       "items": [
+        {
+         "command": 66,
+         "flags": 351,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Backdrop",
+         "top": 0,
+         "width": 186
+        },
+        {
+         "command": 69,
+         "flags": 86,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Execute Command...",
+         "top": 9,
+         "width": 186
+        },
+        {
+         "command": 0,
+         "flags": 82,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Redraw All",
+         "top": 18,
+         "width": 186
+        },
+        {
+         "command": 0,
+         "flags": 82,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Update All",
+         "top": 27,
+         "width": 186
+        },
+        {
+         "command": 0,
+         "flags": 82,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Last Message",
+         "top": 36,
+         "width": 186
+        },
+        {
+         "command": 63,
+         "flags": 86,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "About...",
+         "top": 45,
+         "width": 186
+        },
+        {
+         "command": 81,
+         "flags": 86,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Quit...",
+         "top": 54,
+         "width": 186
+        }
+       ],
+       "left": 2,
+       "title": "Workbench",
+       "top": 0,
+       "width": 80
+      },
+      {
+       "flags": 1,
+       "height": 0,
+       "items": [
+        {
+         "command": 78,
+         "flags": 70,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "New Drawer",
+         "top": 0,
+         "width": 162
+        },
+        {
+         "command": 0,
+         "flags": 66,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Open Parent",
+         "top": 9,
+         "width": 162
+        },
+        {
+         "command": 75,
+         "flags": 70,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Close",
+         "top": 18,
+         "width": 162
+        },
+        {
+         "command": 0,
+         "flags": 66,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Update",
+         "top": 27,
+         "width": 162
+        },
+        {
+         "command": 65,
+         "flags": 86,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Select Contents",
+         "top": 36,
+         "width": 162
+        },
+        {
+         "command": 46,
+         "flags": 86,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Clean Up",
+         "top": 45,
+         "width": 162
+        },
+        {
+         "command": 0,
+         "flags": 82,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [
+          {
+           "command": 0,
+           "flags": 82,
+           "height": 9,
+           "left": 122,
+           "mutualexclude": 0,
+           "sub": [],
+           "text": "Window",
+           "top": -1,
+           "width": 53
+          },
+          {
+           "command": 0,
+           "flags": 82,
+           "height": 9,
+           "left": 122,
+           "mutualexclude": 0,
+           "sub": [],
+           "text": "All",
+           "top": 8,
+           "width": 53
+          }
+         ],
+         "text": "Snapshot",
+         "top": 54,
+         "width": 162
+        },
+        {
+         "command": 0,
+         "flags": 66,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [
+          {
+           "command": 0,
+           "flags": 339,
+           "height": 9,
+           "left": 122,
+           "mutualexclude": -2,
+           "sub": [],
+           "text": "Only Icons",
+           "top": -1,
+           "width": 100
+          },
+          {
+           "command": 0,
+           "flags": 83,
+           "height": 9,
+           "left": 122,
+           "mutualexclude": -3,
+           "sub": [],
+           "text": "All Files",
+           "top": 8,
+           "width": 100
+          }
+         ],
+         "text": "Show",
+         "top": 63,
+         "width": 162
+        },
+        {
+         "command": 0,
+         "flags": 66,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [
+          {
+           "command": 0,
+           "flags": 339,
+           "height": 9,
+           "left": 122,
+           "mutualexclude": -2,
+           "sub": [],
+           "text": "Icon",
+           "top": -1,
+           "width": 52
+          },
+          {
+           "command": 0,
+           "flags": 83,
+           "height": 9,
+           "left": 122,
+           "mutualexclude": -3,
+           "sub": [],
+           "text": "Name",
+           "top": 8,
+           "width": 52
+          },
+          {
+           "command": 0,
+           "flags": 83,
+           "height": 9,
+           "left": 122,
+           "mutualexclude": -5,
+           "sub": [],
+           "text": "Date",
+           "top": 17,
+           "width": 52
+          },
+          {
+           "command": 0,
+           "flags": 83,
+           "height": 9,
+           "left": 122,
+           "mutualexclude": -9,
+           "sub": [],
+           "text": "Size",
+           "top": 26,
+           "width": 52
+          }
+         ],
+         "text": "View By",
+         "top": 72,
+         "width": 162
+        }
+       ],
+       "left": 90,
+       "title": "Window",
+       "top": 0,
+       "width": 56
+      },
+      {
+       "flags": 0,
+       "height": 0,
+       "items": [
+        {
+         "command": 79,
+         "flags": 86,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Open",
+         "top": 0,
+         "width": 154
+        },
+        {
+         "command": 67,
+         "flags": 86,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Copy",
+         "top": 9,
+         "width": 154
+        },
+        {
+         "command": 82,
+         "flags": 86,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Rename...",
+         "top": 18,
+         "width": 154
+        },
+        {
+         "command": 73,
+         "flags": 86,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Information...",
+         "top": 27,
+         "width": 154
+        },
+        {
+         "command": 83,
+         "flags": 86,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Snapshot",
+         "top": 36,
+         "width": 154
+        },
+        {
+         "command": 85,
+         "flags": 86,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "UnSnapshot",
+         "top": 45,
+         "width": 154
+        },
+        {
+         "command": 76,
+         "flags": 86,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Leave Out",
+         "top": 54,
+         "width": 154
+        },
+        {
+         "command": 80,
+         "flags": 86,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Put Away",
+         "top": 63,
+         "width": 154
+        },
+        {
+         "command": 0,
+         "flags": 192,
+         "height": 6,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": null,
+         "top": 72,
+         "width": 154
+        },
+        {
+         "command": 0,
+         "flags": 82,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Delete...",
+         "top": 78,
+         "width": 154
+        },
+        {
+         "command": 0,
+         "flags": 82,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Format Disk...",
+         "top": 87,
+         "width": 154
+        },
+        {
+         "command": 0,
+         "flags": 82,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Empty Trash",
+         "top": 96,
+         "width": 154
+        }
+       ],
+       "left": 154,
+       "title": "Icons",
+       "top": 0,
+       "width": 48
+      },
+      {
+       "flags": 1,
+       "height": 0,
+       "items": [
+        {
+         "command": 0,
+         "flags": 82,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "ResetWB",
+         "top": 0,
+         "width": 61
+        }
+       ],
+       "left": 210,
+       "title": "Tools",
+       "top": 0,
+       "width": 48
+      }
+     ],
+     "min_height": 245,
+     "min_width": 640,
+     "screen_title": "Copyright \u00a9 1985-1993 Commodore-Amiga, Inc. All Rights Reserved.",
+     "title": "",
+     "top": 11,
+     "width": 640
+    }
+   ]
+  }
+ ]
+}
