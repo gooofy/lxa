@@ -73,6 +73,10 @@ TEST_F(ExecTest, Sync) {
     RunExecTest("Sync");
 }
 
+TEST_F(ExecTest, NullSafety) {
+    RunExecTest("NullSafety");
+}
+
 TEST_F(ExecTest, Tasks) {
     RunExecTest("Tasks");
 }
@@ -81,8 +85,16 @@ TEST_F(ExecTest, Library) {
     RunExecTest("Library");
 }
 
+TEST_F(ExecTest, LibraryLxa) {
+    RunExecTest("LibraryLxa");
+}
+
 TEST_F(ExecTest, MathIeeeSingBas) {
     RunExecTest("MathIeeeSingBas");
+}
+
+TEST_F(ExecTest, MathIeeeSingBasMulDiv) {
+    RunExecTest("MathIeeeSingBasMulDiv");
 }
 
 TEST_F(ExecTest, MathIeeeDoubTrans) {

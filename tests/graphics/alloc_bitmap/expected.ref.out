@@ -1,0 +1,12 @@
+Testing AllocBitMap()/FreeBitMap()...
+OK: BytesPerRow rounded to 4 bytes
+OK: Rows=10
+OK: Depth=3
+OK: Flags = 0 (allocation flags are not stored)
+OK: Plane memory allocated, cleared, and writable
+OK: FreeBitMap() released allocated bitmap
+OK: Non-cleared allocation leaves Flags = 0
+OK: Non-cleared plane memory is writable
+OK: FreeBitMap() released second bitmap
+OK: FreeBitMap(NULL) is safe
+PASS: AllocBitMap/FreeBitMap all tests passed

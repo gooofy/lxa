@@ -1,0 +1,40 @@
+Testing Region functions...
+
+Test 1: NewRegion()...
+OK: NewRegion() returned non-NULL
+
+Test 2: Initial region state...
+OK: New region has NULL RegionRectangle
+OK: New region has zero bounds
+
+Test 3: OrRectRegion()...
+OK: OrRectRegion() returned TRUE
+OK: Region bounds updated correctly
+OK: RegionRectangle is non-NULL after OrRectRegion
+
+Test 4: OrRectRegion() second rectangle...
+OK: Second OrRectRegion() returned TRUE
+OK: Region bounds expanded to include both rectangles
+
+Test 5: ClearRegion()...
+OK: RegionRectangle is NULL after ClearRegion
+OK: Bounds reset to zero after ClearRegion
+
+Test 6: AndRectRegion()...
+OK: AndRectRegion clipped bounds correctly
+
+Test 7: ClearRectRegion() splitting...
+OK: ClearRectRegion split the rectangle into four pieces
+
+Test 8: XorRectRegion() toggle...
+OK: XorRectRegion toggled overlap and added outside area
+
+Test 9: Region-to-region operations...
+OK: AndRegionRegion kept only the shared area
+OK: OrRegionRegion preserved both input regions
+OK: XorRegionRegion toggled the shared area
+
+Test 10: DisposeRegion()...
+OK: DisposeRegion() completed
+
+PASS: graphics/regions all tests passed

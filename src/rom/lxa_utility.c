@@ -857,8 +857,9 @@ static ULONG _utility_CheckDate ( register struct UtilityBase * UtilityBase __as
     if (!date)
         return 0;
 
-    /* Validate time components */
-    if (date->sec > 60 || date->min > 59 || date->hour > 23)
+    /* Validate time components (AmigaOS 3.1 rejects a leap second,
+     * reference-verified, Phase 220) */
+    if (date->sec > 59 || date->min > 59 || date->hour > 23)
         return 0;
 
     /* Validate month */
@@ -890,6 +891,16 @@ static ULONG _utility_CheckDate ( register struct UtilityBase * UtilityBase __as
 
     /* Validate year (Amiga epoch starts 1978) */
     if (date->year < 1978)
+        return 0;
+
+    /* ... and dates that do not fit the 32-bit seconds counter
+     * (2114-02-07 06:28:15 is the last one) */
+    if (date->year > 2114)
+        return 0;
+    if (date->year == 2114 &&
+        (date->month > 2 ||
+         (date->month == 2 && (date->mday > 7 ||
+          (date->mday == 7 && (ULONG)date->hour * 3600 + date->min * 60 + date->sec > 23295)))))
         return 0;
 
     /* Date is valid - return the Amiga time value */
@@ -1368,12 +1379,14 @@ static ULONG _utility_UnpackStructureTags ( register struct UtilityBase * Utilit
                 *(ULONG *)tag->ti_Data = mem_ptr->sb;
                 break;
 
+            /* a set bit unpacks as ~0, not TRUE (AmigaOS 3.1,
+             * reference-verified, Phase 220) */
             case PKCTRL_BIT:
-                *(ULONG *)tag->ti_Data = (mem_ptr->ub & (1U << bit_offset)) ? TRUE : FALSE;
+                *(ULONG *)tag->ti_Data = (mem_ptr->ub & (1U << bit_offset)) ? ~0UL : 0;
                 break;
 
             case PKCTRL_FLIPBIT:
-                *(ULONG *)tag->ti_Data = (mem_ptr->ub & (1U << bit_offset)) ? FALSE : TRUE;
+                *(ULONG *)tag->ti_Data = (mem_ptr->ub & (1U << bit_offset)) ? 0 : ~0UL;
                 break;
 
             default:

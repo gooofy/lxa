@@ -530,11 +530,19 @@ static struct ClipRect *ClipClipRectListToRegion(struct Layer_Info *li,
 
     for (rr = region->RegionRectangle; rr != NULL; rr = rr->Next)
     {
+        /* RegionRectangles are relative to region->bounds.MinX/MinY */
+        struct Rectangle rect;
+
+        rect.MinX = rr->bounds.MinX + region->bounds.MinX;
+        rect.MinY = rr->bounds.MinY + region->bounds.MinY;
+        rect.MaxX = rr->bounds.MaxX + region->bounds.MinX;
+        rect.MaxY = rr->bounds.MaxY + region->bounds.MinY;
+
         for (source = source_list; source != NULL; source = source->Next)
         {
             struct Rectangle intersection;
 
-            if (!IntersectRectangles(&source->bounds, &rr->bounds, &intersection))
+            if (!IntersectRectangles(&source->bounds, &rect, &intersection))
                 continue;
 
             if (!AppendClipRectIntersection(li, &head, &tail, source, &intersection))

@@ -1,0 +1,63 @@
+Testing mathieeedoubtrans.library
+
+  OK: OpenLibrary mathieeedoubbas.library
+  OK: OpenLibrary mathieeedoubtrans.library
+  OK: IEEEDPSin(+0) = +0
+  OK: IEEEDPSin(-0) = -0
+  OK: IEEEDPCos(0) = 1
+  OK: IEEEDPTan(-0) = -0
+  OK: IEEEDPSin(pi/2) ~= 1
+  OK: IEEEDPCos(pi) ~= -1
+  OK: IEEEDPTan(pi/4) ~= 1
+  OK: IEEEDPAtan(1) ~= pi/4
+  OK: IEEEDPSincos(pi/2) sin ~= 1
+  OK: IEEEDPSincos(pi/2) cos ~= 0
+  OK: IEEEDPSinh(+0) = +0
+  OK: IEEEDPSinh(-0) = -0
+  OK: IEEEDPCosh(0) = 1
+  OK: IEEEDPTanh(+0) = +0
+  OK: IEEEDPTanh(-0) = -0
+  OK: IEEEDPSinh(+inf) = +inf
+  OK: IEEEDPCosh(+inf) = +inf
+  OK: IEEEDPTanh(+inf) = 1
+  OK: IEEEDPTanh(-inf) = -1
+  OK: IEEEDPExp(0) = 1
+  OK: IEEEDPExp(+inf) = +inf
+  OK: IEEEDPExp(-inf) = +0
+  OK: IEEEDPLog(1) = 0
+  OK: IEEEDPLog(0) = -inf
+  OK: IEEEDPLog(+inf) = +inf
+  OK: IEEEDPLog(-1) = NaN
+  OK: IEEEDPLog10(10) = 1
+  OK: IEEEDPLog10(0) = -inf
+  OK: IEEEDPPow(2, 10) = 1024
+  OK: IEEEDPPow(2, 0) = 1
+  OK: IEEEDPPow(-1, 0.5) = +0
+  OK: IEEEDPPow(0, -1) = 1
+  OK: IEEEDPPow(-2, 3) = -8
+  OK: IEEEDPPow(1, inf) = NaN
+  OK: IEEEDPSqrt(9) = 3
+  OK: IEEEDPSqrt(+0) = +0
+  OK: IEEEDPSqrt(-0) = -0
+  OK: IEEEDPSqrt(-1) = NaN
+  OK: IEEEDPAsin(0) = 0
+  OK: IEEEDPAsin(1) ~= pi/2
+  OK: IEEEDPAsin(2) = NaN
+  OK: IEEEDPAcos(1) = 0
+  OK: IEEEDPAcos(0) ~= pi/2
+  OK: IEEEDPAcos(2) = NaN
+  OK: IEEEDPTieee(+0) = +0f
+  OK: IEEEDPTieee(-0) = -0f
+  OK: IEEEDPTieee(1) = 1.0f
+  OK: IEEEDPFieee(1.0f) = 1.0
+  OK: IEEEDPFieee(-0.0f) = -0.0
+  OK: IEEEDPFieee(+inf) = +inf
+  OK: IEEEDPFieee(NaN) = NaN
+  OK: IEEEDPAtan(NaN) = NaN
+  OK: IEEEDPFix(IEEEDPPow(3, 4)) = 81
+  OK: IEEEDPFix(IEEEDPSqrt(144)) = 12
+  OK: IEEEDPExp(IEEEDPLog(7)) ~= 7
+  OK: CloseLibrary mathieeedoubtrans.library
+  OK: CloseLibrary mathieeedoubbas.library
+
+PASS: All 59 tests passed!

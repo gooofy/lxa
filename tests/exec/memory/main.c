@@ -264,19 +264,13 @@ int main(void)
     FreeMem(NULL, 100);
     test_ok("FreeMem(NULL, 100) did not crash");
     
-    /* Test 9: AvailMem consistency */
+    /* Test 9: AvailMem consistency (sizes depend on the machine: not printed) */
     print("\nTest 9: AvailMem consistency\n");
     freeBefore = AvailMem(MEMF_PUBLIC);
-    print("    Free memory before: ");
-    print_num(freeBefore);
-    print(" bytes\n");
     
     mem1 = AllocMem(4096, MEMF_PUBLIC);
     if (mem1) {
         freeAfter = AvailMem(MEMF_PUBLIC);
-        print("    Free memory after 4KB alloc: ");
-        print_num(freeAfter);
-        print(" bytes\n");
         
         if (freeAfter < freeBefore) {
             test_ok("AvailMem decreased after allocation");
@@ -287,9 +281,6 @@ int main(void)
         FreeMem(mem1, 4096);
         
         freeAfter = AvailMem(MEMF_PUBLIC);
-        print("    Free memory after free: ");
-        print_num(freeAfter);
-        print(" bytes\n");
         
         /* Allow some slack for allocator overhead */
         if (freeAfter >= freeBefore - 64) {

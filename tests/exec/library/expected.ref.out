@@ -1,0 +1,183 @@
+=== exec/library Test ===
+
+--- Testing graphics.library ---
+OK: OpenLibrary() returned non-NULL
+OK: lib_OpenCnt >= 1 after OpenLibrary()
+OK: lib_OpenCnt stays constant on 2nd open
+OK: Same library base returned
+OK: lib_OpenCnt stays constant on close
+OK: lib_OpenCnt stays constant on 2nd close
+
+--- Testing intuition.library ---
+OK: OpenLibrary() returned non-NULL
+OK: lib_OpenCnt >= 1 after OpenLibrary()
+OK: lib_OpenCnt stays constant on 2nd open
+OK: Same library base returned
+OK: lib_OpenCnt stays constant on close
+OK: lib_OpenCnt stays constant on 2nd close
+
+--- Testing utility.library ---
+OK: OpenLibrary() returned non-NULL
+OK: lib_OpenCnt >= 1 after OpenLibrary()
+OK: lib_OpenCnt incremented correctly on 2nd open
+OK: Same library base returned
+OK: lib_OpenCnt decremented correctly on close
+OK: lib_OpenCnt decremented correctly on 2nd close
+
+--- Testing mathtrans.library ---
+OK: OpenLibrary() returned non-NULL
+OK: lib_OpenCnt >= 1 after OpenLibrary()
+OK: lib_OpenCnt incremented correctly on 2nd open
+OK: Same library base returned
+OK: lib_OpenCnt decremented correctly on close
+OK: lib_OpenCnt decremented correctly on 2nd close
+
+--- Testing mathffp.library ---
+OK: OpenLibrary() returned non-NULL
+OK: lib_OpenCnt >= 1 after OpenLibrary()
+OK: lib_OpenCnt incremented correctly on 2nd open
+OK: Same library base returned
+OK: lib_OpenCnt decremented correctly on close
+OK: lib_OpenCnt decremented correctly on 2nd close
+
+--- Testing expansion.library ---
+OK: OpenLibrary() returned non-NULL
+OK: lib_OpenCnt >= 1 after OpenLibrary()
+OK: lib_OpenCnt incremented correctly on 2nd open
+OK: Same library base returned
+OK: lib_OpenCnt decremented correctly on close
+OK: lib_OpenCnt decremented correctly on 2nd close
+
+--- Test: Non-existent library ---
+OK: OpenLibrary("nonexistent.library") correctly returned NULL
+
+--- Test: Version check ---
+OK: OpenLibrary() correctly returned NULL for too-high version
+
+--- Test: Exec library helpers ---
+OK: MakeLibrary returned non-NULL
+OK: MakeLibrary rounds 5 vectors up to a longword negative size
+OK: AddLibrary inserted library into LibList
+OK: OpenLibrary found custom library
+OK: OpenLibrary rejected too-high version
+OK: SetFunction returned previous function pointer
+OK: SumLibrary updated checksum after SetFunction
+OK: CloseLibrary decremented custom library open count
+OK: RemLibrary expunged custom library from LibList
+
+--- Test: External library scope ---
+Checking rexxsyslib.library...
+OK: library is not resident in ROM
+OK: library is not pre-registered in LibList
+Checking datatypes.library...
+OK: library is not resident in ROM
+OK: library is not pre-registered in LibList
+Checking dopus.library...
+OK: library is not resident in ROM
+OK: library is not pre-registered in LibList
+Checking powerpacker.library...
+OK: library is not resident in ROM
+OK: library is not pre-registered in LibList
+Checking arp.library...
+OK: library is not resident in ROM
+OK: library is not pre-registered in LibList
+Checking iff.library...
+OK: library is not resident in ROM
+OK: library is not pre-registered in LibList
+Checking Explode.Library...
+OK: library is not resident in ROM
+OK: library is not pre-registered in LibList
+Checking Icon.Library...
+OK: library is not resident in ROM
+OK: library is not pre-registered in LibList
+
+--- Test: DOS InitLib state ---
+OK: dos.library initialized RootNode
+OK: dos.library initialized RootNode task array
+OK: dos.library task array has expected initial capacity
+OK: dos.library initialized DosInfo
+OK: dos.library CLI list is a valid list
+OK: dos.library initialized DosInfo semaphores
+
+--- Test: DOS LockRecord entry point ---
+OK: LockRecord() no longer behaves like a stub
+
+--- Test: DOS LockRecords entry point ---
+OK: LockRecords() no longer behaves like a stub
+
+--- Test: DOS UnLockRecord entry point ---
+OK: UnLockRecord() no longer behaves like a stub
+
+--- Test: DOS UnLockRecords entry point ---
+OK: UnLockRecords() no longer behaves like a stub
+
+--- Test: DOS SplitName entry point ---
+OK: SplitName() no longer behaves like a stub
+
+--- Test: DOS SetMode entry point ---
+OK: SetMode() no longer behaves like a stub
+
+--- Test: DOS ChangeMode entry point ---
+OK: ChangeMode() no longer behaves like a stub
+
+--- Test: DOS SameDevice entry point ---
+OK: SameDevice() no longer behaves like a stub
+
+--- Test: DOS ErrorReport entry point ---
+OK: ErrorReport() no longer behaves like a stub
+
+--- Test: DOS GetConsoleTask entry point ---
+OK: GetConsoleTask() no longer behaves like a stub
+
+--- Test: DOS SetConsoleTask entry point ---
+OK: SetConsoleTask() no longer behaves like a stub
+
+--- Test: DOS GetFileSysTask entry point ---
+OK: GetFileSysTask() no longer behaves like a stub
+
+--- Test: DOS SetFileSysTask entry point ---
+OK: SetFileSysTask() no longer behaves like a stub
+
+--- Test: DOS GetArgStr entry point ---
+OK: GetArgStr() no longer behaves like a stub
+
+--- Test: DOS SetArgStr entry point ---
+OK: SetArgStr() no longer behaves like a stub
+
+--- Test: DOS RemDosEntry entry point ---
+OK: RemDosEntry() no longer behaves like a stub
+
+--- Test: DOS AddDosEntry entry point ---
+OK: AddDosEntry() no longer behaves like a stub
+OK: AddDosEntry() rejects a duplicate device name
+
+--- Test: DOS MakeDosEntry entry point ---
+OK: MakeDosEntry() no longer behaves like a stub
+
+--- Test: DOS FreeDosEntry entry point ---
+OK: FreeDosEntry() no longer behaves like a stub
+
+--- Test: DOS Format entry point ---
+OK: Format() no longer behaves like a stub
+
+--- Test: DOS Inhibit entry point ---
+OK: Inhibit() no longer behaves like a stub
+
+--- Test: DOS AddBuffers entry point ---
+OK: AddBuffers() no longer behaves like a stub
+
+--- Test: DOS ReadItem entry point ---
+OK: ReadItem() no longer behaves like a stub
+
+--- Test: utility PackBoolTags entry point ---
+OK: PackBoolTags() no longer behaves like a stub
+
+--- Test: utility FilterTagChanges entry point ---
+OK: FilterTagChanges() no longer behaves like a stub
+
+--- Test: utility ApplyTagChanges entry point ---
+OK: ApplyTagChanges() no longer behaves like a stub
+
+
+=== Test Results ===
+PASS: All tests passed

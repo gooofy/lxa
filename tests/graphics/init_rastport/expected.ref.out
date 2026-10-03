@@ -1,0 +1,13 @@
+Testing InitRastPort()...
+OK: Mask = 0xFF
+OK: FgPen = -1
+OK: BgPen = 0
+OK: AOlPen = -1
+OK: DrawMode = JAM2
+OK: LinePtrn = 0xFFFF
+OK: Flags = 0
+OK: PenWidth = 0, PenHeight = 0
+OK: Font = GfxBase->DefaultFont
+OK: cp_x=0, cp_y=0
+OK: BitMap = NULL
+PASS: InitRastPort() all tests passed

@@ -125,6 +125,8 @@ class Lxa:
             "lxa_add_assign_path": (ctypes.c_bool, [ctypes.c_char_p, ctypes.c_char_p]),
             "lxa_add_drive": (ctypes.c_bool, [ctypes.c_char_p, ctypes.c_char_p]),
             "lxa_get_exception_log": (ctypes.c_int, [ctypes.c_void_p, ctypes.c_int]),
+            "lxa_program_exited": (ctypes.c_bool, []),
+            "lxa_wait_program_exit": (ctypes.c_bool, [ctypes.c_int]),
             "lxa_trace_start": (ctypes.c_bool, [ctypes.c_char_p, ctypes.c_char_p]),
             "lxa_trace_stop": (None, []),
             "lxa_run_cycles": (ctypes.c_int, [ctypes.c_int]),
@@ -247,6 +249,13 @@ class Lxa:
 
     def wait_idle(self, iterations=50):
         self.lib.lxa_run_until_idle(iterations, 100000)
+
+    def program_exited(self):
+        """the launched program returned (its other tasks may still run)"""
+        return self.lib.lxa_program_exited()
+
+    def wait_program_exit(self, timeout_ms=5000):
+        return self.lib.lxa_wait_program_exit(timeout_ms)
 
     def wait_exit(self, timeout_ms=5000):
         return self.lib.lxa_wait_exit(timeout_ms)

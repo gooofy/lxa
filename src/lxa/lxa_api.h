@@ -597,6 +597,15 @@ bool lxa_wait_windows(int count, int timeout_ms);
  */
 bool lxa_wait_exit(int timeout_ms);
 
+/**
+ * Phase 220: has the program started by lxa_load_program() returned?  Other
+ * tasks it created may still run (lxa_is_running() stays true then); this
+ * is the moment the reference agent's WAIT_EXIT reports.  lxa_wait_program_exit()
+ * waits for it (emulated-time timeout).
+ */
+bool lxa_program_exited(void);
+bool lxa_wait_program_exit(int timeout_ms);
+
 /* ========== Output Capture API ========== */
 
 /*

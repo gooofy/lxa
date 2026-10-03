@@ -191,9 +191,8 @@ int main(void)
     /* Test 5: SetSignal - read signals */
     print("\nTest 5: SetSignal - read signals\n");
     oldSigs = SetSignal(0, 0);  /* Read without modifying */
-    print("    Current tc_SigRecvd: ");
-    print_hex(oldSigs);
-    print("\n");
+    /* the value itself depends on the environment (e.g. SIGF_DOS left over
+     * from DOS packets), so it is not printed */
     test_ok("SetSignal(0,0) reads signals without modification");
     
     /* Test 6: SetSignal - set signals */
@@ -279,27 +278,31 @@ int main(void)
     FreeSignal(-1);
     test_ok("FreeSignal(-1) did not crash");
     
-    /* Test 10: Wait clears tc_SigWait on return */
-    print("\nTest 10: Wait clears tc_SigWait\n");
+    /* Test 10: Wait records its mask in tc_SigWait.  AmigaOS 3.1 sets
+     * tc_SigWait even when a signal is already pending and leaves it set
+     * after returning (reference-verified, Phase 220).  tc_SigWait is
+     * sampled right after Wait(): DOS output itself waits (SIGF_DOS). */
+    print("\nTest 10: Wait records tc_SigWait\n");
     {
         ULONG mask = (1UL << sig1);
-        ULONG waited;
+        ULONG waited, sigwait;
 
         /* Seed a stale wait mask and a pending signal. */
         thisTask->tc_SigWait = 0xFFFFFFFF;
         SetSignal(mask, mask);
 
         waited = Wait(mask);
+        sigwait = thisTask->tc_SigWait;
         if (waited == mask) {
             test_ok("Wait returned the pending signal mask");
         } else {
             test_fail_msg("Wait returned wrong signal mask");
         }
 
-        if (thisTask->tc_SigWait == 0) {
-            test_ok("Wait cleared tc_SigWait on return");
+        if (sigwait == mask) {
+            test_ok("Wait left its signal set in tc_SigWait");
         } else {
-            test_fail_msg("Wait left stale tc_SigWait bits");
+            test_fail_msg("tc_SigWait does not hold the Wait() signal set");
         }
 
         if (!(SetSignal(0, 0) & mask)) {
@@ -313,23 +316,26 @@ int main(void)
     /* Test 11: Wait handles SIGBREAKF_CTRL_C */
     print("\nTest 11: Wait handles SIGBREAKF_CTRL_C\n");
     {
-        ULONG waited;
+        ULONG waited, sigwait;
 
         SetSignal(0, SIGBREAKF_CTRL_C);
         Signal(thisTask, SIGBREAKF_CTRL_C);
 
-        waited = Wait(SIGBREAKF_CTRL_C);
+        thisTask->tc_SigWait = 0;
+        waited = Wait(SIGBREAKF_CTRL_C | (1UL << sig1));
+        sigwait = thisTask->tc_SigWait;
         if (waited == SIGBREAKF_CTRL_C) {
             test_ok("Wait returned SIGBREAKF_CTRL_C");
         } else {
             test_fail_msg("Wait did not return SIGBREAKF_CTRL_C");
         }
 
-        if (thisTask->tc_SigWait == 0) {
-            test_ok("Wait cleared tc_SigWait after SIGBREAKF_CTRL_C");
+        if (sigwait == (SIGBREAKF_CTRL_C | (1UL << sig1))) {
+            test_ok("tc_SigWait holds the full Wait() signal set");
         } else {
-            test_fail_msg("Wait left tc_SigWait set after SIGBREAKF_CTRL_C");
+            test_fail_msg("tc_SigWait does not hold the Wait() signal set");
         }
+        thisTask->tc_SigWait = 0;
 
         if (!(SetSignal(0, 0) & SIGBREAKF_CTRL_C)) {
             test_ok("Wait consumed SIGBREAKF_CTRL_C");

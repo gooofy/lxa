@@ -263,6 +263,9 @@ _handleIRQ3:
     /* Wake tasks blocked in WaitTOF()/WaitBOVP() */
     jsr         __graphics_VBlankHook
 
+    /* Run the INTB_VERTB interrupt server chain (AddIntServer) */
+    jsr         __exec_VBlankServers
+
     move.l      4, a6                               | restore a6 (C call may have changed it)
 
     /* count down current task's time slice */

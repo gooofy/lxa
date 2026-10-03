@@ -146,7 +146,11 @@ static const char *g_LocaleStrings[] = {
 };
 
 /* Default locale structure */
-static UBYTE g_DefaultLocaleName[] = "english";
+/* AmigaOS 3.1 without locale prefs: loc_LocaleName "united_states.country",
+ * loc_LanguageName "english.language", loc_PrefLanguages[0] "english"
+ * (reference-verified, Phase 220) */
+static UBYTE g_DefaultLocaleName[] = "united_states.country";
+static UBYTE g_DefaultLocaleLanguageName[] = "english.language";
 static UBYTE g_DefaultLanguageName[] = "english";
 static UBYTE g_DefaultDateTimeFormat[] = "%A %B %e %Y %H:%M:%S";
 static UBYTE g_DefaultDateFormat[] = "%A %B %e %Y";
@@ -162,8 +166,8 @@ static UBYTE g_DefaultGrouping[] = { 3, 0 };
 
 static struct Locale g_DefaultLocale = {
     g_DefaultLocaleName,             /* loc_LocaleName */
-    g_DefaultLanguageName,           /* loc_LanguageName */
-    { NULL },                        /* loc_PrefLanguages */
+    g_DefaultLocaleLanguageName,     /* loc_LanguageName */
+    { g_DefaultLanguageName },       /* loc_PrefLanguages */
     0,                               /* loc_Flags */
     0,                               /* loc_CodeSet */
     1,                               /* loc_CountryCode (USA) */
@@ -599,7 +603,9 @@ static ULONG _loc_strconvert_ascii(CONST_STRPTR string,
     else
         ((UBYTE *)buffer)[buffer_size - 1] = '\0';
 
-    return written;
+    /* the count includes the terminating NUL (AmigaOS 3.1,
+     * reference-verified, Phase 220) */
+    return written + 1;
 }
 
 static BOOL _loc_parse_catalog_strings(BPTR fh, struct MyCatalog *catalog, ULONG chunk_size)
@@ -2116,7 +2122,10 @@ struct Catalog * _locale_OpenCatalogA ( register struct MyLocaleBase    *LocaleB
     if (!locale)
         locale = &g_DefaultLocale;
 
-    requested_language = locale->loc_LanguageName ? locale->loc_LanguageName : (STRPTR)g_DefaultLanguageName;
+    /* catalogs are looked up by the preferred language names
+     * ("english"), not by loc_LanguageName ("english.language") */
+    requested_language = locale->loc_PrefLanguages[0] ? locale->loc_PrefLanguages[0]
+                                                      : (STRPTR)g_DefaultLanguageName;
 
     if (tags)
     {
@@ -2160,6 +2169,23 @@ struct Locale * _locale_OpenLocale ( register struct MyLocaleBase *LocaleBase __
     {
         SetIoErr(0);
         return LocaleBase->cached_locale;
+    }
+
+    /* a name is a locale prefs file: a missing file yields NULL (AmigaOS
+     * 3.1, reference-verified) */
+    if (name && *name)
+    {
+        BPTR lock = Lock((STRPTR)name, SHARED_LOCK);
+
+        if (!lock)
+        {
+            SetIoErr(ERROR_OBJECT_NOT_FOUND);
+            return NULL;
+        }
+        UnLock(lock);
+        LXA_UNIMPLEMENTED("locale", "OpenLocale", "partial: locale prefs files are not parsed, the default locale is returned");
+        SetIoErr(0);
+        return &g_DefaultLocale;
     }
 
     if (_loc_is_default_locale_name(name))

@@ -14,6 +14,8 @@
 #include "lxa_unimpl.h"
 #include "lxa_override.h"
 
+bool g_program_exited = false;   /* Phase 220: lxa_program_exited() */
+
 /* Forward declarations for float/double helpers defined later in this file */
 static float ffp_to_host_float(uint32_t raw);
 static uint32_t host_float_to_ffp(float value);
@@ -239,6 +241,7 @@ int op_illg(int level)
         case EMU_CALL_STOP:
         {
             g_rv = m68k_get_reg(NULL, M68K_REG_D1);
+            g_program_exited = true;   /* the launched program returned */
             fprintf(stderr, "EMU_CALL_STOP called, rv=%d, current PC=0x%08x\n", 
                      g_rv, m68k_get_reg(NULL, M68K_REG_PC));
             DPRINTF (LOG_DEBUG, "EMU_CALL_STOP called, rv=%d, current PC=0x%08x\n", 
@@ -293,6 +296,7 @@ int op_illg(int level)
         case EMU_CALL_EXIT:
         {
             g_rv = m68k_get_reg(NULL, M68K_REG_D1);
+            g_program_exited = true;   /* the launched program returned */
             fprintf(stderr, "EMU_CALL_EXIT called, rv=%d\n", g_rv);
             DPRINTF (LOG_DEBUG, "*** emulator exit via libnix, rv=%d\n", g_rv);
             
@@ -1623,6 +1627,7 @@ int op_illg(int level)
              *   +21  UBYTE  planeMask
              *   +22  UWORD  pixelMaskBpr
              *   +24  ULONG  pixelMask (m68k addr or 0)
+             *   +28  UWORD  maskMode (1 = BltMaskBitMapRastPort semantics)
              *
              * struct BitMap layout (offsets within m68k memory):
              *   +0   UWORD  BytesPerRow
@@ -1653,6 +1658,7 @@ int op_illg(int level)
             uint8_t  planeMask     = m68k_read_memory_8(args_ptr + 21);
             uint16_t pixelMaskBpr  = m68k_read_memory_16(args_ptr + 22);
             uint32_t pixelMaskAddr = m68k_read_memory_32(args_ptr + 24);
+            uint16_t maskMode      = m68k_read_memory_16(args_ptr + 28);
 
             #undef READ_W
 
@@ -1851,22 +1857,44 @@ int op_illg(int level)
                         int d_byte = d_bit_idx >> 3;
                         int d_bit  = 7 - (d_bit_idx & 7);
 
-                        /* Pixel mask check */
+                        /* Pixel mask bit (aligned with the source) */
+                        uint8_t maskBit = 1;
                         if (pixelMaskAddr) {
                             int pm_idx = s_bit_idx;
                             int pm_byte = pm_idx >> 3;
                             int pm_b    = 7 - (pm_idx & 7);
-                            if (!((pmRow[pm_byte] >> pm_b) & 1))
+                            maskBit = (pmRow[pm_byte] >> pm_b) & 1;
+                            if (!maskBit && !maskMode)
                                 continue;
                         }
 
                         uint8_t srcBit = (srcRow[s_byte] >> s_bit) & 1;
                         uint8_t dstBit = (dstRow[d_byte] >> d_bit) & 1;
                         uint8_t newBit = 0;
-                        if ((minterm & 0x10) && !srcBit && !dstBit) newBit = 1;
-                        if ((minterm & 0x20) && !srcBit &&  dstBit) newBit = 1;
-                        if ((minterm & 0x40) &&  srcBit && !dstBit) newBit = 1;
-                        if ((minterm & 0x80) &&  srcBit &&  dstBit) newBit = 1;
+                        if (maskMode) {
+                            /*
+                             * BltMaskBitMapRastPort() as AmigaOS 3.1 renders
+                             * it (measured on the reference machine): an
+                             * XOR / masked minterm / XOR sequence.  With
+                             * T = S ^ D, the middle pass computes
+                             *   M=1: ~((m80 & ~T) | (m40 & T))
+                             *   M=0: ~((m20 & ~T) | (m10 & T))
+                             * and the result is that value XOR S.  For the
+                             * documented minterms 0xE0 (copy through mask)
+                             * and 0x20 (inverted source through mask) the
+                             * destination outside the mask is preserved.
+                             */
+                            uint8_t t = srcBit ^ dstBit;
+                            uint8_t hi = maskBit ? ((minterm & 0x80) ? 1 : 0) : ((minterm & 0x20) ? 1 : 0);
+                            uint8_t lo = maskBit ? ((minterm & 0x40) ? 1 : 0) : ((minterm & 0x10) ? 1 : 0);
+                            uint8_t mid = (uint8_t)(!((hi && !t) || (lo && t)));
+                            newBit = mid ^ srcBit;
+                        } else {
+                            if ((minterm & 0x10) && !srcBit && !dstBit) newBit = 1;
+                            if ((minterm & 0x20) && !srcBit &&  dstBit) newBit = 1;
+                            if ((minterm & 0x40) &&  srcBit && !dstBit) newBit = 1;
+                            if ((minterm & 0x80) &&  srcBit &&  dstBit) newBit = 1;
+                        }
 
                         if (newBit)
                             dstRow[d_byte] |=  (uint8_t)(1 << d_bit);
@@ -3492,7 +3520,27 @@ int op_illg(int level)
              */
             double base = host_double_from_m68k_registers(M68K_REG_D1, M68K_REG_D2);
             double exponent = host_double_from_m68k_registers(M68K_REG_D3, M68K_REG_D4);
-            double result = pow(base, exponent);
+            double result;
+
+            /* Edge cases follow AmigaOS 3.1 mathieeedoubtrans (reference-
+             * verified, Phase 220), not C99 pow():
+             *   x^0 = 1 (also for NaN x), any other NaN operand -> NaN,
+             *   1^+-inf = NaN,
+             *   0^y: y > 0 -> +0, y < 0 integer -> 1, y < 0 fraction -> +0,
+             *   x < 0 with a fractional y -> +0 (no NaN). */
+            bool exp_is_int = isfinite(exponent) && floor(exponent) == exponent;
+            if (exponent == 0.0)
+                result = 1.0;
+            else if (isnan(base) || isnan(exponent))
+                result = NAN;
+            else if (base == 1.0 && isinf(exponent))
+                result = -NAN;          /* 0xfff80000 00000000 on AmigaOS */
+            else if (base == 0.0)
+                result = (exponent < 0.0 && exp_is_int) ? 1.0 : 0.0;
+            else if (base < 0.0 && isfinite(base) && !exp_is_int)
+                result = 0.0;
+            else
+                result = pow(base, exponent);
 
             DPRINTF(LOG_DEBUG, "lxa: IEEEDP_POW(%f, %f) = %f\n", base, exponent, result);
             host_double_to_m68k_registers(result, M68K_REG_D0, M68K_REG_D1);

@@ -1,0 +1,25 @@
+Testing expansion.library memory/config helpers
+OK: AllocConfigDev allocates a ConfigDev structure
+OK: AllocConfigDev clears the board address
+OK: AllocConfigDev clears the board size
+OK: AllocConfigDev clears the ROM type byte
+OK: AllocExpansionMem rejects oversized requests
+OK: AllocExpansionMem allocates two slots
+OK: AllocExpansionMem does not hand out an occupied range
+OK: FreeExpansionMem makes freed range reusable
+OK: AllocExpansionMem honors the slot alignment
+OK: AllocExpansionMem allocates outside an aligned 4MB-style range
+OK: AllocBoardMem allocates a 4MB board
+OK: AllocBoardMem accepts full er_Type values
+OK: ReadExpansionByte decodes logical bytes from nybble-wide board storage
+OK: WriteExpansionByte stores data in the layout expected by ReadExpansionByte
+OK: ReadExpansionRom restores the ROM type byte
+OK: ReadExpansionRom decodes the product byte
+OK: ReadExpansionRom decodes the manufacturer field
+OK: ReadExpansionRom decodes the serial number field
+OK: ReadExpansionRom reads the byte after cd_Rom into cd_BoardAddr
+OK: ReadExpansionRom leaves cd_BoardSize alone
+OK: ReadExpansionRom copies the ROM of any board
+OK: ReadExpansionRom keeps the low bytes of cd_BoardAddr
+OK: ReadExpansionRom keeps cd_BoardSize for any board
+PASS: expansion memory/config helper tests passed

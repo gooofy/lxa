@@ -311,83 +311,7 @@ static UWORD expansion_board_low_nybble_offset(CONST_APTR board)
     return (((ULONG)board) & 0xff000000UL) ? 0x0100 : 0x0002;
 }
 
-static BOOL expansion_rom_equal(const struct ExpansionRom *first, const struct ExpansionRom *second)
-{
-    const UBYTE *first_bytes = (const UBYTE *)first;
-    const UBYTE *second_bytes = (const UBYTE *)second;
-    ULONG index;
-
-    for (index = 0; index < sizeof(*first); index++)
-    {
-        if (first_bytes[index] != second_bytes[index])
-        {
-            return FALSE;
-        }
-    }
-
-    return TRUE;
-}
-
-static ULONG expansion_detect_board_size(const struct ExpansionRom *rom)
-{
-    ULONG size;
-
-    if ((rom->er_Type & ERT_TYPEMASK) == ERT_ZORROIII && (rom->er_Flags & ERFF_EXTENDED) != 0)
-    {
-        size = (16UL * 1024UL * 1024UL) << (rom->er_Type & ERT_MEMMASK);
-    }
-    else
-    {
-        UBYTE mem = rom->er_Type & ERT_MEMMASK;
-
-        if (mem == 0)
-        {
-            size = 8UL * 1024UL * 1024UL;
-        }
-        else
-        {
-            size = (32UL * 1024UL) << mem;
-        }
-    }
-
-    if ((rom->er_Type & ERT_TYPEMASK) == ERT_ZORROIII)
-    {
-        UBYTE subsize = rom->er_Flags & ERT_Z3_SSMASK;
-        ULONG subsize_limit = size;
-
-        if (subsize >= 2 && subsize <= 7)
-        {
-            subsize_limit = (64UL * 1024UL) << (subsize - 2);
-        }
-        else if (subsize >= 8)
-        {
-            subsize_limit = (4UL + (ULONG)(subsize - 8) * 2UL) * 1024UL * 1024UL;
-        }
-
-        if (size > subsize_limit)
-        {
-            size = subsize_limit;
-        }
-    }
-
-    return size;
-}
-
-static VOID expansion_read_rom_once(CONST_APTR board, struct ExpansionRom *rom)
-{
-    UBYTE *rom_bytes = (UBYTE *)rom;
-    ULONG index;
-
-    for (index = 0; index < sizeof(*rom); index++)
-    {
-        rom_bytes[index] = (UBYTE)~_expansion_ReadExpansionByte(NULL, (APTR)board, index);
-    }
-
-    _expansion_ReadExpansionByte(NULL, (APTR)board, sizeof(*rom));
-    rom->er_Type = (UBYTE)~rom->er_Type;
-}
-
-static BOOL expansion_add_boot_node_internal(struct ExpansionBase *ExpansionBase,
+static LONG expansion_add_boot_node_internal(struct ExpansionBase *ExpansionBase,
                                              LONG bootPri,
                                              ULONG flags,
                                              struct DeviceNode *deviceNode,
@@ -399,6 +323,31 @@ static BOOL expansion_add_boot_node_internal(struct ExpansionBase *ExpansionBase
     if (deviceNode == NULL)
     {
         return FALSE;
+    }
+
+    /* Once DOS is running the device is entered into the DOS device list
+     * immediately and no BootNode is recorded.  AmigaOS 3.1 links it at
+     * the head without a duplicate-name check and returns DOSTRUE
+     * (reference-verified, Phase 220). */
+    {
+        struct DosLibrary *dosbase = (struct DosLibrary *)OpenLibrary((CONST_STRPTR)"dos.library", 0);
+
+        if (dosbase)
+        {
+            struct RootNode *root = dosbase->dl_Root;
+            struct DosInfo *info = root ? (struct DosInfo *)BADDR(root->rn_Info) : NULL;
+
+            if (info)
+            {
+                ObtainSemaphore(&info->di_DevLock);
+                deviceNode->dn_Next = info->di_DevInfo;
+                info->di_DevInfo = MKBADDR(deviceNode);
+                ReleaseSemaphore(&info->di_DevLock);
+                CloseLibrary((struct Library *)dosbase);
+                return DOSTRUE;
+            }
+            CloseLibrary((struct Library *)dosbase);
+        }
     }
 
     expansion_lock_binding();
@@ -497,7 +446,7 @@ VOID _expansion_AddConfigDev ( register struct ExpansionBase * ExpansionBase __a
     expansion_unlock_binding();
 }
 
-BOOL _expansion_AddBootNode ( register struct ExpansionBase * ExpansionBase __asm("a6"),
+LONG _expansion_AddBootNode ( register struct ExpansionBase * ExpansionBase __asm("a6"),
                                                         register LONG bootPri __asm("d0"),
                                                         register ULONG flags __asm("d1"),
                                                         register struct DeviceNode * deviceNode __asm("a0"),
@@ -756,42 +705,31 @@ VOID _expansion_ReadExpansionRom ( register struct ExpansionBase * ExpansionBase
                                                         register const APTR board __asm("a0"),
                                                         register struct ConfigDev * configDev __asm("a1"))
 {
-    struct ExpansionRom rom_copy;
-    UBYTE count;
+    UBYTE *dst;
+    ULONG index;
 
     DPRINTF (LOG_DEBUG, "_expansion: ReadExpansionRom(board=0x%08lx, configDev=0x%08lx)\n", (ULONG)board, (ULONG)configDev);
+
+    (void)ExpansionBase;
 
     if (board == NULL || configDev == NULL)
     {
         return;
     }
 
-    expansion_read_rom_once(board, &configDev->cd_Rom);
-
-    if (configDev->cd_Rom.er_Reserved03 != 0 ||
-        configDev->cd_Rom.er_Manufacturer == 0 ||
-        configDev->cd_Rom.er_Manufacturer == 0xffff ||
-        ((configDev->cd_Rom.er_Type & ERT_TYPEMASK) != ERT_ZORROII &&
-         (configDev->cd_Rom.er_Type & ERT_TYPEMASK) != ERT_ZORROIII))
+    /*
+     * AmigaOS 3.1 copies the (inverted) ROM bytes into cd_Rom and leaves
+     * cd_BoardAddr/cd_BoardSize to ConfigBoard().  It reads 17 logical
+     * bytes, one more than struct ExpansionRom: the 17th (ec_Interrupt,
+     * inverted) lands in the first byte after cd_Rom, the top byte of
+     * cd_BoardAddr (reference-verified, Phase 220).
+     */
+    dst = (UBYTE *)&configDev->cd_Rom;
+    for (index = 0; index <= sizeof(struct ExpansionRom); index++)
     {
-        configDev->cd_BoardAddr = NULL;
-        configDev->cd_BoardSize = 0;
-        return;
+        dst[index] = (UBYTE)~_expansion_ReadExpansionByte(NULL, (APTR)board, index);
     }
-
-    for (count = 0; count < 11; count++)
-    {
-        expansion_read_rom_once(board, &rom_copy);
-        if (!expansion_rom_equal(&configDev->cd_Rom, &rom_copy))
-        {
-            configDev->cd_BoardAddr = NULL;
-            configDev->cd_BoardSize = 0;
-            return;
-        }
-    }
-
-    configDev->cd_BoardAddr = (APTR)board;
-    configDev->cd_BoardSize = expansion_detect_board_size(&configDev->cd_Rom);
+    configDev->cd_Rom.er_Type = (UBYTE)~configDev->cd_Rom.er_Type;
 }
 
 VOID _expansion_RemConfigDev ( register struct ExpansionBase * ExpansionBase __asm("a6"),
@@ -944,12 +882,12 @@ struct DeviceNode * _expansion_MakeDosNode ( register struct ExpansionBase * Exp
     device_node->dn_Type = DLT_DEVICE;
     device_node->dn_Name = expansion_write_bstr(name_storage, (CONST_STRPTR)params[0], FALSE);
     device_node->dn_Priority = 10;
-    device_node->dn_StackSize = 4000;
+    device_node->dn_StackSize = 600;    /* AmigaOS 3.1 default (reference-verified) */
 
     return device_node;
 }
 
-BOOL _expansion_AddDosNode ( register struct ExpansionBase * ExpansionBase __asm("a6"),
+LONG _expansion_AddDosNode ( register struct ExpansionBase * ExpansionBase __asm("a6"),
                                                         register LONG bootPri __asm("d0"),
                                                         register ULONG flags __asm("d1"),
                                                         register struct DeviceNode * deviceNode __asm("a0"))

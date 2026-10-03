@@ -1,0 +1,50 @@
+Exec AROS Verification Tests (Phase 78-A-1)
+============================================
+
+Test 1: AllocMem MEMF_CLEAR
+  OK: AllocMem MEMF_CLEAR 256 bytes zeroed
+  OK: AllocMem MEMF_CLEAR 4096 bytes zeroed
+  OK: AllocMem MEMF_CLEAR after dirty re-alloc
+
+Test 2: AllocVec/FreeVec round-trip
+  OK: AllocVec 100 bytes succeeded
+  OK: FreeVec completed without crash
+  OK: AllocVec MEMF_CLEAR zeroed
+  OK: AllocVec/FreeVec 10 cycles OK
+  OK: AllocVec(0) returns NULL
+  OK: FreeVec(NULL) is safe
+
+Test 3: AllocSignal signal 0
+  OK: AllocSignal(0) skipped (already allocated)
+  OK: All 32 signals allocated (including signal 0)
+
+Test 4: RawDoFmt %x uppercase hex
+  OK: %%x produces uppercase
+  OK: %%x 0xDEAD uppercase
+  OK: %%lx 0xADDR uppercase
+
+Test 5: RawDoFmt NULL string
+  OK: %%s NULL produces empty string
+  OK: %%10s NULL with width padding
+
+Test 6: RawDoFmt negative zero-padding
+  OK: %%05d -5 = '-0005'
+  OK: %%08d -42 = '-0000042'
+  OK: %%5d -7 = '   -7' (space pad)
+  OK: %%-5d -3 = '-3   ' (left align)
+  OK: %%010ld -12345 = '-000012345'
+
+Test 7: SumKickData empty state
+  OK: SumKickData returns 0xADDR with no kick data
+
+Test 8: SumKickData with KickTagPtr list
+  OK: SumKickData sums KickTagPtr list
+
+Test 9: SumKickData with KickMemPtr list
+  OK: SumKickData sums KickMemPtr list
+
+=============================
+Tests passed: 24
+Tests failed: 0
+
+PASS: All Exec Verify tests passed!

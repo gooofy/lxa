@@ -124,57 +124,6 @@ static int mem_is_zero(UBYTE *mem, ULONG size)
     return 1;
 }
 
-static ULONG library_checksum_reference(void)
-{
-    struct ExecBase *sys = SysBase;
-    ULONG checksum = 0;
-    BOOL has_data = FALSE;
-
-#ifndef RESLIST_NEXT
-#define RESLIST_NEXT 0x80000000UL
-#endif
-
-    if (sys->KickTagPtr)
-    {
-        ULONG *list = (ULONG *)sys->KickTagPtr;
-
-        while (*list)
-        {
-            checksum += (ULONG)*list;
-
-            if (*list & RESLIST_NEXT)
-            {
-                list = (ULONG *)((ULONG)*list & ~RESLIST_NEXT);
-                continue;
-            }
-
-            list++;
-            has_data = TRUE;
-        }
-    }
-
-    if (sys->KickMemPtr)
-    {
-        struct MemList *mem_list = (struct MemList *)sys->KickMemPtr;
-
-        while (mem_list)
-        {
-            UBYTE i;
-            ULONG *p = (ULONG *)mem_list;
-
-            for (i = 0; i < sizeof(struct MemList) / sizeof(ULONG); i++)
-                checksum += p[i];
-
-            mem_list = (struct MemList *)mem_list->ml_Node.ln_Succ;
-            has_data = TRUE;
-        }
-    }
-
-    if (has_data && !checksum)
-        checksum--;
-
-    return checksum;
-}
 
 int main(void)
 {
@@ -570,14 +519,15 @@ int main(void)
         SysBase->KickTagPtr = NULL;
         SysBase->KickMemPtr = NULL;
 
+        /* AmigaOS 3.1 starts the sum at -1 (reference-verified) */
         sum = SumKickData();
-        if (sum == 0)
+        if (sum == 0xFFFFFFFFUL)
         {
-            test_ok("SumKickData returns 0 with no kick data");
+            test_ok("SumKickData returns 0xFFFFFFFF with no kick data");
         }
         else
         {
-            test_fail_msg("SumKickData should return 0 with no kick data");
+            test_fail_msg("SumKickData should return 0xFFFFFFFF with no kick data");
         }
 
         SysBase->KickTagPtr = old_kick_tag;
@@ -599,7 +549,8 @@ int main(void)
         SysBase->KickTagPtr = tags;
         SysBase->KickMemPtr = NULL;
 
-        expected = library_checksum_reference();
+        /* the list entries plus the -1 start value */
+        expected = 0x12345678UL + 0x00000002UL - 1;
         sum = SumKickData();
         if (sum == expected)
         {
@@ -640,7 +591,9 @@ int main(void)
         SysBase->KickTagPtr = NULL;
         SysBase->KickMemPtr = &kick_mem.ml;
 
-        expected = library_checksum_reference();
+        /* header longs: 0, 0, NT_MEMORY<<24, 2 (ml_NumEntries); entries
+         * 0x1000+0x2000+0x4000+0x1000; plus the -1 start value */
+        expected = 0x0A000000UL + 2 + 0x8000UL - 1;
         sum = SumKickData();
         if (sum == expected)
         {

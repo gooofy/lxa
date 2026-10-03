@@ -16,7 +16,7 @@ extern struct DosLibrary *DOSBase;
 extern struct ExecBase *SysBase;
 extern struct GfxBase *GfxBase;
 
-#define GRAPHICS_TFE_MATCHWORD 0xDFE7
+#define GRAPHICS_TFE_MATCHWORD 0x4E1B   /* as used by AmigaOS 3.1 */
 
 static void print(const char *s)
 {
@@ -232,7 +232,8 @@ int main(void)
     else
     {
         tfe = (struct TextFontExtension *)font.tf_Extension;
-        if (!(font.tf_Style & FSF_TAGGED) || !tfe ||
+        /* ExtendFont() leaves tf_Style (FSF_TAGGED) unchanged */
+        if ((font.tf_Style & FSF_TAGGED) || !tfe ||
             tfe->tfe_MatchWord != GRAPHICS_TFE_MATCHWORD ||
             tfe->tfe_BackPtr != &font ||
             tfe->tfe_OrigReplyPort != orig_extension)
@@ -274,14 +275,30 @@ int main(void)
     if (opened)
         CloseFont(opened);
 
-    if (OpenFont(&ta) != NULL)
+    /* CloseFont() only drops the accessor count: the font stays public
+     * until RemFont() */
+    opened = OpenFont(&ta);
+    if (opened != &font)
     {
-        print("FAIL: CloseFont()/RemFont() left non-ROM font public\n");
+        print("FAIL: CloseFont() removed the font from the public list\n");
         errors++;
     }
     else
     {
-        print("OK: CloseFont() removes unaccessed non-ROM fonts from the public list\n");
+        print("OK: CloseFont() keeps the font in the public list\n");
+    }
+    if (opened)
+        CloseFont(opened);
+
+    RemFont(&font);
+    if (OpenFont(&ta) != NULL || !(font.tf_Flags & FPF_REMOVED))
+    {
+        print("FAIL: RemFont() left the font public\n");
+        errors++;
+    }
+    else
+    {
+        print("OK: RemFont() removes the font from the public list\n");
     }
 
     if (dest)

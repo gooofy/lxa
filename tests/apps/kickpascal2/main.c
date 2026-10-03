@@ -124,7 +124,6 @@ int main(void)
     print("\n--- Test 2: Launch KP2 as background process ---\n");
 
     initial_windows = count_windows();
-    print_num("  Initial window count: ", initial_windows, "\n");
 
     {
         BPTR nilIn = Open((STRPTR)"NIL:", MODE_OLDFILE);
@@ -185,7 +184,6 @@ int main(void)
     }
 
     windows_after = count_windows();
-    print_num("  Window count after launch: ", windows_after, "\n");
 
     if (windows_after > initial_windows) {
         print("OK: KP2 window opened\n");

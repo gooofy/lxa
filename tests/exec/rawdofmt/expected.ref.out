@@ -1,0 +1,62 @@
+Exec RawDoFmt Tests
+===================
+
+Test 1: Basic decimal (%d)
+  OK: %d with positive number
+  OK: %d with negative number
+  OK: %d with zero
+
+Test 2: Unsigned decimal (%u)
+  OK: %u with max UWORD
+
+Test 3: Hexadecimal (%x, %X)
+  OK: %x uppercase digits
+  OK: %x with uppercase letters
+  OK: %X lowercase
+
+Test 4: Long values (%ld, %lu, %lx)
+  OK: %ld with large positive
+  OK: %ld with large negative
+  OK: %lx with 32-bit hex
+
+Test 5: Strings (%s)
+  OK: %s basic string
+  OK: %s NULL pointer (empty)
+
+Test 6: Characters (%c)
+  OK: %c basic character
+
+Test 7: Width with zero padding
+  OK: %08d zero-padded
+  OK: %04x zero-padded hex (uppercase)
+  OK: %05d negative zero-padded
+  OK: %08d negative zero-padded large width
+
+Test 8: Width with space padding
+  OK: %8d space-padded
+
+Test 9: Left alignment (%-)
+  OK: %-8d left-aligned
+  OK: %-8s left-aligned string
+
+Test 10: String precision (%.Ns)
+  OK: %.5s truncated string
+
+Test 11: Percent escape (%%)
+  OK: %% produces single %
+
+Test 12: Multiple arguments
+  OK: Multiple %d arguments
+
+Test 13: Mixed format string
+  OK: Mixed string and hex (uppercase)
+
+Test 14: Edge cases
+  OK: Empty format string
+  OK: Format with no specifiers
+
+=============================
+Tests passed: 26
+Tests failed: 0
+
+PASS: All RawDoFmt tests passed!

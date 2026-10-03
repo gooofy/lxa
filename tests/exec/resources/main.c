@@ -6,7 +6,7 @@
  * Tests:
  * 1. OpenResource() functionality
  * 2. CIA resource availability (ciaa.resource, ciab.resource)
- * 3. blitter.resource availability
+ * 3. blitter.resource absence, cia.resource vectors
  * 4. AddResource()/RemResource() lifecycle
  */
 
@@ -43,6 +43,13 @@ static void print(const char *s)
     const char *p = s;
     while (*p++) len++;
     Write(out, (CONST APTR)s, len);
+}
+
+/* CIA interrupt handler: A1 = is_Data */
+static ULONG cia_handler(register volatile ULONG *data __asm("a1"))
+{
+    (*data)++;
+    return 0;
 }
 
 int main(void)
@@ -142,81 +149,100 @@ int main(void)
         print("OK: ciab.resource found in ResourceList\n");
     }
 
-    /* ========== Test 5: OpenResource() for blitter.resource ========== */
+    /* ========== Test 5: blitter.resource does not exist ========== */
+    /* AmigaOS 3.1 has no blitter.resource (reference-verified, Phase 220). */
     print("\n--- Test 5: OpenResource() for blitter.resource ---\n");
 
-    if (OpenResource((CONST_STRPTR)"blitter.resource") == NULL) {
-        print("FAIL: OpenResource(\"blitter.resource\") returned NULL\n");
+    if (OpenResource((CONST_STRPTR)"blitter.resource") != NULL) {
+        print("FAIL: OpenResource(\"blitter.resource\") should return NULL\n");
         errors++;
     } else {
-        print("OK: blitter.resource opened successfully\n");
+        print("OK: blitter.resource does not exist\n");
     }
 
     /* ========== Test 5b: cia.resource callable vectors ========== */
+    /* Which CIA bits are free depends on the machine (keyboard, timers):
+     * claim the first free one of FLG/ALRM/TB/TA and report nothing that
+     * would reveal which. */
     print("\n--- Test 5b: cia.resource callable vectors ---\n");
 
     if (ciaA == NULL) {
         print("FAIL: ciaa.resource unavailable for vector tests\n");
         errors++;
     } else {
+        static const WORD candidates[] = { 4, 2, 1, 0 };
         struct Interrupt irq;
-        WORD oldMask;
-        oldMask = AbleICR((struct Library *)ciaA, 0);
-        if (oldMask != 0) {
-            print("FAIL: AbleICR() should report initial mask 0\n");
-            errors++;
-        } else {
-            print("OK: AbleICR() reports initial mask\n");
-        }
+        volatile ULONG hits = 0;
+        WORD bit = -1;
+        WORD m;
+        int i;
 
         irq.is_Node.ln_Type = NT_INTERRUPT;
         irq.is_Node.ln_Pri = 0;
         irq.is_Node.ln_Name = (char *)"test-cia";
-        irq.is_Data = NULL;
-        irq.is_Code = NULL;
+        irq.is_Data = (APTR)&hits;
+        irq.is_Code = (VOID (*)())cia_handler;
 
-        if (AddICRVector((struct Library *)ciaA, 3, &irq) != NULL) {
-            print("FAIL: AddICRVector() should claim free CIA bit\n");
-            errors++;
-        } else {
-            print("OK: AddICRVector() claims free CIA bit\n");
+        Disable();
+        for (i = 0; i < 4 && bit < 0; i++) {
+            if (AddICRVector((struct Library *)ciaA, candidates[i], &irq) == NULL)
+                bit = candidates[i];
         }
+        if (bit >= 0)
+            SetICR((struct Library *)ciaA, 1 << bit);   /* clear a stale request */
+        Enable();
 
-        oldMask = AbleICR((struct Library *)ciaA, 0);
-        if ((oldMask & (1 << 3)) == 0) {
-            print("FAIL: AddICRVector() should enable claimed bit\n");
+        if (bit < 0) {
+            print("FAIL: AddICRVector() found no free CIA bit\n");
             errors++;
         } else {
-            print("OK: AddICRVector() enables claimed bit\n");
-        }
+            print("OK: AddICRVector() claims a free CIA bit\n");
 
-        if (AddICRVector((struct Library *)ciaA, 3, &irq) != &irq) {
-            print("FAIL: AddICRVector() should report current owner\n");
-            errors++;
-        } else {
-            print("OK: AddICRVector() reports current owner\n");
-        }
+            if (AbleICR((struct Library *)ciaA, 0) & (1 << bit))
+                print("OK: AddICRVector() enables claimed bit\n");
+            else {
+                print("FAIL: AddICRVector() should enable claimed bit\n");
+                errors++;
+            }
 
-        if (SetICR((struct Library *)ciaA, 0x80 | 0x08) != 0) {
-            print("FAIL: SetICR() should report previous active mask 0\n");
-            errors++;
-        } else {
-            print("OK: SetICR() reports previous active mask\n");
-        }
+            if (AddICRVector((struct Library *)ciaA, bit, &irq) == &irq)
+                print("OK: AddICRVector() reports current owner\n");
+            else {
+                print("FAIL: AddICRVector() should report current owner\n");
+                errors++;
+            }
 
-        if ((SetICR((struct Library *)ciaA, 0) & 0x08) == 0) {
-            print("FAIL: SetICR() should preserve active bit state\n");
-            errors++;
-        } else {
-            print("OK: SetICR() preserves active bit state\n");
-        }
+            m = SetICR((struct Library *)ciaA, 0x80 | (1 << bit));
+            if (m & (1 << bit)) {
+                print("FAIL: SetICR() reported the bit pending before it was caused\n");
+                errors++;
+            } else {
+                print("OK: SetICR() reports previous request mask\n");
+            }
 
-        RemICRVector((struct Library *)ciaA, 3, &irq);
-        if (AbleICR((struct Library *)ciaA, 0) & (1 << 3)) {
-            print("FAIL: RemICRVector() should disable removed bit\n");
-            errors++;
-        } else {
-            print("OK: RemICRVector() disables removed bit\n");
+            for (i = 0; i < 50 && hits == 0; i++)
+                Delay(1);
+            if (hits)
+                print("OK: SetICR() caused the interrupt handler to run\n");
+            else {
+                print("FAIL: SetICR() did not run the interrupt handler\n");
+                errors++;
+            }
+
+            if (SetICR((struct Library *)ciaA, 0) & (1 << bit)) {
+                print("FAIL: handled CIA request is still pending\n");
+                errors++;
+            } else {
+                print("OK: handled CIA request is no longer pending\n");
+            }
+
+            RemICRVector((struct Library *)ciaA, bit, &irq);
+            if (AbleICR((struct Library *)ciaA, 0) & (1 << bit)) {
+                print("FAIL: RemICRVector() should disable removed bit\n");
+                errors++;
+            } else {
+                print("OK: RemICRVector() disables removed bit\n");
+            }
         }
     }
 
@@ -231,11 +257,12 @@ int main(void)
 
     AddResource(&customResource);
 
-    if (customResource.ln_Type != NT_RESOURCE) {
-        print("FAIL: AddResource() did not set NT_RESOURCE type\n");
+    /* AmigaOS 3.1 AddResource() leaves ln_Type alone (reference-verified) */
+    if (customResource.ln_Type != 0) {
+        print("FAIL: AddResource() changed ln_Type\n");
         errors++;
     } else {
-        print("OK: AddResource() set NT_RESOURCE type\n");
+        print("OK: AddResource() leaves ln_Type unchanged\n");
     }
 
     if (OpenResource((CONST_STRPTR)"test.resource") != &customResource) {

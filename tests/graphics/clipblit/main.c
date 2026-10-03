@@ -131,26 +131,46 @@ int main(void)
         if (!li) {
             print("  ERROR: Could not create Layer_Info\n");
         } else {
-            /* Create layer */
-            layer = CreateUpfrontLayer(li, bm_dst, 10, 10, 90, 90, 0, NULL);
+            /* Create a simple-refresh layer and draw through its RastPort */
+            layer = CreateUpfrontLayer(li, bm_dst, 10, 10, 90, 90, LAYERSIMPLE, NULL);
             if (!layer) {
                 print("  ERROR: Could not create layer\n");
             } else {
-                rp_dst->Layer = layer;
-                
-                /* Clear destination */
-                SetRast(rp_dst, 0);
-                
-                /* Blit with layer */
-                ClipBlit(rp_src, 10, 10, rp_dst, 0, 0, 30, 30, 0xC0);
+                struct RastPort *lrp = layer->rp;
 
-                if (ReadPixel(rp_dst, 15, 15) == 1 && ReadPixel(rp_dst, 95, 15) == 0) {
+                /* Clear destination (SetRast ignores the layer) */
+                SetRast(rp_dst, 0);
+
+                /* Blit with layer: lands at absolute (10,10) */
+                ClipBlit(rp_src, 10, 10, lrp, 0, 0, 30, 30, 0xC0);
+
+                if (ReadPixel(lrp, 15, 15) == 1 && ReadPixel(rp_dst, 25, 25) == 1 &&
+                    ReadPixel(rp_dst, 9, 9) == 0) {
+                    print("  OK: ClipBlit with layer used layer coordinates\n");
+                } else {
+                    print("  FAIL: ClipBlit with layer did not use layer coordinates\n");
+                    errors++;
+                }
+
+                /* ReadPixel outside the layer returns -1 */
+                if ((LONG)ReadPixel(lrp, 95, 15) == -1 && (LONG)ReadPixel(lrp, -1, 0) == -1) {
+                    print("  OK: ReadPixel outside the layer returned -1\n");
+                } else {
+                    print("  FAIL: ReadPixel outside the layer did not return -1\n");
+                    errors++;
+                }
+
+                /* A blit crossing the layer edge is clipped to the layer */
+                SetRast(rp_dst, 0);
+                ClipBlit(rp_src, 10, 10, lrp, 70, 70, 30, 30, 0xC0);
+                if (ReadPixel(rp_dst, 85, 85) == 1 && ReadPixel(rp_dst, 90, 90) == 1 &&
+                    ReadPixel(rp_dst, 91, 91) == 0 && ReadPixel(rp_dst, 95, 85) == 0) {
                     print("  OK: ClipBlit with layer clipped to visible region\n");
                 } else {
                     print("  FAIL: ClipBlit with layer ignored layer bounds\n");
                     errors++;
                 }
-                
+
                 DeleteLayer(0, layer);
             }
             DisposeLayerInfo(li);
@@ -163,7 +183,6 @@ int main(void)
     {
         SetAPen(rp_dst, 1);
         SetRast(rp_dst, 1);
-        rp_dst->Layer = NULL;
         
         /* Minterm 0x50 inverts destination bits */
         ClipBlit(rp_src, 15, 15, rp_dst, 5, 5, 20, 20, 0x50);
@@ -183,8 +202,6 @@ int main(void)
         struct Layer *src_back;
         struct Layer *src_front;
         struct Layer_Info *src_li;
-        struct RastPort rp_back;
-        struct RastPort rp_front;
 
         src_li = NewLayerInfo();
         if (!src_li) {
@@ -198,20 +215,19 @@ int main(void)
                 print("  FAIL: Could not create source layers\n");
                 errors++;
             } else {
-                InitRastPort(&rp_back);
-                InitRastPort(&rp_front);
-                rp_back.BitMap = bm_src;
-                rp_back.Layer = src_back;
-                rp_front.BitMap = bm_src;
-                rp_front.Layer = src_front;
+                SetAPen(src_back->rp, 1);
+                RectFill(src_back->rp, 0, 0, 49, 49);
+                SetAPen(src_front->rp, 0);
+                RectFill(src_front->rp, 0, 0, 29, 49);
 
-                SetAPen(&rp_back, 1);
-                RectFill(&rp_back, 0, 0, 49, 49);
-                SetAPen(&rp_front, 0);
-                RectFill(&rp_front, 0, 0, 29, 49);
+                /* the obscured part of a simple-refresh layer cannot be read */
+                if ((LONG)ReadPixel(src_back->rp, 30, 10) != -1) {
+                    print("  FAIL: ReadPixel in an obscured simple-refresh area did not return -1\n");
+                    errors++;
+                }
 
                 SetRast(rp_dst, 0);
-                ClipBlit(&rp_back, 0, 0, rp_dst, 0, 0, 50, 50, 0xC0);
+                ClipBlit(src_back->rp, 0, 0, rp_dst, 0, 0, 50, 50, 0xC0);
 
                 if (ReadPixel(rp_dst, 10, 10) == 1 && ReadPixel(rp_dst, 30, 10) == 0) {
                     print("  OK: ClipBlit skipped obscured source pixels\n");

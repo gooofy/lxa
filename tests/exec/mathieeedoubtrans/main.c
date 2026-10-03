@@ -274,7 +274,12 @@ int main(void)
 
     expect_double_bits(IEEEDPPow(IEEEDPFlt(10), IEEEDPFlt(2)), 0x40900000UL, 0x00000000UL, "IEEEDPPow(2, 10) = 1024");
     expect_double_bits(IEEEDPPow(IEEEDPFlt(0), IEEEDPFlt(2)), 0x3ff00000UL, 0x00000000UL, "IEEEDPPow(2, 0) = 1");
-    expect_true(double_is_nan(IEEEDPPow(IEEEDPDiv(IEEEDPFlt(1), IEEEDPFlt(2)), IEEEDPNeg(IEEEDPFlt(1)))), "IEEEDPPow(-1, 0.5) = NaN");
+    /* AmigaOS 3.1: a negative base with a fractional exponent yields +0,
+     * not NaN; 0 raised to a negative integer yields 1 (reference-verified) */
+    expect_double_bits(IEEEDPPow(IEEEDPDiv(IEEEDPFlt(1), IEEEDPFlt(2)), IEEEDPNeg(IEEEDPFlt(1))), 0x00000000UL, 0x00000000UL, "IEEEDPPow(-1, 0.5) = +0");
+    expect_double_bits(IEEEDPPow(IEEEDPNeg(IEEEDPFlt(1)), pos_zero), 0x3ff00000UL, 0x00000000UL, "IEEEDPPow(0, -1) = 1");
+    expect_double_bits(IEEEDPPow(IEEEDPFlt(3), IEEEDPNeg(IEEEDPFlt(2))), 0xc0200000UL, 0x00000000UL, "IEEEDPPow(-2, 3) = -8");
+    expect_true(double_is_nan(IEEEDPPow(pos_inf, IEEEDPFlt(1))), "IEEEDPPow(1, inf) = NaN");
     expect_double_bits(IEEEDPSqrt(IEEEDPFlt(9)), 0x40080000UL, 0x00000000UL, "IEEEDPSqrt(9) = 3");
     expect_double_bits(IEEEDPSqrt(pos_zero), 0x00000000UL, 0x00000000UL, "IEEEDPSqrt(+0) = +0");
     expect_double_bits(IEEEDPSqrt(neg_zero), 0x80000000UL, 0x00000000UL, "IEEEDPSqrt(-0) = -0");

@@ -194,3 +194,6 @@ screenshots/lxa-tests/
 __pycache__/
 *.pyc
 .claude/worktrees/
+
+# built from src/bgui and staged here by the build (src/bgui/CMakeLists.txt)
+share/lxa/System/Libs/bgui.library

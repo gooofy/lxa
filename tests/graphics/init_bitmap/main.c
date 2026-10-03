@@ -34,6 +34,13 @@ int main(void)
 
     print("Testing InitBitMap()...\n");
 
+    /* Pre-fill the structure so cleared fields are really written */
+    {
+        UBYTE *b = (UBYTE *)&bm;
+        for (i = 0; i < (int)sizeof(bm); i++)
+            b[i] = 0xAA;
+    }
+
     /* Test 320x200 4-plane (standard lowres) */
     InitBitMap(&bm, 4, 320, 200);
     if (bm.BytesPerRow != 40) {
@@ -54,11 +61,12 @@ int main(void)
     } else {
         print("OK: Depth=4\n");
     }
-    if (bm.Flags != BMF_STANDARD) {
-        print("FAIL: Flags != BMF_STANDARD\n");
+    /* AmigaOS 3.1 clears Flags (it does not set BMF_STANDARD) */
+    if (bm.Flags != 0) {
+        print("FAIL: Flags != 0\n");
         errors++;
     } else {
-        print("OK: Flags=BMF_STANDARD\n");
+        print("OK: Flags=0\n");
     }
     if (bm.pad != 0) {
         print("FAIL: pad != 0\n");
