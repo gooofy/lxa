@@ -5782,6 +5782,50 @@ void _exec_TaskHeld(void)
         Wait(0);
 }
 
+/*
+ * AmigaOS 3.1 leaves a1 = the IORequest after these calls, and d1 = 0
+ * after OpenDevice()/CloseDevice() (tests/probes/exec/scratchregs.c).
+ * 1.x programs rely on it (Fred Fish settime: CloseDevice(a1) right after
+ * DoIO(a1)) - the C implementations clobber both.
+ */
+extern void _exec_OpenDevice_regs(void);
+extern void _exec_CloseDevice_regs(void);
+extern void _exec_DoIO_regs(void);
+extern void _exec_SendIO_regs(void);
+extern void _exec_WaitIO_regs(void);
+asm(
+"        .text                                       \n"
+"        .even                                       \n"
+"__exec_OpenDevice_regs:                             \n"
+"        move.l  a1,-(sp)                            \n"
+"        jsr     __exec_OpenDevice                   \n"
+"        move.l  (sp)+,a1                            \n"
+"        moveq   #0,d1                               \n"
+"        rts                                         \n"
+"__exec_CloseDevice_regs:                            \n"
+"        move.l  a1,-(sp)                            \n"
+"        jsr     __exec_CloseDevice                  \n"
+"        move.l  (sp)+,a1                            \n"
+"        moveq   #0,d1                               \n"
+"        rts                                         \n"
+"__exec_DoIO_regs:                                   \n"
+"        move.l  a1,-(sp)                            \n"
+"        jsr     __exec_DoIO                         \n"
+"        move.l  (sp)+,a1                            \n"
+"        rts                                         \n"
+"__exec_SendIO_regs:                                 \n"
+"        move.l  a1,-(sp)                            \n"
+"        jsr     __exec_SendIO                       \n"
+"        move.l  (sp)+,a1                            \n"
+"        move.l  20(a1),d1                           | io_Device, not the request \n"
+"        rts                                         \n"
+"__exec_WaitIO_regs:                                 \n"
+"        move.l  a1,-(sp)                            \n"
+"        jsr     __exec_WaitIO                       \n"
+"        move.l  (sp)+,a1                            \n"
+"        rts                                         \n"
+);
+
 void coldstart (void)
 {
     // setup exceptions, traps, interrupts
@@ -5924,12 +5968,12 @@ void coldstart (void)
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-426)].vec = _exec_SumLibrary;
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-432)].vec = _exec_AddDevice;
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-438)].vec = _exec_RemDevice;
-    g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-444)].vec = _exec_OpenDevice;
-    g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-450)].vec = _exec_CloseDevice;
-    g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-456)].vec = _exec_DoIO;
-    g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-462)].vec = _exec_SendIO;
+    g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-444)].vec = _exec_OpenDevice_regs;
+    g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-450)].vec = _exec_CloseDevice_regs;
+    g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-456)].vec = _exec_DoIO_regs;
+    g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-462)].vec = _exec_SendIO_regs;
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-468)].vec = _exec_CheckIO;
-    g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-474)].vec = _exec_WaitIO;
+    g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-474)].vec = _exec_WaitIO_regs;
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-480)].vec = _exec_AbortIO;
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-486)].vec = _exec_AddResource;
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-492)].vec = _exec_RemResource;
