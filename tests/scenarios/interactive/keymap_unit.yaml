@@ -1,0 +1,12 @@
+# Phase 224: Tests/Console/keymap_unit validated on AmigaOS 3.1 with the input console_gtest
+# injects; stdout must match on both systems.
+name: interactive-keymap_unit
+app:
+  sample: Tests/Console/keymap_unit
+steps:
+  - launch
+  - wait_output: "Waiting for remapped input"
+  - click: {anchor: inside, xy: [10, 4]}
+  - key: {rawkey: 0x20}
+  - frames: 50
+  - snapshot: {name: end, screen: false}

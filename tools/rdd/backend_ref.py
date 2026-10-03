@@ -137,6 +137,18 @@ def run(scn, out_dir, build=None, use_cache=True):
             with open(os.path.join(exch, "rdd-tree.json")) as f:
                 return json.load(f)
 
+        gesture_tree = [None]
+
+        def settle():
+            """after input: wait until idle, but a program that polls never
+            looks idle - then a short delay is enough"""
+            try:
+                agent.cmd("WAIT_IDLE 5000", timeout=40)
+            except AgentError as e:
+                if "not idle" not in str(e) and "timeout" not in str(e):
+                    raise
+                agent.cmd("DELAY 10")
+
         def snapshot(snap_name, args, t):
             window = None
             cmd = "SNAP rdd-snap.bin"
@@ -191,16 +203,49 @@ def run(scn, out_dir, build=None, use_cache=True):
                 elif kind == "click":
                     x, y = geometry.click_point(tree(), args)
                     agent.cmd("CLICK %d %d L" % (x, y))
-                    agent.cmd("WAIT_IDLE 5000")
+                    settle()
+                elif kind in ("move", "press", "release"):
+                    # a gesture stays anchored where it started: while a
+                    # verify/menu state is active the window may be missing
+                    # from the tree, so fall back to the last tree that had it
+                    try:
+                        t = tree()
+                        x, y = geometry.click_point(t, args)
+                        gesture_tree[0] = t
+                    except LookupError:
+                        if gesture_tree[0] is None:
+                            raise
+                        x, y = geometry.click_point(gesture_tree[0], args)
+                    b = "R" if args.get("button", "L") == "R" else "L"
+                    agent.cmd({"move": "MOVE %d %d", "press": "PRESS %d %d " + b,
+                               "release": "RELEASE %d %d " + b}[kind] % (x, y))
+                    agent.cmd("DELAY 2")
+                elif kind == "wait_output":
+                    stdout_path = os.path.join(exch, "rdd-stdout.txt")
+                    waited = 0
+                    while waited < args.get("timeout", 10000):
+                        if os.path.exists(stdout_path) and args["text"] in open(stdout_path, encoding="latin-1").read():
+                            break
+                        agent.cmd("DELAY 5")
+                        waited += 100
+                    else:
+                        raise AgentError("output never contained %r" % args["text"])
                 elif kind == "menu":
                     agent.cmd("MENU %s" % args["path"])
-                    agent.cmd("WAIT_IDLE 5000")
+                    settle()
                 elif kind == "type":
-                    agent.cmd("TYPE %s" % args["text"])
-                    agent.cmd("WAIT_IDLE 5000")
+                    # TYPE maps characters through the keymap; a newline is
+                    # the Return key (rawkey 0x44), which has no character
+                    parts = args["text"].split("\n")
+                    for i, part in enumerate(parts):
+                        if part:
+                            agent.cmd("TYPE %s" % part)
+                        if i < len(parts) - 1:
+                            agent.cmd("KEY 44")
+                    settle()
                 elif kind == "key":
                     agent.cmd("KEY %x %x" % (args["rawkey"], args.get("qualifier", 0)))
-                    agent.cmd("WAIT_IDLE 5000")
+                    settle()
                 elif kind == "snapshot":
                     snapshot(args["name"], args, tree())
                 elif kind == "menus":

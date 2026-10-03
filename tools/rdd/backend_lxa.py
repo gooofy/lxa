@@ -69,6 +69,9 @@ def run(scn, out_dir, build=None):
                                 extra_meta={"profile": scn.profile})
             result["snapshots"].append(snap_name)
 
+        held = [0]   # mouse buttons held by press/release steps
+        gesture_tree = [None]
+
         for kind, args in scn.steps:
             step = {"step": kind, "args": args, "ok": True}
             try:
@@ -91,6 +94,32 @@ def run(scn, out_dir, build=None):
                     x, y = geometry.click_point(tree(), args)
                     lxa.click(x, y, MOUSE_LEFT)
                     lxa.wait_idle()
+                elif kind in ("move", "press", "release"):
+                    # a gesture stays anchored where it started: while a
+                    # verify/menu state is active the window may be missing
+                    # from the tree, so fall back to the last tree that had it
+                    try:
+                        t = tree()
+                        x, y = geometry.click_point(t, args)
+                        gesture_tree[0] = t
+                    except LookupError:
+                        if gesture_tree[0] is None:
+                            raise
+                        x, y = geometry.click_point(gesture_tree[0], args)
+                    bit = MOUSE_RIGHT if args.get("button", "L") == "R" else MOUSE_LEFT
+                    if kind == "press":
+                        held[0] |= bit
+                    elif kind == "release":
+                        held[0] &= ~bit
+                    lxa.lib.lxa_inject_mouse(x, y, held[0], 2 if kind == "move" else 1)
+                    lxa.frames(2)
+                elif kind == "wait_output":
+                    deadline = args.get("timeout", 10000) // 20
+                    while args["text"] not in lxa.output() and deadline > 0:
+                        lxa.frames(1)
+                        deadline -= 1
+                    if args["text"] not in lxa.output():
+                        raise RuntimeError("output never contained %r" % args["text"])
                 elif kind == "menu":
                     if not lxa.menu(args["path"]):
                         raise RuntimeError("menu %r not found" % args["path"])

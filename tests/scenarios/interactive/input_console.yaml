@@ -1,0 +1,13 @@
+# Phase 224: Tests/Console/input_console validated on AmigaOS 3.1 - the
+# key input console_gtest injects is typed into the program's console
+# window on both systems; stdout must match.
+name: interactive-input_console
+app:
+  sample: Tests/Console/input_console
+steps:
+  - launch
+  - wait_output: "Waiting for input"
+  - click: {anchor: inside, xy: [10, 4]}
+  - type: "A\n"
+  - frames: 50
+  - snapshot: {name: end, screen: false}

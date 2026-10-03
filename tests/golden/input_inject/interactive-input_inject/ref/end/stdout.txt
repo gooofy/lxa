@@ -1,0 +1,7 @@
+Testing input injection infrastructure...
+OK: Window opened
+Waiting for RAWKEY events...
+  Received RAWKEY with valid previous-key snapshot
+  Received RAWKEY with valid previous-key snapshot
+  Received RAWKEY with valid previous-key snapshot
+PASS: input_inject all tests passed

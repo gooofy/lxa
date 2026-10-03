@@ -1,0 +1,13 @@
+Testing IDCMP_MENUVERIFY...
+OK: Screen opened
+OK: Window opened with MENUVERIFY|MENUPICK
+OK: Menu strip attached
+READY: press RMB
+  OK: IDCMP_MENUVERIFY received
+  Code=0x00000001
+  OK: Code is MENUHOT
+Test 2: No MENUVERIFY without flag...
+  OK: MENUVERIFY flag cleared, no delivery possible
+OK: Window closed
+OK: Screen closed
+PASS: idcmp_menuverify all tests passed

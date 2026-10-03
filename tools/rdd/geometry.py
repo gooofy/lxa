@@ -84,12 +84,36 @@ def click_point(tree, spec):
           (offset relative to the window's top-left for "xy" when a window
           is given).
     """
-    if "xy" in spec and "window" not in spec:
+    if "xy" in spec and "window" not in spec and "anchor" not in spec:
         return tuple(spec["xy"])
+    if spec.get("label") and "window" not in spec:
+        # a gadget label without a window: search every application window,
+        # front-most (last opened) first - requesters carry their parent's title
+        for _, _, win in reversed(windows(tree)):
+            if not win.get("app", True):
+                continue
+            g = find_gadget(win, None, spec["label"])
+            if g:
+                return center(gadget_box(win, g))
+        raise LookupError("no gadget labelled %r in any window" % spec["label"])
     found = find_window(tree, spec.get("window"))
     if not found:
         raise LookupError("no window %r" % spec.get("window"))
     _, _, win = found
+    anchor = spec.get("anchor")
+    if anchor:
+        # window-relative anchors that resolve to the same logical spot on
+        # both systems even if borders differ: "title" (drag bar), "inside"
+        # (top-left of the inner area), "size_gadget" (bottom-right corner),
+        # "center", "menubar" (screen title bar above the window)
+        b = win.get("border") or [4, 11, 4, 2]
+        ax, ay = {"title": (win["left"] + 20, win["top"] + max(1, b[1] // 2)),
+                  "inside": (win["left"] + b[0], win["top"] + b[1]),
+                  "size_gadget": (win["left"] + win["width"] - 4, win["top"] + win["height"] - 4),
+                  "center": (win["left"] + win["width"] // 2, win["top"] + win["height"] // 2),
+                  "menubar": (win["left"] + 30, 4)}[anchor]
+        dx, dy = spec.get("xy", (0, 0))
+        return ax + dx, ay + dy
     if "xy" in spec:
         return win["left"] + spec["xy"][0], win["top"] + spec["xy"][1]
     g = find_gadget(win, spec.get("gadget_id"), spec.get("label"))
