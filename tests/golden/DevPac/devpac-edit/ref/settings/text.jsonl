@@ -1,0 +1,92 @@
+{"text":"Devpac Amiga 3.18  Copyright © 1997 HiSoft","x":5,"y":7}
+{"text":"Untitled","x":30,"y":7}
+{"text":"Untitled","x":30,"y":7}
+{"text":"        ","x":4,"y":17}
+{"text":"    9, 1     ","x":489,"y":7}
+{"text":"        m","x":4,"y":17}
+{"text":"   10, 1     ","x":489,"y":7}
+{"text":"        mo","x":4,"y":17}
+{"text":"   11, 1     ","x":489,"y":7}
+{"text":"        mov","x":4,"y":17}
+{"text":"   12, 1     ","x":489,"y":7}
+{"text":"        move","x":4,"y":17}
+{"text":"   13, 1     ","x":489,"y":7}
+{"text":"        move.","x":4,"y":17}
+{"text":"   14, 1     ","x":489,"y":7}
+{"text":"        move.l","x":4,"y":17}
+{"text":"   15, 1     ","x":489,"y":7}
+{"text":"        move.l  ","x":4,"y":17}
+{"text":"   17, 1     ","x":489,"y":7}
+{"text":"        move.l  #","x":4,"y":17}
+{"text":"   18, 1     ","x":489,"y":7}
+{"text":"        move.l  #1","x":4,"y":17}
+{"text":"   19, 1     ","x":489,"y":7}
+{"text":"        move.l  #1,","x":4,"y":17}
+{"text":"   20, 1     ","x":489,"y":7}
+{"text":"        move.l  #1,d","x":4,"y":17}
+{"text":"   21, 1     ","x":489,"y":7}
+{"text":"        move.l  #1,d0","x":4,"y":17}
+{"text":"   22, 1     ","x":489,"y":7}
+{"text":"        move.l  #1,d0","x":4,"y":17}
+{"text":"        ","x":4,"y":25}
+{"text":"    9, 2     ","x":489,"y":7}
+{"text":"Project","x":7,"y":7}
+{"text":"Edit","x":79,"y":7}
+{"text":"Search","x":127,"y":7}
+{"text":"Window","x":191,"y":7}
+{"text":"Program","x":255,"y":7}
+{"text":"Macros","x":327,"y":7}
+{"text":"Settings","x":391,"y":7}
+{"text":"To Disk?","x":24,"y":9}
+{"text":"Create Icons?","x":24,"y":18}
+{"text":"Settings...","x":9,"y":33}
+{"text":"T","x":191,"y":33}
+{"text":"Tools...","x":9,"y":42}
+{"text":"Display","x":9,"y":51}
+{"text":"»","x":191,"y":51}
+{"text":"Assembler","x":9,"y":60}
+{"text":"»","x":191,"y":60}
+{"text":"Load Settings...","x":9,"y":75}
+{"text":"Save Settings","x":9,"y":84}
+{"text":"Save Settings As...","x":9,"y":93}
+{"text":"Devpac Amiga 3.18  Copyright © 1997 HiSoft","x":5,"y":7}
+{"text":"Untitled","x":30,"y":7}
+{"text":"Devpac Amiga 3.18  Copyright © 1997 HiSoft","x":5,"y":7}
+{"text":"Untitled","x":30,"y":7}
+{"text":"Settings","x":5,"y":7}
+{"text":"Settings","x":30,"y":7}
+{"text":"Cancel","x":409,"y":118}
+{"text":"C","x":409,"y":118}
+{"text":"Use","x":232,"y":118}
+{"text":"U","x":232,"y":118}
+{"text":"Save","x":40,"y":118}
+{"text":"S","x":40,"y":118}
+{"text":"DEVPAC.1","x":282,"y":94}
+{"text":"8","x":170,"y":24}
+{"text":"Tab Size:","x":84,"y":24}
+{"text":"T","x":84,"y":24}
+{"text":"IBM Keypad","x":309,"y":67}
+{"text":"I","x":309,"y":67}
+{"text":"Auto","x":202,"y":80}
+{"text":"Program Window:","x":36,"y":80}
+{"text":"W","x":100,"y":80}
+{"text":"No","x":210,"y":66}
+{"text":"Save Before Run:","x":28,"y":66}
+{"text":"v","x":44,"y":66}
+{"text":"Alt","x":206,"y":52}
+{"text":"Word Qualifier:","x":36,"y":52}
+{"text":"Q","x":76,"y":52}
+{"text":"Ignore","x":194,"y":38}
+{"text":"End of Line:","x":60,"y":38}
+{"text":"E","x":60,"y":38}
+{"text":"Use","x":206,"y":94}
+{"text":"Public Screen:","x":44,"y":94}
+{"text":"P","x":44,"y":94}
+{"text":"Shift-Backspace","x":309,"y":56}
+{"text":"h","x":317,"y":56}
+{"text":"Stack New Projects","x":309,"y":45}
+{"text":"N","x":357,"y":45}
+{"text":"Make Backups","x":309,"y":34}
+{"text":"B","x":349,"y":34}
+{"text":"Auto-Indent","x":309,"y":23}
+{"text":"A","x":309,"y":23}

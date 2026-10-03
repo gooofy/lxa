@@ -98,6 +98,24 @@ static LONG con_read(struct IOStdReq *req, char *buf, LONG len)
     return req->io_Actual;
 }
 
+/* CMD_READ with a timeout in ticks: -1 if nothing arrived */
+static LONG con_read_timeout(struct IOStdReq *req, char *buf, LONG len, LONG ticks)
+{
+    req->io_Command = CMD_READ;
+    req->io_Data = (APTR)buf;
+    req->io_Length = len;
+    SendIO((struct IORequest *)req);
+    while (ticks-- > 0 && !CheckIO((struct IORequest *)req))
+        Delay(1);
+    if (!CheckIO((struct IORequest *)req)) {
+        AbortIO((struct IORequest *)req);
+        WaitIO((struct IORequest *)req);
+        return -1;
+    }
+    WaitIO((struct IORequest *)req);
+    return req->io_Actual;
+}
+
 static BOOL starts_with_bytes(const char *buf, LONG len, const char *prefix, LONG prefix_len)
 {
     LONG i;
@@ -257,9 +275,7 @@ int main(void)
     nw.Height = 140;
     nw.DetailPen = 0;
     nw.BlockPen = 1;
-    nw.IDCMPFlags = IDCMP_RAWKEY | IDCMP_GADGETDOWN | IDCMP_GADGETUP | IDCMP_ACTIVEWINDOW |
-                    IDCMP_INACTIVEWINDOW | IDCMP_CHANGEWINDOW | IDCMP_REFRESHWINDOW |
-                    IDCMP_MOUSEBUTTONS | IDCMP_MOUSEMOVE;
+    nw.IDCMPFlags = 0;      /* IDCMP_RAWKEY/MOUSEBUTTONS would take the events from the console (AmigaOS 3.1, tests/console/idcmp_console) */
     nw.Flags = WFLG_SMART_REFRESH | WFLG_ACTIVATE | WFLG_CLOSEGADGET |
                WFLG_SIZEGADGET | WFLG_DEPTHGADGET;
     nw.FirstGadget = &button;
@@ -360,17 +376,39 @@ int main(void)
     con_puts(console_req, all_events_disable);
     con_puts(console_req, rawkey_disable);
 
-    print("Waiting for size-window raw event report\n");
+    /* AmigaOS 3.1 reports no class-12 event for a SizeWindow() (nor for a
+     * size-gadget drag) - verified with tests/scenarios/interactive/raw_events_unit.yaml */
+    print("Checking size-window raw event report\n");
     con_puts(console_req, CSI "12{");
-    /* AmigaOS 3.1: the maximum size defaults to the initial size and
-     * SizeWindow() honours it, so lift the limit before growing */
     WindowLimits(window, 0, 0, (UWORD)~0, (UWORD)~0);
     SizeWindow(window, 16, 8);
-    if (!expect_raw_report(console_req, read_buf, "size-window report",
-                           size_prefix, sizeof(size_prefix))) {
-        goto fail;
+    result = con_read_timeout(console_req, read_buf, sizeof(read_buf), 50);
+    if (result < 0)
+        print("size-window raw event report: none\n");
+    else {
+        /* CSI class;subclass;code;qualifier;x;y;seconds;micros| - on 3.1
+         * x;y hold the two words of the window address (ie_EventAddress) */
+        LONG f[8], n = 0, v = 0, i;
+        BOOL in = FALSE;
+        for (i = 0; i < result && n < 8; i++) {
+            char c = read_buf[i];
+            if (c >= '0' && c <= '9') {
+                v = v * 10 + (c - '0');
+                in = TRUE;
+            } else if (in && (c == ';' || c == '|')) {
+                f[n++] = v;
+                v = 0;
+                in = FALSE;
+            }
+        }
+        print("size-window raw event report: class ");
+        print_num(n > 0 ? f[0] : -1);
+        print(" subclass ");
+        print_num(n > 1 ? f[1] : -1);
+        print(" code ");
+        print_num(n > 2 ? f[2] : -1);
+        print(n >= 6 && (ULONG)((f[4] << 16) | f[5]) == (ULONG)window ? " x;y = window\n" : " x;y = other\n");
     }
-    print("OK: size-window raw event report returned expected prefix\n");
 
     con_puts(console_req, CSI "12}");
     con_clear(console_req);

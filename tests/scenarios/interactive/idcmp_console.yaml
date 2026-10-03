@@ -1,0 +1,21 @@
+# Phase 224: who receives a key typed into a window with an attached console.device unit
+# (console CMD_READ and/or the window's IDCMP port), for IDCMP_RAWKEY, no IDCMP and
+# IDCMP_VANILLAKEY - validated on AmigaOS 3.1; stdout must match on both systems.
+name: interactive-idcmp_console
+app:
+  sample: Tests/Console/idcmp_console
+steps:
+  - launch
+  - wait_window: {title: "Console IDCMP Test", timeout: 10000}
+  - wait_output: "Waiting for key: IDCMP_RAWKEY"
+  - click: {anchor: inside, xy: [10, 4]}
+  - frames: 10
+  - key: {rawkey: 0x20, qualifier: 0}
+  - wait_output: {text: "Waiting for key: no IDCMP", timeout: 20000}
+  - frames: 10
+  - key: {rawkey: 0x20, qualifier: 0}
+  - wait_output: {text: "Waiting for key: IDCMP_VANILLAKEY", timeout: 20000}
+  - frames: 10
+  - key: {rawkey: 0x20, qualifier: 0}
+  - wait_output: {text: "done", timeout: 20000}
+  - snapshot: {name: end, screen: false}

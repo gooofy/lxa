@@ -119,7 +119,7 @@ def run(scn, out_dir, build=None):
                         lxa.frames(1)
                         deadline -= 1
                     if args["text"] not in lxa.output():
-                        raise RuntimeError("output never contained %r" % args["text"])
+                        raise RuntimeError("output never contained %r (output ends: %r)" % (args["text"], lxa.output()[-300:]))
                 elif kind == "menu":
                     if not lxa.menu(args["path"]):
                         raise RuntimeError("menu %r not found" % args["path"])
