@@ -1,0 +1,19 @@
+Testing audio.device
+
+  OK: OpenDevice audio.device allocates requested channel
+  OK: OpenDevice returns channel bitmask
+  OK: OpenDevice generates allocation key
+  OK: Second OpenDevice fails when channel already allocated
+  OK: ADCMD_SETPREC succeeds for allocated channel
+  OK: ADCMD_WAITCYCLE completes immediately when idle
+  OK: CMD_WRITE accepted playback request
+  OK: ADCMD_WAITCYCLE waits for cycle completion
+  OK: ADCMD_PERVOL updates active playback parameters
+  OK: ADCMD_FINISH succeeds for active playback
+  OK: CMD_WRITE completes after finish/playback end
+  OK: ADCMD_FREE releases allocated channel
+  OK: CloseDevice audio.device
+  OK: CloseDevice sets io_Device to -1
+  OK: Cleanup complete
+
+PASS: All 15 tests passed!

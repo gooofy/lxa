@@ -1,0 +1,30 @@
+Testing timer.device
+OK: Message port created
+OK: IO request created
+OK: timer.device opened
+OK: wait-until unit opened
+OK: TR_GETSYSTIME succeeded
+OK: TR_GETSYSTIME returned normalized timeval
+OK: GetSysTime returned normalized timeval
+OK: CmpTime callable through timer base
+OK: AddTime normalized carry
+OK: SubTime handled borrow
+OK: CmpTime matches timer.device ordering
+OK: TR_SETSYSTIME zeroed request time
+OK: TR_SETSYSTIME updated system time
+OK: GetSysTime follows TR_SETSYSTIME
+OK: ReadEClock returned stable frequency
+OK: ReadEClock advanced over time
+OK: Preparing UNIT_WAITUNTIL immediate test
+OK: Calling UNIT_WAITUNTIL DoIO
+OK: UNIT_WAITUNTIL DoIO returned
+OK: UNIT_WAITUNTIL completes immediately for past times
+OK: TR_SETSYSTIME restored the original time
+OK: CMD_READ is not a timer.device command
+OK: CMD_RESET is not a timer.device command
+OK: timer.device present in DeviceList before Expunge
+OK: RemDevice() leaves timer.device in place
+OK: OpenDevice() still works after RemDevice()
+OK: closing leaves timer.device in place and invalidates the request
+OK: Cleanup complete
+PASS: timer.device test complete

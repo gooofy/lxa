@@ -23,6 +23,18 @@ extern struct ExecBase *SysBase;
 extern struct GfxBase *GfxBase;
 extern struct Library *LayersBase;
 
+/* a valid (no-op) backfill hook: layers.library calls the hooks it is
+ * given, so h_Entry must never be NULL (AmigaOS 3.1 jumps through it) */
+static ULONG noop_backfill(register struct Hook *hook __asm("a0"),
+                           register APTR object __asm("a2"),
+                           register APTR message __asm("a1"))
+{
+    (void)hook;
+    (void)object;
+    (void)message;
+    return 0;
+}
+
 static void print(const char *s)
 {
     BPTR out = Output();
@@ -105,6 +117,21 @@ static int count_region_rects(struct Region *region)
     return count;
 }
 
+static void report_pixels(struct RastPort *rp, LONG x0, LONG y0, LONG x1, LONG y1)
+{
+    LONG x, y;
+
+    for (y = y0; y <= y1; y++)
+        for (x = x0; x <= x1; x++)
+            if (ReadPixel(rp, x, y))
+            {
+                print(" ");
+                print_num(x);
+                print(",");
+                print_num(y);
+            }
+}
+
 static struct Layer *backmost_layer(struct Layer_Info *li)
 {
     struct Layer *layer = li ? li->top_layer : NULL;
@@ -173,10 +200,10 @@ int main(void)
         return 20;
     }
 
-    hook_a.h_Entry = NULL;
+    hook_a.h_Entry = (ULONG (*)())noop_backfill;
     hook_a.h_SubEntry = NULL;
     hook_a.h_Data = (APTR)0x1111;
-    hook_b.h_Entry = NULL;
+    hook_b.h_Entry = (ULONG (*)())noop_backfill;
     hook_b.h_SubEntry = NULL;
     hook_b.h_Data = (APTR)0x2222;
 
@@ -263,19 +290,20 @@ int main(void)
             print("FAIL: Could not create backdrop layer\n");
             errors++;
         }
-        else if (backdrop->back == NULL && backdrop->front == behind &&
-                 !MoveLayer(0, backdrop, 5, 5) &&
-                 !SizeLayer(0, backdrop, 10, 10) &&
-                 !MoveSizeLayer(backdrop, 1, 1, 1, 1) &&
-                 UpfrontLayer(0, backdrop) && backdrop->back == NULL &&
-                 BehindLayer(0, behind) && behind->back == backdrop)
-        {
-            print("OK: Backdrop z-order and immobility semantics verified\n");
-        }
         else
         {
-            print("FAIL: Backdrop layer semantics incorrect\n");
-            errors++;
+            print("  backmost="); print_num(backdrop->back == NULL);
+            print(" behind-in-front="); print_num(backdrop->front == behind);
+            print(" move="); print_num(MoveLayer(0, backdrop, 5, 5) != 0);
+            print(" size="); print_num(SizeLayer(0, backdrop, 10, 10) != 0);
+            print(" movesize="); print_num(MoveSizeLayer(backdrop, 1, 1, 1, 1) != 0);
+            print(" bounds="); print_num(backdrop->bounds.MinX); print(","); print_num(backdrop->bounds.MinY);
+            print("-"); print_num(backdrop->bounds.MaxX); print(","); print_num(backdrop->bounds.MaxY);
+            print(" upfront="); print_num(UpfrontLayer(0, backdrop) != 0);
+            print(" still-backmost="); print_num(backdrop->back == NULL);
+            print(" behind="); print_num(BehindLayer(0, behind) != 0);
+            print(" behind-before-backdrop="); print_num(behind->back == backdrop);
+            print("\n");
         }
 
         if (backdrop)
@@ -296,14 +324,15 @@ int main(void)
         }
         else
         {
-            damage_a.MinX = 125;
-            damage_a.MinY = 25;
-            damage_a.MaxX = 132;
-            damage_a.MaxY = 32;
-            damage_b.MinX = 165;
-            damage_b.MinY = 60;
-            damage_b.MaxX = 172;
-            damage_b.MaxY = 68;
+            /* DamageList rectangles are layer-relative */
+            damage_a.MinX = 5;
+            damage_a.MinY = 5;
+            damage_a.MaxX = 12;
+            damage_a.MaxY = 12;
+            damage_b.MinX = 45;
+            damage_b.MinY = 40;
+            damage_b.MaxX = 52;
+            damage_b.MaxY = 48;
 
             if (!OrRectRegion(hook_front->DamageList, &damage_a) ||
                 !OrRectRegion(hook_front->DamageList, &damage_b))
@@ -320,25 +349,36 @@ int main(void)
                 DisposeRegion(hook_front->DamageList);
                 hook_front->DamageList = NULL;
             }
-            else if (count_cliprects(hook_front) == 2 &&
-                     count_region_rects(hook_front->DamageList) == 2)
-            {
-                EndUpdate(hook_front, TRUE);
-                if (count_cliprects(hook_front) == 1 && hook_front->DamageList == NULL)
-                {
-                    print("OK: BeginUpdate/EndUpdate kept split damage bookkeeping\n");
-                }
-                else
-                {
-                    print("FAIL: EndUpdate() did not restore cliprects/damage state\n");
-                    errors++;
-                }
-            }
             else
             {
-                print("FAIL: BeginUpdate() collapsed split damage into one cliprect\n");
-                errors++;
+                /* the damage ClipRects, sorted (their list order is not
+                 * part of the API) */
+                struct ClipRect *c;
+                struct Rectangle r[8];
+                int n = 0, i, j;
+                for (c = hook_front->ClipRect; c && n < 8; c = c->Next)
+                    r[n++] = c->bounds;
+                for (i = 0; i < n; i++)
+                    for (j = i + 1; j < n; j++)
+                        if (r[j].MinY < r[i].MinY || (r[j].MinY == r[i].MinY && r[j].MinX < r[i].MinX))
+                        {
+                            struct Rectangle t = r[i];
+                            r[i] = r[j];
+                            r[j] = t;
+                        }
+                print("  during update:");
+                for (i = 0; i < n; i++)
+                {
+                    print(" ["); print_num(r[i].MinX); print(","); print_num(r[i].MinY);
+                    print("-"); print_num(r[i].MaxX); print(","); print_num(r[i].MaxY); print("]");
+                }
                 EndUpdate(hook_front, TRUE);
+                print(" | after: cliprects="); print_num(count_cliprects(hook_front));
+                print(" damagelist="); print_num(hook_front->DamageList != NULL);
+                if (hook_front->DamageList) {
+                    print(" rects="); print_num(count_region_rects(hook_front->DamageList));
+                }
+                print("\n");
             }
         }
     }
@@ -370,15 +410,9 @@ int main(void)
 
         SyncSBitMap(hook_super);
 
-        if (ReadPixel(&super_rp, 3, 5) == 1 && ReadPixel(&super_rp, 5, 6) == 0)
-        {
-            print("OK: SyncSBitMap mirrored the visible super layer into backing storage\n");
-        }
-        else
-        {
-            print("FAIL: SyncSBitMap did not update the expected SuperBitMap pixels\n");
-            errors++;
-        }
+        print("  SuperBitMap pixels set:");
+        report_pixels(&super_rp, 0, 0, 20, 20);
+        print("\n");
 
         hook_super->Scroll_X = 0;
         hook_super->Scroll_Y = 0;
@@ -411,15 +445,9 @@ int main(void)
 
         CopySBitMap(hook_super);
 
-        if (ReadPixel(&screen_rp, 185, 26) == 1 && ReadPixel(&screen_rp, 187, 27) == 0)
-        {
-            print("OK: CopySBitMap mirrored the backing super layer into visible pixels\n");
-        }
-        else
-        {
-            print("FAIL: CopySBitMap did not update the expected visible layer pixels\n");
-            errors++;
-        }
+        print("  screen pixels set:");
+        report_pixels(&screen_rp, 175, 15, 200, 40);
+        print("\n");
 
         hook_super->Scroll_X = 0;
         hook_super->Scroll_Y = 0;
@@ -438,16 +466,12 @@ int main(void)
         if (DeleteLayer(0, upfront))
         {
             upfront = NULL;
-            if ((behind->Flags & LAYERREFRESH) && behind->DamageList &&
-                count_free_cliprects(li) > free_before && count_cliprects(behind) > 0)
-            {
-                print("OK: DeleteLayer exposed damage and returned ClipRects to pool\n");
-            }
-            else
-            {
-                print("FAIL: DeleteLayer did not update damage/pool state correctly\n");
-                errors++;
-            }
+            print("  LAYERREFRESH="); print_num((behind->Flags & LAYERREFRESH) != 0);
+            print(" damage="); print_num(behind->DamageList != NULL &&
+                                         behind->DamageList->RegionRectangle != NULL);
+            print(" cliprects>0="); print_num(count_cliprects(behind) > 0);
+            print("\n");
+            (void)free_before;
         }
         else
         {

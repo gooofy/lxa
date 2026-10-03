@@ -1214,8 +1214,9 @@ static BPTR __g_lxa_audio_Close(register struct Library *dev __asm("a6"),
     }
 
     dev->lib_OpenCnt--;
+    /* AmigaOS 3.1 audio.device sets io_Device to -1, io_Unit to 0 */
     io->ioa_Request.io_Unit = NULL;
-    io->ioa_Request.io_Device = NULL;
+    io->ioa_Request.io_Device = (struct Device *)-1;
     return 0;
 }
 

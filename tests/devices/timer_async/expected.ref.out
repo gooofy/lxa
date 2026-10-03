@@ -1,0 +1,32 @@
+Testing timer.device async TR_ADDREQUEST
+OK: Message port created
+OK: IO request created
+OK: Reply port stored in IO request
+OK: IO request length stored correctly
+OK: timer.device opened (UNIT_MICROHZ)
+OK: OpenDevice stored device pointer
+OK: Device open count incremented
+OK: Second open increments device open count
+OK: CloseDevice decremented open count
+OK: CheckIO reports quick DoIO request complete
+
+Test 1: 100ms delay using SendIO/WaitIO
+OK: SendIO called
+OK: CheckIO reports request pending after SendIO
+OK: WaitIO returned
+OK: CheckIO reports completed request after WaitIO
+
+Test 2: 500ms delay
+OK: SendIO called for 500ms delay
+OK: 500ms delay completed
+
+Test 3: 1 second delay
+OK: SendIO called for 1 second delay
+OK: 1 second delay completed
+OK: Timing is reasonable
+
+PASS: All async timer tests completed successfully
+OK: timer.device closed
+OK: CloseDevice set io_Device and io_Unit to -1
+OK: Final close restored open count
+OK: Cleanup complete

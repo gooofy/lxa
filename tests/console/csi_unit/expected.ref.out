@@ -1,0 +1,50 @@
+=== CSI Unit Test ===
+Testing console.device CSI escape sequences
+
+PASS: Cursor home (CSI H)
+PASS: Cursor position CSI 5;10H
+PASS: Cursor position CSI 1;1H
+PASS: Cursor position CSI 10;20H
+PASS: Cursor position CSI 3;5f
+PASS: Cursor up 3 (CSI 3A)
+PASS: Cursor down 5 (CSI 5B)
+PASS: Cursor forward 4 (CSI 4C)
+PASS: Cursor backward 2 (CSI 2D)
+PASS: Cursor up default (CSI A)
+PASS: Cursor down default (CSI B)
+PASS: Cursor forward default (CSI 1C)
+PASS: Cursor backward default (CSI 1D)
+PASS: Cursor next line (CSI E)
+PASS: Cursor previous line (CSI F)
+PASS: Cursor next line 3 (CSI 3E)
+PASS: CSI 15G is ignored
+PASS: CSI 1G is ignored
+PASS: Cursor forward tab (CSI I)
+PASS: Cursor forward 2 tabs (CSI 2I)
+PASS: Cursor back tab (CSI Z)
+PASS: Cursor after 5 chars
+PASS: Cursor after 8 chars
+PASS: Linefeed (LF mode off)
+PASS: Carriage return
+PASS: Linefeed (LF mode on)
+PASS: Cursor up at top boundary
+PASS: Cursor left at left boundary wraps to the previous line
+PASS: ESC[H homes the cursor
+PASS: Text draws before ESC[K erase
+PASS: ESC[K clears to end of line
+PASS: Text draws before ESC[J erase
+PASS: ESC[J clears to end of display
+PASS: CSI 0 SP p hides the cursor
+PASS: CSI SP p shows the cursor
+PASS: Window resize updates console bounds
+PASS: Private geometry controls update reported bounds
+PASS: Private geometry controls update console origin
+PASS: Private left/top offsets move text origin
+PASS: Clearing private geometry controls restores auto origin
+
+=== Test Summary ===
+Tests run: 40
+Passed: 40
+Failed: 0
+
+PASS: All CSI unit tests passed

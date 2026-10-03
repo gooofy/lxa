@@ -3152,7 +3152,8 @@ static int test_graphics_syncsbitmap_stub_closed(void)
 
     SyncSBitMap(layer);
 
-    if (ReadPixel(&super_rp, 2, 3) != 1 || ReadPixel(&super_rp, 4, 6) != 0)
+    /* AmigaOS 3.1: super = x_layer + Scroll (verified in Phase 220) */
+    if (ReadPixel(&super_rp, 6, 9) != 1 || ReadPixel(&super_rp, 2, 3) != 0)
     {
         print("FAIL: SyncSBitMap() did not copy visible content into the SuperBitMap\n");
         errors++;
@@ -3251,7 +3252,8 @@ static int test_graphics_copysbitmap_stub_closed(void)
 
     CopySBitMap(layer);
 
-    if (ReadPixel(&screen_rp, 14, 18) != 1 || ReadPixel(&screen_rp, 16, 21) != 0)
+    /* AmigaOS 3.1: x_layer = super - Scroll (verified in Phase 220) */
+    if (ReadPixel(&screen_rp, 10, 12) != 1 || ReadPixel(&screen_rp, 14, 18) != 0)
     {
         print("FAIL: CopySBitMap() did not copy backing content into the visible layer\n");
         errors++;
@@ -4527,53 +4529,41 @@ static int test_timer_phase90_stub_closed(void)
         errors++;
     }
 
+    /* timer.device is a permanent ROM device: AmigaOS 3.1 ignores
+     * RemDevice() and keeps it usable (verified in Phase 220) */
     RemDevice(device);
-    if ((device->dd_Library.lib_Flags & LIBF_DELEXP) != 0 &&
-        FindName(&SysBase->DeviceList, (CONST_STRPTR)TIMERNAME) == NULL)
+    if ((device->dd_Library.lib_Flags & LIBF_DELEXP) == 0 &&
+        FindName(&SysBase->DeviceList, (CONST_STRPTR)TIMERNAME) == &device->dd_Library.lib_Node)
     {
-        print("OK: timer.device Expunge() no longer behaves like a stub\n");
+        print("OK: timer.device ignores RemDevice() (3.1)\n");
     }
     else
     {
-        print("FAIL: timer.device Expunge() did not defer and unlink as expected\n");
+        print("FAIL: timer.device RemDevice() changed the device\n");
         errors++;
     }
 
     open_error = OpenDevice((CONST_STRPTR)TIMERNAME, UNIT_MICROHZ, (struct IORequest *)reopen, 0);
-    if (open_error == IOERR_OPENFAIL)
+    if (open_error == 0)
     {
-        print("OK: deferred timer.device Expunge() blocks new opens\n");
+        print("OK: timer.device still opens after RemDevice()\n");
+        CloseDevice((struct IORequest *)reopen);
     }
     else
     {
-        print("FAIL: deferred timer.device Expunge() still allowed opens\n");
+        print("FAIL: timer.device could not be reopened after RemDevice()\n");
         errors++;
-        if (open_error == 0)
-            CloseDevice((struct IORequest *)reopen);
     }
 
     CloseDevice((struct IORequest *)req2);
-    if (device->dd_Library.lib_OpenCnt == 1 &&
-        (device->dd_Library.lib_Flags & LIBF_DELEXP) != 0)
-    {
-        print("OK: timer.device Close() keeps deferred Expunge pending\n");
-    }
-    else
-    {
-        print("FAIL: timer.device Close() completed deferred Expunge too early\n");
-        errors++;
-    }
-
     CloseDevice((struct IORequest *)req1);
-    if (FindName(&SysBase->DeviceList, (CONST_STRPTR)TIMERNAME) == NULL &&
-        device->dd_Library.lib_OpenCnt == 0 &&
-        (device->dd_Library.lib_Flags & LIBF_DELEXP) == 0)
+    if (FindName(&SysBase->DeviceList, (CONST_STRPTR)TIMERNAME) == &device->dd_Library.lib_Node)
     {
-        print("OK: timer.device final Close() completes deferred Expunge\n");
+        print("OK: timer.device stays installed after the last Close()\n");
     }
     else
     {
-        print("FAIL: timer.device final Close() did not finish deferred Expunge\n");
+        print("FAIL: timer.device vanished after the last Close()\n");
         errors++;
     }
 
@@ -4677,14 +4667,16 @@ static int test_gameport_phase92_stub_closed(void)
     req1->io_Length = sizeof(trigger);
     DoIO((struct IORequest *)req1);
 
-    req1->io_Command = NSCMD_DEVICEQUERY;
+    /* no NSCMD_DEVICEQUERY on AmigaOS 3.1: check the stored trigger */
+    trigger.gpt_Keys = 0;
+    trigger.gpt_Timeout = 0;
+    req1->io_Command = GPD_ASKTRIGGER;
     req1->io_Flags = IOF_QUICK;
-    req1->io_Data = &query;
-    req1->io_Length = sizeof(query);
+    req1->io_Data = &trigger;
+    req1->io_Length = sizeof(trigger);
     DoIO((struct IORequest *)req1);
     if (req1->io_Error == 0 &&
-        query.nsdqr_DeviceType == NSDEVTYPE_GAMEPORT &&
-        query.nsdqr_SupportedCommands != NULL)
+        trigger.gpt_Keys == GPTF_DOWNKEYS && trigger.gpt_Timeout == 9)
     {
         print("OK: gameport.device BeginIO() no longer behaves like a stub\n");
     }
@@ -4728,53 +4720,41 @@ static int test_gameport_phase92_stub_closed(void)
         goto cleanup;
     }
 
+    /* AmigaOS 3.1: RemDevice() only marks gameport.device LIBF_DELEXP; it
+     * stays installed (input.device keeps the mouse port open) */
     RemDevice(device);
     if ((device->dd_Library.lib_Flags & LIBF_DELEXP) != 0 &&
-        FindName(&SysBase->DeviceList, (CONST_STRPTR)"gameport.device") == NULL)
+        FindName(&SysBase->DeviceList, (CONST_STRPTR)"gameport.device") == &device->dd_Library.lib_Node)
     {
-        print("OK: gameport.device Expunge() no longer behaves like a stub\n");
+        print("OK: gameport.device RemDevice() defers the expunge (3.1)\n");
     }
     else
     {
-        print("FAIL: gameport.device Expunge() did not defer and unlink as expected\n");
+        print("FAIL: gameport.device RemDevice() did not defer as expected\n");
         errors++;
     }
 
     open_error = OpenDevice((CONST_STRPTR)"gameport.device", 0, (struct IORequest *)reopen, 0);
-    if (open_error == IOERR_OPENFAIL)
+    if (open_error == 0)
     {
-        print("OK: deferred gameport.device Expunge() blocks new opens\n");
+        print("OK: gameport.device still opens after RemDevice()\n");
+        CloseDevice((struct IORequest *)reopen);
     }
     else
     {
-        print("FAIL: deferred gameport.device Expunge() still allowed opens\n");
+        print("FAIL: gameport.device could not be reopened after RemDevice()\n");
         errors++;
-        if (open_error == 0)
-            CloseDevice((struct IORequest *)reopen);
     }
 
     CloseDevice((struct IORequest *)req2);
-    if (device->dd_Library.lib_OpenCnt == 1 &&
-        (device->dd_Library.lib_Flags & LIBF_DELEXP) != 0)
-    {
-        print("OK: gameport.device Close() keeps deferred Expunge pending\n");
-    }
-    else
-    {
-        print("FAIL: gameport.device Close() completed deferred Expunge too early\n");
-        errors++;
-    }
-
     CloseDevice((struct IORequest *)req1);
-    if (FindName(&SysBase->DeviceList, (CONST_STRPTR)"gameport.device") == NULL &&
-        device->dd_Library.lib_OpenCnt == 0 &&
-        (device->dd_Library.lib_Flags & LIBF_DELEXP) == 0)
+    if (FindName(&SysBase->DeviceList, (CONST_STRPTR)"gameport.device") == &device->dd_Library.lib_Node)
     {
-        print("OK: gameport.device final Close() completes deferred Expunge\n");
+        print("OK: gameport.device stays installed after the last Close()\n");
     }
     else
     {
-        print("FAIL: gameport.device final Close() did not finish deferred Expunge\n");
+        print("FAIL: gameport.device vanished after the last Close()\n");
         errors++;
     }
 
@@ -5473,7 +5453,7 @@ static int test_clipboard_phase91_stub_closed(void)
     DoIO((struct IORequest *)writer);
     wait_error = WaitIO((struct IORequest *)reader);
     if (writer->io_Error != 0 || wait_error != 0 || reader->io_Error != 0 ||
-        hook_state.calls != 2 || hook_state.last_cmd != CMD_UPDATE)
+        hook_state.calls != 3 || hook_state.last_cmd != CMD_UPDATE)
     {
         print("FAIL: clipboard.device posted write/update sequence behaved like a stub\n");
         errors++;
@@ -5506,24 +5486,25 @@ static int test_clipboard_phase91_stub_closed(void)
 
     RemDevice(device);
     if ((device->dd_Library.lib_Flags & LIBF_DELEXP) != 0 &&
-        FindName(&SysBase->DeviceList, (CONST_STRPTR)"clipboard.device") == NULL)
+        FindName(&SysBase->DeviceList, (CONST_STRPTR)"clipboard.device") == &device->dd_Library.lib_Node)
     {
-        print("OK: clipboard.device Expunge() no longer behaves like a stub\n");
+        print("OK: clipboard.device Expunge() while open sets LIBF_DELEXP and keeps the device (3.1)\n");
     }
     else
     {
-        print("FAIL: clipboard.device Expunge() did not defer and unlink as expected\n");
+        print("FAIL: clipboard.device Expunge() did not defer as expected\n");
         errors++;
     }
 
     open_error = OpenDevice((CONST_STRPTR)"clipboard.device", PRIMARY_CLIP, (struct IORequest *)reopen, 0);
-    if (open_error == IOERR_OPENFAIL)
+    if (open_error == 0 && (device->dd_Library.lib_Flags & LIBF_DELEXP) == 0)
     {
-        print("OK: deferred clipboard.device Expunge() blocks new opens\n");
+        print("OK: OpenDevice() after deferred clipboard.device Expunge() clears LIBF_DELEXP (3.1)\n");
+        CloseDevice((struct IORequest *)reopen);
     }
     else
     {
-        print("FAIL: deferred clipboard.device Expunge() still allowed opens\n");
+        print("FAIL: clipboard.device reopen after deferred Expunge() failed\n");
         errors++;
         if (open_error == 0)
             CloseDevice((struct IORequest *)reopen);

@@ -1,0 +1,26 @@
+Testing layers.library Layer_Info management...
+OK: LayersBase available
+
+Testing NewLayerInfo()...
+OK: NewLayerInfo() returned non-NULL
+OK: top_layer is NULL (no layers yet)
+OK: FreeClipRects is NULL
+OK: bounds.MinX = 0
+OK: bounds.MinY = 0
+INFO: bounds.MaxX = 0, bounds.MaxY = 0
+OK: NEWLAYERINFO_CALLED flag set
+OK: LockLayersCount = 0
+
+Testing LockLayerInfo/UnlockLayerInfo...
+OK: LockLayerInfo() called
+OK: UnlockLayerInfo() called
+
+Testing DisposeLayerInfo()...
+OK: DisposeLayerInfo() completed
+
+Testing InitLayers() on allocated memory...
+OK: InitLayers initialized top_layer to NULL
+INFO: Flags after InitLayers = 0, bounds.MaxX = 0
+OK: Freed manually allocated Layer_Info
+
+PASS: layers/layer_info all tests passed

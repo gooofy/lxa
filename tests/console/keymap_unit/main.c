@@ -143,7 +143,7 @@ int main(void)
         return 1;
     }
 
-    if (lib_req->io_Unit != NULL || lib_req->io_Device == NULL) {
+    if (lib_req->io_Unit != (struct Unit *)-1 || lib_req->io_Device == NULL) {  /* 3.1: io_Unit -1 */
         print("FAIL: CONU_LIBRARY did not return library-only handle\n");
         CloseDevice((struct IORequest *)lib_req);
         DeleteIORequest((struct IORequest *)lib_req);

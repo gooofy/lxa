@@ -1,0 +1,53 @@
+=== SGR Unit Test ===
+Testing console.device SGR escape sequences
+
+PASS: SGR 0 resets to default (fg=1, bg=0)
+PASS: SGR 30 sets fg to pen 0 (black)
+PASS: SGR 31 sets fg to pen 1 (red)
+PASS: SGR 32 sets fg to pen 2 (green)
+PASS: SGR 33 sets fg to pen 3 (yellow)
+PASS: SGR 34 sets fg to pen 4 (blue)
+PASS: SGR 35 sets fg to pen 5 (magenta)
+PASS: SGR 36 sets fg to pen 6 (cyan)
+PASS: SGR 37 sets fg to pen 7 (white)
+PASS: SGR 39 resets fg to default (pen 1)
+PASS: SGR 40 sets bg to pen 0 (black)
+PASS: SGR 41 sets bg to pen 1 (red)
+PASS: SGR 42 sets bg to pen 2 (green)
+PASS: SGR 43 sets bg to pen 3 (yellow)
+PASS: SGR 44 sets bg to pen 4 (blue)
+PASS: SGR 45 sets bg to pen 5 (magenta)
+PASS: SGR 46 sets bg to pen 6 (cyan)
+PASS: SGR 47 sets bg to pen 7 (white)
+PASS: SGR 49 resets bg to default (pen 0)
+PASS: SGR 33;44 sets fg=3 (yellow), bg=4 (blue)
+PASS: SGR 31;47 sets fg=1 (red), bg=7 (white)
+PASS: SGR 0 after combined resets to default
+PASS: SGR 7 keeps the pens (fg=1, bg=0)
+PASS: SGR 7 sets INVERSVID
+PASS: SGR 27 clears INVERSVID
+PASS: SGR 7 with colors keeps the pens (fg=2, bg=5)
+PASS: SGR 7 with colors sets INVERSVID
+PASS: SGR 1 sets FSF_BOLD
+PASS: SGR 1 keeps the pen
+PASS: SGR 3;4 add italic and underline
+PASS: SGR 23;24 clear italic and underline
+PASS: SGR 22 clears FSF_BOLD
+PASS: SGR 22 restores the default pen
+PASS: SGR 1;33;44 sets fg=3, bg=4
+PASS: SGR 1;33;44 sets FSF_BOLD
+PASS: SGR 0 resets all attributes
+PASS: SGR 0 resets draw mode and style
+PASS: CSI m (bare) resets to default
+PASS: ESC[31;44m sets fg/bg pens
+PASS: ESC[7m enables inverse video
+PASS: ESC[27m disables inverse video
+PASS: ESC[39;49m restores default pens
+PASS: console output leaves the window RastPort pens alone
+
+=== Test Summary ===
+Tests run: 43
+Passed: 43
+Failed: 0
+
+PASS: All SGR unit tests passed

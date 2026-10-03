@@ -295,10 +295,10 @@ cleanup:
     CloseDevice((struct IORequest *)timerReq);
     print("OK: timer.device closed\n");
 
-    if (timerReq->tr_node.io_Device == NULL) {
-        print("OK: CloseDevice cleared device pointer\n");
+    if (timerReq->tr_node.io_Device == (struct Device *)-1 && timerReq->tr_node.io_Unit == (struct Unit *)-1) {
+        print("OK: CloseDevice set io_Device and io_Unit to -1\n");
     } else {
-        print("FAIL: CloseDevice did not clear device pointer\n");
+        print("FAIL: CloseDevice did not invalidate the request\n");
         DeleteIORequest((struct IORequest *)timerReq);
         DeleteMsgPort(timerPort);
         return 1;

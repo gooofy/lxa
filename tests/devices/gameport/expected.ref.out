@@ -1,0 +1,32 @@
+Testing gameport.device
+
+  OK: OpenDevice unit 0 succeeds
+  OK: OpenDevice unit 1 succeeds
+  OK: OpenDevice rejects unit 2
+  OK: GPD_ASKCTYPE: input.device owns unit 0 as GPCT_MOUSE
+  OK: GPD_ASKCTYPE: unit 1 is free
+  OK: GPD_SETCTYPE allocates unit 1
+  OK: GPD_ASKCTYPE reports the new type
+  OK: GPD_SETCTYPE accepts an unknown type
+  OK: an unknown type is not stored
+  OK: GPD_SETCTYPE stores GPCT_ALLOCATED
+  OK: GPD_SETTRIGGER stores trigger
+  OK: GPD_ASKTRIGGER returns stored trigger
+  OK: CMD_CLEAR is rejected
+  OK: CMD_RESET is rejected
+  OK: CMD_FLUSH is rejected
+  OK: CMD_STOP is rejected
+  OK: CMD_START is rejected
+  CMD_WRITE: io_Error=-3
+  CMD_UPDATE: io_Error=-3
+  NSCMD_DEVICEQUERY: io_Error=-3
+  OK: GPD_READEVENT stays pending without events
+  OK: AbortIO aborts pending GPD_READEVENT
+  OK: Unknown command returns IOERR_NOCMD
+  OK: reopening unit 1 succeeds
+  unit 1 type after reopen: 0
+  OK: GPD_SETCTYPE frees unit 1
+  RemDevice: LIBF_DELEXP=1 in DeviceList=1
+  OK: CloseDevice
+
+PASS: All 23 tests passed!

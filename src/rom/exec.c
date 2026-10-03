@@ -3234,16 +3234,22 @@ void _exec_CloseDevice ( register struct ExecBase  *SysBase   __asm("a6"),
 
     Forbid();
 
-    if (ioRequest->io_Device)
+    /* tolerate a second CloseDevice() of a request a device set to -1 */
+    if (ioRequest->io_Device && ioRequest->io_Device != (struct Device *)-1)
     {
-        struct JumpVec *jv = &(((struct JumpVec *)(ioRequest->io_Device))[-2]);
+        struct Device *device = ioRequest->io_Device;
+        struct JumpVec *jv = &(((struct JumpVec *)(device))[-2]);
         devCloseFn_t closefn = jv->vec;
 
-        closefn (&ioRequest->io_Device->dd_Library, ioRequest);
+        closefn (&device->dd_Library, ioRequest);
 
         // FIXME: expunge
 
-        ioRequest->io_Device = NULL;
+        /* Most devices clear io_Device on Close(); some (timer.device,
+         * trackdisk.device, audio.device on AmigaOS 3.1) set it to -1
+         * themselves - keep whatever the device stored. */
+        if (ioRequest->io_Device == device)
+            ioRequest->io_Device = NULL;
     }
 
     Permit();

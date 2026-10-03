@@ -25,6 +25,18 @@ extern struct ExecBase *SysBase;
 extern struct GfxBase *GfxBase;
 extern struct Library *LayersBase;
 
+/* a valid (no-op) backfill hook: layers.library calls the hooks it is
+ * given, so h_Entry must never be NULL (AmigaOS 3.1 jumps through it) */
+static ULONG noop_backfill(register struct Hook *hook __asm("a0"),
+                           register APTR object __asm("a2"),
+                           register APTR message __asm("a1"))
+{
+    (void)hook;
+    (void)object;
+    (void)message;
+    return 0;
+}
+
 static void print(const char *s)
 {
     BPTR out = Output();
@@ -132,10 +144,10 @@ int main(void)
         return 20;
     }
 
-    default_hook.h_Entry = NULL;
+    default_hook.h_Entry = (ULONG (*)())noop_backfill;
     default_hook.h_SubEntry = NULL;
     default_hook.h_Data = (APTR)0x1111;
-    override_hook.h_Entry = NULL;
+    override_hook.h_Entry = (ULONG (*)())noop_backfill;
     override_hook.h_SubEntry = NULL;
     override_hook.h_Data = (APTR)0x2222;
 

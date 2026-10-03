@@ -1,0 +1,20 @@
+Testing layers.library visibility and bounds...
+OK: Test layers created
+
+Test 1: WhichLayer respects visible ClipRects...
+OK: Overlapped point resolves to front layer
+
+Test 4b: InstallClipRegion constrains cliprects and hit testing...
+OK: InstallClipRegion tightened cliprects and hit testing
+OK: Removing clip region restored full visibility
+
+Test 5: Hook installation helpers and fatten/thin flags...
+OK: InstallLayerHook updates BackFill
+OK: InstallLayerInfoHook updates BlankHook
+OK: ThinLayerInfo clears NEWLAYERINFO_CALLED
+OK: FattenLayerInfo restores NEWLAYERINFO_CALLED
+
+Cleaning up...
+OK: Cleanup complete
+
+PASS: layers/visibility all tests passed

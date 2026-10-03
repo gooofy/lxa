@@ -80,17 +80,9 @@
      "where": "screen[Workbench Screen]/window[GadTools Gadget Demo]"
     },
     {
-     "field": "max_width",
-     "kind": "window",
-     "lxa": 65535,
-     "phase": 222,
-     "ref": 400,
-     "where": "screen[Workbench Screen]/window[GadTools Gadget Demo]"
-    },
-    {
      "field": "max_height",
      "kind": "window",
-     "lxa": 65535,
+     "lxa": 161,
      "phase": 222,
      "ref": 153,
      "where": "screen[Workbench Screen]/window[GadTools Gadget Demo]"

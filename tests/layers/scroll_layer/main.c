@@ -179,8 +179,6 @@ int main(void)
         /* Scroll left by 10 pixels (dx=-10 means content moves right) */
         ScrollLayer(0, layer, -10, 0);
 
-        /* After scrolling dx=-10, the pixel that was at (50,50) should now
-         * be at (60,50) because ScrollRaster shifts content by -dx,-dy */
         ULONG pen_old = ReadPixel(rp, 50, 50);
         ULONG pen_new = ReadPixel(rp, 60, 50);
 
@@ -190,13 +188,17 @@ int main(void)
         print_num((LONG)pen_new);
         print("\n");
 
-        if (pen_new == 1)
+        /* AmigaOS 3.1: a non-SuperBitMap layer only moves its origin
+         * (x_screen = x + MinX - Scroll_X): the pixel stays put on screen
+         * and is now addressed as (40,50). */
+        if (layer->Scroll_X == -10 && ReadPixel(rp, 40, 50) == 1)
         {
-            print("  OK: Pixel moved to expected position\n");
+            print("  OK: ScrollLayer moved the layer origin, not the pixels\n");
         }
         else
         {
-            print("  WARN: Pixel not at expected position (implementation may differ)\n");
+            print("  FAIL: ScrollLayer did not move the layer origin\n");
+            errors++;
         }
     }
     print("\n");

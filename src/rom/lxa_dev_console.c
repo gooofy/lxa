@@ -21,6 +21,8 @@
 #include <graphics/text.h>
 #include <clib/graphics_protos.h>
 #include <inline/graphics.h>
+#include <clib/keymap_protos.h>
+#include <inline/keymap.h>
 
 #include "util.h"
 
@@ -145,6 +147,10 @@ struct LxaConUnit {
 /* lxa_graphics.c: non-blocking display refresh (also safe in interrupts) */
 extern VOID _graphics_RefreshAllScreens(void);
 
+/* CONU_LIBRARY requests carry io_Unit == -1: no console unit */
+#define CONSOLE_UNIT(io) ((((struct IORequest *)(io))->io_Unit == (struct Unit *)-1) ? NULL : \
+                          (struct LxaConUnit *)((struct IORequest *)(io))->io_Unit)
+
 static void console_copy_keymap(struct KeyMap *dest, const struct KeyMap *src)
 {
     if (!dest || !src) {
@@ -161,18 +167,16 @@ static void console_copy_keymap(struct KeyMap *dest, const struct KeyMap *src)
     dest->km_HiRepeatable = src->km_HiRepeatable;
 }
 
-static struct KeyMap *console_ask_keymap_default(struct Library *keymap_base)
+/* keymap.library calls through the proper inline stubs: the former
+ * hand-made a6 calls corrupted the frame pointer (Phase 222f / 220) */
+static struct KeyMap *console_ask_keymap_default(struct Library *KeymapBase)
 {
-    register char *base __asm("a6") = (char *)keymap_base;
-
-    return ((struct KeyMap *(*)(char * __asm("a6")))(base - 36))(base);
+    return AskKeyMapDefault();
 }
 
-static void console_set_keymap_default(struct Library *keymap_base, struct KeyMap *map)
+static void console_set_keymap_default(struct Library *KeymapBase, struct KeyMap *map)
 {
-    register char *base __asm("a6") = (char *)keymap_base;
-
-    ((VOID (*)(char * __asm("a6"), struct KeyMap * __asm("a0")))(base - 30))(base, map);
+    SetKeyMapDefault(map);
 }
 
 static BOOL console_load_default_keymap(struct KeyMap *dest)
@@ -213,31 +217,21 @@ static WORD console_map_rawkey(struct LxaConUnit *unit, UWORD rawkey, UWORD qual
 
     KeymapBase = OpenLibrary((STRPTR)"keymap.library", 0);
     if (KeymapBase) {
-        register WORD _result __asm("d0");
-        register struct Library *_a6 __asm("a6") = KeymapBase;
-        register struct InputEvent *_a0 __asm("a0") = &event;
-        register STRPTR _a1 __asm("a1") = buffer;
-        register LONG _d1 __asm("d1") = length;
+        WORD result;
+
         if (unit && unit->use_keymap) {
             map = &unit->cu.cu_KeyMapStruct;
         }
-        register struct KeyMap *_a2 __asm("a2") = map;
 
         event.ie_Class = IECLASS_RAWKEY;
         event.ie_Code = rawkey;
         event.ie_Qualifier = qualifier;
 
-        __asm volatile (
-            "jsr %1@(-42)"
-            : "=r" (_result)
-            : "a" (_a6), "r" (_a0), "r" (_a1), "r" (_d1), "r" (_a2)
-            : "cc", "memory"
-        );
-
+        result = MapRawKey(&event, buffer, length, map);
         CloseLibrary(KeymapBase);
 
-        if (_result > 0) {
-            return _result;
+        if (result > 0) {
+            return result;
         }
     }
 
@@ -621,7 +615,7 @@ LONG _console_SetMode(struct IOStdReq *iostd, LONG mode)
         return FALSE;
     }
 
-    unit = (struct LxaConUnit *)iostd->io_Unit;
+    unit = CONSOLE_UNIT(iostd);
     if (!unit) {
         return FALSE;
     }
@@ -996,6 +990,7 @@ static void console_clear_text_area(struct LxaConUnit *unit)
     }
 
     SetAPen(rp, unit->cu.cu_BgPen);
+    SetDrMd(rp, JAM2);
     RectFill(rp,
              unit->cu.cu_XROrigin,
              unit->cu.cu_YROrigin,
@@ -1932,6 +1927,7 @@ static void console_write_char(struct LxaConUnit *unit, char c)
     SetAPen(rp, unit->cu.cu_FgPen);
     SetBPen(rp, unit->cu.cu_BgPen);
     SetDrMd(rp, unit->cu.cu_DrawMode);
+    SetSoftStyle(rp, unit->cu.cu_AlgoStyle, FSF_BOLD | FSF_ITALIC | FSF_UNDERLINED);
     
     /* Move to position and draw character */
     Move(rp, x, y);
@@ -2079,11 +2075,11 @@ static void console_init_tab_stops(struct LxaConUnit *unit)
 {
     int i;
     for (i = 0; i < 80 && (i * 8) <= unit->cu.cu_XMax; i++) {
-        unit->tab_stops[i] = i * 8;
+        unit->cu.cu_TabStops[i] = i * 8;
     }
     /* Mark end of tab stops */
     if (i < 80) {
-        unit->tab_stops[i] = (UWORD)-1;
+        unit->cu.cu_TabStops[i] = (UWORD)-1;
     }
 }
 
@@ -2108,6 +2104,7 @@ static void console_clear_to_eol(struct LxaConUnit *unit)
     y2 = y1 + unit->cu.cu_YRSize - 1;
     
     SetAPen(rp, unit->cu.cu_BgPen);
+    SetDrMd(rp, JAM2);
     RectFill(rp, x1, y1, x2, y2);
 
     if (unit->visible_text && unit->cu.cu_YCP >= 0 && unit->cu.cu_YCP < unit->text_rows) {
@@ -2139,6 +2136,7 @@ static void console_clear_to_bol(struct LxaConUnit *unit)
     y2 = y1 + unit->cu.cu_YRSize - 1;
     
     SetAPen(rp, unit->cu.cu_BgPen);
+    SetDrMd(rp, JAM2);
     RectFill(rp, x1, y1, x2, y2);
 
     if (unit->visible_text && unit->cu.cu_YCP >= 0 && unit->cu.cu_YCP < unit->text_rows) {
@@ -2171,6 +2169,7 @@ static void console_clear_line(struct LxaConUnit *unit)
     y2 = y1 + unit->cu.cu_YRSize - 1;
     
     SetAPen(rp, unit->cu.cu_BgPen);
+    SetDrMd(rp, JAM2);
     RectFill(rp, x1, y1, x2, y2);
 
     if (unit->visible_text && unit->cu.cu_YCP >= 0 && unit->cu.cu_YCP < unit->text_rows) {
@@ -2203,6 +2202,7 @@ static void console_clear_to_eos(struct LxaConUnit *unit)
         WORD y2 = unit->cu.cu_YRExtant;
         
         SetAPen(rp, unit->cu.cu_BgPen);
+        SetDrMd(rp, JAM2);
         RectFill(rp, x1, y1, x2, y2);
     }
 
@@ -2244,6 +2244,7 @@ static void console_clear_to_bos(struct LxaConUnit *unit)
         WORD y2 = unit->cu.cu_YROrigin + (unit->cu.cu_YCP * unit->cu.cu_YRSize) - 1;
         
         SetAPen(rp, unit->cu.cu_BgPen);
+        SetDrMd(rp, JAM2);
         RectFill(rp, x1, y1, x2, y2);
     }
     
@@ -2281,6 +2282,7 @@ static void console_insert_line(struct LxaConUnit *unit)
     
     /* Scroll down from cursor position to bottom */
     SetAPen(rp, unit->cu.cu_BgPen);
+    SetDrMd(rp, JAM2);
     ScrollRaster(rp, 0, -unit->cu.cu_YRSize, x1, y1, x2, y2);
     console_shift_visible_region_down(unit, unit->cu.cu_YCP, unit->cu.cu_YMax);
 }
@@ -2307,6 +2309,7 @@ static void console_delete_line(struct LxaConUnit *unit)
     
     /* Scroll up from cursor position to bottom */
     SetAPen(rp, unit->cu.cu_BgPen);
+    SetDrMd(rp, JAM2);
     ScrollRaster(rp, 0, unit->cu.cu_YRSize, x1, y1, x2, y2);
     console_shift_visible_region_up(unit, unit->cu.cu_YCP, unit->cu.cu_YMax);
 }
@@ -2333,6 +2336,7 @@ static void console_insert_char(struct LxaConUnit *unit, int n)
     
     /* Scroll right by n characters */
     SetAPen(rp, unit->cu.cu_BgPen);
+    SetDrMd(rp, JAM2);
     ScrollRaster(rp, -(n * unit->cu.cu_XRSize), 0, x1, y1, x2, y2);
 }
 
@@ -2358,6 +2362,7 @@ static void console_delete_char(struct LxaConUnit *unit, int n)
     
     /* Scroll left by n characters */
     SetAPen(rp, unit->cu.cu_BgPen);
+    SetDrMd(rp, JAM2);
     ScrollRaster(rp, n * unit->cu.cu_XRSize, 0, x1, y1, x2, y2);
 }
 
@@ -2376,6 +2381,7 @@ static void console_clear_display(struct LxaConUnit *unit)
     if (!rp) return;
     
     SetAPen(rp, unit->cu.cu_BgPen);
+    SetDrMd(rp, JAM2);
     RectFill(rp, unit->cu.cu_XROrigin, unit->cu.cu_YROrigin, 
              unit->cu.cu_XRExtant, unit->cu.cu_YRExtant);
 
@@ -2486,6 +2492,19 @@ static int parse_csi_params(const char *buf, int len, int *params, int max_param
 /*
  * Process a complete CSI sequence
  */
+/* "CSI ... SP p/q": the Amiga-specific sequences carry a space intermediate */
+static BOOL console_csi_has_space(struct LxaConUnit *unit)
+{
+    int i;
+
+    for (i = 0; i < unit->csi_len; i++)
+    {
+        if (unit->csi_buf[i] == ' ')
+            return TRUE;
+    }
+    return FALSE;
+}
+
 static void console_process_csi(struct LxaConUnit *unit, char final)
 {
     int params[8] = {0};
@@ -2541,9 +2560,12 @@ static void console_process_csi(struct LxaConUnit *unit, char final)
         
         case 'D':  /* Cursor Backward (CUB) */
         {
+            /* AmigaOS 3.1 wraps backwards onto the previous line(s) */
             int n = (nparams >= 1 && params[0] > 0) ? params[0] : 1;
-            unit->cu.cu_XCP -= n;
-            if (unit->cu.cu_XCP < 0) unit->cu.cu_XCP = 0;
+            int pos = unit->cu.cu_YCP * (unit->cu.cu_XMax + 1) + unit->cu.cu_XCP - n;
+            if (pos < 0) pos = 0;
+            unit->cu.cu_YCP = pos / (unit->cu.cu_XMax + 1);
+            unit->cu.cu_XCP = pos % (unit->cu.cu_XMax + 1);
             break;
         }
         
@@ -2565,15 +2587,8 @@ static void console_process_csi(struct LxaConUnit *unit, char final)
             break;
         }
         
-        case 'G':  /* Cursor Horizontal Absolute (CHA) - move cursor to column n */
-        {
-            int col = (nparams >= 1 && params[0] > 0) ? params[0] - 1 : 0;
-            if (col > unit->cu.cu_XMax) col = unit->cu.cu_XMax;
-            if (col < 0) col = 0;
-            unit->cu.cu_XCP = col;
-            break;
-        }
-        
+        /* CSI n G (CHA) is not an AmigaOS 3.1 console sequence: ignored */
+
         case 'I':  /* Cursor Horizontal Tab (CHT) - move cursor to next tab stop n times */
         {
             int n = (nparams >= 1 && params[0] > 0) ? params[0] : 1;
@@ -2678,32 +2693,32 @@ static void console_process_csi(struct LxaConUnit *unit, char final)
                 case 0:  /* Set tab stop at current column */
                     {
                         int i;
-                        for (i = 0; i < 80 && unit->tab_stops[i] != (UWORD)-1; i++) {
-                            if (unit->tab_stops[i] == unit->cu.cu_XCP) break;  /* Already set */
-                            if (unit->tab_stops[i] > unit->cu.cu_XCP) {
+                        for (i = 0; i < 80 && unit->cu.cu_TabStops[i] != (UWORD)-1; i++) {
+                            if (unit->cu.cu_TabStops[i] == unit->cu.cu_XCP) break;  /* Already set */
+                            if (unit->cu.cu_TabStops[i] > unit->cu.cu_XCP) {
                                 /* Insert here */
                                 int j;
                                 for (j = 78; j >= i; j--) {
-                                    unit->tab_stops[j + 1] = unit->tab_stops[j];
+                                    unit->cu.cu_TabStops[j + 1] = unit->cu.cu_TabStops[j];
                                 }
-                                unit->tab_stops[i] = unit->cu.cu_XCP;
+                                unit->cu.cu_TabStops[i] = unit->cu.cu_XCP;
                                 break;
                             }
                         }
-                        if (i < 80 && unit->tab_stops[i] == (UWORD)-1) {
-                            unit->tab_stops[i] = unit->cu.cu_XCP;
-                            if (i + 1 < 80) unit->tab_stops[i + 1] = (UWORD)-1;
+                        if (i < 80 && unit->cu.cu_TabStops[i] == (UWORD)-1) {
+                            unit->cu.cu_TabStops[i] = unit->cu.cu_XCP;
+                            if (i + 1 < 80) unit->cu.cu_TabStops[i + 1] = (UWORD)-1;
                         }
                     }
                     break;
                 case 2:  /* Clear tab stop at current column */
                     {
                         int i;
-                        for (i = 0; i < 80 && unit->tab_stops[i] != (UWORD)-1; i++) {
-                            if (unit->tab_stops[i] == unit->cu.cu_XCP) {
+                        for (i = 0; i < 80 && unit->cu.cu_TabStops[i] != (UWORD)-1; i++) {
+                            if (unit->cu.cu_TabStops[i] == unit->cu.cu_XCP) {
                                 /* Remove this tab stop */
-                                for (; i < 79 && unit->tab_stops[i] != (UWORD)-1; i++) {
-                                    unit->tab_stops[i] = unit->tab_stops[i + 1];
+                                for (; i < 79 && unit->cu.cu_TabStops[i] != (UWORD)-1; i++) {
+                                    unit->cu.cu_TabStops[i] = unit->cu.cu_TabStops[i + 1];
                                 }
                                 break;
                             }
@@ -2711,7 +2726,7 @@ static void console_process_csi(struct LxaConUnit *unit, char final)
                     }
                     break;
                 case 5:  /* Clear all tab stops */
-                    unit->tab_stops[0] = (UWORD)-1;
+                    unit->cu.cu_TabStops[0] = (UWORD)-1;
                     break;
             }
             break;
@@ -2770,9 +2785,6 @@ static void console_process_csi(struct LxaConUnit *unit, char final)
                     case 7:  /* Auto-wrap mode (AWM) */
                         unit->autowrap_mode = TRUE;
                         break;
-                    case 25:  /* ANSI cursor visible */
-                        unit->cursor_visible = TRUE;
-                        break;
                 }
             } else {
                 switch (mode) {
@@ -2799,10 +2811,6 @@ static void console_process_csi(struct LxaConUnit *unit, char final)
                     case 7:  /* Auto-wrap mode (AWM) */
                         unit->autowrap_mode = FALSE;
                         break;
-                    case 25:  /* ANSI cursor hidden */
-                        console_hide_cursor(unit);
-                        unit->cursor_visible = FALSE;
-                        break;
                 }
             } else {
                 switch (mode) {
@@ -2818,8 +2826,10 @@ static void console_process_csi(struct LxaConUnit *unit, char final)
             break;
         }
         
-        case 'q':  /* Window Status Request (Amiga-specific) */
+        case 'q':  /* Window Status Request: CSI 0 SP q (Amiga-specific) */
         {
+            if (!console_csi_has_space(unit))
+                break;
             /* Various window status queries */
             int mode = (nparams >= 1) ? params[0] : 0;
             char response[32];
@@ -2929,6 +2939,7 @@ static void console_process_csi(struct LxaConUnit *unit, char final)
                         unit->cu.cu_FgPen = 1;
                         unit->cu.cu_BgPen = 0;
                         unit->cu.cu_DrawMode = JAM2;
+                        unit->cu.cu_AlgoStyle = 0;
                         unit->sgr_bold = FALSE;
                         unit->sgr_faint = FALSE;
                         unit->sgr_italic = FALSE;
@@ -2939,12 +2950,10 @@ static void console_process_csi(struct LxaConUnit *unit, char final)
                         unit->saved_bg = 0;
                         break;
                     case 1:   /* Bold/bright */
+                        /* AmigaOS 3.1: soft style FSF_BOLD, pens unchanged */
                         unit->sgr_bold = TRUE;
                         unit->sgr_faint = FALSE;
-                        /* Amiga: bold often shown with pen 3 (bright color) */
-                        if (unit->cu.cu_FgPen < 4) {
-                            unit->cu.cu_FgPen |= 0x01;  /* Make it brighter */
-                        }
+                        unit->cu.cu_AlgoStyle |= FSF_BOLD;
                         break;
                     case 2:   /* Faint/dim */
                         unit->sgr_faint = TRUE;
@@ -2952,40 +2961,38 @@ static void console_process_csi(struct LxaConUnit *unit, char final)
                         break;
                     case 3:   /* Italic (Amiga shows as inverse or different style) */
                         unit->sgr_italic = TRUE;
+                        unit->cu.cu_AlgoStyle |= FSF_ITALIC;
                         break;
                     case 4:   /* Underline */
                         unit->sgr_underline = TRUE;
-                        /* Amiga: underline often shown with pen 3 */
+                        unit->cu.cu_AlgoStyle |= FSF_UNDERLINED;
                         break;
                     case 7:   /* Inverse video */
-                        if (!unit->sgr_inverse) {
-                            unit->sgr_inverse = TRUE;
-                            unit->saved_fg = unit->cu.cu_FgPen;
-                            unit->saved_bg = unit->cu.cu_BgPen;
-                            unit->cu.cu_FgPen = unit->saved_bg;
-                            unit->cu.cu_BgPen = unit->saved_fg;
-                        }
+                        /* AmigaOS 3.1: INVERSVID draw mode, pens unchanged */
+                        unit->sgr_inverse = TRUE;
+                        unit->cu.cu_DrawMode |= INVERSVID;
                         break;
                     case 8:   /* Concealed/hidden */
                         unit->sgr_concealed = TRUE;
                         break;
-                    case 21:  /* Not bold (double underline in some terminals) */
-                    case 22:  /* Normal intensity (not bold, not faint) */
+                    case 22:  /* Normal colour, not bold (V36): default pen */
                         unit->sgr_bold = FALSE;
                         unit->sgr_faint = FALSE;
+                        unit->cu.cu_AlgoStyle &= ~FSF_BOLD;
+                        unit->cu.cu_FgPen = 1;
+                        unit->saved_fg = 1;
                         break;
                     case 23:  /* Not italic */
                         unit->sgr_italic = FALSE;
+                        unit->cu.cu_AlgoStyle &= ~FSF_ITALIC;
                         break;
                     case 24:  /* Not underlined */
                         unit->sgr_underline = FALSE;
+                        unit->cu.cu_AlgoStyle &= ~FSF_UNDERLINED;
                         break;
                     case 27:  /* Not inverse */
-                        if (unit->sgr_inverse) {
-                            unit->sgr_inverse = FALSE;
-                            unit->cu.cu_FgPen = unit->saved_fg;
-                            unit->cu.cu_BgPen = unit->saved_bg;
-                        }
+                        unit->sgr_inverse = FALSE;
+                        unit->cu.cu_DrawMode &= ~INVERSVID;
                         break;
                     case 28:  /* Not concealed */
                         unit->sgr_concealed = FALSE;
@@ -2995,32 +3002,20 @@ static void console_process_csi(struct LxaConUnit *unit, char final)
                         /* Foreground colors 0-7 */
                         unit->cu.cu_FgPen = p - 30;
                         unit->saved_fg = unit->cu.cu_FgPen;
-                        if (unit->sgr_inverse) {
-                            unit->cu.cu_BgPen = p - 30;
-                        }
                         break;
                     case 39:  /* Default foreground */
                         unit->cu.cu_FgPen = 1;
                         unit->saved_fg = 1;
-                        if (unit->sgr_inverse) {
-                            unit->cu.cu_BgPen = 1;
-                        }
                         break;
                     case 40: case 41: case 42: case 43:
                     case 44: case 45: case 46: case 47:
                         /* Background colors 0-7 */
                         unit->cu.cu_BgPen = p - 40;
                         unit->saved_bg = unit->cu.cu_BgPen;
-                        if (unit->sgr_inverse) {
-                            unit->cu.cu_FgPen = p - 40;
-                        }
                         break;
                     case 49:  /* Default background */
                         unit->cu.cu_BgPen = 0;
                         unit->saved_bg = 0;
-                        if (unit->sgr_inverse) {
-                            unit->cu.cu_FgPen = 0;
-                        }
                         break;
                 }
                 if (nparams == 0) break;  /* Exit after handling reset with no params */
@@ -3028,10 +3023,12 @@ static void console_process_csi(struct LxaConUnit *unit, char final)
             break;
         }
         
-        case 'p':  /* Cursor visibility (Amiga-specific) */
+        case 'p':  /* Set cursor rendition: CSI [0] SP p (Amiga-specific) */
         {
-            /* CSI 0 p = hide cursor, CSI p or CSI 1 p = show cursor */
-            int mode = (nparams >= 1) ? params[0] : 1;
+            if (!console_csi_has_space(unit))
+                break;
+            /* CSI 0 SP p = hide cursor, CSI SP p = show cursor */
+            int mode = (unit->csi_len > 0 && unit->csi_buf[0] >= '0' && unit->csi_buf[0] <= '9') ? params[0] : 1;
             if (mode == 0) {
                 console_hide_cursor(unit);
                 unit->cursor_visible = FALSE;
@@ -3187,25 +3184,25 @@ static void console_process_char(struct LxaConUnit *unit, char c)
                 {
                     int i;
                     /* Find a slot for this tab stop */
-                    for (i = 0; i < 80 && unit->tab_stops[i] != (UWORD)-1; i++) {
-                        if (unit->tab_stops[i] == unit->cu.cu_XCP) {
+                    for (i = 0; i < 80 && unit->cu.cu_TabStops[i] != (UWORD)-1; i++) {
+                        if (unit->cu.cu_TabStops[i] == unit->cu.cu_XCP) {
                             /* Already set */
                             break;
                         }
-                        if (unit->tab_stops[i] > unit->cu.cu_XCP) {
+                        if (unit->cu.cu_TabStops[i] > unit->cu.cu_XCP) {
                             /* Insert here - shift rest down */
                             int j;
                             for (j = 78; j >= i; j--) {
-                                unit->tab_stops[j + 1] = unit->tab_stops[j];
+                                unit->cu.cu_TabStops[j + 1] = unit->cu.cu_TabStops[j];
                             }
-                            unit->tab_stops[i] = unit->cu.cu_XCP;
+                            unit->cu.cu_TabStops[i] = unit->cu.cu_XCP;
                             break;
                         }
                     }
-                    if (i < 80 && unit->tab_stops[i] == (UWORD)-1) {
-                        unit->tab_stops[i] = unit->cu.cu_XCP;
+                    if (i < 80 && unit->cu.cu_TabStops[i] == (UWORD)-1) {
+                        unit->cu.cu_TabStops[i] = unit->cu.cu_XCP;
                         if (i + 1 < 80) {
-                            unit->tab_stops[i + 1] = (UWORD)-1;
+                            unit->cu.cu_TabStops[i + 1] = (UWORD)-1;
                         }
                     }
                 }
@@ -3302,13 +3299,19 @@ static void __g_lxa_console_Open ( register struct Library   *dev   __asm("a6"),
         LPRINTF(LOG_INFO, "_console: Opened as CONU_LIBRARY (library mode only, no unit)\n");
         ioreq->io_Error = 0;
         ioreq->io_Device = (struct Device *)dev;
-        ioreq->io_Unit = NULL;
+        ioreq->io_Unit = (struct Unit *)-1;   /* as AmigaOS 3.1 */
         dev->lib_OpenCnt++;
         dev->lib_Flags &= ~LIBF_DELEXP;
         return;
     }
     
-    /* Create a ConUnit for this console if a window was provided */
+    /* a console unit needs a window (AmigaOS 3.1 fails the open) */
+    if (window == NULL) {
+        ioreq->io_Error = IOERR_OPENFAIL;
+        return;
+    }
+
+    /* Create a ConUnit for this console */
     if (window != NULL) {
         unit = console_create_unit(window);
         if (!unit) {
@@ -3374,7 +3377,7 @@ static BPTR __g_lxa_console_Close( register struct Library   *dev   __asm("a6"),
                                           register struct IORequest *ioreq __asm("a1"))
 {
     struct ConsoleDevBase *cdb = (struct ConsoleDevBase *)dev;
-    struct LxaConUnit *unit = (struct LxaConUnit *)ioreq->io_Unit;
+    struct LxaConUnit *unit = CONSOLE_UNIT(ioreq);
     int i;
     
     DPRINTF (LOG_DEBUG, "_console: Close() called, unit=0x%08lx\n", (ULONG)unit);
@@ -3407,7 +3410,7 @@ static BPTR __g_lxa_console_BeginIO ( register struct Library   *dev   __asm("a6
                                              register struct IORequest *ioreq __asm("a1"))
 {
     struct IOStdReq *iostd = (struct IOStdReq *)ioreq;
-    struct LxaConUnit *unit = (struct LxaConUnit *)ioreq->io_Unit;
+    struct LxaConUnit *unit = CONSOLE_UNIT(ioreq);
     
     DPRINTF (LOG_DEBUG, "_console: BeginIO() cmd=%d, len=%ld, data=0x%08lx, unit=0x%08lx\n", 
              ioreq->io_Command, iostd->io_Length, (ULONG)iostd->io_Data, (ULONG)unit);
@@ -3510,9 +3513,23 @@ static BPTR __g_lxa_console_BeginIO ( register struct Library   *dev   __asm("a6
                     len = strlen(data);
                 }
                 
+                /* AmigaOS 3.1 leaves the window's RastPort attributes alone */
+                struct RastPort *wrp = unit->cu.cu_Window->RPort;
+                UBYTE save_fg = wrp ? wrp->FgPen : 0;
+                UBYTE save_bg = wrp ? wrp->BgPen : 0;
+                UBYTE save_dm = wrp ? wrp->DrawMode : 0;
+                UBYTE save_style = wrp ? wrp->AlgoStyle : 0;
+
                 /* Process each character */
                 for (LONG i = 0; i < len; i++) {
                     console_process_char(unit, data[i]);
+                }
+
+                if (wrp) {
+                    SetAPen(wrp, save_fg);
+                    SetBPen(wrp, save_bg);
+                    SetDrMd(wrp, save_dm);
+                    SetSoftStyle(wrp, save_style, FSF_BOLD | FSF_ITALIC | FSF_UNDERLINED);
                 }
                 
                 /* Trigger display refresh */
@@ -3676,7 +3693,7 @@ static ULONG __g_lxa_console_AbortIO ( register struct Library   *dev   __asm("a
                                               register struct IORequest *ioreq __asm("a1"))
 {
     struct IOStdReq *iostd = (struct IOStdReq *)ioreq;
-    struct LxaConUnit *unit = (struct LxaConUnit *)ioreq->io_Unit;
+    struct LxaConUnit *unit = CONSOLE_UNIT(ioreq);
     
     DPRINTF (LOG_DEBUG, "_console: AbortIO() called, ioreq=0x%08lx, unit=0x%08lx\n", (ULONG)ioreq, (ULONG)unit);
     

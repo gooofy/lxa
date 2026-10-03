@@ -6,8 +6,11 @@
  * This test verifies SGR (Select Graphic Rendition) escape sequences by
  * checking the console unit's pen state after applying each SGR code.
  *
- * We access the ConUnit structure via io_Unit after OpenDevice() to verify
- * that the pen colors and attributes are set correctly.
+ * We read the public ConUnit fields (cu_FgPen, cu_BgPen, cu_DrawMode,
+ * cu_AlgoStyle) via io_Unit after OpenDevice().  Validated against
+ * AmigaOS 3.1 (Phase 220): SGR 7 sets INVERSVID in cu_DrawMode instead of
+ * swapping the pens, SGR 1/3/4 set soft styles, SGR 22 restores the
+ * default pen, and the window's RastPort is left untouched.
  */
 
 #include <exec/types.h>
@@ -102,12 +105,12 @@ static void print_num(int n)
 static LONG con_write(const char *str, LONG len)
 {
     if (!con_io) return -1;
-    
+
     con_io->io_Command = CMD_WRITE;
     con_io->io_Data = (APTR)str;
     con_io->io_Length = (len < 0) ? -1 : len;
     DoIO((struct IORequest *)con_io);
-    
+
     return con_io->io_Actual;
 }
 
@@ -154,9 +157,9 @@ static void assert_fg_pen(int expected, const char *test_name)
 {
     struct RastPort *rp = get_rast_port();
     int actual;
-    
+
     tests_run++;
-    
+
     if (!rp) {
         print("FAIL: ");
         print(test_name);
@@ -164,9 +167,9 @@ static void assert_fg_pen(int expected, const char *test_name)
         tests_failed++;
         return;
     }
-    
-    actual = rp->FgPen;
-    
+
+    actual = ((struct ConUnit *)con_io->io_Unit)->cu_FgPen;
+
     if (actual == expected) {
         print("PASS: ");
         print(test_name);
@@ -191,9 +194,9 @@ static void assert_bg_pen(int expected, const char *test_name)
 {
     struct RastPort *rp = get_rast_port();
     int actual;
-    
+
     tests_run++;
-    
+
     if (!rp) {
         print("FAIL: ");
         print(test_name);
@@ -201,9 +204,9 @@ static void assert_bg_pen(int expected, const char *test_name)
         tests_failed++;
         return;
     }
-    
-    actual = rp->BgPen;
-    
+
+    actual = ((struct ConUnit *)con_io->io_Unit)->cu_BgPen;
+
     if (actual == expected) {
         print("PASS: ");
         print(test_name);
@@ -228,9 +231,9 @@ static void assert_pens(int expected_fg, int expected_bg, const char *test_name)
 {
     struct RastPort *rp = get_rast_port();
     int actual_fg, actual_bg;
-    
+
     tests_run++;
-    
+
     if (!rp) {
         print("FAIL: ");
         print(test_name);
@@ -238,10 +241,10 @@ static void assert_pens(int expected_fg, int expected_bg, const char *test_name)
         tests_failed++;
         return;
     }
-    
-    actual_fg = rp->FgPen;
-    actual_bg = rp->BgPen;
-    
+
+    actual_fg = ((struct ConUnit *)con_io->io_Unit)->cu_FgPen;
+    actual_bg = ((struct ConUnit *)con_io->io_Unit)->cu_BgPen;
+
     if (actual_fg == expected_fg && actual_bg == expected_bg) {
         print("PASS: ");
         print(test_name);
@@ -263,6 +266,8 @@ static void assert_pens(int expected_fg, int expected_bg, const char *test_name)
     }
 }
 
+static BYTE initial_rp_fg, initial_rp_bg, initial_rp_dm;
+
 static struct ConUnit *get_con_unit(void)
 {
     if (!con_io) {
@@ -272,37 +277,14 @@ static struct ConUnit *get_con_unit(void)
     return (struct ConUnit *)con_io->io_Unit;
 }
 
-static void assert_cursor_visible_flag(BOOL expected, const char *test_name)
+static void assert_mode(int expected_dm, int expected_style, const char *test_name)
 {
     struct ConUnit *unit = get_con_unit();
-    int actual = -1;
+    int dm = unit ? unit->cu_DrawMode : -1;
+    int style = unit ? unit->cu_AlgoStyle : -1;
 
     tests_run++;
-
-    if (unit) {
-        actual = unit->cu_Modes[0] & 0;
-    }
-
-    if (con_io && con_io->io_Unit) {
-        struct ConUnit *base_unit = (struct ConUnit *)con_io->io_Unit;
-        struct {
-            struct ConUnit cu;
-            BOOL csi_active;
-            BOOL esc_active;
-            char csi_buf[64];
-            UWORD csi_len;
-            char input_buf[256];
-            UWORD input_head;
-            UWORD input_tail;
-            BOOL echo_enabled;
-            BOOL line_mode;
-            BOOL cursor_visible;
-        } *extended = (APTR)base_unit;
-
-        actual = extended->cursor_visible ? 1 : 0;
-    }
-
-    if (actual == (expected ? 1 : 0)) {
+    if (dm == expected_dm && style == expected_style) {
         print("PASS: ");
         print(test_name);
         print("\n");
@@ -310,10 +292,38 @@ static void assert_cursor_visible_flag(BOOL expected, const char *test_name)
     } else {
         print("FAIL: ");
         print(test_name);
-        print(" - expected cursor_visible=");
-        print_num(expected ? 1 : 0);
-        print(" got ");
-        print_num(actual);
+        print(" - expected (dm=");
+        print_num(expected_dm);
+        print(",style=");
+        print_num(expected_style);
+        print(") got (dm=");
+        print_num(dm);
+        print(",style=");
+        print_num(style);
+        print(")\n");
+        tests_failed++;
+    }
+}
+
+static void assert_window_rastport_untouched(const char *test_name)
+{
+    struct RastPort *rp = get_rast_port();
+
+    tests_run++;
+    if (rp && rp->FgPen == initial_rp_fg && rp->BgPen == initial_rp_bg && rp->DrawMode == initial_rp_dm) {
+        print("PASS: ");
+        print(test_name);
+        print("\n");
+        tests_passed++;
+    } else {
+        print("FAIL: ");
+        print(test_name);
+        print(" fg ");
+        print_num(initial_rp_fg); print("->"); print_num(rp ? rp->FgPen : -1);
+        print(" bg ");
+        print_num(initial_rp_bg); print("->"); print_num(rp ? rp->BgPen : -1);
+        print(" dm ");
+        print_num(initial_rp_dm); print("->"); print_num(rp ? rp->DrawMode : -1);
         print("\n");
         tests_failed++;
     }
@@ -326,7 +336,7 @@ static void test_sgr_reset(void)
 {
     /* First set some non-default colors */
     send_sgr(CSI "35;42m");  /* Magenta on green */
-    
+
     /* Now reset */
     send_sgr(CSI "0m");
     assert_pens(1, 0, "SGR 0 resets to default (fg=1, bg=0)");
@@ -339,32 +349,32 @@ static void test_sgr_foreground(void)
 {
     /* Reset first */
     send_sgr(CSI "0m");
-    
+
     /* Test each foreground color */
     send_sgr(CSI "30m");
     assert_fg_pen(0, "SGR 30 sets fg to pen 0 (black)");
-    
+
     send_sgr(CSI "31m");
     assert_fg_pen(1, "SGR 31 sets fg to pen 1 (red)");
-    
+
     send_sgr(CSI "32m");
     assert_fg_pen(2, "SGR 32 sets fg to pen 2 (green)");
-    
+
     send_sgr(CSI "33m");
     assert_fg_pen(3, "SGR 33 sets fg to pen 3 (yellow)");
-    
+
     send_sgr(CSI "34m");
     assert_fg_pen(4, "SGR 34 sets fg to pen 4 (blue)");
-    
+
     send_sgr(CSI "35m");
     assert_fg_pen(5, "SGR 35 sets fg to pen 5 (magenta)");
-    
+
     send_sgr(CSI "36m");
     assert_fg_pen(6, "SGR 36 sets fg to pen 6 (cyan)");
-    
+
     send_sgr(CSI "37m");
     assert_fg_pen(7, "SGR 37 sets fg to pen 7 (white)");
-    
+
     /* Reset to default foreground */
     send_sgr(CSI "39m");
     assert_fg_pen(1, "SGR 39 resets fg to default (pen 1)");
@@ -377,32 +387,32 @@ static void test_sgr_background(void)
 {
     /* Reset first */
     send_sgr(CSI "0m");
-    
+
     /* Test each background color */
     send_sgr(CSI "40m");
     assert_bg_pen(0, "SGR 40 sets bg to pen 0 (black)");
-    
+
     send_sgr(CSI "41m");
     assert_bg_pen(1, "SGR 41 sets bg to pen 1 (red)");
-    
+
     send_sgr(CSI "42m");
     assert_bg_pen(2, "SGR 42 sets bg to pen 2 (green)");
-    
+
     send_sgr(CSI "43m");
     assert_bg_pen(3, "SGR 43 sets bg to pen 3 (yellow)");
-    
+
     send_sgr(CSI "44m");
     assert_bg_pen(4, "SGR 44 sets bg to pen 4 (blue)");
-    
+
     send_sgr(CSI "45m");
     assert_bg_pen(5, "SGR 45 sets bg to pen 5 (magenta)");
-    
+
     send_sgr(CSI "46m");
     assert_bg_pen(6, "SGR 46 sets bg to pen 6 (cyan)");
-    
+
     send_sgr(CSI "47m");
     assert_bg_pen(7, "SGR 47 sets bg to pen 7 (white)");
-    
+
     /* Reset to default background */
     send_sgr(CSI "49m");
     assert_bg_pen(0, "SGR 49 resets bg to default (pen 0)");
@@ -415,15 +425,15 @@ static void test_sgr_combined(void)
 {
     /* Reset first */
     send_sgr(CSI "0m");
-    
+
     /* Set both colors in one sequence */
     send_sgr(CSI "33;44m");
     assert_pens(3, 4, "SGR 33;44 sets fg=3 (yellow), bg=4 (blue)");
-    
+
     /* Another combination */
     send_sgr(CSI "31;47m");
     assert_pens(1, 7, "SGR 31;47 sets fg=1 (red), bg=7 (white)");
-    
+
     /* Reset and verify */
     send_sgr(CSI "0m");
     assert_pens(1, 0, "SGR 0 after combined resets to default");
@@ -436,20 +446,22 @@ static void test_sgr_inverse(void)
 {
     /* Reset first */
     send_sgr(CSI "0m");
-    
-    /* Enable inverse (swaps fg/bg) */
+
+    /* Enable inverse: INVERSVID draw mode, pens unchanged */
     send_sgr(CSI "7m");
-    assert_pens(0, 1, "SGR 7 enables inverse (fg=0, bg=1)");
-    
+    assert_pens(1, 0, "SGR 7 keeps the pens (fg=1, bg=0)");
+    assert_mode(JAM2 | INVERSVID, 0, "SGR 7 sets INVERSVID");
+
     /* Disable inverse */
     send_sgr(CSI "27m");
-    assert_pens(1, 0, "SGR 27 disables inverse (fg=1, bg=0)");
-    
+    assert_mode(JAM2, 0, "SGR 27 clears INVERSVID");
+
     /* Test inverse with colors */
     send_sgr(CSI "32;45m");  /* Green on magenta */
     send_sgr(CSI "7m");       /* Inverse */
-    assert_pens(5, 2, "SGR 7 with colors inverts (fg=5, bg=2)");
-    
+    assert_pens(2, 5, "SGR 7 with colors keeps the pens (fg=2, bg=5)");
+    assert_mode(JAM2 | INVERSVID, 0, "SGR 7 with colors sets INVERSVID");
+
     /* Reset */
     send_sgr(CSI "0m");
 }
@@ -462,21 +474,23 @@ static void test_sgr_bold(void)
 {
     /* Reset first */
     send_sgr(CSI "0m");
-    
-    /* Enable bold - this may change the foreground pen */
+
+    send_sgr(CSI "32m");
     send_sgr(CSI "1m");
-    /* Bold often ORs 0x01 with the fg pen, so pen 1 stays 1 */
-    /* Just verify it doesn't crash - actual effect depends on implementation */
-    tests_run++;
-    print("PASS: SGR 1 (bold) applied without error\n");
-    tests_passed++;
-    
-    /* Disable bold */
+    assert_mode(JAM2, FSF_BOLD, "SGR 1 sets FSF_BOLD");
+    assert_fg_pen(2, "SGR 1 keeps the pen");
+
+    send_sgr(CSI "3;4m");
+    assert_mode(JAM2, FSF_BOLD | FSF_ITALIC | FSF_UNDERLINED, "SGR 3;4 add italic and underline");
+
+    send_sgr(CSI "23;24m");
+    assert_mode(JAM2, FSF_BOLD, "SGR 23;24 clear italic and underline");
+
+    /* Normal colour, not bold */
     send_sgr(CSI "22m");
-    tests_run++;
-    print("PASS: SGR 22 (not bold) applied without error\n");
-    tests_passed++;
-    
+    assert_mode(JAM2, 0, "SGR 22 clears FSF_BOLD");
+    assert_fg_pen(1, "SGR 22 restores the default pen");
+
     /* Reset */
     send_sgr(CSI "0m");
 }
@@ -488,15 +502,16 @@ static void test_sgr_multiple(void)
 {
     /* Reset first */
     send_sgr(CSI "0m");
-    
+
     /* Set multiple attributes: bold, yellow fg, blue bg */
     send_sgr(CSI "1;33;44m");
-    assert_bg_pen(4, "SGR 1;33;44 sets bg=4 (blue)");
-    /* fg might be modified by bold, so we just check bg here */
-    
+    assert_pens(3, 4, "SGR 1;33;44 sets fg=3, bg=4");
+    assert_mode(JAM2, FSF_BOLD, "SGR 1;33;44 sets FSF_BOLD");
+
     /* Reset and verify */
     send_sgr(CSI "0m");
     assert_pens(1, 0, "SGR 0 resets all attributes");
+    assert_mode(JAM2, 0, "SGR 0 resets draw mode and style");
 }
 
 /*
@@ -506,7 +521,7 @@ static void test_sgr_default_reset(void)
 {
     /* Set some colors */
     send_sgr(CSI "34;43m");  /* Blue on yellow */
-    
+
     /* Reset using bare m (no parameter) */
     send_sgr(CSI "m");
     assert_pens(1, 0, "CSI m (bare) resets to default");
@@ -522,21 +537,17 @@ static void test_esc_bracket_sgr_sequences(void)
 
     con_puts("\x1b[7m ");
     con_puts("\x08");
-    assert_pens(4, 1, "ESC[7m enables inverse video");
+    assert_mode(JAM2 | INVERSVID, 0, "ESC[7m enables inverse video");
 
     con_puts("\x1b[27m ");
     con_puts("\x08");
-    assert_pens(1, 4, "ESC[27m disables inverse video");
+    assert_mode(JAM2, 0, "ESC[27m disables inverse video");
 
     con_puts("\x1b[39;49m ");
     con_puts("\x08");
     assert_pens(1, 0, "ESC[39;49m restores default pens");
 
-    con_puts("\x1b[?25l");
-    assert_cursor_visible_flag(FALSE, "ESC[?25l clears cursor visibility");
-
-    con_puts("\x1b[?25h");
-    assert_cursor_visible_flag(TRUE, "ESC[?25h restores cursor visibility");
+    assert_window_rastport_untouched("console output leaves the window RastPort pens alone");
 }
 
 /*
@@ -556,39 +567,42 @@ static BOOL setup_console(void)
         0, 0, 0, 0,
         WBENCHSCREEN
     };
-    
+
     IntuitionBase = (struct IntuitionBase *)OpenLibrary((STRPTR)"intuition.library", 0);
     if (!IntuitionBase) {
         print("FAIL: Cannot open intuition.library\n");
         return FALSE;
     }
-    
+
     test_win = OpenWindow(&nw);
     if (!test_win) {
         print("FAIL: Cannot open test window\n");
         return FALSE;
     }
-    
+
     con_port = CreateMsgPort();
     if (!con_port) {
         print("FAIL: Cannot create message port\n");
         return FALSE;
     }
-    
+
     con_io = (struct IOStdReq *)CreateIORequest(con_port, sizeof(struct IOStdReq));
     if (!con_io) {
         print("FAIL: Cannot create IO request\n");
         return FALSE;
     }
-    
+
     con_io->io_Data = (APTR)test_win;
     con_io->io_Length = sizeof(struct Window);
-    
+
     if (OpenDevice((STRPTR)"console.device", CONU_STANDARD, (struct IORequest *)con_io, 0) != 0) {
         print("FAIL: Cannot open console.device\n");
         return FALSE;
     }
-    
+    initial_rp_fg = test_win->RPort->FgPen;
+    initial_rp_bg = test_win->RPort->BgPen;
+    initial_rp_dm = test_win->RPort->DrawMode;
+
     return TRUE;
 }
 
@@ -601,15 +615,15 @@ static void cleanup_console(void)
         CloseDevice((struct IORequest *)con_io);
         DeleteIORequest((struct IORequest *)con_io);
     }
-    
+
     if (con_port) {
         DeleteMsgPort(con_port);
     }
-    
+
     if (test_win) {
         CloseWindow(test_win);
     }
-    
+
     if (IntuitionBase) {
         CloseLibrary((struct Library *)IntuitionBase);
     }
@@ -619,13 +633,13 @@ int main(void)
 {
     print("=== SGR Unit Test ===\n");
     print("Testing console.device SGR escape sequences\n\n");
-    
+
     if (!setup_console()) {
         print("FAIL: Setup failed\n");
         cleanup_console();
         return 1;
     }
-    
+
     /* Run all tests */
     test_sgr_reset();
     test_sgr_foreground();
@@ -636,7 +650,7 @@ int main(void)
     test_sgr_multiple();
     test_sgr_default_reset();
     test_esc_bracket_sgr_sequences();
-    
+
     /* Summary */
     print("\n=== Test Summary ===\n");
     print("Tests run: ");
@@ -648,14 +662,14 @@ int main(void)
     print("Failed: ");
     print_num(tests_failed);
     print("\n");
-    
+
     cleanup_console();
-    
+
     if (tests_failed > 0) {
         print("\nFAIL: Some tests failed\n");
         return 1;
     }
-    
+
     print("\nPASS: All SGR unit tests passed\n");
     return 0;
 }

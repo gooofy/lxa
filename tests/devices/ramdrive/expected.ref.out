@@ -1,0 +1,38 @@
+Testing ramdrive.device
+
+  OK: OpenDevice fails without a DOS device node
+  OK: MakeDosNode/AddDosEntry create RAE: for unit 1
+  OK: OpenDevice succeeds once the node exists
+  TD_PROTSTATUS: io_Error=0 io_Actual=0
+  CMD_WRITE: io_Error=0 io_Actual=6
+  CMD_READ: io_Error=0 io_Actual=6
+  OK: CMD_READ returns the written bytes
+  TD_FORMAT: io_Error=0 io_Actual=4
+  ETD_READ (count 1): io_Error=0 io_Actual=4
+  OK: ETD_READ returns the formatted bytes
+  ETD_READ (count 2): io_Error=0
+  CMD_READ last block: io_Error=0 io_Actual=512
+  CMD_READ past the end: io_Error=-4 io_Actual=12345
+  CMD_UPDATE: io_Error=0 io_Actual=12345
+  CMD_CLEAR: io_Error=0 io_Actual=12345
+  CMD_RESET: io_Error=-3 io_Actual=12345
+  CMD_FLUSH: io_Error=-3 io_Actual=12345
+  TD_CHANGENUM: io_Error=0 io_Actual=1
+  TD_CHANGESTATE: io_Error=0 io_Actual=0
+  TD_MOTOR: io_Error=0 io_Actual=1
+  TD_REMOVE: io_Error=0 io_Actual=12345
+  TD_SEEK: io_Error=-3 io_Actual=12345
+  TD_GETGEOMETRY: io_Error=-3 io_Actual=12345
+  NSCMD_DEVICEQUERY: io_Error=-3 io_Actual=12345
+  OK: OpenDevice reopens the unit
+  CMD_READ after reopen: io_Error=0 io_Actual=6
+  OK: data survives close and reopen
+  KillRAD(1): RAE:
+  OK: OpenDevice after KillRAD succeeds
+  CMD_READ after KillRAD: io_Error=29 io_Actual=12345
+  OK: OpenDevice with write protection succeeds
+  TD_PROTSTATUS (protected): io_Error=0 io_Actual=1
+  CMD_WRITE (protected): io_Error=28 io_Actual=12345
+  OK: the unit stays known once the node is gone
+
+PASS: All 10 tests passed!
