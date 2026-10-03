@@ -753,14 +753,6 @@
  },
  {
   "lib": "graphics",
-  "function": "BltPattern",
-  "kind": "partial",
-  "detail": "partial: ignores RastPort AreaPtrn (Phase 256)",
-  "file": "src/rom/lxa_graphics.c",
-  "symbol": "_graphics_BltPattern"
- },
- {
-  "lib": "graphics",
   "function": "LockLayerRom",
   "kind": "partial",
   "detail": "partial: no-op, layer is not locked (Phase 256)",

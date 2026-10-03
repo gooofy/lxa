@@ -1,0 +1,74 @@
+-- InitRastPort defaults
+FgPen = -1
+BgPen = 0
+AOlPen = -1
+DrawMode = 1
+LinePtrn = 0x0000ffff
+Mask = 255
+Flags = 0x00000000
+cp_x = 0
+cp_y = 0
+PenWidth = 0
+PenHeight = 0
+AreaPtSz = 0
+linpatcnt = 0
+GetAPen = 255
+GetBPen = 0
+GetDrMd = 1
+GetOutlinePen = 255
+-- WritePixel/ReadPixel
+WritePixel rc = 0
+WritePixel rc = 0
+WritePixel rc = 0
+WritePixel rc = 0
+WritePixel rc = 0
+WritePixel rc = 0
+WritePixel rc = 0
+WritePixel rc = 0
+row 0..7 diag = 000000000000000000000700
+ReadPixel = 0
+ReadPixel = 1
+ReadPixel = 2
+ReadPixel = 3
+ReadPixel = 4
+ReadPixel = 5
+ReadPixel = 6
+ReadPixel = 7
+complement 3,1 = 6
+complement 40,40 = 7
+mask 5 pen 7 = 5
+mask 5 pen 0 over 2 = 2
+pixels = p0 0x8695c7ce p1 0x6aecf613 p2 0x27461166
+-- Move/Draw
+cp_x = 32
+cp_y = 24
+star JAM1 = p0 0x723a0ac4 p1 0x7ca6fbe3 p2 0x5fd586a5
+zero length 5,5 = 7
+frame = p0 0x2aac0391 p1 0x2aac0391 p2 0x2aac0391
+-- line pattern
+JAM1: linpatcnt = -32
+pattern lines = p0 0x8ba6a443 p1 0xa47bc707 p2 0x8ba6a443
+JAM2: linpatcnt = -32
+pattern lines = p0 0x8ba6a443 p1 0xa47bc707 p2 0x673059ab
+COMPLEMENT: linpatcnt = -32
+pattern lines = p0 0x272a8e23 p1 0xb32f3747 p2 0x272a8e23
+JAM2|INVERSVID: linpatcnt = -32
+pattern lines = p0 0x7eb08cb5 p1 0xbbd04e95 p2 0x673059ab
+Flags after SetDrPt = 0x00000001
+-- PolyDraw
+cp_x = 30
+cp_y = 20
+polydraw = p0 0xf7cade85 p1 0xf7cade85 p2 0xd32390c2
+-- RectFill
+rectfill modes = p0 0x3b777e9e p1 0x86b733aa p2 0x3fc0e62a
+-- RectFill area pattern
+pattern 1/4 rows = p0 0xa5e1650d p1 0x480f502d p2 0xa5e1650d
+multicolour pattern = p0 0x17b7a21b p1 0x5c486e5c p2 0x72558f80
+-- DrawEllipse
+ellipses = p0 0x3eb9d2ed p1 0x7c0ba7d3 p2 0x96788000
+-- SetRast/ScrollRaster
+SetRast 5 = 5
+setrast = p0 0xa31dfe41 p1 0xf25c7db9 p2 0xa31dfe41
+scroll +5,+3 = p0 0x83ff8b8e p1 0x147888ed p2 0x0a7d7410
+scroll -7,-2 = p0 0x95c1bc5a p1 0x1e3c97d8 p2 0x51a14ab2
+scroll beyond = p0 0x95c1bc5a p1 0x1e3c97d8 p2 0x51a14ab2

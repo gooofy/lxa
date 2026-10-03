@@ -9349,7 +9349,7 @@ static void _render_window_frame(struct Window *window)
     _render_window_frame_impl(window);
     SetAPen(rp, fg);
     SetBPen(rp, bg);
-    SetOPen(rp, ol);
+    rp->AOlPen = ol;    /* not SetOPen(): that also sets AREAOUTLINE */
     SetDrMd(rp, dm);
 }
 
