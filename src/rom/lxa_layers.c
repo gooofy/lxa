@@ -41,7 +41,7 @@
 #define VERSION    40
 #define REVISION   1
 #define EXLIBNAME  "layers"
-#define EXLIBVER   " 40.1 (2026/02/01)"
+#define EXLIBVER   " 40.1 (15.2.93)\r\n"
 
 char __aligned _g_layers_ExLibName [] = EXLIBNAME ".library";
 char __aligned _g_layers_ExLibID   [] = EXLIBNAME EXLIBVER;

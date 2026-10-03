@@ -38,9 +38,9 @@
 #include <intuition/classusr.h>
 
 #define VERSION    40
-#define REVISION   1
+#define REVISION   4
 #define EXLIBNAME  "gadtools"
-#define EXLIBVER   " 40.1 (2025/02/02)"
+#define EXLIBVER   " 40.4 (24.5.93)\r\n"
 
 char __aligned _g_gadtools_ExLibName [] = EXLIBNAME ".library";
 char __aligned _g_gadtools_ExLibID   [] = EXLIBNAME EXLIBVER;
