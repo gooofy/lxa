@@ -994,6 +994,16 @@ int op_illg(int level)
             break;
         }
 
+        case EMU_CALL_DOS_ASSIGN_INFO:
+        {
+            uint32_t name = m68k_get_reg(NULL, M68K_REG_D1);
+            uint32_t buf = m68k_get_reg(NULL, M68K_REG_D2);
+            uint32_t buflen = m68k_get_reg(NULL, M68K_REG_D3);
+
+            m68k_set_reg(M68K_REG_D0, _dos_assign_info(name, buf, buflen));
+            break;
+        }
+
         case EMU_CALL_DOS_ASSIGN_REMOVE_PATH:
         {
             uint32_t name = m68k_get_reg(NULL, M68K_REG_D1);

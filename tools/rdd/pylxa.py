@@ -93,6 +93,10 @@ class Lxa:
         if os.path.isdir(disklibs):
             self.assign_add("LIBS", disklibs)
         self.assign("C", os.path.join(self.build, "target", "sys", "C"))
+        # the built sys tree belongs to SYS: as in an installed system
+        # (SYS:C/List, SYS:System/Shell), so names resolve as on AmigaOS
+        if os.path.isdir(os.path.join(self.build, "target", "sys")):
+            self.assign_add("SYS", os.path.join(self.build, "target", "sys"))
         apps = apps or os.environ.get("LXA_APPS") or os.path.normpath(os.path.join(ROOT, "..", "lxa-apps"))
         if os.path.isdir(apps):
             self.assign("APPS", apps)

@@ -1,0 +1,88 @@
+; File commands: MakeDir, Type, Copy, Rename, Delete, Protect, Filenote,
+; Join, Search, Sort, SetDate (Phase 221)
+FailAt 21
+Delete work-files ALL QUIET >NIL:
+MakeDir work-files
+CD work-files
+Echo "hello world" >a.txt
+Echo "line3" >>a.txt
+Echo "second file with more text" >b.txt
+Type a.txt
+Type a.txt NUMBER
+Type b.txt HEX
+Type nosuch
+Echo "type rc=$RC r2=$Result2"
+MakeDir sub
+MakeDir sub
+Echo "makedir rc=$RC r2=$Result2"
+MakeDir x/y/z
+Echo "makedir rc=$RC r2=$Result2"
+MakeDir
+Echo "makedir rc=$RC r2=$Result2"
+Echo "nested" >sub/c.txt
+SetDate a.txt 01-Jan-24 12:00:00
+SetDate b.txt 02-Feb-23 13:14:15
+SetDate sub 03-Mar-22 01:02:03
+SetDate sub/c.txt 04-Apr-21 04:05:06
+SetDate nosuch 01-Jan-24
+Echo "setdate rc=$RC r2=$Result2"
+SetDate a.txt garbage
+Echo "setdate rc=$RC r2=$Result2"
+List a.txt
+List b.txt
+List sub/c.txt
+Protect a.txt -w
+List a.txt NODATES
+Protect a.txt +s
+Protect a.txt ADD p
+List a.txt NODATES
+Protect a.txt rwed
+List a.txt NODATES
+Protect a.txt hsparwed
+List a.txt NODATES
+Protect a.txt rwed
+Protect nosuch r
+Echo "protect rc=$RC r2=$Result2"
+Filenote a.txt "a comment"
+List a.txt
+Filenote a.txt ""
+List a.txt
+Filenote nosuch "x"
+Echo "filenote rc=$RC r2=$Result2"
+Rename a.txt x.txt
+Rename x.txt TO a.txt
+Rename nosuch y
+Echo "rename rc=$RC r2=$Result2"
+Rename a.txt b.txt
+Echo "rename rc=$RC r2=$Result2"
+Copy a.txt TO d.txt
+Type d.txt
+Copy sub sub3 ALL
+Copy a.txt sub
+List sub/a.txt NODATES
+Copy nosuch e
+Echo "copy rc=$RC r2=$Result2"
+Copy a.txt
+Echo "copy rc=$RC r2=$Result2"
+Join a.txt b.txt TO j.txt
+Type j.txt
+Join a.txt
+Echo "join rc=$RC r2=$Result2"
+Search j.txt world
+Search j.txt "file" NONUM
+Search j.txt nomatch
+Echo "search rc=$RC"
+Search j.txt line3 QUIET
+Echo "search rc=$RC"
+Sort j.txt TO s.txt
+Type s.txt
+Delete d.txt
+Delete sub3 ALL
+Delete nosuch
+Echo "delete rc=$RC r2=$Result2"
+Delete sub
+Echo "delete rc=$RC r2=$Result2"
+CD /
+Delete work-files ALL QUIET
+Echo "delete rc=$RC"
+Echo "done"

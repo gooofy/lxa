@@ -518,6 +518,11 @@ static LONG cmd_echo(char *args, const char *name)
 
     if (!rda)
         return bad_args();
+    if (!a[0]) {
+        /* Echo without arguments prints nothing (AmigaOS 3.1) */
+        free_args(rda);
+        return 0;
+    }
     buf[0] = '\0';
     for (m = (STRPTR *)a[0]; m && *m; m++) {
         int l = strlen((char *)*m);
@@ -582,8 +587,17 @@ static LONG cmd_fault(char *args, const char *name)
     if (!rda)
         return bad_args();
     for (n = (LONG **)a[0]; n && *n; n++) {
+        /* AmigaOS 3.1: "Fault %3ld: text"; code 0 has no text (header
+         * only, no newline); a code without a message gives RC 5 */
+        if (**n == 0) {
+            out_fmt("Fault %3ld", **n);
+            rc = RETURN_WARN;
+            continue;
+        }
         Fault(**n, NULL, (STRPTR)buf, sizeof(buf));
-        out_fmt("Fault %ld: %s\n", **n, buf);
+        out_fmt("Fault %3ld: %s\n", **n, buf);
+        if (!strncmp(buf, "Error ", 6))
+            rc = RETURN_WARN;
     }
     free_args(rda);
     return rc;
@@ -623,10 +637,10 @@ static LONG cmd_cd(char *args, const char *name)
             SetIoErr(err);
             rc = RETURN_FAIL;
         } else if (fib && Examine(lock, fib) && fib->fib_DirEntryType < 0) {
-            out_fmt("%s is not a directory\n", a[0]);
+            fault(ERROR_OBJECT_WRONG_TYPE, NULL);
             UnLock(lock);
             SetIoErr(ERROR_OBJECT_WRONG_TYPE);
-            rc = RETURN_ERROR;
+            rc = RETURN_FAIL;
         } else {
             UnLock(CurrentDir(lock));
             if (NameFromLock(lock, (STRPTR)buf, sizeof(buf)))
@@ -660,7 +674,13 @@ static void list_locals(UBYTE type)
         if (!best)
             break;
         out_padded((char *)best->lv_Node.ln_Name, 18);
-        Write(Output(), best->lv_Value, best->lv_Len);
+        {
+            /* lxa keeps the NUL terminator in lv_Len */
+            LONG l = best->lv_Len;
+            while (l > 0 && best->lv_Value[l - 1] == '\0')
+                l--;
+            Write(Output(), best->lv_Value, l);
+        }
         out_str("\n");
         strncpy(last, best->lv_Node.ln_Name, sizeof(last) - 1);
         last[sizeof(last) - 1] = '\0';
@@ -1115,7 +1135,8 @@ static LONG cmd_resident(char *args, const char *name)
         s = FindSegment((STRPTR)a[0], NULL, FALSE);
         if (!s) {
             Permit();
-            out_fmt("Can't find %s\n", a[0]);
+            fault(ERROR_OBJECT_NOT_FOUND, NULL);
+            SetIoErr(ERROR_OBJECT_NOT_FOUND);
             rc = RETURN_WARN;
         } else if (s->seg_UC > 1 || !RemSegment(s)) {
             Permit();
@@ -1144,18 +1165,19 @@ static LONG cmd_resident(char *args, const char *name)
             fault(err, NULL);
             SetIoErr(err);
             free_args(rda);
-            return RETURN_FAIL;
+            return RETURN_WARN;
         }
         Forbid();
         s = FindSegment((STRPTR)rname, NULL, FALSE);
-        if (s && !a[4]) {
+        if (s && s->seg_UC > 1) {
             Permit();
             UnLoadSeg(seg);
-            out_fmt("%s is already resident\n", rname);
+            out_fmt("%s is in use\n", rname);
             free_args(rda);
             return RETURN_WARN;
         }
-        if (s && s->seg_UC <= 1) {
+        /* an existing entry is replaced (AmigaOS 3.1) */
+        if (s) {
             UnLoadSeg(s->seg_Seg);
             s->seg_Seg = seg;
             Permit();
@@ -1298,12 +1320,10 @@ static LONG cmd_skip(char *args, const char *name)
         if (first_word_is(line, "Lab", &rest)) {
             char word[NAME_LEN];
             char *r = (char *)rest;
-            if (!label[0])
+            /* Skip without a label stops at a Lab without one */
+            BOOL has = next_word(&r, word, sizeof(word));
+            if (!label[0] ? !has : (has && !stricmp((const char *)word, label)))
                 return 0;
-            if (next_word(&r, word, sizeof(word)) && !stricmp((const char *)word, label))
-                return 0;
-        } else if (!label[0] && first_word_is(line, "EndSkip", NULL)) {
-            return 0;
         }
     }
     fault(ERROR_OBJECT_NOT_FOUND, NULL);
@@ -1336,6 +1356,7 @@ static LONG run_external(const char *cmdname, char *args)
     }
     if (!seg) {
         out_fmt("%s: Unknown command\n", cmdname);
+        last_result2 = ERROR_OBJECT_NOT_FOUND;
         SetIoErr(ERROR_OBJECT_NOT_FOUND);
         return RETURN_ERROR;
     }
@@ -1530,6 +1551,9 @@ static BOOL expand_alias(const char *name, const char *args, char *out, int len)
 /* After a command: RC/Result2 and the fail limit. */
 static void command_done(const char *name, LONG rc)
 {
+    /* AmigaOS 3.1: Result2 is 0 after a successful command */
+    if (rc == 0)
+        last_result2 = 0;
     last_rc = rc;
     cli->cli_ReturnCode = rc;
     cli->cli_Result2 = last_result2;
@@ -1660,7 +1684,16 @@ static LONG run_line_work(char *line, struct LineWork *w)
         if (rc)
             last_result2 = IoErr();
     } else {
+        /* AmigaOS 3.1: a command run from a command file reads its input
+         * from the command file (Eval, ReadArgs "?" prompts consume the
+         * following lines) */
+        BPTR oldcis = 0;
+        BOOL from_script = !infh && in_script() && ninputs;
+        if (from_script)
+            oldcis = SelectInput(inputs[ninputs - 1].fh);
         rc = run_external(b ? b->name : name, args);
+        if (from_script)
+            SelectInput(oldcis);
     }
     Flush(Output());
 

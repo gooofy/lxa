@@ -1,0 +1,48 @@
+; List and Dir options (Phase 221)
+FailAt 21
+Delete work-list ALL QUIET >NIL:
+MakeDir work-list
+CD work-list
+Echo "hello world" >a.txt
+Echo "second file with more text" >b.info
+MakeDir dir1
+Echo "nested" >dir1/c.txt
+SetDate a.txt 01-Jan-24 12:00:00
+SetDate b.info 02-Feb-23 13:14:15
+SetDate dir1 03-Mar-22 01:02:03
+SetDate dir1/c.txt 04-Apr-21 04:05:06
+List a.txt
+List a.txt NODATES
+List a.txt DATES
+List a.txt BLOCK
+List a.txt NOHEAD
+List a.txt QUICK
+List a.txt LFORMAT "%n|%l|%p|%d|%t|%c|%s|%a|%b"
+List a.txt LFORMAT "name=%s size=%l"
+List dir1
+List dir1 NODATES ALL
+List dir1 FILES
+List dir1 DIRS
+List dir1 LFORMAT "%p%n"
+List #?.txt
+List PAT #?.info
+List SINCE 01-Jan-24
+List UPTO 01-Jan-21
+List SUB info
+List dir1/c.txt dir1/c.txt
+List nosuch
+Echo "list rc=$RC r2=$Result2"
+List a.txt BADOPT
+Echo "list rc=$RC r2=$Result2"
+List LFORMAT
+Echo "list rc=$RC r2=$Result2"
+Dir dir1
+Dir dir1 ALL
+Dir dir1 FILES
+Dir dir1 DIRS
+Dir dir1 OPT A
+Dir nosuch
+Echo "dir rc=$RC r2=$Result2"
+CD /
+Delete work-list ALL QUIET
+Echo "done"

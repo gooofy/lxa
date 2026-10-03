@@ -5875,7 +5875,9 @@ void coldstart (void)
     g_ResidentModules[35] = NULL;
 
     SysBase->ResModules = g_ResidentModules;
-    SysBase->SoftVer = VERSION;
+    /* Kickstart 3.1 is 40.70: exec 40 with SoftVer 70 (C:Version shows
+     * "Kickstart 40.70", reference-verified, Phase 221) */
+    SysBase->SoftVer = 70;
     /* NDK execbase.h: ChkBase holds the complement of SysBase; debuggers,
      * reset-proof code and validity checks rely on it */
     SysBase->ChkBase = ~(ULONG)SysBase;

@@ -1,0 +1,42 @@
+; Echo, FailAt, Why, Fault, comments and quoting (Phase 221)
+FailAt 21
+Echo "rc=$RC r2=$Result2"
+FailAt
+Echo hello
+Echo "hello world"
+Echo one two three
+Echo a NOLINE
+Echo b
+Echo "abcdef" FIRST 2 LEN 3
+Echo "abcdef" FIRST 4
+Echo "abcdef" LEN 2
+Echo "abcdef" LEN 10
+Echo "with *"quote*" and *N newline"
+Echo "star ** and *E[0m done"
+Echo "semicolon; inside quotes" ; a comment
+Echo noquote ; comment after a word
+Echo ""
+Echo
+Echo "  leading and trailing  "
+Echo "rc=$RC"
+Echo FIRST
+Echo "rc=$RC r2=$Result2"
+Echo "x" LEN abc
+Echo "rc=$RC r2=$Result2"
+Why
+Fault 205
+Fault 205 103 116
+Fault 999
+Echo "fault rc=$RC"
+Fault 0
+Echo "fault rc=$RC"
+Fault
+Echo "fault rc=$RC"
+nosuchcmd
+Echo "unknown rc=$RC r2=$Result2"
+Why
+FailAt 7
+FailAt
+FailAt 21
+Quit 3
+Echo "not reached"

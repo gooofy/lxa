@@ -111,7 +111,7 @@ static int subst(const char *spec, int len, char *out, int room)
     int nlen = sep ? sep - spec : len;
     const char *val = NULL;
     char numbuf[16];
-    char multibuf[LINE_LEN];
+    static char multibuf[LINE_LEN];
     struct Key *k;
     int idx, n;
 
@@ -155,7 +155,15 @@ static int subst(const char *spec, int len, char *out, int room)
             }
         }
     } else {
-        return -1;      /* not an argument: keep the text */
+        /* not an argument: its default (or nothing) */
+        static char defbuf2[256];
+        int dl = sep ? len - nlen - 1 : 0;
+        if (dl > (int)sizeof(defbuf2) - 1)
+            dl = sizeof(defbuf2) - 1;
+        if (dl > 0)
+            CopyMem((APTR)(sep + 1), defbuf2, dl);
+        defbuf2[dl] = '\0';
+        val = defbuf2;
     }
     n = strlen(val);
     if (n > room)
@@ -192,7 +200,7 @@ int main(void)
     struct Process *me = (struct Process *)FindTask(NULL);
     struct CommandLineInterface *cli = Cli();
     char *argstr = (char *)GetArgStr();
-    char file[256];
+    static char file[256];
     char *rest;
     char *text = NULL, *outbuf = NULL;
     LONG textlen = 0, outlen = 0;
@@ -221,8 +229,9 @@ int main(void)
         rest++;
 
     if (!file[0]) {
-        PrintFault(ERROR_REQUIRED_ARG_MISSING, (STRPTR)"EXECUTE");
-        return RETURN_ERROR;
+        /* AmigaOS 3.1: silently fails */
+        SetIoErr(ERROR_REQUIRED_ARG_MISSING);
+        return RETURN_FAIL;
     }
 
     fh = Open((STRPTR)file, MODE_OLDFILE);
@@ -288,7 +297,7 @@ int main(void)
 
         /* first pass: .KEY and .DEF */
         for (line = text; line && *line; line = next) {
-            char l[LINE_LEN];
+            static char l[LINE_LEN];
             const char *r;
             int n;
             next = strchr(line, '\n');
@@ -348,7 +357,7 @@ int main(void)
 
         /* second pass: directives and substitution */
         for (line = text; line && *line; line = next) {
-            char l[LINE_LEN];
+            static char l[LINE_LEN];
             const char *r;
             int n, i;
             next = strchr(line, '\n');
