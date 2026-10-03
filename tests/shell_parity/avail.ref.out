@@ -1,0 +1,15 @@
+Type  Available    In-Use   Maximum   Largest
+chip N N N N
+fast N N N N
+total N N N N
+rc= N
+ N
+ N
+ N
+Type  Available    In-Use   Maximum   Largest
+chip N N N N
+fast N N N N
+total N N N N
+rc= N
+wrong number of arguments
+rc= N r N= N

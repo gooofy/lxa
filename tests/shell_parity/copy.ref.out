@@ -1,0 +1,74 @@
+one
+one
+rc=0 r2=0
+one
+Can't open newdir/ for output - object not found
+rc=5 r2=0
+   dst3   [created]
+        d2 (Dir)
+rc=0
+   dst4   [created]
+        d2 (Dir)   [created]
+           f3..copied.
+rc=0
+deep
+rc=0
+Can't open nosuchdir/x for output - object not found
+rc=5 r2=0
+Can't open nosuch for input - object not found
+rc=20 r2=205
+   dst6   [created]
+   f1..copied.
+rc=0
+plain                          4 -s--rwed
+1 file - 2 blocks used
+cloned                         4 -s--rwed 02-Feb-22 hh:mm:ss
+: note
+1 file - 2 blocks used
+dated                          4 -s--rwed 02-Feb-22 hh:mm:ss
+1 file - 2 blocks used
+commented                      4 -s--rwed
+: note
+1 file - 2 blocks used
+nopro                          4 ----rwed
+1 file - 2 blocks used
+one
+two
+Can't open nosuch
+join rc=20 r2=205
+one
+required argument missing
+join rc=20 r2=116
+one
+10
+9
+Apple
+mango
+zebra
+10
+9
+Apple
+mango
+zebra
+-2
+4
+30
+100
+z2 a
+x3 b
+y1 c
+Can't open nosuch
+sort rc=10 r2=205
+     1 one
+rc=0
+one
+rc=5
+     d1 (dir)
+          d2 (dir)
+             f3..
+     1 deep
+rc=0
+     1 one
+object not found
+rc=20 r2=205
+done

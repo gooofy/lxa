@@ -1,0 +1,81 @@
+hello world
+line3
+    1 hello world
+    2 line3
+0000: 7365636F 6E642066 696C6520 77697468    second file with     
+0010: 206D6F72 65207465 78740A                more text.          
+TYPE can't open nosuch
+object not found
+type rc=10 r2=205
+sub already exists
+makedir rc=10 r2=0
+Can't create directory x/y/z
+object not found
+makedir rc=10 r2=205
+No name given
+makedir rc=20 r2=0
+SetDate failed: object not found
+setdate rc=20 r2=205
+SetDate failed: Invalid DATE or TIME string!
+setdate rc=20 r2=0
+a.txt                         18 ----rwed Today     hh:mm:ss
+1 file - 2 blocks used
+b.txt                         27 ----rwed 02-Feb-23 hh:mm:ss
+1 file - 2 blocks used
+Directory "sub" on Monday 01-Jan-24
+c.txt                          7 ----rwed 04-Apr-21 hh:mm:ss
+1 file - 2 blocks used
+a.txt                         18 ----r-ed
+1 file - 2 blocks used
+a.txt                         18 -sp-r-ed
+1 file - 2 blocks used
+a.txt                         18 ----rwed
+1 file - 2 blocks used
+a.txt                         18 hsparwed
+1 file - 2 blocks used
+object not found
+protect rc=20 r2=205
+a.txt                         18 ----rwed Today     hh:mm:ss
+: a comment
+1 file - 2 blocks used
+a.txt                         18 ----rwed Today     hh:mm:ss
+1 file - 2 blocks used
+object not found
+filenote rc=20 r2=205
+Can't rename nosuch as y because object not found
+rename rc=20 r2=205
+Can't rename a.txt as b.txt because object already exists
+rename rc=20 r2=203
+hello world
+line3
+   sub3   [created]
+   c.txt..copied.
+Directory "sub" on Monday 01-Jan-24
+a.txt                         18 ----rwed
+1 file - 2 blocks used
+Can't open nosuch for input - object not found
+copy rc=20 r2=205
+Copy: required argument missing
+copy rc=20 r2=116
+hello world
+line3
+second file with more text
+required argument missing
+join rc=20 r2=116
+     1 hello world
+second file with more text
+search rc=5
+SYS:Tests/ShellParity/work-files/j.txt
+search rc=0
+hello world
+line3
+second file with more text
+d.txt  Deleted
+sub3/c.txt  Deleted
+sub3  Deleted
+No file to delete
+delete rc=5 r2=0
+sub  Not Deleted: directory not empty
+delete rc=20 r2=216
+delete rc=0
+done

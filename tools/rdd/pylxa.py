@@ -114,6 +114,12 @@ class Lxa:
         self.assign("T", os.path.join(self._tmp, "T"))
         self.assign("ENV", os.path.join(self._tmp, "ENV"))
         self.assign("ENVARC", os.path.join(self._tmp, "ENV"))
+        # FONTS: always exists on AmigaOS (disk fonts; topaz is in ROM)
+        fonts = os.path.join(system, "Fonts")
+        if not os.path.isdir(fonts):
+            fonts = os.path.join(self._tmp, "Fonts")
+            os.makedirs(fonts)
+        self.assign("FONTS", fonts)
         for name, path in (extra_assigns or {}).items():
             self.assign(name, path)
         self._text_cb = None

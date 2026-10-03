@@ -1,0 +1,27 @@
+x is 5
+else branch
+gt val
+string 10 not gt 9
+number 10 gt 9
+not 6
+ge no
+case-insensitive
+exists
+not exists
+inner else
+outer still
+outer else
+bad number
+rc=20
+bad number
+error
+bad number
+fail
+nosuchcmd: Unknown command
+warn after unknown
+after empty if rc=0
+after lab
+after bare lab
+count=3
+endif rc=0
+object not found

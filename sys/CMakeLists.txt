@@ -97,32 +97,43 @@ add_disk_library(datatypes_disklib datatypes.library
 
 # === SYS:C Commands ===
 set(C_COMMANDS
+    AddBuffers
     Assign
     Avail
     Break
     ChangeTaskPri
     Copy
+    CPU
     Date
     Delete
     Dir
+    DiskChange
     Eval
     Execute
     Filenote
     GetEnv
+    IconX
     Info
     Join
     List
+    LoadResource
+    Lock
     MakeDir
     MakeLink
     Protect
+    Relabel
     Rename
     RequestChoice
+    RequestFile
     Resident
     Run
     Search
     Set
     SetDate
     SetEnv
+    SetFont
+    SetKeyboard
+    SetPatch
     Sort
     Stack
     Status
