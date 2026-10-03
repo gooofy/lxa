@@ -1910,15 +1910,19 @@ void lxa_free_menu_strip(lxa_menu_strip_t *strip)
 
 #define SCREEN_BARHEIGHT_OFFSET   30   /* BYTE BarHeight */
 #define SCREEN_BARHBORDER_OFFSET  32   /* BYTE BarHBorder */
+#define SCREEN_MENUVBORDER_OFFSET 33   /* BYTE MenuVBorder */
+#define SCREEN_MENUHBORDER_OFFSET 34   /* BYTE MenuHBorder */
 
 /* Mirrors Intuition's drop-down geometry (lxa_intuition.c:
- * _find_menu_at_x, _find_item_at_pos, _get_menu_submenu_box). */
+ * _find_menu_at_x, _menu_item_origin, _get_menu_submenu_origin): items sit
+ * at (Menu.LeftEdge + 1 + MenuHBorder, BarHeight + MenuVBorder - 1) plus
+ * their LeftEdge/TopEdge, sub-items relative to their parent item. */
 bool lxa_get_menu_rect(int window_index, int menu_idx, int item_idx, int sub_idx,
                        int *x, int *y, int *width, int *height)
 {
     lxa_menu_strip_t *strip;
     uint32_t window_ptr, screen_ptr;
-    int bar_h, bar_hb, rx, ry, rw, rh;
+    int bar_h, bar_hb, menu_vb, menu_hb, rx, ry, rw, rh;
     bool ok = false;
 
     if (!g_api_initialized)
@@ -1931,6 +1935,8 @@ bool lxa_get_menu_rect(int window_index, int menu_idx, int item_idx, int sub_idx
         return false;
     bar_h  = (int8_t)m68k_read_memory_8(screen_ptr + SCREEN_BARHEIGHT_OFFSET);
     bar_hb = (int8_t)m68k_read_memory_8(screen_ptr + SCREEN_BARHBORDER_OFFSET);
+    menu_vb = (int8_t)m68k_read_memory_8(screen_ptr + SCREEN_MENUVBORDER_OFFSET);
+    menu_hb = (int8_t)m68k_read_memory_8(screen_ptr + SCREEN_MENUHBORDER_OFFSET);
 
     strip = lxa_get_menu_strip(window_index);
     if (!strip || menu_idx < 0 || menu_idx >= strip->menu_count)
@@ -1938,40 +1944,36 @@ bool lxa_get_menu_rect(int window_index, int menu_idx, int item_idx, int sub_idx
 
     {
         lxa_menu_snapshot_t *ms = &strip->menus[menu_idx];
-        int menu_left = bar_hb + (int16_t)m68k_read_memory_16(ms->menu_ptr + MENU_LEFTEDGE_OFFSET);
-        int menu_top  = bar_h + 1;
+        int title_left = (int16_t)m68k_read_memory_16(ms->menu_ptr + MENU_LEFTEDGE_OFFSET);
+        int menu_left = title_left + 1 + menu_hb;      /* item origin */
+        int menu_top  = bar_h + menu_vb - 1;
 
         if (item_idx < 0) {
-            rx = menu_left;
+            rx = bar_hb + title_left;
             ry = 0;
             rw = (int16_t)m68k_read_memory_16(ms->menu_ptr + MENU_WIDTH_OFFSET);
             rh = bar_h + 1;
         } else {
-            uint32_t item, first_item;
-            int chain_left;
+            uint32_t item;
 
             if (item_idx >= ms->item_count)
                 goto out;
             item = ms->item_ptrs[item_idx];
-            first_item = ms->item_ptrs[0];
-            chain_left = (int16_t)m68k_read_memory_16(first_item + MENUITEM_LEFTEDGE_OFFSET);
-            rx = menu_left + (int16_t)m68k_read_memory_16(item + MENUITEM_LEFTEDGE_OFFSET) - chain_left;
+            rx = menu_left + (int16_t)m68k_read_memory_16(item + MENUITEM_LEFTEDGE_OFFSET);
             ry = menu_top + (int16_t)m68k_read_memory_16(item + MENUITEM_TOPEDGE_OFFSET);
             rw = (int16_t)m68k_read_memory_16(item + MENUITEM_WIDTH_OFFSET);
             rh = (int16_t)m68k_read_memory_16(item + MENUITEM_HEIGHT_OFFSET);
 
             if (sub_idx >= 0) {
-                uint32_t sub, first_sub;
-                int sub_left, base_x, base_y;
+                uint32_t sub;
+                int base_x, base_y;
 
                 if (sub_idx >= ms->subitem_counts[item_idx])
                     goto out;
                 sub = ms->subitem_ptrs[item_idx][sub_idx];
-                first_sub = ms->subitem_ptrs[item_idx][0];
-                sub_left = (int16_t)m68k_read_memory_16(first_sub + MENUITEM_LEFTEDGE_OFFSET);
-                base_x = menu_left + (int16_t)m68k_read_memory_16(item + MENUITEM_LEFTEDGE_OFFSET) + rw;
+                base_x = rx;
                 base_y = ry;
-                rx = base_x + (int16_t)m68k_read_memory_16(sub + MENUITEM_LEFTEDGE_OFFSET) - sub_left;
+                rx = base_x + (int16_t)m68k_read_memory_16(sub + MENUITEM_LEFTEDGE_OFFSET);
                 ry = base_y + (int16_t)m68k_read_memory_16(sub + MENUITEM_TOPEDGE_OFFSET);
                 rw = (int16_t)m68k_read_memory_16(sub + MENUITEM_WIDTH_OFFSET);
                 rh = (int16_t)m68k_read_memory_16(sub + MENUITEM_HEIGHT_OFFSET);

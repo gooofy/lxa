@@ -2480,18 +2480,23 @@ static struct IntuiText *gt_alloc_menu_itext(STRPTR label)
     return itext;
 }
 
+/* NM_BARLABEL: an image item (AmigaOS 3.1: Flags HIGHNONE, no ITEMTEXT,
+ * not ITEMENABLED) whose Image is followed by GT_BAR_MAGIC */
+#define GT_BAR_MAGIC 0x47544241UL   /* "GTBA" */
+
+static struct Image *gt_alloc_bar_image(void)
+{
+    struct Image *im = AllocMem(sizeof(struct Image) + sizeof(ULONG), MEMF_CLEAR | MEMF_PUBLIC);
+    if (im)
+        *(ULONG *)(im + 1) = GT_BAR_MAGIC;
+    return im;
+}
+
 static BOOL gt_is_separator_item(const struct MenuItem *item)
 {
-    struct IntuiText *it;
-
-    if (!item || !(item->Flags & ITEMTEXT) || !item->ItemFill)
+    if (!item || (item->Flags & ITEMTEXT) || !item->ItemFill)
         return FALSE;
-
-    it = (struct IntuiText *)item->ItemFill;
-    if (!it->IText)
-        return FALSE;
-
-    return it->IText[0] == '-';
+    return *(ULONG *)((struct Image *)item->ItemFill + 1) == GT_BAR_MAGIC;
 }
 
 /*
@@ -2637,6 +2642,14 @@ static BOOL gt_layout_menu_item_chain(struct gt_menu_layout *ml, struct MenuItem
         item->TopEdge = y;
         item->Width = width;
         item->Height = gt_is_separator_item(item) ? 6 : ml->item_height;
+        if (gt_is_separator_item(item))
+        {
+            struct Image *im = (struct Image *)item->ItemFill;
+            im->LeftEdge = 0;
+            im->TopEdge = 1;
+            im->Width = width - 4;
+            im->Height = 2;
+        }
 
         if ((item->Flags & ITEMTEXT) && item->ItemFill)
         {
@@ -2782,20 +2795,8 @@ struct Menu * _gadtools_CreateMenusA ( register struct GadToolsBase *GadToolsBas
 
                 /* Handle bar label (separator) */
                 if (nm->nm_Label == NM_BARLABEL) {
-                    /* Create a simple separator - we'll use a minimal IntuiText */
-                    itext = AllocMem(sizeof(struct IntuiText), MEMF_CLEAR | MEMF_PUBLIC);
-                    if (itext) {
-                        itext->FrontPen = 1;
-                        itext->BackPen = 0;
-                        itext->DrawMode = JAM1;
-                        itext->LeftEdge = 0;
-                        itext->TopEdge = 0;
-                        itext->ITextFont = NULL;
-                        itext->IText = (STRPTR)"----------------";
-                        itext->NextText = NULL;
-                    }
-                    item->ItemFill = itext;
-                    item->Flags &= ~ITEMENABLED;  /* Separators are not selectable */
+                    item->ItemFill = gt_alloc_bar_image();
+                    item->Flags = HIGHNONE;   /* image item, not selectable */
                 } else if (menu_image) {
                     item->ItemFill = (APTR)nm->nm_Label;
                     item->Flags &= ~ITEMTEXT;
@@ -2868,15 +2869,8 @@ struct Menu * _gadtools_CreateMenusA ( register struct GadToolsBase *GadToolsBas
 
                 /* Handle bar label (separator) */
                 if (nm->nm_Label == NM_BARLABEL) {
-                    itext = AllocMem(sizeof(struct IntuiText), MEMF_CLEAR | MEMF_PUBLIC);
-                    if (itext) {
-                        itext->FrontPen = 1;
-                        itext->BackPen = 0;
-                        itext->DrawMode = JAM1;
-                        itext->IText = (STRPTR)"------------";
-                    }
-                    subitem->ItemFill = itext;
-                    subitem->Flags &= ~ITEMENABLED;
+                    subitem->ItemFill = gt_alloc_bar_image();
+                    subitem->Flags = HIGHNONE;
                 } else if (menu_image) {
                     subitem->ItemFill = (APTR)nm->nm_Label;
                     subitem->Flags &= ~ITEMTEXT;
@@ -2936,6 +2930,9 @@ static void FreeMenuItems(struct MenuItem *item)
         if (item->SubItem) {
             FreeMenuItems(item->SubItem);
         }
+
+        if (gt_is_separator_item(item))
+            FreeMem(item->ItemFill, sizeof(struct Image) + sizeof(ULONG));
 
         /* Free the IntuiText (and sub-menu indicator) if we created one */
         if ((item->Flags & ITEMTEXT) && item->ItemFill) {

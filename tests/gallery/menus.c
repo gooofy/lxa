@@ -42,7 +42,10 @@ static UWORD pens[] = { (UWORD)~0 };
 
 int main(int argc, char **argv)
 {
-    BOOL newlook = argc < 2;
+    BOOL newlook = !(argc > 1 && !strcmp(argv[1], "old"));
+    struct TextAttr ta11 = { (STRPTR)"topaz.font", 11, 0, 0 };
+    struct TextFont *font = NULL;
+    BOOL big = argc > 1 && !strcmp(argv[1], "topaz11");
     struct Screen *scr;
     struct Window *win;
     struct Menu *menu;
@@ -50,8 +53,14 @@ int main(int argc, char **argv)
 
     if (!gallery_open_libs())
         return 20;
+    if (big && (!DiskfontBase || !(font = OpenDiskFont(&ta11))))
+    {
+        printf("GalleryMenus: no topaz 11\n");
+        return 10;
+    }
 
     scr = OpenScreenTags(NULL,
+        big ? SA_Font : TAG_IGNORE, (ULONG)&ta11,
         SA_LikeWorkbench, TRUE,
         SA_Pens, (ULONG)pens,
         SA_Title, (ULONG)"Gallery Menu Screen",
@@ -89,6 +98,8 @@ int main(int argc, char **argv)
     FreeMenus(menu);
     FreeVisualInfo(vi);
     CloseScreen(scr);
+    if (font)
+        CloseFont(font);
     gallery_close_libs();
     return 0;
 }

@@ -1054,6 +1054,14 @@ static BOOL _point_in_gadget(struct Window *window, struct Gadget *gad, WORD rel
 static struct Menu * _find_menu_at_x(struct Window *window, WORD screenX);
 static struct MenuItem * _find_item_at_pos(struct Menu *menu, WORD x, WORD y);
 static struct MenuItem * _find_item_in_chain_at_pos(struct MenuItem *firstItem, WORD x, WORD y);
+static void _menu_item_origin(struct Screen *screen, struct Menu *menu, WORD *ox, WORD *oy);
+static BOOL _get_menu_submenu_origin(struct Window *window, struct Menu *menu,
+                                     struct MenuItem *item, WORD *ox, WORD *oy);
+VOID _intuition_PrintIText ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+                             register struct RastPort * rp __asm("a0"),
+                             register const struct IntuiText * iText __asm("a1"),
+                             register WORD left __asm("d0"),
+                             register WORD top __asm("d1"));
 static BOOL _get_active_submenu_box(struct Window *window,
                                     WORD *submenuX,
                                     WORD *submenuY,
@@ -1065,6 +1073,7 @@ static BOOL _menu_hover_redraw_can_repaint_in_place(struct Window *window,
 static void _restore_menu_dropdown_area(struct Screen *screen);
 static void _save_dropdown_for_menu(struct Window *window, struct Menu *menu);
 static void _render_menu_bar(struct Window *window);
+static const UWORD *_intuition_screen_pens(struct Screen *screen);
 static void _render_menu_items(struct Window *window);
 static void _render_menu_items_in_place(struct Window *window);
 static void _enter_menu_mode(struct Window *window, struct Screen *screen, WORD mouseX, WORD mouseY);
@@ -4002,9 +4011,12 @@ static VOID _intuition_handle_pointerpos_event(struct IntuitionBase *IntuitionBa
                     struct MenuItem *newSubItem;
 
                     handledSubmenu = TRUE;
-                    newSubItem = _find_item_in_chain_at_pos(g_active_item->SubItem,
-                                                            mouseX - submenuX,
-                                                            mouseY - submenuY);
+                    {
+                                                            WORD sox = 0, soy = 0;
+                                                            _get_menu_submenu_origin(g_menu_window, g_active_menu, g_active_item, &sox, &soy);
+                                                            newSubItem = _find_item_in_chain_at_pos(g_active_item->SubItem,
+                                                                                                    mouseX - sox, mouseY - soy);
+                                                            }
                     if (newSubItem != g_active_subitem)
                     {
                         g_active_subitem = newSubItem;
@@ -4015,10 +4027,11 @@ static VOID _intuition_handle_pointerpos_event(struct IntuitionBase *IntuitionBa
 
             if (!handledSubmenu)
             {
-                WORD menuTop = screen->BarHeight + 1;
-                WORD menuLeft = screen->BarHBorder + g_active_menu->LeftEdge;
-                WORD itemX = mouseX - menuLeft;
-                WORD itemY = mouseY - menuTop;
+                WORD menuTop, menuLeft;
+                WORD itemX, itemY;
+                _menu_item_origin(screen, g_active_menu, &menuLeft, &menuTop);
+                itemX = mouseX - menuLeft;
+                itemY = mouseY - menuTop;
                 struct MenuItem *newItem = _find_item_at_pos(g_active_menu, itemX, itemY);
 
                 DPRINTF(LOG_DEBUG, "_intuition: menu_item_hit: menuTop=%d menuLeft=%d itemX=%d itemY=%d newItem=0x%08lx BarHBorder=%d LeftEdge=%d\n",
@@ -5906,58 +5919,25 @@ static BOOL _is_separator_menu_item(const struct MenuItem *item)
 {
     struct IntuiText *it;
 
-    if (!item || !(item->Flags & ITEMTEXT) || !item->ItemFill)
+    if (!item || !item->ItemFill)
         return FALSE;
+
+    /* GadTools NM_BARLABEL: an image item without image data */
+    if (!(item->Flags & ITEMTEXT))
+    {
+        const struct Image *im = (const struct Image *)item->ItemFill;
+        return im->Depth == 0 && im->ImageData == NULL && im->PlanePick == 0 &&
+               (item->Flags & HIGHFLAGS) == HIGHNONE;
+    }
 
     it = (struct IntuiText *)item->ItemFill;
     if (!it || !it->IText)
         return FALSE;
 
-    return it->IText[0] == '-';
+    return it->IText[0] == '-' && it->IText[1] == '-';
 }
 
-static WORD _menu_item_required_width(const struct MenuItem *item)
-{
-    WORD width;
 
-    if (!item)
-        return 0;
-
-    width = item->Width;
-
-    if ((item->Flags & ITEMTEXT) && item->ItemFill)
-    {
-        const struct IntuiText *it = (const struct IntuiText *)item->ItemFill;
-
-        if (it && it->IText)
-        {
-            WORD label_width = (WORD)(strlen((const char *)it->IText) * 8);
-            WORD text_width = (WORD)(4 + it->LeftEdge + label_width + 4);
-
-            if (text_width > width)
-                width = text_width;
-        }
-    }
-
-    return width;
-}
-
-static void _draw_submenu_indicator(struct RastPort *rp, WORD right, WORD center_y)
-{
-    WORD x;
-    WORD half_height;
-
-    if (!rp)
-        return;
-
-    half_height = 3;
-
-    for (x = 0; x <= 3; x++)
-    {
-        Move(rp, right - x, center_y - half_height + x);
-        Draw(rp, right - x, center_y + half_height - x);
-    }
-}
 
 /*
  * Find which menu title is at a given screen X position
@@ -5994,58 +5974,62 @@ static struct Menu * _find_menu_at_x(struct Window *window, WORD screenX)
  */
 static struct MenuItem * _find_item_at_pos(struct Menu *menu, WORD x, WORD y)
 {
-    struct MenuItem *item;
-    WORD chain_left;
-    
-    if (!menu || !menu->FirstItem)
+    /* x, y relative to the menu's item origin (_menu_item_origin) */
+    if (!menu || !(menu->Flags & MENUENABLED))
         return NULL;
-
-    chain_left = menu->FirstItem->LeftEdge;
-    
-    for (item = menu->FirstItem; item; item = item->NextItem)
-    {
-        /* Skip disabled items */
-        if (!(item->Flags & ITEMENABLED))
-            continue;
-
-        DPRINTF(LOG_DEBUG, "_intuition: _find_item_at_pos: checking item TE=%d H=%d LE=%d-CL=%d W=%d against x=%d y=%d\n",
-                (int)item->TopEdge, (int)item->Height, (int)item->LeftEdge, (int)chain_left, (int)item->Width, (int)x, (int)y);
-        
-        if (x >= item->LeftEdge - chain_left &&
-            x < item->LeftEdge - chain_left + item->Width &&
-            y >= item->TopEdge && y < item->TopEdge + item->Height)
-        {
-            return item;
-        }
-    }
-    
-    return NULL;
+    return _find_item_in_chain_at_pos(menu->FirstItem, x, y);
 }
 
 static struct MenuItem * _find_item_in_chain_at_pos(struct MenuItem *firstItem, WORD x, WORD y)
 {
     struct MenuItem *item;
-    WORD chain_left;
-
-    if (!firstItem)
-        return NULL;
-
-    chain_left = firstItem->LeftEdge;
 
     for (item = firstItem; item; item = item->NextItem)
     {
-        if (!(item->Flags & ITEMENABLED))
-            continue;
-
-        if (x >= item->LeftEdge - chain_left &&
-            x < item->LeftEdge - chain_left + item->Width &&
+        if (x >= item->LeftEdge && x < item->LeftEdge + item->Width &&
             y >= item->TopEdge && y < item->TopEdge + item->Height)
-        {
-            return item;
-        }
+            return (item->Flags & ITEMENABLED) ? item : NULL;
     }
 
     return NULL;
+}
+
+/*
+ * AmigaOS 3.1 drop-down geometry (reference: tests/scenarios/gallery-menus.yaml).
+ * The items of a menu are placed relative to the "item origin"
+ *   x = Menu.LeftEdge + 1 + MenuHBorder,  y = BarHeight + MenuVBorder - 1;
+ * the box around them has a 2 pixel frame left and right and a 1 pixel
+ * frame at the top and the bottom, MenuHBorder/2 of padding left and right,
+ * MenuVBorder - 1 at the top and 1 at the bottom.  The items of a sub-menu are
+ * relative to the origin of their parent item.
+ */
+/* pens of the menu imagery: NewLook menus use the screen's bar pens, the
+ * classic look the window's DetailPen (text, frame) and BlockPen (fill) */
+static void _menu_pens(struct Window *window, UWORD *pens)
+{
+    const UWORD *sp = _intuition_screen_pens(window->WScreen);
+    UWORD i;
+
+    for (i = 0; i < NUMDRIPENS; i++)
+        pens[i] = sp[i];
+    if (!(window->Flags & WFLG_NEWLOOKMENUS))
+    {
+        pens[BARDETAILPEN] = window->DetailPen;
+        pens[BARBLOCKPEN] = window->BlockPen;
+        pens[BARTRIMPEN] = window->DetailPen;
+    }
+}
+
+/* the classic look box has 8 more pixels of padding on the right */
+static WORD _menu_extra_right(struct Window *window)
+{
+    return (window && !(window->Flags & WFLG_NEWLOOKMENUS)) ? 8 : 0;
+}
+
+static void _menu_item_origin(struct Screen *screen, struct Menu *menu, WORD *ox, WORD *oy)
+{
+    *ox = menu->LeftEdge + 1 + screen->MenuHBorder;
+    *oy = screen->BarHeight + screen->MenuVBorder - 1;
 }
 
 /*
@@ -6106,47 +6090,51 @@ static WORD _get_item_chain_index(struct MenuItem *firstItem, struct MenuItem *t
     return NOITEM;
 }
 
-static void _get_menu_item_chain_box(struct MenuItem *firstItem,
-                                     WORD baseX, WORD baseY,
+static void _get_menu_item_chain_box(struct Screen *screen, struct MenuItem *firstItem,
+                                     WORD originX, WORD originY, WORD extra,
                                      WORD *boxX, WORD *boxY,
                                      WORD *boxWidth, WORD *boxHeight)
 {
     struct MenuItem *item;
-    WORD chain_left;
-    WORD max_width;
-    WORD max_height;
-
-    if (boxX)
-        *boxX = baseX;
-    if (boxY)
-        *boxY = baseY;
-    if (boxWidth)
-        *boxWidth = 0;
-    if (boxHeight)
-        *boxHeight = 0;
-
-    if (!firstItem)
-        return;
-
-    chain_left = firstItem->LeftEdge;
-    max_width = 0;
-    max_height = 0;
+    WORD minx = 0, miny = 0, maxx = 0, maxy = 0;
+    WORD hb = screen ? screen->MenuHBorder : 4;
+    WORD vb = screen ? screen->MenuVBorder : 2;
 
     for (item = firstItem; item; item = item->NextItem)
     {
-        WORD width = (item->LeftEdge - chain_left) + _menu_item_required_width(item);
-        WORD height = item->TopEdge + item->Height;
-
-        if (width > max_width)
-            max_width = width;
-        if (height > max_height)
-            max_height = height;
+        if (item == firstItem || item->LeftEdge < minx)
+            minx = item->LeftEdge;
+        if (item == firstItem || item->TopEdge < miny)
+            miny = item->TopEdge;
+        if (item->LeftEdge + item->Width > maxx)
+            maxx = item->LeftEdge + item->Width;
+        if (item->TopEdge + item->Height > maxy)
+            maxy = item->TopEdge + item->Height;
     }
+    if (minx > 0)
+        minx = 0;
+    if (miny > 0)
+        miny = 0;
 
+    if (boxX)
+        *boxX = originX + minx - hb;
+    if (boxY)
+        *boxY = originY + miny - vb;
     if (boxWidth)
-        *boxWidth = max_width + 8;
+        *boxWidth = (firstItem ? (maxx - minx) : 0) + 2 * hb + extra;
     if (boxHeight)
-        *boxHeight = max_height + 4;
+        *boxHeight = (firstItem ? (maxy - miny) : 0) + vb + 2;
+}
+
+static BOOL _get_menu_submenu_origin(struct Window *window, struct Menu *menu,
+                                     struct MenuItem *item, WORD *ox, WORD *oy)
+{
+    if (!window || !window->WScreen || !menu || !item || !item->SubItem)
+        return FALSE;
+    _menu_item_origin(window->WScreen, menu, ox, oy);
+    *ox += item->LeftEdge;
+    *oy += item->TopEdge;
+    return TRUE;
 }
 
 static BOOL _get_menu_submenu_box(struct Window *window,
@@ -6155,9 +6143,7 @@ static BOOL _get_menu_submenu_box(struct Window *window,
                                   WORD *boxX, WORD *boxY,
                                   WORD *boxWidth, WORD *boxHeight)
 {
-    struct Screen *screen;
-    WORD menuX;
-    WORD menuY;
+    WORD ox, oy;
 
     if (boxX)
         *boxX = 0;
@@ -6168,18 +6154,11 @@ static BOOL _get_menu_submenu_box(struct Window *window,
     if (boxHeight)
         *boxHeight = 0;
 
-    if (!window || !window->WScreen || !menu || !item || !item->SubItem)
+    if (!_get_menu_submenu_origin(window, menu, item, &ox, &oy))
         return FALSE;
 
-    screen = window->WScreen;
-    menuX = screen->BarHBorder + menu->LeftEdge;
-    menuY = screen->BarHeight + 1;
-
-    _get_menu_item_chain_box(item->SubItem,
-                             menuX + item->LeftEdge + item->Width,
-                             menuY + item->TopEdge,
+    _get_menu_item_chain_box(window->WScreen, item->SubItem, ox, oy, _menu_extra_right(window),
                              boxX, boxY, boxWidth, boxHeight);
-
     return TRUE;
 }
 
@@ -6370,80 +6349,7 @@ static void _render_screen_title_bar(struct Screen *screen)
             (ULONG)screen, screen->Title ? (const char *)screen->Title : "(none)");
 }
 
-/*
- * Phase 133: ensure the off-screen menu compose BitMap is at least
- * (w x h) at the screen's depth. Reuses the existing allocation when
- * possible; otherwise frees and re-allocates. Returns the compose
- * BitMap or NULL on failure (caller should fall back to direct
- * screen rendering in that case).
- */
-static struct BitMap *_menu_ensure_compose_bitmap(struct Screen *screen,
-                                                  WORD w, WORD h)
-{
-    WORD depth;
 
-    if (!screen || w <= 0 || h <= 0)
-        return NULL;
-    if (!screen->BitMap.Planes[0])
-        return NULL;
-
-    depth = screen->BitMap.Depth;
-    if (depth <= 0)
-        return NULL;
-
-    if (g_menu_compose_bm
-        && g_menu_compose_w >= w
-        && g_menu_compose_h >= h
-        && g_menu_compose_depth == depth)
-    {
-        return g_menu_compose_bm;
-    }
-
-    if (g_menu_compose_bm)
-    {
-        FreeBitMap(g_menu_compose_bm);
-        g_menu_compose_bm = NULL;
-    }
-
-    /* Round width up to byte boundary so blits don't overshoot. */
-    g_menu_compose_bm = AllocBitMap(w, h, depth, BMF_CLEAR, NULL);
-    if (!g_menu_compose_bm)
-    {
-        DPRINTF(LOG_ERROR, "_intuition: _menu_ensure_compose_bitmap() AllocBitMap(%d,%d,%d) failed\n",
-                (int)w, (int)h, (int)depth);
-        g_menu_compose_w = 0;
-        g_menu_compose_h = 0;
-        g_menu_compose_depth = 0;
-        return NULL;
-    }
-
-    g_menu_compose_w = w;
-    g_menu_compose_h = h;
-    g_menu_compose_depth = depth;
-    return g_menu_compose_bm;
-}
-
-/*
- * Phase 133: initialise a temporary RastPort over the compose BitMap,
- * inheriting font/draw-mode settings from the screen RastPort so that
- * Text() renders identically.
- */
-static void _menu_init_compose_rp(struct RastPort *compose_rp,
-                                  struct BitMap *compose_bm,
-                                  struct RastPort *screen_rp)
-{
-    InitRastPort(compose_rp);
-    compose_rp->BitMap = compose_bm;
-    if (screen_rp)
-    {
-        compose_rp->Font = screen_rp->Font;
-        compose_rp->TxBaseline = screen_rp->TxBaseline;
-        compose_rp->TxHeight = screen_rp->TxHeight;
-        compose_rp->TxWidth = screen_rp->TxWidth;
-        compose_rp->TxSpacing = screen_rp->TxSpacing;
-    }
-    SetDrMd(compose_rp, JAM2);
-}
 
 /*
  * Render the menu bar background on the screen's title bar area
@@ -6451,104 +6357,60 @@ static void _menu_init_compose_rp(struct RastPort *compose_rp,
 static void _render_menu_bar(struct Window *window)
 {
     struct Screen *screen;
-    struct RastPort *screen_rp;
-    struct RastPort compose_rp;
     struct RastPort *rp;
-    struct BitMap *compose_bm;
+    const UWORD *pens;
+    UWORD mpens[NUMDRIPENS + 1];
     struct Menu *menu;
-    WORD barHeight, barHBorder, barVBorder;
-    WORD x, y;
+    UBYTE oldpen, olddm;
 
     if (!window || !window->WScreen)
         return;
 
     screen = window->WScreen;
-    screen_rp = &screen->RastPort;
-
-    /* Validate RastPort has a valid BitMap */
-    if (!screen_rp->BitMap || !screen_rp->BitMap->Planes[0])
-    {
-        DPRINTF(LOG_ERROR, "_intuition: _render_menu_bar() invalid RastPort BitMap\n");
+    rp = &screen->RastPort;
+    if (!rp->BitMap || !rp->BitMap->Planes[0])
         return;
-    }
 
-    DPRINTF(LOG_DEBUG, "_intuition: _render_menu_bar() screen=%08lx rp=%08lx bm=%08lx planes[0]=%08lx\n",
-            (ULONG)screen, (ULONG)screen_rp, (ULONG)screen_rp->BitMap, (ULONG)screen_rp->BitMap->Planes[0]);
-    DPRINTF(LOG_DEBUG, "_intuition: _render_menu_bar() width=%d height=%d barHeight=%d\n",
-            screen->Width, screen->Height, screen->BarHeight + 1);
-
-    barHeight = screen->BarHeight + 1;  /* BarHeight is one less than actual */
-    barHBorder = screen->BarHBorder;
-    barVBorder = screen->BarVBorder;
-
-    /* Phase 133: render into off-screen compose BitMap, then atomic-blit
-     * to the screen, eliminating the visible blank-then-redraw flash. */
-    compose_bm = _menu_ensure_compose_bitmap(screen, screen->Width, barHeight);
-    if (compose_bm)
+    /* AmigaOS 3.1: the screen bar shows the menu titles (BARDETAILPEN on
+     * BARBLOCKPEN, no depth gadget); the selected title is inverted over
+     * Menu.LeftEdge+1 .. LeftEdge+Width; disabled titles are ghosted */
+    _menu_pens(window, mpens);
+    pens = mpens;
+    oldpen = rp->FgPen;
+    olddm = rp->DrawMode;
+    SetAPen(rp, pens[BARBLOCKPEN]);
+    RectFill(rp, 0, 0, screen->Width - 1, screen->BarHeight - 1);
+    if (window->Flags & WFLG_NEWLOOKMENUS)
     {
-        _menu_init_compose_rp(&compose_rp, compose_bm, screen_rp);
-        rp = &compose_rp;
+        SetAPen(rp, pens[BARTRIMPEN]);
+        RectFill(rp, 0, screen->BarHeight, screen->Width - 1, screen->BarHeight);
     }
-    else
+    SetDrMd(rp, JAM1);
+
+    for (menu = window->MenuStrip; menu; menu = menu->NextMenu)
     {
-        /* Fallback: direct screen rendering (visible flicker, but
-         * correctness preserved when AllocBitMap fails). */
-        rp = screen_rp;
-    }
+        WORD tx = screen->BarHBorder + menu->LeftEdge;
+        BOOL active = (menu == g_active_menu);
 
-    /* Fill menu bar background with pen 1 (standard Amiga look) */
-    SetAPen(rp, 1);
-    RectFill(rp, 0, 0, screen->Width - 1, barHeight - 1);
-
-    /* Draw bottom border line */
-    SetAPen(rp, 0);
-    Move(rp, 0, barHeight - 1);
-    Draw(rp, screen->Width - 1, barHeight - 1);
-
-    /* Render menu titles */
-    if (window->MenuStrip)
-    {
-        SetAPen(rp, 0);    /* Text in black */
-        SetBPen(rp, 1);    /* Background */
-        SetDrMd(rp, JAM2);
-
-        for (menu = window->MenuStrip; menu; menu = menu->NextMenu)
+        if (menu->MenuName)
         {
-            if (!menu->MenuName)
-                continue;
-
-            x = barHBorder + menu->LeftEdge;
-            y = barVBorder;
-
-            /* Highlight active menu */
-            if (menu == g_active_menu)
-            {
-                /* Draw highlighted background */
-                SetAPen(rp, 0);
-                RectFill(rp, x - 2, 0, x + menu->Width + 1, barHeight - 2);
-                SetAPen(rp, 1);
-                SetBPen(rp, 0);
-            }
-            else
-            {
-                SetAPen(rp, 0);
-                SetBPen(rp, 1);
-            }
-
-            /* Draw menu title text */
-            Move(rp, x, y + rp->TxBaseline);
+            SetAPen(rp, pens[BARDETAILPEN]);
+            Move(rp, tx, screen->BarVBorder + rp->TxBaseline);
             Text(rp, (STRPTR)menu->MenuName, strlen((const char *)menu->MenuName));
         }
+        if (!(menu->Flags & MENUENABLED))
+            lxa_ghost_rect_pen(rp, tx, screen->BarVBorder, tx + menu->Width - 1,
+                               screen->BarVBorder + rp->TxHeight - 1, pens[BARBLOCKPEN], 0);
+        if (active && (menu->Flags & MENUENABLED))
+        {
+            /* the selected title is complemented */
+            SetDrMd(rp, COMPLEMENT);
+            RectFill(rp, menu->LeftEdge + 1, 0, menu->LeftEdge + menu->Width, screen->BarHeight - 2);
+            SetDrMd(rp, JAM1);
+        }
     }
-
-    /* Atomic compose -> screen blit. */
-    if (compose_bm)
-    {
-        BltBitMap(compose_bm, 0, 0,
-                  &screen->BitMap, 0, 0,
-                  screen->Width, barHeight,
-                  0xC0, 0xFF, NULL);
-    }
+    SetAPen(rp, oldpen);
+    SetDrMd(rp, olddm);
 }
 
 /*
@@ -6558,181 +6420,144 @@ static void _render_menu_bar(struct Window *window)
 static void _save_dropdown_for_menu(struct Window *window, struct Menu *menu)
 {
     struct Screen *screen;
-    struct MenuItem *item;
-    WORD barHeight, menuX, menuY, menuWidth, menuHeight;
-    WORD submenuX;
-    WORD submenuY;
-    WORD submenuWidth;
-    WORD submenuHeight;
-    WORD saveX;
-    WORD saveY;
-    WORD saveRight;
-    WORD saveBottom;
-    
+    WORD ox, oy, bx, by, bw, bh;
+    WORD sx, sy, sw, sh;
+    WORD saveRight, saveBottom;
+
     if (!window || !window->WScreen || !menu || !menu->FirstItem)
         return;
-    
+
     screen = window->WScreen;
-    barHeight = screen->BarHeight + 1;
-    
-    menuX = screen->BarHBorder + menu->LeftEdge;
-    menuY = barHeight;
-    
-    /* Calculate menu dimensions from items, matching _get_menu_item_chain_box logic */
+    _menu_item_origin(screen, menu, &ox, &oy);
+    _get_menu_item_chain_box(screen, menu->FirstItem, ox, oy, _menu_extra_right(window),
+                             &bx, &by, &bw, &bh);
+    saveRight = bx + bw;
+    saveBottom = by + bh;
+
+    if (_get_active_submenu_box(window, &sx, &sy, &sw, &sh))
     {
-        WORD chain_left = menu->FirstItem->LeftEdge;
-        menuWidth = 0;
-        menuHeight = 0;
-        for (item = menu->FirstItem; item; item = item->NextItem)
-        {
-            WORD w = (item->LeftEdge - chain_left) + _menu_item_required_width(item);
-            WORD h = item->TopEdge + item->Height;
-            if (w > menuWidth) menuWidth = w;
-            if (h > menuHeight) menuHeight = h;
-        }
-        menuWidth += 8;    /* padding, matching _get_menu_item_chain_box */
-        menuHeight += 4;
+        if (sx < bx)
+            bx = sx;
+        if (sy < by)
+            by = sy;
+        if (sx + sw > saveRight)
+            saveRight = sx + sw;
+        if (sy + sh > saveBottom)
+            saveBottom = sy + sh;
     }
 
-    saveX = menuX;
-    saveY = menuY;
-    saveRight = menuX + menuWidth;
-    saveBottom = menuY + menuHeight;
-
-    if (_get_active_submenu_box(window, &submenuX, &submenuY, &submenuWidth, &submenuHeight))
-    {
-        if (submenuX < saveX)
-            saveX = submenuX;
-        if (submenuY < saveY)
-            saveY = submenuY;
-        if (submenuX + submenuWidth > saveRight)
-            saveRight = submenuX + submenuWidth;
-        if (submenuY + submenuHeight > saveBottom)
-            saveBottom = submenuY + submenuHeight;
-    }
-
-    _save_menu_dropdown_area(screen, saveX, saveY, saveRight - saveX, saveBottom - saveY);
+    _save_menu_dropdown_area(screen, bx, by, saveRight - bx, saveBottom - by);
 }
 
-static void _render_menu_item_chain(struct RastPort *rp,
+static void _render_menu_item_chain(struct Screen *screen, struct RastPort *rp,
                                     struct MenuItem *firstItem,
                                     struct MenuItem *highlightedItem,
-                                    WORD menuX, WORD menuY)
+                                    WORD ox, WORD oy, struct Window *window, BOOL all_ghosted)
 {
     struct MenuItem *item;
-    struct IntuiText *it;
-    WORD chain_left;
-    WORD menuWidth;
-    WORD menuHeight;
-    WORD itemY;
+    UWORD pens[NUMDRIPENS + 1];
+    WORD bx, by, bw, bh, extra = _menu_extra_right(window);
+    UBYTE oldpen, olddm;
 
-    if (!rp || !firstItem)
+    if (!rp || !firstItem || !window)
         return;
 
-    _get_menu_item_chain_box(firstItem, menuX, menuY, NULL, NULL, &menuWidth, &menuHeight);
-    chain_left = firstItem->LeftEdge;
+    _menu_pens(window, pens);
+    oldpen = rp->FgPen;
+    olddm = rp->DrawMode;
+    _get_menu_item_chain_box(screen, firstItem, ox, oy, extra, &bx, &by, &bw, &bh);
 
-    SetAPen(rp, 1);
-    RectFill(rp, menuX, menuY, menuX + menuWidth - 1, menuY + menuHeight - 1);
-
-    SetAPen(rp, 2);
-    Move(rp, menuX, menuY + menuHeight - 2);
-    Draw(rp, menuX, menuY);
-    Draw(rp, menuX + menuWidth - 2, menuY);
-
-    SetAPen(rp, 0);
-    Move(rp, menuX + menuWidth - 1, menuY);
-    Draw(rp, menuX + menuWidth - 1, menuY + menuHeight - 1);
-    Draw(rp, menuX, menuY + menuHeight - 1);
+    /* box: BARBLOCKPEN inside, BARDETAILPEN frame (2 pixels left/right) */
+    SetAPen(rp, pens[BARBLOCKPEN]);
+    RectFill(rp, bx, by, bx + bw - 1, by + bh - 1);
+    SetAPen(rp, pens[BARDETAILPEN]);
+    RectFill(rp, bx, by, bx + bw - 1, by);
+    RectFill(rp, bx, by + bh - 1, bx + bw - 1, by + bh - 1);
+    RectFill(rp, bx, by, bx + 1, by + bh - 1);
+    RectFill(rp, bx + bw - 2, by, bx + bw - 1, by + bh - 1);
 
     for (item = firstItem; item; item = item->NextItem)
     {
-        WORD item_box_x = menuX + item->LeftEdge - chain_left;
-        WORD itemX = item_box_x + 4;
-        WORD item_width = _menu_item_required_width(item);
-
-        it = (struct IntuiText *)item->ItemFill;
-        itemY = menuY + item->TopEdge + 2;
-
-        if (item == highlightedItem && (item->Flags & ITEMENABLED))
-        {
-            SetAPen(rp, 0);
-            RectFill(rp, menuX + 2, itemY - 1,
-                     menuX + menuWidth - 3, itemY + item->Height - 2);
-            SetAPen(rp, 1);
-            SetBPen(rp, 0);
-        }
-        else
-        {
-            SetAPen(rp, 0);
-            SetBPen(rp, 1);
-        }
-
-        it = (struct IntuiText *)item->ItemFill;
+        WORD ix = ox + item->LeftEdge;
+        WORD iy = oy + item->TopEdge;
+        BOOL highlighted = (item == highlightedItem && (item->Flags & ITEMENABLED));
 
         if (_is_separator_menu_item(item))
         {
-            WORD separator_y = itemY + (item->Height / 2) - 1;
-            WORD separator_left = item_box_x + 6;
-            WORD separator_right = item_box_x + item_width - 7;
-
-            if (separator_right >= separator_left)
-            {
-                SetAPen(rp, 0);
-                Move(rp, separator_left, separator_y + 1);
-                Draw(rp, separator_right, separator_y + 1);
-
-                SetAPen(rp, 2);
-                Move(rp, separator_left, separator_y);
-                Draw(rp, separator_right, separator_y);
-            }
-
+            /* GadTools bar: two dotted BARDETAILPEN rows */
+            WORD r = ix + item->Width - 3 + extra;
+            SetAPen(rp, pens[BARDETAILPEN]);
+            RectFill(rp, ix + 2, iy + 2, r, iy + 3);
+            lxa_ghost_rect_pen(rp, ix + 2, iy + 2, r, iy + 3, pens[BARBLOCKPEN], screen->BarHeight);
             continue;
         }
 
-        if (it && it->IText)
+        if (highlighted && (item->Flags & HIGHFLAGS) == HIGHIMAGE && item->SelectFill)
         {
-            if (!(item->Flags & ITEMENABLED))
-            {
-                SetAPen(rp, 2);
-                SetBPen(rp, 1);
-            }
+            if (item->Flags & ITEMTEXT)
+                _intuition_PrintIText(IntuitionBase, rp, (struct IntuiText *)item->SelectFill, ix, iy);
+            else
+                _intuition_DrawImage(IntuitionBase, rp, (struct Image *)item->SelectFill, ix, iy);
+        }
+        else if (item->ItemFill)
+        {
+            if (item->Flags & ITEMTEXT)
+                _intuition_PrintIText(IntuitionBase, rp, (struct IntuiText *)item->ItemFill, ix, iy);
+            else
+                _intuition_DrawImage(IntuitionBase, rp, (struct Image *)item->ItemFill, ix, iy);
+        }
 
-            {
-                WORD text_len = (WORD)strlen((const char *)it->IText);
-                WORD text_x = itemX + it->LeftEdge;
-                WORD text_y = itemY + it->TopEdge + rp->TxBaseline;
-                Move(rp, text_x, text_y);
-                Text(rp, (STRPTR)it->IText, text_len);
-            }
+        if ((item->Flags & CHECKIT) && (item->Flags & CHECKED))
+        {
+            struct Image *cm = window ? window->CheckMark : NULL;
+            if (cm)
+                _intuition_DrawImage(IntuitionBase, rp, cm, ix, iy + 1);
+            else
+                lxa_sysi_draw(rp, MENUCHECK, SYSISIZE_MEDRES, ix, iy + 1, IDS_NORMAL, pens);
+        }
 
-            if (item->Flags & CHECKED)
-            {
-                Move(rp, menuX + 3, itemY + rp->TxBaseline);
-                Text(rp, (STRPTR)"\x9E", 1);
-            }
+        if (item->Flags & COMMSEQ)
+        {
+            UBYTE c = (UBYTE)item->Command;
+            WORD cw = TextLength(rp, (STRPTR)&c, 1);
+            UWORD aw = 23;
+            WORD cx = ix + item->Width - cw;
 
-            if (item->Flags & COMMSEQ)
-            {
-                char cmdStr[4];
-                WORD cmd_width = 24;
-                cmdStr[0] = 'A';
-                cmdStr[1] = '-';
-                cmdStr[2] = item->Command;
-                cmdStr[3] = '\0';
-                Move(rp, item_box_x + item_width - cmd_width - 4, itemY + rp->TxBaseline);
-                Text(rp, (STRPTR)cmdStr, 3);
-            }
+            lxa_sysi_dims(AMIGAKEY, SYSISIZE_MEDRES, &aw, NULL);
+            lxa_sysi_draw(rp, AMIGAKEY, SYSISIZE_MEDRES, cx - aw - 4, iy + 1, IDS_NORMAL, pens);
+            SetAPen(rp, pens[BARDETAILPEN]);
+            SetDrMd(rp, JAM1);
+            Move(rp, cx, iy + 1 + rp->TxBaseline);
+            Text(rp, (STRPTR)&c, 1);
+        }
 
-            if (item->SubItem)
+        if (!(item->Flags & ITEMENABLED) || all_ghosted)
+            lxa_ghost_rect_pen(rp, ix, iy, ix + item->Width - 1, iy + item->Height - 1, pens[BARBLOCKPEN],
+                               screen->BarHeight);
+        else if (highlighted)
+        {
+            switch (item->Flags & HIGHFLAGS)
             {
-                WORD indicator_right = item_box_x + item_width - 7;
-                WORD indicator_center_y = itemY + (item->Height / 2) - 1;
-
-                _draw_submenu_indicator(rp, indicator_right, indicator_center_y);
+                case HIGHCOMP:
+                    SetDrMd(rp, COMPLEMENT);
+                    RectFill(rp, ix, iy, ix + item->Width - 1, iy + item->Height - 1);
+                    SetDrMd(rp, JAM1);
+                    break;
+                case HIGHBOX:
+                    SetDrMd(rp, COMPLEMENT);
+                    RectFill(rp, ix - 2, iy - 1, ix + item->Width + 1, iy - 1);
+                    RectFill(rp, ix - 2, iy + item->Height, ix + item->Width + 1, iy + item->Height);
+                    RectFill(rp, ix - 2, iy, ix - 1, iy + item->Height - 1);
+                    RectFill(rp, ix + item->Width, iy, ix + item->Width + 1, iy + item->Height - 1);
+                    SetDrMd(rp, JAM1);
+                    break;
+                default:
+                    break;
             }
         }
     }
+    SetAPen(rp, oldpen);
+    SetDrMd(rp, olddm);
 }
 
 /*
@@ -6756,108 +6581,26 @@ static void _render_menu_item_chain(struct RastPort *rp,
  */
 static void _render_menu_items(struct Window *window)
 {
-    DPRINTF(LOG_DEBUG, "_intuition: _render_menu_items ENTER window=0x%08lx\n", (ULONG)window);
     struct Screen *screen;
-    struct RastPort *screen_rp;
-    struct RastPort compose_rp;
-    struct BitMap *compose_bm;
     struct Menu *menu;
-    WORD barHeight;
-    WORD menuX, menuY;
-    WORD mainW, mainH;
-    WORD submenuX;
-    WORD submenuY;
-    WORD submenuWidth;
-    WORD submenuHeight;
-    BOOL haveSubmenu;
-    WORD composeNeedW, composeNeedH;
+    WORD ox, oy, sx, sy;
 
     if (!window || !window->WScreen || !g_active_menu)
         return;
 
     screen = window->WScreen;
-    screen_rp = &screen->RastPort;
-
-    /* Validate RastPort has a valid BitMap */
-    if (!screen_rp->BitMap || !screen_rp->BitMap->Planes[0])
-    {
-        DPRINTF(LOG_ERROR, "_intuition: _render_menu_items() invalid RastPort BitMap\n");
+    if (!screen->RastPort.BitMap || !screen->RastPort.BitMap->Planes[0])
         return;
-    }
 
     menu = g_active_menu;
+    _menu_item_origin(screen, menu, &ox, &oy);
+    _render_menu_item_chain(screen, &screen->RastPort, menu->FirstItem, g_active_item, ox, oy, window,
+                            !(menu->Flags & MENUENABLED));
 
-    barHeight = screen->BarHeight + 1;
-
-    menuX = screen->BarHBorder + menu->LeftEdge;
-    menuY = barHeight;
-
-    SetDrMd(screen_rp, JAM2);
-
-    /* Compute bounding box of the main item chain (and submenu, if any)
-     * to size the compose BitMap. */
-    _get_menu_item_chain_box(menu->FirstItem, 0, 0, NULL, NULL, &mainW, &mainH);
-
-    haveSubmenu = _get_active_submenu_box(window, &submenuX, &submenuY,
-                                          &submenuWidth, &submenuHeight);
-    if (!haveSubmenu)
-    {
-        submenuWidth = 0;
-        submenuHeight = 0;
-    }
-
-    composeNeedW = mainW;
-    if (haveSubmenu && submenuWidth > composeNeedW)
-        composeNeedW = submenuWidth;
-    composeNeedH = mainH;
-    if (haveSubmenu && submenuHeight > composeNeedH)
-        composeNeedH = submenuHeight;
-
-    /* Phase 133: render each chain off-screen, then atomic-blit to screen,
-     * eliminating the visible blank-then-redraw flash. The two chains
-     * (main + submenu) share the compose BitMap because they are blitted
-     * one after the other; the second compose render overwrites the
-     * first inside the compose BM, but it has already been blitted to
-     * screen at its own destination. */
-    compose_bm = _menu_ensure_compose_bitmap(screen, composeNeedW, composeNeedH);
-    DPRINTF(LOG_DEBUG, "_intuition: _render_menu_items compose_bm=0x%08lx mainW=%d mainH=%d\n", (ULONG)compose_bm, (int)mainW, (int)mainH);
-
-    if (compose_bm)
-    {
-        _menu_init_compose_rp(&compose_rp, compose_bm, screen_rp);
-
-        /* Main chain: render at compose origin, blit to (menuX, menuY). */
-        DPRINTF(LOG_DEBUG, "_intuition: _render_menu_items calling _render_menu_item_chain\n");
-        _render_menu_item_chain(&compose_rp, menu->FirstItem, g_active_item,
-                                0, 0);
-        DPRINTF(LOG_DEBUG, "_intuition: _render_menu_items calling BltBitMap menuX=%d menuY=%d w=%d h=%d\n", (int)menuX, (int)menuY, (int)mainW, (int)mainH);
-        BltBitMap(compose_bm, 0, 0,
-                  &screen->BitMap, menuX, menuY,
-                  mainW, mainH,
-                  0xC0, 0xFF, NULL);
-        DPRINTF(LOG_DEBUG, "_intuition: _render_menu_items BltBitMap done\n");
-
-        if (haveSubmenu)
-        {
-            _render_menu_item_chain(&compose_rp, g_active_item->SubItem,
-                                    g_active_subitem, 0, 0);
-            BltBitMap(compose_bm, 0, 0,
-                      &screen->BitMap, submenuX, submenuY,
-                      submenuWidth, submenuHeight,
-                      0xC0, 0xFF, NULL);
-        }
-    }
-    else
-    {
-        /* Fallback: direct screen rendering if compose alloc failed. */
-        _render_menu_item_chain(screen_rp, menu->FirstItem, g_active_item,
-                                menuX, menuY);
-        if (haveSubmenu)
-        {
-            _render_menu_item_chain(screen_rp, g_active_item->SubItem,
-                                    g_active_subitem, submenuX, submenuY);
-        }
-    }
+    if (g_active_item && g_active_item->SubItem &&
+        _get_menu_submenu_origin(window, menu, g_active_item, &sx, &sy))
+        _render_menu_item_chain(screen, &screen->RastPort, g_active_item->SubItem,
+                                g_active_subitem, sx, sy, window, FALSE);
 }
 
 /*
@@ -6914,7 +6657,8 @@ static void _enter_menu_mode(struct Window *window, struct Screen *screen, WORD 
     if (mouseY < screen->BarHeight + 1)
     {
         struct Menu *menu = _find_menu_at_x(window, mouseX);
-        if (menu && (menu->Flags & MENUENABLED))
+        /* AmigaOS 3.1 opens disabled menus too (all items ghosted) */
+        if (menu)
         {
             g_active_menu = menu;
             _render_menu_bar(window);
@@ -8217,9 +7961,12 @@ VOID _intuition_ProcessInputEvents(struct Screen *hint_screen)
                                 struct MenuItem *newSubItem;
 
                                 handledSubmenu = TRUE;
-                                newSubItem = _find_item_in_chain_at_pos(g_active_item->SubItem,
-                                                                        mouseX - submenuX,
-                                                                        mouseY - submenuY);
+                                {
+                                                                        WORD sox = 0, soy = 0;
+                                                                        _get_menu_submenu_origin(g_menu_window, g_active_menu, g_active_item, &sox, &soy);
+                                                                        newSubItem = _find_item_in_chain_at_pos(g_active_item->SubItem,
+                                                                                                                mouseX - sox, mouseY - soy);
+                                                                        }
                                 if (newSubItem != g_active_subitem)
                                 {
                                     g_active_subitem = newSubItem;
@@ -8233,10 +7980,11 @@ VOID _intuition_ProcessInputEvents(struct Screen *hint_screen)
                             /* Check if mouse is in the main drop-down menu area.
                              * This keeps lower menu items responsive after visiting
                              * a submenu instead of pinning the parent item highlight. */
-                            WORD menuTop = screen->BarHeight + 1;
-                            WORD menuLeft = screen->BarHBorder + g_active_menu->LeftEdge;
-                            WORD itemX = mouseX - menuLeft;
-                            WORD itemY = mouseY - menuTop;
+                            WORD menuTop, menuLeft;
+                            WORD itemX, itemY;
+                            _menu_item_origin(screen, g_active_menu, &menuLeft, &menuTop);
+                            itemX = mouseX - menuLeft;
+                            itemY = mouseY - menuTop;
                             struct MenuItem *newItem = _find_item_at_pos(g_active_menu, itemX, itemY);
 
                             if (newItem != g_active_item)
@@ -9161,8 +8909,10 @@ struct Screen * _intuition_OpenScreen ( register struct IntuitionBase * Intuitio
         }
     }
 
-    /* Set bar heights (simplified) */
-    screen->BarHeight = 10;
+    /* Bar height: font height + 2 (AmigaOS 3.1 reference: 10 for topaz 8,
+     * 13 for topaz 11) */
+    screen->BarHeight = ((newScreen->Font && newScreen->Font->ta_YSize > 0)
+                         ? newScreen->Font->ta_YSize : 8) + 2;
     screen->BarVBorder = 1;
     /* AmigaOS 3.1 reference: 5 on hires screens, 2 on lores screens */
     screen->BarHBorder = ((screen->ViewPort.Modes & (HIRES | SUPERHIRES)) || width >= 640) ? 5 : 2;
@@ -10038,6 +9788,14 @@ struct Window * _intuition_OpenWindow ( register struct IntuitionBase * Intuitio
         {
             window->WLayer = content_layer;
             window->RPort = content_layer->rp;
+            /* windows render in the screen font (AmigaOS 3.1) */
+            if (screen->RastPort.Font)
+            {
+                SetFont(window->RPort, screen->RastPort.Font);
+                if (border_layer)
+                    SetFont(border_layer->rp, screen->RastPort.Font);
+                window->IFont = screen->RastPort.Font;
+            }
             window->BorderRPort = border_layer ? border_layer->rp : content_layer->rp;
             DPRINTF(LOG_DEBUG,
                     "_intuition: OpenWindow() created border_layer=0x%08lx content_layer=0x%08lx rp=0x%08lx bounds=[%ld,%ld]-[%ld,%ld]\n",
@@ -14175,10 +13933,15 @@ struct Window * _intuition_OpenWindowTagList ( register struct IntuitionBase * I
                 case WA_AutoAdjust:
                     auto_adjust = (tag->ti_Data != 0);
                     break;
+                case WA_NewLookMenus:
+                    if (tag->ti_Data)
+                        nw.Flags |= WFLG_NEWLOOKMENUS;
+                    else
+                        nw.Flags &= ~WFLG_NEWLOOKMENUS;
+                    break;
                 case WA_ScreenTitle:
                 case WA_Checkmark:
                 case WA_MenuHelp:
-                case WA_NewLookMenus:
                 case WA_NotifyDepth:
                 case WA_Pointer:
                 case WA_BusyPointer:
