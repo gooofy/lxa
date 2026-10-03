@@ -117,6 +117,17 @@ int main(void)
     bstr[1] = 'A'; bstr[2] = 'm'; bstr[3] = 'i'; bstr[4] = 'g'; bstr[5] = 'a';
     bstr[6] = 'X'; bstr[7] = 0;
 
+    P_SECTION("hook registers");
+    fd("%d", &dates[0]);
+    P_BOOL("FormatDate hook a2 == locale", probe_put_a2 == (APTR)loc);
+    nd = 0;
+    W(1);
+    fs("%d");
+    P_BOOL("FormatString hook a2 == locale", probe_put_a2 == (APTR)loc);
+    pd("%d", "5");
+    P_BOOL("ParseDate hook a1 == NULL", probe_get_a1 == NULL);
+    P_BOOL("ParseDate hook a2 == locale", probe_get_a2 == (APTR)loc);
+
     P_SECTION("FormatDate");
     for (d = 0; d < (int)(sizeof(dates) / sizeof(dates[0])); d++) {
         probe_s("date ");

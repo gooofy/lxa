@@ -1,3 +1,11 @@
+-- hook registers
+  "%d" -> "01\0" n=3
+FormatDate hook a2 == locale = TRUE
+  "%d" -> "1\0" n=2 used=2
+FormatString hook a2 == locale = TRUE
+  "%d" "5" -> TRUE ds=4/0/0 read=2
+ParseDate hook a1 == NULL = TRUE
+ParseDate hook a2 == locale = TRUE
 -- FormatDate
 date 0/0/0
   "%a" -> "Sun\0" n=4

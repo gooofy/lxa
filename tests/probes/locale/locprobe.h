@@ -30,6 +30,7 @@ __asm__(
     "    .text\n"
     "    .globl _probe_putch\n"
     "_probe_putch:\n"
+    "    move.l a2,_probe_put_a2\n"
     "    move.l 16(a0),a0\n"
     "    cmpi.l #400,4(a0)\n"
     "    bcc.s 1f\n"
@@ -42,6 +43,7 @@ __asm__(
     "1:  addq.l #1,4(a0)\n"
     "    rts\n");
 extern ULONG probe_putch(void);
+APTR probe_put_a2;  /* register a2 of the last PutChar hook call */
 
 /* GetChar hook: a0 = hook, a2 = locale.  h_Data points to a Source;
  * returns the next byte, NUL forever at the end; counts the calls. */
@@ -54,6 +56,8 @@ __asm__(
     "    .text\n"
     "    .globl _probe_getch\n"
     "_probe_getch:\n"
+    "    move.l a1,_probe_get_a1\n"
+    "    move.l a2,_probe_get_a2\n"
     "    move.l 16(a0),a0\n"
     "    addq.l #1,4(a0)\n"
     "    move.l (a0),a1\n"
@@ -63,6 +67,7 @@ __asm__(
     "    addq.l #1,(a0)\n"
     "1:  rts\n");
 extern ULONG probe_getch(void);
+APTR probe_get_a1, probe_get_a2;  /* registers of the last GetChar hook call */
 
 static struct Sink sink;
 static struct Hook put_hook;
