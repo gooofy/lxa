@@ -54,6 +54,18 @@ int main(int argc, char **argv)
      * Setup: Create some test files
      */
     printf("Setup: Creating test files...\n");
+
+    /* work in a private directory: the program's own directory is shared
+     * with other test programs that run in parallel */
+    BPTR workdir = CreateDir((CONST_STRPTR)"RAM:matchfirst_test");
+    if (workdir)
+        UnLock(workdir);
+    workdir = Lock((CONST_STRPTR)"RAM:matchfirst_test", SHARED_LOCK);
+    if (!workdir) {
+        printf("FAIL: Could not create RAM:matchfirst_test\n");
+        return 20;
+    }
+    BPTR olddir = CurrentDir(workdir);
     
     fh = Open((CONST_STRPTR)"test1.txt", MODE_NEWFILE);
     if (fh) { Write(fh, (APTR)"file1", 5); Close(fh); }
@@ -190,6 +202,9 @@ int main(int argc, char **argv)
     DeleteFile((CONST_STRPTR)"test1.txt");
     DeleteFile((CONST_STRPTR)"test2.txt");
     DeleteFile((CONST_STRPTR)"test3.dat");
+    CurrentDir(olddir);
+    UnLock(workdir);
+    DeleteFile((CONST_STRPTR)"RAM:matchfirst_test");
     printf("Test files deleted\n");
 
     printf("\n=== All Tests Completed ===\n");

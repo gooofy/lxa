@@ -1,13 +1,17 @@
 /*
- * VERSION command - Display version information
- * Step 9.5 implementation for lxa
- * 
+ * VERSION - show version information
+ *
  * Template: NAME,VERSION/N,REVISION/N,FILE/S,FULL/S,RES/S
- * 
- * Usage:
- *   VERSION                - Display lxa Kickstart version
- *   VERSION name           - Display version of named library/device/file
- *   VERSION FULL           - Display full version info
+ *
+ * As AmigaOS 3.1 (verified on the reference, Phase 221):
+ *   Version                 Kickstart 40.70, Workbench 40.42
+ *                           (exec version.SoftVer, version.library)
+ *   Version exec.library    exec.library 40.10
+ *   Version <file>          from the file's $VER string: "list 37.5"
+ *   FULL                    adds the date: "(07/15/93)"
+ *   VERSION n [REVISION m]  RC 5 if the version found is older
+ *   unknown library         <fault text> (RC 20)
+ *   file without $VER       Could not find version information for '<f>'
  */
 
 #include <exec/types.h>
@@ -22,224 +26,184 @@
 
 #include <string.h>
 
-/* lxa version info */
-#define LXA_VERSION  1
-#define LXA_REVISION 0
-
-/* External reference to library bases */
 extern struct DosLibrary *DOSBase;
 extern struct ExecBase *SysBase;
 
-/* Command template */
 #define TEMPLATE "NAME,VERSION/N,REVISION/N,FILE/S,FULL/S,RES/S"
 
-/* Argument array indices */
-#define ARG_NAME      0
-#define ARG_VERSION   1
-#define ARG_REVISION  2
-#define ARG_FILE      3
-#define ARG_FULL      4
-#define ARG_RES       5
-#define ARG_COUNT     6
+enum { A_NAME, A_VERSION, A_REVISION, A_FILE, A_FULL, A_RES, A_COUNT };
 
-/* Helper: output a string */
-static void out_str(const char *str)
+static LONG args[A_COUNT];
+
+/* the "(date)" part of an id string, or "" */
+static const char *date_of(const char *id)
 {
-    Write(Output(), (STRPTR)str, strlen(str));
+    const char *p = id ? strchr(id, '(') : NULL;
+    static char buf[32];
+    int n = 0;
+
+    if (!p)
+        return "";
+    while (*p && *p != ')' && n < (int)sizeof(buf) - 2)
+        buf[n++] = *p++;
+    if (*p == ')')
+        buf[n++] = ')';
+    buf[n] = '\0';
+    return buf;
 }
 
-/* Helper: output a number */
-static void out_num(ULONG num)
+static LONG check(LONG version, LONG revision)
 {
-    char buf[16];
-    char *p = buf + sizeof(buf) - 1;
-    *p = '\0';
-    
-    do {
-        *--p = '0' + (num % 10);
-        num /= 10;
-    } while (num);
-    
-    out_str(p);
-}
-
-/* Display system version */
-static void show_system_version(BOOL full)
-{
-    out_str("lxa Kickstart ");
-    out_num(LXA_VERSION);
-    out_str(".");
-    out_num(LXA_REVISION);
-    out_str("\n");
-    
-    if (full) {
-        /* Show exec version */
-        out_str("Exec ");
-        out_num(SysBase->LibNode.lib_Version);
-        out_str(".");
-        out_num(SysBase->LibNode.lib_Revision);
-        out_str("\n");
-        
-        /* Show DOS version */
-        out_str("DOS ");
-        out_num(DOSBase->dl_lib.lib_Version);
-        out_str(".");
-        out_num(DOSBase->dl_lib.lib_Revision);
-        out_str("\n");
-    }
-}
-
-/* Search for $VER: string in file */
-static BOOL find_version_in_file(const char *filename)
-{
-    BPTR fh = Open((STRPTR)filename, MODE_OLDFILE);
-    if (!fh) {
-        return FALSE;
-    }
-    
-    /* Read file in chunks and search for $VER: */
-    char buffer[512];
-    char verstring[256];
-    LONG bytesRead;
-    int state = 0;  /* State machine for finding "$VER:" */
-    int verpos = 0;
-    BOOL found = FALSE;
-    
-    while ((bytesRead = Read(fh, (STRPTR)buffer, sizeof(buffer))) > 0) {
-        for (int i = 0; i < bytesRead && !found; i++) {
-            char c = buffer[i];
-            
-            /* State machine to find "$VER:" */
-            switch (state) {
-                case 0: state = (c == '$') ? 1 : 0; break;
-                case 1: state = (c == 'V') ? 2 : (c == '$') ? 1 : 0; break;
-                case 2: state = (c == 'E') ? 3 : (c == '$') ? 1 : 0; break;
-                case 3: state = (c == 'R') ? 4 : (c == '$') ? 1 : 0; break;
-                case 4: state = (c == ':') ? 5 : (c == '$') ? 1 : 0; break;
-                case 5:
-                    /* Skip leading space */
-                    if (c == ' ' && verpos == 0) break;
-                    /* Collect version string until newline or null */
-                    if (c == '\n' || c == '\r' || c == '\0' || verpos >= (int)sizeof(verstring) - 1) {
-                        verstring[verpos] = '\0';
-                        found = TRUE;
-                    } else {
-                        verstring[verpos++] = c;
-                    }
-                    break;
-            }
-        }
-        if (found) break;
-    }
-    
-    Close(fh);
-    
-    if (found && verpos > 0) {
-        out_str(verstring);
-        out_str("\n");
-        return TRUE;
-    }
-    
-    return FALSE;
-}
-
-/* Find and display library version */
-static BOOL show_library_version(const char *name)
-{
-    /* Try to find as library */
-    struct Library *lib = (struct Library *)FindName(&SysBase->LibList, (STRPTR)name);
-    if (lib) {
-        out_str((char *)name);
-        out_str(" ");
-        out_num(lib->lib_Version);
-        out_str(".");
-        out_num(lib->lib_Revision);
-        out_str("\n");
-        return TRUE;
-    }
-    
-    /* Try to find as device */
-    struct Device *dev = (struct Device *)FindName(&SysBase->DeviceList, (STRPTR)name);
-    if (dev) {
-        out_str((char *)name);
-        out_str(" ");
-        out_num(dev->dd_Library.lib_Version);
-        out_str(".");
-        out_num(dev->dd_Library.lib_Revision);
-        out_str("\n");
-        return TRUE;
-    }
-    
-    return FALSE;
-}
-
-int main(int argc, char **argv)
-{
-    struct RDArgs *rdargs;
-    LONG args[ARG_COUNT] = {0};
-    
-    /* Parse arguments */
-    rdargs = ReadArgs((STRPTR)TEMPLATE, args, NULL);
-    if (!rdargs) {
-        PrintFault(IoErr(), (STRPTR)"VERSION");
-        return RETURN_FAIL;
-    }
-    
-    STRPTR name = (STRPTR)args[ARG_NAME];
-    BOOL full = args[ARG_FULL] != 0;
-    BOOL file = args[ARG_FILE] != 0;
-    
-    if (!name) {
-        /* No name - show system version */
-        show_system_version(full);
-    } else {
-        BOOL found = FALSE;
-        
-        /* If FILE switch or name contains path separator, treat as file */
-        if (file || strchr((char *)name, '/') || strchr((char *)name, ':')) {
-            found = find_version_in_file((char *)name);
-        }
-        
-        if (!found) {
-            /* Try as library/device name */
-            found = show_library_version((char *)name);
-        }
-        
-        if (!found) {
-            /* Try adding common suffixes */
-            char fullname[256];
-            
-            /* Try .library */
-            strcpy(fullname, (char *)name);
-            if (!strchr((char *)name, '.')) {
-                strcat(fullname, ".library");
-                found = show_library_version(fullname);
-            }
-            
-            if (!found) {
-                /* Try .device */
-                strcpy(fullname, (char *)name);
-                if (!strchr((char *)name, '.')) {
-                    strcat(fullname, ".device");
-                    found = show_library_version(fullname);
-                }
-            }
-            
-            if (!found) {
-                /* Try as file path */
-                found = find_version_in_file((char *)name);
-            }
-        }
-        
-        if (!found) {
-            out_str("Could not find version for ");
-            out_str((char *)name);
-            out_str("\n");
-            FreeArgs(rdargs);
+    if (args[A_VERSION]) {
+        LONG want = *(LONG *)args[A_VERSION];
+        LONG wrev = args[A_REVISION] ? *(LONG *)args[A_REVISION] : 0;
+        if (version < want || (version == want && revision < wrev)) {
+            SetIoErr(0);
             return RETURN_WARN;
         }
     }
-    
-    FreeArgs(rdargs);
-    return RETURN_OK;
+    return 0;
+}
+
+static void print_version(const char *name, LONG version, LONG revision, const char *id)
+{
+    Printf((STRPTR)"%s %ld.%ld", (LONG)name, version, revision);
+    if (args[A_FULL] && *date_of(id))
+        Printf((STRPTR)" %s", (LONG)date_of(id));
+    PutStr((STRPTR)"\n");
+}
+
+/* "$VER: name 37.5 (11/08/91)" in a file */
+static BOOL file_version(const char *file, LONG *rc)
+{
+    BPTR fh = Open((STRPTR)file, MODE_OLDFILE);
+    static char buf[1024], ver[128];
+    LONG n, state = 0, k = 0;
+    BOOL found = FALSE;
+
+    if (!fh)
+        return FALSE;
+    while (!found && (n = Read(fh, buf, sizeof(buf))) > 0) {
+        LONG i;
+        for (i = 0; i < n && !found; i++) {
+            char c = buf[i];
+            if (state < 5) {
+                state = (c == "$VER:"[state]) ? state + 1 : (c == '$' ? 1 : 0);
+                continue;
+            }
+            if (k == 0 && c == ' ')
+                continue;
+            if (c == '\0' || c == '\n' || c == '\r' || k >= (LONG)sizeof(ver) - 1)
+                found = TRUE;
+            else
+                ver[k++] = c;
+        }
+    }
+    Close(fh);
+    if (!found && state == 5 && k)
+        found = TRUE;
+    if (!found)
+        return FALSE;
+    ver[k] = '\0';
+    {
+        /* name, version.revision, rest */
+        char name[64];
+        const char *p = ver;
+        LONG v = 0, r = 0;
+        int j = 0;
+        while (*p && *p != ' ' && j < 63)
+            name[j++] = *p++;
+        name[j] = '\0';
+        while (*p == ' ')
+            p++;
+        while (*p >= '0' && *p <= '9')
+            v = v * 10 + (*p++ - '0');
+        if (*p == '.') {
+            p++;
+            while (*p >= '0' && *p <= '9')
+                r = r * 10 + (*p++ - '0');
+        }
+        print_version(name, v, r, p);
+        *rc = check(v, r);
+    }
+    return TRUE;
+}
+
+int main(void)
+{
+    struct RDArgs *rda;
+    const char *name;
+    LONG rc = 0;
+
+    memset(args, 0, sizeof(args));
+    rda = ReadArgs((STRPTR)TEMPLATE, args, NULL);
+    if (!rda) {
+        PrintFault(IoErr(), NULL);
+        return RETURN_FAIL;
+    }
+    name = (char *)args[A_NAME];
+
+    if (!name) {
+        struct Library *vl = OpenLibrary((STRPTR)"version.library", 0);
+        Printf((STRPTR)"Kickstart %ld.%ld", (LONG)SysBase->LibNode.lib_Version, (LONG)SysBase->SoftVer);
+        if (vl) {
+            Printf((STRPTR)", Workbench %ld.%ld", (LONG)vl->lib_Version, (LONG)vl->lib_Revision);
+            if (args[A_FULL] && *date_of((char *)vl->lib_IdString))
+                Printf((STRPTR)" %s", (LONG)date_of((char *)vl->lib_IdString));
+            CloseLibrary(vl);
+        }
+        PutStr((STRPTR)"\n");
+        rc = check(SysBase->LibNode.lib_Version, SysBase->SoftVer);
+        FreeArgs(rda);
+        return rc;
+    }
+
+    if (!args[A_FILE] && !strchr(name, ':') && !strchr(name, '/')) {
+        struct Library *lib = OpenLibrary((STRPTR)name, 0);
+        if (lib) {
+            print_version(name, lib->lib_Version, lib->lib_Revision, (char *)lib->lib_IdString);
+            rc = check(lib->lib_Version, lib->lib_Revision);
+            CloseLibrary(lib);
+            FreeArgs(rda);
+            return rc;
+        }
+        Forbid();
+        lib = (struct Library *)FindName(&SysBase->LibList, (STRPTR)name);
+        if (!lib && !stricmp(name, "exec.library"))
+            lib = &SysBase->LibNode;
+        if (!lib)
+            lib = (struct Library *)FindName(&SysBase->DeviceList, (STRPTR)name);
+        if (!lib)
+            lib = (struct Library *)FindName(&SysBase->ResourceList, (STRPTR)name);
+        if (lib) {
+            LONG v = lib->lib_Version, r = lib->lib_Revision;
+            const char *id = (char *)lib->lib_IdString;
+            Permit();
+            print_version(name, v, r, id);
+            FreeArgs(rda);
+            return check(v, r);
+        }
+        Permit();
+    }
+
+    /* a file */
+    {
+        BPTR lock = Lock((STRPTR)name, SHARED_LOCK);
+        if (!lock) {
+            LONG err = IoErr();
+            PrintFault(err, NULL);
+            FreeArgs(rda);
+            SetIoErr(err);
+            return RETURN_FAIL;
+        }
+        UnLock(lock);
+        if (!file_version(name, &rc)) {
+            Printf((STRPTR)"Could not find version information for '%s'\n", (LONG)name);
+            FreeArgs(rda);
+            SetIoErr(0);
+            return RETURN_FAIL;
+        }
+    }
+    FreeArgs(rda);
+    return rc;
 }

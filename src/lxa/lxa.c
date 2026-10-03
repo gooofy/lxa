@@ -624,7 +624,8 @@ void cpu_instr_callback(int pc)
              * (Phase 232: Fish programs jumping to 0xf88xxxxx flooded the log
              * with one warning per instruction) */
             static uint32_t last_bad_pc = 0xffffffff;
-            if (upc != last_bad_pc + 4 && upc != last_bad_pc + 2)
+            static int s_bad_pc_logged;
+            if (upc != last_bad_pc + 4 && upc != last_bad_pc + 2 && s_bad_pc_logged++ < 50)
                 CPRINTF("*** WARNING: PC=0x%08x - invalid address, bus error\n", upc);
             last_bad_pc = upc;
             if (g_debug)

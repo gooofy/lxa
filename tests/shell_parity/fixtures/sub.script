@@ -1,0 +1,5 @@
+.key name/a,count/n,flag/s
+.def count 3
+Echo "name=<name> count=<count> flag=<flag> dflt=<name$none>"
+Echo "in sub rc=$RC"
+Set subvar fromsub

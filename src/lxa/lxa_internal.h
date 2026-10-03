@@ -439,6 +439,7 @@ int _dos_makelink(uint32_t name68k, uint32_t dest_param, int32_t soft, uint32_t 
 int _dos_assign_add(uint32_t name68k, uint32_t path68k, uint32_t type);
 int _dos_assign_remove(uint32_t name68k);
 int _dos_assign_list(uint32_t buf68k, uint32_t buflen);
+int _dos_assign_info(uint32_t name68k, uint32_t buf68k, uint32_t buflen);
 int _dos_assign_remove_path(uint32_t name68k, uint32_t path68k);
 int _dos_getdevproc(uint32_t name68k, uint32_t dp68k, uint32_t err68k);
 int _dos_notify_start(uint32_t notify68k, uint32_t fullname68k, uint32_t flags);

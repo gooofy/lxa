@@ -929,7 +929,7 @@ void _dos_stdinout_fh (uint32_t fh68k, int is_input)
     m68k_write_memory_32 (fh68k+36, is_input ? STDIN_FILENO : STDOUT_FILENO);     // fh_Args
 }
 
-static uint32_t _amiga_protection(const char *linux_path, int fd, mode_t mode);
+static uint32_t _amiga_protection_path(const char *linux_path, mode_t mode);
 
 int _dos_open (uint32_t path68k, uint32_t accessMode, uint32_t fh68k)
 {
@@ -1000,7 +1000,7 @@ int _dos_open (uint32_t path68k, uint32_t accessMode, uint32_t fh68k)
             /* MODE_NEWFILE replaces the file: refused when it is protected
              * from deletion (AmigaOS 3.1, Tests/Probes/dos/locks) */
             if (accessMode == MODE_NEWFILE && stat (lxpath, &st) == 0 && S_ISREG (st.st_mode) &&
-                (_amiga_protection (lxpath, -1, st.st_mode) & FIBF_DELETE))
+                (_amiga_protection_path (lxpath, st.st_mode) & FIBF_DELETE))
             {
                 m68k_write_memory_32 (fh68k+40, ERROR_DELETE_PROTECTED);  // fh_Arg2
                 return ERROR_DELETE_PROTECTED;
@@ -1993,7 +1993,8 @@ static uint32_t _unix_mode_to_amiga(mode_t mode)
     /* Owner/basic permissions (bits 0-3) */
     if (!(mode & S_IRUSR)) prot |= FIBF_READ;
     if (!(mode & S_IWUSR)) prot |= FIBF_WRITE;
-    if (!(mode & S_IXUSR)) prot |= FIBF_EXECUTE;
+    /* 'e' stays set: host files have no executable bit by default, and
+     * AmigaOS files are ----rwed unless protected (FS-UAE does the same) */
     /* Note: delete permission is tied to write permission */
     if (!(mode & S_IWUSR)) prot |= FIBF_DELETE;
     
@@ -2014,27 +2015,41 @@ static uint32_t _unix_mode_to_amiga(mode_t mode)
     return prot;
 }
 
-/*
- * Amiga protection of a host object: the full 32-bit value SetProtection()
- * stored ("user.amiga.protection", big-endian), else the owner RWE bits
- * from the mode.  Group/other bits stay clear, as for a new file on an
- * Amiga file system (AmigaOS 3.1, Tests/Probes/dos/exall): the host umask
- * says nothing about Amiga multi-user bits.
- */
-static uint32_t _amiga_protection(const char *linux_path, int fd, mode_t mode)
+/* The protection bits SetProtection() stored (user.amiga.protection), or
+ * the ones derived from the Unix mode.  The xattr keeps h/s/p/a and the
+ * exact rwed bits, which Unix permissions cannot represent. */
+static uint32_t _amiga_protection_path(const char *linux_path, mode_t mode)
 {
-#ifdef HAVE_XATTR
-    unsigned char v[4];
-    ssize_t len = linux_path ? getxattr(linux_path, "user.amiga.protection", v, sizeof(v))
-                             : fgetxattr(fd, "user.amiga.protection", v, sizeof(v));
-    if (len == 4)
-        return ((uint32_t)v[0] << 24) | ((uint32_t)v[1] << 16) | ((uint32_t)v[2] << 8) | v[3];
-#else
-    (void)linux_path;
-    (void)fd;
-#endif
-    /* no (readable) stored value: owner R/W from the mode; new Amiga files
-     * are executable and deletable (protection 0), whatever the host x bit */
+    char buf[16];
+    ssize_t len;
+
+    if (linux_path) {
+        len = getxattr(linux_path, "user.amiga.protection", buf, sizeof(buf) - 1);
+        if (len > 0) {
+            buf[len] = '\0';
+            return (uint32_t)strtoul(buf, NULL, 16);
+        }
+    }
+    /* no (readable) stored value: owner R/W from the mode; like a new
+     * file on AmigaOS (protection 0) the rest stays clear - the host x
+     * bit and umask say nothing about Amiga E/D or multi-user bits
+     * (reference-verified, Tests/Probes/dos/exall, locks) */
+    return _unix_mode_to_amiga(mode) & (FIBF_READ | FIBF_WRITE);
+}
+
+static uint32_t _amiga_protection_fd(int fd, mode_t mode)
+{
+    char buf[16];
+    ssize_t len = fgetxattr(fd, "user.amiga.protection", buf, sizeof(buf) - 1);
+
+    if (len > 0) {
+        buf[len] = '\0';
+        return (uint32_t)strtoul(buf, NULL, 16);
+    }
+    /* no (readable) stored value: owner R/W from the mode; like a new
+     * file on AmigaOS (protection 0) the rest stays clear - the host x
+     * bit and umask say nothing about Amiga E/D or multi-user bits
+     * (reference-verified, Tests/Probes/dos/exall, locks) */
     return _unix_mode_to_amiga(mode) & (FIBF_READ | FIBF_WRITE);
 }
 
@@ -2444,7 +2459,7 @@ int _dos_examine(uint32_t lock_id, uint32_t fib68k)
     }
     m68k_write_memory_8(fib68k + FIB_fib_FileName + namelen, 0);  /* Null terminator */
     
-    m68k_write_memory_32(fib68k + FIB_fib_Protection, _amiga_protection(lock->linux_path, -1, st.st_mode));
+    m68k_write_memory_32(fib68k + FIB_fib_Protection, _amiga_protection_path(lock->linux_path, st.st_mode));
     m68k_write_memory_32(fib68k + FIB_fib_Size, st.st_size);
     m68k_write_memory_32(fib68k + FIB_fib_NumBlocks, (st.st_size + 511) / 512);
     
@@ -2541,7 +2556,7 @@ int _dos_exnext(uint32_t lock_id, uint32_t fib68k)
     }
     m68k_write_memory_8(fib68k + FIB_fib_FileName + namelen, 0);  /* Null terminator */
     
-    m68k_write_memory_32(fib68k + FIB_fib_Protection, _amiga_protection(fullpath, -1, st.st_mode));
+    m68k_write_memory_32(fib68k + FIB_fib_Protection, _amiga_protection_path(fullpath, st.st_mode));
     m68k_write_memory_32(fib68k + FIB_fib_Size, st.st_size);
     m68k_write_memory_32(fib68k + FIB_fib_NumBlocks, (st.st_size + 511) / 512);
     
@@ -2752,7 +2767,7 @@ int _dos_deletefile(uint32_t name68k)
         g_dos_last_error = ERROR_OBJECT_IN_USE;
         return 0;
     }
-    if (_amiga_protection(linux_path, -1, st.st_mode) & FIBF_DELETE) {
+    if (_amiga_protection_path(linux_path, st.st_mode) & FIBF_DELETE) {
         g_dos_last_error = ERROR_DELETE_PROTECTED;
         return 0;
     }
@@ -2860,10 +2875,14 @@ int _dos_namefromlock(uint32_t lock_id, uint32_t buf68k, uint32_t buflen)
         g_dos_last_error = ERROR_OBJECT_NOT_FOUND;
         return 0;
     }
-
-    /* Return the Amiga path stored in the lock; a buffer that is too small
-     * fails with ERROR_LINE_TOO_LONG (AmigaOS 3.1) */
+    
+    /* AmigaOS names the object by its volume and its real name (case as
+     * stored), whatever path was used to lock it (an assign, other case);
+     * the path stored in the lock is the fallback */
+    char canonical[PATH_MAX];
     const char *path = lock->amiga_path;
+    if (lock->linux_path[0] && vfs_path_to_amiga(lock->linux_path, canonical, sizeof(canonical)))
+        path = canonical;
     size_t len = strlen(path);
     if (len >= buflen) {
         g_dos_last_error = ERROR_LINE_TOO_LONG;
@@ -2948,19 +2967,19 @@ int _dos_setprotection(uint32_t name68k, uint32_t protect)
     /* If no permissions set, default to rw-r--r-- */
     if (mode == 0) mode = 0644;
     
-#ifdef HAVE_XATTR
-    /* keep all 32 Amiga bits (HSPA, delete, group/other) for Examine();
-     * user xattrs need owner read/write access, so set it first */
+    /* keep the exact Amiga bits (h/s/p/a, rwed) in an xattr; writing a
+     * user xattr needs write permission, so set it before the chmod */
     {
+        char buf[16];
         struct stat st;
-        unsigned char v[4] = {(unsigned char)(protect >> 24), (unsigned char)(protect >> 16),
-                              (unsigned char)(protect >> 8), (unsigned char)protect};
-        if (stat(linux_path, &st) == 0)
-            chmod(linux_path, (st.st_mode & 07777) | S_IRUSR | S_IWUSR);
-        if (setxattr(linux_path, "user.amiga.protection", v, sizeof(v), 0) != 0)
-            DPRINTF(LOG_DEBUG, "lxa: _dos_setprotection(): setxattr failed: %s\n", strerror(errno));
+        if (stat(linux_path, &st) == 0 && !(st.st_mode & S_IWUSR))
+            chmod(linux_path, (st.st_mode & 07777) | S_IWUSR);
+        snprintf(buf, sizeof(buf), "%08x", protect);
+        if (protect == 0)
+            removexattr(linux_path, "user.amiga.protection");
+        else
+            setxattr(linux_path, "user.amiga.protection", buf, strlen(buf), 0);
     }
-#endif
 
     if (chmod(linux_path, mode) != 0) {
         DPRINTF(LOG_DEBUG, "lxa: _dos_setprotection(): chmod failed: %s\n", strerror(errno));
@@ -3354,6 +3373,39 @@ int _dos_assign_remove(uint32_t name68k)
     }
     
     return 0;
+}
+
+/* One assign: returns its type + 1 (1 lock, 2 late, 3 path; 0 if there is
+ * no such assign) and writes its directories as Amiga paths, each
+ * NUL-terminated, the list ended by an empty string (C:Assign, Phase 221). */
+int _dos_assign_info(uint32_t name68k, uint32_t buf68k, uint32_t buflen)
+{
+    char *name = _mgetstr(name68k);
+    const char *paths[32];
+    char amiga[PATH_MAX];
+    uint32_t offset = 0;
+    int count, i;
+
+    if (!name || !name[0] || !vfs_assign_exists(name))
+        return 0;
+    count = vfs_assign_get_paths(name, paths, 32);
+    for (i = 0; i < count && buf68k; i++) {
+        const char *p = paths[i];
+        size_t len;
+        if (!p)
+            continue;
+        if (_linux_path_to_amiga(p, amiga, sizeof(amiga)))
+            p = amiga;
+        len = strlen(p);
+        if (offset + len + 2 >= buflen)
+            break;
+        for (size_t j = 0; j < len; j++)
+            m68k_write_memory_8(buf68k + offset++, p[j]);
+        m68k_write_memory_8(buf68k + offset++, 0);
+    }
+    if (buf68k && offset < buflen)
+        m68k_write_memory_8(buf68k + offset, 0);
+    return (int)vfs_assign_get_type(name) + 1;
 }
 
 /* List assigns - returns count and writes packed strings to buffer */
@@ -3806,7 +3858,7 @@ int _dos_examinefh(uint32_t fh68k, uint32_t fib68k)
     }
     m68k_write_memory_8(fib68k + FIB_fib_FileName + namelen, 0);
     
-    m68k_write_memory_32(fib68k + FIB_fib_Protection, _amiga_protection(NULL, fd, st.st_mode));
+    m68k_write_memory_32(fib68k + FIB_fib_Protection, _amiga_protection_fd(fd, st.st_mode));
     m68k_write_memory_32(fib68k + FIB_fib_Size, st.st_size);
     m68k_write_memory_32(fib68k + FIB_fib_NumBlocks, (st.st_size + 511) / 512);
     

@@ -1,0 +1,8 @@
+.key first,second,third
+.bra {
+.ket }
+Echo "first={first} second={second} literal=<first>"
+.dollar #
+Echo "default={third#none} unknown={nothing#dflt} empty={nothing}"
+.def third set
+Echo "third={third}"

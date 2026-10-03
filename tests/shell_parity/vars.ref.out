@@ -1,0 +1,30 @@
+[hello world]
+[hello world!]
+hello world
+[a  b]
+[$empty]
+myvar             hello world
+quoted            a  b
+RC                0
+Result2           0
+object not found
+get rc=5 r2=205
+[$myvar]
+$quoted
+$nosuchvar
+m=6
+gval
+env=gval
+local wins=local
+global again=gval
+object not found
+getenv rc=5
+ll                List
+xx                Echo [] end
+yy                Echo prefix
+List
+middle end
+prefix tail
+xx                Echo [] end
+yy                Echo prefix
+done

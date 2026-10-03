@@ -3,12 +3,12 @@
  * template modifier, error codes (IoErr) and the resulting argument array.
  * FindArg/ReadItem/StrToLong: argparse.c.
  *
- * No readargs.ref.out is checked in yet: lxa's ReadArgs() differs from
- * 3.1 in most cases (keywords before positional items, /F, /T, /N
- * validation, /S value, error codes) and is being reworked together with
- * the C: commands (roadmap Phase 221).  Capture it with
+ * No readargs.ref.out is checked in yet: the Phase 221 ReadArgs() still
+ * differs from 3.1 in ~15 cases (';' comments, input without '\n', "=x",
+ * /S value DOSTRUE, /T values, "+5" for /N, quotes in /F, /M with
+ * trailing /A items, empty template).  Capture it with
  * `python3 -m rdd suite-ref --filter Probes/dos/readargs --capture-ref`
- * once that work lands.
+ * once ReadArgs matches.
  */
 #include <exec/types.h>
 #include <exec/memory.h>

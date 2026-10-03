@@ -1,0 +1,33 @@
+; C: commands added in Phase 221 (Which and SetDate: see paths/files)
+FailAt 21
+AddBuffers RAM:
+Echo "rc=$RC r2=$Result2"
+Lock RAM: ON
+Echo "rc=$RC r2=$Result2"
+Lock RAM: OFF
+Echo "rc=$RC r2=$Result2"
+Lock RAM: ON PASSKEY
+Echo "rc=$RC r2=$Result2"
+Lock
+Echo "rc=$RC r2=$Result2"
+Relabel nosuch: x
+Echo "rc=$RC r2=$Result2"
+Relabel
+Echo "rc=$RC r2=$Result2"
+LoadResource LIBS:version.library
+Echo "rc=$RC r2=$Result2"
+LoadResource nosuch
+Echo "rc=$RC r2=$Result2"
+SetFont topaz 8
+Echo "rc=$RC r2=$Result2"
+SetFont nosuchfont 8
+Echo "rc=$RC r2=$Result2"
+SetKeyboard usa
+Echo "rc=$RC r2=$Result2"
+SetKeyboard nosuch
+Echo "rc=$RC r2=$Result2"
+SetPatch QUIET
+Echo "rc=$RC r2=$Result2"
+IconX
+Echo "rc=$RC r2=$Result2"
+Echo "done"

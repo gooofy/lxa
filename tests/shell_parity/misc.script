@@ -1,0 +1,113 @@
+; Eval, Wait, Date, Version, Status, ReadArgs errors (Phase 221)
+FailAt 21
+Eval 3 + 4
+Eval 10 / 3
+Eval 0x10 * 2
+Eval 7 MOD 3
+Eval -5 + 2
+Eval 1 / 0
+Echo "eval rc=$RC r2=$Result2"
+Eval 1 + 2 * 3
+Eval 10 - 2 - 3
+Eval 2 * (3 + 4)
+Eval 5 LSH 2
+Eval 20 RSH 2
+Eval 0x0F XOR 0xFF
+Eval 3 x 4
+Eval 3 EQV 5
+Eval 6 & 3
+Eval 6 | 1
+Eval 7 % 3
+Eval ~0
+Eval -7 / 2
+Eval -7 MOD 2
+Eval 0x7fffffff + 1
+Eval #10 + 1
+Eval 010 + 1
+Eval abc
+Eval 2 * (3 + 4
+Echo "eval rc=$RC"
+Eval 255 LFORMAT "hex=%X*N"
+Eval 255 LFORMAT "hex4=%X4*N"
+Eval 65 LFORMAT "%c*N"
+Eval "'a'" LFORMAT "%n*N"
+Eval 255 LFORMAT "o=%O d=%N x=%x8 c=%C"
+Echo ""
+Eval 12 TO SYS:Tests/ShellParity/work-misc.tmp
+Type SYS:Tests/ShellParity/work-misc.tmp
+Delete SYS:Tests/ShellParity/work-misc.tmp QUIET
+Eval 4 TO
+Echo "eval rc=$RC r2=$Result2"
+Eval
+Echo "eval rc=$RC r2=$Result2"
+Wait 1
+Echo "wait rc=$RC"
+Wait 1 SEC
+Wait 0 MINS
+Wait FOO
+Echo "wait rc=$RC r2=$Result2"
+Wait UNTIL 25:00
+Echo "wait rc=$RC r2=$Result2"
+Date
+Echo "date rc=$RC"
+Date FOO
+Echo "date rc=$RC r2=$Result2"
+Date 02-Jan-24
+Date
+Date 01-Jan-24
+Date
+Date TO SYS:Tests/ShellParity/work-misc.tmp
+Type SYS:Tests/ShellParity/work-misc.tmp
+Delete SYS:Tests/ShellParity/work-misc.tmp QUIET
+Version
+Echo "version rc=$RC"
+Version FULL
+Version exec.library
+Version dos.library
+Version dos.library 40 3
+Echo "version rc=$RC r2=$Result2"
+Version nosuch.library
+Echo "version rc=$RC r2=$Result2"
+Version exec.library 99
+Echo "version rc=$RC r2=$Result2"
+Version exec.library 30
+Echo "version rc=$RC r2=$Result2"
+Version SYS:Tests/ShellParity/Run
+Echo "version rc=$RC r2=$Result2"
+Status nosuch
+Echo "status rc=$RC r2=$Result2"
+Status 99
+Echo "status rc=$RC r2=$Result2"
+Status COMMAND=nosuch
+Echo "status rc=$RC r2=$Result2"
+Copy
+Echo "rc=$RC r2=$Result2"
+Rename a
+Echo "rc=$RC r2=$Result2"
+Type
+Echo "rc=$RC r2=$Result2"
+Delete
+Echo "rc=$RC r2=$Result2"
+Join a b c
+Echo "rc=$RC r2=$Result2"
+List DIRS=x
+Echo "rc=$RC r2=$Result2"
+Protect
+Echo "rc=$RC r2=$Result2"
+Search
+Echo "rc=$RC r2=$Result2"
+Sort
+Echo "rc=$RC r2=$Result2"
+Filenote
+Echo "rc=$RC r2=$Result2"
+MakeDir
+Echo "rc=$RC r2=$Result2"
+SetDate
+Echo "rc=$RC r2=$Result2"
+Which
+Echo "rc=$RC r2=$Result2"
+Assign NOPE: a b PATH DEFER
+Echo "rc=$RC r2=$Result2"
+Wait 1 2
+Echo "rc=$RC r2=$Result2"
+Echo "done"

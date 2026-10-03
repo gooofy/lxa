@@ -365,15 +365,44 @@ int op_illg(int level)
             m68k_set_reg (M68K_REG_D0, d0);
             m68k_set_reg (M68K_REG_D1, d1);
 
+            /* log the first exceptions only: a faulting loop must not flood
+             * the log (they are all counted in the exception log) */
+            static int s_exc_logged;
+            bool log_it = s_exc_logged++ < 50;
+            if (!log_it) {
+                if (s_exc_logged == 51)
+                    LPRINTF (LOG_WARNING, "*** further CPU exceptions are not logged\n");
+                uint32_t sysbase = m68k_read_memory_32(4);
+                uint32_t task = sysbase ? m68k_read_memory_32(sysbase + EXECBASE_THISTASK) : 0;
+                uint32_t tname = task ? m68k_read_memory_32(task + 10) : 0;
+                lxa_exception_log_add((int)excn, pc, tname ? _mgetstr(tname) : "");
+                uint16_t sr = m68k_read_memory_16(isp + 12);
+                if ((sr & 0x2000) && (sr & 0x0700)) {
+                    vclock_end_timeslice();
+                    g_running = FALSE;
+                } else if (task)
+                    lxa_note_held_task(task);
+                break;
+            }
             LPRINTF (LOG_WARNING, "*** EXCEPTION CAUGHT: pc=0x%08x #%2d ", pc, excn);
             {
                 uint32_t sysbase = m68k_read_memory_32(4);
                 uint32_t task = sysbase ? m68k_read_memory_32(sysbase + EXECBASE_THISTASK) : 0;
                 uint32_t tname = task ? m68k_read_memory_32(task + 10) : 0;
                 lxa_exception_log_add((int)excn, pc, tname ? _mgetstr(tname) : "");
-                /* exec holds the faulting task (exceptions.s) */
-                if (task)
-                    lxa_note_held_task(task);
+                uint16_t sr = m68k_read_memory_16(isp + 12);
+                if ((sr & 0x2000) && (sr & 0x0700))
+                {
+                    /* a fault inside an interrupt handler: a dead-end alert
+                     * on AmigaOS - the whole system stops (the handler would
+                     * fault again on every interrupt) */
+                    LPRINTF (LOG_ERROR, "*** Guru: exception #%d in interrupt code at 0x%08x - system halted\n",
+                             excn, pc);
+                    vclock_end_timeslice();
+                    g_running = FALSE;
+                }
+                else if (task)
+                    lxa_note_held_task(task);   /* exec holds the faulting task */
             }
 
             switch (excn)
@@ -997,6 +1026,16 @@ int op_illg(int level)
 
             uint32_t res = _dos_assign_list(buf, buflen);
             m68k_set_reg(M68K_REG_D0, res);
+            break;
+        }
+
+        case EMU_CALL_DOS_ASSIGN_INFO:
+        {
+            uint32_t name = m68k_get_reg(NULL, M68K_REG_D1);
+            uint32_t buf = m68k_get_reg(NULL, M68K_REG_D2);
+            uint32_t buflen = m68k_get_reg(NULL, M68K_REG_D3);
+
+            m68k_set_reg(M68K_REG_D0, _dos_assign_info(name, buf, buflen));
             break;
         }
 

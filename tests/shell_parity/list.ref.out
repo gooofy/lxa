@@ -1,0 +1,57 @@
+a.txt                         12 ----rwed Today     hh:mm:ss
+1 file - 2 blocks used
+a.txt                         12 ----rwed
+1 file - 2 blocks used
+a.txt                         12 ----rwed 01-Jan-24 hh:mm:ss
+1 file - 2 blocks used
+a.txt                          1 ----rwed Today     hh:mm:ss
+1 file - 2 blocks used
+a.txt                         12 ----rwed Today     hh:mm:ss
+a.txt
+1 file - 2 blocks used
+a.txt|12||Today|hh:mm:ss||a.txt|----rwed|1
+name=a.txt size=12
+Directory "dir1" on Monday 01-Jan-24
+c.txt                          7 ----rwed 04-Apr-21 hh:mm:ss
+1 file - 2 blocks used
+Directory "dir1" on Monday 01-Jan-24
+c.txt                          7 ----rwed
+1 file - 2 blocks used
+
+TOTAL: 1 file - 2 blocks used
+Directory "dir1" on Monday 01-Jan-24
+c.txt                          7 ----rwed 04-Apr-21 hh:mm:ss
+1 file - 2 blocks used
+Directory "dir1" on Monday 01-Jan-24
+dir1/c.txt
+a.txt                         12 ----rwed Today     hh:mm:ss
+1 file - 2 blocks used
+b.info                        27 ----rwed 02-Feb-23 hh:mm:ss
+1 file - 2 blocks used
+a.txt                         12 ----rwed Today     hh:mm:ss
+1 file - 2 blocks used
+b.info                        27 ----rwed 02-Feb-23 hh:mm:ss
+1 file - 2 blocks used
+Directory "dir1" on Monday 01-Jan-24
+c.txt                          7 ----rwed 04-Apr-21 hh:mm:ss
+1 file - 2 blocks used
+
+Directory "dir1" on Monday 01-Jan-24
+c.txt                          7 ----rwed 04-Apr-21 hh:mm:ss
+1 file - 2 blocks used
+No information for "nosuch": object not found
+list rc=20 r2=205
+a.txt                         12 ----rwed Today     hh:mm:ss
+1 file - 2 blocks used
+No information for "BADOPT": object not found
+list rc=20 r2=205
+value after keyword missing
+list rc=0 r2=0
+  c.txt                            
+  c.txt                            
+  c.txt                            
+  c.txt                            
+Could not get information for nosuch
+object not found
+dir rc=20 r2=205
+done

@@ -1,0 +1,100 @@
+; If/Else/EndIf, Skip/Lab, return codes (Phase 221)
+FailAt 21
+Set x 5
+If $x EQ 5
+  Echo "x is 5"
+Else
+  Echo "x not 5"
+EndIf
+If $x EQ 6
+  Echo "wrong"
+Else
+  Echo "else branch"
+EndIf
+If $x GT 3 VAL
+  Echo "gt val"
+EndIf
+If 10 GT 9
+  Echo "string 10 gt 9"
+Else
+  Echo "string 10 not gt 9"
+EndIf
+If 10 GT 9 VAL
+  Echo "number 10 gt 9"
+EndIf
+If NOT $x EQ 6
+  Echo "not 6"
+EndIf
+If "abc" GE "abd"
+  Echo "ge yes"
+Else
+  Echo "ge no"
+EndIf
+If "ABC" EQ "abc"
+  Echo "case-insensitive"
+EndIf
+If EXISTS SYS:Tests
+  Echo "exists"
+EndIf
+If NOT EXISTS SYS:nonexistent
+  Echo "not exists"
+EndIf
+If $x EQ 5
+  If $x EQ 4
+    Echo "inner wrong"
+  Else
+    Echo "inner else"
+  EndIf
+  Echo "outer still"
+EndIf
+If $x EQ 4
+  If $x EQ 5
+    Echo "skipped nested"
+  Else
+    Echo "skipped nested else"
+  EndIf
+Else
+  Echo "outer else"
+EndIf
+Wait FOO
+Echo "rc=$RC"
+If WARN
+  Echo "warn"
+EndIf
+Wait FOO
+If ERROR
+  Echo "error"
+EndIf
+Wait FOO
+If FAIL
+  Echo "fail"
+EndIf
+nosuchcmd
+If WARN
+  Echo "warn after unknown"
+EndIf
+If
+Echo "inside empty if"
+EndIf
+Echo "after empty if rc=$RC"
+Skip target
+Echo "skipped"
+Lab target
+Echo "after lab"
+Skip
+Echo "skipped 2"
+Lab
+Echo "after bare lab"
+Set count 0
+Lab loop
+Set count `Eval $count + 1`
+If NOT $count GE 3 VAL
+  Skip loop BACK
+EndIf
+Echo "count=$count"
+Else
+Echo "stray else skipped"
+EndIf
+Echo "endif rc=$RC"
+Skip nolabel
+Echo "not reached"

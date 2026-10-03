@@ -1,0 +1,35 @@
+rc=0 r2=0
+Fail limit: 21
+hello
+hello world
+one two three
+ab
+bcd
+def
+ef
+abcdef
+with "quote" and 
+ newline
+star * and [0m done
+semicolon; inside quotes
+noquote
+
+  leading and trailing  
+rc=0
+value after keyword missing
+rc=10 r2=117
+bad number
+rc=10 r2=115
+The last command did not set a return code
+Fault 205: object not found
+Fault 205: object not found
+Fault 103: not enough memory available
+Fault 116: required argument missing
+Fault 999: Error 999
+fault rc=5
+Fault   0fault rc=5
+fault rc=0
+nosuchcmd: Unknown command
+unknown rc=10 r2=205
+The last command did not set a return code
+Fail limit: 7
