@@ -1972,7 +1972,10 @@ int _dos_close (uint32_t fh68k)
     _record_lock_release_all(fh68k);
     _open_file_unregister(fh68k);
 
-    close(fd);
+    /* console handles ("*", CONSOLE:, Input()/Output()) share the host's
+     * stdin/stdout/stderr: closing them must not close the emulator's own */
+    if (fd > 2 && m68k_read_memory_32 (fh68k+32) != FILE_KIND_CONSOLE)
+        close(fd);
 
     DPRINTF (LOG_DEBUG, "lxa: _dos_close(): fh=0x%08x done\n", fh68k);
     return 1;

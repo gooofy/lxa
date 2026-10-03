@@ -5614,14 +5614,26 @@ void _bootstrap(void)
      */
     ULONG rv;
     {
-        cliChildFn_t childfn = initPC;
-        
-        /* Make the call with explicit register clobber list.
-         * This tells gcc that A2-A5 may be modified by the called function,
-         * so it should not rely on cached values in those registers after
-         * the call returns.
-         */
-        rv = childfn (args_len, (STRPTR)args_buf);
+        /* AmigaOS CLI entry convention: d0 = argument length, a0 = arguments,
+         * (sp) = return address and 4(sp) = the stack size in bytes - C
+         * startup code (Lattice/SAS c.o) derives its stack-overflow bound
+         * from it (without it, Fred Fish YachtC & co. hit a false "stack
+         * overflow" at once: Phase 232). */
+        struct Task *me = SysBase->ThisTask;
+        ULONG stacksize = (ULONG)me->tc_SPUpper - (ULONG)me->tc_SPLower;
+        register ULONG d0 __asm("d0") = args_len;
+        register ULONG d1 __asm("d1") = stacksize;
+        register STRPTR a0 __asm("a0") = (STRPTR)args_buf;
+        register APTR a1 __asm("a1") = initPC;
+
+        __asm__ __volatile__ (
+            "move.l  %1, -(%%sp)\n\t"
+            "jsr     (%3)\n\t"
+            "addq.l  #4, %%sp"
+            : "+r" (d0), "+r" (d1), "+r" (a0), "+r" (a1)
+            :
+            : "d2", "d3", "d4", "d5", "d6", "d7", "a2", "a3", "a4", "a6", "cc", "memory");
+        rv = d0;
         
         /* Clobber all callee-saved registers to force gcc to reload them */
         __asm__ __volatile__ ("" ::: "a2", "a3", "a4", "d2", "d3", "d4", "d5", "d6", "d7", "memory");
