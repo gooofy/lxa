@@ -263,6 +263,8 @@ int main(void)
     nw.Flags = WFLG_SMART_REFRESH | WFLG_ACTIVATE | WFLG_CLOSEGADGET |
                WFLG_SIZEGADGET | WFLG_DEPTHGADGET;
     nw.FirstGadget = &button;
+    nw.MaxWidth = (UWORD)~0;    /* max 0 would fix the window size */
+    nw.MaxHeight = (UWORD)~0;
     nw.Title = (UBYTE *)"Console Raw Event Test";
     nw.Type = WBENCHSCREEN;
 

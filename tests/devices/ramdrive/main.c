@@ -1,6 +1,12 @@
 /*
- * Test for ramdrive.device opens, geometry/status queries, memory-backed I/O,
- * and KillRAD helpers.
+ * Test for ramdrive.device (validated against AmigaOS 3.1, Phase 220).
+ *
+ * A ramdrive unit only opens once a DOS device node for it exists: the
+ * device takes its size from that node's DosEnvec, as set up by
+ * "Mount RAD:".  The test therefore creates its own node (RAE:, unit 1,
+ * not started) with MakeDosNode()/AddDosEntry(), exercises the unit, frees
+ * it with KillRAD() and removes the node again.  After KillRAD() the unit
+ * reports TDERR_DiskChanged; a second KillRAD() of the unit hangs 3.1.
  */
 
 #include <exec/types.h>
@@ -9,18 +15,27 @@
 #include <exec/errors.h>
 #include <devices/newstyle.h>
 #include <devices/trackdisk.h>
+#include <dos/dosextens.h>
+#include <dos/filehandler.h>
 
 #define RAMDRIVE_BASE_NAME RamdriveBase
 #include <proto/ramdrive.h>
 
 #include <clib/exec_protos.h>
 #include <clib/dos_protos.h>
+#include <clib/expansion_protos.h>
 #include <inline/exec.h>
 #include <inline/dos.h>
+#include <inline/expansion.h>
 
 extern struct ExecBase *SysBase;
 extern struct DosLibrary *DOSBase;
 struct Device *RamdriveBase;
+struct Library *ExpansionBase;
+
+#define TEST_UNIT       1
+#define TEST_CYLINDERS  10
+#define TEST_SIZE       (TEST_CYLINDERS * 2 * 11 * 512)
 
 static LONG test_pass = 0;
 static LONG test_fail = 0;
@@ -32,9 +47,7 @@ static void print(const char *s)
     const char *p = s;
 
     while (*p++)
-    {
         len++;
-    }
 
     Write(out, (CONST APTR)s, len);
 }
@@ -43,11 +56,10 @@ static void print_num(LONG num)
 {
     char buf[16];
     int i = 0;
-    BOOL neg = FALSE;
 
     if (num < 0)
     {
-        neg = TRUE;
+        buf[i++] = '-';
         num = -num;
     }
 
@@ -66,35 +78,23 @@ static void print_num(LONG num)
             num /= 10;
         }
 
-        if (neg)
-        {
-            buf[i++] = '-';
-        }
-
         while (j > 0)
-        {
             buf[i++] = temp[--j];
-        }
     }
 
     buf[i] = '\0';
     print(buf);
 }
 
-static void test_ok(const char *name)
+static void check(BOOL ok, const char *name)
 {
-    print("  OK: ");
+    print(ok ? "  OK: " : "  FAIL: ");
     print(name);
     print("\n");
-    test_pass++;
-}
-
-static void test_fail_msg(const char *name)
-{
-    print("  FAIL: ");
-    print(name);
-    print("\n");
-    test_fail++;
+    if (ok)
+        test_pass++;
+    else
+        test_fail++;
 }
 
 static BOOL buffer_matches(const UBYTE *buf, const UBYTE *expected, ULONG len)
@@ -104,12 +104,79 @@ static BOOL buffer_matches(const UBYTE *buf, const UBYTE *expected, ULONG len)
     for (i = 0; i < len; i++)
     {
         if (buf[i] != expected[i])
-        {
             return FALSE;
-        }
     }
 
     return TRUE;
+}
+
+/* run a command and print io_Error / io_Actual */
+static void run(struct IOExtTD *req, const char *name, UWORD cmd, APTR data, ULONG len, ULONG offset)
+{
+    req->iotd_Req.io_Command = cmd;
+    req->iotd_Req.io_Data = data;
+    req->iotd_Req.io_Length = len;
+    req->iotd_Req.io_Offset = offset;
+    req->iotd_Req.io_Actual = 12345;
+    req->iotd_Count = 1;
+    DoIO((struct IORequest *)req);
+    print("  ");
+    print(name);
+    print(": io_Error=");
+    print_num(req->iotd_Req.io_Error);
+    print(" io_Actual=");
+    print_num(req->iotd_Req.io_Actual);
+    print("\n");
+}
+
+static void print_name(const char *what, STRPTR name)
+{
+    print("  ");
+    print(what);
+    print(": ");
+    print(name ? (const char *)name : "(NULL)");
+    print("\n");
+}
+
+static struct DeviceNode *add_node(void)
+{
+    ULONG params[4 + DE_DOSTYPE + 1];
+    struct DeviceNode *node;
+    int i;
+
+    for (i = 0; i < (int)(sizeof(params) / sizeof(params[0])); i++)
+        params[i] = 0;
+
+    params[0] = (ULONG)"RAE";
+    params[1] = (ULONG)"ramdrive.device";
+    params[2] = TEST_UNIT;
+    params[3] = 0;
+    params[4 + DE_TABLESIZE] = DE_DOSTYPE;
+    params[4 + DE_SIZEBLOCK] = 128;
+    params[4 + DE_NUMHEADS] = 2;
+    params[4 + DE_SECSPERBLK] = 1;
+    params[4 + DE_BLKSPERTRACK] = 11;
+    params[4 + DE_RESERVEDBLKS] = 2;
+    params[4 + DE_LOWCYL] = 0;
+    params[4 + DE_UPPERCYL] = TEST_CYLINDERS - 1;
+    params[4 + DE_NUMBUFFERS] = 5;
+    params[4 + DE_BUFMEMTYPE] = 1;
+    params[4 + DE_MAXTRANSFER] = 0x7fffffff;
+    params[4 + DE_MASK] = 0xfffffffe;
+    params[4 + DE_BOOTPRI] = -128;
+    params[4 + DE_DOSTYPE] = 0x444f5300;
+
+    node = MakeDosNode(params);
+    if (node && !AddDosEntry((struct DosList *)node))
+        return NULL;
+    return node;
+}
+
+static void remove_node(struct DeviceNode *node)
+{
+    LockDosList(LDF_DEVICES | LDF_WRITE);
+    RemDosEntry((struct DosList *)node);
+    UnLockDosList(LDF_DEVICES | LDF_WRITE);
 }
 
 int main(void)
@@ -117,286 +184,106 @@ int main(void)
     struct MsgPort *port;
     struct IOExtTD *req;
     struct IOExtTD *protected_req;
-    struct IOStdReq *small_req;
-    struct NSDeviceQueryResult query;
-    struct DriveGeometry geometry;
+    struct DeviceNode *node;
     UBYTE write_buf[6] = { 'R', 'A', 'M', 'D', 'I', 'S' };
     UBYTE format_buf[4] = { 'T', 'E', 'S', 'T' };
-    UBYTE read_buf[8] = { 0 };
-    STRPTR name;
+    UBYTE read_buf[512];
+    UBYTE dummy[64];
     LONG error;
 
     print("Testing ramdrive.device\n\n");
 
+    ExpansionBase = OpenLibrary((STRPTR)"expansion.library", 36);
     port = CreateMsgPort();
-    if (!port)
-    {
-        print("FAIL: Cannot create message port\n");
-        return 20;
-    }
-
     req = (struct IOExtTD *)CreateIORequest(port, sizeof(struct IOExtTD));
     protected_req = (struct IOExtTD *)CreateIORequest(port, sizeof(struct IOExtTD));
-    small_req = (struct IOStdReq *)CreateIORequest(port, sizeof(struct IOStdReq));
-    if (!req || !protected_req || !small_req)
+    if (!ExpansionBase || !port || !req || !protected_req)
     {
-        print("FAIL: Cannot create IO requests\n");
+        print("FAIL: Cannot set up test resources\n");
         return 20;
     }
 
-    error = OpenDevice("ramdrive.device", 1, (struct IORequest *)req, 0);
-    if (error != 0)
-        test_ok("OpenDevice rejects invalid unit");
-    else
-    {
-        test_fail_msg("OpenDevice rejects invalid unit");
-        CloseDevice((struct IORequest *)req);
-    }
-
-    small_req->io_Message.mn_Length = sizeof(struct Message);
-    error = OpenDevice("ramdrive.device", 0, (struct IORequest *)small_req, 0);
-    if (error != 0)
-        test_ok("OpenDevice rejects undersized IORequest");
-    else
-    {
-        test_fail_msg("OpenDevice rejects undersized IORequest");
-        CloseDevice((struct IORequest *)small_req);
-    }
-
-    error = OpenDevice("ramdrive.device", 0, (struct IORequest *)req, 0);
+    error = OpenDevice((STRPTR)"ramdrive.device", TEST_UNIT, (struct IORequest *)req, 0);
+    check(error == IOERR_OPENFAIL, "OpenDevice fails without a DOS device node");
     if (error == 0)
-        test_ok("OpenDevice succeeds");
-    else
+        CloseDevice((struct IORequest *)req);
+
+    node = add_node();
+    check(node != NULL, "MakeDosNode/AddDosEntry create RAE: for unit 1");
+    if (!node)
+        return 20;
+
+    error = OpenDevice((STRPTR)"ramdrive.device", TEST_UNIT, (struct IORequest *)req, 0);
+    check(error == 0, "OpenDevice succeeds once the node exists");
+    if (error != 0)
     {
-        test_fail_msg("OpenDevice succeeds");
-        print("    error=");
-        print_num(error);
-        print("\n");
+        remove_node(node);
         return 20;
     }
-
-    if (req->iotd_Req.io_Device != NULL && req->iotd_Req.io_Unit != NULL)
-        test_ok("OpenDevice stores device and unit pointers");
-    else
-        test_fail_msg("OpenDevice stores device and unit pointers");
-
     RamdriveBase = (struct Device *)req->iotd_Req.io_Device;
 
-    req->iotd_Req.io_Command = NSCMD_DEVICEQUERY;
-    req->iotd_Req.io_Flags = IOF_QUICK;
-    req->iotd_Req.io_Data = &query;
-    req->iotd_Req.io_Length = sizeof(query);
-    DoIO((struct IORequest *)req);
-    if (req->iotd_Req.io_Error == 0 &&
-        req->iotd_Req.io_Actual == sizeof(query) &&
-        query.nsdqr_DeviceType == NSDEVTYPE_TRACKDISK &&
-        query.nsdqr_SupportedCommands != NULL)
-        test_ok("NSCMD_DEVICEQUERY reports ramdrive capabilities");
-    else
-        test_fail_msg("NSCMD_DEVICEQUERY reports ramdrive capabilities");
-
-    req->iotd_Req.io_Command = TD_PROTSTATUS;
-    req->iotd_Req.io_Flags = IOF_QUICK;
-    DoIO((struct IORequest *)req);
-    if (req->iotd_Req.io_Error == 0 && req->iotd_Req.io_Actual == 0)
-        test_ok("TD_PROTSTATUS defaults to writable");
-    else
-        test_fail_msg("TD_PROTSTATUS defaults to writable");
-
-    req->iotd_Req.io_Command = CMD_WRITE;
-    req->iotd_Req.io_Flags = IOF_QUICK;
-    req->iotd_Req.io_Data = write_buf;
-    req->iotd_Req.io_Length = sizeof(write_buf);
-    req->iotd_Req.io_Offset = 4;
-    DoIO((struct IORequest *)req);
-    if (req->iotd_Req.io_Error == 0 && req->iotd_Req.io_Actual == sizeof(write_buf))
-        test_ok("CMD_WRITE stores bytes in RAM backing");
-    else
-        test_fail_msg("CMD_WRITE stores bytes in RAM backing");
-
-    req->iotd_Req.io_Command = CMD_READ;
-    req->iotd_Req.io_Flags = IOF_QUICK;
-    req->iotd_Req.io_Data = read_buf;
-    req->iotd_Req.io_Length = sizeof(write_buf);
-    req->iotd_Req.io_Offset = 4;
-    DoIO((struct IORequest *)req);
-    if (req->iotd_Req.io_Error == 0 &&
-        req->iotd_Req.io_Actual == sizeof(write_buf) &&
-        buffer_matches(read_buf, write_buf, sizeof(write_buf)))
-        test_ok("CMD_READ returns stored bytes");
-    else
-        test_fail_msg("CMD_READ returns stored bytes");
-
-    req->iotd_Req.io_Command = TD_FORMAT;
-    req->iotd_Req.io_Flags = IOF_QUICK;
-    req->iotd_Req.io_Data = format_buf;
-    req->iotd_Req.io_Length = sizeof(format_buf);
-    req->iotd_Req.io_Offset = 16;
-    DoIO((struct IORequest *)req);
-    if (req->iotd_Req.io_Error == 0 && req->iotd_Req.io_Actual == sizeof(format_buf))
-        test_ok("TD_FORMAT aliases CMD_WRITE");
-    else
-        test_fail_msg("TD_FORMAT aliases CMD_WRITE");
-
+    run(req, "TD_PROTSTATUS", TD_PROTSTATUS, NULL, 0, 0);
+    run(req, "CMD_WRITE", CMD_WRITE, write_buf, sizeof(write_buf), 4);
+    run(req, "CMD_READ", CMD_READ, read_buf, sizeof(write_buf), 4);
+    check(buffer_matches(read_buf, write_buf, sizeof(write_buf)), "CMD_READ returns the written bytes");
+    run(req, "TD_FORMAT", TD_FORMAT, format_buf, sizeof(format_buf), 16);
+    run(req, "ETD_READ (count 1)", ETD_READ, read_buf, sizeof(format_buf), 16);
+    check(buffer_matches(read_buf, format_buf, sizeof(format_buf)), "ETD_READ returns the formatted bytes");
     req->iotd_Req.io_Command = ETD_READ;
-    req->iotd_Req.io_Flags = IOF_QUICK;
-    req->iotd_Req.io_Data = read_buf;
-    req->iotd_Req.io_Length = sizeof(format_buf);
-    req->iotd_Req.io_Offset = 16;
-    req->iotd_Count = 1;
-    DoIO((struct IORequest *)req);
-    if (req->iotd_Req.io_Error == 0 &&
-        req->iotd_Req.io_Actual == sizeof(format_buf) &&
-        buffer_matches(read_buf, format_buf, sizeof(format_buf)))
-        test_ok("ETD_READ accepts current change count");
-    else
-        test_fail_msg("ETD_READ accepts current change count");
-
-    req->iotd_Req.io_Command = ETD_READ;
-    req->iotd_Req.io_Flags = IOF_QUICK;
     req->iotd_Req.io_Data = read_buf;
     req->iotd_Req.io_Length = 1;
     req->iotd_Req.io_Offset = 0;
     req->iotd_Count = 2;
     DoIO((struct IORequest *)req);
-    if (req->iotd_Req.io_Error == TDERR_DiskChanged)
-        test_ok("ETD_READ rejects stale change count");
-    else
-        test_fail_msg("ETD_READ rejects stale change count");
-
-    req->iotd_Req.io_Command = CMD_UPDATE;
-    req->iotd_Req.io_Flags = IOF_QUICK;
-    req->iotd_Req.io_Data = NULL;
-    req->iotd_Req.io_Length = 0;
-    DoIO((struct IORequest *)req);
-    if (req->iotd_Req.io_Error == 0)
-        test_ok("CMD_UPDATE succeeds");
-    else
-        test_fail_msg("CMD_UPDATE succeeds");
-
-    req->iotd_Req.io_Command = CMD_CLEAR;
-    req->iotd_Req.io_Flags = IOF_QUICK;
-    DoIO((struct IORequest *)req);
-    if (req->iotd_Req.io_Error == 0)
-        test_ok("CMD_CLEAR succeeds");
-    else
-        test_fail_msg("CMD_CLEAR succeeds");
-
-    req->iotd_Req.io_Command = TD_CHANGENUM;
-    req->iotd_Req.io_Flags = IOF_QUICK;
-    DoIO((struct IORequest *)req);
-    if (req->iotd_Req.io_Error == 0 && req->iotd_Req.io_Actual == 1)
-        test_ok("TD_CHANGENUM reports constant change count");
-    else
-        test_fail_msg("TD_CHANGENUM reports constant change count");
-
-    req->iotd_Req.io_Command = TD_CHANGESTATE;
-    req->iotd_Req.io_Flags = IOF_QUICK;
-    DoIO((struct IORequest *)req);
-    if (req->iotd_Req.io_Error == 0 && req->iotd_Req.io_Actual == 0)
-        test_ok("TD_CHANGESTATE reports medium present");
-    else
-        test_fail_msg("TD_CHANGESTATE reports medium present");
-
-    req->iotd_Req.io_Command = TD_GETGEOMETRY;
-    req->iotd_Req.io_Flags = IOF_QUICK;
-    req->iotd_Req.io_Data = &geometry;
-    req->iotd_Req.io_Length = sizeof(geometry);
-    DoIO((struct IORequest *)req);
-    if (req->iotd_Req.io_Error == 0 &&
-        geometry.dg_SectorSize == 512 &&
-        geometry.dg_TotalSectors == 1760 &&
-        geometry.dg_DeviceType == DG_DIRECT_ACCESS &&
-        geometry.dg_Flags == DGF_REMOVABLE)
-        test_ok("TD_GETGEOMETRY reports RAD geometry");
-    else
-        test_fail_msg("TD_GETGEOMETRY reports RAD geometry");
-
-    req->iotd_Req.io_Command = TD_MOTOR;
-    req->iotd_Req.io_Flags = IOF_QUICK;
-    req->iotd_Req.io_Length = 0;
-    DoIO((struct IORequest *)req);
-    if (req->iotd_Req.io_Error == 0 && req->iotd_Req.io_Actual == 1)
-        test_ok("TD_MOTOR reports always-on virtual motor");
-    else
-        test_fail_msg("TD_MOTOR reports always-on virtual motor");
-
-    name = KillRAD(1);
-    if (name == NULL)
-        test_ok("KillRAD rejects invalid unit");
-    else
-        test_fail_msg("KillRAD rejects invalid unit");
-
-    name = KillRAD0();
-    if (name != NULL && name[0] == 'R' && name[1] == 'A' && name[2] == 'D' && name[3] == ':')
-        test_ok("KillRAD0 returns RAD: device name");
-    else
-        test_fail_msg("KillRAD0 returns RAD: device name");
-
-    req->iotd_Req.io_Command = CMD_READ;
-    req->iotd_Req.io_Flags = IOF_QUICK;
-    req->iotd_Req.io_Data = read_buf;
-    req->iotd_Req.io_Length = sizeof(write_buf);
-    req->iotd_Req.io_Offset = 4;
-    DoIO((struct IORequest *)req);
-    if (req->iotd_Req.io_Error == 0 &&
-        req->iotd_Req.io_Actual == sizeof(write_buf) &&
-        read_buf[0] == 0 && read_buf[5] == 0)
-        test_ok("KillRAD0 clears RAM backing store");
-    else
-        test_fail_msg("KillRAD0 clears RAM backing store");
-
+    print("  ETD_READ (count 2): io_Error=");
+    print_num(req->iotd_Req.io_Error);
+    print("\n");
+    run(req, "CMD_READ last block", CMD_READ, read_buf, 512, TEST_SIZE - 512);
+    run(req, "CMD_READ past the end", CMD_READ, read_buf, 512, TEST_SIZE);
+    run(req, "CMD_UPDATE", CMD_UPDATE, NULL, 0, 0);
+    run(req, "CMD_CLEAR", CMD_CLEAR, NULL, 0, 0);
+    run(req, "CMD_RESET", CMD_RESET, NULL, 0, 0);
+    run(req, "CMD_FLUSH", CMD_FLUSH, NULL, 0, 0);
+    run(req, "TD_CHANGENUM", TD_CHANGENUM, NULL, 0, 0);
+    run(req, "TD_CHANGESTATE", TD_CHANGESTATE, NULL, 0, 0);
+    run(req, "TD_MOTOR", TD_MOTOR, NULL, 0, 0);
+    run(req, "TD_REMOVE", TD_REMOVE, NULL, 0, 0);
+    run(req, "TD_SEEK", TD_SEEK, NULL, 0, 0);
+    run(req, "TD_GETGEOMETRY", TD_GETGEOMETRY, dummy, sizeof(struct DriveGeometry), 0);
+    run(req, "NSCMD_DEVICEQUERY", NSCMD_DEVICEQUERY, dummy, sizeof(dummy), 0);
     CloseDevice((struct IORequest *)req);
-    test_ok("CloseDevice writable handle");
 
-    error = OpenDevice("ramdrive.device", 0, (struct IORequest *)protected_req, 1);
-    if (error == 0)
-        test_ok("OpenDevice write-protected open succeeds");
-    else
-        test_fail_msg("OpenDevice write-protected open succeeds");
+    /* the data survives closing; KillRAD() frees it */
+    error = OpenDevice((STRPTR)"ramdrive.device", TEST_UNIT, (struct IORequest *)req, 0);
+    check(error == 0, "OpenDevice reopens the unit");
+    run(req, "CMD_READ after reopen", CMD_READ, read_buf, sizeof(write_buf), 4);
+    check(buffer_matches(read_buf, write_buf, sizeof(write_buf)), "data survives close and reopen");
+    CloseDevice((struct IORequest *)req);
 
-    RamdriveBase = (struct Device *)protected_req->iotd_Req.io_Device;
+    print_name("KillRAD(1)", KillRAD(TEST_UNIT));
 
-    protected_req->iotd_Req.io_Command = TD_PROTSTATUS;
-    protected_req->iotd_Req.io_Flags = IOF_QUICK;
-    DoIO((struct IORequest *)protected_req);
-    if (protected_req->iotd_Req.io_Error == 0 && protected_req->iotd_Req.io_Actual != 0)
-        test_ok("OpenDevice flags enable write protection");
-    else
-        test_fail_msg("OpenDevice flags enable write protection");
+    error = OpenDevice((STRPTR)"ramdrive.device", TEST_UNIT, (struct IORequest *)req, 0);
+    check(error == 0, "OpenDevice after KillRAD succeeds");
+    run(req, "CMD_READ after KillRAD", CMD_READ, read_buf, sizeof(write_buf), 4);
+    CloseDevice((struct IORequest *)req);
 
-    protected_req->iotd_Req.io_Command = CMD_WRITE;
-    protected_req->iotd_Req.io_Flags = IOF_QUICK;
-    protected_req->iotd_Req.io_Data = write_buf;
-    protected_req->iotd_Req.io_Length = sizeof(write_buf);
-    protected_req->iotd_Req.io_Offset = 0;
-    DoIO((struct IORequest *)protected_req);
-    if (protected_req->iotd_Req.io_Error == TDERR_WriteProt)
-        test_ok("CMD_WRITE respects write protection");
-    else
-        test_fail_msg("CMD_WRITE respects write protection");
-
-    name = KillRAD(0);
-    if (name != NULL && name[0] == 'R' && name[1] == 'A' && name[2] == 'D' && name[3] == ':')
-        test_ok("KillRAD accepts unit 0");
-    else
-        test_fail_msg("KillRAD accepts unit 0");
-
-    protected_req->iotd_Req.io_Command = TD_PROTSTATUS;
-    protected_req->iotd_Req.io_Flags = IOF_QUICK;
-    DoIO((struct IORequest *)protected_req);
-    if (protected_req->iotd_Req.io_Error == 0 && protected_req->iotd_Req.io_Actual == 0)
-        test_ok("KillRAD clears write protection");
-    else
-        test_fail_msg("KillRAD clears write protection");
-
+    /* OpenDevice flags bit 0 write-protects the unit */
+    error = OpenDevice((STRPTR)"ramdrive.device", TEST_UNIT, (struct IORequest *)protected_req, 1);
+    check(error == 0, "OpenDevice with write protection succeeds");
+    run(protected_req, "TD_PROTSTATUS (protected)", TD_PROTSTATUS, NULL, 0, 0);
+    run(protected_req, "CMD_WRITE (protected)", CMD_WRITE, write_buf, sizeof(write_buf), 0);
     CloseDevice((struct IORequest *)protected_req);
-    test_ok("CloseDevice write-protected handle");
 
-    DeleteIORequest((struct IORequest *)small_req);
+    remove_node(node);
+    error = OpenDevice((STRPTR)"ramdrive.device", TEST_UNIT, (struct IORequest *)req, 0);
+    check(error == 0, "the unit stays known once the node is gone");
+    if (error == 0)
+        CloseDevice((struct IORequest *)req);
+
     DeleteIORequest((struct IORequest *)protected_req);
     DeleteIORequest((struct IORequest *)req);
     DeleteMsgPort(port);
+    CloseLibrary(ExpansionBase);
 
     print("\n");
     if (test_fail == 0)

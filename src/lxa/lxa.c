@@ -616,10 +616,20 @@ void cpu_instr_callback(int pc)
     /* Fast path: no debugging active — just check for PC=0 crash */
     if (__builtin_expect(!g_debug_active, 1))
     {
-        if (__builtin_expect(pc < 0x100, 0))
+        uint32_t upc = (uint32_t)pc;
+        if (__builtin_expect(upc < 0x100 || (upc > RAM_END && (upc < ROM_START || upc > ROM_END)), 0))
         {
-            CPRINTF("*** WARNING: PC=0x%08x - invalid address!\n", pc);
-            _debug(pc);
+            /* executing from nowhere: the instruction fetch fails with a bus
+             * error, which exec's trap handling turns into a held task
+             * (Phase 232: Fish programs jumping to 0xf88xxxxx flooded the log
+             * with one warning per instruction) */
+            static uint32_t last_bad_pc = 0xffffffff;
+            if (upc != last_bad_pc + 4 && upc != last_bad_pc + 2)
+                CPRINTF("*** WARNING: PC=0x%08x - invalid address, bus error\n", upc);
+            last_bad_pc = upc;
+            if (g_debug)
+                _debug(pc);      /* interactive debugger only with -d */
+            m68k_raise_exception_at_boundary(2);
         }
         return;
     }

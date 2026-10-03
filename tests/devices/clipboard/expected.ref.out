@@ -1,0 +1,42 @@
+Testing clipboard.device
+OK: clipboard.device opened
+OK: CBD_CURRENTWRITEID returns a positive clip ID
+OK: CBD_CURRENTREADID equals CBD_CURRENTWRITEID
+OK: CMD_WRITE writes the clip
+  new clip ID - base = 1
+OK: CMD_UPDATE commits the clip
+OK: CBD_CURRENTREADID tracks the committed clip
+OK: CBD_CURRENTWRITEID tracks the committed clip
+OK: CMD_READ returns the clip up to its FORM size
+OK: CMD_READ past the end returns 0 bytes and ClipID -1
+OK: CMD_READ reads sequential parts
+OK: CMD_READ with NULL io_Data skips to the end
+OK: skipped read ends at the clip end
+OK: CBD_CHANGEHOOK installs hook
+OK: CBD_POST assigns the next clip ID
+  change hook calls = 1
+  hook call: cmd=9 clip=base+2 object=io_Unit
+OK: CBD_CURRENTREADID tracks the post
+OK: CBD_CURRENTWRITEID tracks the post
+OK: CMD_READ of a posted clip pends
+OK: CBD_POST sends a SatisfyMsg on demand
+  change hook calls = 1
+  hook call: cmd=9 clip=base+2 object=io_Unit
+OK: satisfying CMD_WRITE starts
+  change hook calls = 0
+OK: satisfying write uses the post ID
+OK: pending CMD_READ completes with the posted data
+OK: posted clip read ends at the clip end
+  change hook calls = 1
+  hook call: cmd=4 clip=base+2 object=io_Unit
+OK: CBD_CHANGEHOOK removes hook
+OK: removed change hook is not called
+OK: second CBD_POST assigns the next clip ID
+OK: CMD_READ of the second post pends
+OK: second post sends a SatisfyMsg
+OK: AbortIO aborts a pending CMD_READ
+OK: the aborted post can still be satisfied
+OK: RemDevice() while open sets LIBF_DELEXP and keeps the device
+OK: OpenDevice() after deferred expunge clears LIBF_DELEXP
+OK: closing the last opener does not expunge clipboard.device
+PASS: clipboard.device test complete

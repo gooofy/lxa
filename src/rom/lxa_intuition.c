@@ -4888,8 +4888,11 @@ VOID _intuition_EndRequest ( register struct IntuitionBase * IntuitionBase __asm
     if (window->RPort)
     {
         _calculate_requester_box(window, requester, &left, &top, &width, &height);
+        UBYTE save_fg = window->RPort->FgPen;
+
         SetAPen(window->RPort, 0);
         RectFill(window->RPort, left, top, left + width - 1, top + height - 1);
+        SetAPen(window->RPort, save_fg);
         _rerender_requester_stack(window);
     }
 
@@ -9321,7 +9324,36 @@ static void _create_window_sys_gadgets(struct Window *window)
  * Render system gadgets for a window
  * Draws the window frame, title bar, and gadget imagery
  */
+static void _render_window_frame_impl(struct Window *window);
+
+/*
+ * Intuition renders the frame without leaving traces in the window's
+ * RastPort: on AmigaOS 3.1 a window's RPort keeps its InitRastPort()
+ * attributes (FgPen -1, BgPen 0, JAM2) - verified in Phase 220.
+ */
 static void _render_window_frame(struct Window *window)
+{
+    struct RastPort *rp = window ? (window->BorderRPort ? window->BorderRPort : window->RPort) : NULL;
+    UBYTE fg, bg, ol, dm;
+
+    if (!rp)
+    {
+        _render_window_frame_impl(window);
+        return;
+    }
+
+    fg = rp->FgPen;
+    bg = rp->BgPen;
+    ol = rp->AOlPen;
+    dm = rp->DrawMode;
+    _render_window_frame_impl(window);
+    SetAPen(rp, fg);
+    SetBPen(rp, bg);
+    SetOPen(rp, ol);
+    SetDrMd(rp, dm);
+}
+
+static void _render_window_frame_impl(struct Window *window)
 {
     struct RastPort *rp;
     WORD x0, y0, x1, y1;
@@ -9877,8 +9909,9 @@ struct Window * _intuition_OpenWindow ( register struct IntuitionBase * Intuitio
     window->Height = height;
     window->MinWidth = newWindow->MinWidth ? newWindow->MinWidth : width;
     window->MinHeight = newWindow->MinHeight ? newWindow->MinHeight : height;
-    window->MaxWidth = newWindow->MaxWidth ? newWindow->MaxWidth : (UWORD)-1;
-    window->MaxHeight = newWindow->MaxHeight ? newWindow->MaxHeight : (UWORD)-1;
+    /* 0 = the initial size, as for the minimum (AmigaOS 3.1, Phase 220) */
+    window->MaxWidth = newWindow->MaxWidth ? newWindow->MaxWidth : width;
+    window->MaxHeight = newWindow->MaxHeight ? newWindow->MaxHeight : height;
     window->Flags = newWindow->Flags;
     window->IDCMPFlags = newWindow->IDCMPFlags;
     window->Title = newWindow->Title;
@@ -10145,10 +10178,13 @@ struct Window * _intuition_OpenWindow ( register struct IntuitionBase * Intuitio
      * overdraw it correctly afterwards. */
     if (window->RPort)
     {
+        UBYTE save_fg = window->RPort->FgPen;
+
         SetAPen(window->RPort, 0);
         RectFill(window->RPort, window->LeftEdge, window->TopEdge,
                  window->LeftEdge + window->Width - 1,
                  window->TopEdge  + window->Height - 1);
+        SetAPen(window->RPort, save_fg);
     }
 
     /* Render initial visuals.
@@ -12708,18 +12744,25 @@ VOID _intuition_ChangeWindowBox ( register struct IntuitionBase * IntuitionBase 
 
     if (!window) return;
 
-    /* clamp the size like SizeWindow() does */
-    if (width < window->MinWidth) width = window->MinWidth;
-    if (width > window->MaxWidth) width = window->MaxWidth;
-    if (height < window->MinHeight) height = window->MinHeight;
-    if (height > window->MaxHeight) height = window->MaxHeight;
-
     /* AmigaOS 3.1 reference: one IDCMP_NEWSIZE + IDCMP_CHANGEWINDOW for a
      * box change (no separate CHANGEWINDOW for the move part) */
     if (width != window->Width || height != window->Height)
     {
+        /* ChangeWindowBox() (and ZipWindow() through it) is not bound by the
+         * window's size limits, unlike SizeWindow() (AmigaOS 3.1, Phase 220) */
+        WORD min_w = window->MinWidth, min_h = window->MinHeight;
+        UWORD max_w = window->MaxWidth, max_h = window->MaxHeight;
+
         _intuition_move_window_impl(IntuitionBase, window, left - window->LeftEdge, top - window->TopEdge, FALSE);
+        window->MinWidth = 1;
+        window->MinHeight = 1;
+        window->MaxWidth = (UWORD)-1;
+        window->MaxHeight = (UWORD)-1;
         _intuition_SizeWindow(IntuitionBase, window, width - window->Width, height - window->Height);
+        window->MinWidth = min_w;
+        window->MinHeight = min_h;
+        window->MaxWidth = max_w;
+        window->MaxHeight = max_h;
     }
     else if (left != window->LeftEdge || top != window->TopEdge)
     {

@@ -418,8 +418,9 @@ static BPTR __g_lxa_trackdisk_Close ( register struct Library   *dev   __asm("a6
 
     dev->lib_OpenCnt--;
 
-    ioreq->io_Unit   = NULL;
-    ioreq->io_Device = NULL;
+    /* AmigaOS 3.1 trackdisk.device invalidates the request with -1 */
+    ioreq->io_Unit   = (struct Unit *)-1;
+    ioreq->io_Device = (struct Device *)-1;
 
     if (tdbase->td_Device.dd_Library.lib_OpenCnt == 0 &&
         (tdbase->td_Device.dd_Library.lib_Flags & LIBF_DELEXP))

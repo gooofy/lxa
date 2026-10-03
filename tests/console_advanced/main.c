@@ -10,6 +10,7 @@
 
 #include <exec/types.h>
 #include <exec/memory.h>
+#include <exec/errors.h>
 #include <devices/console.h>
 #include <devices/conunit.h>
 #include <devices/keymap.h>
@@ -17,11 +18,24 @@
 #include <clib/exec_protos.h>
 #include <clib/dos_protos.h>
 #include <clib/console_protos.h>
+#include <clib/intuition_protos.h>
+#include <intuition/intuition.h>
 #include <inline/exec.h>
 #include <inline/dos.h>
+#include <inline/intuition.h>
 
 extern struct DosLibrary *DOSBase;
 extern struct ExecBase *SysBase;
+struct IntuitionBase *IntuitionBase;
+static struct Window *window;
+
+/* console units need a window (AmigaOS 3.1 fails the open without one) */
+static LONG open_console(struct IOStdReq *req, ULONG unit)
+{
+    req->io_Data = (APTR)window;
+    req->io_Length = sizeof(struct Window);
+    return OpenDevice((STRPTR)"console.device", unit, (struct IORequest *)req, 0);
+}
 
 static void print(const char *s)
 {
@@ -63,6 +77,20 @@ int main(void)
     LONG error = 0;
     
     print("console_advanced test: Testing advanced console features\n");
+
+    {
+        /* SIMPLE_REFRESH: required by CONU_CHARMAP */
+        struct NewWindow nw = { 0, 0, 320, 120, 0, 1, 0,
+                                WFLG_SIMPLE_REFRESH | WFLG_DEPTHGADGET | WFLG_DRAGBAR,
+                                NULL, NULL, (STRPTR)"console_advanced", NULL, NULL,
+                                0, 0, 0, 0, WBENCHSCREEN };
+        IntuitionBase = (struct IntuitionBase *)OpenLibrary((STRPTR)"intuition.library", 0);
+        window = IntuitionBase ? OpenWindow(&nw) : NULL;
+        if (!window) {
+            print("ERROR: Failed to open window\n");
+            return 20;
+        }
+    }
     
     /* Test 1: Open console.device with CONU_STANDARD */
     print("\n1. Testing CONU_STANDARD mode...\n");
@@ -80,9 +108,22 @@ int main(void)
         return 20;
     }
     
-    /* Open with CONU_STANDARD (unit 0) */
-    consoleReq->io_Data = NULL;  /* No window for this test */
+    consoleReq->io_Data = NULL;
+    consoleReq->io_Length = 0;
     error = OpenDevice((STRPTR)"console.device", CONU_STANDARD, (struct IORequest *)consoleReq, 0);
+    if (error == IOERR_OPENFAIL) {
+        print("OK: CONU_STANDARD without a window fails with IOERR_OPENFAIL\n");
+    } else {
+        print("ERROR: CONU_STANDARD without a window returned ");
+        print_num(error);
+        print("\n");
+        if (error == 0)
+            CloseDevice((struct IORequest *)consoleReq);
+        return 20;
+    }
+
+    /* Open with CONU_STANDARD (unit 0) */
+    error = open_console(consoleReq, CONU_STANDARD);
     if (error) {
         print("ERROR: Failed to open console.device with CONU_STANDARD, error=");
         print_num(error);
@@ -100,8 +141,7 @@ int main(void)
     /* Test 2: Open console.device with CONU_CHARMAP */
     print("\n2. Testing CONU_CHARMAP mode...\n");
     
-    consoleReq->io_Data = NULL;  /* No window for this test */
-    error = OpenDevice((STRPTR)"console.device", CONU_CHARMAP, (struct IORequest *)consoleReq, 0);
+    error = open_console(consoleReq, CONU_CHARMAP);
     if (error) {
         print("ERROR: Failed to open console.device with CONU_CHARMAP, error=");
         print_num(error);
@@ -118,8 +158,8 @@ int main(void)
     /* Test 3: RawKeyConvert function */
     print("\n3. Testing RawKeyConvert...\n");
     
-    /* Reopen console device to use RawKeyConvert */
-    error = OpenDevice((STRPTR)"console.device", CONU_STANDARD, (struct IORequest *)consoleReq, 0);
+    /* RawKeyConvert only needs the library handle (CONU_LIBRARY) */
+    error = OpenDevice((STRPTR)"console.device", CONU_LIBRARY, (struct IORequest *)consoleReq, 0);
     if (error) {
         print("ERROR: Failed to reopen console.device\n");
         DeleteIORequest((struct IORequest *)consoleReq);
@@ -194,7 +234,7 @@ int main(void)
     print("   (Testing CSI 'r' (DECSTBM) and CSI '{' (Amiga) - write tests only)\n");
     
     /* Reopen console device */
-    error = OpenDevice((STRPTR)"console.device", CONU_STANDARD, (struct IORequest *)consoleReq, 0);
+    error = open_console(consoleReq, CONU_STANDARD);
     if (error) {
         print("ERROR: Failed to reopen console.device\n");
         DeleteIORequest((struct IORequest *)consoleReq);
@@ -225,6 +265,8 @@ int main(void)
     /* Cleanup */
     DeleteIORequest((struct IORequest *)consoleReq);
     DeleteMsgPort(consolePort);
+    CloseWindow(window);
+    CloseLibrary((struct Library *)IntuitionBase);
     
     print("\nPASS: All console_advanced tests passed!\n");
     

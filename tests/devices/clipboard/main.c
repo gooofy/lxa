@@ -1,5 +1,13 @@
 /*
- * Test for clipboard.device Phase 91 coverage.
+ * Test for clipboard.device (Phase 91 coverage, validated against
+ * AmigaOS 3.1 in Phase 220).
+ *
+ * Clip IDs are printed relative to the CBD_CURRENTWRITEID value seen at
+ * start-up, so the output does not depend on earlier clipboard users.
+ * Clips are well-formed IFF FORMs: the 3.1 clipboard.device derives the
+ * clip size from the FORM header, and a read only ends (io_Actual 0,
+ * io_ClipID -1) once it is past that size.  An unfinished read holds off
+ * every later write, so each read here is run to its end.
  */
 
 #include <exec/types.h>
@@ -17,6 +25,8 @@
 extern struct ExecBase *SysBase;
 extern struct DosLibrary *DOSBase;
 
+static int failures = 0;
+
 static void print(const char *s)
 {
     BPTR out = Output();
@@ -29,10 +39,16 @@ static void print(const char *s)
     Write(out, (CONST APTR)s, len);
 }
 
-static void print_num(ULONG num)
+static void print_num(LONG num)
 {
     char buf[16];
     int i = 0;
+
+    if (num < 0)
+    {
+        buf[i++] = '-';
+        num = -num;
+    }
 
     if (num == 0)
     {
@@ -57,7 +73,25 @@ static void print_num(ULONG num)
     print(buf);
 }
 
-static BOOL str_equal(const char *s1, const char *s2, ULONG len)
+static void check(BOOL ok, const char *what)
+{
+    print(ok ? "OK: " : "FAIL: ");
+    print(what);
+    print("\n");
+    if (!ok)
+        failures++;
+}
+
+static void show(const char *what, LONG v)
+{
+    print("  ");
+    print(what);
+    print(" = ");
+    print_num(v);
+    print("\n");
+}
+
+static BOOL mem_equal(const char *s1, const char *s2, ULONG len)
 {
     ULONG i;
 
@@ -70,12 +104,14 @@ static BOOL str_equal(const char *s1, const char *s2, ULONG len)
     return TRUE;
 }
 
+#define MAX_HOOK_CALLS 8
+
 struct HookState
 {
     ULONG calls;
-    LONG last_cmd;
-    LONG last_clip_id;
-    APTR last_object;
+    LONG cmd[MAX_HOOK_CALLS];
+    LONG clip_id[MAX_HOOK_CALLS];
+    APTR object[MAX_HOOK_CALLS];
 };
 
 static ULONG clipboard_hook(register struct Hook *hook __asm("a0"),
@@ -86,72 +122,101 @@ static ULONG clipboard_hook(register struct Hook *hook __asm("a0"),
 
     if (state && msg)
     {
+        if (state->calls < MAX_HOOK_CALLS)
+        {
+            state->cmd[state->calls] = msg->chm_ChangeCmd;
+            state->clip_id[state->calls] = msg->chm_ClipID;
+            state->object[state->calls] = object;
+        }
         state->calls++;
-        state->last_cmd = msg->chm_ChangeCmd;
-        state->last_clip_id = msg->chm_ClipID;
-        state->last_object = object;
     }
 
     return 0;
 }
 
-static void close_if_open(struct IOClipReq *req)
+static void show_hook_calls(struct HookState *state, LONG base, APTR unit)
 {
-    if (req && req->io_Device && req->io_Unit)
-    {
-        CloseDevice((struct IORequest *)req);
-    }
-}
+    ULONG i;
 
-static void reset_hook_state(struct HookState *state)
-{
+    show("change hook calls", (LONG)state->calls);
+    for (i = 0; i < state->calls && i < MAX_HOOK_CALLS; i++)
+    {
+        print("  hook call: cmd=");
+        print_num(state->cmd[i]);
+        print(" clip=base+");
+        print_num(state->clip_id[i] - base);
+        print(state->object[i] == unit ? " object=io_Unit\n" : " object=other\n");
+    }
     state->calls = 0;
-    state->last_cmd = -1;
-    state->last_clip_id = -1;
-    state->last_object = NULL;
 }
 
 static struct IOClipReq *create_clip_req(struct MsgPort *port)
 {
-    struct IOClipReq *req;
-
-    req = (struct IOClipReq *)CreateIORequest(port, sizeof(struct IOClipReq));
-    if (req)
-    {
-        req->io_Message.mn_Length = sizeof(struct IOClipReq);
-    }
-
-    return req;
+    return (struct IOClipReq *)CreateIORequest(port, sizeof(struct IOClipReq));
 }
 
-static void delete_clip_req(struct IOClipReq *req)
+static LONG do_cmd(struct IOClipReq *req, UWORD cmd)
 {
-    if (req)
-        DeleteIORequest((struct IORequest *)req);
+    req->io_Command = cmd;
+    req->io_Error = 0;
+    return DoIO((struct IORequest *)req);
 }
+
+static LONG current_id(struct IOClipReq *req, UWORD cmd)
+{
+    req->io_ClipID = 0;
+    do_cmd(req, cmd);
+    return req->io_ClipID;
+}
+
+/* write a whole clip (clip_id 0 = new clip) and commit it */
+static LONG write_clip(struct IOClipReq *req, const char *data, LONG len, LONG clip_id)
+{
+    req->io_Data = (STRPTR)data;
+    req->io_Length = len;
+    req->io_Offset = 0;
+    req->io_ClipID = clip_id;
+    if (do_cmd(req, CMD_WRITE) != 0 || req->io_Actual != len || req->io_Offset != len)
+        return -1;
+    if (do_cmd(req, CMD_UPDATE) != 0)
+        return -1;
+    return req->io_ClipID;
+}
+
+/* read past the end of the current read clip so the clipboard is released */
+static BOOL finish_read(struct IOClipReq *req, char *buf, LONG size)
+{
+    req->io_Data = (STRPTR)buf;
+    req->io_Length = size;
+    do_cmd(req, CMD_READ);
+    return req->io_Error == 0 && req->io_Actual == 0 && req->io_ClipID == -1;
+}
+
+/* FORM FTXT with one CHRS chunk */
+static const char clip1[] = "FORM\0\0\0\x1c" "FTXTCHRS\0\0\0\x10" "Hello Clipboard!";
+static const char clip2[] = "FORM\0\0\0\x24" "FTXTCHRS\0\0\0\x17" "Deferred clipboard data\0";
+static const char clip3[] = "FORM\0\0\0\x24" "FTXTCHRS\0\0\0\x18" "Final clipboard contents";
+#define CLIP1_LEN 36
+#define CLIP2_LEN 44
+#define CLIP3_LEN 44
 
 int main(void)
 {
-    struct MsgPort *reply_port = NULL;
-    struct MsgPort *satisfy_port = NULL;
-    struct MsgPort *abort_port = NULL;
-    struct IOClipReq *clip_req = NULL;
-    struct IOClipReq *writer_req = NULL;
-    struct IOClipReq *read_req = NULL;
-    struct IOClipReq *reopen_req = NULL;
+    struct MsgPort *reply_port;
+    struct MsgPort *satisfy_port;
+    struct MsgPort *abort_port;
+    struct IOClipReq *clip_req;
+    struct IOClipReq *writer_req;
+    struct IOClipReq *read_req;
+    struct IOClipReq *reopen_req;
     struct Device *device;
-    struct Node *device_node;
     struct SatisfyMsg *satisfy_msg;
-    struct SatisfyMsg *abort_msg;
     struct Hook hook;
     struct HookState hook_state;
-    LONG error;
+    LONG base;
     LONG clip_id;
     LONG post_id;
-    LONG abort_post_id;
-    char write_data[] = "Hello Clipboard!";
-    char post_data[] = "Deferred clipboard data";
-    char final_data[] = "Final clipboard contents";
+    LONG error;
     char read_data[64];
 
     print("Testing clipboard.device\n");
@@ -159,414 +224,186 @@ int main(void)
     reply_port = CreateMsgPort();
     satisfy_port = CreateMsgPort();
     abort_port = CreateMsgPort();
-    if (!reply_port || !satisfy_port || !abort_port)
-    {
-        print("FAIL: Cannot allocate message ports\n");
-        goto fail;
-    }
-    print("OK: Message ports created\n");
-
     clip_req = create_clip_req(reply_port);
     writer_req = create_clip_req(reply_port);
     read_req = create_clip_req(reply_port);
     reopen_req = create_clip_req(reply_port);
-    if (!clip_req || !writer_req || !read_req || !reopen_req)
+    if (!reply_port || !satisfy_port || !abort_port ||
+        !clip_req || !writer_req || !read_req || !reopen_req)
     {
-        print("FAIL: Cannot allocate IO requests\n");
-        goto fail;
-    }
-    print("OK: IO requests created\n");
-
-    error = OpenDevice((STRPTR)"clipboard.device", PRIMARY_CLIP, (struct IORequest *)clip_req, 0);
-    if (error != 0)
-    {
-        print("FAIL: Cannot open clipboard.device, error=");
-        print_num((ULONG)error);
-        print("\n");
-        goto fail;
+        print("FAIL: Cannot allocate ports/requests\n");
+        return 20;
     }
 
-    error = OpenDevice((STRPTR)"clipboard.device", PRIMARY_CLIP, (struct IORequest *)writer_req, 0);
-    if (error != 0)
+    if (OpenDevice((STRPTR)"clipboard.device", PRIMARY_CLIP, (struct IORequest *)clip_req, 0) != 0 ||
+        OpenDevice((STRPTR)"clipboard.device", PRIMARY_CLIP, (struct IORequest *)writer_req, 0) != 0 ||
+        OpenDevice((STRPTR)"clipboard.device", PRIMARY_CLIP, (struct IORequest *)read_req, 0) != 0)
     {
-        print("FAIL: Cannot open writer clipboard request, error=");
-        print_num((ULONG)error);
-        print("\n");
-        goto fail;
-    }
-
-    error = OpenDevice((STRPTR)"clipboard.device", PRIMARY_CLIP, (struct IORequest *)read_req, 0);
-    if (error != 0)
-    {
-        print("FAIL: Cannot open read clipboard request, error=");
-        print_num((ULONG)error);
-        print("\n");
-        goto fail;
+        print("FAIL: Cannot open clipboard.device\n");
+        return 20;
     }
     print("OK: clipboard.device opened\n");
+    device = clip_req->io_Device;
 
-    clip_req->io_Command = CBD_CURRENTWRITEID;
-    clip_req->io_Flags = IOF_QUICK;
-    DoIO((struct IORequest *)clip_req);
-    if (clip_req->io_Error != 0 || clip_req->io_ClipID != 0)
-    {
-        print("FAIL: CBD_CURRENTWRITEID initial state incorrect\n");
-        goto fail;
-    }
-    print("OK: CBD_CURRENTWRITEID reports empty clipboard\n");
+    /* --- current IDs and an immediate clip --------------------------- */
+    base = current_id(clip_req, CBD_CURRENTWRITEID);
+    check(clip_req->io_Error == 0 && base > 0, "CBD_CURRENTWRITEID returns a positive clip ID");
+    check(current_id(clip_req, CBD_CURRENTREADID) == base, "CBD_CURRENTREADID equals CBD_CURRENTWRITEID");
 
-    writer_req->io_Command = CMD_WRITE;
-    writer_req->io_Flags = IOF_QUICK;
-    writer_req->io_Data = (STRPTR)write_data;
-    writer_req->io_Length = sizeof(write_data) - 1;
+    writer_req->io_Data = (STRPTR)clip1;
+    writer_req->io_Length = CLIP1_LEN;
     writer_req->io_Offset = 0;
     writer_req->io_ClipID = 0;
-    DoIO((struct IORequest *)writer_req);
-    if (writer_req->io_Error != 0 || writer_req->io_Actual != sizeof(write_data) - 1)
-    {
-        print("FAIL: CMD_WRITE failed for immediate clip\n");
-        goto fail;
-    }
+    do_cmd(writer_req, CMD_WRITE);
     clip_id = writer_req->io_ClipID;
-    print("OK: CMD_WRITE staged clip ID=");
-    print_num((ULONG)clip_id);
-    print("\n");
+    check(writer_req->io_Error == 0 && writer_req->io_Actual == CLIP1_LEN &&
+          writer_req->io_Offset == CLIP1_LEN, "CMD_WRITE writes the clip");
+    show("new clip ID - base", clip_id - base);
 
-    writer_req->io_Command = CMD_UPDATE;
-    writer_req->io_Flags = IOF_QUICK;
-    writer_req->io_ClipID = clip_id;
-    DoIO((struct IORequest *)writer_req);
-    if (writer_req->io_Error != 0 || writer_req->io_ClipID != clip_id)
-    {
-        print("FAIL: CMD_UPDATE failed for immediate clip\n");
-        goto fail;
-    }
-    print("OK: CMD_UPDATE committed immediate clip\n");
+    do_cmd(writer_req, CMD_UPDATE);
+    check(writer_req->io_Error == 0 && writer_req->io_ClipID == clip_id, "CMD_UPDATE commits the clip");
+    check(current_id(clip_req, CBD_CURRENTREADID) == clip_id, "CBD_CURRENTREADID tracks the committed clip");
+    check(current_id(clip_req, CBD_CURRENTWRITEID) == clip_id, "CBD_CURRENTWRITEID tracks the committed clip");
 
-    clip_req->io_Command = CBD_CURRENTREADID;
-    clip_req->io_Flags = IOF_QUICK;
-    DoIO((struct IORequest *)clip_req);
-    if (clip_req->io_Error != 0 || clip_req->io_ClipID != clip_id)
-    {
-        print("FAIL: CBD_CURRENTREADID did not match committed clip\n");
-        goto fail;
-    }
-    print("OK: CBD_CURRENTREADID matches committed clip\n");
-
-    read_req->io_Command = CMD_READ;
-    read_req->io_Flags = IOF_QUICK;
     read_req->io_Data = (STRPTR)read_data;
     read_req->io_Length = sizeof(read_data);
     read_req->io_Offset = 0;
-    read_req->io_ClipID = clip_id;
-    DoIO((struct IORequest *)read_req);
-    if (read_req->io_Error != 0 ||
-        read_req->io_Actual != sizeof(write_data) - 1 ||
-        !str_equal(read_data, write_data, read_req->io_Actual))
-    {
-        print("FAIL: CMD_READ immediate clip mismatch\n");
-        goto fail;
-    }
-    print("OK: CMD_READ returns committed data\n");
+    read_req->io_ClipID = 0;
+    do_cmd(read_req, CMD_READ);
+    check(read_req->io_Error == 0 && read_req->io_ClipID == clip_id &&
+          read_req->io_Actual == CLIP1_LEN && read_req->io_Offset == CLIP1_LEN &&
+          mem_equal(read_data, clip1, CLIP1_LEN), "CMD_READ returns the clip up to its FORM size");
+    check(finish_read(read_req, read_data, sizeof(read_data)) && read_req->io_Offset == CLIP1_LEN,
+          "CMD_READ past the end returns 0 bytes and ClipID -1");
 
-    reset_hook_state(&hook_state);
+    read_req->io_Data = (STRPTR)read_data;
+    read_req->io_Length = 10;
+    read_req->io_Offset = 0;
+    read_req->io_ClipID = 0;
+    do_cmd(read_req, CMD_READ);
+    check(read_req->io_Actual == 10 && read_req->io_Offset == 10 && mem_equal(read_data, clip1, 10),
+          "CMD_READ reads sequential parts");
+    read_req->io_Data = NULL;
+    read_req->io_Length = 1000;
+    do_cmd(read_req, CMD_READ);
+    check(read_req->io_Error == 0 && read_req->io_Actual == CLIP1_LEN - 10 && read_req->io_Offset == CLIP1_LEN,
+          "CMD_READ with NULL io_Data skips to the end");
+    check(finish_read(read_req, read_data, sizeof(read_data)), "skipped read ends at the clip end");
+
+    /* --- change hook and a posted clip ------------------------------- */
+    hook_state.calls = 0;
     hook.h_Entry = (ULONG (*)())clipboard_hook;
     hook.h_SubEntry = NULL;
     hook.h_Data = &hook_state;
-    clip_req->io_Command = CBD_CHANGEHOOK;
-    clip_req->io_Flags = IOF_QUICK;
     clip_req->io_Data = (STRPTR)&hook;
     clip_req->io_Length = 1;
-    DoIO((struct IORequest *)clip_req);
-    if (clip_req->io_Error != 0)
-    {
-        print("FAIL: CBD_CHANGEHOOK install failed\n");
-        goto fail;
-    }
-    print("OK: CBD_CHANGEHOOK installs hook\n");
+    do_cmd(clip_req, CBD_CHANGEHOOK);
+    check(clip_req->io_Error == 0, "CBD_CHANGEHOOK installs hook");
 
-    writer_req->io_Command = CBD_POST;
-    writer_req->io_Flags = IOF_QUICK;
     writer_req->io_Data = (STRPTR)satisfy_port;
     writer_req->io_ClipID = 0;
-    DoIO((struct IORequest *)writer_req);
-    if (writer_req->io_Error != 0)
-    {
-        print("FAIL: CBD_POST failed\n");
-        goto fail;
-    }
+    do_cmd(writer_req, CBD_POST);
     post_id = writer_req->io_ClipID;
-    if (hook_state.calls != 1 ||
-        hook_state.last_cmd != CBD_POST ||
-        hook_state.last_clip_id != post_id ||
-        hook_state.last_object != writer_req->io_Unit)
-    {
-        print("FAIL: CBD_POST did not invoke change hook correctly\n");
-        goto fail;
-    }
-    print("OK: CBD_POST registers deferred clip and calls change hook\n");
-
-    clip_req->io_Command = CBD_CURRENTREADID;
-    clip_req->io_Flags = IOF_QUICK;
-    DoIO((struct IORequest *)clip_req);
-    if (clip_req->io_Error != 0 || clip_req->io_ClipID != post_id)
-    {
-        print("FAIL: CBD_CURRENTREADID did not expose post ID\n");
-        goto fail;
-    }
-
-    clip_req->io_Command = CBD_CURRENTWRITEID;
-    clip_req->io_Flags = IOF_QUICK;
-    DoIO((struct IORequest *)clip_req);
-    if (clip_req->io_Error != 0 || clip_req->io_ClipID != post_id)
-    {
-        print("FAIL: CBD_CURRENTWRITEID did not expose post ID\n");
-        goto fail;
-    }
-    print("OK: current clip IDs track deferred post\n");
+    check(writer_req->io_Error == 0 && post_id == clip_id + 1, "CBD_POST assigns the next clip ID");
+    show_hook_calls(&hook_state, base, writer_req->io_Unit);
+    check(current_id(clip_req, CBD_CURRENTREADID) == post_id, "CBD_CURRENTREADID tracks the post");
+    check(current_id(clip_req, CBD_CURRENTWRITEID) == post_id, "CBD_CURRENTWRITEID tracks the post");
 
     read_req->io_Command = CMD_READ;
+    read_req->io_Error = 0;
     read_req->io_Data = (STRPTR)read_data;
     read_req->io_Length = sizeof(read_data);
     read_req->io_Offset = 0;
-    read_req->io_ClipID = post_id;
+    read_req->io_ClipID = 0;
     SendIO((struct IORequest *)read_req);
-    if (CheckIO((struct IORequest *)read_req) != NULL)
-    {
-        print("FAIL: CMD_READ should pend for posted clip\n");
-        goto fail;
-    }
-    print("OK: CMD_READ pends for posted clip\n");
+    check(CheckIO((struct IORequest *)read_req) == NULL, "CMD_READ of a posted clip pends");
 
     satisfy_msg = (struct SatisfyMsg *)GetMsg(satisfy_port);
-    if (!satisfy_msg || satisfy_msg->sm_Unit != PRIMARY_CLIP || satisfy_msg->sm_ClipID != post_id)
-    {
-        print("FAIL: CBD_POST did not send expected SatisfyMsg\n");
-        goto fail;
-    }
-    print("OK: CBD_POST sends SatisfyMsg on demand\n");
+    check(satisfy_msg != NULL && satisfy_msg->sm_Unit == PRIMARY_CLIP && satisfy_msg->sm_ClipID == post_id,
+          "CBD_POST sends a SatisfyMsg on demand");
+    show_hook_calls(&hook_state, base, writer_req->io_Unit);
 
-    writer_req->io_Command = CMD_WRITE;
-    writer_req->io_Flags = IOF_QUICK;
-    writer_req->io_Data = (STRPTR)post_data;
-    writer_req->io_Length = sizeof(post_data) - 1;
+    writer_req->io_Data = (STRPTR)clip2;
+    writer_req->io_Length = 8;
     writer_req->io_Offset = 0;
     writer_req->io_ClipID = post_id;
-    DoIO((struct IORequest *)writer_req);
-    if (writer_req->io_Error != 0)
-    {
-        print("FAIL: CMD_WRITE failed while satisfying post\n");
-        goto fail;
-    }
+    do_cmd(writer_req, CMD_WRITE);
+    check(writer_req->io_Error == 0 && writer_req->io_ClipID == post_id, "satisfying CMD_WRITE starts");
+    show_hook_calls(&hook_state, base, writer_req->io_Unit);
 
-    writer_req->io_Command = CMD_UPDATE;
-    writer_req->io_Flags = IOF_QUICK;
-    writer_req->io_ClipID = post_id;
-    DoIO((struct IORequest *)writer_req);
-    if (writer_req->io_Error != 0)
-    {
-        print("FAIL: CMD_UPDATE failed while satisfying post\n");
-        goto fail;
-    }
-
+    check(write_clip(writer_req, clip2, CLIP2_LEN, post_id) == post_id, "satisfying write uses the post ID");
     error = WaitIO((struct IORequest *)read_req);
-    if (error != 0 ||
-        read_req->io_Actual != sizeof(post_data) - 1 ||
-        !str_equal(read_data, post_data, read_req->io_Actual))
-    {
-        print("FAIL: Pending CMD_READ did not complete with posted data\n");
-        goto fail;
-    }
-    if (hook_state.calls != 2 ||
-        hook_state.last_cmd != CMD_UPDATE ||
-        hook_state.last_clip_id != post_id)
-    {
-        print("FAIL: CMD_UPDATE did not invoke change hook correctly\n");
-        goto fail;
-    }
-    print("OK: satisfying posted clip completes pending read and calls change hook\n");
+    check(error == 0 && read_req->io_ClipID == post_id && read_req->io_Actual == CLIP2_LEN &&
+          mem_equal(read_data, clip2, CLIP2_LEN), "pending CMD_READ completes with the posted data");
+    check(finish_read(read_req, read_data, sizeof(read_data)), "posted clip read ends at the clip end");
+    show_hook_calls(&hook_state, base, writer_req->io_Unit);
 
-    clip_req->io_Command = CBD_CHANGEHOOK;
-    clip_req->io_Flags = IOF_QUICK;
     clip_req->io_Data = (STRPTR)&hook;
     clip_req->io_Length = 0;
-    DoIO((struct IORequest *)clip_req);
-    if (clip_req->io_Error != 0)
-    {
-        print("FAIL: CBD_CHANGEHOOK remove failed\n");
-        goto fail;
-    }
-    reset_hook_state(&hook_state);
+    do_cmd(clip_req, CBD_CHANGEHOOK);
+    check(clip_req->io_Error == 0, "CBD_CHANGEHOOK removes hook");
+    clip_id = write_clip(writer_req, clip3, CLIP3_LEN, 0);
+    check(clip_id == post_id + 1 && hook_state.calls == 0, "removed change hook is not called");
 
-    writer_req->io_Command = CMD_WRITE;
-    writer_req->io_Flags = IOF_QUICK;
-    writer_req->io_Data = (STRPTR)final_data;
-    writer_req->io_Length = sizeof(final_data) - 1;
-    writer_req->io_Offset = 0;
-    writer_req->io_ClipID = 0;
-    DoIO((struct IORequest *)writer_req);
-    if (writer_req->io_Error != 0)
-    {
-        print("FAIL: CMD_WRITE failed after hook removal\n");
-        goto fail;
-    }
-    clip_id = writer_req->io_ClipID;
-
-    writer_req->io_Command = CMD_UPDATE;
-    writer_req->io_Flags = IOF_QUICK;
-    writer_req->io_ClipID = clip_id;
-    DoIO((struct IORequest *)writer_req);
-    if (writer_req->io_Error != 0 || hook_state.calls != 0)
-    {
-        print("FAIL: removed change hook still fired\n");
-        goto fail;
-    }
-    print("OK: CBD_CHANGEHOOK removal stops notifications\n");
-
-    writer_req->io_Command = CBD_POST;
-    writer_req->io_Flags = IOF_QUICK;
+    /* --- aborting a read that waits for a post ----------------------- */
     writer_req->io_Data = (STRPTR)abort_port;
     writer_req->io_ClipID = 0;
-    DoIO((struct IORequest *)writer_req);
-    if (writer_req->io_Error != 0)
-    {
-        print("FAIL: CBD_POST failed for abort test\n");
-        goto fail;
-    }
-    abort_post_id = writer_req->io_ClipID;
+    do_cmd(writer_req, CBD_POST);
+    post_id = writer_req->io_ClipID;
+    check(writer_req->io_Error == 0 && post_id == clip_id + 1, "second CBD_POST assigns the next clip ID");
 
     read_req->io_Command = CMD_READ;
+    read_req->io_Error = 0;
     read_req->io_Data = (STRPTR)read_data;
     read_req->io_Length = sizeof(read_data);
     read_req->io_Offset = 0;
-    read_req->io_ClipID = abort_post_id;
+    read_req->io_ClipID = 0;
     SendIO((struct IORequest *)read_req);
-    if (CheckIO((struct IORequest *)read_req) != NULL)
-    {
-        print("FAIL: abort test CMD_READ should pend\n");
-        goto fail;
-    }
-
-    abort_msg = (struct SatisfyMsg *)GetMsg(abort_port);
-    if (!abort_msg || abort_msg->sm_ClipID != abort_post_id)
-    {
-        print("FAIL: abort test missing SatisfyMsg\n");
-        goto fail;
-    }
+    check(CheckIO((struct IORequest *)read_req) == NULL, "CMD_READ of the second post pends");
+    satisfy_msg = (struct SatisfyMsg *)GetMsg(abort_port);
+    check(satisfy_msg != NULL && satisfy_msg->sm_ClipID == post_id, "second post sends a SatisfyMsg");
 
     AbortIO((struct IORequest *)read_req);
     error = WaitIO((struct IORequest *)read_req);
-    if (error != IOERR_ABORTED || read_req->io_Error != IOERR_ABORTED)
-    {
-        print("FAIL: AbortIO did not abort pending CMD_READ\n");
-        goto fail;
-    }
-    print("OK: AbortIO aborts pending clipboard reads\n");
+    check(error == IOERR_ABORTED && read_req->io_Error == IOERR_ABORTED, "AbortIO aborts a pending CMD_READ");
 
-    writer_req->io_Command = CMD_WRITE;
-    writer_req->io_Flags = IOF_QUICK;
-    writer_req->io_Data = (STRPTR)final_data;
-    writer_req->io_Length = sizeof(final_data) - 1;
-    writer_req->io_Offset = 0;
-    writer_req->io_ClipID = 0;
-    DoIO((struct IORequest *)writer_req);
-    if (writer_req->io_Error != 0)
-    {
-        print("FAIL: cleanup CMD_WRITE after AbortIO failed\n");
-        goto fail;
-    }
-    clip_id = writer_req->io_ClipID;
-    writer_req->io_Command = CMD_UPDATE;
-    writer_req->io_Flags = IOF_QUICK;
-    writer_req->io_ClipID = clip_id;
-    DoIO((struct IORequest *)writer_req);
-    if (writer_req->io_Error != 0)
-    {
-        print("FAIL: cleanup CMD_UPDATE after AbortIO failed\n");
-        goto fail;
-    }
+    clip_id = write_clip(writer_req, clip3, CLIP3_LEN, post_id);
+    check(clip_id == post_id, "the aborted post can still be satisfied");
 
-    device = clip_req->io_Device;
-    device_node = FindName(&SysBase->DeviceList, (STRPTR)"clipboard.device");
-    if (device_node != &device->dd_Library.lib_Node)
-    {
-        print("FAIL: clipboard.device missing from DeviceList before Expunge\n");
-        goto fail;
-    }
-
+    /* --- Expunge while open ------------------------------------------ */
     RemDevice(device);
-    if ((device->dd_Library.lib_Flags & LIBF_DELEXP) == 0 ||
-        FindName(&SysBase->DeviceList, (STRPTR)"clipboard.device") != NULL)
-    {
-        print("FAIL: Expunge() did not defer/unlink correctly\n");
-        goto fail;
-    }
-    print("OK: Expunge() defers while open and unlinks clipboard.device\n");
+    check((device->dd_Library.lib_Flags & LIBF_DELEXP) != 0 &&
+          FindName(&SysBase->DeviceList, (STRPTR)"clipboard.device") == &device->dd_Library.lib_Node,
+          "RemDevice() while open sets LIBF_DELEXP and keeps the device");
 
     error = OpenDevice((STRPTR)"clipboard.device", PRIMARY_CLIP, (struct IORequest *)reopen_req, 0);
-    if (error != IOERR_OPENFAIL)
-    {
-        print("FAIL: deferred Expunge() still allowed opens\n");
-        if (error == 0)
-            CloseDevice((struct IORequest *)reopen_req);
-        goto fail;
-    }
-    print("OK: deferred Expunge() blocks new opens\n");
+    check(error == 0 && reopen_req->io_Device == device &&
+          (device->dd_Library.lib_Flags & LIBF_DELEXP) == 0 &&
+          device->dd_Library.lib_OpenCnt == 4, "OpenDevice() after deferred expunge clears LIBF_DELEXP");
+    if (error == 0)
+        CloseDevice((struct IORequest *)reopen_req);
 
+    RemDevice(device);
     CloseDevice((struct IORequest *)read_req);
-    if (device->dd_Library.lib_OpenCnt != 2 ||
-        (device->dd_Library.lib_Flags & LIBF_DELEXP) == 0)
-    {
-        print("FAIL: deferred Expunge cleared too early after first close\n");
-        goto fail;
-    }
-
     CloseDevice((struct IORequest *)writer_req);
-    if (device->dd_Library.lib_OpenCnt != 1 ||
-        (device->dd_Library.lib_Flags & LIBF_DELEXP) == 0)
-    {
-        print("FAIL: deferred Expunge cleared too early after second close\n");
-        goto fail;
-    }
-
     CloseDevice((struct IORequest *)clip_req);
-    if (device->dd_Library.lib_OpenCnt != 0 ||
-        (device->dd_Library.lib_Flags & LIBF_DELEXP) != 0 ||
-        FindName(&SysBase->DeviceList, (STRPTR)"clipboard.device") != NULL)
-    {
-        print("FAIL: final Close() did not complete deferred Expunge\n");
-        goto fail;
-    }
-    print("OK: final Close() completes deferred Expunge\n");
+    check(device->dd_Library.lib_OpenCnt == 0 &&
+          FindName(&SysBase->DeviceList, (STRPTR)"clipboard.device") == &device->dd_Library.lib_Node,
+          "closing the last opener does not expunge clipboard.device");
 
-    print("OK: Cleanup complete\n");
-    print("PASS: clipboard.device test complete\n");
-
-    delete_clip_req(reopen_req);
-    delete_clip_req(read_req);
-    delete_clip_req(writer_req);
-    delete_clip_req(clip_req);
+    DeleteIORequest((struct IORequest *)reopen_req);
+    DeleteIORequest((struct IORequest *)read_req);
+    DeleteIORequest((struct IORequest *)writer_req);
+    DeleteIORequest((struct IORequest *)clip_req);
     DeleteMsgPort(abort_port);
     DeleteMsgPort(satisfy_port);
     DeleteMsgPort(reply_port);
+
+    if (failures)
+    {
+        print("FAIL: clipboard.device test had failures\n");
+        return 1;
+    }
+    print("PASS: clipboard.device test complete\n");
     return 0;
-
-fail:
-    close_if_open(read_req);
-    close_if_open(writer_req);
-    close_if_open(clip_req);
-
-    delete_clip_req(reopen_req);
-    delete_clip_req(read_req);
-    delete_clip_req(writer_req);
-    delete_clip_req(clip_req);
-
-    if (abort_port)
-        DeleteMsgPort(abort_port);
-    if (satisfy_port)
-        DeleteMsgPort(satisfy_port);
-    if (reply_port)
-        DeleteMsgPort(reply_port);
-
-    return 1;
 }

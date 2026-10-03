@@ -1,0 +1,6 @@
+INFO: boot day 16801
+OK: DateStamp ticks across Delay(50) in 49..53
+OK: GetSysTime ms across Delay(50) in 980..1060
+OK: TR_ADDREQUEST 500ms elapsed ms in 495..540
+OK: ReadEClock ms across Delay(25) in 480..540
+PASS: virtual clock consistent

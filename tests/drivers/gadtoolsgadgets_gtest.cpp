@@ -961,10 +961,12 @@ TEST_F(GadToolsGadgetsPixelTest, ResizeKeepsSizeGadgetBordersClean) {
 
     int start_x = window_info.x + orig_w - (size_gadget_w / 2);
     int start_y = window_info.y + orig_h - (size_gadget_h / 2);
-    int end_x = start_x + 36;
-    int end_y = start_y + 20;
-    int expected_w = orig_w + 36;
-    int expected_h = orig_h + 20;
+    /* the window has no WA_MaxWidth/MaxHeight, so (as on AmigaOS 3.1)
+     * it cannot grow beyond its initial size: shrink it instead */
+    int end_x = start_x - 8;
+    int end_y = start_y - 6;
+    int expected_w = orig_w - 8;
+    int expected_h = orig_h - 6;
 
     ASSERT_TRUE(lxa_inject_drag(start_x, start_y, end_x, end_y, LXA_MOUSE_LEFT, 5));
 
