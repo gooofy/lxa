@@ -5650,46 +5650,19 @@ void _bootstrap(void)
     }
     DPRINTF (LOG_INFO, "_exec: _bootstrap(): args='%s' len=%d\n", args_buf, args_len);
 
-    /* simply JSR() into our child process
-     * 
-     * IMPORTANT: External programs (like BeckerText II) may not preserve the 
-     * callee-saved registers A2-A5 that gcc expects to be preserved across
-     * function calls. We use inline assembly with a register clobber list
-     * to tell gcc that these registers may be modified, forcing it to reload
-     * any cached values after the call.
-     */
+    /* Run the program as the 3.1 shell runs a command: RunCommand() gives
+     * it a stack of its own with tc_SPLower/tc_SPUpper describing exactly
+     * that stack and SP at its top (stack size at 4(sp) and in d2,
+     * arguments in a0/d0 and d3/d4: tests/probes/dos/entryregs.c).
+     * Programs paint or check their stack from tc_SPUpper downwards
+     * (ADPro fills tc_SPLower .. tc_SPUpper-1024 with $ff at startup),
+     * so the bootstrap's own locals must not sit on it. */
     ULONG rv;
     {
-        /* AmigaOS CLI entry convention: d0 = argument length, a0 = arguments,
-         * (sp) = return address and 4(sp) = the stack size in bytes - C
-         * startup code (Lattice/SAS c.o) derives its stack-overflow bound
-         * from it (without it, Fred Fish YachtC & co. hit a false "stack
-         * overflow" at once: Phase 232). */
         struct Task *me = SysBase->ThisTask;
         ULONG stacksize = (ULONG)me->tc_SPUpper - (ULONG)me->tc_SPLower;
-        register ULONG d0 __asm("d0") = args_len;
-        register ULONG d1 __asm("d1") = stacksize;
-        register STRPTR a0 __asm("a0") = (STRPTR)args_buf;
-        register APTR a1 __asm("a1") = initPC;
 
-        /* and as on AmigaOS 3.1 (tests/probes/dos/entryregs.c): d2 = stack
-         * size, d3 = arguments, d4 = argument length, a4 near sp - Lattice
-         * 3.03 c.o takes its stack bound from the saved d2 */
-        __asm__ __volatile__ (
-            "move.l  %1, -(%%sp)\n\t"
-            "move.l  %1, %%d2\n\t"
-            "move.l  %2, %%d3\n\t"
-            "move.l  %0, %%d4\n\t"
-            "move.l  %%sp, %%a4\n\t"
-            "jsr     (%3)\n\t"
-            "addq.l  #4, %%sp"
-            : "+r" (d0), "+r" (d1), "+r" (a0), "+r" (a1)
-            :
-            : "d2", "d3", "d4", "d5", "d6", "d7", "a2", "a3", "a4", "a6", "cc", "memory");
-        rv = d0;
-        
-        /* Clobber all callee-saved registers to force gcc to reload them */
-        __asm__ __volatile__ ("" ::: "a2", "a3", "a4", "d2", "d3", "d4", "d5", "d6", "d7", "memory");
+        rv = RunCommand(segs, stacksize, (STRPTR)args_buf, args_len);
     }
 
     DPRINTF (LOG_DEBUG, "_exec: _bootstrap(): childfn() returned, rv=%ld\n", rv);

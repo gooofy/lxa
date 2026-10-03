@@ -1,0 +1,3 @@
+-- SP in main() relative to tc_SPLower/tc_SPUpper
+SP inside [tc_SPLower, tc_SPUpper] = TRUE
+tc_SPUpper - SP < 1024 = TRUE
