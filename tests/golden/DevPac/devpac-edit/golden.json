@@ -1,0 +1,3258 @@
+{
+ "app": "DevPac",
+ "disabled": null,
+ "lxa_version": "0.11.19",
+ "note": "GadTools menu item geometry/flags and underscore labels (222e), GACT_BORDERSNIFF and missing gadget (222d), ROM font (225)",
+ "promoted": "2026-10-03",
+ "reference": "AmigaOS 3.1 (KS 40.70), profile aga",
+ "requires_apps": true,
+ "scenario": "devpac-edit",
+ "snapshots": {
+  "settings": {
+   "known_tree_diffs": [
+    {
+     "field": "min_width",
+     "kind": "window",
+     "lxa": 200,
+     "phase": 222,
+     "ref": 489,
+     "where": "screen[Settings]/window[Settings]"
+    },
+    {
+     "field": "min_height",
+     "kind": "window",
+     "lxa": 11,
+     "phase": 222,
+     "ref": 128,
+     "where": "screen[Settings]/window[Settings]"
+    },
+    {
+     "field": "flags",
+     "kind": "gadget",
+     "lxa": 131,
+     "phase": 222,
+     "ref": 32902,
+     "where": "screen[Settings]/window[Settings]/gadget[0 id=1]"
+    },
+    {
+     "field": "text",
+     "kind": "gadget",
+     "lxa": [
+      "Auto-Indent"
+     ],
+     "phase": 222,
+     "ref": [
+      "Auto-Indent",
+      "A"
+     ],
+     "where": "screen[Settings]/window[Settings]/gadget[0 id=1]"
+    },
+    {
+     "field": "flags",
+     "kind": "gadget",
+     "lxa": 3,
+     "phase": 222,
+     "ref": 32774,
+     "where": "screen[Settings]/window[Settings]/gadget[1 id=2]"
+    },
+    {
+     "field": "text",
+     "kind": "gadget",
+     "lxa": [
+      "Make Backups"
+     ],
+     "phase": 222,
+     "ref": [
+      "Make Backups",
+      "B"
+     ],
+     "where": "screen[Settings]/window[Settings]/gadget[1 id=2]"
+    },
+    {
+     "field": "flags",
+     "kind": "gadget",
+     "lxa": 131,
+     "phase": 222,
+     "ref": 32902,
+     "where": "screen[Settings]/window[Settings]/gadget[2 id=3]"
+    },
+    {
+     "field": "text",
+     "kind": "gadget",
+     "lxa": [
+      "Stack New Projects"
+     ],
+     "phase": 222,
+     "ref": [
+      "Stack New Projects",
+      "N"
+     ],
+     "where": "screen[Settings]/window[Settings]/gadget[2 id=3]"
+    },
+    {
+     "field": "flags",
+     "kind": "gadget",
+     "lxa": 131,
+     "phase": 222,
+     "ref": 32902,
+     "where": "screen[Settings]/window[Settings]/gadget[3 id=4]"
+    },
+    {
+     "field": "text",
+     "kind": "gadget",
+     "lxa": [
+      "Shift-Backspace"
+     ],
+     "phase": 222,
+     "ref": [
+      "Shift-Backspace",
+      "h"
+     ],
+     "where": "screen[Settings]/window[Settings]/gadget[3 id=4]"
+    },
+    {
+     "field": "flags",
+     "kind": "gadget",
+     "lxa": 3,
+     "phase": 222,
+     "ref": 32774,
+     "where": "screen[Settings]/window[Settings]/gadget[4 id=5]"
+    },
+    {
+     "field": "text",
+     "kind": "gadget",
+     "lxa": [
+      "Public Screen:",
+      "Use"
+     ],
+     "phase": 222,
+     "ref": [
+      "Public Screen:",
+      "P"
+     ],
+     "where": "screen[Settings]/window[Settings]/gadget[4 id=5]"
+    },
+    {
+     "field": "flags",
+     "kind": "gadget",
+     "lxa": 3,
+     "phase": 222,
+     "ref": 32774,
+     "where": "screen[Settings]/window[Settings]/gadget[5 id=6]"
+    },
+    {
+     "field": "text",
+     "kind": "gadget",
+     "lxa": [
+      "End of Line:",
+      "Ignore"
+     ],
+     "phase": 222,
+     "ref": [
+      "End of Line:",
+      "E"
+     ],
+     "where": "screen[Settings]/window[Settings]/gadget[5 id=6]"
+    },
+    {
+     "field": "flags",
+     "kind": "gadget",
+     "lxa": 3,
+     "phase": 222,
+     "ref": 32774,
+     "where": "screen[Settings]/window[Settings]/gadget[6 id=7]"
+    },
+    {
+     "field": "text",
+     "kind": "gadget",
+     "lxa": [
+      "Word Qualifier:",
+      "Alt"
+     ],
+     "phase": 222,
+     "ref": [
+      "Word Qualifier:",
+      "Q"
+     ],
+     "where": "screen[Settings]/window[Settings]/gadget[6 id=7]"
+    },
+    {
+     "field": "flags",
+     "kind": "gadget",
+     "lxa": 3,
+     "phase": 222,
+     "ref": 32774,
+     "where": "screen[Settings]/window[Settings]/gadget[7 id=8]"
+    },
+    {
+     "field": "text",
+     "kind": "gadget",
+     "lxa": [
+      "Save Before Run:",
+      "No"
+     ],
+     "phase": 222,
+     "ref": [
+      "Save Before Run:",
+      "v"
+     ],
+     "where": "screen[Settings]/window[Settings]/gadget[7 id=8]"
+    },
+    {
+     "field": "flags",
+     "kind": "gadget",
+     "lxa": 3,
+     "phase": 222,
+     "ref": 32774,
+     "where": "screen[Settings]/window[Settings]/gadget[8 id=9]"
+    },
+    {
+     "field": "text",
+     "kind": "gadget",
+     "lxa": [
+      "Program Window:",
+      "Auto"
+     ],
+     "phase": 222,
+     "ref": [
+      "Program Window:",
+      "W"
+     ],
+     "where": "screen[Settings]/window[Settings]/gadget[8 id=9]"
+    },
+    {
+     "field": "flags",
+     "kind": "gadget",
+     "lxa": 3,
+     "phase": 222,
+     "ref": 32774,
+     "where": "screen[Settings]/window[Settings]/gadget[9 id=10]"
+    },
+    {
+     "field": "text",
+     "kind": "gadget",
+     "lxa": [
+      "IBM Keypad"
+     ],
+     "phase": 222,
+     "ref": [
+      "IBM Keypad",
+      "I"
+     ],
+     "where": "screen[Settings]/window[Settings]/gadget[9 id=10]"
+    },
+    {
+     "field": "flags",
+     "kind": "gadget",
+     "lxa": 0,
+     "phase": 222,
+     "ref": 33284,
+     "where": "screen[Settings]/window[Settings]/gadget[10 id=11]"
+    },
+    {
+     "field": "activation",
+     "kind": "gadget",
+     "lxa": 2049,
+     "phase": 222,
+     "ref": 10241,
+     "where": "screen[Settings]/window[Settings]/gadget[10 id=11]"
+    },
+    {
+     "field": "text",
+     "kind": "gadget",
+     "lxa": [
+      "Tab Size:"
+     ],
+     "phase": 222,
+     "ref": [
+      "Tab Size:",
+      "T"
+     ],
+     "where": "screen[Settings]/window[Settings]/gadget[10 id=11]"
+    },
+    {
+     "field": "flags",
+     "kind": "gadget",
+     "lxa": 0,
+     "phase": 222,
+     "ref": 33284,
+     "where": "screen[Settings]/window[Settings]/gadget[11 id=12]"
+    },
+    {
+     "field": "activation",
+     "kind": "gadget",
+     "lxa": 1,
+     "phase": 222,
+     "ref": 8193,
+     "where": "screen[Settings]/window[Settings]/gadget[11 id=12]"
+    },
+    {
+     "field": "text",
+     "kind": "gadget",
+     "lxa": [
+      ""
+     ],
+     "phase": 222,
+     "ref": [
+      "",
+      ""
+     ],
+     "where": "screen[Settings]/window[Settings]/gadget[11 id=12]"
+    },
+    {
+     "field": "flags",
+     "kind": "gadget",
+     "lxa": 3,
+     "phase": 222,
+     "ref": 32774,
+     "where": "screen[Settings]/window[Settings]/gadget[12 id=13]"
+    },
+    {
+     "field": "flags",
+     "kind": "gadget",
+     "lxa": 3,
+     "phase": 222,
+     "ref": 32774,
+     "where": "screen[Settings]/window[Settings]/gadget[13 id=14]"
+    },
+    {
+     "field": "flags",
+     "kind": "gadget",
+     "lxa": 3,
+     "phase": 222,
+     "ref": 32774,
+     "where": "screen[Settings]/window[Settings]/gadget[14 id=15]"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 154,
+     "phase": 222,
+     "ref": 195,
+     "where": "screen[Settings]/window[Settings]/menu[Edit]/Cut"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 154,
+     "phase": 222,
+     "ref": 195,
+     "where": "screen[Settings]/window[Settings]/menu[Edit]/Copy"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 154,
+     "phase": 222,
+     "ref": 195,
+     "where": "screen[Settings]/window[Settings]/menu[Edit]/Paste"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 154,
+     "phase": 222,
+     "ref": 195,
+     "where": "screen[Settings]/window[Settings]/menu[Edit]/#3"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 154,
+     "phase": 222,
+     "ref": 195,
+     "where": "screen[Settings]/window[Settings]/menu[Edit]/Erase"
+    },
+    {
+     "field": "flags",
+     "kind": "item",
+     "lxa": 70,
+     "phase": 222,
+     "ref": 66,
+     "where": "screen[Settings]/window[Settings]/menu[Edit]/Erase"
+    },
+    {
+     "field": "command",
+     "kind": "item",
+     "lxa": 65,
+     "phase": 222,
+     "ref": 0,
+     "where": "screen[Settings]/window[Settings]/menu[Edit]/Erase"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 154,
+     "phase": 222,
+     "ref": 195,
+     "where": "screen[Settings]/window[Settings]/menu[Edit]/#5"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 154,
+     "phase": 222,
+     "ref": 195,
+     "where": "screen[Settings]/window[Settings]/menu[Edit]/Undo Line"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 154,
+     "phase": 222,
+     "ref": 195,
+     "where": "screen[Settings]/window[Settings]/menu[Edit]/Mark Block"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 154,
+     "phase": 222,
+     "ref": 195,
+     "where": "screen[Settings]/window[Settings]/menu[Edit]/Utility"
+    },
+    {
+     "field": "left",
+     "kind": "item",
+     "lxa": 116,
+     "phase": 222,
+     "ref": 147,
+     "where": "screen[Settings]/window[Settings]/menu[Edit]/Utility/Indent"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 122,
+     "phase": 222,
+     "ref": 163,
+     "where": "screen[Settings]/window[Settings]/menu[Edit]/Utility/Indent"
+    },
+    {
+     "field": "flags",
+     "kind": "item",
+     "lxa": 86,
+     "phase": 222,
+     "ref": 82,
+     "where": "screen[Settings]/window[Settings]/menu[Edit]/Utility/Indent"
+    },
+    {
+     "field": "command",
+     "kind": "item",
+     "lxa": 65,
+     "phase": 222,
+     "ref": 0,
+     "where": "screen[Settings]/window[Settings]/menu[Edit]/Utility/Indent"
+    },
+    {
+     "field": "left",
+     "kind": "item",
+     "lxa": 116,
+     "phase": 222,
+     "ref": 147,
+     "where": "screen[Settings]/window[Settings]/menu[Edit]/Utility/Outdent"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 122,
+     "phase": 222,
+     "ref": 163,
+     "where": "screen[Settings]/window[Settings]/menu[Edit]/Utility/Outdent"
+    },
+    {
+     "field": "left",
+     "kind": "item",
+     "lxa": 116,
+     "phase": 222,
+     "ref": 147,
+     "where": "screen[Settings]/window[Settings]/menu[Edit]/Utility/#2"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 122,
+     "phase": 222,
+     "ref": 163,
+     "where": "screen[Settings]/window[Settings]/menu[Edit]/Utility/#2"
+    },
+    {
+     "field": "left",
+     "kind": "item",
+     "lxa": 116,
+     "phase": 222,
+     "ref": 147,
+     "where": "screen[Settings]/window[Settings]/menu[Edit]/Utility/Upper Case"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 122,
+     "phase": 222,
+     "ref": 163,
+     "where": "screen[Settings]/window[Settings]/menu[Edit]/Utility/Upper Case"
+    },
+    {
+     "field": "flags",
+     "kind": "item",
+     "lxa": 86,
+     "phase": 222,
+     "ref": 82,
+     "where": "screen[Settings]/window[Settings]/menu[Edit]/Utility/Upper Case"
+    },
+    {
+     "field": "command",
+     "kind": "item",
+     "lxa": 67,
+     "phase": 222,
+     "ref": 0,
+     "where": "screen[Settings]/window[Settings]/menu[Edit]/Utility/Upper Case"
+    },
+    {
+     "field": "left",
+     "kind": "item",
+     "lxa": 116,
+     "phase": 222,
+     "ref": 147,
+     "where": "screen[Settings]/window[Settings]/menu[Edit]/Utility/Lower Case"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 122,
+     "phase": 222,
+     "ref": 163,
+     "where": "screen[Settings]/window[Settings]/menu[Edit]/Utility/Lower Case"
+    },
+    {
+     "field": "flags",
+     "kind": "item",
+     "lxa": 86,
+     "phase": 222,
+     "ref": 82,
+     "where": "screen[Settings]/window[Settings]/menu[Edit]/Utility/Lower Case"
+    },
+    {
+     "field": "command",
+     "kind": "item",
+     "lxa": 67,
+     "phase": 222,
+     "ref": 0,
+     "where": "screen[Settings]/window[Settings]/menu[Edit]/Utility/Lower Case"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 154,
+     "phase": 222,
+     "ref": 195,
+     "where": "screen[Settings]/window[Settings]/menu[Edit]/#9"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 154,
+     "phase": 222,
+     "ref": 195,
+     "where": "screen[Settings]/window[Settings]/menu[Edit]/Insert File..."
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 154,
+     "phase": 222,
+     "ref": 195,
+     "where": "screen[Settings]/window[Settings]/menu[Edit]/Save Block..."
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 106,
+     "phase": 222,
+     "ref": 123,
+     "where": "screen[Settings]/window[Settings]/menu[Search]/Find/Next"
+    },
+    {
+     "field": "flags",
+     "kind": "item",
+     "lxa": 86,
+     "phase": 222,
+     "ref": 82,
+     "where": "screen[Settings]/window[Settings]/menu[Search]/Find/Next"
+    },
+    {
+     "field": "command",
+     "kind": "item",
+     "lxa": 67,
+     "phase": 222,
+     "ref": 0,
+     "where": "screen[Settings]/window[Settings]/menu[Search]/Find/Next"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 106,
+     "phase": 222,
+     "ref": 123,
+     "where": "screen[Settings]/window[Settings]/menu[Search]/Find/Previous"
+    },
+    {
+     "field": "flags",
+     "kind": "item",
+     "lxa": 86,
+     "phase": 222,
+     "ref": 82,
+     "where": "screen[Settings]/window[Settings]/menu[Search]/Find/Previous"
+    },
+    {
+     "field": "command",
+     "kind": "item",
+     "lxa": 67,
+     "phase": 222,
+     "ref": 0,
+     "where": "screen[Settings]/window[Settings]/menu[Search]/Find/Previous"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 106,
+     "phase": 222,
+     "ref": 123,
+     "where": "screen[Settings]/window[Settings]/menu[Search]/Find/Replace"
+    },
+    {
+     "field": "flags",
+     "kind": "item",
+     "lxa": 86,
+     "phase": 222,
+     "ref": 82,
+     "where": "screen[Settings]/window[Settings]/menu[Search]/Find/Replace"
+    },
+    {
+     "field": "command",
+     "kind": "item",
+     "lxa": 67,
+     "phase": 222,
+     "ref": 0,
+     "where": "screen[Settings]/window[Settings]/menu[Search]/Find/Replace"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 154,
+     "phase": 222,
+     "ref": 171,
+     "where": "screen[Settings]/window[Settings]/menu[Program]/Run"
+    },
+    {
+     "field": "flags",
+     "kind": "item",
+     "lxa": 86,
+     "phase": 222,
+     "ref": 82,
+     "where": "screen[Settings]/window[Settings]/menu[Program]/Run"
+    },
+    {
+     "field": "command",
+     "kind": "item",
+     "lxa": 67,
+     "phase": 222,
+     "ref": 0,
+     "where": "screen[Settings]/window[Settings]/menu[Program]/Run"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 154,
+     "phase": 222,
+     "ref": 171,
+     "where": "screen[Settings]/window[Settings]/menu[Program]/Break"
+    },
+    {
+     "field": "flags",
+     "kind": "item",
+     "lxa": 70,
+     "phase": 222,
+     "ref": 66,
+     "where": "screen[Settings]/window[Settings]/menu[Program]/Break"
+    },
+    {
+     "field": "command",
+     "kind": "item",
+     "lxa": 67,
+     "phase": 222,
+     "ref": 0,
+     "where": "screen[Settings]/window[Settings]/menu[Program]/Break"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 154,
+     "phase": 222,
+     "ref": 171,
+     "where": "screen[Settings]/window[Settings]/menu[Program]/Errors"
+    },
+    {
+     "field": "left",
+     "kind": "item",
+     "lxa": 116,
+     "phase": 222,
+     "ref": 129,
+     "where": "screen[Settings]/window[Settings]/menu[Program]/Errors/Next"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 106,
+     "phase": 222,
+     "ref": 123,
+     "where": "screen[Settings]/window[Settings]/menu[Program]/Errors/Next"
+    },
+    {
+     "field": "flags",
+     "kind": "item",
+     "lxa": 70,
+     "phase": 222,
+     "ref": 66,
+     "where": "screen[Settings]/window[Settings]/menu[Program]/Errors/Next"
+    },
+    {
+     "field": "command",
+     "kind": "item",
+     "lxa": 67,
+     "phase": 222,
+     "ref": 0,
+     "where": "screen[Settings]/window[Settings]/menu[Program]/Errors/Next"
+    },
+    {
+     "field": "left",
+     "kind": "item",
+     "lxa": 116,
+     "phase": 222,
+     "ref": 129,
+     "where": "screen[Settings]/window[Settings]/menu[Program]/Errors/Previous"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 106,
+     "phase": 222,
+     "ref": 123,
+     "where": "screen[Settings]/window[Settings]/menu[Program]/Errors/Previous"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 154,
+     "phase": 222,
+     "ref": 171,
+     "where": "screen[Settings]/window[Settings]/menu[Program]/#3"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 154,
+     "phase": 222,
+     "ref": 171,
+     "where": "screen[Settings]/window[Settings]/menu[Program]/Assemble"
+    },
+    {
+     "field": "flags",
+     "kind": "item",
+     "lxa": 86,
+     "phase": 222,
+     "ref": 82,
+     "where": "screen[Settings]/window[Settings]/menu[Program]/Assemble"
+    },
+    {
+     "field": "command",
+     "kind": "item",
+     "lxa": 67,
+     "phase": 222,
+     "ref": 0,
+     "where": "screen[Settings]/window[Settings]/menu[Program]/Assemble"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 154,
+     "phase": 222,
+     "ref": 171,
+     "where": "screen[Settings]/window[Settings]/menu[Program]/Make"
+    },
+    {
+     "field": "flags",
+     "kind": "item",
+     "lxa": 86,
+     "phase": 222,
+     "ref": 82,
+     "where": "screen[Settings]/window[Settings]/menu[Program]/Make"
+    },
+    {
+     "field": "command",
+     "kind": "item",
+     "lxa": 67,
+     "phase": 222,
+     "ref": 0,
+     "where": "screen[Settings]/window[Settings]/menu[Program]/Make"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 154,
+     "phase": 222,
+     "ref": 171,
+     "where": "screen[Settings]/window[Settings]/menu[Program]/Check"
+    },
+    {
+     "field": "flags",
+     "kind": "item",
+     "lxa": 86,
+     "phase": 222,
+     "ref": 82,
+     "where": "screen[Settings]/window[Settings]/menu[Program]/Check"
+    },
+    {
+     "field": "command",
+     "kind": "item",
+     "lxa": 67,
+     "phase": 222,
+     "ref": 0,
+     "where": "screen[Settings]/window[Settings]/menu[Program]/Check"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 154,
+     "phase": 222,
+     "ref": 171,
+     "where": "screen[Settings]/window[Settings]/menu[Program]/Output Symbols"
+    },
+    {
+     "field": "flags",
+     "kind": "item",
+     "lxa": 86,
+     "phase": 222,
+     "ref": 82,
+     "where": "screen[Settings]/window[Settings]/menu[Program]/Output Symbols"
+    },
+    {
+     "field": "command",
+     "kind": "item",
+     "lxa": 67,
+     "phase": 222,
+     "ref": 0,
+     "where": "screen[Settings]/window[Settings]/menu[Program]/Output Symbols"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 154,
+     "phase": 222,
+     "ref": 171,
+     "where": "screen[Settings]/window[Settings]/menu[Program]/#8"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 154,
+     "phase": 222,
+     "ref": 171,
+     "where": "screen[Settings]/window[Settings]/menu[Program]/Debug"
+    },
+    {
+     "field": "flags",
+     "kind": "item",
+     "lxa": 86,
+     "phase": 222,
+     "ref": 82,
+     "where": "screen[Settings]/window[Settings]/menu[Program]/Debug"
+    },
+    {
+     "field": "command",
+     "kind": "item",
+     "lxa": 67,
+     "phase": 222,
+     "ref": 0,
+     "where": "screen[Settings]/window[Settings]/menu[Program]/Debug"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 154,
+     "phase": 222,
+     "ref": 171,
+     "where": "screen[Settings]/window[Settings]/menu[Program]/Arguments..."
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 154,
+     "phase": 222,
+     "ref": 171,
+     "where": "screen[Settings]/window[Settings]/menu[Program]/#11"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 154,
+     "phase": 222,
+     "ref": 171,
+     "where": "screen[Settings]/window[Settings]/menu[Program]/Execute..."
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 162,
+     "phase": 222,
+     "ref": 179,
+     "where": "screen[Settings]/window[Settings]/menu[Macros]/Start Learning"
+    },
+    {
+     "field": "flags",
+     "kind": "item",
+     "lxa": 86,
+     "phase": 222,
+     "ref": 82,
+     "where": "screen[Settings]/window[Settings]/menu[Macros]/Start Learning"
+    },
+    {
+     "field": "command",
+     "kind": "item",
+     "lxa": 67,
+     "phase": 222,
+     "ref": 0,
+     "where": "screen[Settings]/window[Settings]/menu[Macros]/Start Learning"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 162,
+     "phase": 222,
+     "ref": 179,
+     "where": "screen[Settings]/window[Settings]/menu[Macros]/Stop Learning"
+    },
+    {
+     "field": "flags",
+     "kind": "item",
+     "lxa": 70,
+     "phase": 222,
+     "ref": 66,
+     "where": "screen[Settings]/window[Settings]/menu[Macros]/Stop Learning"
+    },
+    {
+     "field": "command",
+     "kind": "item",
+     "lxa": 67,
+     "phase": 222,
+     "ref": 0,
+     "where": "screen[Settings]/window[Settings]/menu[Macros]/Stop Learning"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 162,
+     "phase": 222,
+     "ref": 179,
+     "where": "screen[Settings]/window[Settings]/menu[Macros]/#2"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 162,
+     "phase": 222,
+     "ref": 179,
+     "where": "screen[Settings]/window[Settings]/menu[Macros]/Play Macro"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 162,
+     "phase": 222,
+     "ref": 179,
+     "where": "screen[Settings]/window[Settings]/menu[Macros]/Repeat Macro..."
+    },
+    {
+     "field": "flags",
+     "kind": "menu",
+     "lxa": 1,
+     "phase": 222,
+     "ref": 257,
+     "where": "screen[Settings]/window[Settings]/menu[Settings]"
+    },
+    {
+     "field": "flags",
+     "kind": "item",
+     "lxa": 86,
+     "phase": 222,
+     "ref": 8278,
+     "where": "screen[Settings]/window[Settings]/menu[Settings]/Settings..."
+    },
+    {
+     "field": "left",
+     "kind": "item",
+     "lxa": 146,
+     "phase": 222,
+     "ref": 128,
+     "where": "screen[Settings]/window[Settings]/menu[Settings]/Display/Text Font..."
+    },
+    {
+     "field": "left",
+     "kind": "item",
+     "lxa": 146,
+     "phase": 222,
+     "ref": 128,
+     "where": "screen[Settings]/window[Settings]/menu[Settings]/Display/Screen Mode..."
+    },
+    {
+     "field": "left",
+     "kind": "item",
+     "lxa": 146,
+     "phase": 222,
+     "ref": 128,
+     "where": "screen[Settings]/window[Settings]/menu[Settings]/Display/Screen Font..."
+    },
+    {
+     "field": "left",
+     "kind": "item",
+     "lxa": 146,
+     "phase": 222,
+     "ref": 75,
+     "where": "screen[Settings]/window[Settings]/menu[Settings]/Assembler/Control..."
+    },
+    {
+     "field": "left",
+     "kind": "item",
+     "lxa": 146,
+     "phase": 222,
+     "ref": 75,
+     "where": "screen[Settings]/window[Settings]/menu[Settings]/Assembler/Options..."
+    },
+    {
+     "field": "left",
+     "kind": "item",
+     "lxa": 146,
+     "phase": 222,
+     "ref": 75,
+     "where": "screen[Settings]/window[Settings]/menu[Settings]/Assembler/Optimisations..."
+    },
+    {
+     "field": "flags",
+     "kind": "window",
+     "lxa": 673189967,
+     "phase": 222,
+     "ref": 740298831,
+     "where": "screen[Settings]/window[Untitled]"
+    },
+    {
+     "field": "activation",
+     "kind": "gadget",
+     "lxa": 17,
+     "phase": 222,
+     "ref": 32785,
+     "where": "screen[Settings]/window[Untitled]/gadget[0 id=0]"
+    },
+    {
+     "field": "activation",
+     "kind": "gadget",
+     "lxa": 19,
+     "phase": 222,
+     "ref": 32787,
+     "where": "screen[Settings]/window[Untitled]/gadget[1 id=2]"
+    },
+    {
+     "field": "activation",
+     "kind": "gadget",
+     "lxa": 19,
+     "phase": 222,
+     "ref": 32787,
+     "where": "screen[Settings]/window[Untitled]/gadget[2 id=3]"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 154,
+     "phase": 222,
+     "ref": 195,
+     "where": "screen[Settings]/window[Untitled]/menu[Edit]/Cut"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 154,
+     "phase": 222,
+     "ref": 195,
+     "where": "screen[Settings]/window[Untitled]/menu[Edit]/Copy"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 154,
+     "phase": 222,
+     "ref": 195,
+     "where": "screen[Settings]/window[Untitled]/menu[Edit]/Paste"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 154,
+     "phase": 222,
+     "ref": 195,
+     "where": "screen[Settings]/window[Untitled]/menu[Edit]/#3"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 154,
+     "phase": 222,
+     "ref": 195,
+     "where": "screen[Settings]/window[Untitled]/menu[Edit]/Erase"
+    },
+    {
+     "field": "flags",
+     "kind": "item",
+     "lxa": 70,
+     "phase": 222,
+     "ref": 66,
+     "where": "screen[Settings]/window[Untitled]/menu[Edit]/Erase"
+    },
+    {
+     "field": "command",
+     "kind": "item",
+     "lxa": 65,
+     "phase": 222,
+     "ref": 0,
+     "where": "screen[Settings]/window[Untitled]/menu[Edit]/Erase"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 154,
+     "phase": 222,
+     "ref": 195,
+     "where": "screen[Settings]/window[Untitled]/menu[Edit]/#5"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 154,
+     "phase": 222,
+     "ref": 195,
+     "where": "screen[Settings]/window[Untitled]/menu[Edit]/Undo Line"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 154,
+     "phase": 222,
+     "ref": 195,
+     "where": "screen[Settings]/window[Untitled]/menu[Edit]/Mark Block"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 154,
+     "phase": 222,
+     "ref": 195,
+     "where": "screen[Settings]/window[Untitled]/menu[Edit]/Utility"
+    },
+    {
+     "field": "left",
+     "kind": "item",
+     "lxa": 116,
+     "phase": 222,
+     "ref": 147,
+     "where": "screen[Settings]/window[Untitled]/menu[Edit]/Utility/Indent"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 122,
+     "phase": 222,
+     "ref": 163,
+     "where": "screen[Settings]/window[Untitled]/menu[Edit]/Utility/Indent"
+    },
+    {
+     "field": "flags",
+     "kind": "item",
+     "lxa": 86,
+     "phase": 222,
+     "ref": 82,
+     "where": "screen[Settings]/window[Untitled]/menu[Edit]/Utility/Indent"
+    },
+    {
+     "field": "command",
+     "kind": "item",
+     "lxa": 65,
+     "phase": 222,
+     "ref": 0,
+     "where": "screen[Settings]/window[Untitled]/menu[Edit]/Utility/Indent"
+    },
+    {
+     "field": "left",
+     "kind": "item",
+     "lxa": 116,
+     "phase": 222,
+     "ref": 147,
+     "where": "screen[Settings]/window[Untitled]/menu[Edit]/Utility/Outdent"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 122,
+     "phase": 222,
+     "ref": 163,
+     "where": "screen[Settings]/window[Untitled]/menu[Edit]/Utility/Outdent"
+    },
+    {
+     "field": "left",
+     "kind": "item",
+     "lxa": 116,
+     "phase": 222,
+     "ref": 147,
+     "where": "screen[Settings]/window[Untitled]/menu[Edit]/Utility/#2"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 122,
+     "phase": 222,
+     "ref": 163,
+     "where": "screen[Settings]/window[Untitled]/menu[Edit]/Utility/#2"
+    },
+    {
+     "field": "left",
+     "kind": "item",
+     "lxa": 116,
+     "phase": 222,
+     "ref": 147,
+     "where": "screen[Settings]/window[Untitled]/menu[Edit]/Utility/Upper Case"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 122,
+     "phase": 222,
+     "ref": 163,
+     "where": "screen[Settings]/window[Untitled]/menu[Edit]/Utility/Upper Case"
+    },
+    {
+     "field": "flags",
+     "kind": "item",
+     "lxa": 86,
+     "phase": 222,
+     "ref": 82,
+     "where": "screen[Settings]/window[Untitled]/menu[Edit]/Utility/Upper Case"
+    },
+    {
+     "field": "command",
+     "kind": "item",
+     "lxa": 67,
+     "phase": 222,
+     "ref": 0,
+     "where": "screen[Settings]/window[Untitled]/menu[Edit]/Utility/Upper Case"
+    },
+    {
+     "field": "left",
+     "kind": "item",
+     "lxa": 116,
+     "phase": 222,
+     "ref": 147,
+     "where": "screen[Settings]/window[Untitled]/menu[Edit]/Utility/Lower Case"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 122,
+     "phase": 222,
+     "ref": 163,
+     "where": "screen[Settings]/window[Untitled]/menu[Edit]/Utility/Lower Case"
+    },
+    {
+     "field": "flags",
+     "kind": "item",
+     "lxa": 86,
+     "phase": 222,
+     "ref": 82,
+     "where": "screen[Settings]/window[Untitled]/menu[Edit]/Utility/Lower Case"
+    },
+    {
+     "field": "command",
+     "kind": "item",
+     "lxa": 67,
+     "phase": 222,
+     "ref": 0,
+     "where": "screen[Settings]/window[Untitled]/menu[Edit]/Utility/Lower Case"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 154,
+     "phase": 222,
+     "ref": 195,
+     "where": "screen[Settings]/window[Untitled]/menu[Edit]/#9"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 154,
+     "phase": 222,
+     "ref": 195,
+     "where": "screen[Settings]/window[Untitled]/menu[Edit]/Insert File..."
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 154,
+     "phase": 222,
+     "ref": 195,
+     "where": "screen[Settings]/window[Untitled]/menu[Edit]/Save Block..."
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 106,
+     "phase": 222,
+     "ref": 123,
+     "where": "screen[Settings]/window[Untitled]/menu[Search]/Find/Next"
+    },
+    {
+     "field": "flags",
+     "kind": "item",
+     "lxa": 86,
+     "phase": 222,
+     "ref": 82,
+     "where": "screen[Settings]/window[Untitled]/menu[Search]/Find/Next"
+    },
+    {
+     "field": "command",
+     "kind": "item",
+     "lxa": 67,
+     "phase": 222,
+     "ref": 0,
+     "where": "screen[Settings]/window[Untitled]/menu[Search]/Find/Next"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 106,
+     "phase": 222,
+     "ref": 123,
+     "where": "screen[Settings]/window[Untitled]/menu[Search]/Find/Previous"
+    },
+    {
+     "field": "flags",
+     "kind": "item",
+     "lxa": 86,
+     "phase": 222,
+     "ref": 82,
+     "where": "screen[Settings]/window[Untitled]/menu[Search]/Find/Previous"
+    },
+    {
+     "field": "command",
+     "kind": "item",
+     "lxa": 67,
+     "phase": 222,
+     "ref": 0,
+     "where": "screen[Settings]/window[Untitled]/menu[Search]/Find/Previous"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 106,
+     "phase": 222,
+     "ref": 123,
+     "where": "screen[Settings]/window[Untitled]/menu[Search]/Find/Replace"
+    },
+    {
+     "field": "flags",
+     "kind": "item",
+     "lxa": 86,
+     "phase": 222,
+     "ref": 82,
+     "where": "screen[Settings]/window[Untitled]/menu[Search]/Find/Replace"
+    },
+    {
+     "field": "command",
+     "kind": "item",
+     "lxa": 67,
+     "phase": 222,
+     "ref": 0,
+     "where": "screen[Settings]/window[Untitled]/menu[Search]/Find/Replace"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 154,
+     "phase": 222,
+     "ref": 171,
+     "where": "screen[Settings]/window[Untitled]/menu[Program]/Run"
+    },
+    {
+     "field": "flags",
+     "kind": "item",
+     "lxa": 86,
+     "phase": 222,
+     "ref": 82,
+     "where": "screen[Settings]/window[Untitled]/menu[Program]/Run"
+    },
+    {
+     "field": "command",
+     "kind": "item",
+     "lxa": 67,
+     "phase": 222,
+     "ref": 0,
+     "where": "screen[Settings]/window[Untitled]/menu[Program]/Run"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 154,
+     "phase": 222,
+     "ref": 171,
+     "where": "screen[Settings]/window[Untitled]/menu[Program]/Break"
+    },
+    {
+     "field": "flags",
+     "kind": "item",
+     "lxa": 70,
+     "phase": 222,
+     "ref": 66,
+     "where": "screen[Settings]/window[Untitled]/menu[Program]/Break"
+    },
+    {
+     "field": "command",
+     "kind": "item",
+     "lxa": 67,
+     "phase": 222,
+     "ref": 0,
+     "where": "screen[Settings]/window[Untitled]/menu[Program]/Break"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 154,
+     "phase": 222,
+     "ref": 171,
+     "where": "screen[Settings]/window[Untitled]/menu[Program]/Errors"
+    },
+    {
+     "field": "left",
+     "kind": "item",
+     "lxa": 116,
+     "phase": 222,
+     "ref": 129,
+     "where": "screen[Settings]/window[Untitled]/menu[Program]/Errors/Next"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 106,
+     "phase": 222,
+     "ref": 123,
+     "where": "screen[Settings]/window[Untitled]/menu[Program]/Errors/Next"
+    },
+    {
+     "field": "flags",
+     "kind": "item",
+     "lxa": 70,
+     "phase": 222,
+     "ref": 66,
+     "where": "screen[Settings]/window[Untitled]/menu[Program]/Errors/Next"
+    },
+    {
+     "field": "command",
+     "kind": "item",
+     "lxa": 67,
+     "phase": 222,
+     "ref": 0,
+     "where": "screen[Settings]/window[Untitled]/menu[Program]/Errors/Next"
+    },
+    {
+     "field": "left",
+     "kind": "item",
+     "lxa": 116,
+     "phase": 222,
+     "ref": 129,
+     "where": "screen[Settings]/window[Untitled]/menu[Program]/Errors/Previous"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 106,
+     "phase": 222,
+     "ref": 123,
+     "where": "screen[Settings]/window[Untitled]/menu[Program]/Errors/Previous"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 154,
+     "phase": 222,
+     "ref": 171,
+     "where": "screen[Settings]/window[Untitled]/menu[Program]/#3"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 154,
+     "phase": 222,
+     "ref": 171,
+     "where": "screen[Settings]/window[Untitled]/menu[Program]/Assemble"
+    },
+    {
+     "field": "flags",
+     "kind": "item",
+     "lxa": 86,
+     "phase": 222,
+     "ref": 82,
+     "where": "screen[Settings]/window[Untitled]/menu[Program]/Assemble"
+    },
+    {
+     "field": "command",
+     "kind": "item",
+     "lxa": 67,
+     "phase": 222,
+     "ref": 0,
+     "where": "screen[Settings]/window[Untitled]/menu[Program]/Assemble"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 154,
+     "phase": 222,
+     "ref": 171,
+     "where": "screen[Settings]/window[Untitled]/menu[Program]/Make"
+    },
+    {
+     "field": "flags",
+     "kind": "item",
+     "lxa": 86,
+     "phase": 222,
+     "ref": 82,
+     "where": "screen[Settings]/window[Untitled]/menu[Program]/Make"
+    },
+    {
+     "field": "command",
+     "kind": "item",
+     "lxa": 67,
+     "phase": 222,
+     "ref": 0,
+     "where": "screen[Settings]/window[Untitled]/menu[Program]/Make"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 154,
+     "phase": 222,
+     "ref": 171,
+     "where": "screen[Settings]/window[Untitled]/menu[Program]/Check"
+    },
+    {
+     "field": "flags",
+     "kind": "item",
+     "lxa": 86,
+     "phase": 222,
+     "ref": 82,
+     "where": "screen[Settings]/window[Untitled]/menu[Program]/Check"
+    },
+    {
+     "field": "command",
+     "kind": "item",
+     "lxa": 67,
+     "phase": 222,
+     "ref": 0,
+     "where": "screen[Settings]/window[Untitled]/menu[Program]/Check"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 154,
+     "phase": 222,
+     "ref": 171,
+     "where": "screen[Settings]/window[Untitled]/menu[Program]/Output Symbols"
+    },
+    {
+     "field": "flags",
+     "kind": "item",
+     "lxa": 86,
+     "phase": 222,
+     "ref": 82,
+     "where": "screen[Settings]/window[Untitled]/menu[Program]/Output Symbols"
+    },
+    {
+     "field": "command",
+     "kind": "item",
+     "lxa": 67,
+     "phase": 222,
+     "ref": 0,
+     "where": "screen[Settings]/window[Untitled]/menu[Program]/Output Symbols"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 154,
+     "phase": 222,
+     "ref": 171,
+     "where": "screen[Settings]/window[Untitled]/menu[Program]/#8"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 154,
+     "phase": 222,
+     "ref": 171,
+     "where": "screen[Settings]/window[Untitled]/menu[Program]/Debug"
+    },
+    {
+     "field": "flags",
+     "kind": "item",
+     "lxa": 86,
+     "phase": 222,
+     "ref": 82,
+     "where": "screen[Settings]/window[Untitled]/menu[Program]/Debug"
+    },
+    {
+     "field": "command",
+     "kind": "item",
+     "lxa": 67,
+     "phase": 222,
+     "ref": 0,
+     "where": "screen[Settings]/window[Untitled]/menu[Program]/Debug"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 154,
+     "phase": 222,
+     "ref": 171,
+     "where": "screen[Settings]/window[Untitled]/menu[Program]/Arguments..."
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 154,
+     "phase": 222,
+     "ref": 171,
+     "where": "screen[Settings]/window[Untitled]/menu[Program]/#11"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 154,
+     "phase": 222,
+     "ref": 171,
+     "where": "screen[Settings]/window[Untitled]/menu[Program]/Execute..."
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 162,
+     "phase": 222,
+     "ref": 179,
+     "where": "screen[Settings]/window[Untitled]/menu[Macros]/Start Learning"
+    },
+    {
+     "field": "flags",
+     "kind": "item",
+     "lxa": 86,
+     "phase": 222,
+     "ref": 82,
+     "where": "screen[Settings]/window[Untitled]/menu[Macros]/Start Learning"
+    },
+    {
+     "field": "command",
+     "kind": "item",
+     "lxa": 67,
+     "phase": 222,
+     "ref": 0,
+     "where": "screen[Settings]/window[Untitled]/menu[Macros]/Start Learning"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 162,
+     "phase": 222,
+     "ref": 179,
+     "where": "screen[Settings]/window[Untitled]/menu[Macros]/Stop Learning"
+    },
+    {
+     "field": "flags",
+     "kind": "item",
+     "lxa": 70,
+     "phase": 222,
+     "ref": 66,
+     "where": "screen[Settings]/window[Untitled]/menu[Macros]/Stop Learning"
+    },
+    {
+     "field": "command",
+     "kind": "item",
+     "lxa": 67,
+     "phase": 222,
+     "ref": 0,
+     "where": "screen[Settings]/window[Untitled]/menu[Macros]/Stop Learning"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 162,
+     "phase": 222,
+     "ref": 179,
+     "where": "screen[Settings]/window[Untitled]/menu[Macros]/#2"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 162,
+     "phase": 222,
+     "ref": 179,
+     "where": "screen[Settings]/window[Untitled]/menu[Macros]/Play Macro"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 162,
+     "phase": 222,
+     "ref": 179,
+     "where": "screen[Settings]/window[Untitled]/menu[Macros]/Repeat Macro..."
+    },
+    {
+     "field": "flags",
+     "kind": "menu",
+     "lxa": 1,
+     "phase": 222,
+     "ref": 257,
+     "where": "screen[Settings]/window[Untitled]/menu[Settings]"
+    },
+    {
+     "field": "flags",
+     "kind": "item",
+     "lxa": 86,
+     "phase": 222,
+     "ref": 8278,
+     "where": "screen[Settings]/window[Untitled]/menu[Settings]/Settings..."
+    },
+    {
+     "field": "left",
+     "kind": "item",
+     "lxa": 146,
+     "phase": 222,
+     "ref": 128,
+     "where": "screen[Settings]/window[Untitled]/menu[Settings]/Display/Text Font..."
+    },
+    {
+     "field": "left",
+     "kind": "item",
+     "lxa": 146,
+     "phase": 222,
+     "ref": 128,
+     "where": "screen[Settings]/window[Untitled]/menu[Settings]/Display/Screen Mode..."
+    },
+    {
+     "field": "left",
+     "kind": "item",
+     "lxa": 146,
+     "phase": 222,
+     "ref": 128,
+     "where": "screen[Settings]/window[Untitled]/menu[Settings]/Display/Screen Font..."
+    },
+    {
+     "field": "left",
+     "kind": "item",
+     "lxa": 146,
+     "phase": 222,
+     "ref": 75,
+     "where": "screen[Settings]/window[Untitled]/menu[Settings]/Assembler/Control..."
+    },
+    {
+     "field": "left",
+     "kind": "item",
+     "lxa": 146,
+     "phase": 222,
+     "ref": 75,
+     "where": "screen[Settings]/window[Untitled]/menu[Settings]/Assembler/Options..."
+    },
+    {
+     "field": "left",
+     "kind": "item",
+     "lxa": 146,
+     "phase": 222,
+     "ref": 75,
+     "where": "screen[Settings]/window[Untitled]/menu[Settings]/Assembler/Optimisations..."
+    }
+   ],
+   "pixel_budget": 4263,
+   "pixel_phase": 222,
+   "stdout_known_diff": null
+  },
+  "startup": {
+   "known_tree_diffs": [
+    {
+     "field": "flags",
+     "kind": "window",
+     "lxa": 673198159,
+     "phase": 222,
+     "ref": 740307023,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]"
+    },
+    {
+     "field": "activation",
+     "kind": "gadget",
+     "lxa": 17,
+     "phase": 222,
+     "ref": 32785,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/gadget[0 id=0]"
+    },
+    {
+     "field": "activation",
+     "kind": "gadget",
+     "lxa": 19,
+     "phase": 222,
+     "ref": 32787,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/gadget[1 id=2]"
+    },
+    {
+     "field": "activation",
+     "kind": "gadget",
+     "lxa": 19,
+     "phase": 222,
+     "ref": 32787,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/gadget[2 id=3]"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 154,
+     "phase": 222,
+     "ref": 195,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Edit]/Cut"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 154,
+     "phase": 222,
+     "ref": 195,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Edit]/Copy"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 154,
+     "phase": 222,
+     "ref": 195,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Edit]/Paste"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 154,
+     "phase": 222,
+     "ref": 195,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Edit]/#3"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 154,
+     "phase": 222,
+     "ref": 195,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Edit]/Erase"
+    },
+    {
+     "field": "flags",
+     "kind": "item",
+     "lxa": 70,
+     "phase": 222,
+     "ref": 66,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Edit]/Erase"
+    },
+    {
+     "field": "command",
+     "kind": "item",
+     "lxa": 65,
+     "phase": 222,
+     "ref": 0,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Edit]/Erase"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 154,
+     "phase": 222,
+     "ref": 195,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Edit]/#5"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 154,
+     "phase": 222,
+     "ref": 195,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Edit]/Undo Line"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 154,
+     "phase": 222,
+     "ref": 195,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Edit]/Mark Block"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 154,
+     "phase": 222,
+     "ref": 195,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Edit]/Utility"
+    },
+    {
+     "field": "left",
+     "kind": "item",
+     "lxa": 116,
+     "phase": 222,
+     "ref": 147,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Edit]/Utility/Indent"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 122,
+     "phase": 222,
+     "ref": 163,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Edit]/Utility/Indent"
+    },
+    {
+     "field": "flags",
+     "kind": "item",
+     "lxa": 86,
+     "phase": 222,
+     "ref": 82,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Edit]/Utility/Indent"
+    },
+    {
+     "field": "command",
+     "kind": "item",
+     "lxa": 65,
+     "phase": 222,
+     "ref": 0,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Edit]/Utility/Indent"
+    },
+    {
+     "field": "left",
+     "kind": "item",
+     "lxa": 116,
+     "phase": 222,
+     "ref": 147,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Edit]/Utility/Outdent"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 122,
+     "phase": 222,
+     "ref": 163,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Edit]/Utility/Outdent"
+    },
+    {
+     "field": "left",
+     "kind": "item",
+     "lxa": 116,
+     "phase": 222,
+     "ref": 147,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Edit]/Utility/#2"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 122,
+     "phase": 222,
+     "ref": 163,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Edit]/Utility/#2"
+    },
+    {
+     "field": "left",
+     "kind": "item",
+     "lxa": 116,
+     "phase": 222,
+     "ref": 147,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Edit]/Utility/Upper Case"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 122,
+     "phase": 222,
+     "ref": 163,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Edit]/Utility/Upper Case"
+    },
+    {
+     "field": "flags",
+     "kind": "item",
+     "lxa": 86,
+     "phase": 222,
+     "ref": 82,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Edit]/Utility/Upper Case"
+    },
+    {
+     "field": "command",
+     "kind": "item",
+     "lxa": 67,
+     "phase": 222,
+     "ref": 0,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Edit]/Utility/Upper Case"
+    },
+    {
+     "field": "left",
+     "kind": "item",
+     "lxa": 116,
+     "phase": 222,
+     "ref": 147,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Edit]/Utility/Lower Case"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 122,
+     "phase": 222,
+     "ref": 163,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Edit]/Utility/Lower Case"
+    },
+    {
+     "field": "flags",
+     "kind": "item",
+     "lxa": 86,
+     "phase": 222,
+     "ref": 82,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Edit]/Utility/Lower Case"
+    },
+    {
+     "field": "command",
+     "kind": "item",
+     "lxa": 67,
+     "phase": 222,
+     "ref": 0,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Edit]/Utility/Lower Case"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 154,
+     "phase": 222,
+     "ref": 195,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Edit]/#9"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 154,
+     "phase": 222,
+     "ref": 195,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Edit]/Insert File..."
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 154,
+     "phase": 222,
+     "ref": 195,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Edit]/Save Block..."
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 106,
+     "phase": 222,
+     "ref": 123,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Search]/Find/Next"
+    },
+    {
+     "field": "flags",
+     "kind": "item",
+     "lxa": 86,
+     "phase": 222,
+     "ref": 82,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Search]/Find/Next"
+    },
+    {
+     "field": "command",
+     "kind": "item",
+     "lxa": 67,
+     "phase": 222,
+     "ref": 0,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Search]/Find/Next"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 106,
+     "phase": 222,
+     "ref": 123,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Search]/Find/Previous"
+    },
+    {
+     "field": "flags",
+     "kind": "item",
+     "lxa": 86,
+     "phase": 222,
+     "ref": 82,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Search]/Find/Previous"
+    },
+    {
+     "field": "command",
+     "kind": "item",
+     "lxa": 67,
+     "phase": 222,
+     "ref": 0,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Search]/Find/Previous"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 106,
+     "phase": 222,
+     "ref": 123,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Search]/Find/Replace"
+    },
+    {
+     "field": "flags",
+     "kind": "item",
+     "lxa": 86,
+     "phase": 222,
+     "ref": 82,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Search]/Find/Replace"
+    },
+    {
+     "field": "command",
+     "kind": "item",
+     "lxa": 67,
+     "phase": 222,
+     "ref": 0,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Search]/Find/Replace"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 154,
+     "phase": 222,
+     "ref": 171,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Program]/Run"
+    },
+    {
+     "field": "flags",
+     "kind": "item",
+     "lxa": 86,
+     "phase": 222,
+     "ref": 82,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Program]/Run"
+    },
+    {
+     "field": "command",
+     "kind": "item",
+     "lxa": 67,
+     "phase": 222,
+     "ref": 0,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Program]/Run"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 154,
+     "phase": 222,
+     "ref": 171,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Program]/Break"
+    },
+    {
+     "field": "flags",
+     "kind": "item",
+     "lxa": 70,
+     "phase": 222,
+     "ref": 66,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Program]/Break"
+    },
+    {
+     "field": "command",
+     "kind": "item",
+     "lxa": 67,
+     "phase": 222,
+     "ref": 0,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Program]/Break"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 154,
+     "phase": 222,
+     "ref": 171,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Program]/Errors"
+    },
+    {
+     "field": "left",
+     "kind": "item",
+     "lxa": 116,
+     "phase": 222,
+     "ref": 129,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Program]/Errors/Next"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 106,
+     "phase": 222,
+     "ref": 123,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Program]/Errors/Next"
+    },
+    {
+     "field": "flags",
+     "kind": "item",
+     "lxa": 70,
+     "phase": 222,
+     "ref": 66,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Program]/Errors/Next"
+    },
+    {
+     "field": "command",
+     "kind": "item",
+     "lxa": 67,
+     "phase": 222,
+     "ref": 0,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Program]/Errors/Next"
+    },
+    {
+     "field": "left",
+     "kind": "item",
+     "lxa": 116,
+     "phase": 222,
+     "ref": 129,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Program]/Errors/Previous"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 106,
+     "phase": 222,
+     "ref": 123,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Program]/Errors/Previous"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 154,
+     "phase": 222,
+     "ref": 171,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Program]/#3"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 154,
+     "phase": 222,
+     "ref": 171,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Program]/Assemble"
+    },
+    {
+     "field": "flags",
+     "kind": "item",
+     "lxa": 86,
+     "phase": 222,
+     "ref": 82,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Program]/Assemble"
+    },
+    {
+     "field": "command",
+     "kind": "item",
+     "lxa": 67,
+     "phase": 222,
+     "ref": 0,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Program]/Assemble"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 154,
+     "phase": 222,
+     "ref": 171,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Program]/Make"
+    },
+    {
+     "field": "flags",
+     "kind": "item",
+     "lxa": 86,
+     "phase": 222,
+     "ref": 82,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Program]/Make"
+    },
+    {
+     "field": "command",
+     "kind": "item",
+     "lxa": 67,
+     "phase": 222,
+     "ref": 0,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Program]/Make"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 154,
+     "phase": 222,
+     "ref": 171,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Program]/Check"
+    },
+    {
+     "field": "flags",
+     "kind": "item",
+     "lxa": 86,
+     "phase": 222,
+     "ref": 82,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Program]/Check"
+    },
+    {
+     "field": "command",
+     "kind": "item",
+     "lxa": 67,
+     "phase": 222,
+     "ref": 0,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Program]/Check"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 154,
+     "phase": 222,
+     "ref": 171,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Program]/Output Symbols"
+    },
+    {
+     "field": "flags",
+     "kind": "item",
+     "lxa": 86,
+     "phase": 222,
+     "ref": 82,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Program]/Output Symbols"
+    },
+    {
+     "field": "command",
+     "kind": "item",
+     "lxa": 67,
+     "phase": 222,
+     "ref": 0,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Program]/Output Symbols"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 154,
+     "phase": 222,
+     "ref": 171,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Program]/#8"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 154,
+     "phase": 222,
+     "ref": 171,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Program]/Debug"
+    },
+    {
+     "field": "flags",
+     "kind": "item",
+     "lxa": 86,
+     "phase": 222,
+     "ref": 82,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Program]/Debug"
+    },
+    {
+     "field": "command",
+     "kind": "item",
+     "lxa": 67,
+     "phase": 222,
+     "ref": 0,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Program]/Debug"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 154,
+     "phase": 222,
+     "ref": 171,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Program]/Arguments..."
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 154,
+     "phase": 222,
+     "ref": 171,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Program]/#11"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 154,
+     "phase": 222,
+     "ref": 171,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Program]/Execute..."
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 162,
+     "phase": 222,
+     "ref": 179,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Macros]/Start Learning"
+    },
+    {
+     "field": "flags",
+     "kind": "item",
+     "lxa": 86,
+     "phase": 222,
+     "ref": 82,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Macros]/Start Learning"
+    },
+    {
+     "field": "command",
+     "kind": "item",
+     "lxa": 67,
+     "phase": 222,
+     "ref": 0,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Macros]/Start Learning"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 162,
+     "phase": 222,
+     "ref": 179,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Macros]/Stop Learning"
+    },
+    {
+     "field": "flags",
+     "kind": "item",
+     "lxa": 70,
+     "phase": 222,
+     "ref": 66,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Macros]/Stop Learning"
+    },
+    {
+     "field": "command",
+     "kind": "item",
+     "lxa": 67,
+     "phase": 222,
+     "ref": 0,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Macros]/Stop Learning"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 162,
+     "phase": 222,
+     "ref": 179,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Macros]/#2"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 162,
+     "phase": 222,
+     "ref": 179,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Macros]/Play Macro"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 162,
+     "phase": 222,
+     "ref": 179,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Macros]/Repeat Macro..."
+    },
+    {
+     "field": "left",
+     "kind": "item",
+     "lxa": 146,
+     "phase": 222,
+     "ref": 128,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Settings]/Display/Text Font..."
+    },
+    {
+     "field": "left",
+     "kind": "item",
+     "lxa": 146,
+     "phase": 222,
+     "ref": 128,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Settings]/Display/Screen Mode..."
+    },
+    {
+     "field": "left",
+     "kind": "item",
+     "lxa": 146,
+     "phase": 222,
+     "ref": 128,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Settings]/Display/Screen Font..."
+    },
+    {
+     "field": "left",
+     "kind": "item",
+     "lxa": 146,
+     "phase": 222,
+     "ref": 75,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Settings]/Assembler/Control..."
+    },
+    {
+     "field": "left",
+     "kind": "item",
+     "lxa": 146,
+     "phase": 222,
+     "ref": 75,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Settings]/Assembler/Options..."
+    },
+    {
+     "field": "left",
+     "kind": "item",
+     "lxa": 146,
+     "phase": 222,
+     "ref": 75,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Settings]/Assembler/Optimisations..."
+    }
+   ],
+   "pixel_budget": 2094,
+   "pixel_phase": 222,
+   "stdout_known_diff": null
+  },
+  "typed": {
+   "known_tree_diffs": [
+    {
+     "field": "flags",
+     "kind": "window",
+     "lxa": 673198159,
+     "phase": 222,
+     "ref": 740307023,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]"
+    },
+    {
+     "field": "activation",
+     "kind": "gadget",
+     "lxa": 17,
+     "phase": 222,
+     "ref": 32785,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/gadget[0 id=0]"
+    },
+    {
+     "field": "activation",
+     "kind": "gadget",
+     "lxa": 19,
+     "phase": 222,
+     "ref": 32787,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/gadget[1 id=2]"
+    },
+    {
+     "field": "activation",
+     "kind": "gadget",
+     "lxa": 19,
+     "phase": 222,
+     "ref": 32787,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/gadget[2 id=3]"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 154,
+     "phase": 222,
+     "ref": 195,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Edit]/Cut"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 154,
+     "phase": 222,
+     "ref": 195,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Edit]/Copy"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 154,
+     "phase": 222,
+     "ref": 195,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Edit]/Paste"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 154,
+     "phase": 222,
+     "ref": 195,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Edit]/#3"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 154,
+     "phase": 222,
+     "ref": 195,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Edit]/Erase"
+    },
+    {
+     "field": "flags",
+     "kind": "item",
+     "lxa": 70,
+     "phase": 222,
+     "ref": 66,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Edit]/Erase"
+    },
+    {
+     "field": "command",
+     "kind": "item",
+     "lxa": 65,
+     "phase": 222,
+     "ref": 0,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Edit]/Erase"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 154,
+     "phase": 222,
+     "ref": 195,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Edit]/#5"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 154,
+     "phase": 222,
+     "ref": 195,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Edit]/Undo Line"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 154,
+     "phase": 222,
+     "ref": 195,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Edit]/Mark Block"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 154,
+     "phase": 222,
+     "ref": 195,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Edit]/Utility"
+    },
+    {
+     "field": "left",
+     "kind": "item",
+     "lxa": 116,
+     "phase": 222,
+     "ref": 147,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Edit]/Utility/Indent"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 122,
+     "phase": 222,
+     "ref": 163,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Edit]/Utility/Indent"
+    },
+    {
+     "field": "flags",
+     "kind": "item",
+     "lxa": 86,
+     "phase": 222,
+     "ref": 82,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Edit]/Utility/Indent"
+    },
+    {
+     "field": "command",
+     "kind": "item",
+     "lxa": 65,
+     "phase": 222,
+     "ref": 0,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Edit]/Utility/Indent"
+    },
+    {
+     "field": "left",
+     "kind": "item",
+     "lxa": 116,
+     "phase": 222,
+     "ref": 147,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Edit]/Utility/Outdent"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 122,
+     "phase": 222,
+     "ref": 163,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Edit]/Utility/Outdent"
+    },
+    {
+     "field": "left",
+     "kind": "item",
+     "lxa": 116,
+     "phase": 222,
+     "ref": 147,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Edit]/Utility/#2"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 122,
+     "phase": 222,
+     "ref": 163,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Edit]/Utility/#2"
+    },
+    {
+     "field": "left",
+     "kind": "item",
+     "lxa": 116,
+     "phase": 222,
+     "ref": 147,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Edit]/Utility/Upper Case"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 122,
+     "phase": 222,
+     "ref": 163,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Edit]/Utility/Upper Case"
+    },
+    {
+     "field": "flags",
+     "kind": "item",
+     "lxa": 86,
+     "phase": 222,
+     "ref": 82,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Edit]/Utility/Upper Case"
+    },
+    {
+     "field": "command",
+     "kind": "item",
+     "lxa": 67,
+     "phase": 222,
+     "ref": 0,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Edit]/Utility/Upper Case"
+    },
+    {
+     "field": "left",
+     "kind": "item",
+     "lxa": 116,
+     "phase": 222,
+     "ref": 147,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Edit]/Utility/Lower Case"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 122,
+     "phase": 222,
+     "ref": 163,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Edit]/Utility/Lower Case"
+    },
+    {
+     "field": "flags",
+     "kind": "item",
+     "lxa": 86,
+     "phase": 222,
+     "ref": 82,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Edit]/Utility/Lower Case"
+    },
+    {
+     "field": "command",
+     "kind": "item",
+     "lxa": 67,
+     "phase": 222,
+     "ref": 0,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Edit]/Utility/Lower Case"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 154,
+     "phase": 222,
+     "ref": 195,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Edit]/#9"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 154,
+     "phase": 222,
+     "ref": 195,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Edit]/Insert File..."
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 154,
+     "phase": 222,
+     "ref": 195,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Edit]/Save Block..."
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 106,
+     "phase": 222,
+     "ref": 123,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Search]/Find/Next"
+    },
+    {
+     "field": "flags",
+     "kind": "item",
+     "lxa": 86,
+     "phase": 222,
+     "ref": 82,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Search]/Find/Next"
+    },
+    {
+     "field": "command",
+     "kind": "item",
+     "lxa": 67,
+     "phase": 222,
+     "ref": 0,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Search]/Find/Next"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 106,
+     "phase": 222,
+     "ref": 123,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Search]/Find/Previous"
+    },
+    {
+     "field": "flags",
+     "kind": "item",
+     "lxa": 86,
+     "phase": 222,
+     "ref": 82,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Search]/Find/Previous"
+    },
+    {
+     "field": "command",
+     "kind": "item",
+     "lxa": 67,
+     "phase": 222,
+     "ref": 0,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Search]/Find/Previous"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 106,
+     "phase": 222,
+     "ref": 123,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Search]/Find/Replace"
+    },
+    {
+     "field": "flags",
+     "kind": "item",
+     "lxa": 86,
+     "phase": 222,
+     "ref": 82,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Search]/Find/Replace"
+    },
+    {
+     "field": "command",
+     "kind": "item",
+     "lxa": 67,
+     "phase": 222,
+     "ref": 0,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Search]/Find/Replace"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 154,
+     "phase": 222,
+     "ref": 171,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Program]/Run"
+    },
+    {
+     "field": "flags",
+     "kind": "item",
+     "lxa": 86,
+     "phase": 222,
+     "ref": 82,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Program]/Run"
+    },
+    {
+     "field": "command",
+     "kind": "item",
+     "lxa": 67,
+     "phase": 222,
+     "ref": 0,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Program]/Run"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 154,
+     "phase": 222,
+     "ref": 171,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Program]/Break"
+    },
+    {
+     "field": "flags",
+     "kind": "item",
+     "lxa": 70,
+     "phase": 222,
+     "ref": 66,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Program]/Break"
+    },
+    {
+     "field": "command",
+     "kind": "item",
+     "lxa": 67,
+     "phase": 222,
+     "ref": 0,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Program]/Break"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 154,
+     "phase": 222,
+     "ref": 171,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Program]/Errors"
+    },
+    {
+     "field": "left",
+     "kind": "item",
+     "lxa": 116,
+     "phase": 222,
+     "ref": 129,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Program]/Errors/Next"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 106,
+     "phase": 222,
+     "ref": 123,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Program]/Errors/Next"
+    },
+    {
+     "field": "flags",
+     "kind": "item",
+     "lxa": 70,
+     "phase": 222,
+     "ref": 66,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Program]/Errors/Next"
+    },
+    {
+     "field": "command",
+     "kind": "item",
+     "lxa": 67,
+     "phase": 222,
+     "ref": 0,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Program]/Errors/Next"
+    },
+    {
+     "field": "left",
+     "kind": "item",
+     "lxa": 116,
+     "phase": 222,
+     "ref": 129,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Program]/Errors/Previous"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 106,
+     "phase": 222,
+     "ref": 123,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Program]/Errors/Previous"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 154,
+     "phase": 222,
+     "ref": 171,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Program]/#3"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 154,
+     "phase": 222,
+     "ref": 171,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Program]/Assemble"
+    },
+    {
+     "field": "flags",
+     "kind": "item",
+     "lxa": 86,
+     "phase": 222,
+     "ref": 82,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Program]/Assemble"
+    },
+    {
+     "field": "command",
+     "kind": "item",
+     "lxa": 67,
+     "phase": 222,
+     "ref": 0,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Program]/Assemble"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 154,
+     "phase": 222,
+     "ref": 171,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Program]/Make"
+    },
+    {
+     "field": "flags",
+     "kind": "item",
+     "lxa": 86,
+     "phase": 222,
+     "ref": 82,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Program]/Make"
+    },
+    {
+     "field": "command",
+     "kind": "item",
+     "lxa": 67,
+     "phase": 222,
+     "ref": 0,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Program]/Make"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 154,
+     "phase": 222,
+     "ref": 171,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Program]/Check"
+    },
+    {
+     "field": "flags",
+     "kind": "item",
+     "lxa": 86,
+     "phase": 222,
+     "ref": 82,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Program]/Check"
+    },
+    {
+     "field": "command",
+     "kind": "item",
+     "lxa": 67,
+     "phase": 222,
+     "ref": 0,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Program]/Check"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 154,
+     "phase": 222,
+     "ref": 171,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Program]/Output Symbols"
+    },
+    {
+     "field": "flags",
+     "kind": "item",
+     "lxa": 86,
+     "phase": 222,
+     "ref": 82,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Program]/Output Symbols"
+    },
+    {
+     "field": "command",
+     "kind": "item",
+     "lxa": 67,
+     "phase": 222,
+     "ref": 0,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Program]/Output Symbols"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 154,
+     "phase": 222,
+     "ref": 171,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Program]/#8"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 154,
+     "phase": 222,
+     "ref": 171,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Program]/Debug"
+    },
+    {
+     "field": "flags",
+     "kind": "item",
+     "lxa": 86,
+     "phase": 222,
+     "ref": 82,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Program]/Debug"
+    },
+    {
+     "field": "command",
+     "kind": "item",
+     "lxa": 67,
+     "phase": 222,
+     "ref": 0,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Program]/Debug"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 154,
+     "phase": 222,
+     "ref": 171,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Program]/Arguments..."
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 154,
+     "phase": 222,
+     "ref": 171,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Program]/#11"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 154,
+     "phase": 222,
+     "ref": 171,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Program]/Execute..."
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 162,
+     "phase": 222,
+     "ref": 179,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Macros]/Start Learning"
+    },
+    {
+     "field": "flags",
+     "kind": "item",
+     "lxa": 86,
+     "phase": 222,
+     "ref": 82,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Macros]/Start Learning"
+    },
+    {
+     "field": "command",
+     "kind": "item",
+     "lxa": 67,
+     "phase": 222,
+     "ref": 0,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Macros]/Start Learning"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 162,
+     "phase": 222,
+     "ref": 179,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Macros]/Stop Learning"
+    },
+    {
+     "field": "flags",
+     "kind": "item",
+     "lxa": 70,
+     "phase": 222,
+     "ref": 66,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Macros]/Stop Learning"
+    },
+    {
+     "field": "command",
+     "kind": "item",
+     "lxa": 67,
+     "phase": 222,
+     "ref": 0,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Macros]/Stop Learning"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 162,
+     "phase": 222,
+     "ref": 179,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Macros]/#2"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 162,
+     "phase": 222,
+     "ref": 179,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Macros]/Play Macro"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 162,
+     "phase": 222,
+     "ref": 179,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Macros]/Repeat Macro..."
+    },
+    {
+     "field": "left",
+     "kind": "item",
+     "lxa": 146,
+     "phase": 222,
+     "ref": 128,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Settings]/Display/Text Font..."
+    },
+    {
+     "field": "left",
+     "kind": "item",
+     "lxa": 146,
+     "phase": 222,
+     "ref": 128,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Settings]/Display/Screen Mode..."
+    },
+    {
+     "field": "left",
+     "kind": "item",
+     "lxa": 146,
+     "phase": 222,
+     "ref": 128,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Settings]/Display/Screen Font..."
+    },
+    {
+     "field": "left",
+     "kind": "item",
+     "lxa": 146,
+     "phase": 222,
+     "ref": 75,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Settings]/Assembler/Control..."
+    },
+    {
+     "field": "left",
+     "kind": "item",
+     "lxa": 146,
+     "phase": 222,
+     "ref": 75,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Settings]/Assembler/Options..."
+    },
+    {
+     "field": "left",
+     "kind": "item",
+     "lxa": 146,
+     "phase": 222,
+     "ref": 75,
+     "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]/menu[Settings]/Assembler/Optimisations..."
+    }
+   ],
+   "pixel_budget": 2200,
+   "pixel_phase": 222,
+   "stdout_known_diff": null
+  }
+ }
+}

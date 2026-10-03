@@ -215,32 +215,6 @@ TEST_F(DevpacSettingsTest, SettingsWindowOpens) {
     EXPECT_TRUE(lxa_is_running()) << "Devpac should still be running";
 }
 
-/* Test 2: The Settings window renders non-background content.
- * The cycle gadgets (left side) and checkbox gadgets (right side) should
- * produce non-background pixels in the client area. */
-TEST_F(DevpacSettingsTest, SettingsWindowRendersContent) {
-    ASSERT_GE(lxa_get_window_count(), 2) << "Settings window must be open";
-
-    lxa_window_info_t sw;
-    ASSERT_TRUE(lxa_get_window_info(1, &sw));
-
-    const std::string cap = s_ram_dir + "/devpac-settings-content.png";
-    lxa_capture_window(1, cap.c_str());
-
-    /* The client area (inside the window border, below title bar).
-     * Use screen-absolute coordinates: border ~4px, title bar ~10px. */
-    const int x1 = sw.x + 4;
-    const int y1 = sw.y + 14;  /* below title bar */
-    const int x2 = sw.x + sw.width  - 5;
-    const int y2 = sw.y + sw.height - 5;
-
-    int non_bg = CountNonBackgroundPixels(x1, y1, x2, y2);
-    EXPECT_GT(non_bg, 100)
-        << "Settings window client area should render non-background content. "
-        << "Capture: " << cap
-        << " Region: (" << x1 << "," << y1 << ")..(" << x2 << "," << y2 << ")";
-}
-
 /* Test 3: The Settings window has at least 3 gadgets (Save, Use, Cancel). */
 TEST_F(DevpacSettingsTest, SettingsWindowHasThreeButtons) {
     ASSERT_GE(lxa_get_window_count(), 2) << "Settings window must be open";

@@ -6,5 +6,5 @@ steps:
   - launch
   - wait_window: {title: "", timeout: 30000}
   - wait_idle: {timeout: 20000}
-  - frames: 50
+  - frames: 300                       # DPaint's "Ownership Information" splash closes itself after 4 s
   - snapshot: startup

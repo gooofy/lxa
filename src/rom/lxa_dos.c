@@ -1192,7 +1192,7 @@ static struct ConHandle *open_con_window(const char *path)
     nw.Height = h > 0 ? h : 200;
     nw.DetailPen = 0;
     nw.BlockPen = 1;
-    nw.IDCMPFlags = IDCMP_CLOSEWINDOW | IDCMP_RAWKEY;
+    nw.IDCMPFlags = 0;      /* console.device gets the window's input */
     nw.Flags = WFLG_CLOSEGADGET | WFLG_DRAGBAR | WFLG_DEPTHGADGET | 
                WFLG_SIZEGADGET | WFLG_ACTIVATE | WFLG_SMART_REFRESH;
     nw.FirstGadget = NULL;
