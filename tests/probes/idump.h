@@ -95,10 +95,10 @@ static void dump_gadget(const char *pfx, int idx, struct Gadget *g)
     probe_s(g->SelectRender ? " select" : " noselect");
     probe_s(g->GadgetText ? " text" : " notext");
     probe_s(g->SpecialInfo ? " special" : " nospecial");
-    if (g->MutualExclude < 0x10000)
-        ps_kv("mx", (LONG)g->MutualExclude);
+    if ((t & GTYP_GTYPEMASK) == GTYP_CUSTOMGADGET)   /* a hook pointer */
+        probe_s(g->MutualExclude ? " mx=set" : " mx=0");
     else
-        probe_s(" mx=big");
+        ps_kv("mx", (LONG)g->MutualExclude);
     probe_ch('\n');
     if (g->Flags & GFLG_EXTENDED)
     {

@@ -1,0 +1,123 @@
+-- easy T |  | OK
+size w=66 h=60
+button id=0 box=13,42,40x14
+-- easy T | a | OK
+size w=74 h=56
+button id=0 box=17,38,40x14
+-- easy T | a/b | OK
+size w=74 h=65
+button id=0 box=17,47,40x14
+-- easy T | a/b/c | OK
+size w=74 h=74
+button id=0 box=17,56,40x14
+-- easy T | a/b/c/d | OK
+size w=74 h=83
+button id=0 box=17,65,40x14
+-- easy T | a//b | OK
+size w=74 h=72
+button id=0 box=17,54,40x14
+-- easy T | / | OK
+size w=66 h=67
+button id=0 box=13,49,40x14
+-- easy T | abcdefghij | OK
+size w=146 h=56
+button id=0 box=53,38,40x14
+-- easy T | abcdefghijabcdefghij | OK
+size w=226 h=56
+button id=0 box=93,38,40x14
+-- easy T | abcdefghijabcdefghijabcdefghijabcdefghij | OK
+size w=386 h=56
+button id=0 box=173,38,40x14
+-- easy T | short/abcdefghijabcdefghijabcdefghij | OK
+size w=306 h=65
+button id=0 box=133,47,40x14
+-- easy T | x | A|B
+size w=92 h=56
+button id=1 box=8,38,32x14
+button id=0 box=52,38,32x14
+-- easy T | x | A|B|C
+size w=136 h=56
+button id=1 box=8,38,32x14
+button id=2 box=52,38,32x14
+button id=0 box=96,38,32x14
+-- easy T | x | A|B|C|D|E
+size w=224 h=56
+button id=1 box=8,38,32x14
+button id=2 box=52,38,32x14
+button id=3 box=96,38,32x14
+button id=4 box=140,38,32x14
+button id=0 box=184,38,32x14
+-- easy T | x | Longer|B
+size w=132 h=56
+button id=1 box=8,38,72x14
+button id=0 box=92,38,32x14
+-- easy T | abcdefghijabcdefghijabcdefghijabcdefghij | A|B
+size w=386 h=56
+button id=1 box=8,38,32x14
+button id=0 box=346,38,32x14
+-- easy T | abcdefghijabcdefghijabcdefghijabcdefghij | A|B|C
+size w=386 h=56
+button id=1 box=8,38,32x14
+button id=2 box=177,38,32x14
+button id=0 box=346,38,32x14
+-- easy T | abcdefghijabcdefghijabcdefghijabcdefghij | A|B|C|D
+size w=386 h=56
+button id=1 box=8,38,32x14
+button id=2 box=120,38,32x14
+button id=3 box=233,38,32x14
+button id=0 box=346,38,32x14
+-- easy T | abcdefghijabcdefghijabcdefghijabcdefghij | One|Two|Three|Four|Five
+size w=386 h=56
+button id=1 box=8,38,48x14
+button id=2 box=80,38,48x14
+button id=3 box=153,38,64x14
+button id=4 box=241,38,56x14
+button id=0 box=322,38,56x14
+-- easy  | x | OK
+size w=74 h=56
+button id=0 box=17,38,40x14
+-- easy abcdefghijabcdefghij | x | OK
+size w=200 h=56
+button id=0 box=80,38,40x14
+-- easy (null) | x | OK
+size w=152 h=56
+button id=0 box=56,38,40x14
+-- sys 0,0 x | A | B
+size w=92 h=44
+button id=1 box=8,26,32x14
+button id=0 box=52,26,32x14
+-- sys 0,0 abcdefghijabcdefghij | A | B
+size w=220 h=44
+button id=1 box=8,26,32x14
+button id=0 box=180,26,32x14
+-- sys 10,0 x | A | B
+size w=92 h=44
+button id=1 box=8,26,32x14
+button id=0 box=52,26,32x14
+-- sys 0,10 x | A | B
+size w=92 h=64
+button id=1 box=8,46,32x14
+button id=0 box=52,46,32x14
+-- sys 0,0 x + 0,10 y | A | B
+size w=92 h=54
+button id=1 box=8,36,32x14
+button id=0 box=52,36,32x14
+-- sys 0,0 x + 0,20 y | A | B
+size w=92 h=64
+button id=1 box=8,46,32x14
+button id=0 box=52,46,32x14
+-- sys 0,0 x + 100,0 y | A | B
+size w=168 h=44
+button id=1 box=8,26,32x14
+button id=0 box=128,26,32x14
+-- sys 0,0 x | - | B
+size w=68 h=44
+button id=0 box=18,26,32x14
+-- sys 0,0 x | Longer text | B
+size w=172 h=44
+button id=1 box=8,26,112x14
+button id=0 box=132,26,32x14
+-- sys 0,0 abcdefghijabcdefghijabcdefghijabcdefghij | A | B
+size w=380 h=44
+button id=1 box=8,26,32x14
+button id=0 box=340,26,32x14

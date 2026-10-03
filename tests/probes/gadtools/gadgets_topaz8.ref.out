@@ -701,7 +701,7 @@ returned index = 1
 returned UserData kept = TRUE
 returned is last = TRUE
 gad0 id=0 type=0x0100 flags=0x0003 act=0x0000 box=0,0,0x0 norender noselect notext nospecial mx=0
-gad1 id=7 type=0x0105 flags=0x8007 act=0x0003 box=100,40,117x14 render noselect text nospecial mx=big
+gad1 id=7 type=0x0105 flags=0x8007 act=0x0003 box=100,40,117x14 render noselect text nospecial mx=set
 ext more=0x00000003 box=100,28,117x26
 itext0 t="Label" l=39 tp=-12 fp=1 bp=0 dm=0 font=topaz.font/8
 -- PALETTE indicator width
@@ -709,7 +709,7 @@ returned index = 1
 returned UserData kept = TRUE
 returned is last = TRUE
 gad0 id=0 type=0x0100 flags=0x0003 act=0x0000 box=0,0,0x0 norender noselect notext nospecial mx=0
-gad1 id=7 type=0x0105 flags=0x8007 act=0x0003 box=100,40,157x20 render noselect text nospecial mx=big
+gad1 id=7 type=0x0105 flags=0x8007 act=0x0003 box=100,40,157x20 render noselect text nospecial mx=set
 ext more=0x00000003 box=52,40,205x20
 itext0 t="Label" l=-48 tp=6 fp=1 bp=0 dm=0 font=topaz.font/8
 -- PALETTE indicator height
@@ -717,7 +717,7 @@ returned index = 1
 returned UserData kept = TRUE
 returned is last = TRUE
 gad0 id=0 type=0x0100 flags=0x0003 act=0x0000 box=0,0,0x0 norender noselect notext nospecial mx=0
-gad1 id=7 type=0x0105 flags=0x8007 act=0x0003 box=100,40,59x39 render noselect text nospecial mx=big
+gad1 id=7 type=0x0105 flags=0x8007 act=0x0003 box=100,40,59x39 render noselect text nospecial mx=set
 ext more=0x00000003 box=100,28,59x51
 itext0 t="Label" l=10 tp=-12 fp=1 bp=0 dm=0 font=topaz.font/8
 -- PALETTE left
@@ -725,7 +725,7 @@ returned index = 1
 returned UserData kept = TRUE
 returned is last = TRUE
 gad0 id=0 type=0x0100 flags=0x0003 act=0x0000 box=0,0,0x0 norender noselect notext nospecial mx=0
-gad1 id=7 type=0x0105 flags=0x8007 act=0x0003 box=100,40,117x14 render noselect text nospecial mx=big
+gad1 id=7 type=0x0105 flags=0x8007 act=0x0003 box=100,40,117x14 render noselect text nospecial mx=set
 ext more=0x00000003 box=52,40,165x14
 itext0 t="Label" l=-48 tp=3 fp=1 bp=0 dm=0 font=topaz.font/8
 -- PALETTE below indicator width
@@ -733,7 +733,7 @@ returned index = 1
 returned UserData kept = TRUE
 returned is last = TRUE
 gad0 id=0 type=0x0100 flags=0x0003 act=0x0000 box=0,0,0x0 norender noselect notext nospecial mx=0
-gad1 id=7 type=0x0105 flags=0x8007 act=0x0003 box=100,40,117x14 render noselect text nospecial mx=big
+gad1 id=7 type=0x0105 flags=0x8007 act=0x0003 box=100,40,117x14 render noselect text nospecial mx=set
 ext more=0x00000003 box=100,40,117x26
 itext0 t="Label" l=39 tp=17 fp=1 bp=0 dm=0 font=topaz.font/8
 -- PALETTE disabled
@@ -741,7 +741,7 @@ returned index = 1
 returned UserData kept = TRUE
 returned is last = TRUE
 gad0 id=0 type=0x0100 flags=0x0003 act=0x0000 box=0,0,0x0 norender noselect notext nospecial mx=0
-gad1 id=7 type=0x0105 flags=0x8107 act=0x0003 box=100,40,119x14 render noselect text nospecial mx=big
+gad1 id=7 type=0x0105 flags=0x8107 act=0x0003 box=100,40,119x14 render noselect text nospecial mx=set
 ext more=0x00000003 box=100,28,119x26
 itext0 t="Label" l=40 tp=-12 fp=1 bp=0 dm=0 font=topaz.font/8
 -- TEXT

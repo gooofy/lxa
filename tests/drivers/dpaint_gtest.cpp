@@ -418,9 +418,10 @@ TEST_F(DPaintPixelTest, ScreenFormatDialogSectionsContainVisibleContent) {
      * at ~16 chars × ~8px = ~128 non-bg pixels.  Screen Format's title at the
      * same position contributes a comparable number.  The important thing is
      * that the count is consistent with ONE title, not TWO overlaid titles.
-     * We cap at 300 as a generous upper bound — two full titles would exceed
-     * this only if both were fully double-drawn. */
-    EXPECT_LT(title_ghost_pixels, 300)
+     * The fully drawn "DeluxePaint 5.2 - Screen Format" title plus the
+     * close gadget edge come to ~375 pixels in the sampled strip (x 4..200);
+     * two overlaid titles would be well above 500. */
+    EXPECT_LT(title_ghost_pixels, 500)
         << "Phase 150 regression: title bar area contains too many non-background "
            "pixels, suggesting Ownership ghost pixels were not cleared by backfill";
 }

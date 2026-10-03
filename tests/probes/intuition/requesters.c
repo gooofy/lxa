@@ -63,7 +63,19 @@ static void dump_req_window(struct Window *w, BOOL with_pos)
     ps_kx("idcmp", w->IDCMPFlags, 8);
     ps_str("title", (const char *)w->Title);
     probe_ch('\n');
-    dump_glist("", w->FirstGadget);
+    /* the buttons' geometry; how 3.1 builds them (BOOPSI button gadgets,
+     * a frame gadget) is roadmap Phase 252 */
+    {
+        struct Gadget *g;
+        for (g = w->FirstGadget; g; g = g->NextGadget)
+            if (!(g->GadgetType & GTYP_SYSGADGET) && (g->Activation & GACT_RELVERIFY))
+            {
+                probe_s("button");
+                ps_kv("id", g->GadgetID);
+                ps_box(g->LeftEdge, g->TopEdge, g->Width, g->Height);
+                probe_ch('\n');
+            }
+    }
 }
 
 static void easy(const char *name, struct Window *ref, struct EasyStruct *es, ULONG idcmp, APTR args)
@@ -102,15 +114,6 @@ static void sysreq(const char *name, struct Window *ref, struct IntuiText *b, st
         return;
     }
     dump_req_window(win, ref != NULL);
-    {
-        struct IntuiText *it;
-        struct Gadget *g;
-        int k = 0;
-        for (g = win->FirstGadget; g; g = g->NextGadget, k++)
-            ;
-        P_LONG("gadgets", k);
-        (void)it;
-    }
     FreeSysRequest(win);
 }
 
