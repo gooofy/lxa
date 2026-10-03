@@ -1044,6 +1044,12 @@ static STRPTR gt_strip_underscore(CONST_STRPTR label, UBYTE us, WORD *ul_pos)
  * left of the box, 7 right of it, fontheight+4 above, 3 below, centred
  * otherwise ((size - textsize + 1) >> 1).
  */
+struct GTULText
+{
+    struct IntuiText it;
+    struct TextAttr ta;
+};
+
 static ULONG gt_label_place(ULONG flags, ULONG defaultPlace)
 {
     ULONG place = flags & (PLACETEXT_LEFT | PLACETEXT_RIGHT | PLACETEXT_ABOVE |
@@ -1155,6 +1161,35 @@ static struct IntuiText * gt_create_label(CONST_STRPTR text, ULONG flags,
     fh = gt_font_ysize(font);
     gt_label_pos(gt_label_place(flags, defaultPlace), gadWidth, gadHeight, textWidth, fh,
                  &it->LeftEdge, &it->TopEdge);
+
+    /* GT_Underscore: AmigaOS 3.1 chains a second IntuiText with the
+     * underlined character in an underlined copy of the font */
+    if (ul_pos >= 0)
+    {
+        struct GTULText *u = (struct GTULText *)AllocMem(sizeof(struct GTULText), MEMF_CLEAR | MEMF_PUBLIC);
+        STRPTR c = (STRPTR)AllocMem(2, MEMF_CLEAR | MEMF_PUBLIC);
+        if (u && c)
+        {
+            c[0] = displayText[ul_pos];
+            u->it = *it;
+            u->it.IText = c;
+            u->it.LeftEdge = it->LeftEdge + gt_text_width(font, displayText, ul_pos);
+            if (ta)
+            {
+                u->ta = *ta;
+                u->ta.ta_Style |= FSF_UNDERLINED;
+                u->it.ITextFont = &u->ta;
+            }
+            it->NextText = &u->it;
+        }
+        else
+        {
+            if (u)
+                FreeMem(u, sizeof(struct GTULText));
+            if (c)
+                FreeMem(c, 2);
+        }
+    }
 
     if (ul)
         *ul = ul_pos;
@@ -2293,7 +2328,9 @@ static void gt_draw_label_chain(struct RastPort *rp, struct Gadget *gad, WORD gl
 
     if (!gad)
         return;
-    for (it = gad->GadgetText; it; it = it->NextText)
+    /* only the label itself: the underlined-character text that follows it
+     * is drawn as the underline */
+    for (it = gad->GadgetText; it; it = (gad->GadgetText == it && gad == data->label_gad) ? NULL : it->NextText)
     {
         if (!it->IText)
             continue;
@@ -2614,7 +2651,7 @@ BOOL _gadtools_RenderGadget(register struct Window *win __asm("a0"),
             {
                 WORD x = L + 4 + (i % cols) * bw, y = T + 2 + (i / cols) * bh;
                 SetAPen(rp, data->pal_offset + i);
-                RectFill(rp, x, y, x + bw - 4, y + bh - (rows > 1 ? 2 : 0) - 1);
+                RectFill(rp, x, y, x + bw - 4, y + bh - ((i / cols) < rows - 1 ? 2 : 0));
             }
             gt_draw_label_chain(rp, mg, mgl, mgt, data, pens);
             if (disabled)
@@ -2654,12 +2691,16 @@ BOOL _gadtools_RenderGadget(register struct Window *win __asm("a0"),
 
 static void gt_free_itext(struct IntuiText *it)
 {
+    BOOL first = TRUE;
+
     while (it)
     {
         struct IntuiText *next = it->NextText;
         if (it->IText)
             FreeMem(it->IText, gt_strlen(it->IText) + 1);
-        FreeMem(it, sizeof(struct IntuiText));
+        /* the underlined-character text after the label (GT_Underscore) */
+        FreeMem(it, first ? sizeof(struct IntuiText) : sizeof(struct GTULText));
+        first = FALSE;
         it = next;
     }
 }
