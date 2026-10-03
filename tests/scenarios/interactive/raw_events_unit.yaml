@@ -1,0 +1,22 @@
+# Phase 224: Tests/Console/raw_events_unit validated on AmigaOS 3.1 with the input console_gtest
+# injects; stdout must match on both systems.
+name: interactive-raw_events_unit
+app:
+  sample: Tests/Console/raw_events_unit
+steps:
+  - launch
+  - wait_output: "Waiting for special key report"
+  - click: {anchor: inside, xy: [10, 4]}
+  - key: {rawkey: 0x4c}
+  - wait_output: "Waiting for raw special-key report"
+  - key: {rawkey: 0x4c}
+  - wait_output: "Waiting for RAWKEY report"
+  - key: {rawkey: 0x20}
+  - wait_output: "Waiting for raw mouse-button report"
+  - click: {anchor: inside, xy: [36, 29]}
+  - wait_output: "Waiting for raw gadget-down report"
+  - click: {anchor: inside, xy: [91, 17]}
+  - wait_output: "Waiting for ASCII after raw reset"
+  - key: {rawkey: 0x20}
+  - frames: 50
+  - snapshot: {name: end, screen: false}

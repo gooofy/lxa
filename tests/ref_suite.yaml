@@ -1,16 +1,18 @@
 # Phase 220: test programs that cannot run unattended on the AmigaOS 3.1
 # reference (`python3 -m rdd suite-ref`).  Exactly one of
 #   interactive: <why>   needs host-side input injection (a GTest driver);
-#                        `phase` owns re-expressing it as a reference scenario
+#                        `validated_by: <scenario>` names the reference scenario
+#                        (with a golden) that injects the same input on both
+#                        systems, else `phase` owns writing one
 #   lxa_only: <why>      depends on lxa-only behaviour (justify it)
 # `python3 -m rdd suite-ref --lint` checks this file.
 
-Tests/Console/con_handler:      {interactive: "reads keys injected by console_gtest", phase: 224}
-Tests/Console/input_console:    {interactive: "reads keys injected by console_gtest", phase: 224}
-Tests/Console/input_inject:     {interactive: "waits for RAWKEY events injected by console_gtest", phase: 224}
-Tests/Console/kp2_test:         {interactive: "reads keys injected by console_gtest", phase: 224}
+Tests/Console/con_handler:      {interactive: "reads keys injected by console_gtest", validated_by: tests/scenarios/interactive/con_handler.yaml}
+Tests/Console/input_console:    {interactive: "reads keys injected by console_gtest", validated_by: tests/scenarios/interactive/input_console.yaml}
+Tests/Console/input_inject:     {interactive: "waits for RAWKEY events injected by console_gtest", validated_by: tests/scenarios/interactive/input_inject.yaml}
+Tests/Console/kp2_test:         {interactive: "reads keys injected by console_gtest", validated_by: tests/scenarios/interactive/kp2_test.yaml}
 Tests/Console/raw_events_unit:  {interactive: "waits for special-key reports injected by console_gtest", phase: 224}
-Tests/Console/setmode:          {interactive: "reads RAW input injected by console_gtest", phase: 224}
+Tests/Console/setmode:          {interactive: "reads RAW input injected by console_gtest", validated_by: tests/scenarios/interactive/setmode.yaml}
 Tests/Devices/Keyboard:         {interactive: "waits for a SHIFT key press injected by devices_gtest", phase: 224}
 Tests/Intuition/DisplayAlert:   {interactive: "DisplayAlert() blocks until the user clicks a mouse button", phase: 224}
 Tests/Intuition/IDCMPDeltaMove: {interactive: "waits for mouse moves injected by intuition_gtest", phase: 224}

@@ -69,6 +69,8 @@ def run(scn, out_dir, build=None):
                                 extra_meta={"profile": scn.profile})
             result["snapshots"].append(snap_name)
 
+        held = [0]   # mouse buttons held by press/release steps
+
         for kind, args in scn.steps:
             step = {"step": kind, "args": args, "ok": True}
             try:
@@ -91,6 +93,22 @@ def run(scn, out_dir, build=None):
                     x, y = geometry.click_point(tree(), args)
                     lxa.click(x, y, MOUSE_LEFT)
                     lxa.wait_idle()
+                elif kind in ("move", "press", "release"):
+                    x, y = geometry.click_point(tree(), args)
+                    bit = MOUSE_RIGHT if args.get("button", "L") == "R" else MOUSE_LEFT
+                    if kind == "press":
+                        held[0] |= bit
+                    elif kind == "release":
+                        held[0] &= ~bit
+                    lxa.lib.lxa_inject_mouse(x, y, held[0], 2 if kind == "move" else 1)
+                    lxa.frames(2)
+                elif kind == "wait_output":
+                    deadline = args.get("timeout", 10000) // 20
+                    while args["text"] not in lxa.output() and deadline > 0:
+                        lxa.frames(1)
+                        deadline -= 1
+                    if args["text"] not in lxa.output():
+                        raise RuntimeError("output never contained %r" % args["text"])
                 elif kind == "menu":
                     if not lxa.menu(args["path"]):
                         raise RuntimeError("menu %r not found" % args["path"])

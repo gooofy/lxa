@@ -316,8 +316,13 @@ def lint_config(cfg, names, roadmap=os.path.join(ROOT, "roadmap.md")):
         kinds = [k for k in ("lxa_only", "interactive") if e.get(k)]
         if len(kinds) != 1:
             probs.append("%s: needs exactly one of lxa_only / interactive (with a reason)" % name)
-        if e.get("interactive") and str(e.get("phase")) not in phases:
-            probs.append("%s: interactive entry needs a scheduled owning phase" % name)
+        if e.get("interactive"):
+            v = e.get("validated_by")
+            if v:
+                if not os.path.exists(os.path.join(ROOT, v)):
+                    probs.append("%s: validated_by %s does not exist" % (name, v))
+            elif str(e.get("phase")) not in phases:
+                probs.append("%s: interactive entry needs a scheduled owning phase or validated_by" % name)
     return probs
 
 

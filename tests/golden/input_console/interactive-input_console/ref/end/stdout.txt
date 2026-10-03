@@ -1,0 +1,3 @@
+Waiting for input...
+Got input
+PASS: input_console all tests passed

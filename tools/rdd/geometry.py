@@ -84,12 +84,24 @@ def click_point(tree, spec):
           (offset relative to the window's top-left for "xy" when a window
           is given).
     """
-    if "xy" in spec and "window" not in spec:
+    if "xy" in spec and "window" not in spec and "anchor" not in spec:
         return tuple(spec["xy"])
     found = find_window(tree, spec.get("window"))
     if not found:
         raise LookupError("no window %r" % spec.get("window"))
     _, _, win = found
+    anchor = spec.get("anchor")
+    if anchor:
+        # window-relative anchors that resolve to the same logical spot on
+        # both systems even if borders differ: "title" (drag bar), "inside"
+        # (top-left of the inner area), "size_gadget" (bottom-right corner)
+        b = win.get("border") or [4, 11, 4, 2]
+        ax, ay = {"title": (win["left"] + 20, win["top"] + max(1, b[1] // 2)),
+                  "inside": (win["left"] + b[0], win["top"] + b[1]),
+                  "size_gadget": (win["left"] + win["width"] - 4, win["top"] + win["height"] - 4),
+                  "center": (win["left"] + win["width"] // 2, win["top"] + win["height"] // 2)}[anchor]
+        dx, dy = spec.get("xy", (0, 0))
+        return ax + dx, ay + dy
     if "xy" in spec:
         return win["left"] + spec["xy"][0], win["top"] + spec["xy"][1]
     g = find_gadget(win, spec.get("gadget_id"), spec.get("label"))

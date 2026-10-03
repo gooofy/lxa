@@ -140,20 +140,14 @@ int main(void)
     else
         test_fail("Medium mode accepted", "Call failed");
 
-    print("\nTest 5: Invalid mode is rejected\n");
+    print("\nTest 5: Other mode values are accepted\n");
+    /* AmigaOS 3.1: SetMode() with an undefined mode succeeds (reference) */
     ok = SetMode(fh, 99);
-    if (!ok)
-    {
-        err = IoErr();
-        if (err == ERROR_ACTION_NOT_KNOWN)
-            test_pass("Invalid mode error");
-        else
-            test_fail("Invalid mode error", "Wrong IoErr");
-    }
+    if (ok)
+        test_pass("Other mode value accepted");
     else
-    {
-        test_fail("Invalid mode error", "Unexpected success");
-    }
+        test_fail("Other mode value accepted", "Call failed");
+    SetMode(fh, 0);
 
     print("\nTest 6: Regular files reject SetMode\n");
     {
@@ -175,20 +169,7 @@ int main(void)
         }
     }
 
-    print("\nTest 7: Null filehandle is rejected\n");
-    ok = SetMode(0, 0);
-    if (!ok)
-    {
-        err = IoErr();
-        if (err == ERROR_INVALID_LOCK)
-            test_pass("Null filehandle error");
-        else
-            test_fail("Null filehandle error", "Wrong IoErr");
-    }
-    else
-    {
-        test_fail("Null filehandle error", "Unexpected success");
-    }
+    /* SetMode(NULL) is invalid input: it hangs AmigaOS 3.1 (Phase 224) */
 
     Close(fh);
 
