@@ -5625,14 +5625,19 @@ void _bootstrap(void)
         /* and as on AmigaOS 3.1 (tests/probes/dos/entryregs.c): d2 = stack
          * size, d3 = arguments, d4 = argument length, a4 near sp - Lattice
          * 3.03 c.o takes its stack bound from the saved d2 */
+        /* a5 is gcc's frame pointer and cannot be named as clobbered:
+         * programs that return with a5 changed (Fred Fish LaceTogl & co.,
+         * Phase 237) would corrupt this frame - save it around the call */
         __asm__ __volatile__ (
+            "move.l  %%a5, -(%%sp)\n\t"
             "move.l  %1, -(%%sp)\n\t"
             "move.l  %1, %%d2\n\t"
             "move.l  %2, %%d3\n\t"
             "move.l  %0, %%d4\n\t"
             "move.l  %%sp, %%a4\n\t"
             "jsr     (%3)\n\t"
-            "addq.l  #4, %%sp"
+            "addq.l  #4, %%sp\n\t"
+            "move.l  (%%sp)+, %%a5"
             : "+r" (d0), "+r" (d1), "+r" (a0), "+r" (a1)
             :
             : "d2", "d3", "d4", "d5", "d6", "d7", "a2", "a3", "a4", "a6", "cc", "memory");

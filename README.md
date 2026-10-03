@@ -231,6 +231,8 @@ Built-in C: commands with full AmigaDOS template support:
 
 ## Current Status
 
+**Version 0.11.23** - `C:NewShell`/`C:NewCLI` (WINDOW, FROM), CON: windows are interactive, CON: specifications with an empty title open; the twin runner's lxa side starts programs with non-interactive stdin/stdout like the reference's `RUN >file` (`LXA_STDIO_FILE`): vim 5.3 re-launches itself in its own console window as on AmigaOS 3.1.
+
 **Version 0.11.22** - API conformance (Phase 222d/e/f): Intuition windows, screens, requesters and string gadgets, every GadTools gadget kind and menu layout, locale, keymap (the complete 3.1 usa map), iffparse, icon, diskfont and clipboard.device match AmigaOS 3.1 in 22 new reference probes.
 
 **Version 0.11.21** - Commands start with the AmigaOS 3.1 register convention (D2 = stack size, D3/D4 = arguments, A0 = the caller's buffer, requested stack size at 4(sp)): Lattice 3.03-compiled programs no longer take a false stack overflow - 99 of 299 Fred Fish programs that crashed only on lxa now run.

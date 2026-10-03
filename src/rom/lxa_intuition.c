@@ -10831,8 +10831,12 @@ VOID _intuition_SetWindowTitles ( register struct IntuitionBase * IntuitionBase 
 
     /* Update window title if requested */
     if (windowTitle != (CONST_STRPTR)-1) {
+        ULONG handle = _intuition_get_host_window_handle((struct LXAIntuitionBase *)IntuitionBase, window);
         window->Title = (UBYTE *)windowTitle;
         _render_window_frame(window);
+        /* the host (rootless window, liblxa's tracked title) follows */
+        if (handle)
+            emucall2(EMU_CALL_INT_SET_TITLE, handle, (ULONG)windowTitle);
     }
 
     /* Update screen title if requested */
