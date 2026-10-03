@@ -1,0 +1,61 @@
+-- NextTagItem
+walk list = U1:1 U2:2 U5:5 U20:200 U21:210
+walk empty =
+walk TAG_MORE NULL =
+walk TAG_SKIP 0 = U1:1 U2:2
+NextTagItem(&NULL) = NULL
+GetTagData via TAG_MORE = 210
+GetTagData skipped U4 = -1
+GetTagData after TAG_MORE = -1
+GetTagData TAG_IGNORE = -1
+GetTagData NULL list = 77
+FindTagItem NULL list = NULL
+FindTagItem U20 in more[] = TRUE
+FindTagItem(TAG_SKIP) = NULL
+FindTagItem(TAG_MORE) = NULL
+-- TagInArray
+TagInArray U1 = TRUE
+TagInArray U3 = TRUE
+TagInArray TAG_IGNORE = TRUE
+TagInArray TAG_DONE = FALSE
+TagInArray empty = FALSE
+-- PackBoolTags
+PackBoolTags(0, t1) = 0x0000000d
+PackBoolTags(0xff, t1) = 0x000000fd
+PackBoolTags(0x0f, t2) = 0x0000010f
+PackBoolTags(0x1234, empty) = 0x00001234
+-- FilterTagItems
+FilterTagItems AND count = 3
+FilterTagItems AND result = 1:1 U2:2 1:3 U4:4 1:9 U2:22 0:0
+FilterTagItems NOT count = 2
+FilterTagItems NOT result = U1:1 1:2 U3:3 1:4 1:9 1:22 0:0
+FilterTagItems NULL list = 0
+-- FilterTagChanges/ApplyTagChanges
+FilterTagChanges(apply) changes = 1:10 U2:21 U5:50 U3:31 0:0
+FilterTagChanges(apply) orig = U1:10 U2:21 U3:31 0:0
+FilterTagChanges(noapply) changes = U1:11 1:20 0:0
+FilterTagChanges(noapply) orig = U1:10 U2:20 U3:30 0:0
+ApplyTagChanges orig = U1:11 U2:20 U3:33 0:0
+ApplyTagChanges changes = U3:33 U7:77 U1:11 0:0
+-- MapTags
+MapTags REMOVE_NOT_FOUND = U11:1 U12:2 1:3 1:4 0:0
+MapTags KEEP_NOT_FOUND = U11:1 U12:2 1:3 U4:4 0:0
+-- AllocateTagItems/CloneTagItems/RefreshTagItemClones
+AllocateTagItems(4) = non-NULL
+AllocateTagItems contents = 0:0
+CloneTagItems = non-NULL
+CloneTagItems raw = U1:1 U2:2 U20:200 0:0
+CloneTagItems walk = U1:1 U2:2 U20:200
+RefreshTagItemClones walk = U1:1 U2:22 U20:200
+CloneTagItems(NULL) = non-NULL
+CloneTagItems(NULL) raw = 0:0
+FreeTagItems(NULL) survived = 1
+-- PackStructureTags/UnpackStructureTags
+PackStructureTags count = 12
+packed: b=-5 ub=254 w=-1000 uw=32768 l=123456 flags=0x00010081 wflags=0x0200 bflags=0x04 pad=7 ponly=42 uonly=0
+PackStructureTags count 2 = 3
+packed 2: b=-5 ub=254 w=-1000 uw=32768 l=123456 flags=0x00010000 wflags=0x0000 bflags=0x04 pad=7 ponly=42 uonly=0
+UnpackStructureTags count = 12
+unpacked = U100:0 U101:0 U102:0 U103:0 U104:0 U105:77 U106:77 U107:77 U108:77 U109:77 U110:77 U111:77 U301:0 U999:55 0:0
+-- CallHookPkt
+CallHookPkt = 30507

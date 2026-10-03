@@ -1,0 +1,81 @@
+-- ExAll levels
+ED_NAME
+  alpha
+  beta.c
+  delta.info
+  dir
+  epsilon
+  gamma.c
+  zeta
+  entries 7, one call
+ED_TYPE
+  alpha t-3
+  beta.c t-3
+  delta.info t-3
+  dir t+2
+  epsilon t-3
+  gamma.c t-3
+  zeta t-3
+  entries 7, one call
+ED_SIZE
+  alpha t-3 s10
+  beta.c t-3 s0
+  delta.info t-3 s99
+  dir t+2 s0
+  epsilon t-3 s1
+  gamma.c t-3 s33
+  zeta t-3 s50
+  entries 7, one call
+ED_PROTECTION
+  alpha t-3 s10 p00000000
+  beta.c t-3 s0 p00000001
+  delta.info t-3 s99 p00000000
+  dir t+2 s0 p00000000
+  epsilon t-3 s1 p0000000c
+  gamma.c t-3 s33 p00000050
+  zeta t-3 s50 p00000000
+  entries 7, one call
+ED_COMMENT
+  alpha t-3 s10 p00000000 c"first file"
+  beta.c t-3 s0 p00000001 c""
+  delta.info t-3 s99 p00000000 c"an icon"
+  dir t+2 s0 p00000000 c""
+  epsilon t-3 s1 p0000000c c""
+  gamma.c t-3 s33 p00000050 c""
+  zeta t-3 s50 p00000000 c""
+  entries 7, one call
+-- ExAll pattern / small buffer / ExAllEnd
+pattern #?.c
+  beta.c t-3
+  gamma.c t-3
+  entries 2, one call
+pattern ~(#?.c)
+  alpha
+  delta.info
+  dir
+  epsilon
+  zeta
+  entries 5, one call
+pattern none
+  entries 0, one call
+small buffer (64 bytes)
+  alpha t-3 s10 p00000000 c"first file"
+  beta.c t-3 s0 p00000001 c""
+  delta.info t-3 s99 p00000000 c"an icon"
+  dir t+2 s0 p00000000 c""
+  epsilon t-3 s1 p0000000c c""
+  gamma.c t-3 s33 p00000050 c""
+  zeta t-3 s50 p00000000 c""
+  entries 7, several calls
+ExAllEnd after first call
+  ExAllEnd after 1 call(s)
+  delta.info
+  epsilon
+  zeta
+  entries 3, one call
+-- ExAll errors
+ExAll(file lock) = 0
+  IoErr = 0
+  eac_Entries = 0
+ExAll(type 99) = 0
+  IoErr = 0

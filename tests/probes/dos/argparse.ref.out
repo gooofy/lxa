@@ -1,0 +1,46 @@
+-- FindArg
+FindArg("Q=QUIET/S,FROM/A,TO,F=FILE/K,ALL/S", "FROM") = 1
+FindArg("Q=QUIET/S,FROM/A,TO,F=FILE/K,ALL/S", "from") = 1
+FindArg("Q=QUIET/S,FROM/A,TO,F=FILE/K,ALL/S", "TO") = 2
+FindArg("Q=QUIET/S,FROM/A,TO,F=FILE/K,ALL/S", "Q") = 0
+FindArg("Q=QUIET/S,FROM/A,TO,F=FILE/K,ALL/S", "QUIET") = 0
+FindArg("Q=QUIET/S,FROM/A,TO,F=FILE/K,ALL/S", "F") = 3
+FindArg("Q=QUIET/S,FROM/A,TO,F=FILE/K,ALL/S", "FILE") = 3
+FindArg("Q=QUIET/S,FROM/A,TO,F=FILE/K,ALL/S", "ALL") = 4
+FindArg("Q=QUIET/S,FROM/A,TO,F=FILE/K,ALL/S", "X") = -1
+FindArg("Q=QUIET/S,FROM/A,TO,F=FILE/K,ALL/S", "") = -1
+FindArg("Q=QUIET/S,FROM/A,TO,F=FILE/K,ALL/S", "FR") = -1
+-- ReadItem
+ReadItem src 0: [1 "word" @5] [1 "rest" @9] [0 "" @9]
+ReadItem src 1: [1 "spaced" @8] [0 "" @8]
+ReadItem src 2: [2 "quoted text" @13] [1 "x" @15] [0 "" @15]
+ReadItem src 3: [2 "esc"aped\n" @13] [0 "" @13]
+ReadItem src 4: [1 "key" @4] [1 "value" @9] [0 "" @9]
+ReadItem src 5: [-2 "" @1] [1 "x" @2] [0 "" @2]
+ReadItem src 6: [0 "" @0]
+ReadItem src 7: [0 "" @0]
+ReadItem src 8: [0 "" @0]
+ReadItem src 9: [-1 "unterminated" @13]
+ReadItem src 10: [1 "a"b"" @5] [1 "c" @6] [0 "" @6]
+ReadItem src 11: [1 "tab" @4] [1 "x" @5] [0 "" @5]
+ReadItem small buffer: -1 @4
+-- StrToLong
+StrToLong("0") = 1 value 0
+StrToLong("123") = 3 value 123
+StrToLong("-123") = 4 value -123
+StrToLong("+5") = -1 value 0
+StrToLong("  42") = 4 value 42
+StrToLong("	7") = 2 value 7
+StrToLong("12abc") = 2 value 12
+StrToLong("abc") = -1 value 0
+StrToLong("") = -1 value 0
+StrToLong("-") = -1 value 0
+StrToLong("2147483647") = 10 value 2147483647
+StrToLong("2147483648") = 10 value -2147483648
+StrToLong("-2147483648") = 11 value -2147483648
+StrToLong("4294967296") = 9 value -858993464
+StrToLong("0x1f") = 1 value 0
+StrToLong("$1f") = -1 value 0
+StrToLong("007") = 3 value 7
+StrToLong("1 2") = 1 value 1
+StrToLong("- 3") = -1 value 0

@@ -1,0 +1,83 @@
+-- FGetC/UnGetC
+FGetC = 97
+FGetC = 98
+UnGetC(-1) (push back last) = -1
+FGetC after UnGetC(-1) = 98
+UnGetC('X') = 88
+FGetC after UnGetC('X') = 88
+FGetC = 99
+Seek(0, CURRENT) (buffered position) = 3
+FGetC after Seek = 10
+FGetC = 100
+FGetC (to EOF) = 101
+FGetC (to EOF) = 102
+FGetC (to EOF) = 10
+FGetC (to EOF) = -1
+UnGetC(-1) after EOF = 0
+FGetC after UnGetC at EOF = -1
+-- FGets
+FGets(12): buf "line one\n"
+FGets(12): buf "line two is"
+FGets(12): buf " longer tha"
+FGets(12): buf "n the buffe"
+FGets(12): buf "r\n"
+FGets(12): buf "\n"
+FGets(12): buf "last"
+-- FPutC/FPuts/FWrite/Flush
+FPutC('A') = 65
+FPutC(0x142) (byte) = 322
+FPuts = 0
+FPuts("") = 0
+FWrite(3 x 2) = 3
+FWrite(0 blocks) = 0
+Seek(0, CURRENT) with buffered output = 12
+Write after buffered output = 3
+FPutC('Z') = 90
+Flush = -1
+Flush again = -1
+file: 16 bytes "ABxyz\n112233[W]Z"
+-- FRead
+FRead(4 x 2) = 2
+  data = 30 31 32 33 34 35 36 37
+FRead(3 x 5) (8 left: partial block) = 2
+  data = 38 39 61 62 63 64 65 66
+FGetC at end = -1
+FRead at EOF = 0
+-- SetVBuf
+SetVBuf(BUF_NONE) = 0
+SetVBuf(BUF_LINE, 16) = 0
+SetVBuf(BUF_FULL, 32) = 0
+SetVBuf(own buffer, 8) = 0
+SetVBuf(bad mode 7) = 1
+file: 28 bytes "none\nline\nrestfull0123456789"
+-- VFPrintf/VFWritef
+VFPrintf("%ld-%s-%ld\n") = 10
+VFPrintf("") = 0
+VFPrintf("%d|") word = 3
+Flush before VFWritef = -1
+file: 13 bytes "42-str--7\n42|"
+-- VFWritef (BCPL formats)
+VFWritef "N=%N|" -> : 8 bytes "N=12345|"
+VFWritef "S=%S|" -> : 7 bytes "S=cstr|"
+VFWritef "X4=%X4|" -> : 8 bytes "X4=BEEF|"
+VFWritef "X8=%X8|" -> : 12 bytes "X8=FFFFFFFF|"
+VFWritef "XA=%XA|" -> : 14 bytes "XA=0000001234|"
+VFWritef "I3=%I3|" -> : 7 bytes "I3=-42|"
+VFWritef "I6=%I6|" -> : 10 bytes "I6=   -42|"
+VFWritef "O4=%O4|" -> : 8 bytes "O4=0010|"
+VFWritef "U5=%U5|" -> : 14 bytes "U5=4294967295|"
+VFWritef "C=%C|" -> : 4 bytes "C=Q|"
+VFWritef "T8=%T8|" -> : 12 bytes "T8=ab      |"
+VFWritef "TZ=%TZ|" -> : 39 bytes "TZ=left                               |"
+VFWritef "$=%$%N|" -> : 6 bytes "$=222|"
+VFWritef "*N stays|" -> : 9 bytes "*N stays|"
+VFWritef "%%|" -> : 2 bytes "%|"
+VFWritef "%Z|" -> : 2 bytes "Z|"
+VFWritef "X2=%X2|" -> : 6 bytes "X2=EF|"
+VFWritef "I2=%I2|" -> : 9 bytes "I2=12345|"
+VFWritef "U8=%U8|" -> : 12 bytes "U8=       7|"
+VFWritef "O2=%O2|" -> : 6 bytes "O2=00|"
+VFWritef "I0=%I0|" -> : 5 bytes "I0=5|"
+VFWritef "T2=%T2|" -> : 8 bytes "T2=long|"
+VFWritef "N=%N|" -> : 6 bytes "N=-77|"
+VFWritef "X1=%X1|" -> : 5 bytes "X1=0|"

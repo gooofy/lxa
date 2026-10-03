@@ -1,0 +1,86 @@
+-- ParsePattern return codes
+"abc": ParsePattern 0, NoCase 0
+"ABC": ParsePattern 0, NoCase 0
+"#?": ParsePattern 1, NoCase 1
+"?": ParsePattern 1, NoCase 1
+"a?c": ParsePattern 1, NoCase 1
+"a#?": ParsePattern 1, NoCase 1
+"#?c": ParsePattern 1, NoCase 1
+"#a": ParsePattern 1, NoCase 1
+"a#bc": ParsePattern 1, NoCase 1
+"(a|b)c": ParsePattern 1, NoCase 1
+"(a|b|)c": ParsePattern 1, NoCase 1
+"~(abc)": ParsePattern 1, NoCase 1
+"~a#?": ParsePattern 1, NoCase 1
+"[a-c]bc": ParsePattern 1, NoCase 1
+"[~a]bc": ParsePattern 1, NoCase 1
+"[abc]#?": ParsePattern 1, NoCase 1
+"a%b": ParsePattern 0, NoCase 0
+"a'?c": ParsePattern 1, NoCase 1
+"*": ParsePattern 0, NoCase 0
+"a*": ParsePattern 0, NoCase 0
+"#(ab)": ParsePattern 1, NoCase 1
+"(a#?|b#?)c": ParsePattern 1, NoCase 1
+"#?.info": ParsePattern 1, NoCase 1
+"~(#?.info)": ParsePattern 1, NoCase 1
+"": ParsePattern 0, NoCase 0
+"a|b": ParsePattern -1 IoErr 114, NoCase -1 IoErr 114
+"(abc": ParsePattern -1 IoErr 114, NoCase -1 IoErr 114
+"[a-": ParsePattern -1 IoErr 114, NoCase -1 IoErr 114
+"a)b": ParsePattern -1 IoErr 114, NoCase -1 IoErr 114
+"%": ParsePattern 0, NoCase 0
+"a''b": ParsePattern 1, NoCase 1
+"?#?": ParsePattern 1, NoCase 1
+"#?#?c": ParsePattern 1, NoCase 1
+"(ab)#(c)": ParsePattern 1, NoCase 1
+ParsePattern(#?.info, size 0) = -1 IoErr 120
+ParsePattern(#?.info, size 1) = -1 IoErr 120
+ParsePattern(#?.info, size 2) = -1 IoErr 120
+ParsePattern(#?.info, size 3) = -1 IoErr 120
+ParsePattern(#?.info, size 4) = -1 IoErr 120
+ParsePattern(#?.info, size 5) = -1 IoErr 120
+-- MatchPattern matrix (case, nocase)
+"abc": 11 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+"ABC": 01 11 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+"#?": 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11
+"?": 00 00 00 00 00 11 00 00 00 00 00 00 00 00 00 00 00
+"a?c": 11 01 00 00 00 00 00 11 11 00 00 00 00 00 00 00 00
+"a#?": 11 01 11 11 00 00 00 11 11 11 11 11 00 11 11 11 00
+"#?c": 11 01 11 11 11 11 00 11 11 00 00 00 00 11 00 00 11
+"#a": 00 00 00 00 00 00 11 00 00 11 00 00 00 00 00 00 00
+"a#bc": 11 01 11 11 00 00 00 00 00 00 00 00 00 00 00 00 00
+"(a|b)c": 00 00 11 00 11 00 00 00 00 00 00 00 00 00 00 00 00
+"(a|b|)c": 00 00 11 00 11 11 00 00 00 00 00 00 00 00 00 00 00
+"~(abc)": 00 10 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11
+"~a#?": 00 10 00 00 11 11 11 00 00 00 00 00 11 00 00 00 11
+"[a-c]bc": 11 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+"[~a]bc": 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 11
+"[abc]#?": 11 01 11 11 11 11 00 11 11 11 11 11 00 11 11 11 00
+"a%b": 00 00 00 00 00 00 00 00 00 00 11 00 00 00 00 00 00
+"a'?c": 00 00 00 00 00 00 00 11 00 00 00 00 00 00 00 00 00
+"*": 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+"a*": 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+"#(ab)": 00 00 00 00 00 00 11 00 00 00 11 00 00 00 00 00 00
+"(a#?|b#?)c": 11 01 11 11 11 00 00 11 11 00 00 00 00 11 00 00 00
+"#?.info": 00 00 00 00 00 00 00 00 00 00 00 00 11 00 00 00 00
+"~(#?.info)": 11 11 11 11 11 11 11 11 11 11 11 11 00 11 11 11 11
+"": 00 00 00 00 00 00 11 00 00 00 00 00 00 00 00 00 00
+"a|b": -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
+"(abc": -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
+"[a-": -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
+"a)b": -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
+"%": 00 00 00 00 00 00 11 00 00 00 00 00 00 00 00 00 00
+"a''b": 00 00 00 00 00 00 00 00 00 00 00 00 00 00 11 00 00
+"?#?": 11 11 11 11 11 11 00 11 11 11 11 11 11 11 11 11 11
+"#?#?c": 11 01 11 11 11 11 00 11 11 00 00 00 00 11 00 00 11
+"(ab)#(c)": 11 01 00 00 00 00 00 00 00 00 11 00 00 00 00 00 00
+-- MatchFirst/MatchNext
+#?.c: end 232 found a.c b.c
+#?: end 232 found a.c b.c c.h d/
+~(#?.c): end 232 found c.h d/
+#?/#?.c: end 232 found d/e.c
+a.c: end 232 found a.c
+x.c: end 205 found
+#?.x: end 232 found
+D: end 232 found D/
+(a|c).?: end 232 found a.c c.h

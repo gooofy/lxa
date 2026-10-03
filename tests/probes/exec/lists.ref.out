@@ -1,0 +1,32 @@
+-- empty list
+empty = [links ok]
+RemHead(empty) = NULL
+RemTail(empty) = NULL
+FindName(empty) = NULL
+IsListEmpty = TRUE
+-- AddHead/AddTail/Insert/Remove
+AddTail n0, AddTail n1, AddHead n2 = n2 n0 n1 [links ok]
+Insert n3 after n0 = n2 n0 n3 n1 [links ok]
+Insert n4 after NULL (= head) = n4 n2 n0 n3 n1 [links ok]
+Insert n5 after tail n1 = n4 n2 n0 n3 n1 n5 [links ok]
+Insert n6 after list header = n6 n4 n2 n0 n3 n1 n5 [links ok]
+Remove n3 = n6 n4 n2 n0 n1 n5 [links ok]
+RemHead = 6
+RemTail = 5
+after RemHead/RemTail = n4 n2 n0 n1 [links ok]
+FindName n0 = 0
+FindName N0 (case) = -1
+FindName n9 = -1
+drained = [links ok]
+-- FindName continues from a node
+first n0 = 0
+next n0 = 2
+next next n0 = -1
+-- Enqueue
+Enqueue order = n5/127 n1/5 n3/5 n8/1 n0 n4 n2/-5 n7/-5 n6/-128 [links ok]
+RemHead (highest pri) = 5
+RemTail (lowest pri) = 6
+after = n1/5 n3/5 n8/1 n0 n4 n2/-5 n7/-5 [links ok]
+-- node fields untouched
+n0 ln_Type = 254
+n5 ln_Pri = 127

@@ -112,8 +112,12 @@ struct lxa_dos_buffer_state
     UBYTE *buffer;
     ULONG  size;
     ULONG  flags;
-    LONG   unget_char;
+    LONG   unget_char;      /* -1 none, LXA_DOS_UNGET_EOF: next read is EOF */
+    LONG   last_char;       /* last character read (-1: EOF) */
+    UBYTE  last_valid;      /* a buffered read happened */
 };
+
+#define LXA_DOS_UNGET_EOF (-3)
 
 extern LONG _console_SetMode(struct IOStdReq *iostd, LONG mode);
 
@@ -565,6 +569,7 @@ struct InternalExAllControl
 {
     struct ExAllControl eac;
     struct FileInfoBlock *fib;
+    BOOL pending;           /* fib holds an entry that did not fit last time */
 };
 
 static ULONG exall_fixed_size(LONG data)
@@ -1395,8 +1400,9 @@ static LONG lxa_dos_buffer_state_setvbuf(struct FileHandle *fh, STRPTR buff, LON
             break;
 
         default:
+            /* an unknown mode fails with 1 (AmigaOS 3.1, reference-verified) */
             SetIoErr(ERROR_BAD_NUMBER);
-            return -1;
+            return 1;
     }
 
     if (size >= 0)
@@ -1455,12 +1461,25 @@ static LONG lxa_dos_read_single_byte(struct DosLibrary *DOSBase, BPTR fh, struct
     {
         LONG ungot = state->unget_char;
         state->unget_char = -1;
+        state->last_char = ungot;
+        state->last_valid = TRUE;
         return ungot;
+    }
+    if (state && state->unget_char == LXA_DOS_UNGET_EOF)
+    {
+        state->unget_char = -1;
+        return -1;
     }
 
     result = _dos_Read(DOSBase, fh, &ch, 1);
     if (result < 0)
         return -2;
+
+    if (state)
+    {
+        state->last_char = result == 0 ? -1 : (LONG)ch;
+        state->last_valid = TRUE;
+    }
 
     if (result == 0)
         return -1;
@@ -3027,10 +3046,16 @@ LONG _dos_SetComment ( register struct DosLibrary * __libBase __asm("a6"),
         return DOSFALSE;
     }
 
+    /* comments hold at most 79 characters (AmigaOS 3.1) */
+    if (___comment && strlen((const char *)___comment) > 79) {
+        SetIoErr(ERROR_COMMENT_TOO_BIG);
+        return DOSFALSE;
+    }
+
     /* Resolve relative paths */
     char resolved_path[256];
     const char *path_to_use = resolve_amiga_path((const char *)___name, resolved_path);
-    
+
     LONG result = emucall2(EMU_CALL_DOS_SETCOMMENT, (ULONG)path_to_use, (ULONG)___comment);
 
     DPRINTF (LOG_DEBUG, "_dos: SetComment() result: %ld\n", result);
@@ -3945,8 +3970,21 @@ LONG _dos_UnGetC ( register struct DosLibrary * DOSBase __asm("a6"),
         return -1;
     }
 
+    /* -1 pushes back the last character read and returns -1; after EOF
+     * the next read is EOF again and the result is FALSE (AmigaOS 3.1,
+     * reference-verified, Tests/Probes/dos/bufio) */
     if (character == -1)
-        return (state->unget_char >= 0) ? TRUE : FALSE;
+    {
+        if (!state->last_valid || state->unget_char != -1)
+            return FALSE;
+        if (state->last_char < 0)
+        {
+            state->unget_char = LXA_DOS_UNGET_EOF;
+            return FALSE;
+        }
+        state->unget_char = state->last_char;
+        return -1;
+    }
 
     if (state->unget_char >= 0)
     {
@@ -4140,12 +4178,111 @@ LONG _dos_FPuts ( register struct DosLibrary * DOSBase __asm("a6"),
     return 0;
 }
 
+/* BCPL width character: '0'-'9', then 'A'-'Z' for 10-35 (base 36) */
+static LONG lxa_dos_writef_width(UBYTE c)
+{
+    if (c >= '0' && c <= '9')
+        return c - '0';
+    if (c >= 'A' && c <= 'Z')
+        return c - 'A' + 10;
+    if (c >= 'a' && c <= 'z')
+        return c - 'a' + 10;
+    return 0;
+}
+
 VOID _dos_VFWritef ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register BPTR fh __asm("d1"),
                                                         register CONST_STRPTR format __asm("d2"),
                                                         register const LONG * argarray __asm("d3"))
 {
-    (void)_dos_VFPrintf(DOSBase, fh, format, (APTR)argarray);
+    /* BCPL formats (autodoc; widths and truncation reference-verified,
+     * Tests/Probes/dos/bufio): %S C string, %Tx left-justified string of
+     * at least x, %C character, %Ox/%Xx exactly x octal/hex digits (high
+     * digits dropped, zero-padded), %Ix/%Ux decimal right-justified in at
+     * least x, %N decimal, %$ skips an argument; any other character after
+     * '%' is printed.  "*N" and friends are not interpreted. */
+    const UBYTE *f = (const UBYTE *)format;
+    const LONG *arg = argarray;
+    struct FileHandle *fhp = (struct FileHandle *)BADDR(fh);
+
+    if (!fh || !format)
+        return;
+
+    while (*f)
+    {
+        UBYTE c = *f++;
+        if (c != '%' || !*f)
+        {
+            lxa_dos_fputc_internal(DOSBase, fhp, fh, c);
+            continue;
+        }
+        c = *f++;
+        if (c >= 'a' && c <= 'z')
+            c -= 32;
+        switch (c)
+        {
+            case 'S':
+            case 'T':
+            {
+                const UBYTE *str = (const UBYTE *)*arg++;
+                LONG w = 0, n = 0;
+                if (c == 'T' && *f)
+                    w = lxa_dos_writef_width(*f++);
+                while (str && str[n])
+                    lxa_dos_fputc_internal(DOSBase, fhp, fh, str[n++]);
+                while (n++ < w)
+                    lxa_dos_fputc_internal(DOSBase, fhp, fh, ' ');
+                break;
+            }
+            case 'C':
+                lxa_dos_fputc_internal(DOSBase, fhp, fh, (UBYTE)*arg++);
+                break;
+            case 'O':
+            case 'X':
+            {
+                ULONG v = (ULONG)*arg++;
+                LONG w = *f ? lxa_dos_writef_width(*f++) : 0, i;
+                UBYTE digits[36];
+                ULONG shift = c == 'O' ? 3 : 4, mask = c == 'O' ? 7 : 15;
+                for (i = w - 1; i >= 0; i--)
+                {
+                    digits[i] = "0123456789ABCDEF"[v & mask];
+                    v = shift < 32 ? v >> shift : 0;
+                }
+                for (i = 0; i < w; i++)
+                    lxa_dos_fputc_internal(DOSBase, fhp, fh, digits[i]);
+                break;
+            }
+            case 'I':
+            case 'U':
+            case 'N':
+            {
+                LONG v = *arg++;
+                LONG w = (c != 'N' && *f) ? lxa_dos_writef_width(*f++) : 0, n = 0;
+                ULONG u = (c == 'I' || c == 'N') && v < 0 ? (ULONG)-v : (ULONG)v;
+                UBYTE tmp[12];
+                BOOL neg = (c == 'I' || c == 'N') && v < 0;
+                do
+                {
+                    tmp[n++] = (UBYTE)('0' + u % 10);
+                    u /= 10;
+                } while (u);
+                if (neg)
+                    tmp[n++] = '-';
+                while (w-- > n)
+                    lxa_dos_fputc_internal(DOSBase, fhp, fh, ' ');
+                while (n)
+                    lxa_dos_fputc_internal(DOSBase, fhp, fh, tmp[--n]);
+                break;
+            }
+            case '$':
+                arg++;
+                break;
+            default:
+                lxa_dos_fputc_internal(DOSBase, fhp, fh, c);
+                break;
+        }
+    }
 }
 
 LONG _dos_VFPrintf ( register struct DosLibrary * DOSBase __asm("a6"),
@@ -4193,7 +4330,8 @@ LONG _dos_Flush ( register struct DosLibrary * DOSBase __asm("a6"),
             state->flags &= ~LXA_DOS_BF_WRITE;
     }
 
-    return emucall1(EMU_CALL_DOS_FLUSH, (ULONG)fhp);
+    /* DOSTRUE on success (AmigaOS 3.1, reference-verified) */
+    return emucall1(EMU_CALL_DOS_FLUSH, (ULONG)fhp) ? DOSTRUE : DOSFALSE;
 }
 
 LONG _dos_SetVBuf ( register struct DosLibrary * DOSBase __asm("a6"),
@@ -4365,7 +4503,8 @@ LONG _dos_NameFromLock ( register struct DosLibrary * DOSBase __asm("a6"),
     DPRINTF (LOG_DEBUG, "_dos: NameFromLock() result: %ld\n", result);
 
     if (!result) {
-        SetIoErr(ERROR_OBJECT_NOT_FOUND);
+        LONG err = emucall1(EMU_CALL_DOS_LASTERROR, 0);
+        SetIoErr(err ? err : ERROR_OBJECT_NOT_FOUND);
         return DOSFALSE;
     }
 
@@ -4576,6 +4715,7 @@ LONG _dos_ExAll ( register struct DosLibrary * DOSBase __asm("a6"),
 
     if (control->eac_LastKey == 0)
     {
+        icontrol->pending = FALSE;
         if (!_dos_Examine(DOSBase, lock, icontrol->fib))
             return DOSFALSE;
 
@@ -4598,13 +4738,18 @@ LONG _dos_ExAll ( register struct DosLibrary * DOSBase __asm("a6"),
         ULONG comment_len;
         LONG match_data;
 
-        if (!_dos_ExNext(DOSBase, lock, icontrol->fib))
+        /* an entry that did not fit into the previous buffer comes first */
+        if (icontrol->pending)
+            icontrol->pending = FALSE;
+        else if (!_dos_ExNext(DOSBase, lock, icontrol->fib))
         {
             err = IoErr();
             break;
         }
 
         control->eac_LastKey = icontrol->fib->fib_DiskKey;
+        if (!control->eac_LastKey)
+            control->eac_LastKey = 1;   /* "scan in progress" for the next call */
 
         if (control->eac_MatchString &&
             !MatchPatternNoCase((CONST UBYTE *)control->eac_MatchString,
@@ -4615,6 +4760,7 @@ LONG _dos_ExAll ( register struct DosLibrary * DOSBase __asm("a6"),
         if (next > end)
         {
             err = (last == curr) ? ERROR_BUFFER_OVERFLOW : 0;
+            icontrol->pending = TRUE;
             break;
         }
 
@@ -4641,6 +4787,7 @@ LONG _dos_ExAll ( register struct DosLibrary * DOSBase __asm("a6"),
             if (next + comment_len > end)
             {
                 err = (last == curr) ? ERROR_BUFFER_OVERFLOW : 0;
+                icontrol->pending = TRUE;
                 break;
             }
             CopyMem(icontrol->fib->fib_Comment, next, comment_len);
@@ -4670,6 +4817,7 @@ LONG _dos_ExAll ( register struct DosLibrary * DOSBase __asm("a6"),
         if (next + name_len > end)
         {
             err = (last == curr) ? ERROR_BUFFER_OVERFLOW : 0;
+            icontrol->pending = TRUE;
             break;
         }
         CopyMem(icontrol->fib->fib_FileName, next, name_len);
@@ -4852,153 +5000,149 @@ LONG _dos_SetIoErr ( register struct DosLibrary * DOSBase __asm("a6"),
     return prevErrorCode;
 }
 
-BOOL _dos_Fault ( register struct DosLibrary * DOSBase __asm("a6"),
+/* AmigaOS 3.1 error texts (reference-verified: every code -5..999 that
+ * has a message, Tests/Probes/dos/misc) */
+static const struct
+{
+    WORD        code;
+    const char *message;
+} g_dos_fault_texts[] =
+{
+    { 103, "not enough memory available" },
+    { 105, "process table full" },
+    { 114, "bad template" },
+    { 115, "bad number" },
+    { 116, "required argument missing" },
+    { 117, "value after keyword missing" },
+    { 118, "wrong number of arguments" },
+    { 119, "unmatched quotes" },
+    { 120, "argument line invalid or too long" },
+    { 121, "file is not executable" },
+    { 122, "invalid resident library" },
+    { 202, "object is in use" },
+    { 203, "object already exists" },
+    { 204, "directory not found" },
+    { 205, "object not found" },
+    { 206, "invalid window description" },
+    { 207, "object too large" },
+    { 209, "packet request type unknown" },
+    { 210, "object name invalid" },
+    { 211, "invalid object lock" },
+    { 212, "object is not of required type" },
+    { 213, "disk not validated" },
+    { 214, "disk is write-protected" },
+    { 215, "rename across devices attempted" },
+    { 216, "directory not empty" },
+    { 217, "too many levels" },
+    { 218, "device (or volume) is not mounted" },
+    { 219, "seek failure" },
+    { 220, "comment is too long" },
+    { 221, "disk is full" },
+    { 222, "object is protected from deletion" },
+    { 223, "file is write protected" },
+    { 224, "file is read protected" },
+    { 225, "not a valid DOS disk" },
+    { 226, "no disk in drive" },
+    { 232, "no more entries in directory" },
+    { 233, "object is soft link" },
+    { 234, "object is linked" },
+    { 235, "bad loadfile hunk" },
+    { 236, "function not implemented" },
+    { 240, "record not locked" },
+    { 241, "record lock collision" },
+    { 242, "record lock timeout" },
+    { 243, "record unlock error" },
+    { 303, "buffer overflow" },
+    { 304, "***Break" },
+    { 305, "file not executable" },
+    { 0, NULL }
+};
+
+/* one piece of Fault()'s output: copies at most avail-1 characters and
+ * uses one more slot for the terminator, as AmigaOS 3.1 does piece by
+ * piece (the returned length counts those slots) */
+static void lxa_dos_fault_piece(char **d, LONG *avail, LONG *used, const char *src)
+{
+    LONG n = 0;
+    if (*avail <= 0)
+        return;
+    while (src[n] && n < *avail - 1)
+    {
+        (*d)[n] = src[n];
+        n++;
+    }
+    (*d)[n] = '\0';
+    *d += n;
+    *avail -= n + 1;
+    *used += n + 1;
+}
+
+LONG _dos_Fault ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register LONG code __asm("d1"),
                                                         register STRPTR header __asm("d2"),
                                                         register STRPTR buffer __asm("d3"),
                                                         register LONG len __asm("d4"))
 {
     /*
-     * Fault - Get error message for DOS error code
-     *
-     * Fills buffer with "header: error message" or just "error message"
-     * if header is NULL or empty.
-     *
-     * Returns: TRUE on success, FALSE if buffer too small
+     * AmigaOS 3.1 (reference-verified, Tests/Probes/dos/misc):
+     *  - code 0: returns 0, buffer untouched;
+     *  - "header: text" (a non-NULL empty header still gives ": text");
+     *  - codes without a text: "Error <code>";
+     *  - header, ": ", the text (and "Error ", the number) are copied as
+     *    separate pieces; each piece that gets any room uses one slot for
+     *    its terminator, and the result is the number of slots used (the
+     *    text length + number of pieces when nothing is truncated);
+     *  - IoErr() is not changed.
      */
-    
-    code = (LONG)(WORD)code; /* sign-extend: GCC m68k move.w workaround */
-    len = (LONG)(WORD)len;
+    const char *msg = NULL;
+    char num[12];
+    char *d;
+    LONG avail, used = 0;
 
-    /* Error message lookup table */
-    static const struct {
-        LONG code;
-        const char *message;
-    } error_messages[] = {
-        /* AmigaOS 3.1 texts (reference-verified, Phase 221) */
-        { 103, "not enough memory available" },
-        { 105, "process table full" },
-        { 114, "bad template" },
-        { 115, "bad number" },
-        { 116, "required argument missing" },
-        { 117, "value after keyword missing" },
-        { 118, "wrong number of arguments" },
-        { 119, "unmatched quotes" },
-        { 120, "argument line invalid or too long" },
-        { 121, "file is not executable" },
-        { 122, "invalid resident library" },
-        { 202, "object is in use" },
-        { 203, "object already exists" },
-        { 204, "directory not found" },
-        { 205, "object not found" },
-        { 206, "invalid window description" },
-        { 207, "object too large" },
-        { 209, "packet request type unknown" },
-        { 210, "object name invalid" },
-        { 211, "invalid object lock" },
-        { 212, "object is not of required type" },
-        { 213, "disk not validated" },
-        { 214, "disk is write-protected" },
-        { 215, "rename across devices attempted" },
-        { 216, "directory not empty" },
-        { 217, "too many levels" },
-        { 218, "device (or volume) is not mounted" },
-        { 219, "seek failure" },
-        { 220, "comment is too long" },
-        { 221, "disk is full" },
-        { 222, "object is protected from deletion" },
-        { 223, "file is write protected" },
-        { 224, "file is read protected" },
-        { 225, "not a valid DOS disk" },
-        { 226, "no disk in drive" },
-        { 232, "no more entries in directory" },
-        { 233, "object is soft link" },
-        { 234, "object is linked" },
-        { 235, "bad loadfile hunk" },
-        { 236, "function not implemented" },
-        { 240, "record not locked" },
-        { 241, "record lock collision" },
-        { 242, "record lock timeout" },
-        { 243, "record unlock error" },
-        { 303, "buffer overflow" },
-        { 304, "***Break" },
-        { 305, "file not executable" },
-        { 0, NULL }  /* Sentinel */
-    };
-    
     DPRINTF(LOG_DEBUG, "_dos: Fault(code=%ld, header=%s, buffer=%p, len=%ld)\n",
             code, header ? (char*)header : "NULL", buffer, len);
-    
-    if (!buffer || len <= 0)
+
+    if (!code || !buffer || len <= 0)
+        return 0;
+
+    for (int i = 0; g_dos_fault_texts[i].message; i++)
     {
-        return FALSE;
-    }
-    
-    /* Find error message; unknown codes read "Error <code>" (AmigaOS 3.1) */
-    char unknown[24];
-    const char *msg = NULL;
-    for (int i = 0; error_messages[i].message != NULL; i++)
-    {
-        if (error_messages[i].code == code)
+        if (g_dos_fault_texts[i].code == code)
         {
-            msg = error_messages[i].message;
+            msg = g_dos_fault_texts[i].message;
             break;
         }
     }
-    
-    if (!msg)
+
+    d = (char *)buffer;
+    avail = len;
+    if (header)
     {
-        char digits[12];
-        char *u = unknown;
-        ULONG v = code < 0 ? -code : code;
-        int n = 0;
-        const char *e = "Error ";
-        while (*e)
-            *u++ = *e++;
-        if (code < 0)
-            *u++ = '-';
+        lxa_dos_fault_piece(&d, &avail, &used, (const char *)header);
+        lxa_dos_fault_piece(&d, &avail, &used, ": ");
+    }
+    if (msg)
+        lxa_dos_fault_piece(&d, &avail, &used, msg);
+    else
+    {
+        ULONG u = code < 0 ? (ULONG)-code : (ULONG)code;
+        char tmp[12];
+        int n = 0, k = 0;
         do
         {
-            digits[n++] = '0' + (v % 10);
-            v /= 10;
-        } while (v);
+            tmp[n++] = (char)('0' + u % 10);
+            u /= 10;
+        } while (u);
+        if (code < 0)
+            num[k++] = '-';
         while (n)
-            *u++ = digits[--n];
-        *u = '\0';
-        msg = unknown;
+            num[k++] = tmp[--n];
+        num[k] = 0;
+        lxa_dos_fault_piece(&d, &avail, &used, "Error ");
+        lxa_dos_fault_piece(&d, &avail, &used, num);
     }
 
-    /* Build output string */
-    char *d = (char *)buffer;
-    LONG remaining = len - 1;  /* Leave room for null terminator */
-    
-    /* Add header if provided */
-    if (header && *header)
-    {
-        const char *s = (const char *)header;
-        while (*s && remaining > 0)
-        {
-            *d++ = *s++;
-            remaining--;
-        }
-        if (remaining > 2)
-        {
-            *d++ = ':';
-            *d++ = ' ';
-            remaining -= 2;
-        }
-    }
-    
-    /* Add error message */
-    while (*msg && remaining > 0)
-    {
-        *d++ = *msg++;
-        remaining--;
-    }
-    
-    *d = '\0';
-    
-    return TRUE;
+    return used;
 }
 
 BOOL _dos_PrintFault ( register struct DosLibrary * DOSBase __asm("a6"),
@@ -5006,53 +5150,26 @@ BOOL _dos_PrintFault ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register CONST_STRPTR header __asm("d2"))
 {
     /*
-     * PrintFault - Print error message to standard error output
-     *
-     * Prints "header: error message\n" or just "error message\n"
-     * if header is NULL or empty.
-     *
-     * Returns: TRUE on success, FALSE on I/O error
+     * "header: text\n" through buffered output on Output() (autodoc); code
+     * 0 prints nothing.  IoErr() is set to the code.
      */
     UBYTE buffer[128];
-
-    code = (LONG)(WORD)code; /* sign-extend: GCC m68k move.w workaround */
+    BPTR out;
 
     DPRINTF(LOG_DEBUG, "_dos: PrintFault(code=%ld, header=%s)\n",
             code, header ? (char*)header : "NULL");
-    
-    /* Get error message */
-    if (!_dos_Fault(DOSBase, code, (STRPTR)header, buffer, sizeof(buffer)))
-    {
-        return FALSE;
-    }
-    
-    /* Print to stderr (which is Output() in DOS) */
-    BPTR out = Output();
-    if (!out)
-    {
-        return FALSE;
-    }
-    
-    /* Calculate string length */
-    LONG len = 0;
-    char *p = (char *)buffer;
-    while (*p++) len++;
-    
-    /* Write message */
-    if (Write(out, buffer, len) != len)
-    {
-        return FALSE;
-    }
-    
-    /* Write newline */
-    if (Write(out, (APTR)"\n", 1) != 1)
-    {
-        return FALSE;
-    }
 
-    /* AmigaOS: IoErr() is the code afterwards (callers return it) */
+    out = Output();
+    if (code && out)
+    {
+        if (_dos_Fault(DOSBase, code, (STRPTR)header, buffer, sizeof(buffer)) > 0)
+        {
+            _dos_FPuts(DOSBase, out, (CONST_STRPTR)buffer);
+            _dos_FPutC(DOSBase, out, '\n');
+        }
+    }
     SetIoErr(code);
-    return TRUE;
+    return DOSTRUE;
 }
 
 LONG _dos_ErrorReport ( register struct DosLibrary * DOSBase __asm("a6"),
@@ -7286,412 +7403,331 @@ LONG _dos_CompareDates ( register struct DosLibrary * DOSBase __asm("a6"),
     return date2->ds_Tick - date1->ds_Tick;
 }
 
+/*
+ * DateToStr()/StrToDate() - AmigaOS 3.1 behaviour, reference-verified with
+ * Tests/Probes/dos/misc (Phase 222a).
+ */
+static const char * const g_dos_month_names[12] = {
+    "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
+};
+static const char * const g_dos_day_names[7] = {
+    "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"
+};
+
+static BOOL lxa_dos_leap(LONG y)
+{
+    return (y % 4 == 0 && y % 100 != 0) || y % 400 == 0;
+}
+
+static LONG lxa_dos_month_days(LONG y, LONG m)
+{
+    static const UBYTE dim[12] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+    return m == 1 && lxa_dos_leap(y) ? 29 : dim[m];
+}
+
+static void lxa_dos_put2(char *d, LONG v)
+{
+    d[0] = (char)('0' + (v / 10) % 10);
+    d[1] = (char)('0' + v % 10);
+}
+
+static void lxa_dos_strcpy(char *d, const char *s)
+{
+    while ((*d++ = *s++) != 0)
+        ;
+}
+
 LONG _dos_DateToStr ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register struct DateTime * datetime __asm("d1"))
 {
     /*
-     * DateToStr - Convert DateStamp to string representation
-     *
-     * Converts the DateStamp in datetime->dat_Stamp to string format.
-     * Fills in dat_StrDay (day of week), dat_StrDate (date), and dat_StrTime (time).
-     *
-     * dat_Format controls the date format:
-     *   FORMAT_DOS  (0) - dd-mmm-yy  (e.g., "15-Jan-24")
-     *   FORMAT_INT  (1) - yy-mm-dd   (e.g., "24-01-15")
-     *   FORMAT_USA  (2) - mm-dd-yy   (e.g., "01-15-24")
-     *   FORMAT_CDN  (3) - dd-mm-yy   (e.g., "15-01-24")
-     *
-     * Returns: TRUE on success, FALSE on error
+     * The stamp is converted as seconds since 1978 in 32 bits, like
+     * utility.library/Amiga2Date (days * 86400 wraps: day -1 prints a
+     * February 2114 date).  Formats: DOS dd-Mmm-yy, INT yy-Mmm-dd, USA
+     * mm-dd-yy, CDN dd-mm-yy.  DTF_SUBST replaces the date by "Today",
+     * "Yesterday", "Tomorrow", "Future" (two or more days ahead) or the
+     * weekday name (two to seven days back).
      */
-    static const char * const month_names[] = {
-        "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-        "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
-    };
-    static const char * const day_names[] = {
-        "Sunday", "Monday", "Tuesday", "Wednesday",
-        "Thursday", "Friday", "Saturday"
-    };
-    /* Days in each month (non-leap year) */
-    static const int days_in_month[] = {
-        31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31
-    };
-    
+    ULONG secs, days, rem;
+    LONG year = 1978, month = 0, day, wday;
+    char *d;
+
     DPRINTF(LOG_DEBUG, "_dos: DateToStr(datetime=%p)\n", datetime);
-    
+
     if (!datetime)
+        return DOSFALSE;
+
+    secs = (ULONG)datetime->dat_Stamp.ds_Days * 86400UL +
+           (ULONG)datetime->dat_Stamp.ds_Minute * 60UL +
+           (ULONG)datetime->dat_Stamp.ds_Tick / TICKS_PER_SECOND;
+    days = secs / 86400UL;
+    rem = secs % 86400UL;
+    wday = (LONG)(days % 7);
+
+    while (days >= (ULONG)(lxa_dos_leap(year) ? 366 : 365))
     {
-        return FALSE;
-    }
-    
-    LONG days = datetime->dat_Stamp.ds_Days;
-    LONG minutes = datetime->dat_Stamp.ds_Minute;
-    LONG ticks = datetime->dat_Stamp.ds_Tick;
-    
-    /* Calculate day of week (Jan 1, 1978 was a Sunday = 0) */
-    int day_of_week = (days + 0) % 7;  /* 0 = Sunday */
-    
-    /* Fill in day name if buffer provided */
-    if (datetime->dat_StrDay)
-    {
-        char *d = (char *)datetime->dat_StrDay;
-        const char *s = day_names[day_of_week];
-        while (*s)
-        {
-            *d++ = *s++;
-        }
-        *d = '\0';
-    }
-    
-    /* Convert days since 1978 to year/month/day */
-    int year = 1978;
-    while (days >= 0)
-    {
-        int days_in_year = 365;
-        /* Check for leap year */
-        if ((year % 4 == 0 && year % 100 != 0) || (year % 400 == 0))
-        {
-            days_in_year = 366;
-        }
-        if (days < days_in_year)
-        {
-            break;
-        }
-        days -= days_in_year;
+        days -= lxa_dos_leap(year) ? 366 : 365;
         year++;
     }
-    
-    /* Find month and day */
-    int month = 0;
-    int is_leap = ((year % 4 == 0 && year % 100 != 0) || (year % 400 == 0));
-    while (month < 12)
+    while (days >= (ULONG)lxa_dos_month_days(year, month))
     {
-        int dim = days_in_month[month];
-        if (month == 1 && is_leap)
-        {
-            dim = 29;  /* February in leap year */
-        }
-        if (days < dim)
-        {
-            break;
-        }
-        days -= dim;
+        days -= lxa_dos_month_days(year, month);
         month++;
     }
-    int day = days + 1;  /* Days are 1-based */
-    
-    /* Fill in date string if buffer provided */
-    if (datetime->dat_StrDate)
+    day = (LONG)days + 1;
+
+    if (datetime->dat_StrDay)
+        lxa_dos_strcpy((char *)datetime->dat_StrDay, g_dos_day_names[wday]);
+
+    if ((d = (char *)datetime->dat_StrDate) != NULL)
     {
-        char *d = (char *)datetime->dat_StrDate;
-        int y2 = year % 100;  /* Two-digit year */
-        
-        switch (datetime->dat_Format)
-        {
-            case FORMAT_INT:  /* yy-mm-dd */
-                d[0] = '0' + (y2 / 10);
-                d[1] = '0' + (y2 % 10);
-                d[2] = '-';
-                d[3] = '0' + ((month + 1) / 10);
-                d[4] = '0' + ((month + 1) % 10);
-                d[5] = '-';
-                d[6] = '0' + (day / 10);
-                d[7] = '0' + (day % 10);
-                d[8] = '\0';
-                break;
-            
-            case FORMAT_USA:  /* mm-dd-yy */
-                d[0] = '0' + ((month + 1) / 10);
-                d[1] = '0' + ((month + 1) % 10);
-                d[2] = '-';
-                d[3] = '0' + (day / 10);
-                d[4] = '0' + (day % 10);
-                d[5] = '-';
-                d[6] = '0' + (y2 / 10);
-                d[7] = '0' + (y2 % 10);
-                d[8] = '\0';
-                break;
-            
-            case FORMAT_CDN:  /* dd-mm-yy */
-                d[0] = '0' + (day / 10);
-                d[1] = '0' + (day % 10);
-                d[2] = '-';
-                d[3] = '0' + ((month + 1) / 10);
-                d[4] = '0' + ((month + 1) % 10);
-                d[5] = '-';
-                d[6] = '0' + (y2 / 10);
-                d[7] = '0' + (y2 % 10);
-                d[8] = '\0';
-                break;
-            
-            case FORMAT_DOS:  /* dd-mmm-yy (default) */
-            default:
-                d[0] = '0' + (day / 10);
-                d[1] = '0' + (day % 10);
-                d[2] = '-';
-                d[3] = month_names[month][0];
-                d[4] = month_names[month][1];
-                d[5] = month_names[month][2];
-                d[6] = '-';
-                d[7] = '0' + (y2 / 10);
-                d[8] = '0' + (y2 % 10);
-                d[9] = '\0';
-                break;
-        }
-    }
-    
-    /* DTF_SUBST: Today/Yesterday/Tomorrow, the weekday within the past
-     * week, Future for later dates (AmigaOS 3.1, as List shows them) */
-    if (datetime->dat_StrDate && (datetime->dat_Flags & DTF_SUBST))
-    {
-        struct DateStamp now;
-        LONG diff;
         const char *subst = NULL;
 
-        _dos_DateStamp(DOSBase, &now);
-        diff = datetime->dat_Stamp.ds_Days - now.ds_Days;
-        if (diff == 0)
-            subst = "Today";
-        else if (diff == -1)
-            subst = "Yesterday";
-        else if (diff == 1)
-            subst = "Tomorrow";
-        else if (diff > 1)
-            subst = "Future";
-        else if (diff > -7)
-            subst = day_names[day_of_week];
-        if (subst)
+        if (datetime->dat_Flags & DTF_SUBST)
         {
-            char *d = (char *)datetime->dat_StrDate;
-            while (*subst)
-                *d++ = *subst++;
-            *d = '\0';
+            struct DateStamp now;
+            LONG delta;
+            DateStamp(&now);
+            delta = datetime->dat_Stamp.ds_Days - now.ds_Days;
+            if (delta == 0)
+                subst = "Today";
+            else if (delta == -1)
+                subst = "Yesterday";
+            else if (delta == 1)
+                subst = "Tomorrow";
+            else if (delta > 1)
+                subst = "Future";
+            else if (delta >= -7)
+                subst = g_dos_day_names[wday];
+        }
+
+        if (subst)
+            lxa_dos_strcpy(d, subst);
+        else
+        {
+            LONG y2 = year % 100;
+            switch (datetime->dat_Format)
+            {
+                case FORMAT_INT:            /* yy-Mmm-dd */
+                    lxa_dos_put2(d, y2);
+                    d[2] = '-';
+                    lxa_dos_strcpy(d + 3, g_dos_month_names[month]);
+                    d[6] = '-';
+                    lxa_dos_put2(d + 7, day);
+                    d[9] = 0;
+                    break;
+                case FORMAT_USA:            /* mm-dd-yy */
+                    lxa_dos_put2(d, month + 1);
+                    d[2] = '-';
+                    lxa_dos_put2(d + 3, day);
+                    d[5] = '-';
+                    lxa_dos_put2(d + 6, y2);
+                    d[8] = 0;
+                    break;
+                case FORMAT_CDN:            /* dd-mm-yy */
+                    lxa_dos_put2(d, day);
+                    d[2] = '-';
+                    lxa_dos_put2(d + 3, month + 1);
+                    d[5] = '-';
+                    lxa_dos_put2(d + 6, y2);
+                    d[8] = 0;
+                    break;
+                default:                    /* FORMAT_DOS: dd-Mmm-yy */
+                    lxa_dos_put2(d, day);
+                    d[2] = '-';
+                    lxa_dos_strcpy(d + 3, g_dos_month_names[month]);
+                    d[6] = '-';
+                    lxa_dos_put2(d + 7, y2);
+                    d[9] = 0;
+                    break;
+            }
         }
     }
 
-    /* Fill in time string if buffer provided (hh:mm:ss) */
-    if (datetime->dat_StrTime)
+    if ((d = (char *)datetime->dat_StrTime) != NULL)
     {
-        char *d = (char *)datetime->dat_StrTime;
-        int hours = minutes / 60;
-        int mins = minutes % 60;
-        int secs = ticks / TICKS_PER_SECOND;
-        
-        d[0] = '0' + (hours / 10);
-        d[1] = '0' + (hours % 10);
+        lxa_dos_put2(d, (LONG)(rem / 3600));
         d[2] = ':';
-        d[3] = '0' + (mins / 10);
-        d[4] = '0' + (mins % 10);
+        lxa_dos_put2(d + 3, (LONG)(rem / 60 % 60));
         d[5] = ':';
-        d[6] = '0' + (secs / 10);
-        d[7] = '0' + (secs % 10);
-        d[8] = '\0';
+        lxa_dos_put2(d + 6, (LONG)(rem % 60));
+        d[8] = 0;
     }
-    
-    return TRUE;
+
+    return DOSTRUE;
+}
+
+static UBYTE lxa_dos_lc(UBYTE c)
+{
+    return (c >= 'A' && c <= 'Z') ? (UBYTE)(c + 32) : c;
+}
+
+/* 1-2 digit number; returns the position after it or NULL */
+static const UBYTE *lxa_dos_num2(const UBYTE *s, LONG *v)
+{
+    if (*s < '0' || *s > '9')
+        return NULL;
+    *v = *s++ - '0';
+    if (*s >= '0' && *s <= '9')
+        *v = *v * 10 + (*s++ - '0');
+    return s;
+}
+
+/* month as number or name (first three letters count) */
+static const UBYTE *lxa_dos_month(const UBYTE *s, LONG *m)
+{
+    LONG i;
+    if (*s >= '0' && *s <= '9')
+    {
+        s = lxa_dos_num2(s, m);
+        if (s)
+            (*m)--;
+        return s;
+    }
+    for (i = 0; i < 12; i++)
+    {
+        const char *n = g_dos_month_names[i];
+        if (lxa_dos_lc(s[0]) == lxa_dos_lc(n[0]) && lxa_dos_lc(s[1]) == lxa_dos_lc(n[1]) &&
+            lxa_dos_lc(s[2]) == lxa_dos_lc(n[2]))
+        {
+            s += 3;
+            while ((*s >= 'a' && *s <= 'z') || (*s >= 'A' && *s <= 'Z'))
+                s++;
+            *m = i;
+            return s;
+        }
+    }
+    return NULL;
+}
+
+/* a whole word (case-insensitive), allowing an abbreviation of >= 3 letters */
+static BOOL lxa_dos_word(const UBYTE *s, const char *word)
+{
+    LONG n = 0;
+    while (s[n] && word[n] && lxa_dos_lc(s[n]) == lxa_dos_lc((UBYTE)word[n]))
+        n++;
+    return !s[n] && (n >= 3 || !word[n]) && n > 0;
 }
 
 LONG _dos_StrToDate ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register struct DateTime * datetime __asm("d1"))
 {
     /*
-     * StrToDate - parse dat_StrDate / dat_StrTime into dat_Stamp.
-     *
-     * Only the parts given are changed (a date sets ds_Days, a time sets
-     * ds_Minute/ds_Tick).  Dates in dat_Format (FORMAT_DOS dd-mmm-yy,
-     * FORMAT_INT yy-mm-dd, FORMAT_USA mm-dd-yy, FORMAT_CDN dd-mm-yy; a
-     * four-digit year is accepted, two digits below 78 mean 20xx); with
-     * DTF_SUBST also Today/Yesterday/Tomorrow and weekday names (the last
-     * such day, or the next one with DTF_FUTURE).  Times: hh:mm[:ss].
-     * Invalid strings return FALSE.
+     * The time ("h:m" or "h:m:s", 1-2 digits each, leading blanks allowed)
+     * is parsed and stored first; a bad time fails without changes, a bad
+     * date fails after the time was stored.  Dates: fields separated by
+     * '-', two-digit years (78-99 -> 19xx, 00-77 -> 20xx), the month as a
+     * number or a name, day-in-month checked.  The words Today, Yesterday,
+     * Tomorrow, Future (today + 2) and weekday names are accepted; a
+     * weekday counts back (or with DTF_FUTURE forward) one to seven days
+     * from today, relative to the weekday of the stamp passed in
+     * (AmigaOS 3.1 behaviour).
      */
-    static const char * const month_names[] = {
-        "jan", "feb", "mar", "apr", "may", "jun",
-        "jul", "aug", "sep", "oct", "nov", "dec"
-    };
-    static const char * const day_names[] = {
-        "sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"
-    };
-    static const int days_in_month[] = {
-        31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31
-    };
-    LONG new_days = -1, new_minute = -1, new_tick = -1;
+    const UBYTE *s;
 
     DPRINTF(LOG_DEBUG, "_dos: StrToDate(datetime=%p)\n", datetime);
 
     if (!datetime)
-        return FALSE;
+        return DOSFALSE;
 
-    if (datetime->dat_StrDate)
+    if ((s = (const UBYTE *)datetime->dat_StrTime) != NULL)
     {
-        const char *s = (const char *)datetime->dat_StrDate;
-        char word[16];
-        int n = 0;
-
+        LONG h, m, sec = 0;
         while (*s == ' ' || *s == '\t')
             s++;
-        while (s[n] && s[n] != ' ' && s[n] != '\t' && n < 15)
+        if (!(s = lxa_dos_num2(s, &h)) || *s++ != ':' || !(s = lxa_dos_num2(s, &m)))
+            return DOSFALSE;
+        if (*s == ':')
         {
-            char c = s[n];
-            word[n] = (c >= 'A' && c <= 'Z') ? c + 32 : c;
-            n++;
+            if (!(s = lxa_dos_num2(s + 1, &sec)))
+                return DOSFALSE;
         }
-        word[n] = '\0';
+        if (*s || h > 23 || m > 59 || sec > 60)
+            return DOSFALSE;
+        datetime->dat_Stamp.ds_Minute = h * 60 + m;
+        datetime->dat_Stamp.ds_Tick = (sec * TICKS_PER_SECOND) % (60 * TICKS_PER_SECOND);
+    }
 
-        if (datetime->dat_Flags & DTF_SUBST)
+    if ((s = (const UBYTE *)datetime->dat_StrDate) != NULL)
+    {
+        struct DateStamp now;
+        LONG day = 0, month = 0, year = 0, i, total;
+
+        DateStamp(&now);
+        if (lxa_dos_word(s, "Today"))
         {
-            struct DateStamp now;
-            int i;
-            _dos_DateStamp(DOSBase, &now);
-            if (!strcmp(word, "today"))
-                new_days = now.ds_Days;
-            else if (!strcmp(word, "yesterday"))
-                new_days = now.ds_Days - 1;
-            else if (!strcmp(word, "tomorrow"))
-                new_days = now.ds_Days + 1;
-            else
-            {
-                for (i = 0; i < 7; i++)
-                    if (!strcmp(word, day_names[i]))
-                    {
-                        LONG today = now.ds_Days % 7;     /* 1-Jan-78 was a Sunday */
-                        LONG delta;
-                        if (datetime->dat_Flags & DTF_FUTURE)
-                        {
-                            delta = (i - today + 7) % 7;
-                            if (!delta)
-                                delta = 7;
-                        }
-                        else
-                        {
-                            delta = -((today - i + 7) % 7);
-                            if (!delta)
-                                delta = -7;
-                        }
-                        new_days = now.ds_Days + delta;
-                        break;
-                    }
-            }
+            datetime->dat_Stamp.ds_Days = now.ds_Days;
+            return DOSTRUE;
         }
-
-        if (new_days < 0)
+        if (lxa_dos_word(s, "Yesterday"))
         {
-            int f[3] = { -1, -1, -1 };      /* the three fields */
-            int month_field = -1, k = 0, year_digits = 0;
-            const char *p = s;
-            int day, month, year;
-
-            while (k < 3)
+            datetime->dat_Stamp.ds_Days = now.ds_Days - 1;
+            return DOSTRUE;
+        }
+        if (lxa_dos_word(s, "Tomorrow"))
+        {
+            datetime->dat_Stamp.ds_Days = now.ds_Days + 1;
+            return DOSTRUE;
+        }
+        if (lxa_dos_word(s, "Future"))
+        {
+            datetime->dat_Stamp.ds_Days = now.ds_Days + 2;
+            return DOSTRUE;
+        }
+        for (i = 0; i < 7; i++)
+        {
+            if (lxa_dos_word(s, g_dos_day_names[i]))
             {
-                if (*p >= '0' && *p <= '9')
+                LONG ref = datetime->dat_Stamp.ds_Days % 7, d;
+                if (ref < 0)
+                    ref += 7;
+                if (datetime->dat_Flags & DTF_FUTURE)
                 {
-                    int v = 0, digits = 0;
-                    while (*p >= '0' && *p <= '9')
-                    {
-                        v = v * 10 + (*p++ - '0');
-                        digits++;
-                    }
-                    f[k] = v;
-                    if (k == 2 || (datetime->dat_Format == FORMAT_INT && k == 0))
-                        year_digits = digits;
-                }
-                else if (((*p | 0x20) >= 'a' && (*p | 0x20) <= 'z') && datetime->dat_Format == FORMAT_DOS && k == 1)
-                {
-                    int m;
-                    for (m = 0; m < 12; m++)
-                        if ((p[0] | 0x20) == month_names[m][0] && (p[1] | 0x20) == month_names[m][1] &&
-                            (p[2] | 0x20) == month_names[m][2])
-                            break;
-                    if (m == 12)
-                        return FALSE;
-                    f[k] = m + 1;
-                    month_field = k;
-                    p += 3;
+                    d = (i - ref + 7) % 7;
+                    datetime->dat_Stamp.ds_Days = now.ds_Days + (d ? d : 7);
                 }
                 else
-                    return FALSE;
-                k++;
-                if (k < 3)
                 {
-                    if (*p != '-' && *p != '/')
-                        return FALSE;
-                    p++;
+                    d = (ref - i + 7) % 7;
+                    datetime->dat_Stamp.ds_Days = now.ds_Days - (d ? d : 7);
                 }
-            }
-            if (*p && *p != ' ' && *p != '\t')
-                return FALSE;
-            (void)month_field;
-
-            switch (datetime->dat_Format)
-            {
-                case FORMAT_INT: year = f[0]; month = f[1]; day = f[2]; break;
-                case FORMAT_USA: month = f[0]; day = f[1]; year = f[2]; break;
-                case FORMAT_CDN: day = f[0]; month = f[1]; year = f[2]; break;
-                case FORMAT_DOS:
-                default:
-                    if (month_field != 1)
-                        return FALSE;
-                    day = f[0]; month = f[1]; year = f[2];
-                    break;
-            }
-            if (year_digits <= 2)
-                year += (year < 78) ? 2000 : 1900;
-            if (year < 1978 || month < 1 || month > 12 || day < 1)
-                return FALSE;
-            {
-                int leap = (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0);
-                int dim = days_in_month[month - 1] + ((month == 2 && leap) ? 1 : 0);
-                LONG days = 0;
-                int y, m;
-                if (day > dim)
-                    return FALSE;
-                for (y = 1978; y < year; y++)
-                    days += ((y % 4 == 0 && y % 100 != 0) || (y % 400 == 0)) ? 366 : 365;
-                for (m = 0; m < month - 1; m++)
-                    days += days_in_month[m] + ((m == 1 && leap) ? 1 : 0);
-                new_days = days + day - 1;
+                return DOSTRUE;
             }
         }
-    }
 
-    if (datetime->dat_StrTime)
-    {
-        const char *p = (const char *)datetime->dat_StrTime;
-        int v[3] = { 0, 0, 0 }, k = 0;
-
-        while (*p == ' ' || *p == '\t')
-            p++;
-        while (k < 3)
+        switch (datetime->dat_Format)
         {
-            int digits = 0;
-            while (*p >= '0' && *p <= '9')
-            {
-                v[k] = v[k] * 10 + (*p++ - '0');
-                digits++;
-            }
-            if (!digits)
-                return FALSE;
-            k++;
-            if (*p == ':' && k < 3)
-                p++;
-            else
+            case FORMAT_INT:
+                if (!(s = lxa_dos_num2(s, &year)) || *s++ != '-' || !(s = lxa_dos_month(s, &month)) ||
+                    *s++ != '-' || !(s = lxa_dos_num2(s, &day)))
+                    return DOSFALSE;
+                break;
+            case FORMAT_USA:
+                if (!(s = lxa_dos_month(s, &month)) || *s++ != '-' || !(s = lxa_dos_num2(s, &day)) ||
+                    *s++ != '-' || !(s = lxa_dos_num2(s, &year)))
+                    return DOSFALSE;
+                break;
+            default:                        /* DOS and CDN: day first */
+                if (!(s = lxa_dos_num2(s, &day)) || *s++ != '-' || !(s = lxa_dos_month(s, &month)) ||
+                    *s++ != '-' || !(s = lxa_dos_num2(s, &year)))
+                    return DOSFALSE;
                 break;
         }
-        if (k < 2 || (*p && *p != ' ' && *p != '\t'))
-            return FALSE;
-        if (v[0] > 23 || v[1] > 59 || v[2] > 59)
-            return FALSE;
-        new_minute = v[0] * 60 + v[1];
-        new_tick = v[2] * TICKS_PER_SECOND;
+        if (*s)
+            return DOSFALSE;
+        year += year < 78 ? 2000 : 1900;
+        if (month < 0 || month > 11 || day < 1 || day > lxa_dos_month_days(year, month))
+            return DOSFALSE;
+
+        total = 0;
+        for (i = 1978; i < year; i++)
+            total += lxa_dos_leap(i) ? 366 : 365;
+        for (i = 0; i < month; i++)
+            total += lxa_dos_month_days(year, i);
+        datetime->dat_Stamp.ds_Days = total + day - 1;
     }
 
-    if (new_days >= 0)
-        datetime->dat_Stamp.ds_Days = new_days;
-    if (new_minute >= 0)
-    {
-        datetime->dat_Stamp.ds_Minute = new_minute;
-        datetime->dat_Stamp.ds_Tick = new_tick;
-    }
-    return TRUE;
+    return DOSTRUE;
 }
 
 BPTR _dos_InternalLoadSeg ( register struct DosLibrary * DOSBase __asm("a6"),
@@ -8571,11 +8607,15 @@ struct RDArgs * _dos_ReadArgs ( register struct DosLibrary * DOSBase __asm("a6")
 }
 
 LONG _dos_FindArg ( register struct DosLibrary * DOSBase __asm("a6"),
-                                                         register CONST_STRPTR keyword __asm("d1"),
-                                                         register CONST_STRPTR arg_template __asm("d2"))
+                                                         register CONST_STRPTR arg_template __asm("d1"),
+                                                         register CONST_STRPTR keyword __asm("d2"))
 {
-    DPRINTF (LOG_DEBUG, "_dos: FindArg() called, keyword='%s', template='%s'\n",
-             STRORNULL(keyword), STRORNULL(arg_template));
+    /* D1 is the template, D2 the keyword (autodoc "FindArg(template,
+     * keyword)"; the NDK fd names them the other way round).  A keyword
+     * matches any of an item's '='-separated names, case-insensitively and
+     * never abbreviated (AmigaOS 3.1, Tests/Probes/dos/argparse). */
+    DPRINTF (LOG_DEBUG, "_dos: FindArg() called, template='%s', keyword='%s'\n",
+             STRORNULL(arg_template), STRORNULL(keyword));
 
     if (!keyword || !arg_template)
         return -1;
@@ -8584,7 +8624,8 @@ LONG _dos_FindArg ( register struct DosLibrary * DOSBase __asm("a6"),
     LONG num_items = _parse_template(arg_template, items);
 
     for (LONG i = 0; i < num_items; i++) {
-        if (_stricmp(items[i].name, (char *)keyword) == 0) {
+        if (_stricmp(items[i].name, (char *)keyword) == 0 ||
+            (items[i].alias[0] && _stricmp(items[i].alias, (char *)keyword) == 0)) {
             return items[i].index;
         }
     }
@@ -8745,84 +8786,152 @@ LONG _dos_StrToLong ( register struct DosLibrary * DOSBase __asm("a6"),
                                                          register CONST_STRPTR string __asm("d1"),
                                                          register LONG * value __asm("d2"))
 {
+    /* AmigaOS 3.1 (reference-verified, Tests/Probes/dos/argparse): skips
+     * blanks and tabs, takes an optional '-' (not '+'), converts digits up
+     * to the first non-digit and returns the number of characters used
+     * (blanks and sign included), or -1 without digits.  *value is 0 on
+     * failure.  A digit that would carry out of 32 bits ends the number
+     * (left at the partial product value * 8). */
+    CONST_STRPTR p = string;
+    BOOL negative = FALSE;
+    ULONG v = 0;
+    LONG digits = 0;
+
     DPRINTF (LOG_DEBUG, "_dos: StrToLong() called, string='%s'\n", STRORNULL(string));
 
     if (!string || !value)
         return -1;
 
-    return _str_to_long(string, value);
+    while (*p == ' ' || *p == '\t')
+        p++;
+    if (*p == '-')
+    {
+        negative = TRUE;
+        p++;
+    }
+    while (*p >= '0' && *p <= '9')
+    {
+        ULONG v8 = v << 3, v2 = v << 1, sum = v8 + v2, next = sum + (ULONG)(*p - '0');
+        if (v > 0x1FFFFFFFUL || sum < v8 || next < sum)
+        {
+            v = v8;
+            break;
+        }
+        v = next;
+        digits++;
+        p++;
+    }
+
+    if (!digits)
+    {
+        *value = 0;
+        return -1;
+    }
+
+    *value = negative ? -(LONG)v : (LONG)v;
+    return (LONG)(p - string);
 }
 
 /*
- * Pattern matching over directories (MatchFirst/MatchNext/MatchEnd).
- *
- * AmigaOS semantics (dos/dosasl.h, Phase 221):
- *  - the last path component may be a pattern; a name without wildcards
- *    returns that one object (also a directory);
- *  - ap_Buf (ap_Strlen > 0) receives the path as the caller wrote it plus
- *    the entry name ("dir/name"), not an absolute path;
- *  - the caller sets APF_DODIR to enter the directory just returned; its
- *    entries are matched against the same pattern ("#?" for a plain name)
- *    and afterwards the directory is returned once more with APF_DIDDIR;
- *  - ap_BreakBits are checked (ERROR_BREAK), the end is
- *    ERROR_NO_MORE_ENTRIES.
- * Each level is an AChain followed by lxa's private state.
+ * MatchFirst()/MatchNext()/MatchEnd() (AmigaOS 3.1 behaviour, verified with
+ * Tests/Probes/dos/patterns):
+ *  - every path component may hold wildcards ("#?/#?.c" walks all
+ *    subdirectories); one AChain per directory level, ap_Current is the
+ *    level whose directory holds the reported object;
+ *  - a pattern without wildcards names one object, reported with the name
+ *    as typed (case preserved); a missing object fails with its IoErr()
+ *    (ERROR_OBJECT_NOT_FOUND);
+ *  - ap_Buf receives the directory part of the pattern as typed plus the
+ *    names found below it;
+ *  - an application that sets APF_DODIR after a directory match makes
+ *    MatchNext() enter it (with the last component's pattern); when that
+ *    directory is exhausted it is reported again with APF_DIDDIR set.
  */
-struct lxa_match_chain
+#define MATCH_PATHMAX 256
+
+struct lxa_match_level
 {
-    struct AChain ac;               /* an_Lock, an_Info, an_Parent/an_Child */
-    BOOL single;                    /* a plain name: one object */
-    BOOL single_done;
-    struct FileInfoBlock entered;   /* the directory this level enters */
-    char prefix[256];               /* path of this level as the caller wrote it */
-    char pattern[514];              /* parsed pattern (ParsePatternNoCase) */
+    struct AChain  ac;              /* public part (an_String unused) */
+    UBYTE          pad[4];
+    UBYTE          token[128];      /* parsed pattern of this level */
+    UBYTE          path[MATCH_PATHMAX]; /* directory part as reported in ap_Buf */
+    WORD           comp;            /* index of the pattern component */
+    BOOL           entered;         /* entered through APF_DODIR */
 };
 
-static void lxa_match_join(char *dst, LONG len, const char *prefix, const char *name)
+struct lxa_match_root
 {
+    struct lxa_match_level lv;      /* level 0 */
+    UBYTE  comps[8][108];           /* pattern components (source form) */
+    WORD   ncomps;
+};
+
+static struct lxa_match_root *match_root(struct AnchorPath *ap)
+{
+    return (struct lxa_match_root *)ap->ap_Base;
+}
+
+static void match_set_buf(struct AnchorPath *ap, const UBYTE *path, CONST_STRPTR name)
+{
+    LONG n = 0, max = ap->ap_Strlen;
+    if (max <= 0)
+        return;
+    while (*path && n < max - 1)
+        ap->ap_Buf[n++] = *path++;
+    while (name && *name && n < max - 1)
+        ap->ap_Buf[n++] = *name++;
+    ap->ap_Buf[n] = '\0';
+}
+
+static struct lxa_match_level *match_push(struct DosLibrary *DOSBase, struct AnchorPath *ap,
+                                          struct lxa_match_level *parent, CONST_STRPTR name, WORD comp)
+{
+    struct lxa_match_root *root = match_root(ap);
+    struct lxa_match_level *lv = AllocVec(sizeof(*lv), MEMF_PUBLIC | MEMF_CLEAR);
+    BPTR old;
     LONG n = 0;
+    const UBYTE *s;
 
-    while (prefix[n] && n < len - 1)
+    if (!lv)
     {
-        dst[n] = prefix[n];
-        n++;
+        ap->ap_Flags |= APF_NOMEMERR;
+        return NULL;
     }
-    if (n > 0 && dst[n - 1] != ':' && dst[n - 1] != '/' && n < len - 1)
-        dst[n++] = '/';
-    while (*name && n < len - 1)
-        dst[n++] = *name++;
-    dst[n] = '\0';
-}
-
-static void lxa_match_set_buf(struct AnchorPath *anchor, const char *path)
-{
-    if (anchor->ap_Strlen > 0)
+    old = CurrentDir(parent->ac.an_Lock);
+    lv->ac.an_Lock = Lock(name, SHARED_LOCK);
+    CurrentDir(old);
+    if (!lv->ac.an_Lock || !Examine(lv->ac.an_Lock, &lv->ac.an_Info))
     {
-        LONG n = 0;
-        while (path[n] && n < anchor->ap_Strlen - 1)
-        {
-            anchor->ap_Buf[n] = path[n];
-            n++;
-        }
-        anchor->ap_Buf[n] = '\0';
-        if (path[n])
-            anchor->ap_Flags |= APF_DirChanged;     /* truncated */
+        if (lv->ac.an_Lock)
+            UnLock(lv->ac.an_Lock);
+        FreeVec(lv);
+        return NULL;
     }
-}
+    lv->ac.an_Flags = DDF_ExaminedBit | DDF_PatternBit;
+    lv->comp = comp;
+    ParsePatternNoCase((CONST_STRPTR)root->comps[comp], (STRPTR)lv->token, sizeof(lv->token));
+    for (s = parent->path; *s && n < MATCH_PATHMAX - 2; s++)
+        lv->path[n++] = *s;
+    for (s = (const UBYTE *)name; *s && n < MATCH_PATHMAX - 2; s++)
+        lv->path[n++] = *s;
+    lv->path[n++] = '/';
+    lv->path[n] = '\0';
 
-static struct lxa_match_chain *lxa_match_new_chain(void)
-{
-    return (struct lxa_match_chain *)AllocVec(sizeof(struct lxa_match_chain), MEMF_PUBLIC | MEMF_CLEAR);
+    lv->ac.an_Parent = &parent->ac;
+    parent->ac.an_Child = &lv->ac;
+    ap->ap_Last = &lv->ac;
+    ap->ap_Flags |= APF_DirChanged;
+    return lv;
 }
 
 LONG _dos_MatchFirst ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register CONST_STRPTR pat __asm("d1"),
                                                         register struct AnchorPath * anchor __asm("d2"))
 {
-    struct lxa_match_chain *mc;
-    CONST_STRPTR name_part = pat;
-    CONST_STRPTR p;
-    LONG wild;
+    struct lxa_match_root *root;
+    const UBYTE *p, *first_wild_comp = NULL, *comp_start;
+    UBYTE tok[256];
+    LONG err;
 
     DPRINTF (LOG_DEBUG, "_dos: MatchFirst() called, pat='%s', anchor=0x%08lx\n",
              pat ? (char *)pat : "NULL", anchor);
@@ -8838,96 +8947,135 @@ LONG _dos_MatchFirst ( register struct DosLibrary * DOSBase __asm("a6"),
     anchor->ap_FoundBreak = 0;
     anchor->ap_Flags &= ~(APF_ITSWILD | APF_DODIR | APF_DIDDIR | APF_NOMEMERR | APF_DirChanged);
 
-    for (p = pat; *p; p++)
-        if (*p == '/' || *p == ':')
-            name_part = p + 1;
-
-    mc = lxa_match_new_chain();
-    if (!mc)
+    root = AllocVec(sizeof(*root), MEMF_PUBLIC | MEMF_CLEAR);
+    if (!root)
     {
         anchor->ap_Flags |= APF_NOMEMERR;
         SetIoErr(ERROR_NO_FREE_STORE);
         return ERROR_NO_FREE_STORE;
     }
+    anchor->ap_Base = &root->lv.ac;
+    anchor->ap_Last = &root->lv.ac;
 
-    wild = ParsePatternNoCase(name_part, (STRPTR)mc->pattern, sizeof(mc->pattern));
-    if (wild < 0)
+    /* the first component that holds a wildcard; everything before it is
+     * the fixed directory part */
+    p = (const UBYTE *)pat;
+    for (comp_start = p; *comp_start && *comp_start != ':'; comp_start++)
+        ;
+    comp_start = *comp_start ? comp_start + 1 : p;
+    for (p = comp_start; ; p++)
     {
-        FreeVec(mc);
-        SetIoErr(ERROR_BAD_TEMPLATE);
-        return ERROR_BAD_TEMPLATE;
+        if (*p == '/' || !*p)
+        {
+            LONG len = p - comp_start, i;
+            if (len > 0 && len < (LONG)sizeof(tok) / 2 - 2)
+            {
+                for (i = 0; i < len; i++)
+                    tok[i] = comp_start[i];
+                tok[len] = 0;
+                if (ParsePatternNoCase((CONST_STRPTR)tok, (STRPTR)tok + 128, 128) > 0)
+                {
+                    first_wild_comp = comp_start;
+                    break;
+                }
+            }
+            if (!*p)
+                break;
+            comp_start = p + 1;
+        }
     }
 
-    if (wild == 0)
+    if (!first_wild_comp)
     {
-        /* a plain name: the object itself */
-        BPTR lock = Lock(pat, SHARED_LOCK);
-        if (!lock || !Examine(lock, &anchor->ap_Info))
+        /* one object, reported as typed */
+        LONG len = strlen((const char *)pat), dl;
+        const UBYTE *fp = (const UBYTE *)FilePart(pat);
+        BPTR obj = Lock(pat, SHARED_LOCK);
+        if (!obj)
         {
-            LONG err = IoErr();
-            if (lock)
-                UnLock(lock);
-            FreeVec(mc);
+            err = IoErr();
             if (!err)
                 err = ERROR_OBJECT_NOT_FOUND;
+            MatchEnd(anchor);
             SetIoErr(err);
             return err;
         }
-        UnLock(lock);
-        mc->single = TRUE;
-        mc->single_done = TRUE;
-        ParsePatternNoCase((CONST_STRPTR)"#?", (STRPTR)mc->pattern, sizeof(mc->pattern));
+        if (!Examine(obj, &anchor->ap_Info))
         {
-            LONG n = 0;
-            while (pat[n] && n < (LONG)sizeof(mc->prefix) - 1)
-            {
-                mc->prefix[n] = pat[n];
-                n++;
-            }
-            mc->prefix[n] = '\0';
+            err = IoErr();
+            UnLock(obj);
+            MatchEnd(anchor);
+            SetIoErr(err);
+            return err;
         }
-        anchor->ap_Base = &mc->ac;
-        anchor->ap_Last = &mc->ac;
-        lxa_match_set_buf(anchor, (const char *)pat);
+        root->lv.ac.an_Lock = ParentDir(obj);
+        UnLock(obj);
+        CopyMem(&anchor->ap_Info, &root->lv.ac.an_Info, sizeof(struct FileInfoBlock));
+        root->lv.ac.an_Flags = DDF_Single | DDF_Completed;
+        dl = fp - (const UBYTE *)pat;
+        if (dl > MATCH_PATHMAX - 1)
+            dl = MATCH_PATHMAX - 1;
+        CopyMem((APTR)pat, root->lv.path, dl);
+        root->lv.path[dl] = 0;
+        match_set_buf(anchor, (const UBYTE *)"", pat);
+        (void)len;
         SetIoErr(0);
         return 0;
     }
 
-    anchor->ap_Flags |= APF_ITSWILD;
+    /* components from the first wild one on */
     {
-        LONG n = name_part - pat;
-        char dir[256];
-        if (n > 255)
-            n = 255;
-        CopyMem((APTR)pat, dir, n);
-        dir[n] = '\0';
-        /* "dir/" -> "dir" (but keep "/" alone and "vol:") */
-        CopyMem(dir, mc->prefix, n + 1);
-        if (n > 1 && dir[n - 1] == '/' && dir[n - 2] != '/' && dir[n - 2] != ':')
-            dir[n - 1] = '\0';
-        mc->ac.an_Lock = Lock((CONST_STRPTR)dir, SHARED_LOCK);
+        const UBYTE *c = first_wild_comp;
+        LONG dl = first_wild_comp - (const UBYTE *)pat;
+        root->ncomps = 0;
+        while (root->ncomps < 8)
+        {
+            LONG n = 0;
+            while (*c && *c != '/' && n < 107)
+                root->comps[root->ncomps][n++] = *c++;
+            root->comps[root->ncomps][n] = 0;
+            root->ncomps++;
+            if (*c != '/')
+                break;
+            c++;
+        }
+        if (dl > MATCH_PATHMAX - 1)
+            dl = MATCH_PATHMAX - 1;
+        CopyMem((APTR)pat, root->lv.path, dl);
+        root->lv.path[dl] = 0;
     }
-    if (!mc->ac.an_Lock || !Examine(mc->ac.an_Lock, &mc->ac.an_Info))
+
+    /* lock the fixed directory part */
     {
-        LONG err = IoErr();
-        if (mc->ac.an_Lock)
-            UnLock(mc->ac.an_Lock);
-        FreeVec(mc);
+        UBYTE dir[MATCH_PATHMAX];
+        LONG dl = strlen((const char *)root->lv.path);
+        CopyMem(root->lv.path, dir, dl + 1);
+        if (dl > 0 && dir[dl - 1] == '/' && (dl < 2 || (dir[dl - 2] != '/' && dir[dl - 2] != ':')))
+            dir[dl - 1] = 0;
+        root->lv.ac.an_Lock = Lock((CONST_STRPTR)dir, SHARED_LOCK);
+    }
+    if (!root->lv.ac.an_Lock || !Examine(root->lv.ac.an_Lock, &root->lv.ac.an_Info))
+    {
+        err = IoErr();
         if (!err)
             err = ERROR_OBJECT_NOT_FOUND;
+        MatchEnd(anchor);
         SetIoErr(err);
         return err;
     }
-    mc->ac.an_Flags |= DDF_ExaminedBit;
-    anchor->ap_Base = &mc->ac;
-    anchor->ap_Last = &mc->ac;
+    root->lv.ac.an_Flags = DDF_ExaminedBit | DDF_PatternBit;
+    root->lv.comp = 0;
+    ParsePatternNoCase((CONST_STRPTR)root->comps[0], (STRPTR)root->lv.token, sizeof(root->lv.token));
+    anchor->ap_Flags |= APF_ITSWILD;
+
     return MatchNext(anchor);
 }
 
 LONG _dos_MatchNext ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register struct AnchorPath * anchor __asm("d1"))
 {
-    struct lxa_match_chain *mc;
+    struct lxa_match_root *root;
+    struct lxa_match_level *cur;
 
     DPRINTF (LOG_DEBUG, "_dos: MatchNext() called, anchor=0x%08lx\n", anchor);
 
@@ -8936,136 +9084,106 @@ LONG _dos_MatchNext ( register struct DosLibrary * DOSBase __asm("a6"),
         SetIoErr(ERROR_NO_MORE_ENTRIES);
         return ERROR_NO_MORE_ENTRIES;
     }
+    root = match_root(anchor);
+    cur = (struct lxa_match_level *)anchor->ap_Last;
+    anchor->ap_Flags &= ~APF_DirChanged;
 
-    if (anchor->ap_BreakBits)
-    {
-        LONG sigs = CheckSignal(anchor->ap_BreakBits);
-        if (sigs)
-        {
-            anchor->ap_FoundBreak = sigs;
-            SetIoErr(ERROR_BREAK);
-            return ERROR_BREAK;
-        }
-    }
-
-    mc = (struct lxa_match_chain *)anchor->ap_Last;
-
-    /* enter the directory returned last */
+    /* the application asked to enter the directory just reported */
     if ((anchor->ap_Flags & APF_DODIR) && !(anchor->ap_Flags & APF_DIDDIR) &&
-        anchor->ap_Info.fib_DirEntryType >= 0)
+        anchor->ap_Info.fib_DirEntryType > 0 && !(cur->ac.an_Flags & DDF_Single))
     {
-        struct lxa_match_chain *child = lxa_match_new_chain();
-        char path[256];
-
+        struct lxa_match_level *child;
         anchor->ap_Flags &= ~APF_DODIR;
-        if (!child)
+        child = match_push(DOSBase, anchor, cur, (CONST_STRPTR)cur->ac.an_Info.fib_FileName, cur->comp);
+        if (child)
         {
-            anchor->ap_Flags |= APF_NOMEMERR;
-            SetIoErr(ERROR_NO_FREE_STORE);
-            return ERROR_NO_FREE_STORE;
-        }
-        if (mc->single)
-        {
-            LONG n = 0;
-            while (mc->prefix[n] && n < 255)
-            {
-                path[n] = mc->prefix[n];
-                n++;
-            }
-            path[n] = '\0';
-        }
-        else
-        {
-            lxa_match_join(path, sizeof(path), mc->prefix, (const char *)anchor->ap_Info.fib_FileName);
-        }
-        CopyMem(path, child->prefix, sizeof(child->prefix));
-        CopyMem(mc->pattern, child->pattern, sizeof(child->pattern));
-        CopyMem(&anchor->ap_Info, &child->entered, sizeof(struct FileInfoBlock));
-        child->ac.an_Lock = Lock((CONST_STRPTR)path, SHARED_LOCK);
-        if (!child->ac.an_Lock || !Examine(child->ac.an_Lock, &child->ac.an_Info))
-        {
-            if (child->ac.an_Lock)
-                UnLock(child->ac.an_Lock);
-            FreeVec(child);
-        }
-        else
-        {
-            child->ac.an_Flags |= DDF_ExaminedBit;
-            child->ac.an_Parent = &mc->ac;
-            mc->ac.an_Child = &child->ac;
-            anchor->ap_Last = &child->ac;
-            anchor->ap_Flags |= APF_DirChanged;
-            mc = child;
+            child->entered = TRUE;
+            cur = child;
         }
     }
     anchor->ap_Flags &= ~(APF_DODIR | APF_DIDDIR);
 
     for (;;)
     {
-        if (mc->single && !mc->ac.an_Parent)
+        if (anchor->ap_BreakBits)
         {
-            /* a plain name was returned by MatchFirst() */
-            SetIoErr(ERROR_NO_MORE_ENTRIES);
-            return ERROR_NO_MORE_ENTRIES;
+            LONG sigs = CheckSignal(anchor->ap_BreakBits);
+            if (sigs)
+            {
+                anchor->ap_FoundBreak = sigs;
+                SetIoErr(ERROR_BREAK);
+                return ERROR_BREAK;
+            }
         }
 
-        while (ExNext(mc->ac.an_Lock, &mc->ac.an_Info))
+        if ((cur->ac.an_Flags & DDF_Single) || !ExNext(cur->ac.an_Lock, &cur->ac.an_Info))
         {
-            STRPTR name = mc->ac.an_Info.fib_FileName;
-            char path[256];
+            struct lxa_match_level *parent = (struct lxa_match_level *)cur->ac.an_Parent;
+            BOOL entered = cur->entered;
 
-            if (!MatchPatternNoCase((CONST_STRPTR)mc->pattern, name))
-                continue;
-            CopyMem(&mc->ac.an_Info, &anchor->ap_Info, sizeof(struct FileInfoBlock));
-            lxa_match_join(path, sizeof(path), mc->prefix, (const char *)name);
-            lxa_match_set_buf(anchor, path);
-            SetIoErr(0);
-            return 0;
-        }
-
-        /* this level is done: back to the parent, the directory once more */
-        if (!mc->ac.an_Parent)
-        {
-            SetIoErr(ERROR_NO_MORE_ENTRIES);
-            return ERROR_NO_MORE_ENTRIES;
-        }
-        {
-            struct lxa_match_chain *parent = (struct lxa_match_chain *)mc->ac.an_Parent;
-            CopyMem(&mc->entered, &anchor->ap_Info, sizeof(struct FileInfoBlock));
-            lxa_match_set_buf(anchor, mc->prefix);
+            if (!parent)
+            {
+                SetIoErr(ERROR_NO_MORE_ENTRIES);
+                return ERROR_NO_MORE_ENTRIES;
+            }
             parent->ac.an_Child = NULL;
-            anchor->ap_Last = &parent->ac;
-            UnLock(mc->ac.an_Lock);
-            FreeVec(mc);
-            anchor->ap_Flags |= APF_DIDDIR | APF_DirChanged;
-            SetIoErr(0);
-            return 0;
+            UnLock(cur->ac.an_Lock);
+            FreeVec(cur);
+            cur = parent;
+            anchor->ap_Last = &cur->ac;
+            anchor->ap_Flags |= APF_DirChanged;
+            if (entered)
+            {
+                /* report the directory again on the way out */
+                CopyMem(&cur->ac.an_Info, &anchor->ap_Info, sizeof(struct FileInfoBlock));
+                match_set_buf(anchor, cur->path, (CONST_STRPTR)cur->ac.an_Info.fib_FileName);
+                anchor->ap_Flags |= APF_DIDDIR;
+                SetIoErr(0);
+                return 0;
+            }
+            continue;
         }
+
+        if (!MatchPatternNoCase((CONST_STRPTR)cur->token, (STRPTR)cur->ac.an_Info.fib_FileName))
+            continue;
+
+        if (cur->comp < root->ncomps - 1 && !cur->entered)
+        {
+            /* an intermediate component: descend into matching directories */
+            if (cur->ac.an_Info.fib_DirEntryType > 0)
+            {
+                struct lxa_match_level *child =
+                    match_push(DOSBase, anchor, cur, (CONST_STRPTR)cur->ac.an_Info.fib_FileName, cur->comp + 1);
+                if (child)
+                    cur = child;
+            }
+            continue;
+        }
+
+        CopyMem(&cur->ac.an_Info, &anchor->ap_Info, sizeof(struct FileInfoBlock));
+        match_set_buf(anchor, cur->path, (CONST_STRPTR)cur->ac.an_Info.fib_FileName);
+        SetIoErr(0);
+        return 0;
     }
 }
 
 VOID _dos_MatchEnd ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register struct AnchorPath * anchor __asm("d1"))
 {
+    struct AChain *ac, *next;
+
     DPRINTF (LOG_DEBUG, "_dos: MatchEnd() called, anchor=0x%08lx\n", anchor);
-    
-    if (!anchor) {
+
+    if (!anchor)
         return;
+
+    for (ac = anchor->ap_Base; ac; ac = next)
+    {
+        next = ac->an_Child;
+        if (ac->an_Lock)
+            UnLock(ac->an_Lock);
+        FreeVec(ac);
     }
-    
-    /* Free all AChain nodes */
-    struct AChain *achain = anchor->ap_Base;
-    while (achain) {
-        struct AChain *next = achain->an_Child;
-        
-        if (achain->an_Lock) {
-            UnLock(achain->an_Lock);
-        }
-        FreeVec(achain);
-        
-        achain = next;
-    }
-    
     anchor->ap_Base = NULL;
     anchor->ap_Last = NULL;
 }
@@ -9092,457 +9210,226 @@ static UBYTE _to_lower(UBYTE c)
     return c;
 }
 
-static BOOL _match_pattern_internal(const UBYTE *pat, const UBYTE *str);
-static BOOL _match_pattern_internal_nocase(const UBYTE *pat, const UBYTE *str);
+/*
+ * AmigaDOS pattern matcher over the token form lxa_dos_parse_pattern()
+ * stores (the source pattern, literal '*' escaped).  Behaviour verified
+ * on AmigaOS 3.1 (Tests/Probes/dos/patterns):
+ *   ?        one character
+ *   #x       zero or more of the element x (character, ?, [class], (group))
+ *   ~        the rest of the (sub)pattern must NOT match ("~a#?" = every
+ *            name that does not start with "a")
+ *   (a|b)    alternatives, may be empty
+ *   [a-z]    class, [~...] negated
+ *   %        the empty string
+ *   'x       x literally
+ *   *        like #? (only present unescaped when RNF_WILDSTAR is set)
+ * Segments are bounded by end pointers, so groups and repetitions need no
+ * temporary copies.
+ */
+static BOOL _pm(const UBYTE *p, const UBYTE *pe, const UBYTE *s, const UBYTE *se, BOOL nc);
 
-static const UBYTE *_find_group_end(const UBYTE *p)
+static UBYTE _pm_fold(UBYTE c, BOOL nc)
+{
+    return nc ? _to_lower(c) : c;
+}
+
+/* end of the group starting at p ('('), or pe if unbalanced */
+static const UBYTE *_pm_group_end(const UBYTE *p, const UBYTE *pe)
 {
     LONG depth = 0;
-
-    if (!p || *p != '(')
-        return NULL;
-
-    while (*p)
+    while (p < pe)
     {
-        if (*p == '\'')
-        {
-            if (*(p + 1) == '\0')
-                return NULL;
-            p += 2;
-            continue;
-        }
-
-        if (*p == '[')
-        {
+        if (*p == '\'' && p + 1 < pe)
             p++;
-            while (*p && *p != ']')
-            {
-                if (*p == '\'' && *(p + 1) != '\0')
-                    p += 2;
-                else
-                    p++;
-            }
-
-            if (*p != ']')
-                return NULL;
-
-            p++;
-            continue;
+        else if (*p == '[')
+        {
+            while (p < pe && *p != ']')
+                p++;
         }
-
-        if (*p == '(')
+        else if (*p == '(')
             depth++;
-        else if (*p == ')')
-        {
-            depth--;
-            if (depth == 0)
-                return p;
-        }
-
+        else if (*p == ')' && --depth == 0)
+            return p;
         p++;
     }
-
-    return NULL;
+    return pe;
 }
 
-static BOOL _match_group_alternatives(const UBYTE *group_start,
-                                      const UBYTE *group_end,
-                                      const UBYTE *rest,
-                                      const UBYTE *str,
-                                      BOOL case_insensitive)
+/* end of the single element starting at p */
+static const UBYTE *_pm_elem_end(const UBYTE *p, const UBYTE *pe)
 {
-    const UBYTE *branch_start;
-    const UBYTE *scan;
-    LONG depth;
-
-    if (!group_start || !group_end || !rest || *group_start != '(')
-        return FALSE;
-
-    branch_start = group_start + 1;
-    scan = branch_start;
-    depth = 0;
-
-    while (TRUE)
+    if (p >= pe)
+        return pe;
+    switch (*p)
     {
-        BOOL at_end = (scan == group_end);
-
-        if (!at_end)
+        case '\'':
+            return p + 2 <= pe ? p + 2 : pe;
+        case '[':
+            while (p < pe && *p != ']')
+                p++;
+            return p < pe ? p + 1 : pe;
+        case '(':
         {
-            if (*scan == '\'')
-            {
-                if (*(scan + 1) == '\0')
-                    return FALSE;
-                scan += 2;
-                continue;
-            }
-
-            if (*scan == '[')
-            {
-                scan++;
-                while (*scan && *scan != ']')
-                {
-                    if (*scan == '\'' && *(scan + 1) != '\0')
-                        scan += 2;
-                    else
-                        scan++;
-                }
-
-                if (*scan != ']')
-                    return FALSE;
-
-                scan++;
-                continue;
-            }
-
-            if (*scan == '(')
-                depth++;
-            else if (*scan == ')')
-                depth--;
+            const UBYTE *e = _pm_group_end(p, pe);
+            return e < pe ? e + 1 : pe;
         }
+        case '#':
+            return _pm_elem_end(p + 1, pe);
+    }
+    return p + 1;
+}
 
-        if (at_end || (*scan == '|' && depth == 0))
+/* does the class at p ('[') contain c? */
+static BOOL _pm_class(const UBYTE *p, const UBYTE *pe, UBYTE c, BOOL nc)
+{
+    BOOL neg = FALSE, found = FALSE;
+    UBYTE tc = _pm_fold(c, nc);
+
+    p++;
+    if (p < pe && *p == '~')
+    {
+        neg = TRUE;
+        p++;
+    }
+    while (p < pe && *p != ']')
+    {
+        UBYTE a = _pm_fold(*p, nc);
+        if (p + 2 < pe && p[1] == '-' && p[2] != ']')
         {
-            LONG branch_len = (LONG)(scan - branch_start);
-            LONG rest_len = (LONG)strlen((const char *)rest);
-            UBYTE *combined = (UBYTE *)AllocVec((ULONG)(branch_len + rest_len + 1), MEMF_PUBLIC);
-            BOOL matched;
+            UBYTE b = _pm_fold(p[2], nc);
+            if (a > b)
+            {
+                UBYTE t = a;
+                a = b;
+                b = t;
+            }
+            if (tc >= a && tc <= b)
+                found = TRUE;
+            p += 3;
+        }
+        else
+        {
+            if (tc == a)
+                found = TRUE;
+            p++;
+        }
+    }
+    return neg ? !found : found;
+}
 
-            if (!combined)
-                return FALSE;
-
-            if (branch_len > 0)
-                CopyMem((APTR)branch_start, combined, (ULONG)branch_len);
-            CopyMem((APTR)rest, combined + branch_len, (ULONG)(rest_len + 1));
-
-            matched = case_insensitive ?
-                _match_pattern_internal_nocase(combined, str) :
-                _match_pattern_internal(combined, str);
-
-            FreeVec(combined);
-
-            if (matched)
-                return TRUE;
-
-            if (at_end)
+static BOOL _pm(const UBYTE *p, const UBYTE *pe, const UBYTE *s, const UBYTE *se, BOOL nc)
+{
+    while (p < pe)
+    {
+        switch (*p)
+        {
+            case '?':
+                if (s >= se)
+                    return FALSE;
+                p++;
+                s++;
                 break;
 
-            branch_start = scan + 1;
+            case '%':
+                p++;
+                break;
+
+            case '~':
+                return !_pm(p + 1, pe, s, se, nc);
+
+            case '*':
+            case '#':
+            {
+                const UBYTE *t, *te, *m;
+                if (*p == '*')
+                {
+                    t = (const UBYTE *)"?";
+                    te = t + 1;
+                }
+                else
+                {
+                    t = p + 1;
+                    te = _pm_elem_end(t, pe);
+                    if (t >= pe)
+                        return FALSE;
+                }
+                /* zero repetitions, or one non-empty repetition and again */
+                if (_pm(*p == '*' ? p + 1 : te, pe, s, se, nc))
+                    return TRUE;
+                for (m = s + 1; m <= se; m++)
+                    if (_pm(t, te, s, m, nc) && _pm(p, pe, m, se, nc))
+                        return TRUE;
+                return FALSE;
+            }
+
+            case '(':
+            {
+                const UBYTE *ge = _pm_group_end(p, pe), *b = p + 1, *q, *m;
+                LONG depth = 0;
+                if (ge >= pe)
+                    return FALSE;
+                for (q = b; ; q++)
+                {
+                    if (q < ge)
+                    {
+                        if (*q == '\'' && q + 1 < ge)
+                        {
+                            q++;
+                            continue;
+                        }
+                        if (*q == '[')
+                        {
+                            while (q < ge && *q != ']')
+                                q++;
+                            continue;
+                        }
+                        if (*q == '(')
+                            depth++;
+                        else if (*q == ')')
+                            depth--;
+                    }
+                    if (q == ge || (*q == '|' && depth == 0))
+                    {
+                        for (m = s; m <= se; m++)
+                            if (_pm(b, q, s, m, nc) && _pm(ge + 1, pe, m, se, nc))
+                                return TRUE;
+                        if (q == ge)
+                            return FALSE;
+                        b = q + 1;
+                    }
+                }
+            }
+
+            case '[':
+                if (s >= se || !_pm_class(p, pe, *s, nc))
+                    return FALSE;
+                p = _pm_elem_end(p, pe);
+                s++;
+                break;
+
+            case '\'':
+                if (p + 1 < pe)
+                    p++;
+                /* fall through: literal */
+            default:
+                if (s >= se || _pm_fold(*s, nc) != _pm_fold(*p, nc))
+                    return FALSE;
+                p++;
+                s++;
+                break;
         }
-
-        if (at_end)
-            break;
-
-        scan++;
     }
-
-    return FALSE;
+    return s == se;
 }
 
-/* 
- * Match a character against a character class [abc] or [a-z] or [~abc]
- * Returns: pointer to char after ']' if match, NULL if no match
- * Updates *matched to TRUE if character matches the class
- */
-static const UBYTE *_match_char_class(const UBYTE *p, UBYTE c, BOOL *matched, BOOL case_insensitive)
-{
-    BOOL negated = FALSE;
-    BOOL found = FALSE;
-    
-    /* p points to '[' - skip it */
-    p++;
-    
-    /* Check for negation */
-    if (*p == '~') {
-        negated = TRUE;
-        p++;
-    }
-    
-    /* Convert character to lowercase if case-insensitive */
-    UBYTE test_c = case_insensitive ? _to_lower(c) : c;
-    
-    /* Process characters until ']' */
-    while (*p && *p != ']') {
-        UBYTE class_c = case_insensitive ? _to_lower(*p) : *p;
-        
-        /* Check for range (a-z) */
-        if (*(p + 1) == '-' && *(p + 2) && *(p + 2) != ']') {
-            UBYTE range_start = class_c;
-            UBYTE range_end = case_insensitive ? _to_lower(*(p + 2)) : *(p + 2);
-            
-            /* Ensure range is in correct order */
-            if (range_start > range_end) {
-                UBYTE tmp = range_start;
-                range_start = range_end;
-                range_end = tmp;
-            }
-            
-            if (test_c >= range_start && test_c <= range_end) {
-                found = TRUE;
-            }
-            p += 3; /* Skip 'a-z' */
-        } else {
-            /* Single character match */
-            if (test_c == class_c) {
-                found = TRUE;
-            }
-            p++;
-        }
-    }
-    
-    /* Skip closing ']' */
-    if (*p == ']') {
-        p++;
-    } else {
-        /* Malformed pattern - no closing bracket */
-        *matched = FALSE;
-        return NULL;
-    }
-    
-    /* Apply negation if needed */
-    *matched = negated ? !found : found;
-    return p;
-}
-
-/* Internal recursive pattern matching function - uses UBYTE for Amiga compatibility */
 static BOOL _match_pattern_internal(const UBYTE *pat, const UBYTE *str)
 {
-    const UBYTE *p = pat;
-    const UBYTE *s = str;
-    
-    while (*p) {
-        switch (*p) {
-            case '?':
-                /* Match any single character */
-                if (*s == '\0')
-                    return FALSE;
-                p++;
-                s++;
-                break;
-                
-            case '#':
-                /* Multiplier - zero or more of following char/wildcard */
-                p++;
-                if (*p == '\0')
-                    return FALSE; /* # at end is an error */
-                
-                if (*p == '?') {
-                    /* #? - matches any string (like *) */
-                    p++;
-                    /* Try to match rest of pattern at each position */
-                    const UBYTE *try_s = s;
-                    while (1) {
-                        if (_match_pattern_internal(p, try_s))
-                            return TRUE;
-                        if (*try_s == '\0')
-                            break;
-                        try_s++;
-                    }
-                    return FALSE;
-                } else {
-                    /* #c - matches zero or more of character c */
-                    UBYTE c = *p++;
-                    /* Try to match rest of pattern with varying numbers of c */
-                    const UBYTE *try_s = s;
-                    while (1) {
-                        if (_match_pattern_internal(p, try_s))
-                            return TRUE;
-                        if (*try_s != c)
-                            break;
-                        try_s++;
-                    }
-                    return FALSE;
-                }
-                break;
-                
-            case '%':
-                /* % matches the empty string */
-                p++;
-                break;
-
-            case '\'':
-                /* ' escapes the next character - match literally */
-                if (p[1] != '\0')
-                    p++;    /* a trailing ' is an ordinary character */
-                if (*s != *p)
-                    return FALSE;
-                p++;
-                s++;
-                break;
-                
-            case '*':
-                /* Treat * as equivalent to #? for convenience */
-                p++;
-                {
-                    const UBYTE *try_s = s;
-                    while (1) {
-                        if (_match_pattern_internal(p, try_s))
-                            return TRUE;
-                        if (*try_s == '\0')
-                            break;
-                        try_s++;
-                    }
-                }
-                return FALSE;
-            
-            case '[':
-                /* Character class [abc] or [a-z] */
-                {
-                    if (*s == '\0')
-                        return FALSE;
-                    
-                    BOOL matched;
-                    const UBYTE *after_class = _match_char_class(p, *s, &matched, FALSE);
-                    if (!after_class || !matched)
-                        return FALSE;
-                    
-                    p = after_class;
-                    s++;
-                }
-                break;
-
-            case '(':
-                {
-                    const UBYTE *group_end = _find_group_end(p);
-
-                    if (!group_end)
-                        return FALSE;
-
-                    return _match_group_alternatives(p, group_end, group_end + 1, s, FALSE);
-                }
-
-            default:
-                /* Literal character match */
-                if (*s != *p)
-                    return FALSE;
-                p++;
-                s++;
-                break;
-        }
-    }
-    
-    /* Pattern exhausted - match if string is also exhausted */
-    return (*s == '\0');
+    return _pm(pat, pat + strlen((const char *)pat), str, str + strlen((const char *)str), FALSE);
 }
 
-/* Internal recursive pattern matching function - CASE INSENSITIVE version */
 static BOOL _match_pattern_internal_nocase(const UBYTE *pat, const UBYTE *str)
 {
-    const UBYTE *p = pat;
-    const UBYTE *s = str;
-    
-    while (*p) {
-        switch (*p) {
-            case '?':
-                /* Match any single character */
-                if (*s == '\0')
-                    return FALSE;
-                p++;
-                s++;
-                break;
-                
-            case '#':
-                /* Multiplier - zero or more of following char/wildcard */
-                p++;
-                if (*p == '\0')
-                    return FALSE; /* # at end is an error */
-                
-                if (*p == '?') {
-                    /* #? - matches any string (like *) */
-                    p++;
-                    /* Try to match rest of pattern at each position */
-                    const UBYTE *try_s = s;
-                    while (1) {
-                        if (_match_pattern_internal_nocase(p, try_s))
-                            return TRUE;
-                        if (*try_s == '\0')
-                            break;
-                        try_s++;
-                    }
-                    return FALSE;
-                } else {
-                    /* #c - matches zero or more of character c (case-insensitive) */
-                    UBYTE c = _to_lower(*p++);
-                    /* Try to match rest of pattern with varying numbers of c */
-                    const UBYTE *try_s = s;
-                    while (1) {
-                        if (_match_pattern_internal_nocase(p, try_s))
-                            return TRUE;
-                        if (_to_lower(*try_s) != c)
-                            break;
-                        try_s++;
-                    }
-                    return FALSE;
-                }
-                break;
-                
-            case '%':
-                /* % matches the empty string */
-                p++;
-                break;
-
-            case '\'':
-                /* ' escapes the next character - match literally (case-insensitive) */
-                if (p[1] != '\0')
-                    p++;    /* a trailing ' is an ordinary character */
-                if (_to_lower(*s) != _to_lower(*p))
-                    return FALSE;
-                p++;
-                s++;
-                break;
-                
-            case '*':
-                /* Treat * as equivalent to #? for convenience */
-                p++;
-                {
-                    const UBYTE *try_s = s;
-                    while (1) {
-                        if (_match_pattern_internal_nocase(p, try_s))
-                            return TRUE;
-                        if (*try_s == '\0')
-                            break;
-                        try_s++;
-                    }
-                }
-                return FALSE;
-            
-            case '[':
-                /* Character class [abc] or [a-z] - case-insensitive */
-                {
-                    if (*s == '\0')
-                        return FALSE;
-                    
-                    BOOL matched;
-                    const UBYTE *after_class = _match_char_class(p, *s, &matched, TRUE);
-                    if (!after_class || !matched)
-                        return FALSE;
-                    
-                    p = after_class;
-                    s++;
-                }
-                break;
-
-            case '(':
-                {
-                    const UBYTE *group_end = _find_group_end(p);
-
-                    if (!group_end)
-                        return FALSE;
-
-                    return _match_group_alternatives(p, group_end, group_end + 1, s, TRUE);
-                }
-
-            default:
-                /* Literal character match (case-insensitive) */
-                if (_to_lower(*s) != _to_lower(*p))
-                    return FALSE;
-                p++;
-                s++;
-                break;
-        }
-    }
-    
-    /* Pattern exhausted - match if string is also exhausted */
-    return (*s == '\0');
+    return _pm(pat, pat + strlen((const char *)pat), str, str + strlen((const char *)str), TRUE);
 }
 
 /*
@@ -9740,22 +9627,24 @@ STRPTR _dos_FilePart ( register struct DosLibrary * DOSBase __asm("a6"),
     if (!path)
         return (STRPTR)path;  /* Return NULL for NULL input */
     
-    /* Find the last separator ('/' or ':') */
-    CONST_STRPTR last_sep = NULL;
-    CONST_STRPTR p = path;
-    
-    while (*p)
+    /* AmigaOS 3.1 (reference-verified, Tests/Probes/dos/paths): the name
+     * starts after the last '/', or else after the first ':' ("a:b:c" ->
+     * "b:c"), or else at the start. */
+    CONST_STRPTR last_slash = NULL, first_colon = NULL, p;
+
+    for (p = path; *p; p++)
     {
-        if (*p == '/' || *p == ':')
-            last_sep = p;
-        p++;
+        if (*p == '/')
+            last_slash = p;
+        else if (*p == ':' && !first_colon)
+            first_colon = p;
     }
-    
-    /* Return pointer to character after last separator, or start of path */
-    if (last_sep)
-        return (STRPTR)(last_sep + 1);
-    else
-        return (STRPTR)path;
+
+    if (last_slash)
+        return (STRPTR)(last_slash + 1);
+    if (first_colon)
+        return (STRPTR)(first_colon + 1);
+    return (STRPTR)path;
 }
 
 STRPTR _dos_PathPart ( register struct DosLibrary * DOSBase __asm("a6"),
@@ -9766,39 +9655,20 @@ STRPTR _dos_PathPart ( register struct DosLibrary * DOSBase __asm("a6"),
     if (!path)
         return (STRPTR)path;  /* Return NULL for NULL input */
     
-    /* Find the end of the path portion (last '/' or ':') */
-    CONST_STRPTR last_sep = NULL;
-    CONST_STRPTR p = path;
-    
-    while (*p)
+    /* AmigaOS 3.1 (reference-verified, Tests/Probes/dos/paths): PathPart
+     * points at the '/' that separates the name, but a '/' that is itself
+     * a parent reference (at the start, after ':' or after another '/')
+     * belongs to the path: "dir/file" -> "/file", "dir//file" -> "file",
+     * "/file" -> "file". */
+    STRPTR fp = FilePart(path);
+
+    if (fp > (STRPTR)path && fp[-1] == '/')
     {
-        if (*p == '/')
-            last_sep = p;
-        else if (*p == ':')
-            last_sep = p;  /* ':' counts as directory separator */
-        p++;
+        if (fp - 1 == (STRPTR)path || fp[-2] == '/' || fp[-2] == ':')
+            return fp;
+        return fp - 1;
     }
-    
-    /* Return pointer to the character after the last directory separator
-     * For "foo/bar", returns pointer to "bar"
-     * For "foo:", returns pointer to the character after ':'
-     * For "foo", returns pointer to "foo" (start of string)
-     */
-    if (last_sep)
-    {
-        /* For '/', return pointer to the '/' itself (not after it)
-         * This is the AmigaDOS convention - PathPart returns pointer
-         * to where the filename starts, but the '/' is kept as part of path */
-        if (*last_sep == '/')
-            return (STRPTR)last_sep;
-        else  /* ':' */
-            return (STRPTR)(last_sep + 1);
-    }
-    else
-    {
-        /* No separator - whole string is filename, return pointer to start */
-        return (STRPTR)path;
-    }
+    return fp;
 }
 
 BOOL _dos_AddPart ( register struct DosLibrary * DOSBase __asm("a6"),
@@ -9833,6 +9703,23 @@ BOOL _dos_AddPart ( register struct DosLibrary * DOSBase __asm("a6"),
         filelen++;
     }
     
+    /* A filename with a volume or root part (':') replaces dirname
+     * (AmigaOS 3.1, reference-verified) */
+    for (f = filename; *f; f++)
+    {
+        if (*f == ':')
+        {
+            if (filelen + 1 > size)
+            {
+                SetIoErr(ERROR_LINE_TOO_LONG);
+                return FALSE;
+            }
+            for (f = filename, p = dirname; (*p++ = *f++) != 0;)
+                ;
+            return TRUE;
+        }
+    }
+
     /* Determine if we need to add a separator */
     BOOL need_sep = FALSE;
     if (dirlen > 0)
@@ -10073,9 +9960,9 @@ BOOL _dos_SetVar ( register struct DosLibrary * DOSBase __asm("a6"),
     if (lv)
     {
         /* Update existing variable - free old value */
-        if (lv->lv_Value && lv->lv_Len > 0)
+        if (lv->lv_Value)
         {
-            FreeMem(lv->lv_Value, lv->lv_Len);
+            FreeMem(lv->lv_Value, lv->lv_Len + 1);
         }
     }
     else
@@ -10150,8 +10037,9 @@ BOOL _dos_SetVar ( register struct DosLibrary * DOSBase __asm("a6"),
     /* Set the new value */
     if (size > 0 && buffer)
     {
-        /* Allocate space for value (add 1 for null terminator unless DONT_NULL_TERM) */
-        LONG allocSize = (flags & GVF_DONT_NULL_TERM) ? size : size + 1;
+        /* lv_Len is the value's length without a terminator (AmigaOS 3.1,
+         * reference-verified); lxa keeps a NUL behind the value */
+        LONG allocSize = size + 1;
         lv->lv_Value = (STRPTR)AllocMem(allocSize, MEMF_PUBLIC);
         if (!lv->lv_Value)
         {
@@ -10166,10 +10054,9 @@ BOOL _dos_SetVar ( register struct DosLibrary * DOSBase __asm("a6"),
         for (i = 0; i < size; i++)
             *dst++ = *src++;
         
-        if (!(flags & GVF_DONT_NULL_TERM))
-            *dst = '\0';
-        
-        lv->lv_Len = allocSize;
+        *dst = '\0';
+
+        lv->lv_Len = size;
     }
     else
     {
@@ -10216,9 +10103,13 @@ LONG _dos_GetVar ( register struct DosLibrary * DOSBase __asm("a6"),
             LONG copyLen = lv->lv_Len;
             if (!(flags & GVF_BINARY_VAR))
             {
-                /* For text vars, don't count the null terminator in returned length */
-                if (copyLen > 0 && lv->lv_Value[copyLen - 1] == '\0')
-                    copyLen--;
+                /* a text read stops at the first line feed (AmigaOS 3.1,
+                 * reference-verified); binary reads take all lv_Len bytes */
+                LONG k;
+                for (k = 0; k < copyLen; k++)
+                    if (lv->lv_Value[k] == '\n')
+                        break;
+                copyLen = k;
             }
             
             if (copyLen >= size)
@@ -10319,9 +10210,9 @@ LONG _dos_DeleteVar ( register struct DosLibrary * DOSBase __asm("a6"),
             }
             
             /* Free value */
-            if (lv->lv_Value && lv->lv_Len > 0)
+            if (lv->lv_Value)
             {
-                FreeMem(lv->lv_Value, lv->lv_Len);
+                FreeMem(lv->lv_Value, lv->lv_Len + 1);
             }
             
             /* Free structure */
@@ -10812,6 +10703,7 @@ VOID _dos_ExAllEnd ( register struct DosLibrary * DOSBase __asm("a6"),
         FreeDosObject(DOS_FIB, icontrol->fib);
         icontrol->fib = NULL;
     }
+    icontrol->pending = FALSE;
 
     control->eac_LastKey = 0;
     control->eac_Entries = 0;

@@ -1,0 +1,56 @@
+-- FilePart/PathPart
+"": FilePart @0 PathPart @0
+"file": FilePart @0 PathPart @0
+"dir/file": FilePart @4 PathPart @3
+"dir/": FilePart @4 PathPart @3
+"vol:": FilePart @4 PathPart @4
+"vol:file": FilePart @4 PathPart @4
+"vol:dir/file": FilePart @8 PathPart @7
+"vol:dir/sub/": FilePart @12 PathPart @11
+"/": FilePart @1 PathPart @1
+"//": FilePart @2 PathPart @2
+"/file": FilePart @1 PathPart @1
+"dir//file": FilePart @5 PathPart @5
+":": FilePart @1 PathPart @1
+":file": FilePart @1 PathPart @1
+"a:b:c": FilePart @2 PathPart @2
+"dir/sub/file.info": FilePart @8 PathPart @7
+"vol:/": FilePart @5 PathPart @5
+"x/./y": FilePart @4 PathPart @3
+-- AddPart
+AddPart("", "file") = TRUE "file" IoErr 0
+AddPart("dir", "file") = TRUE "dir/file" IoErr 0
+AddPart("dir/", "file") = TRUE "dir/file" IoErr 0
+AddPart("vol:", "file") = TRUE "vol:file" IoErr 0
+AddPart("vol:dir", "file") = TRUE "vol:dir/file" IoErr 0
+AddPart("dir", "/file") = TRUE "dir//file" IoErr 0
+AddPart("dir", "//file") = TRUE "dir///file" IoErr 0
+AddPart("dir/sub", "/file") = TRUE "dir/sub//file" IoErr 0
+AddPart("dir", "vol:abs") = TRUE "vol:abs" IoErr 0
+AddPart("dir", ":rootrel") = TRUE ":rootrel" IoErr 0
+AddPart("dir", "") = TRUE "dir/" IoErr 0
+AddPart("", "") = TRUE "" IoErr 0
+AddPart("dir", "sub/") = TRUE "dir/sub/" IoErr 0
+AddPart("vol:", "/x") = TRUE "vol:/x" IoErr 0
+AddPart("dir//", "x") = TRUE "dir//x" IoErr 0
+AddPart("a", "../b") = TRUE "a/../b" IoErr 0
+AddPart("dir/sub", "//x") = TRUE "dir/sub///x" IoErr 0
+AddPart("dir", "file1", size 1) = FALSE "dir" IoErr 120
+AddPart("dir", "file1", size 4) = FALSE "dir" IoErr 120
+AddPart("dir", "file1", size 8) = FALSE "dir" IoErr 120
+AddPart("dir", "file1", size 9) = FALSE "dir" IoErr 120
+AddPart("dir", "file1", size 10) = TRUE "dir/file1" IoErr 0
+AddPart("dir", "file1", size 11) = TRUE "dir/file1" IoErr 0
+AddPart("dir", "file1", size 12) = TRUE "dir/file1" IoErr 0
+-- SplitName
+SplitName "vol:dir/file" '/': ["vol:dir" 8] ["file" -1]
+SplitName "dir/file" '/': ["dir" 4] ["file" -1]
+SplitName "a/b/c" '/': ["a" 2] ["b" 4] ["c" -1]
+SplitName "nodir" '/': ["nodir" -1]
+SplitName "x/" '/': ["x" 2] ["" -1]
+SplitName "/y" '/': ["" 1] ["y" -1]
+SplitName "" '/': ["" -1]
+SplitName "a//b" '/': ["a" 2] ["" 3] ["b" -1]
+SplitName small buffer: "abc" 8
+SplitName ':' : "vol" 4
+SplitName at end: "" -1
