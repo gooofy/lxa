@@ -85,7 +85,9 @@ class Lxa:
         self._open = True
         # same standard assigns as the GTest fixtures (tests/drivers/lxa_test.h)
         samples = os.path.join(self.build, "target", "samples", "Samples")
-        system = os.path.join(ROOT, "share", "lxa", "System")
+        # LXA_SYSTEM_DIR: a private copy for runs of untrusted programs (mass
+        # runs) - installers write into LIBS: and must not touch the repo
+        system = os.environ.get("LXA_SYSTEM_DIR") or os.path.join(ROOT, "share", "lxa", "System")
         self.assign("SYS", samples)
         self.assign_add("SYS", system)
         self.assign("LIBS", os.path.join(system, "Libs"))
