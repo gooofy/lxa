@@ -1,0 +1,37 @@
+=== exec/resources Test ===
+
+--- Test 1: OpenResource() for ciaa.resource ---
+OK: ciaa.resource opened successfully
+OK: ciaa.resource has correct node type (NT_RESOURCE)
+
+--- Test 2: OpenResource() for ciab.resource ---
+OK: ciab.resource opened successfully
+OK: ciab.resource has correct node type (NT_RESOURCE)
+
+--- Test 3: OpenResource() for non-existent resource ---
+OK: OpenResource("fake.resource") correctly returned NULL
+
+--- Test 4: Verify resources in ResourceList ---
+OK: ResourceList contains resources
+OK: ciaa.resource found in ResourceList
+OK: ciab.resource found in ResourceList
+
+--- Test 5: OpenResource() for blitter.resource ---
+OK: blitter.resource does not exist
+
+--- Test 5b: cia.resource callable vectors ---
+OK: AddICRVector() claims a free CIA bit
+OK: AddICRVector() enables claimed bit
+OK: AddICRVector() reports current owner
+OK: SetICR() reports previous request mask
+OK: SetICR() caused the interrupt handler to run
+OK: handled CIA request is no longer pending
+OK: RemICRVector() disables removed bit
+
+--- Test 6: AddResource/RemResource lifecycle ---
+OK: AddResource() leaves ln_Type unchanged
+OK: OpenResource() returned custom resource
+OK: RemResource() removed resource from list
+
+=== Test Results ===
+PASS: All tests passed

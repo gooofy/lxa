@@ -56,7 +56,7 @@ static void init_topaz8_font(void);
 #define LAYER_ORIGIN_Y(l) ((l)->bounds.MinY - (((l)->Flags & LAYERSUPER) ? 0 : (l)->Scroll_Y))
 
 #define GFXASSOCIATE_HASHSIZE 8
-#define GRAPHICS_TFE_MATCHWORD 0xDFE7
+#define GRAPHICS_TFE_MATCHWORD 0x4E1B   /* value AmigaOS 3.1 uses (reference) */
 
 static LONG BltBitMapCore(CONST struct BitMap *srcBitMap,
                           WORD xSrc,
@@ -277,19 +277,22 @@ static void graphics_process_queued_blits(struct GfxBase *GfxBase)
             return;
         }
 
-        if (GfxBase->bsblthd)
-        {
-            blit = GfxBase->bsblthd;
-            GfxBase->bsblthd = blit->n;
-            if (!GfxBase->bsblthd)
-                GfxBase->bsblttl = NULL;
-        }
-        else if (GfxBase->blthd)
+        /* Blits queued while the blitter was owned run in queue order:
+         * AmigaOS 3.1 runs a pending QBlit() before a later QBSBlit()
+         * (verified on the reference machine). */
+        if (GfxBase->blthd)
         {
             blit = GfxBase->blthd;
             GfxBase->blthd = blit->n;
             if (!GfxBase->blthd)
                 GfxBase->blttl = NULL;
+        }
+        else if (GfxBase->bsblthd)
+        {
+            blit = GfxBase->bsblthd;
+            GfxBase->bsblthd = blit->n;
+            if (!GfxBase->bsblthd)
+                GfxBase->bsblttl = NULL;
         }
         else
         {
@@ -347,6 +350,8 @@ static ULONG _graphics_ObtainPen ( register struct GfxBase * GfxBase __asm("a6")
 
 #define GRAPHICS_PEN_NONE ((UWORD)0xFFFF)
 
+static VOID graphics_cm_store_rgb32(struct ColorMap *cm, ULONG n, ULONG r, ULONG g, ULONG b);
+
 static UWORD *graphics_palette_ref_counts(struct PaletteExtra *pe)
 {
     return (UWORD *)pe->pe_RefCnt;
@@ -385,32 +390,6 @@ static VOID graphics_color_get(CONST struct ColorMap *cm,
     *r = red8 * 0x01010101UL;
     *g = green8 * 0x01010101UL;
     *b = blue8 * 0x01010101UL;
-}
-
-static BOOL graphics_color_equal(CONST struct ColorMap *cm,
-                                 ULONG r,
-                                 ULONG g,
-                                 ULONG b,
-                                 ULONG index)
-{
-    CONST UWORD *colors = (CONST UWORD *)cm->ColorTable;
-
-    if (colors[index] != (((r >> 20) & 0x0f00) |
-                          ((g >> 24) & 0x00f0) |
-                          ((b >> 28) & 0x000f)))
-        return FALSE;
-
-    if ((cm->Type > COLORMAP_TYPE_V1_2) && cm->LowColorBits)
-    {
-        CONST UWORD *low = (CONST UWORD *)cm->LowColorBits;
-
-        if (low[index] != (((r >> 16) & 0x0f00) |
-                           ((g >> 20) & 0x00f0) |
-                           ((b >> 24) & 0x000f)))
-            return FALSE;
-    }
-
-    return TRUE;
 }
 
 static ULONG graphics_color_distance(CONST struct ColorMap *cm,
@@ -504,9 +483,12 @@ static VOID _graphics_FreeRaster ( register struct GfxBase * GfxBase __asm("a6")
                                    register PLANEPTR p __asm("a0"),
                                    register UWORD width __asm("d0"),
                                    register UWORD height __asm("d1"));
-static BOOL _graphics_OrRegionRegion ( register struct GfxBase * GfxBase __asm("a6"),
+static BOOL region_OrRegionRegion_abs ( register struct GfxBase * GfxBase __asm("a6"),
                                        register CONST struct Region * srcRegion __asm("a0"),
                                        register struct Region * destRegion __asm("a1"));
+static BOOL region_ClearRectRegion_abs ( register struct GfxBase * GfxBase __asm("a6"),
+                                       register struct Region * region __asm("a0"),
+                                       register CONST struct Rectangle * rectangle __asm("a1"));
 static VOID _graphics_ClearEOL ( register struct GfxBase * GfxBase __asm("a6"),
                                  register struct RastPort * rp __asm("a1"));
 static VOID _graphics_RemFont ( register struct GfxBase * GfxBase __asm("a6"),
@@ -582,6 +564,9 @@ static VOID _graphics_EraseRect ( register struct GfxBase * GfxBase __asm("a6"),
 #define COMPLEMENT  2
 #define INVERSVID   4
 #endif
+
+static void gfx_fill_rect(struct RastPort *rp, WORD xMin, WORD yMin, WORD xMax, WORD yMax,
+                          BYTE pen, UBYTE drawmode, BOOL usePattern);
 
 /* RastPort flags */
 #ifndef FRST_DOT
@@ -854,15 +839,26 @@ static const char *graphics_display_mode_name(ULONG display_id)
 
 static UWORD graphics_display_nominal_width(ULONG display_id)
 {
+    if ((display_id & SUPER_KEY) == SUPER_KEY)
+        return 1280;
     return (display_id & HIRES) ? 640 : 320;
+}
+
+/* pixel width scale: 1 lores, 2 hires, 4 superhires */
+static WORD graphics_display_xscale(ULONG display_id)
+{
+    if ((display_id & SUPER_KEY) == SUPER_KEY)
+        return 4;
+    return (display_id & HIRES) ? 2 : 1;
 }
 
 static UWORD graphics_display_nominal_height(ULONG display_id)
 {
-    if ((display_id & MONITOR_ID_MASK) == PAL_MONITOR_ID)
-        return 256;
+    UWORD height = ((display_id & MONITOR_ID_MASK) == NTSC_MONITOR_ID) ? 200 : 256;
 
-    return 200;
+    if (display_id & LACE)
+        height *= 2;
+    return height;
 }
 
 static UWORD graphics_display_total_rows(ULONG display_id)
@@ -1049,11 +1045,11 @@ static WORD graphics_vsprite_boundary_flags(CONST struct GelsInfo *gelsInfo,
     WORD bottom;
     WORD flags = 0;
 
-    if (!gelsInfo || !vSprite ||
-        (vSprite->HitMask & (1U << BORDERHIT)) == 0)
-    {
+    /* AmigaOS 3.1 (verified on the reference machine) checks the
+     * boundary for every VSprite with a non-zero HitMask, not only for
+     * those with the BORDERHIT bit set. */
+    if (!gelsInfo || !vSprite || vSprite->HitMask == 0)
         return 0;
-    }
 
     if (!graphics_vsprite_get_occupied_bounds(vSprite, &left, &top, &right, &bottom))
         return 0;
@@ -1160,7 +1156,8 @@ static BOOL graphics_vsprites_old_bounds_overlap(CONST struct VSprite *left_vspr
 static VOID graphics_clear_bob_immediately(struct GfxBase *GfxBase,
                                            struct RastPort *rp,
                                            struct VSprite *vSprite,
-                                           struct VSprite *tail)
+                                           struct VSprite *tail,
+                                           BOOL retire)
 {
     struct Bob *bob;
     struct VSprite *other;
@@ -1179,7 +1176,7 @@ static VOID graphics_clear_bob_immediately(struct GfxBase *GfxBase,
     while (other && other != tail)
     {
         if (other->VSBob && graphics_vsprites_old_bounds_overlap(vSprite, other))
-            graphics_clear_bob_immediately(GfxBase, rp, other, tail);
+            graphics_clear_bob_immediately(GfxBase, rp, other, tail, FALSE);
         other = other->NextVSprite;
     }
 
@@ -1193,8 +1190,13 @@ static VOID graphics_clear_bob_immediately(struct GfxBase *GfxBase,
                             (LONG)(vSprite->OldY + vSprite->Height - 1));
     }
 
-    bob->Flags &= ~(BWAITING | BDRAWN);
-    bob->Flags |= BOBNIX;
+    /* only the removed Bob is retired; overlapping Bobs are just erased
+     * and redrawn by the next DrawGList() (AmigaOS 3.1, reference) */
+    if (retire)
+    {
+        bob->Flags &= ~(BWAITING | BDRAWN);
+        bob->Flags |= BOBNIX;
+    }
 }
 
 static VOID graphics_init_gels_sentinel(struct VSprite *vSprite, WORD x, WORD y)
@@ -1454,10 +1456,45 @@ static BOOL ClipIntersectRects(WORD minX1, WORD minY1, WORD maxX1, WORD maxY1,
 }
 
 /*
+ * Helper: resolve the pen and plane operation of a solid (pattern-less)
+ * primitive (WritePixel, Draw, RectFill), as real AmigaOS renders it:
+ * the solid source pattern is inverted by INVERSVID, JAM1 draws only the
+ * set pattern bits with FgPen, JAM2 draws clear bits with BgPen, and
+ * COMPLEMENT inverts every plane enabled in rp->Mask where the pattern is
+ * set (independent of FgPen).  Returns FALSE when nothing is drawn
+ * (JAM1|INVERSVID, COMPLEMENT|INVERSVID).
+ */
+static BOOL gfx_solid_pen(const struct RastPort *rp, BYTE *pen, UBYTE *drawmode)
+{
+    UBYTE dm = rp->DrawMode;
+
+    if (dm & COMPLEMENT)
+    {
+        if (dm & INVERSVID)
+            return FALSE;
+        *pen = (BYTE)rp->Mask;
+        *drawmode = COMPLEMENT;
+        return TRUE;
+    }
+    if (dm & INVERSVID)
+    {
+        if (!(dm & JAM2))
+            return FALSE;
+        *pen = rp->BgPen;
+    }
+    else
+    {
+        *pen = rp->FgPen;
+    }
+    *drawmode = JAM2;
+    return TRUE;
+}
+
+/*
  * Helper: Set a single pixel in a bitmap (no layer handling)
  * Used by layer-aware drawing functions to set individual pixels
  */
-static void SetPixelDirect(struct BitMap *bm, WORD x, WORD y, BYTE pen, UBYTE drawmode)
+static void SetPixelDirect(struct BitMap *bm, WORD x, WORD y, BYTE pen, UBYTE drawmode, UBYTE mask)
 {
     UWORD byteOffset;
     UBYTE bitMask;
@@ -1472,6 +1509,8 @@ static void SetPixelDirect(struct BitMap *bm, WORD x, WORD y, BYTE pen, UBYTE dr
 
     for (plane = 0; plane < bm->Depth; plane++)
     {
+        if (!(mask & (1 << plane)))
+            continue;
         if (bm->Planes[plane])
         {
             if (basemode == COMPLEMENT)
@@ -1500,8 +1539,8 @@ static void SetPixelDirect(struct BitMap *bm, WORD x, WORD y, BYTE pen, UBYTE dr
  * Helper: Fill a rectangle directly in a bitmap (no layer handling)
  * Coordinates are already in absolute screen space, clipped to bitmap bounds
  */
-static void FillRectDirect(struct BitMap *bm, WORD xMin, WORD yMin, WORD xMax, WORD yMax, 
-                           BYTE pen, UBYTE drawmode)
+static void FillRectDirect(struct BitMap *bm, WORD xMin, WORD yMin, WORD xMax, WORD yMax,
+                           BYTE pen, UBYTE drawmode, UBYTE mask)
 {
     WORD y;
     WORD bmMaxX = bm->BytesPerRow * 8;
@@ -1549,7 +1588,7 @@ static void FillRectDirect(struct BitMap *bm, WORD xMin, WORD yMin, WORD xMax, W
             UBYTE *planeData;
             BOOL planeBit;
 
-            if (!bm->Planes[plane])
+            if (!bm->Planes[plane] || !(mask & (1 << plane)))
                 continue;
 
             planeData = bm->Planes[plane];
@@ -1830,7 +1869,23 @@ struct LxaBltBitMapArgs
     UBYTE                planeMask; /* +21 */
     UWORD                pixelMaskBpr; /* +22 */
     PLANEPTR             pixelMask; /* +24 */
+    UWORD                maskMode;  /* +28: 1 = BltMaskBitMapRastPort semantics */
+    UWORD                pad;       /* +30 */
 };
+
+static LONG BltBitMapCoreMode(CONST struct BitMap *srcBitMap,
+                              WORD xSrc,
+                              WORD ySrc,
+                              struct BitMap *destBitMap,
+                              WORD xDest,
+                              WORD yDest,
+                              WORD xSize,
+                              WORD ySize,
+                              UBYTE minterm,
+                              UBYTE planeMask,
+                              CONST PLANEPTR pixelMask,
+                              UWORD pixelMaskBpr,
+                              UWORD maskMode);
 
 static LONG BltBitMapCore(CONST struct BitMap *srcBitMap,
                           WORD xSrc,
@@ -1844,6 +1899,24 @@ static LONG BltBitMapCore(CONST struct BitMap *srcBitMap,
                           UBYTE planeMask,
                           CONST PLANEPTR pixelMask,
                           UWORD pixelMaskBpr)
+{
+    return BltBitMapCoreMode(srcBitMap, xSrc, ySrc, destBitMap, xDest, yDest, xSize, ySize,
+                             minterm, planeMask, pixelMask, pixelMaskBpr, 0);
+}
+
+static LONG BltBitMapCoreMode(CONST struct BitMap *srcBitMap,
+                              WORD xSrc,
+                              WORD ySrc,
+                              struct BitMap *destBitMap,
+                              WORD xDest,
+                              WORD yDest,
+                              WORD xSize,
+                              WORD ySize,
+                              UBYTE minterm,
+                              UBYTE planeMask,
+                              CONST PLANEPTR pixelMask,
+                              UWORD pixelMaskBpr,
+                              UWORD maskMode)
 {
     /*
      * Phase 112: dispatch to host-side native-C implementation.
@@ -1863,6 +1936,8 @@ static LONG BltBitMapCore(CONST struct BitMap *srcBitMap,
     args.planeMask    = planeMask;
     args.pixelMaskBpr = pixelMaskBpr;
     args.pixelMask    = (PLANEPTR)pixelMask;
+    args.maskMode     = maskMode;
+    args.pad          = 0;
 
     return (LONG)emucall1(EMU_CALL_GFX_BLT_BITMAP, (ULONG)&args);
 }
@@ -1919,14 +1994,16 @@ struct GfxBase * __g_lxa_graphics_InitLib    ( register struct GfxBase *graphics
 struct GfxBase * __g_lxa_graphics_OpenLib ( register struct GfxBase  *GfxBase __asm("a6"))
 {
     DPRINTF (LOG_DEBUG, "_graphics: OpenLib() called\n");
-    GfxBase->LibNode.lib_OpenCnt++;
+    /* AmigaOS 3.1 keeps lib_OpenCnt of this never-expunged ROM library
+     * constant at 1 (reference-verified, Phase 220) */
+    GfxBase->LibNode.lib_OpenCnt = 1;
     GfxBase->LibNode.lib_Flags &= ~LIBF_DELEXP;
     return GfxBase;
 }
 
 BPTR __g_lxa_graphics_CloseLib ( register struct GfxBase  *graphicsb __asm("a6"))
 {
-    graphicsb->LibNode.lib_OpenCnt--;
+    (void)graphicsb;   /* lib_OpenCnt stays constant, see OpenLib */
     return NULL;
 }
 
@@ -2136,15 +2213,9 @@ static VOID _graphics_ClearEOL ( register struct GfxBase * GfxBase __asm("a6"),
     ymin = rp->cp_y - rp->TxBaseline;
     ymax = ymin + rp->Font->tf_YSize - 1;
 
-    /* Save old draw mode and invert INVERSVID to draw with BgPen */
-    oldDrMd = rp->DrawMode;
-    rp->DrawMode ^= INVERSVID;
-
-    /* Fill from current x position to end of line */
-    _graphics_RectFill(GfxBase, rp, rp->cp_x, ymin, width - 1, ymax);
-
-    /* Restore draw mode */
-    rp->DrawMode = oldDrMd;
+    /* Fill from current x position to end of line with the background pen */
+    (void)oldDrMd;
+    gfx_fill_rect(rp, rp->cp_x, ymin, width - 1, ymax, (rp->DrawMode & INVERSVID) ? rp->FgPen : rp->BgPen, JAM2, FALSE);
 }
 
 static VOID _graphics_ClearScreen ( register struct GfxBase * GfxBase __asm("a6"),
@@ -2172,15 +2243,9 @@ static VOID _graphics_ClearScreen ( register struct GfxBase * GfxBase __asm("a6"
     /* If there are more lines below, clear them */
     if (height >= ymin)
     {
-        /* Save old draw mode and invert INVERSVID to draw with BgPen */
-        oldDrMd = rp->DrawMode;
-        rp->DrawMode ^= INVERSVID;
-
-        /* Fill from beginning of next line to end of screen */
-        _graphics_RectFill(GfxBase, rp, 0, ymin, width - 1, height - 1);
-
-        /* Restore draw mode */
-        rp->DrawMode = oldDrMd;
+        /* Fill from beginning of next line to end of screen (background pen) */
+        (void)oldDrMd;
+        gfx_fill_rect(rp, 0, ymin, width - 1, height - 1, (rp->DrawMode & INVERSVID) ? rp->FgPen : rp->BgPen, JAM2, FALSE);
     }
 }
 
@@ -2748,14 +2813,12 @@ static VOID _graphics_CloseFont ( register struct GfxBase * GfxBase __asm("a6"),
         return;
     }
 
+    /* AmigaOS 3.1 (verified on the reference machine) only drops the
+     * accessor count: a font stays in the public list until RemFont()
+     * (diskfont.library removes unused disk fonts itself). */
     if (textFont->tf_Accessors > 0)
     {
         textFont->tf_Accessors--;
-    }
-
-    if (textFont->tf_Accessors == 0 && !(textFont->tf_Flags & FPF_ROMFONT))
-    {
-        _graphics_RemFont(GfxBase, textFont);
     }
 }
 
@@ -2807,9 +2870,9 @@ static VOID _graphics_AddBob ( register struct GfxBase * GfxBase __asm("a6"),
     if (!bob || !rp || !rp->GelsInfo || !bob->BobVSprite)
         return;
 
+    /* AmigaOS 3.1 (reference) neither sets BWAITING nor VSprite->VSBob
+     * (the application links VSBob itself, see RKRM). */
     bob->Flags &= BUSERFLAGS;
-    bob->Flags |= BWAITING;
-    bob->BobVSprite->VSBob = bob;
     _graphics_AddVSprite(GfxBase, bob->BobVSprite, rp);
 }
 
@@ -2831,9 +2894,6 @@ static VOID _graphics_AddVSprite ( register struct GfxBase * GfxBase __asm("a6")
     vSprite->OldY = vSprite->Y;
     vSprite->DrawPath = NULL;
     vSprite->ClearPath = NULL;
-
-    if (vSprite->PrevVSprite || vSprite->NextVSprite)
-        _graphics_RemVSprite(GfxBase, vSprite);
 
     graphics_insert_vsprite_sorted(gelsInfo->gelHead, gelsInfo->gelTail, vSprite);
 
@@ -2924,6 +2984,8 @@ static VOID _graphics_DrawGList ( register struct GfxBase * GfxBase __asm("a6"),
 
         if (current->VSBob && (current->VSBob->Flags & BOBSAWAY))
         {
+            /* erase the retired Bob (restore its background) first */
+            graphics_clear_bob_immediately(GfxBase, rp, current, tail, TRUE);
             _graphics_RemVSprite(GfxBase, current);
             current->VSBob->Flags |= BOBNIX;
             current->VSBob->Flags &= ~BDRAWN;
@@ -2937,10 +2999,13 @@ static VOID _graphics_DrawGList ( register struct GfxBase * GfxBase __asm("a6"),
         current->OldX = current->X;
         current->OldY = current->Y;
 
+        /* AmigaOS 3.1 (reference): the Bob flags are not changed by a
+         * normal draw; a saved background is marked in the VSprite */
         if (current->VSBob)
         {
-            current->VSBob->Flags |= BDRAWN;
             current->VSBob->Flags &= ~(BOBNIX | BWAITING);
+            if (current->Flags & SAVEBACK)
+                current->Flags |= BACKSAVED;
         }
 
         current = next;
@@ -2974,7 +3039,8 @@ static VOID _graphics_InitGels ( register struct GfxBase * GfxBase __asm("a6"),
     gelsInfo->firstBlissObj = NULL;
     gelsInfo->lastBlissObj = NULL;
 
-    graphics_init_gels_sentinel(head, -32768, -32768);
+    /* AmigaOS 3.1 uses 0x8001 (-32767) for the head sentinel (reference) */
+    graphics_init_gels_sentinel(head, -32767, -32767);
     graphics_init_gels_sentinel(tail, 32767, 32767);
 
     if (head)
@@ -3016,6 +3082,13 @@ static VOID _graphics_InitMasks ( register struct GfxBase * GfxBase __asm("a6"),
 
     words_per_plane = (WORD)(vSprite->Height * words_per_line);
 
+    /* A hardware VSprite stores its two planes interleaved per line */
+    if (vSprite->Flags & VSPRITE)
+    {
+        for (count = 0; count < vSprite->Height; count++)
+            vSprite->CollMask[count] = vSprite->ImageData[2 * count] | vSprite->ImageData[2 * count + 1];
+    }
+    else
     for (count = 0; count < words_per_plane; count++)
     {
         WORD data = vSprite->ImageData[count];
@@ -3027,13 +3100,16 @@ static VOID _graphics_InitMasks ( register struct GfxBase * GfxBase __asm("a6"),
         vSprite->CollMask[count] = data;
     }
 
+    /* AmigaOS 3.1 (verified on the reference machine) builds the
+     * BorderLine from the first Height lines of ImageData (the first plane
+     * of a Bob, the interleaved plane words of a VSprite). */
     for (count = 0; count < words_per_line; count++)
     {
-        WORD data = vSprite->CollMask[count];
+        WORD data = vSprite->ImageData[count];
         WORD row;
 
         for (row = 1; row < vSprite->Height; row++)
-            data |= vSprite->CollMask[count + (row * words_per_line)];
+            data |= vSprite->ImageData[count + (row * words_per_line)];
 
         vSprite->BorderLine[count] = data;
     }
@@ -3058,7 +3134,7 @@ static VOID _graphics_RemIBob ( register struct GfxBase * GfxBase __asm("a6"),
     vSprite = bob->BobVSprite;
     tail = (rp && rp->GelsInfo) ? rp->GelsInfo->gelTail : NULL;
 
-    graphics_clear_bob_immediately(GfxBase, rp, vSprite, tail);
+    graphics_clear_bob_immediately(GfxBase, rp, vSprite, tail, TRUE);
     _graphics_RemVSprite(GfxBase, vSprite);
 
     (void)vp;
@@ -3072,15 +3148,12 @@ static VOID _graphics_RemVSprite ( register struct GfxBase * GfxBase __asm("a6")
     if (!vSprite)
         return;
 
+    /* AmigaOS 3.1 unlinks the VSprite but leaves its own NextVSprite /
+     * PrevVSprite pointers unchanged (verified on the reference). */
     if (vSprite->PrevVSprite)
         vSprite->PrevVSprite->NextVSprite = vSprite->NextVSprite;
     if (vSprite->NextVSprite)
         vSprite->NextVSprite->PrevVSprite = vSprite->PrevVSprite;
-
-    vSprite->PrevVSprite = NULL;
-    vSprite->NextVSprite = NULL;
-    vSprite->DrawPath = NULL;
-    vSprite->ClearPath = NULL;
 
     (void)GfxBase;
 }
@@ -3249,7 +3322,9 @@ static VOID _graphics_Animate ( register struct GfxBase * GfxBase __asm("a6"),
                     new_vsprite->OldX = current_vsprite->X;
                 }
 
-                if (sequence_comp->Flags & RINGTRIGGER)
+                /* the ring motion is triggered by the component that
+                 * becomes current (AmigaOS 3.1, reference) */
+                if (next_sequence->Flags & RINGTRIGGER)
                 {
                     current_animob->AnY += current_animob->RingYTrans;
                     current_animob->AnX += current_animob->RingXTrans;
@@ -3269,6 +3344,11 @@ static VOID _graphics_Animate ( register struct GfxBase * GfxBase __asm("a6"),
 
                 if (sequence_comp->AnimBob)
                     sequence_comp->AnimBob->Flags |= BOBSAWAY;
+
+                /* the routine of the component that is now current runs
+                 * (AmigaOS 3.1, verified on the reference machine) */
+                sequence_comp = next_sequence;
+                current_comp = next_sequence;
             }
             else if (current_vsprite)
             {
@@ -3627,9 +3707,9 @@ static VOID _graphics_InitRastPort ( register struct GfxBase * GfxBase __asm("a6
     rp->AOlPen = -1;           /* Outline pen = -1 per AROS */
     rp->DrawMode = JAM2;       /* Default drawing mode */
     rp->LinePtrn = 0xFFFF;     /* Solid line pattern */
-    rp->Flags = FRST_DOT;      /* Draw first dot */
-    rp->PenWidth = 1;
-    rp->PenHeight = 1;
+    rp->Flags = 0;             /* AmigaOS 3.1 leaves Flags, PenWidth and PenHeight zero */
+    rp->PenWidth = 0;
+    rp->PenHeight = 0;
 
     /* Set font to GfxBase->DefaultFont if available */
     if (GfxBase && GfxBase->DefaultFont)
@@ -3752,42 +3832,19 @@ static VOID _graphics_LoadView ( register struct GfxBase * GfxBase __asm("a6"),
 
 static VOID _graphics_WaitBlit ( register struct GfxBase * GfxBase __asm("a6"))
 {
-    struct Task *me;
-    struct BlitWaitQNode waiter;
-    ULONG signal_mask = 1UL << SIGB_BLIT;
-
     DPRINTF(LOG_DEBUG, "_graphics: WaitBlit()\n");
 
     if (!GfxBase)
         return;
 
-    me = FindTask(NULL);
-    if (!me)
-        return;
-
-    for (;;)
-    {
-        graphics_process_queued_blits(GfxBase);
-
-        Disable();
-        if ((GfxBase->BlitOwner == me) ||
-            ((GfxBase->BlitOwner == NULL) && graphics_blit_queues_empty(GfxBase)))
-        {
-            Enable();
-            return;
-        }
-
-        waiter.task = me;
-        AddTail(&GfxBase->BlitWaitQ, &waiter.node);
-        SetSignal(0, signal_mask);
-        Enable();
-
-        Wait(signal_mask);
-
-        Disable();
-        Remove(&waiter.node);
-        Enable();
-    }
+    /*
+     * WaitBlit() waits for the blit currently running in the hardware to
+     * finish.  It does not wait for another task's OwnBlitter() to end
+     * (verified on the reference machine).  lxa's blits complete
+     * synchronously, so only pending queued blits are run (if the blitter
+     * is free).
+     */
+    graphics_process_queued_blits(GfxBase);
 }
 
 static VOID _graphics_SetRast ( register struct GfxBase * GfxBase __asm("a6"),
@@ -3834,7 +3891,8 @@ static VOID _graphics_Draw ( register struct GfxBase * GfxBase __asm("a6"),
 {
     struct BitMap *bm;
     BYTE pen;
-    BYTE bgpen;
+    BYTE bgpen = 0;
+    UBYTE dm;
     WORD x0, y0, x1, y1;
     WORD dx, dy, sx, sy, err;
 
@@ -3853,12 +3911,14 @@ static VOID _graphics_Draw ( register struct GfxBase * GfxBase __asm("a6"),
     }
 
     bm = rp->BitMap;
-    pen = rp->FgPen;
-    bgpen = rp->BgPen;
+    (void)bgpen;
 
-    if (rp->DrawMode & INVERSVID)
+    if (!gfx_solid_pen(rp, &pen, &dm))
     {
-        pen = bgpen;
+        /* JAM1|INVERSVID: the inverted solid line pattern draws nothing */
+        rp->cp_x = (WORD)x;
+        rp->cp_y = (WORD)y;
+        return;
     }
 
     /* If RastPort has a Layer, use ClipRect-aware drawing */
@@ -3900,12 +3960,12 @@ static VOID _graphics_Draw ( register struct GfxBase * GfxBase __asm("a6"),
                             SetPixelDirect(cr->BitMap,
                                            (WORD)(x0 - cr->bounds.MinX),
                                            (WORD)(y0 - cr->bounds.MinY),
-                                           pen, rp->DrawMode);
+                                           pen, dm, rp->Mask);
                         }
                         else
                         {
                             /* Visible: draw directly on screen */
-                            SetPixelDirect(bm, x0, y0, pen, rp->DrawMode);
+                            SetPixelDirect(bm, x0, y0, pen, dm, rp->Mask);
                         }
                         break;
                     }
@@ -3952,7 +4012,7 @@ static VOID _graphics_Draw ( register struct GfxBase * GfxBase __asm("a6"),
     {
         if (x0 >= 0 && y0 >= 0 && x0 < (bm->BytesPerRow * 8) && y0 < bm->Rows)
         {
-            SetPixelDirect(bm, x0, y0, pen, rp->DrawMode);
+            SetPixelDirect(bm, x0, y0, pen, dm, rp->Mask);
         }
 
         if (x0 == x1 && y0 == y1)
@@ -4776,9 +4836,7 @@ static VOID _graphics_RectFill ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register WORD xMax __asm("d2"),
                                                         register WORD yMax __asm("d3"))
 {
-    struct BitMap *bm;
     BYTE pen;
-    BYTE bgpen;
     UBYTE drawmode;
 
     DPRINTF (LOG_DEBUG, "_graphics: RectFill() rp=0x%08lx, (%d,%d)-(%d,%d)\n",
@@ -4786,15 +4844,26 @@ static VOID _graphics_RectFill ( register struct GfxBase * GfxBase __asm("a6"),
     if (!rp || !rp->BitMap)
         return;
 
-    bm = rp->BitMap;
-    pen = rp->FgPen;
-    bgpen = rp->BgPen;
-    drawmode = rp->DrawMode;
-
-    if (drawmode & INVERSVID)
+    if (rp->AreaPtrn)
     {
-        pen = bgpen;
+        gfx_fill_rect(rp, xMin, yMin, xMax, yMax, rp->FgPen, rp->DrawMode, TRUE);
+        return;
     }
+    if (gfx_solid_pen(rp, &pen, &drawmode))
+        gfx_fill_rect(rp, xMin, yMin, xMax, yMax, pen, drawmode, FALSE);
+}
+
+/*
+ * Fill a rectangle (rastport-relative coordinates) through the layer's
+ * ClipRects.  usePattern selects rp->AreaPtrn rendering; otherwise the
+ * rectangle is filled with pen using drawmode (JAM2 = set, COMPLEMENT =
+ * invert the planes selected by pen), limited to the planes in rp->Mask.
+ */
+static void gfx_fill_rect(struct RastPort *rp, WORD xMin, WORD yMin, WORD xMax, WORD yMax,
+                          BYTE pen, UBYTE drawmode, BOOL usePattern)
+{
+    struct BitMap *bm = rp->BitMap;
+    UBYTE mask = rp->Mask;
 
     /* If RastPort has a Layer, use ClipRect-aware drawing */
     if (rp->Layer)
@@ -4828,7 +4897,7 @@ static VOID _graphics_RectFill ( register struct GfxBase * GfxBase __asm("a6"),
                 {
                     /* SMART_REFRESH: fill into backing store bitmap
                      * Translate from screen-absolute to CR-relative coords */
-                    if (rp->AreaPtrn)
+                    if (usePattern)
                         FillRectPattern(rp, cr->BitMap,
                                         (WORD)(clipXMin - cr->bounds.MinX),
                                         (WORD)(clipYMin - cr->bounds.MinY),
@@ -4840,15 +4909,15 @@ static VOID _graphics_RectFill ( register struct GfxBase * GfxBase __asm("a6"),
                                        (WORD)(clipYMin - cr->bounds.MinY),
                                        (WORD)(clipXMax - cr->bounds.MinX),
                                        (WORD)(clipYMax - cr->bounds.MinY),
-                                       pen, drawmode);
+                                       pen, drawmode, mask);
                 }
                 else
                 {
                     /* Visible: fill directly on screen */
-                    if (rp->AreaPtrn)
+                    if (usePattern)
                         FillRectPattern(rp, bm, clipXMin, clipYMin, clipXMax, clipYMax);
                     else
-                        FillRectDirect(bm, clipXMin, clipYMin, clipXMax, clipYMax, pen, drawmode);
+                        FillRectDirect(bm, clipXMin, clipYMin, clipXMax, clipYMax, pen, drawmode, mask);
                 }
             }
         }
@@ -4856,10 +4925,10 @@ static VOID _graphics_RectFill ( register struct GfxBase * GfxBase __asm("a6"),
     }
 
     /* No layer - simple drawing with just bitmap bounds check */
-    if (rp->AreaPtrn)
+    if (usePattern)
         FillRectPattern(rp, bm, xMin, yMin, xMax, yMax);
     else
-        FillRectDirect(bm, xMin, yMin, xMax, yMax, pen, drawmode);
+        FillRectDirect(bm, xMin, yMin, xMax, yMax, pen, drawmode, mask);
 }
 
 static VOID _graphics_BltPattern ( register struct GfxBase * GfxBase __asm("a6"),
@@ -4975,9 +5044,15 @@ static ULONG _graphics_ReadPixel ( register struct GfxBase * GfxBase __asm("a6")
                     /* Visible CR: read from screen bitmap below */
                     break;
                 }
-                /* obscured but no BitMap (SIMPLE_REFRESH): fall through to screen read */
+                /* obscured without backing store (SIMPLE_REFRESH): the
+                 * pixel cannot be read (AmigaOS returns -1) */
+                return (ULONG)-1;
             }
         }
+
+        /* Outside every ClipRect of the layer: AmigaOS returns -1 */
+        if (!cr)
+            return (ULONG)-1;
     }
 
     /* Bounds check */
@@ -5014,14 +5089,10 @@ static LONG _graphics_WritePixel ( register struct GfxBase * GfxBase __asm("a6")
         return -1;  /* Error */
 
     bm = rp->BitMap;
-    pen = rp->FgPen;
-    drawmode = rp->DrawMode;
 
-    /* Handle INVERSVID - use BgPen instead of FgPen */
-    if (drawmode & INVERSVID)
-    {
-        pen = rp->BgPen;
-    }
+    /* JAM1|INVERSVID (and COMPLEMENT|INVERSVID) draw nothing */
+    if (!gfx_solid_pen(rp, &pen, &drawmode))
+        return 0;
 
     /* If RastPort has a Layer, use ClipRect-aware drawing */
     if (rp->Layer)
@@ -5054,12 +5125,12 @@ static LONG _graphics_WritePixel ( register struct GfxBase * GfxBase __asm("a6")
                     SetPixelDirect(cr->BitMap,
                                    (WORD)(absX - cr->bounds.MinX),
                                    (WORD)(absY - cr->bounds.MinY),
-                                   pen, drawmode);
+                                   pen, drawmode, rp->Mask);
                 }
                 else
                 {
                     /* Visible: draw directly on screen */
-                    SetPixelDirect(bm, absX, absY, pen, drawmode);
+                    SetPixelDirect(bm, absX, absY, pen, drawmode, rp->Mask);
                 }
                 return 0;  /* Success */
             }
@@ -5073,7 +5144,7 @@ static LONG _graphics_WritePixel ( register struct GfxBase * GfxBase __asm("a6")
     if (x < 0 || y < 0 || x >= (bm->BytesPerRow * 8) || y >= bm->Rows)
         return -1;
 
-    SetPixelDirect(bm, x, y, pen, drawmode);
+    SetPixelDirect(bm, x, y, pen, drawmode, rp->Mask);
     return 0;  /* Success */
 }
 
@@ -5476,8 +5547,9 @@ static VOID _graphics_InitView ( register struct GfxBase * GfxBase __asm("a6"),
     view->ViewPort = NULL;
     view->LOFCprList = NULL;
     view->SHFCprList = NULL;
-    view->DyOffset = 0;
-    view->DxOffset = 0;
+    /* standard display window start (AmigaOS 3.1, reference machine) */
+    view->DyOffset = 0x2C;
+    view->DxOffset = 0x81;
     view->Modes = 0;
 }
 
@@ -5626,7 +5698,7 @@ static VOID _graphics_InitBitMap ( register struct GfxBase * GfxBase __asm("a6")
 
     bitMap->BytesPerRow = bytesPerRow;
     bitMap->Rows = (UWORD)height;
-    bitMap->Flags = BMF_STANDARD;  /* Set BMF_STANDARD per AROS (was 0) */
+    bitMap->Flags = 0;             /* AmigaOS 3.1 clears Flags (verified on the reference) */
     bitMap->Depth = (UBYTE)depth;
     bitMap->pad = 0;
 
@@ -5826,6 +5898,43 @@ static VOID _graphics_FreeSprite ( register struct GfxBase * GfxBase __asm("a6")
     Enable();
 }
 
+/*
+ * Write the hardware SPRxPOS/SPRxCTL words of a SimpleSprite.  AmigaOS 3.1
+ * (verified on the reference machine) places a sprite at display position
+ * x + DxOffset + 0x81, y + DyOffset + 0x2C (lores, non-interlaced
+ * ViewPort; a NULL ViewPort means no offset).
+ */
+static VOID graphics_sprite_write_posctl(struct ViewPort *vp, struct SimpleSprite *sprite)
+{
+    LONG hstart = sprite->x;
+    LONG vstart = sprite->y;
+    LONG vstop;
+
+    if (vp)
+    {
+        hstart += vp->DxOffset;
+        vstart += vp->DyOffset;
+        if (vp->Modes & SUPERHIRES)
+            hstart >>= 2;
+        else if (vp->Modes & HIRES)
+            hstart >>= 1;
+        if (vp->Modes & LACE)
+            vstart >>= 1;
+    }
+    hstart += 0x81;
+    vstart += 0x2C;
+    vstop = vstart + sprite->height;
+
+    if (!sprite->posctldata)
+        return;
+
+    sprite->posctldata[0] = (UWORD)(((vstart & 0xFF) << 8) | ((hstart >> 1) & 0xFF));
+    sprite->posctldata[1] = (UWORD)(((vstop & 0xFF) << 8) |
+                                    ((vstart & 0x100) ? 0x04 : 0) |
+                                    ((vstop & 0x100) ? 0x02 : 0) |
+                                    (hstart & 1));
+}
+
 static VOID _graphics_ChangeSprite ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct ViewPort * vp __asm("a0"),
                                                         register struct SimpleSprite * sprite __asm("a1"),
@@ -5838,6 +5947,7 @@ static VOID _graphics_ChangeSprite ( register struct GfxBase * GfxBase __asm("a6
         return;
 
     sprite->posctldata = newData;
+    graphics_sprite_write_posctl(vp, sprite);
 
     (void)GfxBase;
 }
@@ -5859,16 +5969,10 @@ static VOID _graphics_MoveSprite ( register struct GfxBase * GfxBase __asm("a6")
     if (!sprite)
         return;
 
-    if (vp)
-    {
-        sprite->x = (UWORD)(x + vp->DxOffset);
-        sprite->y = (UWORD)(y + vp->DyOffset);
-    }
-    else
-    {
-        sprite->x = (UWORD)x;
-        sprite->y = (UWORD)y;
-    }
+    /* x/y are stored as given (ViewPort relative) */
+    sprite->x = (UWORD)x;
+    sprite->y = (UWORD)y;
+    graphics_sprite_write_posctl(vp, sprite);
 
     (void)GfxBase;
 }
@@ -6332,22 +6436,23 @@ static BOOL AppendRectangleDifference(struct Region *dest,
     if (!RectangleIntersection(source, cut, &intersect))
         return AppendRegionRectangle(dest, source);
 
-    if (source->MinY < intersect.MinY)
-    {
-        piece.MinX = source->MinX;
-        piece.MinY = source->MinY;
-        piece.MaxX = source->MaxX;
-        piece.MaxY = intersect.MinY - 1;
-        if (!AppendRegionRectangle(dest, &piece))
-            return FALSE;
-    }
-
+    /* Piece order as AmigaOS 3.1 produces it: below, above, left, right */
     if (intersect.MaxY < source->MaxY)
     {
         piece.MinX = source->MinX;
         piece.MinY = intersect.MaxY + 1;
         piece.MaxX = source->MaxX;
         piece.MaxY = source->MaxY;
+        if (!AppendRegionRectangle(dest, &piece))
+            return FALSE;
+    }
+
+    if (source->MinY < intersect.MinY)
+    {
+        piece.MinX = source->MinX;
+        piece.MinY = source->MinY;
+        piece.MaxX = source->MaxX;
+        piece.MaxY = intersect.MinY - 1;
         if (!AppendRegionRectangle(dest, &piece))
             return FALSE;
     }
@@ -6378,7 +6483,7 @@ static BOOL AppendRectangleDifference(struct Region *dest,
 /*
  * NewRegion - Create a new empty Region (offset -516)
  */
-static struct Region * _graphics_NewRegion ( register struct GfxBase * GfxBase __asm("a6"))
+static struct Region * region_NewRegion_abs ( register struct GfxBase * GfxBase __asm("a6"))
 {
     DPRINTF(LOG_DEBUG, "_graphics: NewRegion() called\n");
 
@@ -6398,7 +6503,7 @@ static struct Region * _graphics_NewRegion ( register struct GfxBase * GfxBase _
 /*
  * ClearRegion - Clear all rectangles from a region (offset -528)
  */
-static VOID _graphics_ClearRegion ( register struct GfxBase * GfxBase __asm("a6"),
+static VOID region_ClearRegion_abs ( register struct GfxBase * GfxBase __asm("a6"),
                                     register struct Region * region __asm("a0"))
 {
     DPRINTF(LOG_DEBUG, "_graphics: ClearRegion() called region=0x%08lx\n", (ULONG)region);
@@ -6425,7 +6530,7 @@ static VOID _graphics_ClearRegion ( register struct GfxBase * GfxBase __asm("a6"
 /*
  * DisposeRegion - Free a region and all its rectangles (offset -534)
  */
-static VOID _graphics_DisposeRegion ( register struct GfxBase * GfxBase __asm("a6"),
+static VOID region_DisposeRegion_abs ( register struct GfxBase * GfxBase __asm("a6"),
                                       register struct Region * region __asm("a0"))
 {
     DPRINTF(LOG_DEBUG, "_graphics: DisposeRegion() called region=0x%08lx\n", (ULONG)region);
@@ -6434,7 +6539,7 @@ static VOID _graphics_DisposeRegion ( register struct GfxBase * GfxBase __asm("a
         return;
 
     /* Free all RegionRectangles first */
-    _graphics_ClearRegion(GfxBase, region);
+    region_ClearRegion_abs(GfxBase, region);
 
     /* Free the Region structure itself */
     FreeMem(region, sizeof(struct Region));
@@ -6445,7 +6550,7 @@ static VOID _graphics_DisposeRegion ( register struct GfxBase * GfxBase __asm("a
  *
  * Returns TRUE on success, FALSE on failure (out of memory)
  */
-static BOOL _graphics_OrRectRegion ( register struct GfxBase * GfxBase __asm("a6"),
+static BOOL region_OrRectRegion_abs ( register struct GfxBase * GfxBase __asm("a6"),
                                      register struct Region * region __asm("a0"),
                                      register CONST struct Rectangle * rectangle __asm("a1"))
 {
@@ -6460,7 +6565,55 @@ static BOOL _graphics_OrRectRegion ( register struct GfxBase * GfxBase __asm("a6
     if (!RectangleIsValid(rectangle))
         return TRUE;
 
-    return AppendRegionRectangle(region, rectangle);
+    /* AmigaOS 3.1 keeps region rectangles disjoint: only the parts of the
+     * new rectangle that are not covered yet are added, in front of the
+     * existing rectangles (verified on the reference machine). */
+    {
+        struct Region add_region;
+        struct RegionRectangle *rr;
+        struct RegionRectangle *next;
+
+        add_region.bounds.MinX = 0;
+        add_region.bounds.MinY = 0;
+        add_region.bounds.MaxX = 0;
+        add_region.bounds.MaxY = 0;
+        add_region.RegionRectangle = NULL;
+
+        if (!AppendRegionRectangle(&add_region, rectangle))
+            return FALSE;
+
+        for (rr = region->RegionRectangle; rr && add_region.RegionRectangle; rr = rr->Next)
+        {
+            if (!region_ClearRectRegion_abs(GfxBase, &add_region, &rr->bounds))
+            {
+                region_ClearRegion_abs(GfxBase, &add_region);
+                return FALSE;
+            }
+        }
+
+        for (rr = add_region.RegionRectangle; rr; rr = next)
+        {
+            next = rr->Next;
+            if (!region->RegionRectangle)
+            {
+                region->bounds = rr->bounds;
+            }
+            else
+            {
+                if (rr->bounds.MinX < region->bounds.MinX) region->bounds.MinX = rr->bounds.MinX;
+                if (rr->bounds.MinY < region->bounds.MinY) region->bounds.MinY = rr->bounds.MinY;
+                if (rr->bounds.MaxX > region->bounds.MaxX) region->bounds.MaxX = rr->bounds.MaxX;
+                if (rr->bounds.MaxY > region->bounds.MaxY) region->bounds.MaxY = rr->bounds.MaxY;
+            }
+            rr->Prev = NULL;
+            rr->Next = region->RegionRectangle;
+            if (region->RegionRectangle)
+                region->RegionRectangle->Prev = rr;
+            region->RegionRectangle = rr;
+        }
+    }
+
+    return TRUE;
 }
 
 /*
@@ -6468,7 +6621,7 @@ static BOOL _graphics_OrRectRegion ( register struct GfxBase * GfxBase __asm("a6
  *
  * Removes all parts of the region that are outside the rectangle.
  */
-static VOID _graphics_AndRectRegion ( register struct GfxBase * GfxBase __asm("a6"),
+static VOID region_AndRectRegion_abs ( register struct GfxBase * GfxBase __asm("a6"),
                                       register struct Region * region __asm("a0"),
                                       register CONST struct Rectangle * rectangle __asm("a1"))
 {
@@ -6494,7 +6647,7 @@ static VOID _graphics_AndRectRegion ( register struct GfxBase * GfxBase __asm("a
 
     if (!RectangleIsValid(rectangle))
     {
-        _graphics_ClearRegion(GfxBase, region);
+        region_ClearRegion_abs(GfxBase, region);
         return;
     }
 
@@ -6506,13 +6659,13 @@ static VOID _graphics_AndRectRegion ( register struct GfxBase * GfxBase __asm("a
         {
             if (!AppendRegionRectangle(&temp_region, &intersection))
             {
-                _graphics_ClearRegion(GfxBase, &temp_region);
+                region_ClearRegion_abs(GfxBase, &temp_region);
                 return;
             }
         }
     }
 
-    _graphics_ClearRegion(GfxBase, region);
+    region_ClearRegion_abs(GfxBase, region);
     *region = temp_region;
 }
 
@@ -6523,7 +6676,7 @@ static VOID _graphics_AndRectRegion ( register struct GfxBase * GfxBase __asm("a
  * For simplicity, we implement a basic version that removes fully contained rects.
  * Returns TRUE on success, FALSE on failure.
  */
-static BOOL _graphics_ClearRectRegion ( register struct GfxBase * GfxBase __asm("a6"),
+static BOOL region_ClearRectRegion_abs ( register struct GfxBase * GfxBase __asm("a6"),
                                         register struct Region * region __asm("a0"),
                                         register CONST struct Rectangle * rectangle __asm("a1"))
 {
@@ -6551,12 +6704,12 @@ static BOOL _graphics_ClearRectRegion ( register struct GfxBase * GfxBase __asm(
     {
         if (!AppendRectangleDifference(&temp_region, &rr->bounds, rectangle))
         {
-            _graphics_ClearRegion(GfxBase, &temp_region);
+            region_ClearRegion_abs(GfxBase, &temp_region);
             return FALSE;
         }
     }
 
-    _graphics_ClearRegion(GfxBase, region);
+    region_ClearRegion_abs(GfxBase, region);
     *region = temp_region;
 
     return TRUE;
@@ -6783,7 +6936,7 @@ static VOID _graphics_ClipBlit ( register struct GfxBase * GfxBase __asm("a6"),
  *
  * Returns TRUE on success, FALSE on failure.
  */
-static BOOL _graphics_XorRectRegion ( register struct GfxBase * GfxBase __asm("a6"),
+static BOOL region_XorRectRegion_abs ( register struct GfxBase * GfxBase __asm("a6"),
                                       register struct Region * region __asm("a0"),
                                       register CONST struct Rectangle * rectangle __asm("a1"))
 {
@@ -6819,36 +6972,36 @@ static BOOL _graphics_XorRectRegion ( register struct GfxBase * GfxBase __asm("a
         {
             if (!AppendRectangleDifference(&result_region, &rr->bounds, rectangle))
             {
-                _graphics_ClearRegion(GfxBase, &result_region);
+                region_ClearRegion_abs(GfxBase, &result_region);
                 return FALSE;
             }
         }
 
         if (!AppendRegionRectangle(&add_region, rectangle))
         {
-            _graphics_ClearRegion(GfxBase, &result_region);
+            region_ClearRegion_abs(GfxBase, &result_region);
             return FALSE;
         }
 
         for (rr = region->RegionRectangle; rr; rr = rr->Next)
         {
-            if (!_graphics_ClearRectRegion(GfxBase, &add_region, &rr->bounds))
+            if (!region_ClearRectRegion_abs(GfxBase, &add_region, &rr->bounds))
             {
-                _graphics_ClearRegion(GfxBase, &result_region);
-                _graphics_ClearRegion(GfxBase, &add_region);
+                region_ClearRegion_abs(GfxBase, &result_region);
+                region_ClearRegion_abs(GfxBase, &add_region);
                 return FALSE;
             }
         }
 
-        if (!_graphics_OrRegionRegion(GfxBase, &add_region, &result_region))
+        if (!region_OrRegionRegion_abs(GfxBase, &add_region, &result_region))
         {
-            _graphics_ClearRegion(GfxBase, &result_region);
-            _graphics_ClearRegion(GfxBase, &add_region);
+            region_ClearRegion_abs(GfxBase, &result_region);
+            region_ClearRegion_abs(GfxBase, &add_region);
             return FALSE;
         }
 
-        _graphics_ClearRegion(GfxBase, &add_region);
-        _graphics_ClearRegion(GfxBase, region);
+        region_ClearRegion_abs(GfxBase, &add_region);
+        region_ClearRegion_abs(GfxBase, region);
         *region = result_region;
     }
 
@@ -7208,7 +7361,7 @@ static VOID _graphics_BltBitMapRastPort ( register struct GfxBase * GfxBase __as
  * Adds all rectangles from srcRegion to destRegion.
  * Returns TRUE on success, FALSE on failure.
  */
-static BOOL _graphics_OrRegionRegion ( register struct GfxBase * GfxBase __asm("a6"),
+static BOOL region_OrRegionRegion_abs ( register struct GfxBase * GfxBase __asm("a6"),
                                        register CONST struct Region * srcRegion __asm("a0"),
                                        register struct Region * destRegion __asm("a1"))
 {
@@ -7225,7 +7378,7 @@ static BOOL _graphics_OrRegionRegion ( register struct GfxBase * GfxBase __asm("
     struct RegionRectangle *rr = srcRegion->RegionRectangle;
     while (rr)
     {
-        if (!_graphics_OrRectRegion(GfxBase, destRegion, &rr->bounds))
+        if (!region_OrRectRegion_abs(GfxBase, destRegion, &rr->bounds))
             return FALSE;
         rr = rr->Next;
     }
@@ -7238,7 +7391,7 @@ static BOOL _graphics_OrRegionRegion ( register struct GfxBase * GfxBase __asm("
  *
  * Returns TRUE on success, FALSE on failure.
  */
-static BOOL _graphics_XorRegionRegion ( register struct GfxBase * GfxBase __asm("a6"),
+static BOOL region_XorRegionRegion_abs ( register struct GfxBase * GfxBase __asm("a6"),
                                         register CONST struct Region * srcRegion __asm("a0"),
                                         register struct Region * destRegion __asm("a1"))
 {
@@ -7255,7 +7408,7 @@ static BOOL _graphics_XorRegionRegion ( register struct GfxBase * GfxBase __asm(
     struct RegionRectangle *rr = srcRegion->RegionRectangle;
     while (rr)
     {
-        if (!_graphics_XorRectRegion(GfxBase, destRegion, &rr->bounds))
+        if (!region_XorRectRegion_abs(GfxBase, destRegion, &rr->bounds))
             return FALSE;
         rr = rr->Next;
     }
@@ -7269,7 +7422,7 @@ static BOOL _graphics_XorRegionRegion ( register struct GfxBase * GfxBase __asm(
  * Keeps only the intersection of the two regions in destRegion.
  * Returns TRUE on success, FALSE on failure.
  */
-static BOOL _graphics_AndRegionRegion ( register struct GfxBase * GfxBase __asm("a6"),
+static BOOL region_AndRegionRegion_abs ( register struct GfxBase * GfxBase __asm("a6"),
                                         register CONST struct Region * srcRegion __asm("a0"),
                                         register struct Region * destRegion __asm("a1"))
 {
@@ -7282,7 +7435,7 @@ static BOOL _graphics_AndRegionRegion ( register struct GfxBase * GfxBase __asm(
     if (!srcRegion || !srcRegion->RegionRectangle)
     {
         /* AND with empty = empty */
-        _graphics_ClearRegion(GfxBase, destRegion);
+        region_ClearRegion_abs(GfxBase, destRegion);
         return TRUE;
     }
 
@@ -7311,21 +7464,21 @@ static BOOL _graphics_AndRegionRegion ( register struct GfxBase * GfxBase __asm(
                 {
                     if (!AppendRegionRectangle(&temp_region, &intersection))
                     {
-                        _graphics_ClearRegion(GfxBase, &temp_region);
+                        region_ClearRegion_abs(GfxBase, &temp_region);
                         return FALSE;
                     }
                 }
             }
         }
 
-        _graphics_ClearRegion(GfxBase, destRegion);
+        region_ClearRegion_abs(GfxBase, destRegion);
         *destRegion = temp_region;
     }
 
     return TRUE;
 }
 
-static BOOL _graphics_private0 ( register struct GfxBase * GfxBase __asm("a6"),
+static BOOL region_private0_abs ( register struct GfxBase * GfxBase __asm("a6"),
                                  register struct Region * region __asm("a0"),
                                  register struct Rectangle * rectangle __asm("a1"))
 {
@@ -7351,26 +7504,26 @@ static BOOL _graphics_private0 ( register struct GfxBase * GfxBase __asm("a6"),
 
         for (rr = region->RegionRectangle; rr; rr = rr->Next)
         {
-            if (!_graphics_ClearRectRegion(GfxBase, &probe_region, &rr->bounds))
+            if (!region_ClearRectRegion_abs(GfxBase, &probe_region, &rr->bounds))
             {
-                _graphics_ClearRegion(GfxBase, &probe_region);
+                region_ClearRegion_abs(GfxBase, &probe_region);
                 return FALSE;
             }
 
             if (probe_region.RegionRectangle == NULL)
             {
-                _graphics_ClearRegion(GfxBase, &probe_region);
+                region_ClearRegion_abs(GfxBase, &probe_region);
                 return TRUE;
             }
         }
 
-        _graphics_ClearRegion(GfxBase, &probe_region);
+        region_ClearRegion_abs(GfxBase, &probe_region);
     }
 
     return FALSE;
 }
 
-static BOOL _graphics_private1 ( register struct GfxBase * GfxBase __asm("a6"),
+static BOOL region_private1_abs ( register struct GfxBase * GfxBase __asm("a6"),
                                  register struct Region * region __asm("a0"),
                                  register WORD x __asm("d0"),
                                  register WORD y __asm("d1"))
@@ -7399,6 +7552,164 @@ static BOOL _graphics_private1 ( register struct GfxBase * GfxBase __asm("a6"),
     }
 
     return FALSE;
+}
+
+
+/*
+ * Public region entry points.  The RegionRectangles of a Region are stored
+ * relative to region->bounds.MinX/MinY (graphics/regions.h; verified on
+ * the reference machine).  The region_*_abs() workers above operate on
+ * absolute rectangles, so the public functions convert on entry and exit.
+ */
+static void region_to_abs(struct Region *region)
+{
+    struct RegionRectangle *rr;
+
+    if (!region)
+        return;
+
+    for (rr = region->RegionRectangle; rr; rr = rr->Next)
+    {
+        rr->bounds.MinX += region->bounds.MinX;
+        rr->bounds.MaxX += region->bounds.MinX;
+        rr->bounds.MinY += region->bounds.MinY;
+        rr->bounds.MaxY += region->bounds.MinY;
+    }
+}
+
+static void region_to_rel(struct Region *region)
+{
+    struct RegionRectangle *rr;
+
+    if (!region)
+        return;
+
+    if (!region->RegionRectangle)
+    {
+        region->bounds.MinX = 0;
+        region->bounds.MinY = 0;
+        region->bounds.MaxX = 0;
+        region->bounds.MaxY = 0;
+        return;
+    }
+
+    for (rr = region->RegionRectangle; rr; rr = rr->Next)
+    {
+        rr->bounds.MinX -= region->bounds.MinX;
+        rr->bounds.MaxX -= region->bounds.MinX;
+        rr->bounds.MinY -= region->bounds.MinY;
+        rr->bounds.MaxY -= region->bounds.MinY;
+    }
+}
+
+static struct Region * _graphics_NewRegion ( register struct GfxBase * GfxBase __asm("a6"))
+{
+    return region_NewRegion_abs(GfxBase);
+}
+
+static VOID _graphics_ClearRegion ( register struct GfxBase * GfxBase __asm("a6"),
+                                    register struct Region * region __asm("a0"))
+{
+    region_ClearRegion_abs(GfxBase, region);
+}
+
+static VOID _graphics_DisposeRegion ( register struct GfxBase * GfxBase __asm("a6"),
+                                      register struct Region * region __asm("a0"))
+{
+    region_DisposeRegion_abs(GfxBase, region);
+}
+
+static BOOL _graphics_OrRectRegion ( register struct GfxBase * GfxBase __asm("a6"),
+                                     register struct Region * region __asm("a0"),
+                                     register CONST struct Rectangle * rectangle __asm("a1"))
+{
+    BOOL result;
+
+    region_to_abs(region);
+    result = region_OrRectRegion_abs(GfxBase, region, rectangle);
+    region_to_rel(region);
+    return result;
+}
+
+static VOID _graphics_AndRectRegion ( register struct GfxBase * GfxBase __asm("a6"),
+                                      register struct Region * region __asm("a0"),
+                                      register CONST struct Rectangle * rectangle __asm("a1"))
+{
+    region_to_abs(region);
+    region_AndRectRegion_abs(GfxBase, region, rectangle);
+    region_to_rel(region);
+}
+
+static BOOL _graphics_ClearRectRegion ( register struct GfxBase * GfxBase __asm("a6"),
+                                        register struct Region * region __asm("a0"),
+                                        register CONST struct Rectangle * rectangle __asm("a1"))
+{
+    BOOL result;
+
+    region_to_abs(region);
+    result = region_ClearRectRegion_abs(GfxBase, region, rectangle);
+    region_to_rel(region);
+    return result;
+}
+
+static BOOL _graphics_XorRectRegion ( register struct GfxBase * GfxBase __asm("a6"),
+                                      register struct Region * region __asm("a0"),
+                                      register CONST struct Rectangle * rectangle __asm("a1"))
+{
+    BOOL result;
+
+    region_to_abs(region);
+    result = region_XorRectRegion_abs(GfxBase, region, rectangle);
+    region_to_rel(region);
+    return result;
+}
+
+#define REGION_REGION_WRAPPER(name)                                                         \
+static BOOL _graphics_##name ( register struct GfxBase * GfxBase __asm("a6"),               \
+                               register CONST struct Region * srcRegion __asm("a0"),        \
+                               register struct Region * destRegion __asm("a1"))             \
+{                                                                                           \
+    BOOL result;                                                                            \
+    struct Region *src = (struct Region *)srcRegion;                                        \
+                                                                                            \
+    region_to_abs(destRegion);                                                              \
+    if (src != destRegion)                                                                  \
+        region_to_abs(src);                                                                 \
+    result = region_##name##_abs(GfxBase, srcRegion, destRegion);                           \
+    if (src != destRegion)                                                                  \
+        region_to_rel(src);                                                                 \
+    region_to_rel(destRegion);                                                              \
+    return result;                                                                          \
+}
+
+REGION_REGION_WRAPPER(OrRegionRegion)
+REGION_REGION_WRAPPER(XorRegionRegion)
+REGION_REGION_WRAPPER(AndRegionRegion)
+
+/* RectInRegion() / PointInRegion(): lxa (AROS) extensions in private slots */
+static BOOL _graphics_private0 ( register struct GfxBase * GfxBase __asm("a6"),
+                                 register struct Region * region __asm("a0"),
+                                 register struct Rectangle * rectangle __asm("a1"))
+{
+    BOOL result;
+
+    region_to_abs(region);
+    result = region_private0_abs(GfxBase, region, rectangle);
+    region_to_rel(region);
+    return result;
+}
+
+static BOOL _graphics_private1 ( register struct GfxBase * GfxBase __asm("a6"),
+                                 register struct Region * region __asm("a0"),
+                                 register WORD x __asm("d0"),
+                                 register WORD y __asm("d1"))
+{
+    BOOL result;
+
+    region_to_abs(region);
+    result = region_private1_abs(GfxBase, region, x, y);
+    region_to_rel(region);
+    return result;
 }
 
 static VOID _graphics_SetRGB4CM ( register struct GfxBase * GfxBase __asm("a6"),
@@ -7435,9 +7746,13 @@ static VOID _graphics_SetRGB4CM ( register struct GfxBase * GfxBase __asm("a6"),
                 ((green & 0xF) << 4) |
                 (blue & 0xF);
 
+    /* AmigaOS 3.1 replicates the 4-bit value into the low bits, so a
+     * 4-bit gun n reads back as n * 0x11 (verified on the reference) */
     if ((colorMap->Type > COLORMAP_TYPE_V1_2) && colorMap->LowColorBits)
     {
-        ((UWORD *)colorMap->LowColorBits)[index] = 0;
+        ((UWORD *)colorMap->LowColorBits)[index] = ((red & 0xF) << 8) |
+                                                   ((green & 0xF) << 4) |
+                                                   (blue & 0xF);
     }
 }
 
@@ -7499,7 +7814,7 @@ static VOID _graphics_BltMaskBitMapRastPort ( register struct GfxBase * GfxBase 
                 if (cr->obscured && cr->BitMap)
                 {
                     /* SMART_REFRESH: blit into backing store */
-                    BltBitMapCore(srcBitMap,
+                    BltBitMapCoreMode(srcBitMap,
                                   (WORD)(xSrc + (clipXMin - absXMin)),
                                   (WORD)(ySrc + (clipYMin - absYMin)),
                                   cr->BitMap,
@@ -7510,12 +7825,12 @@ static VOID _graphics_BltMaskBitMapRastPort ( register struct GfxBase * GfxBase 
                                   (UBYTE)minterm,
                                   0xFF,
                                   bltMask,
-                                  srcBitMap->BytesPerRow);
+                                  srcBitMap->BytesPerRow, 1);
                 }
                 else
                 {
                     /* Visible: blit directly to screen */
-                    BltBitMapCore(srcBitMap,
+                    BltBitMapCoreMode(srcBitMap,
                                   (WORD)(xSrc + (clipXMin - absXMin)),
                                   (WORD)(ySrc + (clipYMin - absYMin)),
                                   destRP->BitMap,
@@ -7526,14 +7841,14 @@ static VOID _graphics_BltMaskBitMapRastPort ( register struct GfxBase * GfxBase 
                                   (UBYTE)minterm,
                                   0xFF,
                                   bltMask,
-                                  srcBitMap->BytesPerRow);
+                                  srcBitMap->BytesPerRow, 1);
                 }
             }
         }
         return;
     }
 
-    BltBitMapCore(srcBitMap,
+    BltBitMapCoreMode(srcBitMap,
                   (WORD)xSrc,
                   (WORD)ySrc,
                   destRP->BitMap,
@@ -7544,7 +7859,7 @@ static VOID _graphics_BltMaskBitMapRastPort ( register struct GfxBase * GfxBase 
                   (UBYTE)minterm,
                   0xFF,
                   bltMask,
-                  srcBitMap->BytesPerRow);
+                  srcBitMap->BytesPerRow, 1);
 }
 
 static BOOL __attribute__((optimize("O0"))) _graphics_AttemptLockLayerRom ( register struct GfxBase * GfxBase __asm("a6"),
@@ -8064,7 +8379,12 @@ static BOOL _graphics_VideoControl ( register struct GfxBase * GfxBase __asm("a6
     {
         switch (tag->ti_Tag)
         {
-            case VTAG_ATTACH_CM_SET: colorMap->cm_vp = (struct ViewPort *)tag->ti_Data; break;
+            case VTAG_ATTACH_CM_SET:
+                /* links both ways (AmigaOS 3.1, reference) */
+                colorMap->cm_vp = (struct ViewPort *)tag->ti_Data;
+                if (colorMap->cm_vp)
+                    colorMap->cm_vp->ColorMap = colorMap;
+                break;
             case VTAG_ATTACH_CM_GET: tag->ti_Tag = VTAG_ATTACH_CM_SET; tag->ti_Data = (ULONG)colorMap->cm_vp; break;
             case VTAG_VIEWPORTEXTRA_SET: colorMap->cm_vpe = (struct ViewPortExtra *)tag->ti_Data; break;
             case VTAG_VIEWPORTEXTRA_GET: tag->ti_Tag = VTAG_VIEWPORTEXTRA_SET; tag->ti_Data = (ULONG)colorMap->cm_vpe; break;
@@ -8083,8 +8403,8 @@ static BOOL _graphics_VideoControl ( register struct GfxBase * GfxBase __asm("a6
             case VTAG_BORDERSPRITE_SET: colorMap->Flags |= BORDERSPRITES; break;
             case VTAG_BORDERSPRITE_CLR: colorMap->Flags &= ~BORDERSPRITES; break;
             case VTAG_BORDERSPRITE_GET:
-                if (colorMap->Flags & BORDERSPRITES) { tag->ti_Tag = VTAG_BORDERSPRITE_SET; tag->ti_Data = TRUE; }
-                else { tag->ti_Tag = VTAG_BORDERSPRITE_CLR; tag->ti_Data = FALSE; }
+                /* the state is reported in the tag only (reference) */
+                tag->ti_Tag = (colorMap->Flags & BORDERSPRITES) ? VTAG_BORDERSPRITE_SET : VTAG_BORDERSPRITE_CLR;
                 break;
             case VTAG_SPRITERESN_SET: colorMap->SpriteResolution = (UBYTE)tag->ti_Data; break;
             case VTAG_SPRITERESN_GET: tag->ti_Tag = VTAG_SPRITERESN_SET; tag->ti_Data = colorMap->SpriteResolution; break;
@@ -8093,48 +8413,48 @@ static BOOL _graphics_VideoControl ( register struct GfxBase * GfxBase __asm("a6
             case VTAG_BORDERBLANK_SET: colorMap->Flags |= BORDER_BLANKING; break;
             case VTAG_BORDERBLANK_CLR: colorMap->Flags &= ~BORDER_BLANKING; break;
             case VTAG_BORDERBLANK_GET:
-                if (colorMap->Flags & BORDER_BLANKING) { tag->ti_Tag = VTAG_BORDERBLANK_SET; tag->ti_Data = TRUE; }
-                else { tag->ti_Tag = VTAG_BORDERBLANK_CLR; tag->ti_Data = FALSE; }
+                /* the state is reported in the tag only (reference) */
+                tag->ti_Tag = (colorMap->Flags & BORDER_BLANKING) ? VTAG_BORDERBLANK_SET : VTAG_BORDERBLANK_CLR;
                 break;
             case VTAG_BORDERNOTRANS_SET: colorMap->Flags |= BORDER_NOTRANSPARENCY; break;
             case VTAG_BORDERNOTRANS_CLR: colorMap->Flags &= ~BORDER_NOTRANSPARENCY; break;
             case VTAG_BORDERNOTRANS_GET:
-                if (colorMap->Flags & BORDER_NOTRANSPARENCY) { tag->ti_Tag = VTAG_BORDERNOTRANS_SET; tag->ti_Data = TRUE; }
-                else { tag->ti_Tag = VTAG_BORDERNOTRANS_CLR; tag->ti_Data = FALSE; }
+                /* the state is reported in the tag only (reference) */
+                tag->ti_Tag = (colorMap->Flags & BORDER_NOTRANSPARENCY) ? VTAG_BORDERNOTRANS_SET : VTAG_BORDERNOTRANS_CLR;
                 break;
             case VTAG_IMMEDIATE: immediate = (LONG *)tag->ti_Data; break;
             case VTAG_FULLPALETTE_SET: colorMap->AuxFlags |= CMAF_FULLPALETTE; break;
             case VTAG_FULLPALETTE_CLR: colorMap->AuxFlags &= ~CMAF_FULLPALETTE; break;
             case VTAG_FULLPALETTE_GET:
-                if (colorMap->AuxFlags & CMAF_FULLPALETTE) { tag->ti_Tag = VTAG_FULLPALETTE_SET; tag->ti_Data = TRUE; }
-                else { tag->ti_Tag = VTAG_FULLPALETTE_CLR; tag->ti_Data = FALSE; }
+                /* the state is reported in the tag only (reference) */
+                tag->ti_Tag = (colorMap->AuxFlags & CMAF_FULLPALETTE) ? VTAG_FULLPALETTE_SET : VTAG_FULLPALETTE_CLR;
                 break;
             case VC_IntermediateCLUpdate:
                 if (tag->ti_Data) colorMap->AuxFlags &= ~CMAF_NO_INTERMED_UPDATE;
                 else colorMap->AuxFlags |= CMAF_NO_INTERMED_UPDATE;
                 break;
-            case VC_IntermediateCLUpdate_Query: *((ULONG *)tag->ti_Data) = (colorMap->AuxFlags & CMAF_NO_INTERMED_UPDATE) ? FALSE : TRUE; break;
+            case VC_IntermediateCLUpdate_Query: *((ULONG *)tag->ti_Data) = (colorMap->AuxFlags & CMAF_NO_INTERMED_UPDATE) ? 0 : (ULONG)-1; break;
             case VC_NoColorPaletteLoad:
                 if (tag->ti_Data) colorMap->AuxFlags |= CMAF_NO_COLOR_LOAD;
                 else colorMap->AuxFlags &= ~CMAF_NO_COLOR_LOAD;
                 break;
-            case VC_NoColorPaletteLoad_Query: *((ULONG *)tag->ti_Data) = (colorMap->AuxFlags & CMAF_NO_COLOR_LOAD) ? TRUE : FALSE; break;
+            case VC_NoColorPaletteLoad_Query: *((ULONG *)tag->ti_Data) = (colorMap->AuxFlags & CMAF_NO_COLOR_LOAD) ? (ULONG)-1 : 0; break;
             case VC_DUALPF_Disable:
                 if (tag->ti_Data) colorMap->AuxFlags |= CMAF_DUALPF_DISABLE;
                 else colorMap->AuxFlags &= ~CMAF_DUALPF_DISABLE;
                 break;
-            case VC_DUALPF_Disable_Query: *((ULONG *)tag->ti_Data) = (colorMap->AuxFlags & CMAF_DUALPF_DISABLE) ? TRUE : FALSE; break;
+            case VC_DUALPF_Disable_Query: *((ULONG *)tag->ti_Data) = (colorMap->AuxFlags & CMAF_DUALPF_DISABLE) ? (ULONG)-1 : 0; break;
             case VTAG_USERCLIP_SET: colorMap->Flags |= USER_COPPER_CLIP; break;
             case VTAG_USERCLIP_CLR: colorMap->Flags &= ~USER_COPPER_CLIP; break;
             case VTAG_USERCLIP_GET:
-                if (colorMap->Flags & USER_COPPER_CLIP) { tag->ti_Tag = VTAG_USERCLIP_SET; tag->ti_Data = TRUE; }
-                else { tag->ti_Tag = VTAG_USERCLIP_CLR; tag->ti_Data = FALSE; }
+                /* the state is reported in the tag only (reference) */
+                tag->ti_Tag = (colorMap->Flags & USER_COPPER_CLIP) ? VTAG_USERCLIP_SET : VTAG_USERCLIP_CLR;
                 break;
             case VTAG_BATCH_CM_SET: colorMap->Flags |= VIDEOCONTROL_BATCH; break;
             case VTAG_BATCH_CM_CLR: colorMap->Flags &= ~VIDEOCONTROL_BATCH; break;
             case VTAG_BATCH_CM_GET:
-                if (colorMap->Flags & VIDEOCONTROL_BATCH) { tag->ti_Tag = VTAG_BATCH_CM_SET; tag->ti_Data = TRUE; }
-                else { tag->ti_Tag = VTAG_BATCH_CM_CLR; tag->ti_Data = FALSE; }
+                /* the state is reported in the tag only (reference) */
+                tag->ti_Tag = (colorMap->Flags & VIDEOCONTROL_BATCH) ? VTAG_BATCH_CM_SET : VTAG_BATCH_CM_CLR;
                 break;
             case VTAG_BATCH_ITEMS_SET: colorMap->cm_batch_items = (struct TagItem *)tag->ti_Data; break;
             case VTAG_BATCH_ITEMS_ADD: break;
@@ -8145,7 +8465,9 @@ static BOOL _graphics_VideoControl ( register struct GfxBase * GfxBase __asm("a6
                 tag->ti_Tag = (colorMap->VPModeID == INVALID_ID) ? VTAG_VPMODEID_CLR : VTAG_VPMODEID_SET;
                 tag->ti_Data = colorMap->VPModeID;
                 break;
-            default: result = 1; break;
+            default:
+                /* unknown tags are ignored (AmigaOS 3.1, reference) */
+                break;
         }
     }
 
@@ -8156,28 +8478,21 @@ static BOOL _graphics_VideoControl ( register struct GfxBase * GfxBase __asm("a6
 }
 
 /*
- * graphics_init_monitor_list() — populate GfxBase->MonitorList with the
- * standard system MonitorSpec nodes (default/pal/ntsc).
+ * graphics_init_monitor_list() — populate GfxBase->MonitorList at coldstart.
  *
- * Called once at coldstart from exec.c after GfxBase is allocated.
- *
- * Apps such as DPaint V's "Screen Format" dialog enumerate this list to
- * build their available-mode panels.  Without populated entries, those
- * panels render empty.  Per RKRM (Libraries, Graphics chapter, "Monitors"),
- * the default monitor is the head of the list and represents whichever
- * physical monitor is the system default at boot.  pal.monitor and
- * ntsc.monitor are always present on every system.
+ * lxa emulates a PAL machine without DEVS:Monitors.  On such a system
+ * AmigaOS 3.1 (verified on the reference machine) lists exactly one
+ * MonitorSpec, the native "pal.monitor" (NT_GRAPHICS, ratioh/ratiov =
+ * RATIO_UNITY, ms_OpenCount 1 held by the system), which is also
+ * GfxBase->natural_monitor and GfxBase->default_monitor.  "default.monitor"
+ * is resolved to the default monitor by OpenMonitor(); further monitors
+ * (ntsc.monitor, ...) only appear when their DEVS:Monitors driver runs.
  *
  * The MonitorSpec function vectors (ms_transform, ms_translate, ms_scale,
- * ms_MrgCop, ms_LoadView, ms_KillView) are NULL — they're internal helpers
- * not exposed to applications, and apps that probe MonitorList for display
- * mode discovery never invoke them.  Geometry fields (total_rows,
- * total_colorclocks, etc.) are set per the STANDARD_* constants in
- * graphics/monitor.h so apps that read them get plausible PAL/NTSC values.
+ * ms_MrgCop, ms_LoadView, ms_KillView) are NULL: they are internal helpers
+ * that applications never call.
  */
-static const char _g_default_monitor_name[] = DEFAULT_MONITOR_NAME;
 static const char _g_pal_monitor_name[]     = PAL_MONITOR_NAME;
-static const char _g_ntsc_monitor_name[]    = NTSC_MONITOR_NAME;
 
 static void _init_monitor_spec(struct MonitorSpec *ms, const char *name,
                                UWORD flags, UWORD totalRows, UWORD beamCon0)
@@ -8188,20 +8503,20 @@ static void _init_monitor_spec(struct MonitorSpec *ms, const char *name,
         UBYTE *e = p + sizeof(struct MonitorSpec);
         while (p < e) *p++ = 0;
     }
-    ms->ms_Node.xln_Type      = NT_USER;             /* MonitorSpec is NT_USER on real AmigaOS */
+    ms->ms_Node.xln_Type      = NT_GRAPHICS;
     ms->ms_Node.xln_Name      = (char *)name;
     ms->ms_Node.xln_Subsystem = SS_GRAPHICS;
     ms->ms_Node.xln_Subtype   = MONITOR_SPEC_TYPE;
     ms->ms_Flags              = flags;
-    ms->ratioh                = 0x00010000;          /* 1.0 fixed-point */
-    ms->ratiov                = 0x00010000;
+    ms->ratioh                = RATIO_UNITY;
+    ms->ratiov                = RATIO_UNITY;
     ms->total_rows            = totalRows;
     ms->total_colorclocks     = STANDARD_COLORCLOCKS;
     ms->DeniseMaxDisplayColumn= STANDARD_DENISE_MAX;
     ms->DeniseMinDisplayColumn= STANDARD_DENISE_MIN;
     ms->BeamCon0              = beamCon0;
     ms->min_row               = (totalRows == STANDARD_PAL_ROWS) ? MIN_PAL_ROW : MIN_NTSC_ROW;
-    ms->ms_OpenCount          = 0;
+    ms->ms_OpenCount          = 1;                  /* held by the system */
     /* Initialize the per-monitor DisplayInfoDataBase as an empty list so
      * code that walks it doesn't crash.  Real AmigaOS populates it lazily. */
     NEWLIST(&ms->DisplayInfoDataBase);
@@ -8209,9 +8524,7 @@ static void _init_monitor_spec(struct MonitorSpec *ms, const char *name,
 
 void graphics_init_monitor_list(struct GfxBase *gfxBase)
 {
-    struct MonitorSpec *ms_default;
     struct MonitorSpec *ms_pal;
-    struct MonitorSpec *ms_ntsc;
 
     if (gfxBase == NULL)
     {
@@ -8221,45 +8534,39 @@ void graphics_init_monitor_list(struct GfxBase *gfxBase)
 
     NEWLIST(&gfxBase->MonitorList);
 
-    /* Allocate the three system MonitorSpec nodes from MEMF_PUBLIC|MEMF_CLEAR. */
-    ms_default = (struct MonitorSpec *)AllocMem(sizeof(struct MonitorSpec),
-                                                MEMF_PUBLIC | MEMF_CLEAR);
-    ms_pal     = (struct MonitorSpec *)AllocMem(sizeof(struct MonitorSpec),
-                                                MEMF_PUBLIC | MEMF_CLEAR);
-    ms_ntsc    = (struct MonitorSpec *)AllocMem(sizeof(struct MonitorSpec),
-                                                MEMF_PUBLIC | MEMF_CLEAR);
-
-    if (!ms_default || !ms_pal || !ms_ntsc)
+    ms_pal = (struct MonitorSpec *)AllocMem(sizeof(struct MonitorSpec), MEMF_PUBLIC | MEMF_CLEAR);
+    if (!ms_pal)
     {
         DPRINTF(LOG_ERROR, "graphics_init_monitor_list: AllocMem failed\n");
-        if (ms_default) FreeMem(ms_default, sizeof(struct MonitorSpec));
-        if (ms_pal)     FreeMem(ms_pal,     sizeof(struct MonitorSpec));
-        if (ms_ntsc)    FreeMem(ms_ntsc,    sizeof(struct MonitorSpec));
         return;
     }
 
-    /* default.monitor — head of the list, represents the system default. */
-    _init_monitor_spec(ms_default, _g_default_monitor_name,
-                       MSF_REQUEST_PAL,        /* PAL is the lxa default */
-                       STANDARD_PAL_ROWS,
-                       STANDARD_PAL_BEAMCON);
-    AddTail(&gfxBase->MonitorList, (struct Node *)ms_default);
-
-    /* pal.monitor */
     _init_monitor_spec(ms_pal, _g_pal_monitor_name,
                        MSF_REQUEST_PAL,
                        STANDARD_PAL_ROWS,
                        STANDARD_PAL_BEAMCON);
     AddTail(&gfxBase->MonitorList, (struct Node *)ms_pal);
 
-    /* ntsc.monitor */
-    _init_monitor_spec(ms_ntsc, _g_ntsc_monitor_name,
-                       MSF_REQUEST_NTSC,
-                       STANDARD_NTSC_ROWS,
-                       STANDARD_NTSC_BEAMCON);
-    AddTail(&gfxBase->MonitorList, (struct Node *)ms_ntsc);
+    gfxBase->natural_monitor = (struct MonitorSpec *)ms_pal;
+    gfxBase->default_monitor = (struct MonitorSpec *)ms_pal;
 
-    DPRINTF(LOG_INFO, "graphics_init_monitor_list: 3 system MonitorSpecs registered\n");
+    DPRINTF(LOG_INFO, "graphics_init_monitor_list: pal.monitor registered\n");
+}
+
+static struct MonitorSpec *graphics_find_monitor_by_name(struct GfxBase *GfxBase, CONST_STRPTR name)
+{
+    struct Node *n;
+
+    if (strcmp((char *)name, DEFAULT_MONITOR_NAME) == 0)
+        return (struct MonitorSpec *)GfxBase->default_monitor;
+
+    for (n = GfxBase->MonitorList.lh_Head; n && n->ln_Succ; n = n->ln_Succ)
+    {
+        if (n->ln_Name && strcmp((char *)n->ln_Name, (char *)name) == 0)
+            return (struct MonitorSpec *)n;
+    }
+
+    return NULL;
 }
 
 static struct MonitorSpec * _graphics_OpenMonitor ( register struct GfxBase * GfxBase __asm("a6"),
@@ -8267,77 +8574,43 @@ static struct MonitorSpec * _graphics_OpenMonitor ( register struct GfxBase * Gf
                                                         register ULONG displayID __asm("d0"))
 {
     /*
-     * OpenMonitor() returns the MonitorSpec for a given monitor name or
-     * display mode ID.  Per RKRM (Libraries, Graphics chapter):
-     *   - OpenMonitor(NULL, 0)        -> returns the head MonitorSpec
-     *                                    (used by apps that walk MonitorList)
-     *   - OpenMonitor(name, 0)        -> looks up by ms_Node.ln_Name
-     *   - OpenMonitor(NULL, displayID) -> looks up by monitor compatibility
-     *                                    bits in displayID (PAL/NTSC bits)
-     *
-     * GfxBase->MonitorList is populated at coldstart with the standard
-     * default/pal/ntsc MonitorSpec nodes (see graphics_init_monitor_list()
-     * in exec.c).  We don't refcount here — these are static system nodes.
+     * OpenMonitor() returns the MonitorSpec for a monitor name or a display
+     * mode ID and bumps its open count (AmigaOS 3.1 behaviour, verified on
+     * the reference machine):
+     *   - a name is looked up in MonitorList; "default.monitor" is the
+     *     default monitor;
+     *   - OpenMonitor(NULL, 0) and IDs of the default monitor return the
+     *     default monitor;
+     *   - other IDs must be valid modes of a monitor in MonitorList
+     *     (e.g. NTSC IDs fail without ntsc.monitor, PAL|1 is no mode).
      */
     struct MonitorSpec *result = NULL;
-    struct Node *n;
 
     if (GfxBase == NULL)
-    {
-        DPRINTF(LOG_ERROR, "_graphics: OpenMonitor() called with NULL GfxBase\n");
         return NULL;
-    }
 
-    if (monitorName == NULL && displayID == 0)
+    if (monitorName != NULL)
     {
-        /* Return the first (head) MonitorSpec — apps walk ms_Node.ln_Succ
-         * from here to enumerate the system monitor list. */
-        if (!IsListEmpty(&GfxBase->MonitorList))
-        {
-            result = (struct MonitorSpec *)GfxBase->MonitorList.lh_Head;
-        }
+        result = graphics_find_monitor_by_name(GfxBase, monitorName);
     }
-    else if (monitorName != NULL)
+    else if (displayID == 0 ||
+             (displayID != INVALID_ID && (displayID & MONITOR_ID_MASK) == DEFAULT_MONITOR_ID &&
+              graphics_display_id_is_known(displayID)))
     {
-        /* Name-based lookup */
-        for (n = GfxBase->MonitorList.lh_Head; n && n->ln_Succ; n = n->ln_Succ)
-        {
-            if (n->ln_Name && strcmp((char *)n->ln_Name, (char *)monitorName) == 0)
-            {
-                result = (struct MonitorSpec *)n;
-                break;
-            }
-        }
+        result = (struct MonitorSpec *)GfxBase->default_monitor;
     }
-    else
+    else if (displayID != INVALID_ID && graphics_display_id_is_known(displayID))
     {
-        /* DisplayID-based lookup: check the monitor compatibility bits
-         * (ModeID >> 28).  PAL_MONITOR_ID = 0x21, NTSC_MONITOR_ID = 0x11,
-         * DEFAULT_MONITOR_ID = 0x00.  See graphics/modeid.h. */
-        ULONG monitorBits = displayID & MONITOR_ID_MASK;
-        const char *want = NULL;
-        if (monitorBits == PAL_MONITOR_ID)         want = PAL_MONITOR_NAME;
-        else if (monitorBits == NTSC_MONITOR_ID)   want = NTSC_MONITOR_NAME;
-        else                                       want = DEFAULT_MONITOR_NAME;
-
-        for (n = GfxBase->MonitorList.lh_Head; n && n->ln_Succ; n = n->ln_Succ)
-        {
-            if (n->ln_Name && strcmp((char *)n->ln_Name, want) == 0)
-            {
-                result = (struct MonitorSpec *)n;
-                break;
-            }
-        }
+        if ((displayID & MONITOR_ID_MASK) == PAL_MONITOR_ID)
+            result = graphics_find_monitor_by_name(GfxBase, (CONST_STRPTR)PAL_MONITOR_NAME);
+        else if ((displayID & MONITOR_ID_MASK) == NTSC_MONITOR_ID)
+            result = graphics_find_monitor_by_name(GfxBase, (CONST_STRPTR)NTSC_MONITOR_NAME);
     }
 
     if (result)
-    {
-        /* Bump open count so CloseMonitor() can match (for diagnostics).
-         * System monitors are persistent — we never actually free them. */
         result->ms_OpenCount++;
-    }
 
-    LPRINTF(LOG_DEBUG, "_graphics: OpenMonitor(name='%s', id=0x%08lx) = 0x%08lx\n",
+    DPRINTF(LOG_DEBUG, "_graphics: OpenMonitor(name='%s', id=0x%08lx) = 0x%08lx\n",
             monitorName ? (char *)monitorName : "(null)", displayID, (ULONG)result);
     return result;
 }
@@ -8346,21 +8619,19 @@ static BOOL _graphics_CloseMonitor ( register struct GfxBase * GfxBase __asm("a6
                                                         register struct MonitorSpec * monitorSpec __asm("a0"))
 {
     /*
-     * CloseMonitor() releases a MonitorSpec opened by OpenMonitor().
-     * The system monitor specs (default/pal/ntsc) are persistent — we never
-     * remove them from MonitorList.  We just decrement the open count so
-     * RKRM-conformant apps see balanced Open/Close behaviour.
-     * Per RKRM: returns TRUE on success, FALSE if the spec was still in use
-     * (open count > 0 after decrement).  Since we never refuse a close,
-     * always return TRUE.
+     * CloseMonitor() drops the open count of a MonitorSpec.  AmigaOS 3.1
+     * returns FALSE (no error) for a MonitorSpec and TRUE for NULL; the
+     * system monitors stay in MonitorList (verified on the reference).
      */
-    if (monitorSpec && monitorSpec->ms_OpenCount > 0)
-    {
+    if (!monitorSpec)
+        return TRUE;
+
+    if (monitorSpec->ms_OpenCount > 0)
         monitorSpec->ms_OpenCount--;
-    }
+
     DPRINTF (LOG_DEBUG, "_graphics: CloseMonitor() monitorSpec=0x%08lx newCount=%d\n",
-             (ULONG)monitorSpec, monitorSpec ? monitorSpec->ms_OpenCount : -1);
-    return TRUE;
+             (ULONG)monitorSpec, monitorSpec->ms_OpenCount);
+    return FALSE;
 }
 
 static DisplayInfoHandle _graphics_FindDisplayInfo ( register struct GfxBase * GfxBase __asm("a6"),
@@ -8461,15 +8732,28 @@ static ULONG _graphics_GetDisplayInfoData ( register struct GfxBase * GfxBase __
                 actualDisplayID);
     }
 
+    /* Mode IDs of the default monitor describe the native monitor: lxa
+     * emulates a PAL machine (AmigaOS 3.1 reports e.g. PAL|LORES for
+     * LORES_KEY, verified on the reference machine). */
+    if ((actualDisplayID & MONITOR_ID_MASK) == DEFAULT_MONITOR_ID)
+        actualDisplayID |= PAL_MONITOR_ID;
+
     lxa_memset(buf, 0, size);
     width = graphics_display_nominal_width(actualDisplayID);
     height = graphics_display_nominal_height(actualDisplayID);
-    
+
+    /*
+     * The values below follow AmigaOS 3.1 on the reference machine.  The
+     * structures are filled only up to the V39 sizes the reference reports
+     * (DisplayInfo 48, DimensionInfo 66, MonitorInfo 88 bytes).
+     */
     switch (tagID)
     {
         case DTAG_DISP:
         {
             struct DisplayInfo di;
+            BOOL is_ntsc = ((actualDisplayID & MONITOR_ID_MASK) == NTSC_MONITOR_ID);
+            WORD xscale = graphics_display_xscale(actualDisplayID);
 
             lxa_memset(&di, 0, sizeof(di));
             di.Header.StructID = DTAG_DISP;
@@ -8477,99 +8761,100 @@ static ULONG _graphics_GetDisplayInfoData ( register struct GfxBase * GfxBase __
             di.Header.SkipID = TAG_SKIP;
             di.Header.Length = graphics_query_header_length(sizeof(di));
             di.NotAvailable = FALSE;
-            /* Phase 129: Set all relevant DIPF flags for this mode */
-            di.PropertyFlags = DIPF_IS_SPRITES | DIPF_IS_WB | DIPF_IS_DRAGGABLE | DIPF_IS_ECS;
-            if ((actualDisplayID & MONITOR_ID_MASK) == PAL_MONITOR_ID)
-                di.PropertyFlags |= DIPF_IS_PAL;
+            /* PAL, sprites, genlock, WB, draggable, beamsync, attached /
+             * resolution / border / base / priority sprite features, dbuffer */
+            di.PropertyFlags = 0x001cebe0UL;
+            if (is_ntsc)
+                di.PropertyFlags &= ~DIPF_IS_PAL;
+            if (xscale == 4)
+                di.PropertyFlags |= DIPF_IS_ECS;
             if (actualDisplayID & LACE)
                 di.PropertyFlags |= DIPF_IS_LACE;
             if (actualDisplayID & HAM)
-                di.PropertyFlags |= DIPF_IS_HAM;
+            {
+                di.PropertyFlags = (di.PropertyFlags & ~DIPF_IS_WB) | DIPF_IS_HAM;
+                if (xscale > 1)
+                    di.PropertyFlags |= DIPF_IS_AA;
+            }
             if ((actualDisplayID & EXTRAHALFBRITE_KEY) == EXTRAHALFBRITE_KEY)
-                di.PropertyFlags |= DIPF_IS_EXTRAHALFBRITE;
-            di.Resolution.x = (actualDisplayID & HIRES) ? 22 : 44;
-            di.Resolution.y = ((actualDisplayID & MONITOR_ID_MASK) == PAL_MONITOR_ID) ? 44 : 52;
-            di.PixelSpeed = (actualDisplayID & HIRES) ? 70 : 140;
+                di.PropertyFlags = (di.PropertyFlags & ~DIPF_IS_WB) | DIPF_IS_EXTRAHALFBRITE;
+            di.Resolution.x = (WORD)(44 / xscale);
+            di.Resolution.y = is_ntsc ? 52 : 44;
+            if (actualDisplayID & LACE)
+                di.Resolution.y /= 2;
+            di.PixelSpeed = (UWORD)(280 / (xscale * 2));
             di.NumStdSprites = 8;
             di.PaletteRange = 16;
-            di.SpriteResolution = di.Resolution;
+            di.SpriteResolution.x = 44;
+            di.SpriteResolution.y = is_ntsc ? 52 : 44;
             di.RedBits = 4;
             di.GreenBits = 4;
             di.BlueBits = 4;
 
-            return graphics_copy_query(buf, size, &di, sizeof(di));
+            return graphics_copy_query(buf, size, &di, 48);
         }
-        
+
         case DTAG_DIMS:
         {
             struct DimensionInfo dims;
+            WORD xscale = graphics_display_xscale(actualDisplayID);
+            WORD yscale = (actualDisplayID & LACE) ? 2 : 1;
 
             lxa_memset(&dims, 0, sizeof(dims));
             dims.Header.StructID = DTAG_DIMS;
             dims.Header.DisplayID = actualDisplayID;
             dims.Header.SkipID = TAG_SKIP;
             dims.Header.Length = graphics_query_header_length(sizeof(dims));
-            dims.MaxDepth = 8;
-            /* Phase 129: Return realistic raster ranges instead of
-             * pinned MinRaster==MaxRaster values.  Apps like PPaint's
-             * CloantoScreenManager probe DimensionInfo to decide whether
-             * a mode can render at their target size.  If Min==Max they
-             * conclude the mode is unsuitable and exit with rv=26. */
-            if (actualDisplayID & HIRES)
-            {
-                /* HIRES: 320×200 (min) up to 1280×1024 (max) */
-                dims.MinRasterWidth  = 320;
-                dims.MinRasterHeight = 200;
-                dims.MaxRasterWidth  = 1280;
-                dims.MaxRasterHeight = 1024;
-            }
-            else
-            {
-                /* LORES: 160×100 (min) up to 640×512 (max) */
-                dims.MinRasterWidth  = 160;
-                dims.MinRasterHeight = 100;
-                dims.MaxRasterWidth  = 640;
-                dims.MaxRasterHeight = 512;
-            }
+            dims.MaxDepth = ((actualDisplayID & EXTRAHALFBRITE_KEY) == EXTRAHALFBRITE_KEY) ? 6 : 8;
+            dims.MinRasterWidth  = (UWORD)(16 * xscale);
+            dims.MinRasterHeight = 1;
+            dims.MaxRasterWidth  = 16368;
+            dims.MaxRasterHeight = 16384;
             dims.Nominal.MinX = 0;
             dims.Nominal.MinY = 0;
             dims.Nominal.MaxX = width - 1;
             dims.Nominal.MaxY = height - 1;
-            dims.MaxOScan = dims.Nominal;
-            dims.VideoOScan = dims.Nominal;
             dims.TxtOScan = dims.Nominal;
             dims.StdOScan = dims.Nominal;
+            dims.MaxOScan.MinX = (WORD)(-36 * xscale);
+            dims.MaxOScan.MinY = (WORD)(-15 * yscale);
+            dims.MaxOScan.MaxX = (WORD)(width - 1 + 6 * xscale);
+            dims.MaxOScan.MaxY = (WORD)(height - 1 + 12 * yscale);
+            dims.VideoOScan = dims.MaxOScan;
+            dims.VideoOScan.MaxX = (WORD)(width - 1 + 12 * xscale);
 
-            return graphics_copy_query(buf, size, &dims, sizeof(dims));
+            return graphics_copy_query(buf, size, &dims, 66);
         }
-        
+
         case DTAG_MNTR:
         {
             struct MonitorInfo mon;
+            BOOL is_ntsc = ((actualDisplayID & MONITOR_ID_MASK) == NTSC_MONITOR_ID);
 
             lxa_memset(&mon, 0, sizeof(mon));
             mon.Header.StructID = DTAG_MNTR;
             mon.Header.DisplayID = actualDisplayID;
             mon.Header.SkipID = TAG_SKIP;
             mon.Header.Length = graphics_query_header_length(sizeof(mon));
+            mon.Mspc = is_ntsc ? NULL : (struct MonitorSpec *)GfxBase->natural_monitor;
             mon.ViewPosition.x = 0;
             mon.ViewPosition.y = 0;
-            mon.ViewResolution.x = (actualDisplayID & HIRES) ? 22 : 44;
-            mon.ViewResolution.y = ((actualDisplayID & MONITOR_ID_MASK) == PAL_MONITOR_ID) ? 44 : 52;
+            mon.ViewResolution.x = 44 / graphics_display_xscale(actualDisplayID);
+            mon.ViewResolution.y = is_ntsc ? 52 : 44;
             mon.ViewPositionRange.MinX = 0;
             mon.ViewPositionRange.MinY = 0;
             mon.ViewPositionRange.MaxX = width - 1;
             mon.ViewPositionRange.MaxY = height - 1;
             mon.TotalRows = graphics_display_total_rows(actualDisplayID);
-            mon.TotalColorClocks = (actualDisplayID & HIRES) ? 455 : 227;
+            mon.TotalColorClocks = STANDARD_COLORCLOCKS;
             mon.MinRow = 0;
             mon.Compatibility = MCOMPAT_MIXED;
             mon.MouseTicks.x = mon.ViewResolution.x;
             mon.MouseTicks.y = mon.ViewResolution.y;
             mon.DefaultViewPosition = mon.ViewPosition;
-            mon.PreferredModeID = actualDisplayID;
+            mon.PreferredModeID = (actualDisplayID & MONITOR_ID_MASK) | HIRES_KEY;
 
-            return graphics_copy_query(buf, size, &mon, sizeof(mon));
+            return graphics_copy_query(buf, size, &mon, 88);
         }
 
         case DTAG_NAME:
@@ -8666,13 +8951,50 @@ static VOID _graphics_FontExtent ( register struct GfxBase * GfxBase __asm("a6")
 }
 
 /*
+ * Chunky pixel helpers shared by the PixelLine8 and PixelArray8 functions.
+ *
+ * AmigaOS 3.1 behaviour (verified on the reference machine):
+ *   - the chunky array uses a row stride of ((width + 15) >> 4) << 4 bytes;
+ *   - the write functions copy the pens (JAM2-like), independent of the
+ *     RastPort's DrawMode;
+ *   - the read functions fill the whole padded row.
+ */
+static UWORD gfx_chunky_stride(UWORD width)
+{
+    return (UWORD)(((width + 15) >> 4) << 4);
+}
+
+static void gfx_chunky_write(struct GfxBase *GfxBase, struct RastPort *rp, WORD x, WORD y,
+                             const UBYTE *src, UWORD width)
+{
+    BYTE savedPen = rp->FgPen;
+    UBYTE savedMode = rp->DrawMode;
+    UWORD i;
+
+    rp->DrawMode = JAM2;
+    for (i = 0; i < width; i++)
+    {
+        rp->FgPen = (BYTE)src[i];
+        _graphics_WritePixel(GfxBase, rp, (WORD)(x + i), y);
+    }
+    rp->FgPen = savedPen;
+    rp->DrawMode = savedMode;
+}
+
+static void gfx_chunky_read(struct GfxBase *GfxBase, struct RastPort *rp, WORD x, WORD y,
+                            UBYTE *dst, UWORD count)
+{
+    UWORD i;
+
+    for (i = 0; i < count; i++)
+    {
+        ULONG pen = _graphics_ReadPixel(GfxBase, rp, (WORD)(x + i), y);
+        dst[i] = (UBYTE)((pen == (ULONG)-1) ? 0 : pen);
+    }
+}
+
+/*
  * ReadPixelLine8 - Read a horizontal line of chunky pen values (offset -768)
- *
- * Reads 'width' pixels starting at (xstart, ystart) into the array as
- * pen index values (one byte per pixel). Returns the number of pixels read.
- *
- * Per RKRM, tempRP is used as temporary storage but we don't need it
- * since we read directly from the planar bitmap.
  */
 static LONG _graphics_ReadPixelLine8 ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a0"),
@@ -8682,29 +9004,18 @@ static LONG _graphics_ReadPixelLine8 ( register struct GfxBase * GfxBase __asm("
                                                         register UBYTE * array __asm("a2"),
                                                         register struct RastPort * tempRP __asm("a1"))
 {
-    UWORD x;
-
     DPRINTF(LOG_DEBUG, "_graphics: ReadPixelLine8() rp=0x%08lx x=%u y=%u w=%u\n",
             (ULONG)rp, (unsigned)xstart, (unsigned)ystart, (unsigned)width);
 
-    if (!rp || !rp->BitMap || !array)
+    if (!rp || !rp->BitMap || !array || !width)
         return 0;
 
-    for (x = 0; x < width; x++)
-    {
-        ULONG pen = _graphics_ReadPixel(GfxBase, rp, (WORD)(xstart + x), (WORD)ystart);
-        array[x] = (UBYTE)((pen == (ULONG)-1) ? 0 : pen);
-    }
-
+    gfx_chunky_read(GfxBase, rp, (WORD)xstart, (WORD)ystart, array, gfx_chunky_stride(width));
     return (LONG)width;
 }
 
 /*
  * ReadPixelArray8 - Read a rectangular area of chunky pen values (offset -780)
- *
- * Reads pixels from (xstart,ystart) to (xstop,ystop) inclusive into array
- * as pen index values. Array must be large enough: (xstop-xstart+1)*(ystop-ystart+1).
- * Returns the number of pixels read.
  */
 static LONG _graphics_ReadPixelArray8 ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a0"),
@@ -8715,8 +9026,7 @@ static LONG _graphics_ReadPixelArray8 ( register struct GfxBase * GfxBase __asm(
                                                         register UBYTE * array __asm("a2"),
                                                         register struct RastPort * temprp __asm("a1"))
 {
-    UWORD x, y;
-    ULONG count = 0;
+    UWORD y, width, stride;
 
     DPRINTF(LOG_DEBUG, "_graphics: ReadPixelArray8() rp=0x%08lx (%u,%u)-(%u,%u)\n",
             (ULONG)rp, (unsigned)xstart, (unsigned)ystart, (unsigned)xstop, (unsigned)ystop);
@@ -8727,25 +9037,16 @@ static LONG _graphics_ReadPixelArray8 ( register struct GfxBase * GfxBase __asm(
     if (xstop < xstart || ystop < ystart)
         return 0;
 
+    width = (UWORD)(xstop - xstart + 1);
+    stride = gfx_chunky_stride(width);
     for (y = ystart; y <= ystop; y++)
-    {
-        for (x = xstart; x <= xstop; x++)
-        {
-            ULONG pen = _graphics_ReadPixel(GfxBase, rp, (WORD)x, (WORD)y);
-            array[count] = (UBYTE)((pen == (ULONG)-1) ? 0 : pen);
-            count++;
-        }
-    }
+        gfx_chunky_read(GfxBase, rp, (WORD)xstart, (WORD)y, array + (ULONG)(y - ystart) * stride, stride);
 
-    return (LONG)count;
+    return (LONG)width * (LONG)(ystop - ystart + 1);
 }
 
 /*
  * WritePixelArray8 - Write a rectangular area of chunky pen values (offset -786)
- *
- * Writes pixels from array into rastport at (xstart,ystart) to (xstop,ystop).
- * Each byte in the array is treated as a pen index. Returns the number
- * of pixels written.
  */
 static LONG _graphics_WritePixelArray8 ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a0"),
@@ -8756,9 +9057,7 @@ static LONG _graphics_WritePixelArray8 ( register struct GfxBase * GfxBase __asm
                                                         register UBYTE * array __asm("a2"),
                                                         register struct RastPort * temprp __asm("a1"))
 {
-    UWORD x, y;
-    ULONG count = 0;
-    UBYTE savedPen;
+    UWORD y, width, stride;
 
     DPRINTF(LOG_DEBUG, "_graphics: WritePixelArray8() rp=0x%08lx (%u,%u)-(%u,%u)\n",
             (ULONG)rp, (unsigned)xstart, (unsigned)ystart, (unsigned)xstop, (unsigned)ystop);
@@ -8769,30 +9068,16 @@ static LONG _graphics_WritePixelArray8 ( register struct GfxBase * GfxBase __asm
     if (xstop < xstart || ystop < ystart)
         return 0;
 
-    savedPen = rp->FgPen;
-
+    width = (UWORD)(xstop - xstart + 1);
+    stride = gfx_chunky_stride(width);
     for (y = ystart; y <= ystop; y++)
-    {
-        for (x = xstart; x <= xstop; x++)
-        {
-            UBYTE pen = array[count];
-            rp->FgPen = pen;
-            _graphics_WritePixel(GfxBase, rp, (WORD)x, (WORD)y);
-            count++;
-        }
-    }
+        gfx_chunky_write(GfxBase, rp, (WORD)xstart, (WORD)y, array + (ULONG)(y - ystart) * stride, width);
 
-    rp->FgPen = savedPen;
-
-    return (LONG)count;
+    return (LONG)width * (LONG)(ystop - ystart + 1);
 }
 
 /*
  * WritePixelLine8 - Write a horizontal line of chunky pen values (offset -774)
- *
- * Writes 'width' pixels from array to rastport at (xstart, ystart).
- * Each byte in the array is treated as a pen index. Returns the number
- * of pixels written.
  */
 static LONG _graphics_WritePixelLine8 ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a0"),
@@ -8802,26 +9087,13 @@ static LONG _graphics_WritePixelLine8 ( register struct GfxBase * GfxBase __asm(
                                                         register UBYTE * array __asm("a2"),
                                                         register struct RastPort * tempRP __asm("a1"))
 {
-    UWORD x;
-    UBYTE savedPen;
-
     DPRINTF(LOG_DEBUG, "_graphics: WritePixelLine8() rp=0x%08lx x=%u y=%u w=%u\n",
             (ULONG)rp, (unsigned)xstart, (unsigned)ystart, (unsigned)width);
 
     if (!rp || !rp->BitMap || !array)
         return 0;
 
-    savedPen = rp->FgPen;
-
-    for (x = 0; x < width; x++)
-    {
-        UBYTE pen = array[x];
-        rp->FgPen = pen;
-        _graphics_WritePixel(GfxBase, rp, (WORD)(xstart + x), (WORD)ystart);
-    }
-
-    rp->FgPen = savedPen;
-
+    gfx_chunky_write(GfxBase, rp, (WORD)xstart, (WORD)ystart, array, width);
     return (LONG)width;
 }
 
@@ -8890,17 +9162,12 @@ static VOID _graphics_EraseRect ( register struct GfxBase * GfxBase __asm("a6"),
     DPRINTF (LOG_DEBUG, "_graphics: EraseRect() rp=0x%08lx, (%ld,%ld)-(%ld,%ld)\n",
              (ULONG)rp, xMin, yMin, xMax, yMax);
 
-    if (!rp)
+    if (!rp || !rp->BitMap)
         return;
 
-    /* EraseRect fills with background pen (BgPen) instead of foreground pen.
-     * We can achieve this by temporarily inverting INVERSVID flag and using RectFill */
-    oldDrawMode = rp->DrawMode;
-    rp->DrawMode ^= INVERSVID;  /* Toggle INVERSVID */
-
-    _graphics_RectFill(GfxBase, rp, (WORD)xMin, (WORD)yMin, (WORD)xMax, (WORD)yMax);
-
-    rp->DrawMode = oldDrawMode;  /* Restore original draw mode */
+    /* EraseRect fills with the background pen, independent of the draw mode */
+    (void)oldDrawMode;
+    gfx_fill_rect(rp, (WORD)xMin, (WORD)yMin, (WORD)xMax, (WORD)yMax, (rp->DrawMode & INVERSVID) ? rp->FgPen : rp->BgPen, JAM2, FALSE);
 }
 
 static ULONG _graphics_ExtendFont ( register struct GfxBase * GfxBase __asm("a6"),
@@ -8908,9 +9175,6 @@ static ULONG _graphics_ExtendFont ( register struct GfxBase * GfxBase __asm("a6"
                                                         register CONST struct TagItem * fontTags __asm("a1"))
 {
     struct TextFontExtension *tfe;
-    struct TagItem default_tags[] = {
-        { TAG_DONE, 0 }
-    };
 
     DPRINTF (LOG_DEBUG, "_graphics: ExtendFont(font=0x%08lx tags=0x%08lx)\n",
              (ULONG)font, (ULONG)fontTags);
@@ -8922,28 +9186,17 @@ static ULONG _graphics_ExtendFont ( register struct GfxBase * GfxBase __asm("a6"
     if (tfe)
         return TRUE;
 
-    if (!fontTags)
-        fontTags = default_tags;
-
     tfe = (struct TextFontExtension *)AllocMem(sizeof(struct TextFontExtension), MEMF_PUBLIC | MEMF_CLEAR);
     if (!tfe)
         return FALSE;
 
-    tfe->tfe_Tags = CloneTagItems(fontTags);
-    if (!tfe->tfe_Tags)
-        tfe->tfe_Tags = AllocateTagItems(1);
-
-    if (!tfe->tfe_Tags)
-    {
-        FreeMem(tfe, sizeof(struct TextFontExtension));
-        return FALSE;
-    }
-
+    /* AmigaOS 3.1 (verified on the reference machine) does not keep the
+     * tags in the extension and leaves tf_Style (FSF_TAGGED) unchanged. */
+    (void)fontTags;
     tfe->tfe_MatchWord = GRAPHICS_TFE_MATCHWORD;
     tfe->tfe_BackPtr = font;
     tfe->tfe_OrigReplyPort = font->tf_Message.mn_ReplyPort;
     font->tf_Extension = (struct MsgPort *)tfe;
-    font->tf_Style |= FSF_TAGGED;
 
     return TRUE;
 }
@@ -8963,7 +9216,6 @@ static VOID _graphics_StripFont ( register struct GfxBase * GfxBase __asm("a6"),
         return;
 
     font->tf_Extension = tfe->tfe_OrigReplyPort;
-    font->tf_Style &= ~FSF_TAGGED;
 
     if (tfe->tfe_Tags)
         FreeTagItems(tfe->tfe_Tags);
@@ -9010,100 +9262,24 @@ static ULONG graphics_calcivg_total_cycles(CONST struct CopList *cop_list)
     return total_cycles;
 }
 
-static ULONG graphics_calcivg_display_width(CONST struct ViewPort *vp)
-{
-    if (!vp)
-        return 0;
-
-    if (vp->DWidth > 0)
-        return (ULONG)(UWORD)vp->DWidth;
-
-    if (vp->Modes & SUPERHIRES)
-        return 1280;
-
-    if (vp->Modes & HIRES)
-        return 640;
-
-    return 320;
-}
-
-static ULONG graphics_calcivg_bitplane_cycles(CONST struct ViewPort *vp)
-{
-    CONST struct RasInfo *ras_info;
-    ULONG display_width;
-    ULONG bitplane_cycles = 0;
-
-    if (!vp)
-        return 0;
-
-    display_width = graphics_calcivg_display_width(vp);
-    ras_info = vp->RasInfo;
-
-    while (ras_info)
-    {
-        CONST struct BitMap *bit_map = ras_info->BitMap;
-        ULONG width;
-        ULONG depth;
-
-        if (!bit_map)
-        {
-            ras_info = ras_info->Next;
-            continue;
-        }
-
-        width = display_width;
-        if (width == 0)
-            width = (ULONG)bit_map->BytesPerRow * 8UL;
-
-        depth = (bit_map->Depth > 0) ? (ULONG)bit_map->Depth : 1UL;
-        bitplane_cycles += (((width + 15UL) >> 4) * depth);
-
-        ras_info = ras_info->Next;
-    }
-
-    if (bitplane_cycles == 0)
-        bitplane_cycles = (display_width + 15UL) >> 4;
-
-    return bitplane_cycles;
-}
-
 static UWORD _graphics_CalcIVG ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct View * v __asm("a0"),
                                                         register struct ViewPort * vp __asm("a1"))
 {
-    ULONG total_cycles;
-    ULONG available_cycles_per_line;
-    ULONG bitplane_cycles;
-    ULONG result;
-
+    /*
+     * Number of blank lines needed in front of a ViewPort for its copper
+     * instructions.  Measured on AmigaOS 3.1 (reference machine, 1 to 40
+     * instructions, any depth/width): 0 without instructions, else 1 line,
+     * 2 lines for an interlaced View/ViewPort.
+     */
     (void)GfxBase;
 
     DPRINTF (LOG_DEBUG, "_graphics: CalcIVG(view=0x%08lx, vp=0x%08lx)\n", (ULONG)v, (ULONG)vp);
 
-    if (!v || !vp || !vp->DspIns)
+    if (!v || !vp || !vp->DspIns || graphics_calcivg_total_cycles(vp->DspIns) == 0)
         return 0;
 
-    total_cycles = graphics_calcivg_total_cycles(vp->DspIns);
-    if (total_cycles == 0)
-        return 0;
-
-    bitplane_cycles = graphics_calcivg_bitplane_cycles(vp);
-    if (bitplane_cycles >= 114)
-        return 0;
-
-    available_cycles_per_line = 114 - bitplane_cycles;
-    if ((v->Modes | vp->Modes) & LACE)
-    {
-        available_cycles_per_line /= 2;
-        if (available_cycles_per_line == 0)
-            return 0;
-    }
-
-    result = (total_cycles + available_cycles_per_line - 1) / available_cycles_per_line;
-    if (result > 0xffffUL)
-        result = 0xffffUL;
-
-    return (UWORD)result;
+    return ((v->Modes | vp->Modes) & LACE) ? 2 : 1;
 }
 
 static LONG _graphics_AttachPalExtra ( register struct GfxBase * GfxBase __asm("a6"),
@@ -9146,9 +9322,13 @@ static LONG _graphics_AttachPalExtra ( register struct GfxBase * GfxBase __asm("
     pe->pe_AllocList = (UBYTE *)alloc_list;
     pe->pe_ViewPort = vp;
 
-    sharablecolors = (ULONG)cm->Count;
+    /* Without a ViewPort BitMap AmigaOS 3.1 makes no pen available
+     * (verified on the reference machine) */
+    sharablecolors = 0;
     if (vp && vp->RasInfo && vp->RasInfo->BitMap)
     {
+        sharablecolors = (ULONG)cm->Count;
+
         ULONG bmdepth = (ULONG)vp->RasInfo->BitMap->Depth;
 
         if (bmdepth < 8)
@@ -9174,7 +9354,7 @@ static LONG _graphics_AttachPalExtra ( register struct GfxBase * GfxBase __asm("
     else
     {
         pe->pe_FirstFree = GRAPHICS_PEN_NONE;
-        pe->pe_SharableColors = GRAPHICS_PEN_NONE;
+        pe->pe_SharableColors = 0;
     }
 
     pe->pe_NFree = (UWORD)sharablecolors;
@@ -9275,7 +9455,7 @@ static VOID _graphics_SetRGB32 ( register struct GfxBase * GfxBase __asm("a6"),
     /* Update ColorMap using the full public 32-bit-to-8-bit packing. */
     if (vp->ColorMap && n < (ULONG)vp->ColorMap->Count)
     {
-        _graphics_SetRGB32CM(GfxBase, vp->ColorMap, n, r, g, b);
+        graphics_cm_store_rgb32(vp->ColorMap, n, r, g, b);
     }
 
     /* Propagate to host display using full 8-bit precision */
@@ -9366,7 +9546,7 @@ static VOID _graphics_LoadRGB32 ( register struct GfxBase * GfxBase __asm("a6"),
             /* Update ColorMap using the full 8-bit palette packing. */
             if (vp->ColorMap && index < (ULONG)vp->ColorMap->Count)
             {
-                _graphics_SetRGB32CM(GfxBase, vp->ColorMap, index, r, g, b);
+                graphics_cm_store_rgb32(vp->ColorMap, index, r, g, b);
             }
 
             /* Propagate to host display using 8-bit precision */
@@ -9390,34 +9570,25 @@ static ULONG _graphics_SetChipRev ( register struct GfxBase * GfxBase __asm("a6"
     if (!GfxBase)
         return 0;
 
-    chiprev_bits = graphics_available_chiprev_bits();
+    /*
+     * AmigaOS 3.1 behaviour (verified on the reference machine): SetChipRev()
+     * only enables chip features, it never turns them off.  SETCHIPREV_BEST
+     * enables everything available and returns the new ChipRevBits0; any
+     * other request returns the enabled bits masked to SETCHIPREV_AA.
+     */
+    chiprev_bits = GfxBase->ChipRevBits0;
 
-    if (want != SETCHIPREV_BEST)
+    if (want == SETCHIPREV_BEST)
     {
-        switch (want)
-        {
-            case SETCHIPREV_A:
-                chiprev_bits = SETCHIPREV_A;
-                break;
-
-            case SETCHIPREV_ECS:
-                if ((chiprev_bits & SETCHIPREV_ECS) == SETCHIPREV_ECS)
-                    chiprev_bits = SETCHIPREV_ECS;
-                break;
-
-            case SETCHIPREV_AA:
-                if ((chiprev_bits & SETCHIPREV_AA) == SETCHIPREV_AA)
-                    chiprev_bits = SETCHIPREV_AA;
-                break;
-
-            default:
-                break;
-        }
+        chiprev_bits |= graphics_available_chiprev_bits();
+        GfxBase->ChipRevBits0 = chiprev_bits;
+        return (ULONG)chiprev_bits;
     }
 
+    chiprev_bits |= (UBYTE)(want & graphics_available_chiprev_bits());
     GfxBase->ChipRevBits0 = chiprev_bits;
 
-    return (ULONG)GfxBase->ChipRevBits0;
+    return (ULONG)(chiprev_bits & SETCHIPREV_AA);
 }
 
 static VOID _graphics_SetABPenDrMd ( register struct GfxBase * GfxBase __asm("a6"),
@@ -9548,7 +9719,8 @@ static struct BitMap * _graphics_AllocBitMap ( register struct GfxBase * GfxBase
     }
 
     _graphics_InitBitMap(GfxBase, bm, (BYTE)depth, (WORD)sizex, (WORD)sizey);
-    bm->Flags = (UBYTE)(bm->Flags | (flags & (BMF_CLEAR | BMF_DISPLAYABLE | BMF_INTERLEAVED | BMF_MINPLANES)));
+    /* AmigaOS 3.1 leaves BitMap.Flags zero: the allocation flags are not
+     * stored (verified on the reference machine) */
     plane_size = RASSIZE(sizex, sizey);
 
     /* Allocate plane data and clear it only when the public flag requests it. */
@@ -9669,21 +9841,21 @@ static LONG _graphics_GetExtSpriteA ( register struct GfxBase       *GfxBase __a
         }
     }
 
-    if (attached_tag && !attached_sprite)
-    {
-        ss->es_SimpleSprite.num = (UWORD)-1;
+    /* AmigaOS 3.1 (verified on the reference machine) rejects every
+     * GSTAG_ATTACHED request and leaves the sprites' num fields unchanged
+     * when the allocation fails. */
+    (void)attached_sprite;
+    if (attached_tag)
         return -1;
-    }
 
     result = graphics_reserve_sprite_slots(GfxBase,
                                            requested_num,
-                                           (attached_sprite != NULL),
+                                           FALSE,
                                            &primary_num,
                                            &secondary_num);
 
-    ss->es_SimpleSprite.num = primary_num;
-    if (attached_sprite)
-        attached_sprite->es_SimpleSprite.num = secondary_num;
+    if (result >= 0)
+        ss->es_SimpleSprite.num = primary_num;
 
     return result;
 }
@@ -9823,16 +9995,10 @@ static ULONG _graphics_ObtainPen ( register struct GfxBase * GfxBase __asm("a6")
         }
         else
         {
-            if (ref_counts[pen] != 0)
-            {
-                if (graphics_color_equal(cm, r, g, b, pen))
-                {
-                    ref_counts[pen]++;
-                    retval = pen;
-                    was_shared = TRUE;
-                }
-            }
-            else if (graphics_palette_remove_pen(pe, &pe->pe_FirstFree, pen))
+            /* A pen that is already allocated (shared or exclusive) cannot
+             * be obtained by number, even with a matching colour: only
+             * ObtainBestPenA() shares pens (verified on the reference) */
+            if (graphics_palette_remove_pen(pe, &pe->pe_FirstFree, pen))
             {
                 if (pe->pe_NFree > 0)
                     pe->pe_NFree--;
@@ -9859,23 +10025,11 @@ static ULONG _graphics_ObtainPen ( register struct GfxBase * GfxBase __asm("a6")
     }
     else
     {
-        UWORD *alloc_list = graphics_palette_alloc_list(pe);
-        UWORD pen = pe->pe_FirstShared;
+        /* ObtainPen(-1) always allocates a new free pen; it does not reuse
+         * a shared pen of the same colour (verified on the reference) */
+        UWORD pen;
 
-        while (pen != GRAPHICS_PEN_NONE)
-        {
-            if (graphics_color_equal(cm, r, g, b, pen))
-            {
-                ref_counts[pen]++;
-                retval = pen;
-                was_shared = TRUE;
-                break;
-            }
-
-            pen = alloc_list[pen];
-        }
-
-        if ((retval == (ULONG)-1) && (pe->pe_FirstFree != GRAPHICS_PEN_NONE))
+        if (pe->pe_FirstFree != GRAPHICS_PEN_NONE)
         {
             pen = pe->pe_FirstFree;
             if (graphics_palette_remove_pen(pe, &pe->pe_FirstFree, pen))
@@ -9895,7 +10049,7 @@ static ULONG _graphics_ObtainPen ( register struct GfxBase * GfxBase __asm("a6")
         if (pe->pe_ViewPort)
             _graphics_SetRGB32(GfxBase, pe->pe_ViewPort, retval, r, g, b);
         else
-            _graphics_SetRGB32CM(GfxBase, cm, retval, r, g, b);
+            graphics_cm_store_rgb32(cm, retval, r, g, b);
     }
 
     ReleaseSemaphore(&pe->pe_Semaphore);
@@ -10002,6 +10156,25 @@ static VOID _graphics_SetMaxPen ( register struct GfxBase * GfxBase __asm("a6"),
     rp->Mask = mask;
 }
 
+/* Store a 32-bit-per-gun colour in a ColorMap (top 8 bits of each gun). */
+static VOID graphics_cm_store_rgb32(struct ColorMap *cm, ULONG n, ULONG r, ULONG g, ULONG b)
+{
+    if (!cm || n >= (ULONG)cm->Count)
+        return;
+
+    ((UWORD *)cm->ColorTable)[n] = (((UWORD *)cm->ColorTable)[n] & 0xF000) |
+                                   ((r >> 20) & 0x0f00) |
+                                   ((g >> 24) & 0x00f0) |
+                                   ((b >> 28) & 0x000f);
+
+    if ((cm->Type > COLORMAP_TYPE_V1_2) && cm->LowColorBits)
+    {
+        ((UWORD *)cm->LowColorBits)[n] = ((r >> 16) & 0x0f00) |
+                                         ((g >> 20) & 0x00f0) |
+                                         ((b >> 24) & 0x000f);
+    }
+}
+
 static VOID _graphics_SetRGB32CM ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct ColorMap * cm __asm("a0"),
                                                         register ULONG n __asm("d0"),
@@ -10020,17 +10193,11 @@ static VOID _graphics_SetRGB32CM ( register struct GfxBase * GfxBase __asm("a6")
     if (!cm || n >= (ULONG)cm->Count)
         return;
 
-    ((UWORD *)cm->ColorTable)[n] = (((UWORD *)cm->ColorTable)[n] & 0xF000) |
-                                   ((r >> 20) & 0x0f00) |
-                                   ((g >> 24) & 0x00f0) |
-                                   ((b >> 28) & 0x000f);
-
-    if ((cm->Type > COLORMAP_TYPE_V1_2) && cm->LowColorBits)
-    {
-        ((UWORD *)cm->LowColorBits)[n] = ((r >> 16) & 0x0f00) |
-                                         ((g >> 20) & 0x00f0) |
-                                         ((b >> 24) & 0x000f);
-    }
+    /* AmigaOS 3.1 quirk (verified on the reference machine): SetRGB32CM()
+     * takes the low nibble of blue from bits 16-19 instead of 24-27, e.g.
+     * blue 0xFEDCBA98 reads back as 0xFCFCFCFC.  SetRGB32(), LoadRGB32()
+     * and ObtainPen() store the correct value. */
+    graphics_cm_store_rgb32(cm, n, r, g, (b & 0xF0000000UL) | ((b << 8) & 0x0F000000UL));
 }
 
 static VOID _graphics_ScrollRasterBF ( register struct GfxBase * GfxBase __asm("a6"),
@@ -10303,8 +10470,11 @@ static struct ExtSprite * _graphics_AllocSpriteDataA ( register struct GfxBase *
         }
     }
 
-    if (width == 0 || width > 64 || (width & 15) != 0)
+    /* The sprite width is rounded up to 16, 32 or 64 pixels; 0 means 16
+     * (AmigaOS 3.1, verified on the reference machine). */
+    if (width > 64)
         return NULL;
+    width = (width <= 16) ? 16 : (width <= 32) ? 32 : 64;
 
     if (xrep < -2 || xrep > 2 || yrep < -2 || yrep > 2)
         return NULL;
@@ -10487,7 +10657,6 @@ static LONG _graphics_ChangeExtSpriteA ( register struct GfxBase * GfxBase __asm
                                                         register CONST struct TagItem * tags __asm("a3"))
 {
     (void)tags;
-    (void)vp;
 
     DPRINTF (LOG_DEBUG, "_graphics: ChangeExtSpriteA() vp=0x%08lx old=0x%08lx new=0x%08lx tags=0x%08lx\n",
              (ULONG)vp, (ULONG)oldsprite, (ULONG)newsprite, (ULONG)tags);
@@ -10495,23 +10664,15 @@ static LONG _graphics_ChangeExtSpriteA ( register struct GfxBase * GfxBase __asm
     if (!GfxBase || !oldsprite || !newsprite)
         return 0;
 
-    if (!newsprite->es_SimpleSprite.posctldata ||
-        newsprite->es_SimpleSprite.height == 0 ||
-        newsprite->es_wordwidth == 0)
-        return 0;
-
-    if (oldsprite->es_SimpleSprite.num > 7)
-        return 0;
-
-    if (newsprite->es_SimpleSprite.num != 0 &&
-        newsprite->es_SimpleSprite.num != oldsprite->es_SimpleSprite.num)
-        return 0;
-
+    /* AmigaOS 3.1 (verified on the reference machine) hands the hardware
+     * sprite and position of the old sprite to the new one without
+     * further checks and returns -1. */
     newsprite->es_SimpleSprite.num = oldsprite->es_SimpleSprite.num;
     newsprite->es_SimpleSprite.x = oldsprite->es_SimpleSprite.x;
     newsprite->es_SimpleSprite.y = oldsprite->es_SimpleSprite.y;
+    graphics_sprite_write_posctl(vp, &newsprite->es_SimpleSprite);
 
-    return 1;
+    return -1;
 }
 
 static VOID _graphics_FreeSpriteData ( register struct GfxBase * GfxBase __asm("a6"),
@@ -10611,8 +10772,6 @@ static VOID _graphics_GetRPAttrsA ( register struct GfxBase * GfxBase __asm("a6"
                                                         register CONST struct RastPort * rp __asm("a0"),
                                                         register CONST struct TagItem * tags __asm("a1"))
 {
-    LXA_UNIMPLEMENTED("graphics", "GetRPAttrsA", "partial: RPTAG_DrawBounds returns empty bounds (Phase 256)");
-
     CONST struct TagItem *tag;
     ULONG MaxPen, z;
 
@@ -10679,12 +10838,32 @@ static VOID _graphics_GetRPAttrsA ( register struct GfxBase * GfxBase __asm("a6"
                 break;
 
             case 0x80000008: /* RPTAG_DrawBounds */
-                /* Not implemented yet - return zero bounds */
-                ((struct Rectangle *)tag->ti_Data)->MinX = 0;
-                ((struct Rectangle *)tag->ti_Data)->MinY = 0;
-                ((struct Rectangle *)tag->ti_Data)->MaxX = 0;
-                ((struct Rectangle *)tag->ti_Data)->MaxY = 0;
+            {
+                /* AmigaOS 3.1 (verified on the reference machine) reports
+                 * the drawable area in RastPort coordinates: the layer's
+                 * size for a layered RastPort, else the whole BitMap
+                 * (BytesPerRow * 8 wide), independent of what was drawn. */
+                struct Rectangle *rect = (struct Rectangle *)tag->ti_Data;
+
+                rect->MinX = 0;
+                rect->MinY = 0;
+                if (rp->Layer)
+                {
+                    rect->MaxX = rp->Layer->bounds.MaxX - rp->Layer->bounds.MinX;
+                    rect->MaxY = rp->Layer->bounds.MaxY - rp->Layer->bounds.MinY;
+                }
+                else if (rp->BitMap)
+                {
+                    rect->MaxX = (WORD)(rp->BitMap->BytesPerRow * 8 - 1);
+                    rect->MaxY = (WORD)(rp->BitMap->Rows - 1);
+                }
+                else
+                {
+                    rect->MaxX = -1;
+                    rect->MaxY = -1;
+                }
                 break;
+            }
 
             default:
                 DPRINTF (LOG_DEBUG, "_graphics: GetRPAttrsA() unknown tag 0x%08lx\n",

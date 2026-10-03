@@ -3,6 +3,7 @@
     python3 -m rdd massrun crawl  [--root DIR] [--out DIR]
     python3 -m rdd massrun lxa    [--out DIR] [-j N] [--frames N] [--filter RX] [--limit N]
     python3 -m rdd massrun ref    [--out DIR] [-j N] [--seconds N] [--filter RX] [--limit N]
+                                  [--ids-file F]   (also for lxa)
     python3 -m rdd massrun report [--out DIR] [--md FILE]
 
 `crawl` finds every AmigaOS executable (hunk header 0x000003F3) under the
@@ -71,9 +72,13 @@ def crawl(root):
     return progs
 
 
-def load_programs(out, filt=None, limit=None):
+def load_programs(out, filt=None, limit=None, ids_file=None):
     with open(os.path.join(out, "programs.json")) as f:
         progs = json.load(f)
+    if ids_file:
+        with open(ids_file) as f:
+            ids = {ln.strip() for ln in f if ln.strip()}
+        progs = [p for p in progs if p["id"] in ids]
     if filt:
         progs = [p for p in progs if re.search(filt, p["rel"])]
     return progs[:limit] if limit else progs
@@ -350,6 +355,7 @@ def main(argv=None):
     ap.add_argument("--seconds", type=int, default=6)
     ap.add_argument("--filter")
     ap.add_argument("--limit", type=int)
+    ap.add_argument("--ids-file", help="only the program ids listed (one per line)")
     ap.add_argument("--md")
     ap.add_argument("--result", help="lxa-one: write the result JSON here")
     a = ap.parse_args(argv)
@@ -367,9 +373,9 @@ def main(argv=None):
             json.dump(progs, f, indent=0)
         print("%d executables on %d disks" % (len(progs), len({p["disk"] for p in progs})))
     elif a.cmd == "lxa":
-        run_lxa(load_programs(a.out, a.filter, a.limit), a.out, a.root, a.jobs, a.frames, a.build)
+        run_lxa(load_programs(a.out, a.filter, a.limit, a.ids_file), a.out, a.root, a.jobs, a.frames, a.build)
     elif a.cmd == "ref":
-        run_ref(load_programs(a.out, a.filter, a.limit), a.out, a.root, a.jobs, a.seconds)
+        run_ref(load_programs(a.out, a.filter, a.limit, a.ids_file), a.out, a.root, a.jobs, a.seconds)
     elif a.cmd == "report":
         s, _ = build_report(a.out, a.md and os.path.abspath(a.md))
         print(json.dumps({k: v for k, v in s.items() if k != "unimplemented_top"}, indent=1))

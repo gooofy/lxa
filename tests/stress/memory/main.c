@@ -122,13 +122,6 @@ int main(void)
         mem_leaked = 0;
     }
     
-    print("  Memory before: ");
-    print_num(mem_before);
-    print("\n  Memory after: ");
-    print_num(mem_after);
-    print("\n  Potential leak: ");
-    print_num(mem_leaked);
-    print(" bytes\n");
     
     if (failed == 0 && mem_leaked <= 1024) {
         test_pass("Sequential alloc/free");
@@ -174,13 +167,6 @@ int main(void)
         mem_leaked = 0;
     }
     
-    print("  Memory before: ");
-    print_num(mem_before);
-    print("\n  Memory after: ");
-    print_num(mem_after);
-    print("\n  Potential leak: ");
-    print_num(mem_leaked);
-    print(" bytes\n");
     
     if (failed == 0 && mem_leaked <= 1024) {
         test_pass("Batch alloc/free forward");
@@ -226,13 +212,6 @@ int main(void)
         mem_leaked = 0;
     }
     
-    print("  Memory before: ");
-    print_num(mem_before);
-    print("\n  Memory after: ");
-    print_num(mem_after);
-    print("\n  Potential leak: ");
-    print_num(mem_leaked);
-    print(" bytes\n");
     
     if (failed == 0 && mem_leaked <= 1024) {
         test_pass("Batch alloc/free reverse");
@@ -301,13 +280,6 @@ int main(void)
         mem_leaked = 0;
     }
     
-    print("  Memory before: ");
-    print_num(mem_before);
-    print("\n  Memory after: ");
-    print_num(mem_after);
-    print("\n  Potential leak: ");
-    print_num(mem_leaked);
-    print(" bytes\n");
     
     /* Accept some fragmentation-induced wastage */
     if (large_allocs > 10 && mem_leaked <= 2048) {
@@ -421,13 +393,6 @@ int main(void)
         mem_leaked = 0;
     }
     
-    print("  Memory before: ");
-    print_num(mem_before);
-    print("\n  Memory after: ");
-    print_num(mem_after);
-    print("\n  Potential leak: ");
-    print_num(mem_leaked);
-    print(" bytes\n");
     
     if (failed == 0 && mem_leaked <= 2048) {
         test_pass("Mixed size allocations");
@@ -464,13 +429,7 @@ int main(void)
     print("  Completed 100 AllocVec/FreeVec cycles\n");
     print("  Allocation failures: ");
     print_num(failed);
-    print("\n  Memory before: ");
-    print_num(mem_before);
-    print("\n  Memory after: ");
-    print_num(mem_after);
-    print("\n  Potential leak: ");
-    print_num(mem_leaked);
-    print(" bytes\n");
+    print("\n");
     
     /* Note: AllocVec may have some internal overhead per allocation */
     if (failed == 0 && mem_leaked <= 4096) {

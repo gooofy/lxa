@@ -1,0 +1,29 @@
+AddSegment Test
+===============
+
+Test 1: A user segment (use count 1) is found by FindSegment()
+  PASS: AddSegment succeeds
+  PASS: FindSegment returns the new entry
+  PASS: FindSegment compares case-insensitively
+  PASS: User segments are not system segments
+
+Test 2: Duplicate names are allowed and prepended
+  PASS: Duplicate AddSegment succeeds
+  PASS: Newest entry first, search continues after 'seg'
+
+Test 3: Use count 0 entries are not found as user segments
+  PASS: seg_UC == 0 is skipped
+
+Test 4: CMD_SYSTEM segments live in the system namespace
+  PASS: System AddSegment succeeds
+  PASS: FindSegment(system) finds it
+  PASS: FindSegment(user) skips it
+
+Test 5: RemSegment
+  PASS: Segment in use is not removed
+  PASS: Unused segment is removed
+  PASS: Removed entry is gone
+  PASS: Use count 0 segment is removed
+  PASS: System segment is not removed
+
+Failed: 0

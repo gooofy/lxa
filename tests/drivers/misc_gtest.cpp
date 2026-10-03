@@ -50,8 +50,16 @@ TEST_F(MiscTest, IconDiskObject) {
     RunMiscTest("Icon", "DiskObject");
 }
 
+TEST_F(MiscTest, IconV44) {
+    RunMiscTest("Icon", "IconV44");
+}
+
 TEST_F(MiscTest, WorkbenchAppObjects) {
     RunMiscTest("Workbench", "AppObjects");
+}
+
+TEST_F(MiscTest, WorkbenchAppObjectsV44) {
+    RunMiscTest("Workbench", "AppObjectsV44");
 }
 
 TEST_F(MiscTest, IffParseBasic) {
@@ -85,6 +93,10 @@ TEST_F(MiscTest, ExpansionConfigDevChain) {
 
 TEST_F(MiscTest, ExpansionMemConfig) {
     RunMiscTest("Expansion", "MemConfig");
+}
+
+TEST_F(MiscTest, ExpansionBoardConfig) {
+    RunMiscTest("Expansion", "BoardConfig");
 }
 
 TEST_F(MiscTest, ExpansionDosBinding) {

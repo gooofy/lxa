@@ -1,0 +1,19 @@
+Testing GfxBase->MonitorList + OpenMonitor()/CloseMonitor()...
+OK: MonitorList is initialised
+OK: MonitorList walk completed
+OK: native monitor present
+OK: GfxBase->default_monitor is the native monitor
+OK: OpenMonitor(NULL, 0) returned the default monitor
+OK: CloseMonitor() returned FALSE (no error)
+OK: OpenMonitor("default.monitor", 0) returned the default monitor
+OK: OpenMonitor(native name, 0) returned the native monitor
+OK: OpenMonitor("bogus.monitor", 0) returned NULL
+OK: OpenMonitor(NULL, HIRES_KEY) returned the default monitor
+OK: OpenMonitor(NULL, native ID|HIRES_KEY) selected the native monitor
+OK: OpenMonitor(NULL, invalid mode) returned NULL
+OK: OpenMonitor(NULL, INVALID_ID) returned NULL
+OK: CloseMonitor(NULL) returned TRUE
+OK: native monitor total_rows is standard
+OK: native monitor is an NT_GRAPHICS MONITOR_SPEC_TYPE node
+OK: native monitor ratios are RATIO_UNITY
+PASS: all MonitorList / OpenMonitor checks passed

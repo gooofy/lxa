@@ -116,18 +116,10 @@
     {
      "field": "count",
      "kind": "gadget",
-     "lxa": 8,
+     "lxa": 9,
      "phase": 223,
      "ref": 12,
      "where": "screen[Workbench Screen]/window[GadTools Gadget Demo]"
-    },
-    {
-     "field": "type",
-     "kind": "gadget",
-     "lxa": 3,
-     "phase": 223,
-     "ref": 259,
-     "where": "screen[Workbench Screen]/window[GadTools Gadget Demo]/gadget[0 id=0]"
     },
     {
      "field": "flags",
@@ -200,7 +192,7 @@
     {
      "field": "type",
      "kind": "gadget",
-     "lxa": 4,
+     "lxa": 260,
      "phase": 223,
      "ref": 256,
      "where": "screen[Workbench Screen]/window[GadTools Gadget Demo]/gadget[1 id=0]"
@@ -276,14 +268,6 @@
      "where": "screen[Workbench Screen]/window[GadTools Gadget Demo]/gadget[2 id=1]"
     },
     {
-     "field": "type",
-     "kind": "gadget",
-     "lxa": 4,
-     "phase": 223,
-     "ref": 260,
-     "where": "screen[Workbench Screen]/window[GadTools Gadget Demo]/gadget[2 id=1]"
-    },
-    {
      "field": "flags",
      "kind": "gadget",
      "lxa": 0,
@@ -351,14 +335,6 @@
      "lxa": 3,
      "phase": 223,
      "ref": 2,
-     "where": "screen[Workbench Screen]/window[GadTools Gadget Demo]/gadget[3 id=2]"
-    },
-    {
-     "field": "type",
-     "kind": "gadget",
-     "lxa": 4,
-     "phase": 223,
-     "ref": 260,
      "where": "screen[Workbench Screen]/window[GadTools Gadget Demo]/gadget[3 id=2]"
     },
     {
@@ -434,7 +410,7 @@
     {
      "field": "type",
      "kind": "gadget",
-     "lxa": 1,
+     "lxa": 257,
      "phase": 223,
      "ref": 260,
      "where": "screen[Workbench Screen]/window[GadTools Gadget Demo]/gadget[4 id=3]"

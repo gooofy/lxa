@@ -15,16 +15,6 @@
 #include <inline/graphics.h>
 #include <inline/dos.h>
 
-#ifndef RectInRegion
-#define RectInRegion(region, rectangle) \
-    LP2(642, BOOL, RectInRegion, struct Region *, (region), a0, CONST struct Rectangle *, (rectangle), a1, struct GfxBase *, GfxBase)
-#endif
-
-#ifndef PointInRegion
-#define PointInRegion(region, x, y) \
-    LP3(648, BOOL, PointInRegion, struct Region *, (region), a0, WORD, (x), d0, WORD, (y), d1, struct GfxBase *, GfxBase)
-#endif
-
 extern struct DosLibrary *DOSBase;
 extern struct ExecBase *SysBase;
 extern struct GfxBase *GfxBase;
@@ -65,6 +55,26 @@ static void print_num(LONG n)
     if (neg)
         *--p = '-';
     print(p);
+}
+
+/* Membership test on the public Region structure: RegionRectangle bounds
+ * are relative to region->bounds.MinX/MinY.  (PointInRegion() is not part
+ * of the AmigaOS 3.1 graphics.library API.) */
+static int point_in_region(struct Region *region, WORD x, WORD y)
+{
+    struct RegionRectangle *rr;
+
+    for (rr = region->RegionRectangle; rr != NULL; rr = rr->Next)
+    {
+        WORD minx = region->bounds.MinX + rr->bounds.MinX;
+        WORD miny = region->bounds.MinY + rr->bounds.MinY;
+        WORD maxx = region->bounds.MinX + rr->bounds.MaxX;
+        WORD maxy = region->bounds.MinY + rr->bounds.MaxY;
+
+        if (x >= minx && x <= maxx && y >= miny && y <= maxy)
+            return 1;
+    }
+    return 0;
 }
 
 static int count_region_rects(struct Region *region)
@@ -310,8 +320,8 @@ int main(void)
         print("FAIL: XorRectRegion() returned FALSE\n");
         errors++;
     }
-    else if (PointInRegion(region, 10, 10) && !PointInRegion(region, 25, 20) &&
-             PointInRegion(region, 50, 20))
+    else if (point_in_region(region, 10, 10) && !point_in_region(region, 25, 20) &&
+             point_in_region(region, 50, 20))
     {
         print("OK: XorRectRegion toggled overlap and added outside area\n");
     }
@@ -345,8 +355,8 @@ int main(void)
             print("FAIL: AndRegionRegion() returned FALSE\n");
             errors++;
         }
-        else if (PointInRegion(dest, 30, 30) && !PointInRegion(dest, 10, 10) &&
-                 !PointInRegion(dest, 100, 100))
+        else if (point_in_region(dest, 30, 30) && !point_in_region(dest, 10, 10) &&
+                 !point_in_region(dest, 100, 100))
         {
             print("OK: AndRegionRegion kept only the shared area\n");
         }
@@ -363,7 +373,7 @@ int main(void)
             print("FAIL: OrRegionRegion() returned FALSE\n");
             errors++;
         }
-        else if (PointInRegion(dest, 10, 10) && PointInRegion(dest, 70, 70))
+        else if (point_in_region(dest, 10, 10) && point_in_region(dest, 70, 70))
         {
             print("OK: OrRegionRegion preserved both input regions\n");
         }
@@ -380,8 +390,8 @@ int main(void)
             print("FAIL: XorRegionRegion() returned FALSE\n");
             errors++;
         }
-        else if (PointInRegion(dest, 10, 10) && !PointInRegion(dest, 30, 30) &&
-                 PointInRegion(dest, 70, 70))
+        else if (point_in_region(dest, 10, 10) && !point_in_region(dest, 30, 30) &&
+                 point_in_region(dest, 70, 70))
         {
             print("OK: XorRegionRegion toggled the shared area\n");
         }
@@ -397,46 +407,13 @@ int main(void)
     if (dest)
         DisposeRegion(dest);
 
-    /* Test 10: RectInRegion()/PointInRegion() */
-    print("\nTest 10: RectInRegion()/PointInRegion()...\n");
-    ClearRegion(region);
-    rect.MinX = 5;
-    rect.MinY = 5;
-    rect.MaxX = 25;
-    rect.MaxY = 25;
-    OrRectRegion(region, &rect);
-    rect.MinX = 40;
-    rect.MinY = 5;
-    rect.MaxX = 60;
-    rect.MaxY = 25;
-    OrRectRegion(region, &rect);
-
-    {
-        struct Rectangle inside = { 8, 8, 20, 20 };
-        struct Rectangle spanning_gap = { 20, 8, 45, 20 };
-
-        if (RectInRegion(region, &inside) && !RectInRegion(region, &spanning_gap) &&
-            PointInRegion(region, 10, 10) && !PointInRegion(region, 30, 10))
-        {
-            print("OK: RectInRegion()/PointInRegion() membership matches region pieces\n");
-        }
-        else
-        {
-            print("FAIL: RectInRegion()/PointInRegion() membership incorrect\n");
-            errors++;
-        }
-    }
-
-    /* Test 11: DisposeRegion() */
-    print("\nTest 11: DisposeRegion()...\n");
+    /* Test 10: DisposeRegion() */
+    print("\nTest 10: DisposeRegion()...\n");
     DisposeRegion(region);
     print("OK: DisposeRegion() completed\n");
 
-    /* Test 12: Handle NULL gracefully */
-    print("\nTest 12: NULL handling...\n");
-    DisposeRegion(NULL);  /* Should not crash */
-    ClearRegion(NULL);    /* Should not crash */
-    print("OK: NULL parameters handled gracefully\n");
+    /* RectInRegion()/PointInRegion() (AROS extensions) and NULL arguments
+     * are covered by the lxa-only program Tests/Graphics/RegionsExt. */
 
     /* Final result */
     if (errors == 0)

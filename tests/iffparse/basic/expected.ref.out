@@ -1,0 +1,97 @@
+IFFParse library regression test
+===============================
+
+OK: OpenLibrary iffparse.library
+OK: GoodID FORM
+OK: GoodID rejects zero
+OK: GoodType TEST
+OK: GoodType rejects leading space
+OK: AllocIFF
+OK: OpenIFF write
+OK: Push FORM TEST
+OK: Push NAME
+OK: WriteChunkBytes NAME
+OK: WriteChunkRecords NAME
+OK: PopChunk NAME
+OK: Push DATA
+OK: WriteChunkBytes DATA
+OK: WriteChunkRecords DATA
+OK: PopChunk DATA
+OK: PopChunk FORM
+OK: Create IFF test file
+OK: Open T:test.iff for reading
+OK: OpenIFF read
+OK: CurrentChunk is NULL right after OpenIFF
+OK: FindPropContext is NULL right after OpenIFF
+OK: ParentChunk NAME -> FORM
+OK: ReadChunkRecords NAME
+OK: ReadChunkBytes NAME remainder (pad byte not returned)
+OK: NAME first records content
+OK: NAME remainder content
+OK: ParentChunk DATA -> FORM
+OK: ReadChunkRecords DATA
+OK: ReadChunkBytes DATA remainder (pad byte not returned)
+OK: DATA first records content
+OK: DATA remainder content
+OK: ParseIFF RAWSTEP reaches EOF
+OK: RAWSTEP saw NAME once
+OK: RAWSTEP saw DATA once
+OK: Open T:test.iff for reading
+OK: OpenIFF read
+OK: PropChunk NAME declaration
+OK: CollectionChunk DATA declaration
+OK: EntryHandler DATA declaration
+OK: ExitHandler DATA declaration
+OK: FindProp NAME while in scope
+OK: StoredProperty NAME size (unpadded)
+OK: StoredProperty NAME prefix
+OK: StoredProperty NAME suffix
+  STEP EOC NAME: collection=no size=-1 next=no
+OK: FindProp NAME still visible in DATA scope
+  STEP DATA entry: collection=no
+  STEP EOC DATA: collection=no size=-1 next=no
+  STEP EOC FORM: collection=no size=-1 next=no
+OK: ParseIFF STEP reaches EOF
+OK: Property chunk observed
+OK: Collection chunk observed
+OK: Entry handler invoked once
+OK: Exit handler invoked once
+OK: Open T:test.iff for reading
+OK: OpenIFF read
+OK: CollectionChunk DATA declaration (alone)
+  STEP entry FORM: collection=no size=-1 next=no
+  STEP entry NAME: collection=no size=-1 next=no
+  STEP EOC NAME: collection=no size=-1 next=no
+  STEP entry DATA: collection=yes size=23 next=no
+  STEP EOC DATA: collection=yes size=23 next=no
+  STEP EOC FORM: collection=yes size=23 next=no
+OK: CollectionItem DATA prefix (alone)
+OK: CollectionItem DATA suffix (alone)
+OK: ParseIFF STEP reaches EOF (collection alone)
+OK: Open T:test.iff for reading
+OK: OpenIFF read
+OK: StopChunk DATA declaration
+OK: ParseIFF SCAN stops on DATA entry
+OK: CurrentChunk is DATA after StopChunk
+OK: Open T:test.iff for reading
+OK: OpenIFF read
+OK: StopOnExit DATA declaration
+OK: ParseIFF SCAN stops on DATA exit
+OK: CurrentChunk remains DATA at StopOnExit
+OK: ParseIFF continues after StopOnExit without crashing
+OK: OpenClipboard PRIMARY_CLIP
+OK: AllocIFF for clipboard
+OK: OpenIFF clipboard write
+OK: Clipboard Push FORM
+OK: Clipboard Push DATA
+OK: Clipboard WriteChunkBytes DATA
+OK: Clipboard WriteChunkRecords DATA
+OK: Clipboard Pop DATA
+OK: Clipboard Pop FORM
+OK: OpenIFF clipboard read
+OK: Clipboard StopChunk DATA
+OK: ParseIFF clipboard stops on DATA entry
+OK: ReadChunkBytes clipboard DATA (pad byte not returned)
+OK: Clipboard DATA prefix
+OK: Clipboard DATA suffix
+PASS: iffparse regression test complete

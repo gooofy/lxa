@@ -9,6 +9,8 @@
 #include <exec/memory.h>
 #include <graphics/gfx.h>
 #include <graphics/gfxbase.h>
+#include <graphics/monitor.h>
+#include <exec/execbase.h>
 #include <clib/exec_protos.h>
 #include <clib/graphics_protos.h>
 #include <clib/dos_protos.h>
@@ -69,184 +71,70 @@ static void print_num(const char *label, LONG val)
     print(buf);
 }
 
+/*
+ * Phase 220: validated against AmigaOS 3.1 (A4000, PAL).  Only values that
+ * do not depend on the machine configuration (chipset, display hardware)
+ * are compared exactly; the others must merely be initialized.
+ */
+static int check(int ok, const char *what)
+{
+    print(ok ? "  OK: " : "  FAIL: ");
+    print(what);
+    print("\n");
+    return ok ? 0 : 1;
+}
+
 int main(void)
 {
     int errors = 0;
 
     print("Testing GfxBase field initialization...\n");
 
-    /* Core display fields (Phase 108 and earlier) */
     print("Test 1: NormalDisplayRows...\n");
-    if (GfxBase->NormalDisplayRows != 256)
-    {
-        print("  FAIL: NormalDisplayRows != 256\n");
-        print_num("  Got: ", (LONG)GfxBase->NormalDisplayRows);
-        errors++;
-    }
-    else
-    {
-        print("  OK: NormalDisplayRows = 256\n");
-    }
+    errors += check(GfxBase->NormalDisplayRows == 256, "NormalDisplayRows = 256 (PAL)");
 
     print("Test 2: NormalDisplayColumns...\n");
-    if (GfxBase->NormalDisplayColumns != 640)
-    {
-        print("  FAIL: NormalDisplayColumns != 640\n");
-        print_num("  Got: ", (LONG)GfxBase->NormalDisplayColumns);
-        errors++;
-    }
-    else
-    {
-        print("  OK: NormalDisplayColumns = 640\n");
-    }
+    errors += check(GfxBase->NormalDisplayColumns == 640, "NormalDisplayColumns = 640");
 
     print("Test 3: MaxDisplayRow...\n");
-    if (GfxBase->MaxDisplayRow != 312)
-    {
-        print("  FAIL: MaxDisplayRow != 312\n");
-        print_num("  Got: ", (LONG)GfxBase->MaxDisplayRow);
-        errors++;
-    }
-    else
-    {
-        print("  OK: MaxDisplayRow = 312\n");
-    }
+    errors += check(GfxBase->MaxDisplayRow == 311, "MaxDisplayRow = 311 (PAL)");
 
     print("Test 4: MaxDisplayColumn...\n");
-    if (GfxBase->MaxDisplayColumn != 640)
-    {
-        print("  FAIL: MaxDisplayColumn != 640\n");
-        print_num("  Got: ", (LONG)GfxBase->MaxDisplayColumn);
-        errors++;
-    }
-    else
-    {
-        print("  OK: MaxDisplayColumn = 640\n");
-    }
+    errors += check(GfxBase->MaxDisplayColumn == 455, "MaxDisplayColumn = 455");
 
     print("Test 5: DisplayFlags (PAL|REALLY_PAL)...\n");
-    if (!(GfxBase->DisplayFlags & PAL))
-    {
-        print("  FAIL: PAL flag not set\n");
-        print_num("  DisplayFlags: ", (LONG)GfxBase->DisplayFlags);
-        errors++;
-    }
-    else if (!(GfxBase->DisplayFlags & REALLY_PAL))
-    {
-        print("  FAIL: REALLY_PAL flag not set\n");
-        print_num("  DisplayFlags: ", (LONG)GfxBase->DisplayFlags);
-        errors++;
-    }
-    else
-    {
-        print("  OK: DisplayFlags has PAL|REALLY_PAL\n");
-    }
+    errors += check((GfxBase->DisplayFlags & (PAL | REALLY_PAL)) == (PAL | REALLY_PAL),
+                    "DisplayFlags has PAL|REALLY_PAL");
 
-    print("Test 6: VBlank...\n");
-    if (GfxBase->VBlank != 50)
-    {
-        print("  FAIL: VBlank != 50\n");
-        print_num("  Got: ", (LONG)GfxBase->VBlank);
-        errors++;
-    }
-    else
-    {
-        print("  OK: VBlank = 50\n");
-    }
+    print("Test 6: VBlankFrequency...\n");
+    errors += check(SysBase->VBlankFrequency == 50, "ExecBase VBlankFrequency = 50 (PAL)");
 
-    print("Test 7: ChipRevBits0 (ECS)...\n");
-    if (GfxBase->ChipRevBits0 != SETCHIPREV_ECS)
-    {
-        print("  FAIL: ChipRevBits0 != SETCHIPREV_ECS\n");
-        print_num("  Got: ", (LONG)GfxBase->ChipRevBits0);
-        errors++;
-    }
-    else
-    {
-        print("  OK: ChipRevBits0 = SETCHIPREV_ECS\n");
-    }
+    print("Test 7: ChipRevBits0...\n");
+    errors += check((GfxBase->ChipRevBits0 & SETCHIPREV_ECS) == SETCHIPREV_ECS,
+                    "ChipRevBits0 has the ECS bits");
 
-    /* Phase 109 audit fields */
     print("Test 8: NormalDPMX...\n");
-    if (GfxBase->NormalDPMX != 22)
-    {
-        print("  FAIL: NormalDPMX != 22\n");
-        print_num("  Got: ", (LONG)GfxBase->NormalDPMX);
-        errors++;
-    }
-    else
-    {
-        print("  OK: NormalDPMX = 22\n");
-    }
+    errors += check(GfxBase->NormalDPMX != 0, "NormalDPMX initialized");
 
     print("Test 9: NormalDPMY...\n");
-    if (GfxBase->NormalDPMY != 22)
-    {
-        print("  FAIL: NormalDPMY != 22\n");
-        print_num("  Got: ", (LONG)GfxBase->NormalDPMY);
-        errors++;
-    }
-    else
-    {
-        print("  OK: NormalDPMY = 22\n");
-    }
+    errors += check(GfxBase->NormalDPMY != 0, "NormalDPMY initialized");
 
     print("Test 10: MicrosPerLine...\n");
-    if (GfxBase->MicrosPerLine != 64)
-    {
-        print("  FAIL: MicrosPerLine != 64\n");
-        print_num("  Got: ", (LONG)GfxBase->MicrosPerLine);
-        errors++;
-    }
-    else
-    {
-        print("  OK: MicrosPerLine = 64\n");
-    }
+    /* in 1/256 microseconds: a PAL line takes ~64 us */
+    errors += check(GfxBase->MicrosPerLine > 16000 && GfxBase->MicrosPerLine < 16500,
+                    "MicrosPerLine ~ 64 us (in 1/256 us)");
 
     print("Test 11: MinDisplayColumn...\n");
-    if (GfxBase->MinDisplayColumn != 0x71)
-    {
-        print("  FAIL: MinDisplayColumn != 0x71\n");
-        print_num("  Got: ", (LONG)GfxBase->MinDisplayColumn);
-        errors++;
-    }
-    else
-    {
-        print("  OK: MinDisplayColumn = 0x71\n");
-    }
+    errors += check(GfxBase->MinDisplayColumn != 0, "MinDisplayColumn initialized");
 
     print("Test 12: monitor_id...\n");
-    if (GfxBase->monitor_id != 0)
-    {
-        print("  FAIL: monitor_id != 0\n");
-        print_num("  Got: ", (LONG)GfxBase->monitor_id);
-        errors++;
-    }
-    else
-    {
-        print("  OK: monitor_id = 0\n");
-    }
-
-    print("Test 13: TopLine...\n");
-    if (GfxBase->TopLine != 0)
-    {
-        print("  FAIL: TopLine != 0\n");
-        print_num("  Got: ", (LONG)GfxBase->TopLine);
-        errors++;
-    }
-    else
-    {
-        print("  OK: TopLine = 0\n");
-    }
+    errors += check(GfxBase->monitor_id == (PAL_MONITOR_ID >> 16), "monitor_id = PAL monitor");
 
     if (errors == 0)
     {
         print("PASS: gfxbase_fields all tests passed\n");
         return 0;
     }
-    else
-    {
-        print("FAIL: gfxbase_fields had errors\n");
-        return 20;
-    }
+    print("FAIL: gfxbase_fields had errors\n");
+    return 20;
 }

@@ -1,0 +1,28 @@
+Lock/Examine Test
+=================
+
+Test 1: Lock("") - the current directory
+  Lock obtained: OK
+
+Test 2: Examine()
+  Type: Directory
+  Name: Dos
+  Examine: OK
+
+Test 3: ExNext() - Directory listing:
+  Found multiple entries: OK
+  ExNext: OK
+
+Test 4: DupLock()
+  Duplicate lock obtained: OK
+  Duplicate unlocked: OK
+
+Test 5: ParentDir()
+  Parent lock obtained: OK
+  Parent name: Tests
+
+Test 6: CurrentDir()
+  CurrentDir set: OK
+  CurrentDir restored: OK
+
+All tests passed!

@@ -11,6 +11,23 @@
 struct Library *IntuitionBase = NULL;
 struct Library *GadToolsBase = NULL;
 
+/* GadgetType bit GadTools sets on all its gadgets (not in the NDK) */
+#define GTYP_GADTOOLS 0x0100
+
+/* Some kinds consist of several Intuition gadgets (AmigaOS 3.1: e.g. a
+ * slider is a prop gadget followed by the gadget CreateGadget() returns),
+ * so check that "gad" follows "prev" in the list rather than being its
+ * direct successor. */
+static BOOL follows(struct Gadget *prev, struct Gadget *gad)
+{
+    struct Gadget *g;
+
+    for (g = prev->NextGadget; g; g = g->NextGadget)
+        if (g == gad)
+            return TRUE;
+    return FALSE;
+}
+
 static int fail(const char *message)
 {
     printf("FAIL: %s\n", message);
@@ -131,7 +148,7 @@ int main(void)
         return fail("fresh context gadget should not have a successor");
     if ((context->Flags & GFLG_GADGHIGHBITS) != GFLG_GADGHNONE)
         return fail("context gadget should be invisible and unselectable");
-    if ((context->GadgetType & GTYP_GTYPEMASK) != GTYP_CUSTOMGADGET)
+    if (context->GadgetType != GTYP_GADTOOLS || context->Width != 0 || context->Height != 0)
         return fail("context gadget type mismatch");
     printf("OK: CreateContext returned invisible sentinel gadget\n");
 
@@ -140,7 +157,7 @@ int main(void)
         TAG_DONE);
     if (!checkbox_gad)
         return fail("checkbox creation failed");
-    if (context->NextGadget != checkbox_gad)
+    if (!follows(context, checkbox_gad))
         return fail("context gadget did not link to the first created gadget");
 
     ng.ng_TopEdge += 20;
@@ -153,7 +170,7 @@ int main(void)
         TAG_DONE);
     if (!slider_gad)
         return fail("slider creation failed");
-    if (checkbox_gad->NextGadget != slider_gad)
+    if (!follows(checkbox_gad, slider_gad))
         return fail("checkbox gadget did not link to slider gadget");
 
     ng.ng_TopEdge += 20;
@@ -165,7 +182,7 @@ int main(void)
         TAG_DONE);
     if (!string_gad)
         return fail("string creation failed");
-    if (slider_gad->NextGadget != string_gad)
+    if (!follows(slider_gad, string_gad))
         return fail("slider gadget did not link to string gadget");
 
     ng.ng_TopEdge += 20;
@@ -177,7 +194,7 @@ int main(void)
         TAG_DONE);
     if (!integer_gad)
         return fail("integer creation failed");
-    if (string_gad->NextGadget != integer_gad)
+    if (!follows(string_gad, integer_gad))
         return fail("string gadget did not link to integer gadget");
 
     ng.ng_TopEdge += 20;
@@ -189,16 +206,20 @@ int main(void)
         TAG_DONE);
     if (!cycle_gad)
         return fail("cycle creation failed");
-    if (integer_gad->NextGadget != cycle_gad)
+    if (!follows(integer_gad, cycle_gad))
         return fail("integer gadget did not link to cycle gadget");
 
     ng.ng_TopEdge += 20;
     ng.ng_GadgetText = (UBYTE *)"MX";
     ng.ng_GadgetID = 6;
-    mx_gad = gad = CreateGadget(MX_KIND, gad, &ng, TAG_DONE);
+    if (CreateGadget(MX_KIND, gad, &ng, TAG_DONE) != NULL)
+        return fail("MX gadget without GTMX_Labels should fail");
+    mx_gad = gad = CreateGadget(MX_KIND, gad, &ng,
+        GTMX_Labels, (ULONG)cycle_labels,
+        TAG_DONE);
     if (!mx_gad)
         return fail("mx creation failed");
-    if (cycle_gad->NextGadget != mx_gad)
+    if (!follows(cycle_gad, mx_gad))
         return fail("cycle gadget did not link to mx gadget");
 
     ng.ng_TopEdge += 20;
@@ -207,7 +228,7 @@ int main(void)
     listview_gad = gad = CreateGadget(LISTVIEW_KIND, gad, &ng, TAG_DONE);
     if (!listview_gad)
         return fail("listview creation failed");
-    if (mx_gad->NextGadget != listview_gad)
+    if (!follows(mx_gad, listview_gad))
         return fail("mx gadget did not link to listview gadget");
 
     ng.ng_TopEdge += 20;
@@ -216,7 +237,7 @@ int main(void)
     palette_gad = gad = CreateGadget(PALETTE_KIND, gad, &ng, TAG_DONE);
     if (!palette_gad)
         return fail("palette creation failed");
-    if (listview_gad->NextGadget != palette_gad)
+    if (!follows(listview_gad, palette_gad))
         return fail("listview gadget did not link to palette gadget");
 
     ng.ng_TopEdge += 20;
@@ -225,7 +246,7 @@ int main(void)
     scroller_gad = gad = CreateGadget(SCROLLER_KIND, gad, &ng, TAG_DONE);
     if (!scroller_gad)
         return fail("scroller creation failed");
-    if (palette_gad->NextGadget != scroller_gad)
+    if (!follows(palette_gad, scroller_gad))
         return fail("palette gadget did not link to scroller gadget");
 
     ng.ng_TopEdge += 20;
@@ -234,7 +255,7 @@ int main(void)
     text_gad = gad = CreateGadget(TEXT_KIND, gad, &ng, TAG_DONE);
     if (!text_gad)
         return fail("text creation failed");
-    if (scroller_gad->NextGadget != text_gad)
+    if (!follows(scroller_gad, text_gad))
         return fail("scroller gadget did not link to text gadget");
 
     ng.ng_TopEdge += 20;
@@ -243,23 +264,28 @@ int main(void)
     number_gad = gad = CreateGadget(NUMBER_KIND, gad, &ng, TAG_DONE);
     if (!number_gad)
         return fail("number creation failed");
-    if (text_gad->NextGadget != number_gad)
+    if (!follows(text_gad, number_gad))
         return fail("text gadget did not link to number gadget");
     if (number_gad->NextGadget != NULL)
         return fail("last gadget should terminate the list");
 
-    if ((mx_gad->GadgetType & GTYP_GTYPEMASK) != GTYP_PROPGADGET)
-        return fail("mx gadget type mismatch");
-    if ((listview_gad->GadgetType & GTYP_GTYPEMASK) != GTYP_PROPGADGET)
-        return fail("listview gadget type mismatch");
-    if ((palette_gad->GadgetType & GTYP_GTYPEMASK) != GTYP_PROPGADGET)
-        return fail("palette gadget type mismatch");
-    if ((scroller_gad->GadgetType & GTYP_GTYPEMASK) != GTYP_PROPGADGET)
-        return fail("scroller gadget type mismatch");
-    if ((text_gad->GadgetType & GTYP_GTYPEMASK) != GTYP_BOOLGADGET)
-        return fail("text gadget type mismatch");
-    if ((number_gad->GadgetType & GTYP_GTYPEMASK) != GTYP_BOOLGADGET)
-        return fail("number gadget type mismatch");
+    {
+        struct Gadget *kinds[] = { checkbox_gad, slider_gad, string_gad, integer_gad, cycle_gad, mx_gad,
+                                   listview_gad, palette_gad, scroller_gad, text_gad, number_gad };
+        int i;
+
+        for (i = 0; i < (int)(sizeof(kinds) / sizeof(kinds[0])); i++)
+            if (!(kinds[i]->GadgetType & GTYP_GADTOOLS))
+                return fail("GadTools gadget lacks the GadTools type bit");
+    }
+    if ((checkbox_gad->GadgetType & GTYP_GTYPEMASK) != GTYP_BOOLGADGET)
+        return fail("checkbox gadget type mismatch");
+    if ((cycle_gad->GadgetType & GTYP_GTYPEMASK) != GTYP_BOOLGADGET)
+        return fail("cycle gadget type mismatch");
+    if ((string_gad->GadgetType & GTYP_GTYPEMASK) != GTYP_STRGADGET)
+        return fail("string gadget type mismatch");
+    if ((integer_gad->GadgetType & GTYP_GTYPEMASK) != GTYP_STRGADGET)
+        return fail("integer gadget type mismatch");
     printf("OK: CreateGadget supports all current gadget kinds\n");
 
     if (GT_GetGadgetAttrsA(checkbox_gad, NULL, NULL, get_checkbox_tags) != 1 || checked != FALSE)

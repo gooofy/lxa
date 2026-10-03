@@ -52,7 +52,7 @@ int main(void)
     struct RastPort *rp;
     struct RastPort *temprp;
     struct BitMap *bm;
-    UBYTE array[64];
+    struct BitMap *tmpbm;
     LONG result;
     LONG i;
     int errors = 0;
@@ -88,8 +88,19 @@ int main(void)
         return 1;
     }
 
+    /* The temporary RastPort needs its own one-row BitMap (autodoc): the
+     * functions use it as scratch space */
+    tmpbm = AllocBitMap(64, 1, 2, BMF_CLEAR, NULL);
+    if (!tmpbm)
+    {
+        print("ERROR: Could not allocate temp bitmap\n");
+        FreeMem(temprp, sizeof(struct RastPort));
+        FreeMem(rp, sizeof(struct RastPort));
+        FreeBitMap(bm);
+        return 1;
+    }
     InitRastPort(temprp);
-    temprp->BitMap = bm;
+    temprp->BitMap = tmpbm;
 
     print("OK: Resources allocated\n\n");
 
@@ -98,11 +109,13 @@ int main(void)
     {
         UBYTE write_buf[16];
         UBYTE read_buf[16];
+        UBYTE expect_buf[16];
 
         /* Write pen values 0,1,2,3,0,1,2,3,... */
         for (i = 0; i < 16; i++)
         {
             write_buf[i] = (UBYTE)(i % 4);
+            expect_buf[i] = (UBYTE)(i % 4);
         }
 
         result = WritePixelLine8(rp, 0, 0, 16, write_buf, temprp);
@@ -137,13 +150,13 @@ int main(void)
             BOOL match = TRUE;
             for (i = 0; i < 16; i++)
             {
-                if (read_buf[i] != write_buf[i])
+                if (read_buf[i] != expect_buf[i])
                 {
                     match = FALSE;
                     print("  FAIL: Mismatch at pixel ");
                     print_num(i);
                     print(": expected ");
-                    print_num(write_buf[i]);
+                    print_num(expect_buf[i]);
                     print(", got ");
                     print_num(read_buf[i]);
                     print("\n");
@@ -162,13 +175,14 @@ int main(void)
     /* Test 2: WritePixelArray8 then ReadPixelArray8 */
     print("Test 2: WritePixelArray8 / ReadPixelArray8 round-trip...\n");
     {
-        UBYTE write_arr[16];  /* 4x4 block */
-        UBYTE read_arr[16];
+        /* 4x4 block: the array row stride is ((width + 15) >> 4) << 4 = 16 */
+        UBYTE write_arr[64];
+        UBYTE read_arr[64];
 
         /* Write a 4x4 block at (10,10)-(13,13) */
-        for (i = 0; i < 16; i++)
+        for (i = 0; i < 64; i++)
         {
-            write_arr[i] = (UBYTE)((i / 4 + i % 4) % 4);
+            write_arr[i] = (UBYTE)((i / 16 + i % 16) % 4);
         }
 
         SetRast(rp, 0);
@@ -188,7 +202,7 @@ int main(void)
         }
 
         /* Read back */
-        for (i = 0; i < 16; i++)
+        for (i = 0; i < 64; i++)
         {
             read_arr[i] = 0xFF;
         }
@@ -205,15 +219,17 @@ int main(void)
             BOOL match = TRUE;
             for (i = 0; i < 16; i++)
             {
-                if (read_arr[i] != write_arr[i])
+                LONG idx = (i / 4) * 16 + (i % 4);
+                UBYTE expect = (UBYTE)((i / 4 + i % 4) % 4);
+                if (read_arr[idx] != expect)
                 {
                     match = FALSE;
                     print("  FAIL: Mismatch at index ");
-                    print_num(i);
+                    print_num(idx);
                     print(": expected ");
-                    print_num(write_arr[i]);
+                    print_num(expect);
                     print(", got ");
-                    print_num(read_arr[i]);
+                    print_num(read_arr[idx]);
                     print("\n");
                     errors++;
                     break;
@@ -230,7 +246,7 @@ int main(void)
     /* Test 3: Verify WritePixelLine8 sets actual pixels readable by ReadPixel */
     print("Test 3: WritePixelLine8 pixels readable by ReadPixel...\n");
     {
-        UBYTE buf[4];
+        UBYTE buf[16];
         SetRast(rp, 0);
 
         buf[0] = 0;
@@ -244,7 +260,7 @@ int main(void)
         for (i = 0; i < 4; i++)
         {
             ULONG pen = ReadPixel(rp, i, 5);
-            if (pen != (ULONG)buf[i])
+            if (pen != (ULONG)i)
             {
                 ok = FALSE;
                 print("  FAIL: ReadPixel(");
@@ -252,7 +268,7 @@ int main(void)
                 print(",5) = ");
                 print_num((LONG)pen);
                 print(", expected ");
-                print_num(buf[i]);
+                print_num(i);
                 print("\n");
                 errors++;
                 break;
@@ -268,7 +284,7 @@ int main(void)
     /* Test 4: ReadPixelLine8 reads pixels set by WritePixel */
     print("Test 4: ReadPixelLine8 reads WritePixel output...\n");
     {
-        UBYTE buf[4];
+        UBYTE buf[16];
         SetRast(rp, 0);
 
         SetAPen(rp, 1);
@@ -307,10 +323,10 @@ int main(void)
     /* Test 5: ReadPixelArray8 on cleared bitmap returns zeros */
     print("Test 5: ReadPixelArray8 on cleared bitmap...\n");
     {
-        UBYTE buf[9];  /* 3x3 */
+        UBYTE buf[48];  /* 3x3, row stride 16 */
         SetRast(rp, 0);
 
-        for (i = 0; i < 9; i++)
+        for (i = 0; i < 48; i++)
         {
             buf[i] = 0xFF;
         }
@@ -319,7 +335,7 @@ int main(void)
         BOOL all_zero = TRUE;
         for (i = 0; i < 9; i++)
         {
-            if (buf[i] != 0)
+            if (buf[(i / 3) * 16 + (i % 3)] != 0)
             {
                 all_zero = FALSE;
                 break;
@@ -340,14 +356,16 @@ int main(void)
     /* Test 6: Single pixel write/read via WritePixelArray8/ReadPixelArray8 */
     print("Test 6: Single pixel via WritePixelArray8...\n");
     {
+        UBYTE vals[16];
         UBYTE val;
         SetRast(rp, 0);
 
-        val = 3;
-        WritePixelArray8(rp, 30, 30, 30, 30, &val, temprp);
+        vals[0] = 3;
+        WritePixelArray8(rp, 30, 30, 30, 30, vals, temprp);
 
-        val = 0xFF;
-        ReadPixelArray8(rp, 30, 30, 30, 30, &val, temprp);
+        vals[0] = 0xFF;
+        ReadPixelArray8(rp, 30, 30, 30, 30, vals, temprp);
+        val = vals[0];
 
         if (val == 3)
         {
@@ -364,6 +382,8 @@ int main(void)
     print("\n");
 
     /* Cleanup */
+    WaitBlit();
+    FreeBitMap(tmpbm);
     FreeMem(temprp, sizeof(struct RastPort));
     FreeMem(rp, sizeof(struct RastPort));
     FreeBitMap(bm);

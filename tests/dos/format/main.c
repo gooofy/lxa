@@ -1,9 +1,21 @@
 #include <exec/types.h>
 #include <dos/dos.h>
+#include <dos/dosextens.h>
+#include <clib/exec_protos.h>
 #include <clib/dos_protos.h>
+#include <inline/exec.h>
 #include <inline/dos.h>
 
 extern struct DosLibrary *DOSBase;
+extern struct ExecBase *SysBase;
+
+/*
+ * Format() on devices without a formattable filesystem
+ *
+ * Only volumes that cannot be damaged are used: on AmigaOS 3.1 these
+ * calls on SYS: (or an assign into it) really act on the boot volume.
+ * Expected results come from the AmigaOS 3.1 reference.
+ */
 
 static int tests_failed = 0;
 
@@ -45,72 +57,50 @@ static void print_num(LONG n)
     print(buf);
 }
 
-static void test_pass(const char *name)
+static void expect(const char *name, LONG ok, LONG want_ok, LONG want_err)
 {
-    print("  PASS: ");
-    print(name);
-    print("\n");
-}
+    LONG err = IoErr();
 
-static void test_fail(const char *name, const char *reason)
-{
-    print("  FAIL: ");
+    print("  ");
     print(name);
-    print(" - ");
-    print(reason);
-    print("\n");
-    tests_failed++;
+    print(": result=");
+    print_num(ok);
+    print(" IoErr=");
+    print_num(err);
+    if (ok == want_ok && err == want_err)
+    {
+        print("  PASS\n");
+    }
+    else
+    {
+        print("  FAIL\n");
+        tests_failed++;
+    }
 }
 
 int main(void)
 {
-    LONG ok;
-    LONG err;
+    struct Process *me = (struct Process *)FindTask(NULL);
+    APTR old_window_ptr = me->pr_WindowPtr;
+
+    me->pr_WindowPtr = (APTR)-1;   /* no "insert volume" requesters */
 
     print("Format Test\n");
     print("===========\n\n");
 
-    print("Test 1: Rejects NULL filesystem names\n");
-    ok = Format(NULL, (CONST_STRPTR)"FMTVOL", ID_DOS_DISK);
-    err = IoErr();
-    if (ok == DOSFALSE && err == ERROR_REQUIRED_ARG_MISSING)
-        test_pass("Reject NULL filesystem");
-    else
-        test_fail("Reject NULL filesystem", "NULL filesystem handling behaved incorrectly");
+    print("Test 1: Unknown devices are not mounted\n");
+    SetIoErr(0);
+    expect("Format NODEV:", Format((CONST_STRPTR)"NODEV:", (CONST_STRPTR)"FMTVOL", ID_DOS_DISK), DOSFALSE, ERROR_DEVICE_NOT_MOUNTED);
+    SetIoErr(0);
+    expect("Format NODEV: BAD:NAME", Format((CONST_STRPTR)"NODEV:", (CONST_STRPTR)"BAD:NAME", ID_DOS_DISK), DOSFALSE, ERROR_DEVICE_NOT_MOUNTED);
+    print("\nTest 2: NIL: has no handler\n");
+    SetIoErr(0);
+    expect("Format NIL:", Format((CONST_STRPTR)"NIL:", (CONST_STRPTR)"FMTVOL", ID_DOS_DISK), DOSFALSE, ERROR_DEVICE_NOT_MOUNTED);
+    print("\nTest 3: The RAM: handler does not know ACTION_FORMAT\n");
+    SetIoErr(0);
+    expect("Format RAM:", Format((CONST_STRPTR)"RAM:", (CONST_STRPTR)"FMTVOL", ID_DOS_DISK), DOSFALSE, ERROR_ACTION_NOT_KNOWN);
 
-    print("\nTest 2: Rejects filesystem names without a trailing ':' device syntax\n");
-    ok = Format((CONST_STRPTR)"SYS", (CONST_STRPTR)"FMTVOL", ID_DOS_DISK);
-    err = IoErr();
-    if (ok == DOSFALSE && err == ERROR_INVALID_COMPONENT_NAME)
-        test_pass("Reject missing colon");
-    else
-        test_fail("Reject missing colon", "Filesystem syntax validation behaved incorrectly");
-
-    print("\nTest 3: Rejects volume names containing ':'\n");
-    ok = Format((CONST_STRPTR)"SYS:", (CONST_STRPTR)"BAD:NAME", ID_DOS_DISK);
-    err = IoErr();
-    if (ok == DOSFALSE && err == ERROR_INVALID_COMPONENT_NAME)
-        test_pass("Reject invalid volume name");
-    else
-        test_fail("Reject invalid volume name", "Volume name validation behaved incorrectly");
-
-    print("\nTest 4: Rejects assigns because Format requires a real device\n");
-    ok = Format((CONST_STRPTR)"C:", (CONST_STRPTR)"FMTVOL", ID_DOS_DISK);
-    err = IoErr();
-    if (ok == DOSFALSE && err == ERROR_DEVICE_NOT_MOUNTED)
-        test_pass("Reject assign");
-    else
-        test_fail("Reject assign", "Assign inputs should fail as non-device targets");
-
-    print("\nTest 5: Cleanly reports unsupported hosted format packets instead of hitting the stub\n");
-    ok = Format((CONST_STRPTR)"HOME:", (CONST_STRPTR)"FMTVOL", ID_DOS_DISK);
-    err = IoErr();
-    if (ok == DOSFALSE && err == ERROR_ACTION_NOT_KNOWN)
-        test_pass("Report unsupported format action");
-    else
-    {
-        test_fail("Report unsupported format action", "Expected ACTION_FORMAT to fail cleanly in the current hosted stack");
-    }
+    me->pr_WindowPtr = old_window_ptr;
 
     print("\nFailed: ");
     print_num(tests_failed);

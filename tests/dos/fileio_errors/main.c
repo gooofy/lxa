@@ -2,7 +2,7 @@
  * Integration Test: File I/O error handling
  *
  * Tests:
- *   - Read-only file write attempt (should fail)
+ *   - Writing through a MODE_OLDFILE handle (allowed)
  *   - Write to non-existent directory
  *   - Read from non-existent file
  *   - Write to device that doesn't support write
@@ -150,9 +150,10 @@ int main(void)
         print("  Read(NULL) returned -1, IoErr: ");
         print_num(err);
         print("\n");
-        test_pass("Read from NULL returns error");
-    } else if (result == 0) {
-        test_pass("Read from NULL returns 0");
+        if (err == ERROR_INVALID_LOCK)
+            test_pass("Read from NULL returns error");
+        else
+            test_fail("Read from NULL", "Expected ERROR_INVALID_LOCK");
     } else {
         test_fail("Read from NULL", "Unexpected result");
     }
@@ -176,13 +177,16 @@ int main(void)
             print("  Write returned -1, IoErr: ");
             print_num(err);
             print("\n");
-            test_pass("Write to read-only file correctly failed");
-        } else if (result >= 0) {
-            /* Some implementations allow write on MODE_OLDFILE */
+            test_fail("Write to OLDFILE", "MODE_OLDFILE handles are writable");
+        } else {
+            /* MODE_OLDFILE opens an existing file for read and write */
             print("  Write returned: ");
             print_num(result);
-            print(" (implementation allows write)\n");
-            test_pass("Write behavior noted");
+            print("\n");
+            if (result == 8)
+                test_pass("Write to MODE_OLDFILE handle works");
+            else
+                test_fail("Write to OLDFILE", "Short write");
         }
         Close(fh);
     } else {
@@ -201,12 +205,15 @@ int main(void)
         print("  Seek(NULL) returned -1, IoErr: ");
         print_num(err);
         print("\n");
-        test_pass("Seek on NULL returns error");
+        if (err == ERROR_INVALID_LOCK)
+            test_pass("Seek on NULL returns error");
+        else
+            test_fail("Seek on NULL", "Expected ERROR_INVALID_LOCK");
     } else {
         print("  Seek(NULL) returned: ");
         print_num(result);
         print("\n");
-        test_pass("Seek behavior noted");
+        test_fail("Seek on NULL", "Should have failed");
     }
     
     /* Test 7: Delete non-existent file */
@@ -287,7 +294,10 @@ int main(void)
             print("  IoErr: ");
             print_num(err);
             print("\n");
-            test_pass("CreateDir inside file correctly failed");
+            if (err == ERROR_OBJECT_WRONG_TYPE)
+                test_pass("CreateDir inside file correctly failed");
+            else
+                test_fail("CreateDir in file", "Expected ERROR_OBJECT_WRONG_TYPE");
         }
     }
     

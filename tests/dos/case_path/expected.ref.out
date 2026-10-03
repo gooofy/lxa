@@ -1,0 +1,25 @@
+Case-Insensitive Path Test
+==========================
+
+Test 1: Open file with different case
+  PASS: Open uppercase -> read correct data
+
+Test 2: Open file with mixed case
+  PASS: Open mixed case succeeded
+
+Test 3: Lock file with different case
+  PASS: Lock uppercase succeeded
+
+Test 4: Directory with different case
+  PASS: Lock dir uppercase succeeded
+  PASS: Lock dir lowercase succeeded
+
+Test 5: Nested path with mixed case
+  PASS: Nested uppercase open succeeded
+  PASS: Nested lowercase open succeeded
+
+Cleanup...
+
+=== Test Summary ===
+Passed: 7
+Failed: 0

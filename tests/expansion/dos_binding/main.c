@@ -162,38 +162,29 @@ static BOOL expect_bstr(BSTR bstr, const char *expected, BOOL expect_terminator,
     return TRUE;
 }
 
-static struct BootNode *first_boot_node(void)
+static LONG count_mount_list(void)
 {
-    struct Node *node = ExpansionBase->MountList.lh_Head;
+    struct Node *node;
+    LONG n = 0;
 
-    if (node == NULL || node->ln_Succ == NULL)
-    {
-        return NULL;
-    }
-
-    return (struct BootNode *)node;
+    Forbid();
+    for (node = ExpansionBase->MountList.lh_Head; node->ln_Succ; node = node->ln_Succ)
+        n++;
+    Permit();
+    return n;
 }
 
-static void clear_mount_list(void)
+/* position of a node in the DOS device list (caller holds the list lock) */
+static LONG dos_list_index(struct DeviceNode *dn)
 {
-    struct BootNode *node = first_boot_node();
+    struct DosInfo *info = (struct DosInfo *)BADDR(DOSBase->dl_Root->rn_Info);
+    struct DosList *dl;
+    LONG i = 0;
 
-    while (node != NULL)
-    {
-        struct BootNode *next = (struct BootNode *)node->bn_Node.ln_Succ;
-
-        Remove((struct Node *)node);
-        FreeMem(node, sizeof(struct BootNode));
-
-        if (next == NULL || next->bn_Node.ln_Succ == NULL)
-        {
-            node = NULL;
-        }
-        else
-        {
-            node = next;
-        }
-    }
+    for (dl = (struct DosList *)BADDR(info->di_DevInfo); dl; dl = (struct DosList *)BADDR(dl->dol_Next), i++)
+        if (dl == (struct DosList *)dn)
+            return i;
+    return -1;
 }
 
 static void init_current_binding(struct CurrentBinding *binding,
@@ -222,7 +213,6 @@ int main(void)
     struct DeviceNode *device_dup;
     struct FileSysStartupMsg *startup;
     struct DosEnvec *environ;
-    struct BootNode *boot_node;
     ULONG returned_size;
 
     print("Testing expansion.library DOS/binding helpers\n");
@@ -264,7 +254,7 @@ int main(void)
 
     expect_ptr(MakeDosNode(NULL), NULL, "MakeDosNode rejects NULL parameter packets");
 
-    parm_packet[0] = (ULONG)"DH0";
+    parm_packet[0] = (ULONG)"LXT0";
     parm_packet[1] = (ULONG)"trackdisk.device";
     parm_packet[2] = 3;
     parm_packet[3] = 0x55;
@@ -298,9 +288,9 @@ int main(void)
         environ = (struct DosEnvec *)BADDR(startup->fssm_Environ);
 
         expect_ulong(device_a->dn_Type, DLT_DEVICE, "MakeDosNode tags DeviceNode entries as DLT_DEVICE");
-        expect_ulong(device_a->dn_StackSize, 4000, "MakeDosNode sets the default stack size");
+        expect_ulong(device_a->dn_StackSize, 600, "MakeDosNode sets the default stack size");
         expect_ulong(device_a->dn_Priority, 10, "MakeDosNode sets the default startup priority");
-        expect_bstr(device_a->dn_Name, "DH0", FALSE, "MakeDosNode stores the DOS device name as a BSTR");
+        expect_bstr(device_a->dn_Name, "LXT0", FALSE, "MakeDosNode stores the DOS device name as a BSTR");
         expect_ulong(startup->fssm_Unit, 3, "MakeDosNode copies the startup unit number");
         expect_ulong(startup->fssm_Flags, 0x55, "MakeDosNode copies the startup flags");
         expect_bstr(startup->fssm_Device, "trackdisk.device", TRUE, "MakeDosNode stores the exec device name as a NULL-terminated BSTR");
@@ -314,43 +304,55 @@ int main(void)
     device_dup = MakeDosNode((APTR)parm_packet);
     expect_true(device_b != NULL && device_c != NULL && device_dup != NULL, "MakeDosNode can allocate multiple independent device nodes");
 
+    /* unique names: the reference machine has real DF0:/DH0: devices */
     if (device_b != NULL)
-    {
-        ((UBYTE *)BADDR(device_b->dn_Name))[1] = 'H';
-        ((UBYTE *)BADDR(device_b->dn_Name))[2] = '1';
-    }
-
+        ((UBYTE *)BADDR(device_b->dn_Name))[4] = '1';
     if (device_c != NULL)
+        ((UBYTE *)BADDR(device_c->dn_Name))[4] = '2';
+    if (device_dup != NULL)
     {
-        ((UBYTE *)BADDR(device_c->dn_Name))[1] = 'D';
-        ((UBYTE *)BADDR(device_c->dn_Name))[2] = 'F';
-        ((UBYTE *)BADDR(device_c->dn_Name))[3] = '0';
+        ((UBYTE *)BADDR(device_dup->dn_Name))[1] = 'l';
+        ((UBYTE *)BADDR(device_dup->dn_Name))[2] = 'x';
+        ((UBYTE *)BADDR(device_dup->dn_Name))[3] = 't';
     }
 
+    /* With DOS running, AddDosNode() enters the node into the DOS device
+     * list at once (no BootNode, no duplicate check) and returns DOSTRUE
+     * (AmigaOS 3.1, reference-verified).  No ADNF_STARTPROC: the handlers
+     * are never started. */
     expect_true(AddDosNode(0, ADNF_STARTPROC, NULL) == FALSE, "AddDosNode rejects NULL device nodes");
-    expect_true(AddDosNode(5, 0, device_a) == TRUE, "AddDosNode accepts the first device node");
-    expect_true(AddDosNode(20, ADNF_STARTPROC, device_b) == TRUE, "AddDosNode accepts higher-priority device nodes");
-    expect_true(AddDosNode(-10, 0, device_c) == TRUE, "AddDosNode accepts lower-priority device nodes");
-    expect_true(AddDosNode(1, 0, device_dup) == FALSE, "AddDosNode rejects duplicate DOS names case-insensitively");
-
-    boot_node = first_boot_node();
-    expect_true(boot_node != NULL, "AddDosNode appends BootNodes to ExpansionBase->MountList");
-    if (boot_node != NULL)
+    if (device_a && device_b && device_c && device_dup)
     {
-        expect_ptr(boot_node->bn_DeviceNode, device_b, "AddDosNode orders BootNodes by descending boot priority");
-        expect_ulong(boot_node->bn_Node.ln_Type, NT_BOOTNODE, "AddDosNode marks mount-list entries as NT_BOOTNODE");
-        expect_ulong(boot_node->bn_Flags, ADNF_STARTPROC, "AddDosNode stores BootNode flags");
-        boot_node = (struct BootNode *)boot_node->bn_Node.ln_Succ;
-        expect_ptr(boot_node->bn_DeviceNode, device_a, "AddDosNode keeps lower-priority entries after higher-priority ones");
-        boot_node = (struct BootNode *)boot_node->bn_Node.ln_Succ;
-        expect_ptr(boot_node->bn_DeviceNode, device_c, "AddDosNode places the lowest-priority entry at the tail");
-    }
+        LONG mount_before = count_mount_list();
+        LONG ia, ib, ic, id;
 
-    clear_mount_list();
-    FreeVec(device_dup);
-    FreeVec(device_c);
-    FreeVec(device_b);
-    FreeVec(device_a);
+        expect_true(AddDosNode(5, 0, device_a) == DOSTRUE, "AddDosNode accepts the first device node");
+        expect_true(AddDosNode(20, 0, device_b) == DOSTRUE, "AddDosNode accepts higher-priority device nodes");
+        expect_true(AddDosNode(-10, 0, device_c) == DOSTRUE, "AddDosNode accepts lower-priority device nodes");
+        expect_true(AddDosNode(1, 0, device_dup) == DOSTRUE, "AddDosNode does not check for duplicate names");
+
+        expect_true(count_mount_list() == mount_before, "AddDosNode adds no BootNode once DOS runs");
+
+        LockDosList(LDF_DEVICES | LDF_READ);
+        ia = dos_list_index(device_a);
+        ib = dos_list_index(device_b);
+        ic = dos_list_index(device_c);
+        id = dos_list_index(device_dup);
+        UnLockDosList(LDF_DEVICES | LDF_READ);
+
+        expect_true(ia >= 0 && ib >= 0 && ic >= 0 && id >= 0, "AddDosNode enters every node into the DOS device list");
+        expect_true(id < ic && ic < ib && ib < ia, "AddDosNode links each new node at the head of the DOS list");
+
+        LockDosList(LDF_DEVICES | LDF_WRITE);
+        expect_true(RemDosEntry((struct DosList *)device_a) == DOSTRUE &&
+                    RemDosEntry((struct DosList *)device_b) == DOSTRUE &&
+                    RemDosEntry((struct DosList *)device_c) == DOSTRUE &&
+                    RemDosEntry((struct DosList *)device_dup) == DOSTRUE,
+                    "RemDosEntry removes the added nodes again");
+        UnLockDosList(LDF_DEVICES | LDF_WRITE);
+    }
+    /* MakeDosNode() memory is not documented as FreeVec()-able: the nodes
+     * are left allocated */
 
     CloseLibrary((struct Library *)ExpansionBase);
 

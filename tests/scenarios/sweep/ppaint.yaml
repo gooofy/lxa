@@ -1,0 +1,11 @@
+# Phase 231 sweep scenario, generated from tests/scenarios/apps/ppaint.yaml
+# by `python3 -m rdd sweep gen` - edit the app scenario, not this file.
+name: sweep-ppaint
+app: {manifest: ppaint}
+steps:
+  - launch
+  - frames: 150
+  - frames: 100
+  - snapshot: startup
+  - menus
+  - quit

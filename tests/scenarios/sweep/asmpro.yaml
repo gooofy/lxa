@@ -1,0 +1,12 @@
+# Phase 231 sweep scenario, generated from tests/scenarios/apps/asmpro.yaml
+# by `python3 -m rdd sweep gen` - edit the app scenario, not this file.
+name: sweep-asmpro
+app: {manifest: ASMPro}
+steps:
+  - launch
+  - wait_window: {title: "Please select prefered screenmode", timeout: 30000}
+  - wait_idle: {timeout: 20000}
+  - frames: 100
+  - snapshot: startup
+  - menus
+  - quit

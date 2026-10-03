@@ -1,0 +1,16 @@
+AddDosEntry Test
+================
+
+Test 1: Adds the first entry to an empty list
+  PASS: Add first entry
+
+Test 2: Adds unique non-volume entries at the head
+  PASS: Add unique non-volume entry
+
+Test 3: Rejects duplicate device or assign names
+  PASS: Reject duplicate non-volume name
+
+Test 4: Allows volume names to overlap non-volume names
+  PASS: Allow duplicate volume name
+
+Failed: 0

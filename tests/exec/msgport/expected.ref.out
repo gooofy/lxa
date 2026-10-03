@@ -1,0 +1,64 @@
+Exec Message Port Tests
+=======================
+
+Test 1: CreateMsgPort
+  OK: CreateMsgPort returned non-NULL
+  OK: Port type is NT_MSGPORT
+  OK: Port SigTask is current task
+    Signal bit: 31
+  OK: Signal bit allocated
+  OK: Port flags set to PA_SIGNAL
+  OK: Message list is empty
+
+Test 2: Multiple CreateMsgPort
+  OK: Second CreateMsgPort succeeded
+  OK: Ports are distinct
+  OK: Different signal bits allocated
+
+Test 3: PutMsg/GetMsg
+  OK: Message queued after PutMsg
+  OK: GetMsg returned correct message
+  OK: Message list empty after GetMsg
+
+Test 4: GetMsg on empty port
+  OK: GetMsg on empty port returns NULL
+
+Test 5: Message queue FIFO order
+  OK: First message is msgs[0]
+  OK: Second message is msgs[1]
+  OK: Third message is msgs[2]
+
+Test 6: AddPort/FindPort/RemPort
+  OK: AddPort completed
+  OK: FindPort found the port
+  OK: FindPort returns NULL for non-existent port
+  OK: RemPort completed
+  OK: Port not findable after RemPort
+
+Test 7: ReplyMsg
+  OK: ReplyMsg sent message to reply port
+
+Test 8: WaitPort
+  OK: WaitPort returned first queued message
+  OK: GetMsg retrieved WaitPort message
+
+Test 9: CreateIORequest/DeleteIORequest
+  OK: CreateIORequest returned non-NULL
+  OK: CreateIORequest stored reply port
+  OK: CreateIORequest stored request length
+  OK: DeleteIORequest completed
+  OK: CreateIORequest(NULL, ...) returns NULL
+  OK: DeleteIORequest(NULL) did not crash
+
+Test 10: DeleteMsgPort
+  OK: DeleteMsgPort on port1 completed
+  OK: DeleteMsgPort on port2 completed
+
+Test 11: DeleteMsgPort(NULL) safety
+  OK: DeleteMsgPort(NULL) did not crash
+
+=============================
+Tests passed: 33
+Tests failed: 0
+
+PASS: All message port tests passed!

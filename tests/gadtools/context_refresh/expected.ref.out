@@ -1,0 +1,6 @@
+Testing GadTools context and refresh wrappers...
+OK: CreateContext initialized gadget list head
+OK: window gadget list contains the context gadget and its gadgets
+OK: GT_RefreshWindow accepted a window gadget list
+OK: GT_BeginRefresh/GT_EndRefresh wrapped Intuition refresh state
+PASS: context/refresh test complete

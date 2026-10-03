@@ -1,0 +1,28 @@
+LockRecord Test
+===============
+
+Test 1: Exclusive immediate lock succeeds
+  PASS: Exclusive immediate lock
+
+Test 2: Other handle gets collision for overlapping exclusive lock
+  PASS: Exclusive collision error
+
+Test 3: Blocking mode times out on conflict
+  PASS: Timeout error
+
+Test 4: Shared lock collides with an exclusive record
+  PASS: Shared vs exclusive collision
+
+Test 5: Shared locks coexist across handles
+  PASS: First shared lock
+  PASS: Second shared lock
+  PASS: Exclusive vs shared collision
+
+Test 6: Unlocking frees the record for other handles
+  PASS: UnLockRecord
+  PASS: Lock after unlock
+
+Test 7: Unlocking a record that is not held fails
+  PASS: Unlock not held
+
+Failed: 0

@@ -194,8 +194,8 @@ static int cmd_alias(char *args)
         /* List aliases */
         AliasNode *node = alias_list;
         while (node) {
-            out_str_padded(node->name, 10);
-            out_str(" ");
+            /* AmigaOS 3.1 layout: name in an 18 column field */
+            out_str_padded(node->name, 18);
             out_line(node->value);
             node = node->next;
         }
@@ -250,11 +250,7 @@ static int cmd_alias(char *args)
                  free(node);
              }
         } else {
-            if (!space) {
-                out_str("ALIAS: ");
-                out_str(name);
-                out_line(" not found");
-            }
+            /* AmigaOS 3.1 prints nothing for an unknown alias */
         }
     }
     return 0;
@@ -397,6 +393,13 @@ static int cmd_echo(char *args)
             }
         }
         
+        /* a quoted argument is printed without its quotes */
+        len = strlen(args);
+        if (len >= 2 && args[0] == '"' && args[len - 1] == '"') {
+            args[len - 1] = '\0';
+            args++;
+        }
+
         out_str(args);
         if (!noline) out_str("\n");
     } else {
@@ -721,6 +724,9 @@ int main(int argc, char **argv)
             out_line(argv[1]);
             return 20;
         }
+    } else if (!IsInteractive(input)) {
+        /* commands come from a file (Execute(), redirected input):
+         * no banner, no startup-sequence */
     } else {
         out_str("lxa Shell v");
         out_str(LXA_VERSION_STRING);

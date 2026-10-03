@@ -7,6 +7,21 @@
     Visit http://mamedev.org for licensing and usage restrictions.
 */
 
+/* lxa: unsupported PMMU table layouts (e.g. Enforcer's) turn translation
+ * off instead of killing the emulator (Phase 232 mass run). */
+static void pmmu_fatal(const char *format, ...)
+{
+	static int reported;
+	va_list ap;
+	if (reported++ < 5) {
+		va_start(ap, format);
+		vfprintf(stderr, format, ap);
+		va_end(ap);
+		fprintf(stderr, "680x0 PMMU: translation disabled\n");
+	}
+	m68ki_cpu.pmmu_enabled = 0;
+}
+
 /*
 	pmmu_translate_addr: perform 68851/68030-style PMMU address translation
 */
@@ -47,7 +62,7 @@ uint pmmu_translate_addr(uint addr_in)
 	{
 		case 0:	// invalid, should cause MMU exception
 		case 1:	// page descriptor, should cause direct mapping
-			fatalerror("680x0 PMMU: Unhandled root mode\n");
+			pmmu_fatal("680x0 PMMU: Unhandled root mode\n");
 			break;
 
 		case 2:	// valid 4 byte descriptors
@@ -76,7 +91,7 @@ uint pmmu_translate_addr(uint addr_in)
 	switch (tamode)
 	{
 		case 0: // invalid, should cause MMU exception
-			fatalerror("680x0 PMMU: Unhandled Table A mode %d (addr_in %08x)\n", tamode, addr_in);
+			pmmu_fatal("680x0 PMMU: Unhandled Table A mode %d (addr_in %08x)\n", tamode, addr_in);
 			break;
 
 		case 2: // 4-byte table B descriptor
@@ -115,7 +130,7 @@ uint pmmu_translate_addr(uint addr_in)
 		switch (tbmode)
 		{
 			case 0:	// invalid, should cause MMU exception
-				fatalerror("680x0 PMMU: Unhandled Table B mode %d (addr_in %08x PC %x)\n", tbmode, addr_in, REG_PC);
+				pmmu_fatal("680x0 PMMU: Unhandled Table B mode %d (addr_in %08x PC %x)\n", tbmode, addr_in, REG_PC);
 				break;
 
 			case 2: // 4-byte table C descriptor
@@ -152,7 +167,7 @@ uint pmmu_translate_addr(uint addr_in)
 			case 0:	// invalid, should cause MMU exception
 			case 2: // 4-byte ??? descriptor
 			case 3: // 8-byte ??? descriptor
-				fatalerror("680x0 PMMU: Unhandled Table B mode %d (addr_in %08x PC %x)\n", tbmode, addr_in, REG_PC);
+				pmmu_fatal("680x0 PMMU: Unhandled Table B mode %d (addr_in %08x PC %x)\n", tbmode, addr_in, REG_PC);
 				break;
 
 			case 1: // termination descriptor

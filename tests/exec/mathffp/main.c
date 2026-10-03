@@ -244,9 +244,11 @@ int main(void)
     expect_long(SPTst(SPAdd(SPFlt(-5), SPFlt(5))), 0, "SPAdd(-5, 5) = 0");
     expect_long(SPFix(SPAdd(SPFlt(9), SPFlt(0))), 9, "SPAdd(9, 0) = 9");
 
-    expect_long(SPFix(SPSub(SPFlt(10), SPFlt(3))), 7, "SPSub(10, 3) = 7");
-    expect_long(SPFix(SPSub(SPFlt(3), SPFlt(10))), -7, "SPSub(3, 10) = -7");
-    expect_long(SPFix(SPSub(SPFlt(-5), SPFlt(-8))), 3, "SPSub(-5, -8) = 3");
+    /* SPSub(fnum1, fnum2) subtracts the first argument from the second:
+     * fnum2 - fnum1 (autodoc; reference-verified on AmigaOS 3.1) */
+    expect_long(SPFix(SPSub(SPFlt(10), SPFlt(3))), -7, "SPSub(10, 3) = 3 - 10 = -7");
+    expect_long(SPFix(SPSub(SPFlt(3), SPFlt(10))), 7, "SPSub(3, 10) = 10 - 3 = 7");
+    expect_long(SPFix(SPSub(SPFlt(-5), SPFlt(-8))), -3, "SPSub(-5, -8) = -8 - -5 = -3");
     expect_long(SPTst(SPSub(SPFlt(9), SPFlt(9))), 0, "SPSub(9, 9) = 0");
 
     expect_long(SPFix(SPMul(SPFlt(6), SPFlt(7))), 42, "SPMul(6, 7) = 42");

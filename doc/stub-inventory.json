@@ -577,22 +577,6 @@
  },
  {
   "lib": "dos",
-  "function": "FindSegment",
-  "kind": "stub",
-  "detail": "stub: resident segment list not implemented (Phase 255)",
-  "file": "src/rom/lxa_dos.c",
-  "symbol": "_dos_FindSegment"
- },
- {
-  "lib": "dos",
-  "function": "RemSegment",
-  "kind": "stub",
-  "detail": "stub: resident segment list not implemented (Phase 255)",
-  "file": "src/rom/lxa_dos.c",
-  "symbol": "_dos_RemSegment"
- },
- {
-  "lib": "dos",
   "function": "private0",
   "kind": "private",
   "detail": "private/reserved slot",
@@ -675,17 +659,9 @@
   "lib": "gadtools",
   "function": "GT_FilterIMsg",
   "kind": "partial",
-  "detail": "partial: returns the message unfiltered (Phase 256)",
+  "detail": "partial: hands out a private copy but never consumes GadTools-internal gadget events (Phase 256)",
   "file": "src/rom/lxa_gadtools.c",
   "symbol": "_gadtools_GT_FilterIMsg"
- },
- {
-  "lib": "gadtools",
-  "function": "GT_PostFilterIMsg",
-  "kind": "partial",
-  "detail": "partial: returns the message unfiltered (Phase 256)",
-  "file": "src/rom/lxa_gadtools.c",
-  "symbol": "_gadtools_GT_PostFilterIMsg"
  },
  {
   "lib": "gadtools",
@@ -814,14 +790,6 @@
   "detail": "partial: every mode reported available (Phase 240)",
   "file": "src/rom/lxa_graphics.c",
   "symbol": "_graphics_ModeNotAvailable"
- },
- {
-  "lib": "graphics",
-  "function": "GetRPAttrsA",
-  "kind": "partial",
-  "detail": "partial: RPTAG_DrawBounds returns empty bounds (Phase 256)",
-  "file": "src/rom/lxa_graphics.c",
-  "symbol": "_graphics_GetRPAttrsA"
  },
  {
   "lib": "graphics",
@@ -1150,6 +1118,14 @@
   "detail": "private/reserved slot",
   "file": "src/rom/lxa_intuition.c",
   "symbol": "_intuition_private10"
+ },
+ {
+  "lib": "locale",
+  "function": "OpenLocale",
+  "kind": "partial",
+  "detail": "partial: locale prefs files are not parsed, the default locale is returned",
+  "file": "src/rom/lxa_locale.c",
+  "symbol": "_locale_OpenLocale"
  },
  {
   "lib": "rexxsyslib",

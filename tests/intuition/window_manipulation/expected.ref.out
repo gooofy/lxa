@@ -1,0 +1,68 @@
+Testing Window Manipulation Functions...
+
+OK: Screen opened
+
+OK: Window opened at position/size: 100,50 300x200
+
+Test 1: MoveWindow(50, 30)...
+  msg CHANGEWINDOW movesize
+  OK: MoveWindow updates geometry and posts IDCMP_CHANGEWINDOW
+
+Test 2: SizeWindow(50, 40)...
+  msg NEWSIZE
+  msg CHANGEWINDOW movesize
+  OK: SizeWindow updates geometry and posts size/change messages
+
+Test 3: WindowLimits(150, 100, 400, 300)...
+  OK: WindowLimits returned TRUE and stored limits
+
+Test 3b: SizeWindow(200, 200) and WindowLimits...
+  msg NEWSIZE
+  msg CHANGEWINDOW movesize
+  box 150,80 400x300
+
+Test 4: ChangeWindowBox(50, 40, 250, 180)...
+  msg NEWSIZE
+  msg CHANGEWINDOW movesize
+  OK: ChangeWindowBox updates the box
+
+Test 4b: SetWindowTitles() semantics...
+  OK: SetWindowTitles handles update, no-change, and blank semantics
+
+Test 4c: WindowToBack()/WindowToFront() maintain z-order...
+  OK: WindowToBack/WindowToFront update the z-order
+
+Test 4c2: MoveWindowInFrontOf() reorders windows...
+  OK: MoveWindowInFrontOf reorders depth relative to another window
+
+Test 4c3: LendMenus() lends menu activation...
+  OK: LendMenus keeps the MenuStrip fields
+
+Test 4d: BeginRefresh()/EndRefresh() toggle refresh state...
+  OK: BeginRefresh/EndRefresh manage window and layer refresh flags
+
+Test 4e: ActivateWindow() switches focus and posts IDCMP events...
+  msg ACTIVEWINDOW
+  msg ACTIVEWINDOW
+  OK: ActivateWindow updates focus and IDCMP notifications
+
+Test 4f: RefreshWindowFrame() redraws the title bar...
+  OK: RefreshWindowFrame redraws the window frame
+
+Test 4g: SizeWindow repositions relative gadgets and clears old pixels...
+  msg NEWSIZE
+  msg CHANGEWINDOW movesize
+  new anchor pen 1, old anchor pen 0
+
+Test 5: ZipWindow()...
+  msg NEWSIZE
+  msg CHANGEWINDOW movesize
+  box 100,50 150x100
+  msg NEWSIZE
+  msg CHANGEWINDOW movesize
+  box 50,40 270x190
+
+OK: Window closed
+OK: Screen closed
+
+PASS: window_manipulation all tests completed

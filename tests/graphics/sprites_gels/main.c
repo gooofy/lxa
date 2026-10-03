@@ -155,12 +155,6 @@ static void init_test_vsprite(struct VSprite *vs,
     vs->VUserExt = 0;
 }
 
-struct ExtSpriteDataLayout
-{
-    struct ExtSprite sprite;
-    struct BitMap *bitmap;
-};
-
 static ULONG get_free_public_mem(void)
 {
     return AvailMem(MEMF_PUBLIC);
@@ -169,6 +163,56 @@ static ULONG get_free_public_mem(void)
 static ULONG get_free_chip_mem(void)
 {
     return AvailMem(MEMF_CHIP);
+}
+
+
+/* Blitter-visible image data must live in chip RAM on a real Amiga */
+static UWORD *chip_words(const UWORD *src, int count)
+{
+    UWORD *p = (UWORD *)AllocMem((ULONG)count * sizeof(UWORD), MEMF_CHIP | MEMF_CLEAR);
+    int i;
+
+    if (p && src)
+        for (i = 0; i < count; i++)
+            p[i] = src[i];
+    return p;
+}
+
+static void clear_bytes(APTR ptr, ULONG size)
+{
+    UBYTE *b = (UBYTE *)ptr;
+    while (size--)
+        *b++ = 0;
+}
+
+/* GelsInfo as the RKRM's setupGelSys() prepares it */
+static void init_gels(struct VSprite *head, struct VSprite *tail,
+                      struct GelsInfo *gi, struct RastPort *rp)
+{
+    InitGels(head, tail, gi);
+    gi->nextLine = (WORD *)AllocMem(8 * sizeof(WORD), MEMF_CLEAR);
+    gi->lastColor = (WORD **)AllocMem(8 * sizeof(LONG), MEMF_CLEAR);
+    gi->collHandler = (struct collTable *)AllocMem(sizeof(struct collTable), MEMF_CLEAR);
+    gi->sprRsrvd = 0xFC;
+    gi->leftmost = 0;
+    gi->rightmost = 63;
+    gi->topmost = 0;
+    gi->bottommost = 31;
+    rp->GelsInfo = gi;
+}
+
+/* A one-word, one-line SAVEBACK|OVERLAY Bob (RKRM makeBob()) */
+static void init_bob(struct Bob *bob, struct VSprite *vs, WORD x, WORD y, UWORD *image)
+{
+    init_test_vsprite(vs, x, y, 1, 1, 1, image, SAVEBACK | OVERLAY);
+    vs->CollMask = (WORD *)chip_words(NULL, 1);
+    vs->BorderLine = (WORD *)chip_words(NULL, 1);
+    InitMasks(vs);
+    clear_bytes(bob, sizeof(*bob));
+    bob->BobVSprite = vs;
+    bob->ImageShadow = vs->CollMask;
+    bob->SaveBuffer = (WORD *)chip_words(NULL, 1);
+    vs->VSBob = bob;
 }
 
 int main(void)
@@ -181,29 +225,20 @@ int main(void)
     struct VSprite tail;
     struct VSprite vs_a;
     struct VSprite vs_b;
-    struct VSprite bob_vs;
-    struct VSprite bob_top_vs;
     struct VSprite coll_a;
     struct VSprite coll_b;
     struct collTable coll_table;
-    struct Bob bob;
-    struct Bob bob_top;
     struct BitMap *bm;
     struct RastPort rp;
-    UWORD sprite_data[1] = { 0x8000 };
-    UWORD sprite_data_alt[1] = { 0x4000 };
-    UWORD mask_image_data[4] = { 0x8000, 0x1000, 0x0200, 0x0010 };
-    UWORD mask_collmask[2] = { 0, 0 };
-    UWORD mask_borderline[1] = { 0 };
-    UWORD collision_mask_a[2] = { 0x8000, 0x0000 };
-    UWORD collision_mask_b[2] = { 0x8000, 0x0000 };
-    UWORD border_line_a[1] = { 0 };
-    UWORD border_line_b[1] = { 0 };
+    UWORD one_words[4] = { 0x8000, 0x8000, 0x8000, 0x8000 };
+    UWORD mask_image_words[4] = { 0x8000, 0x1000, 0x0200, 0x0010 };
+    UWORD *sprite_data = chip_words(one_words, 4);
     int errors = 0;
     int i;
 
     print("Testing Sprite and GEL APIs...\n");
 
+    /* Hardware sprites: sprite 0 is reserved for the Intuition pointer */
     simple_sprite.num = 0;
     if (GetSprite(&simple_sprite, 3) != 3 || simple_sprite.num != 3)
     {
@@ -215,17 +250,17 @@ int main(void)
         print("OK: GetSprite() specific allocation succeeded\n");
     }
 
-    if (GetSprite(&sprite_pool[0], -1) != 0 || sprite_pool[0].num != 0)
+    if (GetSprite(&sprite_pool[0], -1) != 1 || sprite_pool[0].num != 1)
     {
-        print("FAIL: GetSprite() automatic allocation failed\n");
+        print("FAIL: GetSprite() automatic allocation did not skip the pointer sprite\n");
         errors++;
     }
     else
     {
-        print("OK: GetSprite() automatic allocation returned first free sprite\n");
+        print("OK: GetSprite() automatic allocation returned first free sprite (1)\n");
     }
 
-    for (i = 1; i < 7; i++)
+    for (i = 1; i < 6; i++)
         GetSprite(&sprite_pool[i], -1);
 
     if (GetSprite(&sprite_pool[7], -1) != -1 || sprite_pool[7].num != (UWORD)-1)
@@ -249,101 +284,80 @@ int main(void)
         print("OK: FreeSprite() released the slot\n");
     }
 
-    for (i = 0; i < 8; i++)
+    for (i = 1; i < 8; i++)
         FreeSprite(i);
 
+    /* GetExtSpriteA() with sprite data from AllocSpriteDataA() */
     {
-        struct ExtSprite ext_sprite;
-        struct ExtSprite attached_primary;
-        struct ExtSprite attached_sprite;
-        struct ExtSprite specific_sprite;
-        struct ExtSprite specific_attached;
-        struct ExtSprite fail_attached;
+        struct BitMap ext_bm;
+        PLANEPTR ext_plane = AllocRaster(16, 1);
+        struct ExtSprite *ext_a;
+        struct ExtSprite *ext_b;
+        struct ExtSprite *ext_c;
         struct TagItem specific_tags[] = {
             { GSTAG_SPRITE_NUM, 5 },
             { TAG_DONE, 0 }
         };
         struct TagItem attached_tags[] = {
-            { GSTAG_ATTACHED, (ULONG)&attached_sprite },
-            { TAG_DONE, 0 }
-        };
-        struct TagItem specific_attached_tags[] = {
-            { GSTAG_SPRITE_NUM, 6 },
-            { GSTAG_ATTACHED, (ULONG)&specific_attached },
-            { TAG_DONE, 0 }
-        };
-        struct TagItem invalid_attached_tags[] = {
-            { GSTAG_SPRITE_NUM, 3 },
-            { GSTAG_ATTACHED, (ULONG)&fail_attached },
+            { GSTAG_ATTACHED, 0 },
             { TAG_DONE, 0 }
         };
 
-        ext_sprite.es_SimpleSprite.num = 99;
-        attached_primary.es_SimpleSprite.num = 99;
-        attached_sprite.es_SimpleSprite.num = 99;
-        if (GetExtSpriteA(&ext_sprite, NULL) != 0 || ext_sprite.es_SimpleSprite.num != 0)
+        InitBitMap(&ext_bm, 1, 16, 1);
+        ext_bm.Planes[0] = ext_plane;
+        BltClear(ext_plane, RASSIZE(16, 1), 1);
+        ext_a = AllocSpriteDataA(&ext_bm, NULL);
+        ext_b = AllocSpriteDataA(&ext_bm, NULL);
+        ext_c = AllocSpriteDataA(&ext_bm, NULL);
+
+        if (!ext_a || !ext_b || !ext_c)
         {
-            print("FAIL: GetExtSpriteA() automatic single allocation failed\n");
+            print("FAIL: AllocSpriteDataA() for GetExtSpriteA() test failed\n");
             errors++;
         }
         else
         {
-            print("OK: GetExtSpriteA() allocates the first free single sprite\n");
+            if (GetExtSpriteA(ext_a, NULL) != 1 || ext_a->es_SimpleSprite.num != 1)
+            {
+                print("FAIL: GetExtSpriteA() automatic allocation failed\n");
+                errors++;
+            }
+            else
+            {
+                print("OK: GetExtSpriteA() allocates the first free sprite\n");
+            }
+
+            if (GetExtSpriteA(ext_b, specific_tags) != 5 || ext_b->es_SimpleSprite.num != 5)
+            {
+                print("FAIL: GetExtSpriteA() specific allocation failed\n");
+                errors++;
+            }
+            else
+            {
+                print("OK: GetExtSpriteA() honors GSTAG_SPRITE_NUM\n");
+            }
+
+            /* AmigaOS 3.1 rejects GSTAG_ATTACHED requests and leaves num */
+            attached_tags[0].ti_Data = (ULONG)ext_b;
+            ext_c->es_SimpleSprite.num = 77;
+            if (GetExtSpriteA(ext_c, attached_tags) != -1 || ext_c->es_SimpleSprite.num != 77)
+            {
+                print("FAIL: GetExtSpriteA() accepted a GSTAG_ATTACHED request\n");
+                errors++;
+            }
+            else
+            {
+                print("OK: GetExtSpriteA() rejects GSTAG_ATTACHED requests\n");
+            }
+
+            FreeSprite(1);
+            FreeSprite(5);
         }
 
-        if (GetExtSpriteA(&specific_sprite, specific_tags) != 5 || specific_sprite.es_SimpleSprite.num != 5)
-        {
-            print("FAIL: GetExtSpriteA() specific single allocation failed\n");
-            errors++;
-        }
-        else
-        {
-            print("OK: GetExtSpriteA() honors GSTAG_SPRITE_NUM for single sprites\n");
-        }
-
-        if (GetExtSpriteA(&attached_primary, attached_tags) != 2 ||
-            attached_primary.es_SimpleSprite.num != 2 ||
-            attached_sprite.es_SimpleSprite.num != 3)
-        {
-            print("FAIL: GetExtSpriteA() automatic attached allocation failed\n");
-            errors++;
-        }
-        else
-        {
-            print("OK: GetExtSpriteA() allocates the first free attached pair\n");
-        }
-
-        if (GetExtSpriteA(&specific_sprite, specific_attached_tags) != 6 ||
-            specific_sprite.es_SimpleSprite.num != 6 ||
-            specific_attached.es_SimpleSprite.num != 7)
-        {
-            print("FAIL: GetExtSpriteA() specific attached allocation failed\n");
-            errors++;
-        }
-        else
-        {
-            print("OK: GetExtSpriteA() honors GSTAG_SPRITE_NUM for attached pairs\n");
-        }
-
-        fail_attached.es_SimpleSprite.num = 77;
-        if (GetExtSpriteA(&specific_sprite, invalid_attached_tags) != -1 ||
-            specific_sprite.es_SimpleSprite.num != (UWORD)-1 ||
-            fail_attached.es_SimpleSprite.num != (UWORD)-1)
-        {
-            print("FAIL: GetExtSpriteA() accepted an odd attached sprite request\n");
-            errors++;
-        }
-        else
-        {
-            print("OK: GetExtSpriteA() rejects odd-numbered attached pair requests\n");
-        }
-
-        FreeSprite(0);
-        FreeSprite(5);
-        FreeSprite(2);
-        FreeSprite(3);
-        FreeSprite(6);
-        FreeSprite(7);
+        if (ext_a) FreeSpriteData(ext_a);
+        if (ext_b) FreeSpriteData(ext_b);
+        if (ext_c) FreeSpriteData(ext_c);
+        FreeRaster(ext_plane, 16, 1);
     }
 
     {
@@ -355,10 +369,7 @@ int main(void)
         struct ExtSprite *attached_sprite;
         struct ExtSprite *legacy_sprite;
         struct ExtSprite *free_test_sprite;
-        struct ExtSprite oldsprite;
-        struct ExtSprite invalid_oldsprite;
-        struct ExtSprite newsprite;
-        struct ExtSprite conflicting_sprite;
+        struct ExtSprite *rounded;
         ULONG public_before;
         ULONG public_after;
         ULONG chip_before;
@@ -416,8 +427,7 @@ int main(void)
             converted->es_SimpleSprite.posctldata[2] != 0x8000 ||
             converted->es_SimpleSprite.posctldata[3] != 0x4000 ||
             converted->es_SimpleSprite.posctldata[4] != 0x0001 ||
-            converted->es_SimpleSprite.posctldata[5] != 0x0000 ||
-            ((struct ExtSpriteDataLayout *)converted)->bitmap == NULL)
+            converted->es_SimpleSprite.posctldata[5] != 0x0000)
         {
             print("FAIL: AllocSpriteDataA() basic bitmap conversion failed\n");
             if (!converted)
@@ -432,7 +442,6 @@ int main(void)
                 print(","); print_num(converted->es_SimpleSprite.posctldata[3]);
                 print(","); print_num(converted->es_SimpleSprite.posctldata[4]);
                 print(","); print_num(converted->es_SimpleSprite.posctldata[5]);
-                print(" bitmap="); print_num((LONG)((struct ExtSpriteDataLayout *)converted)->bitmap);
                 print("\n");
             }
             errors++;
@@ -512,15 +521,19 @@ int main(void)
             print("OK: AllocSpriteDataA() accepts old sprite data format\n");
         }
 
-        if (AllocSpriteDataA(&source_bm, invalid_width_tags) != NULL)
+        /* widths are rounded up to 16, 32 or 64 pixels */
+        rounded = AllocSpriteDataA(&source_bm, invalid_width_tags);
+        if (!rounded || rounded->es_wordwidth != 1)
         {
-            print("FAIL: AllocSpriteDataA() accepted an invalid width\n");
+            print("FAIL: AllocSpriteDataA() did not round width 12 up to 16\n");
             errors++;
         }
         else
         {
-            print("OK: AllocSpriteDataA() rejects unsupported widths\n");
+            print("OK: AllocSpriteDataA() rounds width 12 up to one word\n");
         }
+        if (rounded)
+            FreeSpriteData(rounded);
 
         free_test_sprite = AllocSpriteDataA(&source_bm, NULL);
         if (!free_test_sprite)
@@ -576,47 +589,30 @@ int main(void)
             print("OK: FreeSpriteData(NULL) is a no-op\n");
         }
 
-        oldsprite.es_SimpleSprite.x = 23;
-        oldsprite.es_SimpleSprite.y = 41;
-        oldsprite.es_SimpleSprite.num = 4;
-        invalid_oldsprite = oldsprite;
-        invalid_oldsprite.es_SimpleSprite.num = 8;
-
-        newsprite = *converted;
-        conflicting_sprite = *converted;
-        conflicting_sprite.es_SimpleSprite.num = 1;
-
-        if (!ChangeExtSpriteA(NULL, &oldsprite, &newsprite, NULL) ||
-            newsprite.es_SimpleSprite.num != 4 ||
-            newsprite.es_SimpleSprite.x != 23 ||
-            newsprite.es_SimpleSprite.y != 41)
+        /* ChangeExtSpriteA() hands the hardware sprite and the position of
+         * the old sprite to the new one and returns -1 */
+        if (GetExtSpriteA(converted, NULL) != 1)
         {
-            print("FAIL: ChangeExtSpriteA() did not copy sprite engine state\n");
+            print("FAIL: GetExtSpriteA() for ChangeExtSpriteA() test failed\n");
             errors++;
         }
         else
         {
-            print("OK: ChangeExtSpriteA() reuses the old sprite engine state\n");
-        }
-
-        if (ChangeExtSpriteA(NULL, &oldsprite, &conflicting_sprite, NULL) != 0)
-        {
-            print("FAIL: ChangeExtSpriteA() accepted a conflicting new sprite number\n");
-            errors++;
-        }
-        else
-        {
-            print("OK: ChangeExtSpriteA() rejects conflicting sprite numbers\n");
-        }
-
-        if (ChangeExtSpriteA(NULL, &invalid_oldsprite, &newsprite, NULL) != 0)
-        {
-            print("FAIL: ChangeExtSpriteA() accepted an invalid old sprite number\n");
-            errors++;
-        }
-        else
-        {
-            print("OK: ChangeExtSpriteA() rejects invalid old sprite numbers\n");
+            MoveSprite(NULL, &converted->es_SimpleSprite, 23, 41);
+            scaled->es_SimpleSprite.num = 77;
+            if (ChangeExtSpriteA(NULL, converted, scaled, NULL) != -1 ||
+                scaled->es_SimpleSprite.num != 1 ||
+                scaled->es_SimpleSprite.x != 23 ||
+                scaled->es_SimpleSprite.y != 41)
+            {
+                print("FAIL: ChangeExtSpriteA() did not hand over the sprite\n");
+                errors++;
+            }
+            else
+            {
+                print("OK: ChangeExtSpriteA() hands the sprite and position to the new data\n");
+            }
+            FreeSprite(1);
         }
 
         FreeSpriteData(converted);
@@ -627,26 +623,40 @@ int main(void)
         FreeRaster(plane1, 16, 2);
     }
 
-    InitVPort(&vp);
-    vp.DxOffset = 5;
-    vp.DyOffset = 7;
-    simple_sprite.posctldata = sprite_data;
-    ChangeSprite(&vp, &simple_sprite, sprite_data_alt);
-    MoveSprite(&vp, &simple_sprite, 12, 20);
-    if (simple_sprite.posctldata != sprite_data_alt || simple_sprite.x != 17 || simple_sprite.y != 27)
+    /* ChangeSprite()/MoveSprite(): x/y stay ViewPort relative; the
+     * hardware position words include the ViewPort offset */
     {
-        print("FAIL: ChangeSprite()/MoveSprite() did not update sprite state\n");
-        errors++;
-    }
-    else
-    {
-        print("OK: ChangeSprite()/MoveSprite() updated sprite state\n");
+        UWORD *data_a = chip_words(NULL, 6);
+        UWORD *data_b = chip_words(NULL, 6);
+
+        InitVPort(&vp);
+        vp.DxOffset = 5;
+        vp.DyOffset = 7;
+        simple_sprite.x = 0;
+        simple_sprite.y = 0;
+        simple_sprite.height = 1;
+        simple_sprite.posctldata = data_a;
+        ChangeSprite(&vp, &simple_sprite, data_b);
+        MoveSprite(&vp, &simple_sprite, 12, 20);
+        if (simple_sprite.posctldata != data_b || simple_sprite.x != 12 || simple_sprite.y != 20 ||
+            data_b[0] != 0x4749 || data_b[1] != 0x4800)
+        {
+            print("FAIL: ChangeSprite()/MoveSprite() did not update sprite state\n");
+            errors++;
+        }
+        else
+        {
+            print("OK: ChangeSprite()/MoveSprite() updated sprite state\n");
+        }
+        vp.DxOffset = 0;
+        vp.DyOffset = 0;
     }
 
     InitGels(&head, &tail, &gels_info);
     if (gels_info.gelHead != &head || gels_info.gelTail != &tail ||
         head.NextVSprite != &tail || tail.PrevVSprite != &head ||
-        head.X != (WORD)-32768 || tail.X != (WORD)32767)
+        head.X != (WORD)-32767 || head.Y != (WORD)-32767 ||
+        tail.X != (WORD)32767 || tail.Y != (WORD)32767)
     {
         print("FAIL: InitGels() did not initialize sentinels\n");
         errors++;
@@ -696,8 +706,10 @@ int main(void)
         print("OK: SortGList() reordered the list\n");
     }
 
+    /* RemVSprite() unlinks but leaves the removed VSprite's own links */
     RemVSprite(&vs_a);
-    if (head.NextVSprite != &vs_b || vs_b.PrevVSprite != &head || vs_a.NextVSprite != NULL)
+    if (head.NextVSprite != &vs_b || vs_b.PrevVSprite != &head ||
+        vs_a.NextVSprite != &vs_b || vs_a.PrevVSprite != &head)
     {
         print("FAIL: RemVSprite() did not unlink the VSprite\n");
         errors++;
@@ -707,20 +719,38 @@ int main(void)
         print("OK: RemVSprite() unlinked the VSprite\n");
     }
 
-    init_test_vsprite(&coll_a, 0, 0, 1, 2, 2, mask_image_data, VSPRITE);
-    coll_a.CollMask = mask_collmask;
-    coll_a.BorderLine = mask_borderline;
+    /* InitMasks(): a hardware VSprite has its planes interleaved per line;
+     * the BorderLine ORs the first Height words of ImageData */
+    init_test_vsprite(&coll_a, 0, 0, 1, 2, 2, chip_words(mask_image_words, 4), VSPRITE);
+    coll_a.CollMask = (WORD *)chip_words(NULL, 2);
+    coll_a.BorderLine = (WORD *)chip_words(NULL, 1);
     InitMasks(&coll_a);
-    if ((UWORD)coll_a.CollMask[0] != 0x8200U ||
-        (UWORD)coll_a.CollMask[1] != 0x1010U ||
-        (UWORD)coll_a.BorderLine[0] != 0x9210U)
+    if ((UWORD)coll_a.CollMask[0] != 0x9000U ||
+        (UWORD)coll_a.CollMask[1] != 0x0210U ||
+        (UWORD)coll_a.BorderLine[0] != 0x9000U)
     {
-        print("FAIL: InitMasks() did not build masks from image planes\n");
+        print("FAIL: InitMasks() did not build VSprite masks\n");
         errors++;
     }
     else
     {
-        print("OK: InitMasks() builds CollMask and BorderLine\n");
+        print("OK: InitMasks() builds VSprite CollMask and BorderLine\n");
+    }
+
+    init_test_vsprite(&coll_a, 0, 0, 1, 2, 2, chip_words(mask_image_words, 4), 0);
+    coll_a.CollMask = (WORD *)chip_words(NULL, 2);
+    coll_a.BorderLine = (WORD *)chip_words(NULL, 1);
+    InitMasks(&coll_a);
+    if ((UWORD)coll_a.CollMask[0] != 0x8200U ||
+        (UWORD)coll_a.CollMask[1] != 0x1010U ||
+        (UWORD)coll_a.BorderLine[0] != 0x9000U)
+    {
+        print("FAIL: InitMasks() did not build Bob masks from image planes\n");
+        errors++;
+    }
+    else
+    {
+        print("OK: InitMasks() builds Bob CollMask and BorderLine\n");
     }
 
     InitGels(&head, &tail, &gels_info);
@@ -750,12 +780,12 @@ int main(void)
 
     init_test_vsprite(&coll_a, 7, 7, 1, 2, 1, sprite_data, VSPRITE);
     init_test_vsprite(&coll_b, 7, 7, 1, 2, 1, sprite_data, VSPRITE);
-    coll_a.CollMask = collision_mask_a;
-    coll_a.BorderLine = border_line_a;
+    coll_a.CollMask = (WORD *)chip_words(one_words, 2);
+    coll_a.BorderLine = (WORD *)chip_words(one_words, 1);
     coll_a.MeMask = 1 << 2;
     coll_a.HitMask = (1 << BORDERHIT) | (1 << 2);
-    coll_b.CollMask = collision_mask_b;
-    coll_b.BorderLine = border_line_b;
+    coll_b.CollMask = (WORD *)chip_words(one_words, 2);
+    coll_b.BorderLine = (WORD *)chip_words(one_words, 1);
     coll_b.MeMask = 1 << 2;
     coll_b.HitMask = 1 << 2;
     AddVSprite(&coll_a, &rp);
@@ -768,7 +798,8 @@ int main(void)
     g_pair_second = NULL;
     DoCollision(&rp);
 
-    if (g_boundary_hits != 1 || g_boundary_flags != (TOPHIT | LEFTHIT))
+    /* every VSprite with a non-zero HitMask is boundary-checked */
+    if (g_boundary_hits != 2 || g_boundary_flags != (TOPHIT | LEFTHIT))
     {
         print("FAIL: DoCollision() boundary detection mismatch\n");
         errors++;
@@ -790,9 +821,9 @@ int main(void)
         print("OK: DoCollision() dispatches gel collision callback\n");
     }
 
+    InitVPort(&vp);
     SetRast(&rp, 0);
-    InitGels(&head, &tail, &gels_info);
-    rp.GelsInfo = &gels_info;
+    init_gels(&head, &tail, &gels_info, &rp);
     {
         struct VSprite anim_vs_a;
         struct VSprite anim_vs_b;
@@ -806,69 +837,33 @@ int main(void)
 
         init_test_vsprite(&anim_vs_a, 11, 12, 1, 1, 1, sprite_data, 0);
         init_test_vsprite(&anim_vs_b, 13, 14, 1, 1, 1, sprite_data, 0);
+        clear_bytes(&anim_bob_a, sizeof(anim_bob_a));
+        clear_bytes(&anim_bob_b, sizeof(anim_bob_b));
+        clear_bytes(&anim_comp_a, sizeof(anim_comp_a));
+        clear_bytes(&anim_comp_b, sizeof(anim_comp_b));
+        clear_bytes(&anim_first, sizeof(anim_first));
 
-        anim_bob_a.Flags = 0;
-        anim_bob_a.SaveBuffer = NULL;
-        anim_bob_a.ImageShadow = NULL;
-        anim_bob_a.Before = NULL;
-        anim_bob_a.After = NULL;
         anim_bob_a.BobVSprite = &anim_vs_a;
         anim_bob_a.BobComp = &anim_comp_a;
-        anim_bob_a.DBuffer = NULL;
-        anim_bob_a.BUserExt = 0;
-
-        anim_bob_b.Flags = 0;
-        anim_bob_b.SaveBuffer = NULL;
-        anim_bob_b.ImageShadow = NULL;
-        anim_bob_b.Before = NULL;
-        anim_bob_b.After = NULL;
         anim_bob_b.BobVSprite = &anim_vs_b;
         anim_bob_b.BobComp = &anim_comp_b;
-        anim_bob_b.DBuffer = NULL;
-        anim_bob_b.BUserExt = 0;
 
-        anim_comp_a.Flags = 0;
-        anim_comp_a.Timer = 0;
         anim_comp_a.TimeSet = 7;
         anim_comp_a.NextComp = &anim_comp_b;
-        anim_comp_a.PrevComp = NULL;
         anim_comp_a.NextSeq = &anim_comp_a;
         anim_comp_a.PrevSeq = &anim_comp_a;
-        anim_comp_a.AnimCRoutine = NULL;
-        anim_comp_a.YTrans = 0;
-        anim_comp_a.XTrans = 0;
         anim_comp_a.HeadOb = &anim_first;
         anim_comp_a.AnimBob = &anim_bob_a;
 
-        anim_comp_b.Flags = 0;
-        anim_comp_b.Timer = 0;
         anim_comp_b.TimeSet = 3;
-        anim_comp_b.NextComp = NULL;
         anim_comp_b.PrevComp = &anim_comp_a;
         anim_comp_b.NextSeq = &anim_comp_b;
         anim_comp_b.PrevSeq = &anim_comp_b;
-        anim_comp_b.AnimCRoutine = NULL;
-        anim_comp_b.YTrans = 0;
-        anim_comp_b.XTrans = 0;
         anim_comp_b.HeadOb = &anim_first;
         anim_comp_b.AnimBob = &anim_bob_b;
 
-        anim_first.NextOb = NULL;
         anim_first.PrevOb = (struct AnimOb *)0x1;
-        anim_first.Clock = 0;
-        anim_first.AnOldY = 0;
-        anim_first.AnOldX = 0;
-        anim_first.AnY = 0;
-        anim_first.AnX = 0;
-        anim_first.YVel = 0;
-        anim_first.XVel = 0;
-        anim_first.YAccel = 0;
-        anim_first.XAccel = 0;
-        anim_first.RingYTrans = 0;
-        anim_first.RingXTrans = 0;
-        anim_first.AnimORoutine = NULL;
         anim_first.HeadComp = &anim_comp_a;
-        anim_first.AUserExt = 0;
 
         anim_second = anim_first;
         anim_second.HeadComp = NULL;
@@ -878,19 +873,21 @@ int main(void)
         AddAnimOb(&anim_first, &anim_key, &rp);
         AddAnimOb(&anim_second, &anim_key, &rp);
 
+        /* the component Bobs are added to the GEL list; AddBob() neither
+         * flags them BWAITING nor links VSprite->VSBob */
         if (anim_key != &anim_second || anim_second.NextOb != &anim_first ||
             anim_second.PrevOb != NULL || anim_first.PrevOb != &anim_second ||
             anim_first.NextOb != NULL || anim_comp_a.Timer != 7 ||
-            anim_comp_b.Timer != 3 || (anim_bob_a.Flags & BWAITING) == 0 ||
-            (anim_bob_b.Flags & BWAITING) == 0 || anim_vs_a.VSBob != &anim_bob_a ||
-            anim_vs_b.VSBob != &anim_bob_b)
+            anim_comp_b.Timer != 3 || anim_bob_a.Flags != 0 ||
+            anim_bob_b.Flags != 0 || anim_vs_a.VSBob != NULL ||
+            head.NextVSprite != &anim_vs_a || anim_vs_a.NextVSprite != &anim_vs_b)
         {
             print("FAIL: AddAnimOb() did not link objects or initialize components\n");
             errors++;
         }
         else
         {
-            print("OK: AddAnimOb() prepends AnimObs and queues component Bobs\n");
+            print("OK: AddAnimOb() prepends AnimObs and adds component Bobs\n");
         }
     }
 
@@ -908,8 +905,7 @@ int main(void)
         struct AnimOb *anim_key = NULL;
 
         SetRast(&rp, 0);
-        InitGels(&head, &tail, &gels_info);
-        rp.GelsInfo = &gels_info;
+        init_gels(&head, &tail, &gels_info, &rp);
 
         g_animob_routine_calls = 0;
         g_animcomp_timeout_calls = 0;
@@ -921,54 +917,36 @@ int main(void)
         g_last_nextseq_comp = NULL;
 
         init_test_vsprite(&seq_vs, 20, 18, 1, 1, 1, sprite_data, 0);
-        init_test_vsprite(&next_vs, 2, 2, 1, 1, 1, sprite_data_alt, 0);
+        init_test_vsprite(&next_vs, 2, 2, 1, 1, 1, sprite_data, 0);
         init_test_vsprite(&static_vs, 6, 6, 1, 1, 1, sprite_data, 0);
+        clear_bytes(&seq_bob, sizeof(seq_bob));
+        clear_bytes(&next_bob, sizeof(next_bob));
+        clear_bytes(&static_bob, sizeof(static_bob));
+        clear_bytes(&seq_comp, sizeof(seq_comp));
+        clear_bytes(&next_seq_comp, sizeof(next_seq_comp));
+        clear_bytes(&static_comp, sizeof(static_comp));
+        clear_bytes(&anim_ob, sizeof(anim_ob));
 
-        seq_bob.Flags = 0;
-        seq_bob.SaveBuffer = NULL;
-        seq_bob.ImageShadow = NULL;
-        seq_bob.Before = NULL;
-        seq_bob.After = NULL;
         seq_bob.BobVSprite = &seq_vs;
         seq_bob.BobComp = &seq_comp;
-        seq_bob.DBuffer = NULL;
-        seq_bob.BUserExt = 0;
-
-        next_bob.Flags = 0;
-        next_bob.SaveBuffer = NULL;
-        next_bob.ImageShadow = NULL;
-        next_bob.Before = NULL;
-        next_bob.After = NULL;
+        seq_vs.VSBob = &seq_bob;
         next_bob.BobVSprite = &next_vs;
         next_bob.BobComp = &next_seq_comp;
-        next_bob.DBuffer = NULL;
-        next_bob.BUserExt = 0;
-
-        static_bob.Flags = 0;
-        static_bob.SaveBuffer = NULL;
-        static_bob.ImageShadow = NULL;
-        static_bob.Before = NULL;
-        static_bob.After = NULL;
+        next_vs.VSBob = &next_bob;
         static_bob.BobVSprite = &static_vs;
         static_bob.BobComp = &static_comp;
-        static_bob.DBuffer = NULL;
-        static_bob.BUserExt = 0;
+        static_vs.VSBob = &static_bob;
 
         seq_comp.Flags = RINGTRIGGER;
         seq_comp.Timer = 1;
         seq_comp.TimeSet = 5;
         seq_comp.NextComp = &static_comp;
-        seq_comp.PrevComp = NULL;
         seq_comp.NextSeq = &next_seq_comp;
         seq_comp.PrevSeq = &next_seq_comp;
         seq_comp.AnimCRoutine = animcomp_timeout_routine;
-        seq_comp.YTrans = 0;
-        seq_comp.XTrans = 0;
         seq_comp.HeadOb = &anim_ob;
         seq_comp.AnimBob = &seq_bob;
 
-        next_seq_comp.Flags = 0;
-        next_seq_comp.Timer = 0;
         next_seq_comp.TimeSet = 4;
         next_seq_comp.NextComp = (struct AnimComp *)0x1;
         next_seq_comp.PrevComp = (struct AnimComp *)0x1;
@@ -980,56 +958,62 @@ int main(void)
         next_seq_comp.HeadOb = &anim_ob;
         next_seq_comp.AnimBob = &next_bob;
 
-        static_comp.Flags = 0;
         static_comp.Timer = 5;
         static_comp.TimeSet = 5;
-        static_comp.NextComp = NULL;
         static_comp.PrevComp = &seq_comp;
         static_comp.NextSeq = &static_comp;
         static_comp.PrevSeq = &static_comp;
         static_comp.AnimCRoutine = animcomp_static_routine;
         static_comp.YTrans = 64;
-        static_comp.XTrans = 0;
         static_comp.HeadOb = &anim_ob;
         static_comp.AnimBob = &static_bob;
 
-        anim_ob.NextOb = NULL;
-        anim_ob.PrevOb = NULL;
         anim_ob.Clock = 41;
         anim_ob.AnOldY = -1;
         anim_ob.AnOldX = -1;
-        anim_ob.AnY = 0;
-        anim_ob.AnX = 0;
         anim_ob.YVel = 64;
         anim_ob.XVel = 64;
-        anim_ob.YAccel = 0;
-        anim_ob.XAccel = 0;
         anim_ob.RingYTrans = 64;
         anim_ob.RingXTrans = 64;
         anim_ob.AnimORoutine = animob_routine;
         anim_ob.HeadComp = &seq_comp;
-        anim_ob.AUserExt = 0;
         anim_key = &anim_ob;
 
         AddBob(&seq_bob, &rp);
         AddBob(&static_bob, &rp);
         Animate(&anim_key, &rp);
 
+        /* the ring motion and the AnimCRoutine belong to the component
+         * that becomes current (RINGTRIGGER on the timed-out component
+         * does not move, its routine is not called);
+         * positions are (An + Trans) >> ANFRACSIZE */
         if (anim_ob.Clock != 42 || anim_ob.AnOldX != 0 || anim_ob.AnOldY != 0 ||
-            anim_ob.AnX != 128 || anim_ob.AnY != 128 ||
+            anim_ob.AnX != 64 || anim_ob.AnY != 64 ||
             anim_ob.HeadComp != &next_seq_comp || next_seq_comp.NextComp != &static_comp ||
             next_seq_comp.PrevComp != NULL || static_comp.PrevComp != &next_seq_comp ||
-            next_seq_comp.Timer != 4 || (seq_bob.Flags & BOBSAWAY) == 0 ||
-            (next_bob.Flags & BWAITING) == 0 || (UWORD)seq_vs.X != 0x8001 ||
+            next_seq_comp.Timer != 4 || seq_bob.Flags != BOBSAWAY ||
+            next_bob.Flags != 0 || (UWORD)seq_vs.X != 0x8001 ||
             (UWORD)seq_vs.Y != 0x8001 ||
-            next_vs.OldX != 20 || next_vs.OldY != 18 || next_vs.X != 3 || next_vs.Y != 4 ||
-            static_vs.X != 2 || static_vs.Y != 3 || g_animob_routine_calls != 1 ||
-            g_last_animob != &anim_ob || g_animcomp_timeout_calls != 1 ||
-            g_last_timeout_comp != &seq_comp || g_animcomp_static_calls != 1 ||
-            g_last_static_comp != &static_comp || g_animcomp_nextseq_calls != 0 ||
-            g_last_nextseq_comp != NULL)
+            next_vs.OldX != 20 || next_vs.OldY != 18 || next_vs.X != 2 || next_vs.Y != 3 ||
+            static_vs.X != 1 || static_vs.Y != 2 || g_animob_routine_calls != 1 ||
+            g_last_animob != &anim_ob || g_animcomp_timeout_calls != 0 ||
+            g_last_timeout_comp != NULL || g_animcomp_static_calls != 1 ||
+            g_last_static_comp != &static_comp || g_animcomp_nextseq_calls != 1 ||
+            g_last_nextseq_comp != &next_seq_comp)
         {
             print("FAIL: Animate() did not update motion, sequence, and callbacks correctly\n");
+            print("  clock="); print_num(anim_ob.Clock);
+            print(" an="); print_num(anim_ob.AnX); print(","); print_num(anim_ob.AnY);
+            print(" head="); print_num(anim_ob.HeadComp == &next_seq_comp);
+            print(" timer="); print_num(next_seq_comp.Timer);
+            print(" flags="); print_num(seq_bob.Flags); print(","); print_num(next_bob.Flags);
+            print(" next="); print_num(next_vs.X); print(","); print_num(next_vs.Y);
+            print(" old="); print_num(next_vs.OldX); print(","); print_num(next_vs.OldY);
+            print(" static="); print_num(static_vs.X); print(","); print_num(static_vs.Y);
+            print(" calls="); print_num(g_animob_routine_calls); print(","); print_num(g_animcomp_timeout_calls);
+            print(","); print_num(g_animcomp_static_calls); print(","); print_num(g_animcomp_nextseq_calls);
+            print(" seq="); print_num((UWORD)seq_vs.X); print(","); print_num((UWORD)seq_vs.Y);
+            print("\n");
             errors++;
         }
         else
@@ -1047,57 +1031,44 @@ int main(void)
         struct Bob buf_bob_c;
         struct AnimComp buf_comp_a;
         struct AnimComp buf_comp_b;
-        struct AnimComp buf_comp_c;
         struct AnimComp buf_seq_a;
         struct AnimOb buf_anim;
-        UWORD buf_image_data[4] = { 0x8000, 0x2000, 0x4000, 0x1000 };
-        UWORD buf_image_data_alt[2] = { 0x1111, 0x2222 };
-        UWORD buf_image_data_third[4] = { 0x0f00, 0x00f0, 0x3000, 0x0003 };
-        UWORD buf_collmask_a[2] = { 0, 0 };
-        UWORD buf_collmask_b[2] = { 0, 0 };
-        UWORD buf_collmask_c[2] = { 0, 0 };
-        UWORD buf_border_a[1] = { 0 };
-        UWORD buf_border_b[1] = { 0 };
-        UWORD buf_border_c[1] = { 0 };
+        UWORD buf_image_words[4] = { 0x8000, 0x2000, 0x4000, 0x1000 };
+        UWORD buf_image_alt_words[2] = { 0x1111, 0x2222 };
+        UWORD buf_image_third_words[4] = { 0x0f00, 0x00f0, 0x3000, 0x0003 };
 
-        init_test_vsprite(&buf_vs_a, 0, 0, 1, 2, 2, buf_image_data, 0);
-        init_test_vsprite(&buf_vs_b, 0, 0, 1, 2, 2, buf_image_data, 0);
-        init_test_vsprite(&buf_vs_c, 0, 0, 1, 2, 2, buf_image_data_third, 0);
+        init_test_vsprite(&buf_vs_a, 0, 0, 1, 2, 2, chip_words(buf_image_words, 4), SAVEBACK);
+        init_test_vsprite(&buf_vs_b, 0, 0, 1, 2, 1, chip_words(buf_image_alt_words, 2), SAVEBACK);
+        init_test_vsprite(&buf_vs_c, 0, 0, 1, 2, 2, chip_words(buf_image_third_words, 4), SAVEBACK);
+        buf_vs_a.PlanePick = 3;
+        buf_vs_c.PlanePick = 3;
+        clear_bytes(&buf_bob_a, sizeof(buf_bob_a));
+        clear_bytes(&buf_bob_b, sizeof(buf_bob_b));
+        clear_bytes(&buf_bob_c, sizeof(buf_bob_c));
+        clear_bytes(&buf_comp_a, sizeof(buf_comp_a));
+        clear_bytes(&buf_comp_b, sizeof(buf_comp_b));
+        clear_bytes(&buf_seq_a, sizeof(buf_seq_a));
+        clear_bytes(&buf_anim, sizeof(buf_anim));
 
-        buf_bob_a.Flags = 0;
-        buf_bob_a.SaveBuffer = NULL;
-        buf_bob_a.ImageShadow = NULL;
-        buf_bob_a.Before = NULL;
-        buf_bob_a.After = NULL;
         buf_bob_a.BobVSprite = &buf_vs_a;
         buf_bob_a.BobComp = &buf_comp_a;
-        buf_bob_a.DBuffer = NULL;
-        buf_bob_a.BUserExt = 0;
-
-        buf_bob_b = buf_bob_a;
+        buf_vs_a.VSBob = &buf_bob_a;
         buf_bob_b.BobVSprite = &buf_vs_b;
         buf_bob_b.BobComp = &buf_seq_a;
-
-        buf_bob_c = buf_bob_a;
+        buf_vs_b.VSBob = &buf_bob_b;
         buf_bob_c.BobVSprite = &buf_vs_c;
         buf_bob_c.BobComp = &buf_comp_b;
+        buf_vs_c.VSBob = &buf_bob_c;
 
-        buf_comp_a.Flags = 0;
-        buf_comp_a.Timer = 0;
         buf_comp_a.TimeSet = 1;
         buf_comp_a.NextComp = &buf_comp_b;
-        buf_comp_a.PrevComp = NULL;
         buf_comp_a.NextSeq = &buf_seq_a;
         buf_comp_a.PrevSeq = &buf_seq_a;
-        buf_comp_a.AnimCRoutine = NULL;
-        buf_comp_a.YTrans = 0;
-        buf_comp_a.XTrans = 0;
         buf_comp_a.HeadOb = &buf_anim;
         buf_comp_a.AnimBob = &buf_bob_a;
 
         buf_seq_a = buf_comp_a;
         buf_seq_a.NextComp = NULL;
-        buf_seq_a.PrevComp = NULL;
         buf_seq_a.NextSeq = &buf_comp_a;
         buf_seq_a.PrevSeq = &buf_comp_a;
         buf_seq_a.AnimBob = &buf_bob_b;
@@ -1109,38 +1080,21 @@ int main(void)
         buf_comp_b.PrevSeq = &buf_comp_b;
         buf_comp_b.AnimBob = &buf_bob_c;
 
-        buf_anim.NextOb = NULL;
-        buf_anim.PrevOb = NULL;
-        buf_anim.Clock = 0;
-        buf_anim.AnOldY = 0;
-        buf_anim.AnOldX = 0;
-        buf_anim.AnY = 0;
-        buf_anim.AnX = 0;
-        buf_anim.YVel = 0;
-        buf_anim.XVel = 0;
-        buf_anim.YAccel = 0;
-        buf_anim.XAccel = 0;
-        buf_anim.RingYTrans = 0;
-        buf_anim.RingXTrans = 0;
-        buf_anim.AnimORoutine = NULL;
         buf_anim.HeadComp = &buf_comp_a;
-        buf_anim.AUserExt = 0;
 
-        buf_vs_a.CollMask = buf_collmask_a;
-        buf_vs_a.BorderLine = buf_border_a;
-        buf_vs_b.Depth = 1;
-        buf_vs_b.ImageData = buf_image_data_alt;
-        buf_vs_b.CollMask = buf_collmask_b;
-        buf_vs_b.BorderLine = buf_border_b;
-        buf_vs_c.CollMask = buf_collmask_c;
-        buf_vs_c.BorderLine = buf_border_c;
+        buf_vs_a.CollMask = (WORD *)chip_words(NULL, 2);
+        buf_vs_a.BorderLine = (WORD *)chip_words(NULL, 1);
+        buf_vs_b.CollMask = (WORD *)chip_words(NULL, 2);
+        buf_vs_b.BorderLine = (WORD *)chip_words(NULL, 1);
+        buf_vs_c.CollMask = (WORD *)chip_words(NULL, 2);
+        buf_vs_c.BorderLine = (WORD *)chip_words(NULL, 1);
 
         InitGMasks(&buf_anim);
         if ((UWORD)buf_vs_a.CollMask[0] != 0xc000U || (UWORD)buf_vs_a.CollMask[1] != 0x3000U ||
-            (UWORD)buf_vs_a.BorderLine[0] != 0xf000U || (UWORD)buf_vs_b.CollMask[0] != 0x1111U ||
+            (UWORD)buf_vs_a.BorderLine[0] != 0xa000U || (UWORD)buf_vs_b.CollMask[0] != 0x1111U ||
             (UWORD)buf_vs_b.CollMask[1] != 0x2222U || (UWORD)buf_vs_b.BorderLine[0] != 0x3333U ||
             (UWORD)buf_vs_c.CollMask[0] != 0x3f00U || (UWORD)buf_vs_c.CollMask[1] != 0x00f3U ||
-            (UWORD)buf_vs_c.BorderLine[0] != 0x3ff3U)
+            (UWORD)buf_vs_c.BorderLine[0] != 0x0ff0U)
         {
             print("FAIL: InitGMasks() did not initialize every sequence mask\n");
             errors++;
@@ -1150,19 +1104,24 @@ int main(void)
             print("OK: InitGMasks() initializes every component sequence mask\n");
         }
 
+        buf_vs_a.CollMask = NULL;
+        buf_vs_a.BorderLine = NULL;
+        buf_vs_b.CollMask = NULL;
+        buf_vs_b.BorderLine = NULL;
+        buf_vs_c.CollMask = NULL;
+        buf_vs_c.BorderLine = NULL;
+
         if (!GetGBuffers(&buf_anim, &rp, TRUE))
         {
             print("FAIL: GetGBuffers() did not allocate buffers for the AnimOb\n");
             errors++;
         }
         else if (!buf_bob_a.ImageShadow || buf_vs_a.CollMask != buf_bob_a.ImageShadow ||
-                  !buf_bob_a.SaveBuffer || !buf_vs_a.BorderLine || !buf_bob_a.DBuffer ||
-                 !buf_bob_a.DBuffer->BufBuffer || !buf_bob_b.ImageShadow ||
-                 buf_vs_b.CollMask != buf_bob_b.ImageShadow || !buf_bob_b.SaveBuffer ||
-                 !buf_vs_b.BorderLine || !buf_bob_b.DBuffer || !buf_bob_b.DBuffer->BufBuffer ||
+                 !buf_bob_a.SaveBuffer || !buf_vs_a.BorderLine || !buf_bob_a.DBuffer ||
+                 !buf_bob_b.ImageShadow || buf_vs_b.CollMask != buf_bob_b.ImageShadow ||
+                 !buf_bob_b.SaveBuffer || !buf_vs_b.BorderLine || !buf_bob_b.DBuffer ||
                  !buf_bob_c.ImageShadow || buf_vs_c.CollMask != buf_bob_c.ImageShadow ||
-                 !buf_bob_c.SaveBuffer || !buf_vs_c.BorderLine || !buf_bob_c.DBuffer ||
-                 !buf_bob_c.DBuffer->BufBuffer)
+                 !buf_bob_c.SaveBuffer || !buf_vs_c.BorderLine || !buf_bob_c.DBuffer)
         {
             print("FAIL: GetGBuffers() returned success without filling all buffer pointers\n");
             errors++;
@@ -1172,143 +1131,77 @@ int main(void)
             print("OK: GetGBuffers() allocates save, mask, border, and DBuf buffers\n");
         }
 
-        if (buf_bob_a.ImageShadow)
+        FreeGBuffers(&buf_anim, &rp, TRUE);
+        print("OK: FreeGBuffers() released the AnimOb buffers\n");
+    }
+
+    /* Bobs need a ViewPort for DrawGList() (NULL hangs AmigaOS) */
+    SetRast(&rp, 0);
+    init_gels(&head, &tail, &gels_info, &rp);
+    {
+        struct VSprite bob_vs;
+        struct VSprite bob_top_vs;
+        struct Bob bob;
+        struct Bob bob_top;
+
+        init_bob(&bob, &bob_vs, 7, 9, sprite_data);
+        init_bob(&bob_top, &bob_top_vs, 8, 9, sprite_data);
+
+        AddBob(&bob, &rp);
+        AddBob(&bob_top, &rp);
+        DrawGList(&rp, &vp);
+        WaitBlit();
+        if (ReadPixel(&rp, 7, 9) != 1 || ReadPixel(&rp, 8, 9) != 1 || ReadPixel(&rp, 9, 9) != 0 ||
+            bob.Flags != 0 || (bob_vs.Flags & BACKSAVED) == 0)
         {
-            UWORD *separate_mask = (UWORD *)AllocMem(4, MEMF_CHIP | MEMF_CLEAR);
-
-            if (!separate_mask)
-            {
-                print("FAIL: Could not allocate separate CollMask for FreeGBuffers() test\n");
-                errors++;
-                FreeGBuffers(&buf_anim, &rp, TRUE);
-            }
-            else
-            {
-                buf_vs_b.CollMask = separate_mask;
-                FreeGBuffers(&buf_anim, &rp, TRUE);
-
-                if (buf_bob_a.ImageShadow || buf_bob_a.SaveBuffer || buf_vs_a.CollMask || buf_vs_a.BorderLine ||
-                    buf_bob_a.DBuffer || buf_bob_b.ImageShadow || buf_bob_b.SaveBuffer || buf_vs_b.CollMask ||
-                    buf_vs_b.BorderLine || buf_bob_b.DBuffer || buf_bob_c.ImageShadow || buf_bob_c.SaveBuffer ||
-                    buf_vs_c.CollMask || buf_vs_c.BorderLine || buf_bob_c.DBuffer)
-                {
-                    print("FAIL: FreeGBuffers() did not clear all allocated AnimOb buffers\n");
-                    errors++;
-                }
-                else
-                {
-                    print("OK: FreeGBuffers() releases allocated buffers and clears pointers\n");
-                }
-            }
+            print("FAIL: AddBob()/DrawGList() did not draw the Bobs\n");
+            errors++;
         }
-    }
+        else
+        {
+            print("OK: AddBob()/DrawGList() drew the Bobs and saved the background\n");
+        }
 
-    SetRast(&rp, 0);
-    InitGels(&head, &tail, &gels_info);
-    rp.GelsInfo = &gels_info;
+        /* RemIBob() erases the Bob and the overlapping Bob, retires only
+         * the removed one */
+        RemIBob(&bob, &rp, &vp);
+        WaitBlit();
+        if (head.NextVSprite != &bob_top_vs || bob_top_vs.PrevVSprite != &head ||
+            bob.Flags != BOBNIX || bob_top.Flags != 0 ||
+            ReadPixel(&rp, 7, 9) != 0 || ReadPixel(&rp, 8, 9) != 0)
+        {
+            print("FAIL: RemIBob() did not immediately clear and unlink the Bob\n");
+            errors++;
+        }
+        else
+        {
+            print("OK: RemIBob() immediately clears and unlinks the Bob\n");
+        }
 
-    init_test_vsprite(&bob_vs, 7, 9, 1, 1, 1, sprite_data, 0);
-    bob.Flags = 0;
-    bob.SaveBuffer = NULL;
-    bob.ImageShadow = NULL;
-    bob.Before = NULL;
-    bob.After = NULL;
-    bob.BobVSprite = &bob_vs;
-    bob.BobComp = NULL;
-    bob.DBuffer = NULL;
-    bob.BUserExt = 0;
+        DrawGList(&rp, &vp);
+        WaitBlit();
+        if (ReadPixel(&rp, 7, 9) != 0 || ReadPixel(&rp, 8, 9) != 1 || bob_top.Flags != 0)
+        {
+            print("FAIL: DrawGList() did not redraw overlapping Bob after RemIBob()\n");
+            errors++;
+        }
+        else
+        {
+            print("OK: DrawGList() redraws overlapping Bob after RemIBob()\n");
+        }
 
-    AddBob(&bob, &rp);
-    DrawGList(&rp, NULL);
-    if ((bob.Flags & BDRAWN) == 0 || bob_vs.VSBob != &bob || ReadPixel(&rp, 7, 9) != 1)
-    {
-        print("FAIL: AddBob()/DrawGList() did not draw the Bob\n");
-        errors++;
-    }
-    else
-    {
-        print("OK: AddBob()/DrawGList() drew the Bob\n");
-    }
-
-    SetRast(&rp, 0);
-    InitGels(&head, &tail, &gels_info);
-    rp.GelsInfo = &gels_info;
-    init_test_vsprite(&bob_vs, 7, 9, 1, 1, 1, sprite_data, 0);
-    init_test_vsprite(&bob_top_vs, 8, 9, 1, 1, 1, sprite_data, 0);
-    bob.Flags = 0;
-    bob.SaveBuffer = NULL;
-    bob.ImageShadow = NULL;
-    bob.Before = NULL;
-    bob.After = NULL;
-    bob.BobVSprite = &bob_vs;
-    bob.BobComp = NULL;
-    bob.DBuffer = NULL;
-    bob.BUserExt = 0;
-    bob_top.Flags = 0;
-    bob_top.SaveBuffer = NULL;
-    bob_top.ImageShadow = NULL;
-    bob_top.Before = NULL;
-    bob_top.After = NULL;
-    bob_top.BobVSprite = &bob_top_vs;
-    bob_top.BobComp = NULL;
-    bob_top.DBuffer = NULL;
-    bob_top.BUserExt = 0;
-
-    AddBob(&bob, &rp);
-    AddBob(&bob_top, &rp);
-    DrawGList(&rp, NULL);
-    RemIBob(&bob, &rp, NULL);
-    if (head.NextVSprite != &bob_top_vs || bob_top_vs.PrevVSprite != &head ||
-        bob_vs.NextVSprite != NULL || (bob.Flags & BOBNIX) == 0 ||
-        (bob_top.Flags & BOBNIX) == 0 || ReadPixel(&rp, 7, 9) != 0 ||
-        ReadPixel(&rp, 8, 9) != 0)
-    {
-        print("FAIL: RemIBob() did not immediately clear and unlink the Bob\n");
-        errors++;
-    }
-    else
-    {
-        print("OK: RemIBob() immediately clears and unlinks the Bob\n");
-    }
-
-    DrawGList(&rp, NULL);
-    if (ReadPixel(&rp, 7, 9) != 0 || ReadPixel(&rp, 8, 9) != 1 ||
-        (bob_top.Flags & BOBNIX) != 0)
-    {
-        print("FAIL: DrawGList() did not redraw overlapping Bob after RemIBob()\n");
-        errors++;
-    }
-    else
-    {
-        print("OK: DrawGList() redraws overlapping Bob after RemIBob()\n");
-    }
-
-    SetRast(&rp, 0);
-    InitGels(&head, &tail, &gels_info);
-    rp.GelsInfo = &gels_info;
-    init_test_vsprite(&bob_vs, 7, 9, 1, 1, 1, sprite_data, 0);
-    bob.Flags = 0;
-    bob.SaveBuffer = NULL;
-    bob.ImageShadow = NULL;
-    bob.Before = NULL;
-    bob.After = NULL;
-    bob.BobVSprite = &bob_vs;
-    bob.BobComp = NULL;
-    bob.DBuffer = NULL;
-    bob.BUserExt = 0;
-
-    AddBob(&bob, &rp);
-    DrawGList(&rp, NULL);
-    RemBob(&bob);
-    DrawGList(&rp, NULL);
-    if ((bob.Flags & BOBNIX) == 0 || head.NextVSprite != &tail)
-    {
-        print("FAIL: RemBob macro + DrawGList() did not retire the Bob\n");
-        errors++;
-    }
-    else
-    {
-        print("OK: RemBob macro is honored by DrawGList()\n");
+        RemBob(&bob_top);
+        DrawGList(&rp, &vp);
+        WaitBlit();
+        if (bob_top.Flags != (BOBSAWAY | BOBNIX) || head.NextVSprite != &tail || ReadPixel(&rp, 8, 9) != 0)
+        {
+            print("FAIL: RemBob macro + DrawGList() did not retire the Bob\n");
+            errors++;
+        }
+        else
+        {
+            print("OK: RemBob macro is honored by DrawGList()\n");
+        }
     }
 
     FreeBitMap(bm);

@@ -1,0 +1,14 @@
+=== SysInfo Automated Compatibility Test ===
+
+--- Test 1: Load SysInfo binary ---
+OK: SysInfo binary loaded successfully
+
+--- Test 2: Launch SysInfo as background process ---
+OK: SysInfo process created
+
+--- Test 3: Wait for SysInfo window ---
+  Waiting for window to open...
+OK: SysInfo window opened
+
+=== Test Results ===
+PASS: SysInfo launch test passed

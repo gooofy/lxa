@@ -35,8 +35,10 @@ protected:
             EXPECT_NE(output.find("Second line"), std::string::npos);
             EXPECT_NE(output.find("Script complete"), std::string::npos);
         } else if (std::string(name) == "Alias") {
-            EXPECT_NE(output.find("ALIAS: dir not found"), std::string::npos);
-            EXPECT_NE(output.find("ll         DIR"), std::string::npos);
+            /* AmigaOS 3.1: unknown alias prints nothing, list uses an
+             * 18 column name field */
+            EXPECT_EQ(output.find("not found"), std::string::npos);
+            EXPECT_NE(output.find("ll                DIR"), std::string::npos);
         } else if (std::string(name) == "ControlFlow") {
             EXPECT_NE(output.find("Starting test"), std::string::npos);
             EXPECT_NE(output.find("First IF failed"), std::string::npos);

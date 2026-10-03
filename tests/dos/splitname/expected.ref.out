@@ -1,0 +1,31 @@
+SplitName Test
+==============
+
+Test 1: First component before separator
+  PASS: First component parsed
+
+Test 2: Continue parsing from returned position
+  PASS: Continued component parsed
+
+Test 3: Missing separator returns -1 and tail
+  PASS: Tail without separator parsed
+
+Test 4: Truncation returns the separator position
+  PASS: Truncation keeps next position
+
+Test 5: Size one buffer still null terminates
+  PASS: Size one buffer supported
+
+Test 6: Separator at old position yields empty component
+  PASS: Empty component parsed
+
+Test 7: Component that fills the buffer returns the separator position
+  PASS: Exact fit parsed
+
+Test 8: Truncated last component returns -1
+  PASS: Truncated tail parsed
+
+Test 9: Trailing separator
+  PASS: Trailing separator parsed
+
+Failed: 0

@@ -1,9 +1,21 @@
 #include <exec/types.h>
 #include <dos/dos.h>
+#include <dos/dosextens.h>
+#include <clib/exec_protos.h>
 #include <clib/dos_protos.h>
+#include <inline/exec.h>
 #include <inline/dos.h>
 
 extern struct DosLibrary *DOSBase;
+extern struct ExecBase *SysBase;
+
+/*
+ * Inhibit() on devices that cannot be damaged
+ *
+ * Only volumes that cannot be damaged are used: on AmigaOS 3.1 these
+ * calls on SYS: (or an assign into it) really act on the boot volume.
+ * Expected results come from the AmigaOS 3.1 reference.
+ */
 
 static int tests_failed = 0;
 
@@ -45,70 +57,54 @@ static void print_num(LONG n)
     print(buf);
 }
 
-static void test_pass(const char *name)
+static void expect(const char *name, LONG ok, LONG want_ok, LONG want_err)
 {
-    print("  PASS: ");
-    print(name);
-    print("\n");
-}
+    LONG err = IoErr();
 
-static void test_fail(const char *name, const char *reason)
-{
-    print("  FAIL: ");
+    print("  ");
     print(name);
-    print(" - ");
-    print(reason);
-    print("\n");
-    tests_failed++;
+    print(": result=");
+    print_num(ok);
+    print(" IoErr=");
+    print_num(err);
+    if (ok == want_ok && err == want_err)
+    {
+        print("  PASS\n");
+    }
+    else
+    {
+        print("  FAIL\n");
+        tests_failed++;
+    }
 }
 
 int main(void)
 {
-    LONG ok;
-    LONG err;
+    struct Process *me = (struct Process *)FindTask(NULL);
+    APTR old_window_ptr = me->pr_WindowPtr;
+
+    me->pr_WindowPtr = (APTR)-1;   /* no "insert volume" requesters */
 
     print("Inhibit Test\n");
     print("============\n\n");
 
-    print("Test 1: Rejects NULL device names\n");
-    ok = Inhibit(NULL, DOSTRUE);
-    err = IoErr();
-    if (ok == DOSFALSE && err == ERROR_REQUIRED_ARG_MISSING)
-        test_pass("Reject NULL device");
-    else
-        test_fail("Reject NULL device", "NULL device handling behaved incorrectly");
+    print("Test 1: Unknown devices are not mounted\n");
+    SetIoErr(0);
+    expect("Inhibit NODEV: on", Inhibit((CONST_STRPTR)"NODEV:", DOSTRUE), DOSFALSE, ERROR_DEVICE_NOT_MOUNTED);
+    SetIoErr(0);
+    expect("Inhibit NODEV:x on", Inhibit((CONST_STRPTR)"NODEV:x", DOSTRUE), DOSFALSE, ERROR_DEVICE_NOT_MOUNTED);
+    print("\nTest 2: NIL: has no handler\n");
+    SetIoErr(0);
+    expect("Inhibit NIL: on", Inhibit((CONST_STRPTR)"NIL:", DOSTRUE), DOSFALSE, ERROR_DEVICE_NOT_MOUNTED);
+    print("\nTest 3: The RAM: handler does not know ACTION_INHIBIT\n");
+    SetIoErr(0);
+    expect("Inhibit RAM: on", Inhibit((CONST_STRPTR)"RAM:", DOSTRUE), DOSFALSE, ERROR_ACTION_NOT_KNOWN);
+    SetIoErr(0);
+    expect("Inhibit RAM: off", Inhibit((CONST_STRPTR)"RAM:", DOSFALSE), DOSFALSE, ERROR_ACTION_NOT_KNOWN);
+    SetIoErr(0);
+    expect("Inhibit RAM:x/y on", Inhibit((CONST_STRPTR)"RAM:x/y", DOSTRUE), DOSFALSE, ERROR_ACTION_NOT_KNOWN);
 
-    print("\nTest 2: Rejects device names without a trailing ':' device syntax\n");
-    ok = Inhibit((CONST_STRPTR)"SYS", DOSTRUE);
-    err = IoErr();
-    if (ok == DOSFALSE && err == ERROR_INVALID_COMPONENT_NAME)
-        test_pass("Reject missing colon");
-    else
-        test_fail("Reject missing colon", "Device syntax validation behaved incorrectly");
-
-    print("\nTest 3: Rejects assigns because Inhibit requires a real device\n");
-    ok = Inhibit((CONST_STRPTR)"C:", DOSTRUE);
-    err = IoErr();
-    if (ok == DOSFALSE && err == ERROR_DEVICE_NOT_MOUNTED)
-        test_pass("Reject assign");
-    else
-        test_fail("Reject assign", "Assign inputs should fail as non-device targets");
-
-    print("\nTest 4: Cleanly reports unsupported hosted inhibit packets instead of hitting the stub\n");
-    ok = Inhibit((CONST_STRPTR)"HOME:", DOSTRUE);
-    err = IoErr();
-    if (ok == DOSFALSE && err == ERROR_ACTION_NOT_KNOWN)
-        test_pass("Report unsupported inhibit action");
-    else
-        test_fail("Report unsupported inhibit action", "Expected ACTION_INHIBIT to fail cleanly in the current hosted stack");
-
-    print("\nTest 5: Uses the same public path for uninhibit requests\n");
-    ok = Inhibit((CONST_STRPTR)"HOME:", DOSFALSE);
-    err = IoErr();
-    if (ok == DOSFALSE && err == ERROR_ACTION_NOT_KNOWN)
-        test_pass("Report unsupported uninhibit action");
-    else
-        test_fail("Report unsupported uninhibit action", "Expected ACTION_INHIBIT clear requests to fail cleanly in the current hosted stack");
+    me->pr_WindowPtr = old_window_ptr;
 
     print("\nFailed: ");
     print_num(tests_failed);

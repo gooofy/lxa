@@ -1,0 +1,68 @@
+Exec Semaphore Tests
+====================
+
+Test 1: InitSemaphore
+  OK: Semaphore type set to NT_SIGNALSEM
+  OK: NestCount initialized to 0
+  OK: Owner initialized to NULL
+  OK: QueueCount initialized to -1
+
+Test 2: ObtainSemaphore
+  OK: Owner set to current task after Obtain
+  OK: NestCount is 1 after first Obtain
+  OK: QueueCount is 0 after first Obtain
+
+Test 3: Nested ObtainSemaphore
+  OK: NestCount is 2 after nested Obtain
+  OK: Owner still current task after nested Obtain
+
+Test 4: ReleaseSemaphore (nested)
+  OK: NestCount decremented to 1
+  OK: Owner still set (not fully released)
+
+Test 5: Final ReleaseSemaphore
+  OK: NestCount decremented to 0
+  OK: Owner cleared after full release
+  OK: QueueCount back to -1
+
+Test 6: AttemptSemaphore (free semaphore)
+  OK: AttemptSemaphore returned TRUE for free semaphore
+  OK: Semaphore now owned by current task
+  OK: Released semaphore after Attempt
+
+Test 7: AttemptSemaphore (self-owned)
+  OK: AttemptSemaphore succeeds when same task owns it
+  OK: NestCount incremented to 2
+
+Test 8: Shared semaphore semantics
+  OK: Shared obtain leaves Owner as NULL
+  OK: Shared obtain sets NestCount to 1
+  OK: Shared obtain sets QueueCount to 0
+  OK: AttemptSemaphoreShared succeeds on shared-owned semaphore
+  OK: Shared attempt increments NestCount
+  OK: AttemptSemaphore fails while semaphore is shared-owned
+  OK: Releasing one shared lock keeps semaphore shared-owned
+  OK: Final shared release resets semaphore state
+
+Test 9: AddSemaphore/FindSemaphore/RemSemaphore
+  OK: AddSemaphore initializes semaphore state
+  OK: FindSemaphore found added semaphore
+  OK: RemSemaphore completed
+  OK: FindSemaphore returns NULL after removal
+
+Test 10: Semaphore wait queue handoff
+  OK: Child reached semaphore wait point
+  OK: Wait queue count increments for blocked child
+  OK: Blocked child acquired semaphore after release
+  OK: Semaphore ownership transferred to waiting child
+  OK: Child released semaphore after signal
+  OK: Semaphore reset after waiting child released it
+
+Test 11: Multiple obtain/release cycles
+  OK: 10 obtain/release cycles completed correctly
+
+=============================
+Tests passed: 38
+Tests failed: 0
+
+PASS: All semaphore tests passed!

@@ -78,7 +78,14 @@ static void test_fail(const char *name, const char *reason)
 /* Check if a path can be locked */
 static BOOL path_accessible(const char *path)
 {
-    BPTR lock = Lock((CONST_STRPTR)path, SHARED_LOCK);
+    /* no "Please insert volume" requester for a removed assign */
+    struct Process *me = (struct Process *)FindTask(NULL);
+    APTR old_window_ptr = me->pr_WindowPtr;
+    BPTR lock;
+
+    me->pr_WindowPtr = (APTR)-1;
+    lock = Lock((CONST_STRPTR)path, SHARED_LOCK);
+    me->pr_WindowPtr = old_window_ptr;
     if (lock) {
         UnLock(lock);
         return TRUE;
@@ -90,7 +97,7 @@ static BOOL path_accessible(const char *path)
 static void cleanup_test_assigns(void)
 {
     /* Try to remove test assign - may not exist */
-    RemAssignList((STRPTR)"TESTASSIGN", (BPTR)0);
+    AssignLock((STRPTR)"TESTASSIGN", (BPTR)0);
     DeleteFile((CONST_STRPTR)"assigntestdir");
 }
 
@@ -162,14 +169,16 @@ int main(void)
     /* Test 6: Remove the assign */
     print("\nTest 6: Remove assign\n");
     
-    if (RemAssignList((STRPTR)"TESTASSIGN", (BPTR)0)) {
+    /* AssignLock(name, NULL) removes an assign (RemAssignList() only
+     * removes the directory matching a lock) */
+    if (AssignLock((STRPTR)"TESTASSIGN", (BPTR)0)) {
         if (!path_accessible("TESTASSIGN:")) {
             test_pass("Assign removed");
         } else {
             test_fail("Remove assign", "Still accessible");
         }
     } else {
-        test_fail("RemAssignList", "Failed");
+        test_fail("AssignLock(name, NULL)", "Failed");
     }
     
     /* Cleanup */

@@ -69,8 +69,7 @@ int main(void)
     BPTR lock;
     LONG ok;
     LONG err;
-    LONG owner_info;
-    struct FileInfoBlock fib;
+    struct FileInfoBlock *fib;
     CONST_STRPTR path = (CONST_STRPTR)"T:setowner_test_file";
 
     print("SetOwner Test\n");
@@ -87,52 +86,35 @@ int main(void)
     }
     Close(fh);
 
-    print("Test 1: Rejects NULL names\n");
-    ok = SetOwner(NULL, 0x12345678);
+    print("Test 1: The standard filesystems do not support ACTION_SET_OWNER\n");
+    SetIoErr(0);
+    ok = SetOwner(path, 0x13572468);
     err = IoErr();
-    if (ok == DOSFALSE && err == ERROR_REQUIRED_ARG_MISSING)
-        test_pass("Reject NULL name");
+    if (ok == DOSFALSE && err == ERROR_ACTION_NOT_KNOWN)
+        test_pass("SetOwner reports ERROR_ACTION_NOT_KNOWN");
     else
-        test_fail("Reject NULL name", "Expected ERROR_REQUIRED_ARG_MISSING");
+        test_fail("SetOwner reports ERROR_ACTION_NOT_KNOWN", "Unexpected result or IoErr");
 
-    print("\nTest 2: Rejects missing objects\n");
+    print("\nTest 2: The packet is rejected before the object is looked up\n");
+    SetIoErr(0);
     ok = SetOwner((CONST_STRPTR)"T:setowner_missing_file", 0x89abcdef);
     err = IoErr();
-    if (ok == DOSFALSE && err == ERROR_OBJECT_NOT_FOUND)
-        test_pass("Reject missing file");
+    if (ok == DOSFALSE && err == ERROR_ACTION_NOT_KNOWN)
+        test_pass("Missing object reports ERROR_ACTION_NOT_KNOWN");
     else
-        test_fail("Reject missing file", "Expected ERROR_OBJECT_NOT_FOUND");
+        test_fail("Missing object reports ERROR_ACTION_NOT_KNOWN", "Unexpected result or IoErr");
 
-    print("\nTest 3: Updates owner information returned by Examine()\n");
-    owner_info = 0x13572468;
-    ok = SetOwner(path, owner_info);
-    if (!ok)
-    {
-        test_fail("Set owner metadata", "SetOwner returned FALSE");
-    }
+    print("\nTest 3: Examine() reports no owner\n");
+    fib = (struct FileInfoBlock *)AllocDosObject(DOS_FIB, NULL);
+    lock = Lock(path, SHARED_LOCK);
+    if (fib && lock && Examine(lock, fib) && fib->fib_OwnerUID == 0 && fib->fib_OwnerGID == 0)
+        test_pass("Owner fields are zero");
     else
-    {
-        lock = Lock(path, SHARED_LOCK);
-        if (!lock)
-        {
-            test_fail("Set owner metadata", "Lock failed after SetOwner");
-        }
-        else if (!Examine(lock, &fib))
-        {
-            test_fail("Set owner metadata", "Examine failed after SetOwner");
-            UnLock(lock);
-        }
-        else if ((((LONG)fib.fib_OwnerUID << 16) | fib.fib_OwnerGID) == owner_info)
-        {
-            test_pass("Set owner metadata");
-            UnLock(lock);
-        }
-        else
-        {
-            test_fail("Set owner metadata", "Examine owner fields did not match SetOwner value");
-            UnLock(lock);
-        }
-    }
+        test_fail("Owner fields are zero", "Examine failed or owner fields set");
+    if (lock)
+        UnLock(lock);
+    if (fib)
+        FreeDosObject(DOS_FIB, fib);
 
     DeleteFile(path);
 

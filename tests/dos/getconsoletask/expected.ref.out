@@ -1,0 +1,10 @@
+GetConsoleTask Test
+===================
+
+Test 1: Current process returns pr_ConsoleTask
+  PASS: Current process console task
+
+Test 2: NULL pr_ConsoleTask returns NULL
+  PASS: NULL console task
+
+Failed: 0

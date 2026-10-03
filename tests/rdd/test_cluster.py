@@ -40,7 +40,7 @@ class Cluster(unittest.TestCase):
         shutil.rmtree(self.d)
 
     def test_clusters(self):
-        cl = {c["signature"]: c for c in cluster.cluster_run(self.d, roadmap=self.rm)}
+        cl = {c["signature"]: c for c in cluster.cluster_run(self.d, roadmap=self.rm, owners=[])}
         mv = cl["screen.menu_vborder: lxa 0, reference 2"]
         self.assertEqual(mv["apps"], ["a", "b", "c"])
         self.assertEqual(mv["phases"], [223])            # owned via roadmap text
@@ -51,12 +51,18 @@ class Cluster(unittest.TestCase):
         self.assertEqual(len(cl["gadget geometry (top) differs"]["evidence"]), 3)
 
     def test_stubs_only_for_unowned_multi_app(self):
-        cl = cluster.cluster_run(self.d, roadmap=self.rm)
+        cl = cluster.cluster_run(self.d, roadmap=self.rm, owners=[])
         md = cluster.phase_stubs(cl, 290)
         self.assertIn("### Phase 290 — ", md)
         self.assertNotIn("menu_vborder", md)
         self.assertNotIn("lacks 0x8000000\n", md)        # single-app cluster
         self.assertIn("lxa lacks 0x8000010", md)
+
+    def test_owners_map(self):
+        owners = [{"match": r"^window\.flags", "phase": 222}]
+        cl = {c["signature"]: c for c in cluster.cluster_run(self.d, roadmap=self.rm, owners=owners)}
+        self.assertEqual(cl["window.flags: lxa lacks 0x8000010"]["phases"], [222])
+        self.assertEqual(cluster.lint_owners(roadmap=self.rm, path=os.path.join(self.d, "none.yaml")), [])
 
 
 if __name__ == "__main__":

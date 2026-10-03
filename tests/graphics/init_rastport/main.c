@@ -16,6 +16,7 @@
 #include <exec/memory.h>
 #include <graphics/gfx.h>
 #include <graphics/rastport.h>
+#include <graphics/gfxbase.h>
 #include <clib/exec_protos.h>
 #include <clib/graphics_protos.h>
 #include <clib/dos_protos.h>
@@ -55,6 +56,14 @@ int main(void)
     int errors = 0;
 
     print("Testing InitRastPort()...\n");
+
+    /* Pre-fill the structure so cleared fields are really written */
+    {
+        UBYTE *b = (UBYTE *)&rp;
+        ULONG i;
+        for (i = 0; i < sizeof(rp); i++)
+            b[i] = 0xAA;
+    }
 
     /* Initialize the RastPort */
     InitRastPort(&rp);
@@ -107,12 +116,28 @@ int main(void)
         print("OK: LinePtrn = 0xFFFF\n");
     }
 
-    /* Test Flags contains FRST_DOT */
-    if (!(rp.Flags & FRST_DOT)) {
-        print("FAIL: Flags missing FRST_DOT\n");
+    /* AmigaOS 3.1 clears Flags (FRST_DOT is only set by Move()) */
+    if (rp.Flags != 0) {
+        print("FAIL: Flags != 0\n");
         errors++;
     } else {
-        print("OK: Flags contains FRST_DOT\n");
+        print("OK: Flags = 0\n");
+    }
+
+    /* PenWidth/PenHeight are left zero */
+    if (rp.PenWidth != 0 || rp.PenHeight != 0) {
+        print("FAIL: PenWidth/PenHeight != 0\n");
+        errors++;
+    } else {
+        print("OK: PenWidth = 0, PenHeight = 0\n");
+    }
+
+    /* The default font is GfxBase->DefaultFont */
+    if (rp.Font != GfxBase->DefaultFont) {
+        print("FAIL: Font != GfxBase->DefaultFont\n");
+        errors++;
+    } else {
+        print("OK: Font = GfxBase->DefaultFont\n");
     }
 
     /* Test default cp_x, cp_y (cursor position) */

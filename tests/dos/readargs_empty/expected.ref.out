@@ -1,0 +1,34 @@
+ReadArgs Empty/Edge-case Input Test
+====================================
+
+Test 1: Empty input with optional argument
+  PASS: Optional arg not set with empty input
+
+Test 2: Empty input with required argument (should fail)
+  IoErr = 116
+  PASS: Correctly rejected (different error code)
+
+Test 3: Whitespace-only input with optional argument
+  PASS: Whitespace treated as empty
+
+Test 4: Leading whitespace handling
+  FILE = 'testfile.txt'
+  PASS: Leading whitespace stripped
+
+Test 5: Trailing whitespace handling
+  FILE = 'testfile.txt'
+  PASS: Trailing whitespace stripped
+
+Test 6: Empty quoted string ""
+  PASS: Empty string correctly parsed
+
+Test 7: Multiple optional args with partial input
+  Args set: 1/3
+  PASS: Only first arg set
+
+Test 8: Switch with empty input
+  PASS: Switch not set with empty input
+
+=== Test Summary ===
+Passed: 8
+Failed: 0

@@ -4,7 +4,6 @@
  * Tests:
  *   - VERSION command output
  *   - DATE command output format
- *   - MakeLink function for creating symlinks
  *   - ReadLink reads soft-link target
  *
  * Note: WAIT and INFO are harder to test deterministically,
@@ -110,52 +109,10 @@ int main(void)
         tests_failed++;
     }
     
-    /* ===== Test 2: MakeLink function ===== */
-    print("\nTest Group 2: MakeLink Function (Soft Links)\n");
-    
-    {
-        char buf[128];
-        LONG link_result;
+    /* MakeLink()/ReadLink() are covered by Tests/Dos/FileIOAdvanced: link
+     * support is a property of the filesystem (the AmigaOS 3.1 ram-handler
+     * has no soft links), so it does not belong in this command test. */
 
-        DeleteFile((CONST_STRPTR)"syscmd_target.txt");
-        DeleteFile((CONST_STRPTR)"SYS:Tests/Commands/syscmd_softlink");
-
-        {
-            BPTR fh = Open((CONST_STRPTR)"syscmd_target.txt", MODE_NEWFILE);
-            if (fh) {
-                Write(fh, (CONST APTR)"syscmd", 6);
-                Close(fh);
-            }
-        }
-
-        link_result = MakeLink((CONST_STRPTR)"SYS:Tests/Commands/syscmd_softlink", (LONG)(CONST_STRPTR)"SYS:Tests/Commands/syscmd_target.txt", LINK_SOFT);
-        if (link_result) {
-            test_pass("MakeLink creates soft link");
-        } else {
-            print("  MakeLink IoErr: ");
-            print_num(IoErr());
-            print("\n");
-            test_fail("MakeLink creates soft link");
-        }
-
-        link_result = ReadLink(NULL, 0, (CONST_STRPTR)"SYS:Tests/Commands/syscmd_softlink", (STRPTR)buf, sizeof(buf));
-        if (link_result >= 0 && strcmp(buf, "SYS:Tests/Commands/syscmd_target.txt") == 0) {
-            test_pass("ReadLink returns target path");
-        } else {
-            print("  ReadLink result=");
-            print_num(link_result);
-            print(", IoErr=");
-            print_num(IoErr());
-            print(", target='");
-            print(buf);
-            print("'\n");
-            test_fail("ReadLink returns target path");
-        }
-
-        DeleteFile((CONST_STRPTR)"SYS:Tests/Commands/syscmd_softlink");
-        DeleteFile((CONST_STRPTR)"syscmd_target.txt");
-    }
-    
     /* ===== Test 3: Library Version Info ===== */
     print("\nTest Group 3: Library Version Info\n");
     

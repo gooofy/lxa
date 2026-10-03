@@ -1,0 +1,11 @@
+# Phase 231 sweep scenario, generated from tests/scenarios/apps/amiblitz3.yaml
+# by `python3 -m rdd sweep gen` - edit the app scenario, not this file.
+name: sweep-amiblitz3
+app: {manifest: AmiBlitz3}
+steps:
+  - launch
+  - wait_window: {title: "AmiBlitz", timeout: 30000}
+  - frames: 100
+  - snapshot: startup
+  - menus
+  - quit

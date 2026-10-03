@@ -11,6 +11,9 @@
 struct Library *IntuitionBase = NULL;
 struct Library *GadToolsBase = NULL;
 
+/* GadgetType bit GadTools sets on all its gadgets (not in the NDK) */
+#define GTYP_GADTOOLS 0x0100
+
 static int fail(const char *message)
 {
     printf("FAIL: %s\n", message);
@@ -46,10 +49,14 @@ int main(void)
     context = CreateContext(&glist);
     if (!context || glist != context)
         return fail("CreateContext did not initialize the gadget list");
-    if ((context->GadgetType & GTYP_GTYPEMASK) != GTYP_CUSTOMGADGET)
+    /* AmigaOS 3.1: an invisible, zero-size GadTools gadget without a class */
+    if (context->GadgetType != GTYP_GADTOOLS)
         return fail("context gadget type mismatch");
-    if (context->SpecialInfo == NULL)
-        return fail("context gadget private bookkeeping missing");
+    if (context->Width != 0 || context->Height != 0 ||
+        (context->Flags & GFLG_GADGHIGHBITS) != GFLG_GADGHNONE)
+        return fail("context gadget should be an invisible zero-size gadget");
+    if (context->NextGadget != NULL)
+        return fail("fresh context gadget should not have a successor");
     printf("OK: CreateContext initialized gadget list head\n");
 
     memset(&ng, 0, sizeof(ng));
@@ -93,8 +100,19 @@ int main(void)
         TAG_DONE);
     if (!win)
         return fail("OpenWindowTags failed");
-    if (win->FirstGadget != button)
-        return fail("OpenWindowTags should expose the first real gadget, not the context head");
+    /* The context gadget stays in the window's list (after the window's
+     * own system gadgets), directly followed by the application gadgets. */
+    {
+        struct Gadget *g;
+
+        for (g = win->FirstGadget; g && g != context; g = g->NextGadget)
+            ;
+        if (!g)
+            return fail("OpenWindowTags should keep the context gadget in the window gadget list");
+        if (context->NextGadget != button || button->NextGadget != string_gad)
+            return fail("application gadgets should follow the context gadget");
+    }
+    printf("OK: window gadget list contains the context gadget and its gadgets\n");
 
     GT_RefreshWindow(win, NULL);
     printf("OK: GT_RefreshWindow accepted a window gadget list\n");

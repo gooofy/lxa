@@ -1,0 +1,11 @@
+# Phase 231 sweep scenario, generated from tests/scenarios/apps/kickpascal2.yaml
+# by `python3 -m rdd sweep gen` - edit the app scenario, not this file.
+name: sweep-kickpascal2
+app: {manifest: kickpascal2}
+steps:
+  - launch
+  - wait_window: {title: "KICK-PASCAL", timeout: 30000}
+  - frames: 100
+  - snapshot: startup
+  - menus
+  - quit

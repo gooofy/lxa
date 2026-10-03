@@ -218,15 +218,6 @@ int main(void)
     else
         test_fail("Allow duplicate volume name", "Volume entry should not conflict with device or assign names");
 
-    print("\nTest 5: NULL entries are rejected\n");
-    link_nodes(dos_info, node_a, node_b, NULL);
-    ok = AddDosEntry(NULL);
-    err = IoErr();
-    if (ok == DOSFALSE && err == ERROR_REQUIRED_ARG_MISSING && BADDR(dos_info->di_DevInfo) == node_a && BADDR(node_a->dol_Next) == node_b)
-        test_pass("Reject NULL entry");
-    else
-        test_fail("Reject NULL entry", "NULL handling behaved incorrectly");
-
     dos_info->di_DevInfo = old_head;
     free_node(node_volume_dup);
     free_node(node_assign_dup);

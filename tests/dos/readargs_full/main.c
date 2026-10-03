@@ -78,11 +78,43 @@ static void test_fail(const char *name, const char *reason)
     tests_failed++;
 }
 
+/*
+ * ReadArgs() parses the command line from Input() (where the shell put it),
+ * not from pr_Arguments: parse each test line from a CSource buffer instead
+ * (the documented way to run ReadArgs on an arbitrary string).
+ */
+static struct RDArgs *parse_args(const char *tmpl, LONG *argv, const char *line)
+{
+    struct RDArgs *rd = (struct RDArgs *)AllocDosObject(DOS_RDARGS, NULL);
+    LONG len = 0;
+
+    if (!rd)
+        return NULL;
+    while (line[len]) len++;
+    rd->RDA_Source.CS_Buffer = (UBYTE *)line;
+    rd->RDA_Source.CS_Length = len;
+    rd->RDA_Source.CS_CurChr = 0;
+    rd->RDA_Flags |= RDAF_NOPROMPT;
+    if (!ReadArgs((CONST_STRPTR)tmpl, argv, rd)) {
+        LONG err = IoErr();
+        FreeDosObject(DOS_RDARGS, rd);
+        SetIoErr(err);
+        return NULL;
+    }
+    return rd;
+}
+
+static void free_args(struct RDArgs *rd)
+{
+    FreeArgs(rd);
+    FreeDosObject(DOS_RDARGS, rd);
+}
+
 int main(void)
 {
     struct RDArgs *rda;
     LONG args[8];
-    struct Process *me = (struct Process *)FindTask(NULL);
+    const char *cmdline;
     int i;
     
     print("ReadArgs Comprehensive Test\n");
@@ -92,9 +124,9 @@ int main(void)
     print("Test 1: Required argument (/A)\n");
     
     for (i = 0; i < 8; i++) args[i] = 0;
-    me->pr_Arguments = (STRPTR)"testfile.txt\n";
+    cmdline = "testfile.txt\n";
     
-    rda = ReadArgs((CONST_STRPTR)"FILE/A", args, NULL);
+    rda = parse_args("FILE/A", args, cmdline);
     if (!rda) {
         test_fail("Required arg", "ReadArgs failed");
     } else {
@@ -103,16 +135,16 @@ int main(void)
         } else {
             test_fail("Required arg", "Wrong value");
         }
-        FreeArgs(rda);
+        free_args(rda);
     }
     
     /* Test 2: Switch argument (/S) - present */
     print("\nTest 2: Switch argument (/S) - present\n");
     
     for (i = 0; i < 8; i++) args[i] = 0;
-    me->pr_Arguments = (STRPTR)"QUIET\n";
+    cmdline = "QUIET\n";
     
-    rda = ReadArgs((CONST_STRPTR)"QUIET/S", args, NULL);
+    rda = parse_args("QUIET/S", args, cmdline);
     if (!rda) {
         test_fail("Switch present", "ReadArgs failed");
     } else {
@@ -121,16 +153,16 @@ int main(void)
         } else {
             test_fail("Switch present", "Should be TRUE");
         }
-        FreeArgs(rda);
+        free_args(rda);
     }
     
     /* Test 3: Switch argument (/S) - absent */
     print("\nTest 3: Switch argument (/S) - absent\n");
     
     for (i = 0; i < 8; i++) args[i] = 0;
-    me->pr_Arguments = (STRPTR)"\n";
+    cmdline = "\n";
     
-    rda = ReadArgs((CONST_STRPTR)"QUIET/S", args, NULL);
+    rda = parse_args("QUIET/S", args, cmdline);
     if (!rda) {
         test_fail("Switch absent", "ReadArgs failed");
     } else {
@@ -139,16 +171,16 @@ int main(void)
         } else {
             test_fail("Switch absent", "Should be FALSE");
         }
-        FreeArgs(rda);
+        free_args(rda);
     }
     
     /* Test 4: Keyword argument with = syntax (/K) */
     print("\nTest 4: Keyword with = syntax (TO=value)\n");
     
     for (i = 0; i < 8; i++) args[i] = 0;
-    me->pr_Arguments = (STRPTR)"TO=output.txt\n";
+    cmdline = "TO=output.txt\n";
     
-    rda = ReadArgs((CONST_STRPTR)"TO/K", args, NULL);
+    rda = parse_args("TO/K", args, cmdline);
     if (!rda) {
         test_fail("Keyword =", "ReadArgs failed");
     } else {
@@ -164,16 +196,16 @@ int main(void)
         } else {
             test_fail("Keyword =", "Value not parsed");
         }
-        FreeArgs(rda);
+        free_args(rda);
     }
     
     /* Test 5: Keyword argument with space syntax (/K) */
     print("\nTest 5: Keyword with space syntax (TO value)\n");
     
     for (i = 0; i < 8; i++) args[i] = 0;
-    me->pr_Arguments = (STRPTR)"TO output.txt\n";
+    cmdline = "TO output.txt\n";
     
-    rda = ReadArgs((CONST_STRPTR)"TO/K", args, NULL);
+    rda = parse_args("TO/K", args, cmdline);
     if (!rda) {
         test_fail("Keyword space", "ReadArgs failed");
     } else {
@@ -189,16 +221,16 @@ int main(void)
         } else {
             test_fail("Keyword space", "Value not parsed");
         }
-        FreeArgs(rda);
+        free_args(rda);
     }
     
     /* Test 6: Numeric argument (/N) */
     print("\nTest 6: Numeric argument (/N)\n");
     
     for (i = 0; i < 8; i++) args[i] = 0;
-    me->pr_Arguments = (STRPTR)"SIZE=42\n";
+    cmdline = "SIZE=42\n";
     
-    rda = ReadArgs((CONST_STRPTR)"SIZE/K/N", args, NULL);
+    rda = parse_args("SIZE/K/N", args, cmdline);
     if (!rda) {
         test_fail("Numeric", "ReadArgs failed");
     } else {
@@ -216,16 +248,16 @@ int main(void)
         } else {
             test_fail("Numeric", "Value not parsed");
         }
-        FreeArgs(rda);
+        free_args(rda);
     }
     
     /* Test 7: Negative numeric argument */
     print("\nTest 7: Negative numeric argument\n");
     
     for (i = 0; i < 8; i++) args[i] = 0;
-    me->pr_Arguments = (STRPTR)"SIZE=-123\n";
+    cmdline = "SIZE=-123\n";
     
-    rda = ReadArgs((CONST_STRPTR)"SIZE/K/N", args, NULL);
+    rda = parse_args("SIZE/K/N", args, cmdline);
     if (!rda) {
         test_fail("Negative numeric", "ReadArgs failed");
     } else {
@@ -242,19 +274,19 @@ int main(void)
         } else {
             test_fail("Negative numeric", "Value not parsed");
         }
-        FreeArgs(rda);
+        free_args(rda);
     }
     
     /* Test 8: Missing required argument should fail */
     print("\nTest 8: Missing required argument\n");
     
     for (i = 0; i < 8; i++) args[i] = 0;
-    me->pr_Arguments = (STRPTR)"\n";
+    cmdline = "\n";
     
-    rda = ReadArgs((CONST_STRPTR)"FILE/A", args, NULL);
+    rda = parse_args("FILE/A", args, cmdline);
     if (rda) {
         test_fail("Missing required", "Should have failed");
-        FreeArgs(rda);
+        free_args(rda);
     } else {
         LONG err = IoErr();
         print("    IoErr: ");
@@ -267,9 +299,9 @@ int main(void)
     print("\nTest 9: Quoted string with spaces\n");
     
     for (i = 0; i < 8; i++) args[i] = 0;
-    me->pr_Arguments = (STRPTR)"\"file with spaces.txt\"\n";
+    cmdline = "\"file with spaces.txt\"\n";
     
-    rda = ReadArgs((CONST_STRPTR)"FILE/A", args, NULL);
+    rda = parse_args("FILE/A", args, cmdline);
     if (!rda) {
         test_fail("Quoted string", "ReadArgs failed");
     } else {
@@ -292,16 +324,16 @@ int main(void)
         } else {
             test_fail("Quoted string", "Value not parsed");
         }
-        FreeArgs(rda);
+        free_args(rda);
     }
     
     /* Test 10: Multiple template items */
     print("\nTest 10: Multiple template items\n");
     
     for (i = 0; i < 8; i++) args[i] = 0;
-    me->pr_Arguments = (STRPTR)"input.txt TO=output.txt ALL\n";
+    cmdline = "input.txt TO=output.txt ALL\n";
     
-    rda = ReadArgs((CONST_STRPTR)"FROM/A,TO/K,ALL/S", args, NULL);
+    rda = parse_args("FROM/A,TO/K,ALL/S", args, cmdline);
     if (!rda) {
         test_fail("Multiple items", "ReadArgs failed");
     } else {
@@ -318,16 +350,16 @@ int main(void)
         } else {
             test_fail("Multiple items", "Some values missing");
         }
-        FreeArgs(rda);
+        free_args(rda);
     }
     
     /* Test 11: Optional argument not provided */
     print("\nTest 11: Optional argument not provided\n");
     
     for (i = 0; i < 8; i++) args[i] = 0;
-    me->pr_Arguments = (STRPTR)"input.txt\n";
+    cmdline = "input.txt\n";
     
-    rda = ReadArgs((CONST_STRPTR)"FROM/A,TO/K", args, NULL);
+    rda = parse_args("FROM/A,TO/K", args, cmdline);
     if (!rda) {
         test_fail("Optional missing", "ReadArgs failed");
     } else {
@@ -336,7 +368,7 @@ int main(void)
         } else {
             test_fail("Optional missing", "Wrong state");
         }
-        FreeArgs(rda);
+        free_args(rda);
     }
     
     /* Summary */

@@ -114,20 +114,22 @@ int main(void)
         
         a = SPFlt(10);
         b = SPFlt(3);
-        result = SPSub(a, b);  /* 10 - 3 = 7 */
+        /* SPSub(fnum1, fnum2) subtracts its first argument from its
+         * second (autodoc; AmigaOS 3.1): fnum2 - fnum1 */
+        result = SPSub(b, a);  /* 10 - 3 = 7 */
         int_result = SPFix(result);
         
         printf("  SPSub(10, 3) = %ld (expected: 7)\n", int_result);
         
         a = SPFlt(5);
         b = SPFlt(12);
-        result = SPSub(a, b);  /* 5 - 12 = -7 */
+        result = SPSub(b, a);  /* 5 - 12 = -7 */
         int_result = SPFix(result);
         
         printf("  SPSub(5, 12) = %ld (expected: -7)\n", int_result);
         
-        if (SPFix(SPSub(SPFlt(10), SPFlt(3))) == 7 &&
-            SPFix(SPSub(SPFlt(5), SPFlt(12))) == -7)
+        if (SPFix(SPSub(SPFlt(3), SPFlt(10))) == 7 &&
+            SPFix(SPSub(SPFlt(12), SPFlt(5))) == -7)
         {
             printf("  PASS: Subtraction works correctly\n");
             success++;

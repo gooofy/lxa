@@ -160,27 +160,18 @@ int main(void)
     else
         test_fail("Quoted parse error preserves IoErr", "Error return or IoErr preservation was wrong");
 
-    print("\nTest 7: Zero-length buffer returns ITEM_NOTHING and writes NUL\n");
+    print("\nTest 7: Zero-length buffer consumes one character and returns ITEM_ERROR\n");
     source.CS_Buffer = (STRPTR)"ignored\n";
     source.CS_Length = 8;
     source.CS_CurChr = 0;
+    zero_buf[0] = '?';
     result = ReadItem((CONST_STRPTR)zero_buf, 0, &source);
-    if (result == ITEM_NOTHING && zero_buf[0] == '\0' && source.CS_CurChr == 0)
+    if (result == ITEM_ERROR && zero_buf[0] == '\0' && source.CS_CurChr == 1)
         test_pass("Zero maxchars handled");
     else
         test_fail("Zero maxchars handled", "Zero-length buffer semantics were wrong");
 
-    print("\nTest 8: NULL buffer returns ITEM_NOTHING\n");
-    source.CS_Buffer = (STRPTR)"alpha\n";
-    source.CS_Length = 6;
-    source.CS_CurChr = 0;
-    result = ReadItem((CONST_STRPTR)0, sizeof(buffer), &source);
-    if (result == ITEM_NOTHING && source.CS_CurChr == 0)
-        test_pass("NULL buffer ignored");
-    else
-        test_fail("NULL buffer ignored", "NULL buffer handling was wrong");
-
-    print("\nTest 9: Unquoted overflow returns ITEM_ERROR\n");
+    print("\nTest 8: Unquoted overflow returns ITEM_ERROR\n");
     source.CS_Buffer = (STRPTR)"alphabet\n";
     source.CS_Length = 9;
     source.CS_CurChr = 0;

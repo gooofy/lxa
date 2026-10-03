@@ -108,12 +108,12 @@ int main(void)
         print("  WARNING: Unexpected error code\n");
     }
     
-    /* Test 3: Lock on current directory (.) */
+    /* Test 3: Lock on current directory ("" - "." is an ordinary name in AmigaDOS) */
     print("\nTest 3: Lock on current directory\n");
     
-    lock1 = Lock((CONST_STRPTR)".", SHARED_LOCK);
+    lock1 = Lock((CONST_STRPTR)"", SHARED_LOCK);
     if (!lock1) {
-        print("  ERROR: Lock on . failed\n");
+        print("  ERROR: Lock on \"\" (current directory) failed\n");
         return 1;
     }
     

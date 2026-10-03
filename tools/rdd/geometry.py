@@ -96,3 +96,20 @@ def click_point(tree, spec):
     if not g:
         raise LookupError("no gadget %r in window %r" % (spec, win.get("title")))
     return center(gadget_box(win, g))
+
+
+def menu_title_points(tree, title=None):
+    """[(menu_title, x, y)] screen points of the menu titles of a window's
+    MenuStrip (the first app window, or the one whose title contains
+    `title`): centre of the title box in the screen's title bar."""
+    found = find_window(tree, title)
+    if not found:
+        return []
+    si, _, win = found
+    scr = tree["screens"][si]
+    y = max(1, (scr.get("bar_height") or 10) // 2)
+    pts = []
+    for m in win.get("menus", []):
+        x = scr.get("left", 0) + m["left"] + max(1, m["width"] // 2)
+        pts.append((m.get("title") or "", x, y))
+    return pts

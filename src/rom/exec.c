@@ -1,6 +1,7 @@
 
 #include <inttypes.h>
 #include <hardware/custom.h>
+#include <hardware/intbits.h>
 
 #include <exec/types.h>
 #include <exec/memory.h>
@@ -23,6 +24,7 @@
 #include <libraries/mathffp.h>
 
 #include <graphics/gfxbase.h>
+#include <graphics/monitor.h>
 
 #include <intuition/intuitionbase.h>
 
@@ -47,8 +49,8 @@ extern struct MsgPort *lxa_dos_host_console_port(void);
 
 #define EXEC_FUNCTABLE_ENTRY(___off) (NUM_EXEC_FUNCS+(___off/6))
 
-#define VERSION  1
-#define REVISION 1
+#define VERSION  40     /* exec.library 40.10 = Kickstart 3.1 (as on the reference) */
+#define REVISION 10
 
 /* Library init calling convention per RKRM:
  * D0 = Library pointer
@@ -164,6 +166,8 @@ static WORD _cia_SetICR(register struct Library *resource __asm("a6"),
                         register LONG mask __asm("d0"));
 static struct Library *exec_create_cia_resource(struct ExecBase *SysBase,
                                                 CONST_STRPTR name);
+struct LxaCIAResource;
+static void cia_service(struct LxaCIAResource *cia);
 
 #ifndef JMPINSTR
 #define JMPINSTR 0x4ef9
@@ -281,6 +285,7 @@ static WORD _cia_AbleICR(register struct Library *resource __asm("a6"),
     if (mask & 0x80)
     {
         cia->enable_mask |= (UBYTE)(mask & 0x1f);
+        cia_service(cia);   /* enabling a pending request interrupts at once */
     }
     else
     {
@@ -288,6 +293,48 @@ static WORD _cia_AbleICR(register struct Library *resource __asm("a6"),
     }
 
     return old_mask;
+}
+
+/*
+ * Service pending CIA requests the way the CIA interrupt server does: every
+ * bit that is both requested and enabled runs its handler (A1 = is_Data,
+ * A5 = is_Code, A6 = SysBase) and is acknowledged.  While interrupts are
+ * disabled the request stays pending, as on the hardware.
+ */
+static void cia_service(struct LxaCIAResource *cia)
+{
+    struct ExecBase *SysBase = *(struct ExecBase **)4;
+    LONG bit;
+
+    if (SysBase->IDNestCnt >= 0)
+        return;
+
+    for (bit = 0; bit < 5; bit++)
+    {
+        UBYTE m = (UBYTE)(1U << bit);
+        struct Interrupt *irq = cia->vectors[bit];
+
+        if (!(cia->active_mask & cia->enable_mask & m))
+            continue;
+        cia->active_mask &= (UBYTE)~m;
+        if (irq && irq->is_Code)
+        {
+            APTR code = (APTR)irq->is_Code;
+            APTR data = irq->is_Data;
+
+            __asm volatile (
+                "movem.l a5/a6,-(sp)\n\t"
+                "move.l  %0,a5\n\t"
+                "move.l  %1,a1\n\t"
+                "move.l  %2,a6\n\t"
+                "jsr     (a5)\n\t"
+                "movem.l (sp)+,a5/a6"
+                :
+                : "r" (code), "r" (data), "r" (SysBase)
+                : "a0", "a1", "d0", "d1", "memory"
+            );
+        }
+    }
 }
 
 static WORD _cia_SetICR(register struct Library *resource __asm("a6"),
@@ -307,6 +354,7 @@ static WORD _cia_SetICR(register struct Library *resource __asm("a6"),
     if (mask & 0x80)
     {
         cia->active_mask |= (UBYTE)(mask & 0x1f);
+        cia_service(cia);
     }
     else
     {
@@ -397,6 +445,12 @@ static struct Interrupt *exec_set_int_vector_state(struct ExecBase *SysBase,
         SysBase->IntVects[int_number].iv_Code = (APTR)~0;
     }
 
+    /* handler vectors carry the handler's is_Data in iv_Data (AmigaOS
+     * 3.1, reference-verified); server-chain vectors keep their list */
+    if (exec_interrupt_uses_handler_node(int_number))
+        SysBase->IntVects[int_number].iv_Data = interrupt ? interrupt->is_Data
+                                                          : (APTR)&state->server_list;
+
     return old_interrupt;
 }
 
@@ -410,6 +464,47 @@ static void exec_add_interrupt_server(struct ExecBase *SysBase,
         return;
 
     Enqueue(server_chain, &interrupt->is_Node);
+}
+
+/*
+ * Run the INTB_VERTB server chain; called from the level-3 interrupt
+ * handler once per frame.  Servers are called the AmigaOS way (A0 = custom
+ * chip base, A1 = is_Data, A5 = is_Code, A6 = SysBase, D1 = interrupt
+ * bits) in priority order; a server returning non-zero (Z flag clear) ends
+ * the chain.
+ */
+VOID _exec_VBlankServers(void)
+{
+    struct List *chain = &g_IntVectorState[INTB_VERTB].server_list;
+    struct Node *node;
+    struct Node *next;
+    struct ExecBase *sysbase = *(struct ExecBase **)4;
+
+    for (node = chain->lh_Head; node && (next = node->ln_Succ); node = next)
+    {
+        struct Interrupt *irq = (struct Interrupt *)node;
+        register ULONG result __asm("d0");
+
+        if (!irq->is_Code)
+            continue;
+
+        __asm volatile (
+            "movem.l a5/a6,-(sp)\n\t"
+            "move.l  %1,a5\n\t"
+            "move.l  %2,a1\n\t"
+            "move.l  %3,a6\n\t"
+            "move.l  #0xdff000,a0\n\t"
+            "moveq   #0x20,d1\n\t"
+            "jsr     (a5)\n\t"
+            "movem.l (sp)+,a5/a6"
+            : "=r" (result)
+            : "r" (irq->is_Code), "r" (irq->is_Data), "r" (sysbase)
+            : "a0", "a1", "d1", "memory", "cc"
+        );
+
+        if (result)
+            break;
+    }
 }
 
 static void exec_remove_interrupt_server(struct ExecBase *SysBase,
@@ -487,7 +582,8 @@ static struct Library *exec_register_resident_node(struct ExecBase *SysBase,
         lib_base->lib_IdString     = (APTR)resident->rt_IdString;
         lib_base->lib_Version      = resident->rt_Version;
 
-        AddTail(target_list, (struct Node *)lib_base);
+        if (target_list)
+            AddTail(target_list, (struct Node *)lib_base);
     }
 
     return lib_base;
@@ -850,7 +946,9 @@ struct Library * _exec_MakeLibrary ( register struct ExecBase * SysBase __asm("a
     }
     DPRINTF (LOG_DEBUG, "_exec: MakeLibrary count=%d\n", count);
 
-    negsize = count * 6;
+    /* the jump table is rounded up to a longword multiple so the base stays
+     * longword aligned (AmigaOS 3.1: 5 vectors -> lib_NegSize 32) */
+    negsize = (count * 6 + 3) & ~3UL;
 
     char *mem = AllocMem (___dataSize+negsize, MEMF_PUBLIC|MEMF_CLEAR);
 
@@ -2343,11 +2441,14 @@ ULONG _exec_Wait ( register struct ExecBase * SysBase __asm("a6"),
 
     Disable();
 
+    /* AmigaOS 3.1 records the wait mask even when a signal is already
+     * pending and leaves it in tc_SigWait after Wait() returns
+     * (reference-verified, Phase 220). */
+    thisTask->tc_SigWait = ___signalSet;
+
     /* If at least one of the signals is already set do not wait. */
     while (!(thisTask->tc_SigRecvd & ___signalSet))
     {
-        /* Set the wait signal mask */
-        thisTask->tc_SigWait = ___signalSet;
 
         DPRINTF (LOG_DEBUG, "_exec: Wait() moving task '%s' @ 0x%08lx to TaskWait, SigWait=0x%08lx\n",
                  thisTask->tc_Node.ln_Name, thisTask, thisTask->tc_SigWait);
@@ -2392,9 +2493,6 @@ ULONG _exec_Wait ( register struct ExecBase * SysBase __asm("a6"),
 
     /* And clear them. */
     thisTask->tc_SigRecvd &= ~___signalSet;
-
-    /* Wait() must leave no stale wait mask behind once it returns. */
-    thisTask->tc_SigWait = 0;
 
     Enable();
 
@@ -2543,14 +2641,15 @@ BYTE _exec_AllocSignal ( register struct ExecBase * SysBase    __asm("a6"),
 
     if (signalNum < 0)
     {
-        ULONG mask1 = ~oldmask & -~oldmask;
-
-        if (mask1 == 0)
+        /* AmigaOS 3.1 hands out the highest free signal first: the first
+         * AllocSignal(-1) of a fresh process returns 31 (reference-verified,
+         * Phase 220). */
+        if (oldmask == 0xFFFFFFFFUL)
             return -1;
 
-        signalNum = 0;
-        while (((mask1 >> signalNum) & 1) == 0)
-            signalNum++;
+        signalNum = 31;
+        while ((oldmask >> signalNum) & 1)
+            signalNum--;
 
         DPRINTF (LOG_DEBUG, "_exec: AllocSignal -> auto selected signalNum=%d\n", signalNum);
         DPRINTF(LOG_DEBUG, "_exec: AllocSignal -> bit %d\n", signalNum);
@@ -3343,9 +3442,7 @@ void _exec_AddResource ( register struct ExecBase * SysBase __asm("a6"),
     if (!___resource)
         return;
 
-    /* Set resource type */
-    res_node->ln_Type = NT_RESOURCE;
-
+    /* AmigaOS 3.1 leaves ln_Type to the caller (reference-verified). */
     /* Add the resource to the system list (Enqueue sorts by priority) */
     Forbid();
     Enqueue(&SysBase->ResourceList, res_node);
@@ -3399,8 +3496,8 @@ APTR _exec_OpenResource ( register struct ExecBase * SysBase __asm("a6"),
  * Format string specifiers:
  *   %[-][0][width][.precision][l]d - signed decimal
  *   %[-][0][width][.precision][l]u - unsigned decimal
- *   %[-][0][width][.precision][l]x - lowercase hex
- *   %[-][0][width][.precision][l]X - uppercase hex
+ *   %[-][0][width][.precision][l]x - upper-case hex (sic, AmigaOS 3.1)
+ *   %[-][0][width][.precision][l]X - lower-case hex (sic, AmigaOS 3.1)
  *   %[-][width]s - string
  *   %[-][width]c - character
  *   %b - BSTR (BCPL string with length byte)
@@ -3664,8 +3761,10 @@ APTR _exec_RawDoFmt ( register struct ExecBase * SysBase __asm("a6"),
                     value = *args++;
                 }
 
-                /* AmigaOS RawDoFmt always uses uppercase hex for both %x and %X */
-                const char *hexDigits = "0123456789ABCDEF";
+                /* AmigaOS 3.1 RawDoFmt (verified on the reference machine):
+                 * %x prints upper-case digits, %X lower-case ones. */
+                const char *hexDigits = (specifier == 'X') ? "0123456789abcdef"
+                                                           : "0123456789ABCDEF";
 
                 char buf[9];
                 char *p = buf + sizeof(buf) - 1;
@@ -3791,8 +3890,17 @@ APTR _exec_RawDoFmt ( register struct ExecBase * SysBase __asm("a6"),
             case 'c':
             case 'C':
             {
-                /* Character */
-                char ch = (char)*args++;
+                /* Character: %c takes a WORD, %lc a LONG (low byte printed) */
+                char ch;
+                if (isLong)
+                {
+                    ch = (char)*(ULONG *)args;
+                    args += 2;
+                }
+                else
+                {
+                    ch = (char)*args++;
+                }
 
                 if (!leftAlign)
                 {
@@ -4500,7 +4608,6 @@ void _exec_RemSemaphore ( register struct ExecBase * SysBase __asm("a6"),
 ULONG _exec_SumKickData ( register struct ExecBase * SysBase __asm("a6"))
 {
     ULONG checksum = 0;
-    BOOL has_data = FALSE;
 
     DPRINTF (LOG_DEBUG, "_exec: SumKickData called, KickTagPtr=0x%08lx KickMemPtr=0x%08lx\n",
              (ULONG)SysBase->KickTagPtr, (ULONG)SysBase->KickMemPtr);
@@ -4524,7 +4631,6 @@ ULONG _exec_SumKickData ( register struct ExecBase * SysBase __asm("a6"))
             }
 
             list++;
-            has_data = TRUE;
         }
     }
 
@@ -4534,19 +4640,21 @@ ULONG _exec_SumKickData ( register struct ExecBase * SysBase __asm("a6"))
 
         while (mem_list)
         {
-            UBYTE i;
+            /* the 16-byte header (node + ml_NumEntries) and every MemEntry */
+            ULONG n = 4 + 2 * (ULONG)mem_list->ml_NumEntries;
             ULONG *p = (ULONG *)mem_list;
+            ULONG i;
 
-            for (i = 0; i < sizeof(struct MemList) / sizeof(ULONG); i++)
+            for (i = 0; i < n; i++)
                 checksum += p[i];
 
             mem_list = (struct MemList *)mem_list->ml_Node.ln_Succ;
-            has_data = TRUE;
         }
     }
 
-    if (has_data && !checksum)
-        checksum--;
+    /* AmigaOS 3.1 starts the sum at -1: an empty KickTag/KickMem state
+     * yields 0xFFFFFFFF (reference-verified, Phase 220) */
+    checksum--;
 
     DPRINTF (LOG_DEBUG, "_exec: SumKickData returning 0x%08lx\n", checksum);
     return checksum;
@@ -5303,6 +5411,13 @@ struct Library *registerBuiltInLib (ULONG dSize, struct Resident *romTAG)
      * where LibBase is declared as struct Library* instead of the actual library type).
      * The 5th parameter (segList) is 0 for ROM-based libraries.
      */
+    /* Phase 235: with LXA_OVERRIDE the library stays private to lxa's ROM
+     * (the ROM keeps using it) and OpenLibrary() loads the user's binary */
+    if (emucall1(EMU_CALL_LIB_OVERRIDDEN, (ULONG)romTAG->rt_Name))
+    {
+        LPRINTF (LOG_WARNING, "_exec: LXA_OVERRIDE: %s comes from LIBS: (diagnostic mode)\n", romTAG->rt_Name);
+        return exec_register_resident_node(SysBase, NULL, romTAG, 0);
+    }
     return exec_register_resident_node(SysBase, &SysBase->LibList, romTAG, 0);
 }
 
@@ -5400,7 +5515,8 @@ void _bootstrap(void)
             BPTR dirLock = Lock((STRPTR)dirbuf, ACCESS_READ);
             if (dirLock) {
                 struct Process *me = U_getCurrentProcess();
-                me->pr_CurrentDir = dirLock;
+                /* CurrentDir() also records the name in cli_SetName */
+                CurrentDir(dirLock);
                 me->pr_HomeDir = DupLock(dirLock);  /* Also set HomeDir for PROGDIR: */
                 DPRINTF (LOG_INFO, "_exec: _bootstrap(): current dir lock=0x%08lx\n", dirLock);
             } else {
@@ -5825,28 +5941,30 @@ void coldstart (void)
     /* Initialize GfxBase display dimensions - default to PAL resolution */
     GfxBase->NormalDisplayRows = 256;
     GfxBase->NormalDisplayColumns = 640;
-    GfxBase->MaxDisplayRow = 312;     /* PAL max */
-    GfxBase->MaxDisplayColumn = 640;
+    GfxBase->MaxDisplayRow = 311;     /* PAL: 312 lines (AmigaOS 3.1 reference) */
+    GfxBase->MaxDisplayColumn = 455;  /* AmigaOS 3.1 reference value */
     GfxBase->DisplayFlags = PAL | REALLY_PAL;  /* PAL crystal (matches VBlankFrequency=50) */
     GfxBase->VBlank = 50;                      /* PAL VBlank rate */
     GfxBase->ChipRevBits0 = SETCHIPREV_ECS;   /* ECS chipset (HR_AGNUS + HR_DENISE) */
+    GfxBase->SpriteReserved = 0x01;          /* sprite 0 is the Intuition pointer (as on AmigaOS 3.1) */
 
     /* Additional GfxBase fields that some apps read directly.
      * Per Phase 109 audit — apps may check these at startup and fail silently
      * if they find zeros. */
-    GfxBase->NormalDPMX = 22;                  /* ~22 dots per mm (horizontal) for PAL hi-res */
-    GfxBase->NormalDPMY = 22;                  /* ~22 dots per mm (vertical) for PAL non-lace */
-    GfxBase->MicrosPerLine = 64;               /* ~64 microseconds per raster line (PAL) */
+    GfxBase->NormalDPMX = 1226;                /* dots per metre, AmigaOS 3.1 reference (PAL) */
+    GfxBase->NormalDPMY = 1299;
+    GfxBase->MicrosPerLine = 16285;            /* 1/256 us per raster line, AmigaOS 3.1 reference */
     GfxBase->MinDisplayColumn = 0x71;          /* Standard left edge of display (ECS) */
-    GfxBase->monitor_id = 0;                   /* Default (PAL) monitor */
+    GfxBase->monitor_id = PAL_MONITOR_ID >> 16; /* PAL monitor (AmigaOS 3.1 reference: 2) */
     GfxBase->TopLine = 0;                      /* Top visible line offset */
     /* copinit, SimpleSprites, ActiView left NULL — they require actual data
      * structures. NULL is the correct initial value (no copper list, no sprites,
      * no view loaded yet). ActiView is set when LoadView() is called. */
 
-    /* Phase 151: populate GfxBase->MonitorList with default/pal/ntsc system
-     * MonitorSpec nodes so apps that enumerate the list (DPaint Screen Format
-     * dialog, etc.) see the standard monitors instead of an empty list. */
+    /* Phase 151/220: populate GfxBase->MonitorList with the native
+     * pal.monitor (as AmigaOS 3.1 does on a PAL machine without
+     * DEVS:Monitors) so apps that enumerate the list (DPaint Screen Format
+     * dialog, etc.) see the system monitor instead of an empty list. */
     {
         extern void graphics_init_monitor_list(struct GfxBase *gfxBase);
         graphics_init_monitor_list(GfxBase);
@@ -5908,15 +6026,6 @@ void coldstart (void)
         DPRINTF (LOG_DEBUG, "coldstart: registered ciab.resource\n");
     }
 
-    struct Node *blitterResource = AllocVec(sizeof(struct Node), MEMF_CLEAR | MEMF_PUBLIC);
-    if (blitterResource) {
-        blitterResource->ln_Type = NT_RESOURCE;
-        blitterResource->ln_Pri = 0;
-        blitterResource->ln_Name = "blitter.resource";
-        AddTail(&SysBase->ResourceList, blitterResource);
-        DPRINTF (LOG_DEBUG, "coldstart: registered blitter.resource\n");
-    }
-    
     DPRINTF (LOG_DEBUG, "coldstart: done registering built-in resources\n");
 
     // init multitasking
@@ -5991,28 +6100,61 @@ void coldstart (void)
 
     //BPTR oldpath = 0;
 
-    struct CommandLineInterface *cli = (struct CommandLineInterface *) AllocDosObject (DOS_CLI, (struct TagItem *)NULL);
-    cli->cli_DefaultStack = (rootProc->pr_StackSize + 3) / 4;
-
-    /* cli_CommandDir is left at 0 (NULL) — command path is managed by the shell
+    /* cli_CommandDir is left at 0 (NULL) - command path is managed by the shell
      * via the Path command and DOS path list. The initial bootstrap process
      * doesn't need a pre-populated command directory path. */
     char *binfn = AllocVec (1024, MEMF_CLEAR);
     emucall1 (EMU_CALL_LOADFILE, (ULONG) binfn);
+    LONG binlen = strlen(binfn);
+    if (binlen > 255)
+        binlen = 255;
+
+    /* Buffer sizes of a CLI started by the AmigaOS 3.1 shell (verified on
+     * the reference: SetCurrentDirName/SetProgramName/SetPrompt keep at
+     * most 78/102/58 characters).  A longer host program path is kept.
+     * (Allocated here: utility.library tags are not available this early.) */
+    struct CommandLineInterface *cli = (struct CommandLineInterface *) AllocDosObject (DOS_CLI, (struct TagItem *)NULL);
+    cli->cli_DefaultStack = (rootProc->pr_StackSize + 3) / 4;
+
     {
-        LONG binlen = strlen(binfn);
-        UBYTE *binbstr = AllocVec((ULONG)binlen + 2, MEMF_PUBLIC | MEMF_CLEAR);
-        if (binbstr)
+        LONG name_cap = binlen > 102 ? binlen : 102;
+        UBYTE *namebstr = AllocVec(name_cap + 2, MEMF_PUBLIC | MEMF_CLEAR);
+        UBYTE *promptbstr = AllocVec(58 + 2, MEMF_PUBLIC | MEMF_CLEAR);
+        UBYTE *setnamebstr = AllocVec(78 + 2, MEMF_PUBLIC | MEMF_CLEAR);
+
+        if (namebstr)
         {
-            binbstr[0] = (UBYTE)binlen;
-            CopyMem(binfn, binbstr + 1, (ULONG)binlen);
-            FreeVec(binfn);
-            cli->cli_CommandName = MKBADDR(binbstr);
+            FreeVec(BADDR(cli->cli_CommandName));
+            cli->cli_CommandName = MKBADDR(namebstr);
         }
         else
         {
-            cli->cli_CommandName = MKBADDR(binfn);
+            namebstr = (UBYTE *)BADDR(cli->cli_CommandName);
         }
+        if (promptbstr)
+        {
+            FreeVec(BADDR(cli->cli_Prompt));
+            cli->cli_Prompt = MKBADDR(promptbstr);
+        }
+        else
+        {
+            promptbstr = (UBYTE *)BADDR(cli->cli_Prompt);
+        }
+        if (setnamebstr)
+        {
+            FreeVec(BADDR(cli->cli_SetName));
+            cli->cli_SetName = MKBADDR(setnamebstr);
+        }
+
+        namebstr[0] = (UBYTE)binlen;
+        CopyMem(binfn, namebstr + 1, (ULONG)binlen);
+        namebstr[binlen + 1] = '\0';
+        FreeVec(binfn);
+
+        /* the default shell prompt */
+        promptbstr[0] = 4;
+        CopyMem((APTR)"%N> ", promptbstr + 1, 4);
+        promptbstr[5] = '\0';
     }
 
     // Get command line arguments

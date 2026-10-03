@@ -1,0 +1,28 @@
+ReadItem Test
+=============
+
+Test 1: Unquoted items consume space separators
+  PASS: Unquoted token before space
+
+Test 2: Quoted items convert documented escapes
+  PASS: Quoted escapes converted
+
+Test 3: Equal sign is returned directly
+  PASS: Equal sign detected
+
+Test 4: Newline produces ITEM_NOTHING and is unread
+  PASS: Newline unread on ITEM_NOTHING
+
+Test 5: EOF bug rewinds CSource after unquoted item
+  PASS: EOF unread bug preserved
+
+Test 6: Unterminated quoted item reports ITEM_ERROR
+  PASS: Quoted parse error preserves IoErr
+
+Test 7: Zero-length buffer consumes one character and returns ITEM_ERROR
+  PASS: Zero maxchars handled
+
+Test 8: Unquoted overflow returns ITEM_ERROR
+  PASS: Unquoted overflow detected
+
+Failed: 0

@@ -718,9 +718,11 @@ struct df_avail_fonts_state
     ULONG  request_flags;
     BOOL   fill_entries;
     UWORD  num_entries;
-    ULONG  name_bytes;
+    ULONG  name_bytes;          /* all names, one per entry (size reported) */
+    ULONG  name_bytes_shared;   /* names stored once per font file (size used) */
     UBYTE *entry_ptr;
     STRPTR name_ptr;
+    STRPTR last_name;           /* name of the previous entry */
 };
 
 static VOID _df_new_min_list(struct MinList *list)
@@ -834,14 +836,30 @@ static VOID _df_avail_emit_entry(struct df_avail_fonts_state *state,
 
     name_len = strlen((const char *)name) + 1;
 
+    /* Consecutive entries of the same font file share one name string
+     * (AmigaOS 3.1, verified on the reference machine). */
     if (state->fill_entries)
     {
+        STRPTR entry_name;
+
+        if (state->last_name && strcmp((const char *)state->last_name, (const char *)name) == 0)
+        {
+            entry_name = state->last_name;
+        }
+        else
+        {
+            CopyMem((APTR)name, state->name_ptr, name_len);
+            entry_name = state->name_ptr;
+            state->name_ptr += name_len;
+            state->last_name = entry_name;
+        }
+
         if (state->request_flags & AFF_TAGGED)
         {
             struct TAvailFonts *taf = (struct TAvailFonts *)state->entry_ptr;
 
             taf->taf_Type = type;
-            taf->taf_Attr.tta_Name = state->name_ptr;
+            taf->taf_Attr.tta_Name = entry_name;
             taf->taf_Attr.tta_YSize = ysize;
             taf->taf_Attr.tta_Style = style;
             taf->taf_Attr.tta_Flags = font_flags;
@@ -854,49 +872,25 @@ static VOID _df_avail_emit_entry(struct df_avail_fonts_state *state,
             struct AvailFonts *af = (struct AvailFonts *)state->entry_ptr;
 
             af->af_Type = type;
-            af->af_Attr.ta_Name = state->name_ptr;
+            af->af_Attr.ta_Name = entry_name;
             af->af_Attr.ta_YSize = ysize;
             af->af_Attr.ta_Style = style;
             af->af_Attr.ta_Flags = font_flags;
 
             state->entry_ptr += sizeof(struct AvailFonts);
         }
-
-        CopyMem((APTR)name, state->name_ptr, name_len);
-        state->name_ptr += name_len;
     }
     else
     {
         state->name_bytes += name_len;
+        if (!state->last_name || strcmp((const char *)state->last_name, (const char *)name) != 0)
+        {
+            state->name_bytes_shared += name_len;
+            state->last_name = (STRPTR)name;
+        }
     }
 
     state->num_entries++;
-}
-
-static BOOL _df_entry_matches_family(CONST_STRPTR font_file_name, CONST_STRPTR entry_file_name)
-{
-    char family[MAXFONTPATH];
-    ULONG i = 0;
-    ULONG j = 0;
-
-    if (!font_file_name || !entry_file_name)
-        return FALSE;
-
-    while (font_file_name[i] && font_file_name[i] != '.' && i + 1 < sizeof(family))
-    {
-        family[i] = font_file_name[i];
-        i++;
-    }
-    family[i] = '\0';
-
-    while (entry_file_name[j] && entry_file_name[j] != '/' && entry_file_name[j] != ':' && j + 1 < sizeof(family))
-    {
-        if (family[j] == '\0' || family[j] != entry_file_name[j])
-            return FALSE;
-        j++;
-    }
-
-    return family[j] == '\0' && (entry_file_name[j] == '/' || entry_file_name[j] == ':' || entry_file_name[j] == '\0');
 }
 
 static VOID _df_avail_collect_memory_fonts(struct df_avail_fonts_state *state)
@@ -990,18 +984,12 @@ static VOID _df_avail_collect_disk_fonts(struct df_avail_fonts_state *state)
                                         if (Read(fh, &fc, sizeof(fc)) != sizeof(fc))
                                             break;
 
-                                        if (!_df_entry_matches_family((CONST_STRPTR)fib->fib_FileName,
-                                                                      (CONST_STRPTR)fc.fc_FileName))
-                                        {
-                                            continue;
-                                        }
-
                                         _df_avail_emit_entry(state,
                                                              disk_type,
                                                              (CONST_STRPTR)fib->fib_FileName,
                                                              fc.fc_YSize,
                                                              fc.fc_Style,
-                                                             fc.fc_Flags);
+                                                             (fc.fc_Flags & ~FPF_ROMFONT) | FPF_DISKFONT);
                                     }
                                     else
                                     {
@@ -1010,18 +998,12 @@ static VOID _df_avail_collect_disk_fonts(struct df_avail_fonts_state *state)
                                         if (Read(fh, &tfc, sizeof(tfc)) != sizeof(tfc))
                                             break;
 
-                                        if (!_df_entry_matches_family((CONST_STRPTR)fib->fib_FileName,
-                                                                      (CONST_STRPTR)tfc.tfc_FileName))
-                                        {
-                                            continue;
-                                        }
-
                                         _df_avail_emit_entry(state,
                                                              disk_type,
                                                              (CONST_STRPTR)fib->fib_FileName,
                                                              tfc.tfc_YSize,
                                                              tfc.tfc_Style,
-                                                             tfc.tfc_Flags);
+                                                             (tfc.tfc_Flags & ~FPF_ROMFONT) | FPF_DISKFONT);
                                     }
                                 }
                             }
@@ -1410,7 +1392,10 @@ LONG _diskfont_AvailFonts ( register struct DiskfontBase    *DiskfontBase __asm(
     DPRINTF (LOG_DEBUG, "_diskfont: AvailFonts() numEntries=%d bytesNeeded=%ld\n",
              state.num_entries, bytesNeeded);
 
-    if (!buffer || bufBytes < bytesNeeded)
+    /* The reported size counts one name per entry, but the names of a
+     * font file's entries are stored once, so a buffer of the actually
+     * used size suffices (AmigaOS 3.1, verified on the reference). */
+    if (!buffer || bufBytes < (LONG)(bytesNeeded - state.name_bytes + state.name_bytes_shared))
     {
         shortage = (LONG)bytesNeeded - (bufBytes > 0 ? bufBytes : 0);
         return shortage > 0 ? shortage : 0;
@@ -1444,13 +1429,23 @@ struct FontContentsHeader * _diskfont_NewFontContents ( register struct Diskfont
                                                         register BPTR                 fontsLock    __asm("a0"),
                                                         register CONST_STRPTR         fontName     __asm("a1"))
 {
-    struct FontContentsHeader header;
-    struct FontContentsHeader *result;
-    ULONG entry_size;
-    ULONG total_size;
-    LONG remaining;
-    BPTR fh;
-    char path[512];
+    /*
+     * AmigaOS 3.1 (verified on the reference machine) does not read the
+     * existing .font file: it scans the font's directory
+     * (<fontsLock>/<name without ".font">) and loads every font file found
+     * there.  Each entry gets "<dir>/<file>", the file's tf_YSize/tf_Style
+     * and tf_Flags with FPF_DISKFONT set.  The header is FCH_ID unless a
+     * font is tagged (TFCH_ID).
+     */
+    struct FontContentsHeader *result = NULL;
+    struct FontContents *entries = NULL;
+    ULONG max_entries = 0;
+    ULONG num_entries = 0;
+    BOOL tagged = FALSE;
+    struct FileInfoBlock *fib = NULL;
+    BPTR old_dir;
+    BPTR dir_lock;
+    char base[MAXFONTPATH];
 
     DPRINTF (LOG_DEBUG, "_diskfont: NewFontContents() fontsLock=0x%08lx fontName='%s'\n",
              (ULONG)fontsLock, STRORNULL(fontName));
@@ -1458,61 +1453,96 @@ struct FontContentsHeader * _diskfont_NewFontContents ( register struct Diskfont
     if (!fontName || !_df_endswith((const char *)fontName, ".font") || strlen((const char *)fontName) >= MAXFONTPATH)
         return NULL;
 
-    if (fontsLock)
-    {
-        if (!NameFromLock(fontsLock, (STRPTR)path, sizeof(path)))
-            return NULL;
+    _df_strip_font_suffix((const char *)fontName, base, sizeof(base));
 
-        if (!AddPart((STRPTR)path, (STRPTR)fontName, sizeof(path)))
-            return NULL;
+    old_dir = CurrentDir(fontsLock);
+    dir_lock = Lock((STRPTR)base, SHARED_LOCK);
+    if (!dir_lock)
+    {
+        CurrentDir(old_dir);
+        return NULL;
+    }
+
+    fib = (struct FileInfoBlock *)AllocVec(sizeof(struct FileInfoBlock), MEMF_PUBLIC | MEMF_CLEAR);
+    if (!fib || !Examine(dir_lock, fib) || fib->fib_DirEntryType < 0)
+        goto done;
+
+    while (ExNext(dir_lock, fib))
+    {
+        char path[MAXFONTPATH];
+        BPTR seg;
+        struct DiskFontHeader *dfh;
+
+        if (fib->fib_DirEntryType >= 0)
+            continue;
+        if (strlen(base) + 1 + strlen((const char *)fib->fib_FileName) >= MAXFONTPATH)
+            continue;
+
+        strcpy(path, base);
+        strcat(path, "/");
+        strcat(path, (const char *)fib->fib_FileName);
+
+        seg = LoadSeg((STRPTR)path);
+        if (!seg)
+            continue;
+
+        /* segment: next-segment BPTR, ReturnCode, DiskFontHeader */
+        dfh = (struct DiskFontHeader *)((ULONG *)BADDR(seg) + 2);
+        if (dfh->dfh_FileID == DFH_ID)
+        {
+            if (num_entries == max_entries)
+            {
+                ULONG new_max = max_entries ? max_entries * 2 : 8;
+                struct FontContents *grown = (struct FontContents *)AllocVec(new_max * sizeof(struct FontContents),
+                                                                           MEMF_PUBLIC | MEMF_CLEAR);
+                if (!grown)
+                {
+                    UnLoadSeg(seg);
+                    break;
+                }
+                if (entries)
+                {
+                    CopyMem(entries, grown, num_entries * sizeof(struct FontContents));
+                    FreeVec(entries);
+                }
+                entries = grown;
+                max_entries = new_max;
+            }
+
+            memset(&entries[num_entries], 0, sizeof(struct FontContents));
+            strcpy((char *)entries[num_entries].fc_FileName, path);
+            entries[num_entries].fc_YSize = dfh->dfh_TF.tf_YSize;
+            entries[num_entries].fc_Style = dfh->dfh_TF.tf_Style;
+            entries[num_entries].fc_Flags = (dfh->dfh_TF.tf_Flags & ~FPF_ROMFONT) | FPF_DISKFONT;
+            if (dfh->dfh_TF.tf_Style & FSF_TAGGED)
+                tagged = TRUE;
+            num_entries++;
+        }
+
+        UnLoadSeg(seg);
+    }
+
+    result = (struct FontContentsHeader *)AllocMem(sizeof(struct FontContentsHeader) +
+                                                   num_entries * sizeof(struct FontContents), MEMF_PUBLIC | MEMF_CLEAR);
+    if (result)
+    {
+        result->fch_FileID = tagged ? TFCH_ID : FCH_ID;
+        result->fch_NumEntries = (UWORD)num_entries;
+        if (num_entries)
+            CopyMem(entries, result + 1, num_entries * sizeof(struct FontContents));
     }
     else
     {
-        strcpy(path, (const char *)fontName);
-    }
-
-    fh = Open((STRPTR)path, MODE_OLDFILE);
-    if (!fh)
-        return NULL;
-
-    if (Read(fh, &header, sizeof(header)) != sizeof(header))
-    {
-        Close(fh);
-        return NULL;
-    }
-
-    if (header.fch_FileID != FCH_ID && header.fch_FileID != TFCH_ID && header.fch_FileID != OFCH_ID)
-    {
-        Close(fh);
-        return NULL;
-    }
-
-    entry_size = _df_font_contents_entry_size(header.fch_FileID);
-    total_size = sizeof(struct FontContentsHeader) + ((ULONG)header.fch_NumEntries * entry_size);
-
-    result = (struct FontContentsHeader *)AllocMem(total_size, MEMF_PUBLIC);
-    if (!result)
-    {
         SetIoErr(ERROR_NO_FREE_STORE);
-        Close(fh);
-        return NULL;
     }
 
-    result->fch_FileID = header.fch_FileID;
-    result->fch_NumEntries = header.fch_NumEntries;
-
-    remaining = (LONG)(total_size - sizeof(struct FontContentsHeader));
-    if (remaining > 0)
-    {
-        if (Read(fh, (UBYTE *)result + sizeof(struct FontContentsHeader), remaining) != remaining)
-        {
-            FreeMem(result, total_size);
-            Close(fh);
-            return NULL;
-        }
-    }
-
-    Close(fh);
+done:
+    if (entries)
+        FreeVec(entries);
+    if (fib)
+        FreeVec(fib);
+    UnLock(dir_lock);
+    CurrentDir(old_dir);
     return result;
 }
 

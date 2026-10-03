@@ -1,0 +1,13 @@
+MakeDosEntry Test
+=================
+
+Test 1: Allocates a cleared DosList with the requested type and name
+  PASS: Create device entry
+
+Test 2: Preserves assign types and null-terminates the BSTR payload
+  PASS: Create assign entry
+
+Test 3: Names longer than 255 characters are copied whole, the length byte wraps
+  PASS: Long name copied
+
+Failed: 0

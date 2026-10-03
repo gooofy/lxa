@@ -115,12 +115,15 @@ set(TESTS_LIST
     "../tests/exec/signal_pingpong|main|Tests/Exec/SignalPingPong"
     "../tests/exec/signals|main|Tests/Exec/Signals"
     "../tests/exec/sync|main|Tests/Exec/Sync"
+    "../tests/exec/null_safety|main|Tests/Exec/NullSafety"
     "../tests/exec/tasks|main|Tests/Exec/Tasks"
     "../tests/exec/library|main|Tests/Exec/Library"
+    "../tests/exec/library_lxa|main|Tests/Exec/LibraryLxa"
     "../tests/exec/exec_verify|main|Tests/Exec/ExecVerify"
     "../tests/exec/interrupts|main|Tests/Exec/Interrupts"
     "../tests/exec/stub_probe|main|Tests/Exec/StubProbe"
     "../tests/exec/traps|main|Tests/Exec/Traps"
+    "../tests/exec/libident|main|Tests/Exec/LibIdent"
     "../tests/dos/chario|main|Tests/Dos/CharIO"
     "../tests/dos/stdin_eof|main|Tests/Dos/StdinEOF"
     "../tests/dos/createdir|main|Tests/Dos/CreateDir"
@@ -140,6 +143,7 @@ set(TESTS_LIST
     "../tests/dos/dir_enum|main|Tests/Dos/DirEnum"
     "../tests/dos/examine_edge|main|Tests/Dos/ExamineEdge"
     "../tests/dos/fileio_advanced|main|Tests/Dos/FileIOAdvanced"
+    "../tests/dos/softlink|main|Tests/Dos/SoftLink"
     "../tests/dos/fileio_errors|main|Tests/Dos/FileIOErrors"
     "../tests/dos/lock_examine|main|Tests/Dos/LockExamine"
     "../tests/dos/lockrecord|main|Tests/Dos/LockRecord"
@@ -215,7 +219,9 @@ set(TESTS_LIST
     "../tests/graphics/copper|main|Tests/Graphics/Copper"
     "../tests/graphics/draw_ellipse|main|Tests/Graphics/DrawEllipse"
     "../tests/graphics/display_viewport|main|Tests/Graphics/DisplayViewPort"
+    "../tests/graphics/display_ext|main|Tests/Graphics/DisplayExt"
     "../tests/graphics/diskfont_contents|main|Tests/Graphics/DiskfontContents"
+    "../tests/graphics/diskfont_ext|main|Tests/Graphics/DiskfontExt"
     "../tests/graphics/flood|main|Tests/Graphics/Flood"
     "../tests/graphics/hw_blitter|main|Tests/Graphics/HwBlitter"
     "../tests/graphics/init_bitmap|main|Tests/Graphics/InitBitMap"
@@ -229,6 +235,7 @@ set(TESTS_LIST
     "../tests/graphics/polydraw|main|Tests/Graphics/PolyDraw"
     "../tests/graphics/rect_fill|main|Tests/Graphics/RectFill"
     "../tests/graphics/regions|main|Tests/Graphics/Regions"
+    "../tests/graphics/regions_ext|main|Tests/Graphics/RegionsExt"
     "../tests/graphics/sprites_gels|main|Tests/Graphics/SpritesGels"
     "../tests/graphics/rpattrs|main|Tests/Graphics/RPAttrs"
     "../tests/graphics/set_rast|main|Tests/Graphics/SetRast"
@@ -243,6 +250,7 @@ set(TESTS_LIST
     "../tests/intuition/boopsi_ic|main|Tests/Intuition/BOOPSI_IC"
     "../tests/intuition/drawing_helpers|main|Tests/Intuition/DrawingHelpers"
     "../tests/intuition/gadget_click|main|Tests/Intuition/GadgetClick"
+    "../tests/intuition/display_alert|main|Tests/Intuition/DisplayAlert"
     "../tests/intuition/gadget_refresh|main|Tests/Intuition/GadgetRefresh"
     "../tests/intuition/gadgetclass|main|Tests/Intuition/GadgetClass"
     "../tests/intuition/idcmp|main|Tests/Intuition/IDCMP"
@@ -252,6 +260,7 @@ set(TESTS_LIST
     "../tests/intuition/idcmp_menuverify|main|Tests/Intuition/IDCMPMenuVerify"
     "../tests/intuition/idcmp_reqset|main|Tests/Intuition/IDCMPReqSet"
     "../tests/intuition/idcmp_sizeverify|main|Tests/Intuition/IDCMPSizeVerify"
+    "../tests/intuition/invalid_args|main|Tests/Intuition/InvalidArgs"
     "../tests/intuition/menu_select|main|Tests/Intuition/MenuSelect"
     "../tests/intuition/menu_strip|main|Tests/Intuition/MenuStrip"
     "../tests/intuition/pointer_input|main|Tests/Intuition/PointerInput"
@@ -303,8 +312,10 @@ set(TESTS_LIST
     "../tests/shell/script|main|Tests/Shell/Script/Test"
     "../tests/shell/variables|main|Tests/Shell/Variables/Test"
     "../tests/workbench/appobjects|main|Tests/Workbench/AppObjects"
+    "../tests/workbench/appobjectsv44|main|Tests/Workbench/AppObjectsV44"
     "../tests/icon/diskobject|main|Tests/Icon/DiskObject"
     "../tests/icon/tooltype|main|Tests/Icon/ToolType"
+    "../tests/icon/iconv44|main|Tests/Icon/IconV44"
     "../tests/iffparse/basic|main|Tests/IffParse/Basic"
     "../tests/stress/filesystem|main|Tests/Stress/Filesystem"
     "../tests/stress/memory|main|Tests/Stress/Memory"
@@ -313,6 +324,7 @@ set(TESTS_LIST
     "../tests/apps/kickpascal2|main|Tests/Apps/KickPascal2"
     "../tests/exec/mathffp|main|Tests/Exec/MathFFP"
     "../tests/exec/mathieeesingbas|main|Tests/Exec/MathIeeeSingBas"
+    "../tests/exec/mathieeesingbas_muldiv|main|Tests/Exec/MathIeeeSingBasMulDiv"
     "../tests/exec/mathieeedoubtrans|main|Tests/Exec/MathIeeeDoubTrans"
     "../tests/exec/locale|main|Tests/Exec/Locale"
     "../tests/exec/keymap|main|Tests/Exec/Keymap"
@@ -325,6 +337,7 @@ set(TESTS_LIST
     "../tests/utility/tagitems|main|Tests/Utility/TagItems"
     "../tests/expansion/configdev_chain|main|Tests/Expansion/ConfigDevChain"
     "../tests/expansion/mem_config|main|Tests/Expansion/MemConfig"
+    "../tests/expansion/board_config|main|Tests/Expansion/BoardConfig"
     "../tests/expansion/dos_binding|main|Tests/Expansion/DosBinding"
     "../tests/exec/disklib_stubs|main|Tests/Exec/DisklibStubs"
     "../tests/datatypes/test_basic|main|Tests/Datatypes/Basic"
@@ -348,8 +361,9 @@ foreach(sample_info ${SAMPLES_LIST})
     
     add_custom_command(
         OUTPUT ${output}
-        COMMAND ${M68K_GCC_BIN} ${SAMPLES_CFLAGS} ${SAMPLES_LDFLAGS} -o ${output} ${src}
+        COMMAND ${M68K_GCC_BIN} ${SAMPLES_CFLAGS} ${SAMPLES_LDFLAGS} -MD -MF ${output}.d -o ${output} ${src}
         DEPENDS ${src}
+        DEPFILE ${output}.d
         COMMENT "Building Sample: ${output_name}"
     )
     
@@ -377,8 +391,9 @@ foreach(test_info ${TESTS_LIST})
 
     add_custom_command(
         OUTPUT ${output}
-        COMMAND ${M68K_GCC_BIN} ${SAMPLES_CFLAGS} ${SAMPLES_LDFLAGS} -o ${output} ${src}
+        COMMAND ${M68K_GCC_BIN} ${SAMPLES_CFLAGS} ${SAMPLES_LDFLAGS} -MD -MF ${output}.d -o ${output} ${src}
         DEPENDS ${src}
+        DEPFILE ${output}.d
         COMMENT "Building Test: ${output_name}"
     )
     
@@ -405,8 +420,9 @@ foreach(src ${PROBE_SOURCES})
     add_custom_command(
         OUTPUT ${output}
         COMMAND ${M68K_GCC_BIN} ${SAMPLES_CFLAGS} -I${CMAKE_CURRENT_SOURCE_DIR}/../tests/probes
-                ${SAMPLES_LDFLAGS} -o ${output} ${src}
+                ${SAMPLES_LDFLAGS} -MD -MF ${output}.d -o ${output} ${src}
         DEPENDS ${src} ${CMAKE_CURRENT_SOURCE_DIR}/../tests/probes/probe.h
+        DEPFILE ${output}.d
         COMMENT "Building Probe: ${lib}/${name}"
     )
     list(APPEND ALL_SAMPLES ${output})

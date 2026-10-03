@@ -17,17 +17,18 @@ implementing the function, never by deleting the macro.
 | commodities | 26 | 0 | 4 |
 | console | 1 | 0 | 0 |
 | datatypes | 5 | 0 | 0 |
-| dos | 7 | 1 | 10 |
+| dos | 5 | 1 | 10 |
 | exec | 7 | 4 | 0 |
-| gadtools | 0 | 3 | 6 |
-| graphics | 0 | 10 | 8 |
+| gadtools | 0 | 2 | 6 |
+| graphics | 0 | 9 | 8 |
 | icon | 0 | 2 | 0 |
 | intuition | 3 | 17 | 11 |
+| locale | 0 | 1 | 0 |
 | rexxsyslib | 17 | 0 | 0 |
 | translator | 1 | 0 | 0 |
 | utility | 0 | 0 | 7 |
 | workbench | 0 | 0 | 3 |
-| **total** | **85** | **38** | **49** |
+| **total** | **83** | **37** | **49** |
 
 ## amigaguide
 
@@ -115,10 +116,8 @@ implementing the function, never by deleting the macro.
 - `AbortPkt` — stub: packet not aborted (Phase 255) (`src/rom/lxa_dos.c`)
 - `AttemptLockDosList` — stub: returns a dummy marker, no real DosList or locking (Phase 255) (`src/rom/lxa_dos.c`)
 - `FindDosEntry` — stub: always returns NULL (Phase 255) (`src/rom/lxa_dos.c`)
-- `FindSegment` — stub: resident segment list not implemented (Phase 255) (`src/rom/lxa_dos.c`)
 - `LockDosList` — stub: returns a dummy marker, no real DosList or locking (Phase 255) (`src/rom/lxa_dos.c`)
 - `NextDosEntry` — stub: always returns NULL (Phase 255) (`src/rom/lxa_dos.c`)
-- `RemSegment` — stub: resident segment list not implemented (Phase 255) (`src/rom/lxa_dos.c`)
 
 ## exec
 
@@ -137,8 +136,7 @@ implementing the function, never by deleting the macro.
 ## gadtools
 
 - `DrawBevelBoxA` — partial: BBFT_ICONDROPBOX drawn as a plain recessed box (Phase 256) (`src/rom/lxa_gadtools.c`)
-- `GT_FilterIMsg` — partial: returns the message unfiltered (Phase 256) (`src/rom/lxa_gadtools.c`)
-- `GT_PostFilterIMsg` — partial: returns the message unfiltered (Phase 256) (`src/rom/lxa_gadtools.c`)
+- `GT_FilterIMsg` — partial: hands out a private copy but never consumes GadTools-internal gadget events (Phase 256) (`src/rom/lxa_gadtools.c`)
 - `Private1` — private/reserved slot (`src/rom/lxa_gadtools.c`)
 - `Private2` — private/reserved slot (`src/rom/lxa_gadtools.c`)
 - `Private3` — private/reserved slot (`src/rom/lxa_gadtools.c`)
@@ -151,7 +149,6 @@ implementing the function, never by deleting the macro.
 - `AskSoftStyle` — partial: reports all styles regardless of font (Phase 256) (`src/rom/lxa_graphics.c`)
 - `AttemptLockLayerRom` — partial: always succeeds, layer is not locked (Phase 256) (`src/rom/lxa_graphics.c`)
 - `BltPattern` — partial: ignores RastPort AreaPtrn (Phase 256) (`src/rom/lxa_graphics.c`)
-- `GetRPAttrsA` — partial: RPTAG_DrawBounds returns empty bounds (Phase 256) (`src/rom/lxa_graphics.c`)
 - `LoadView` — partial: only updates GfxBase->ActiView (Phase 256) (`src/rom/lxa_graphics.c`)
 - `LockLayerRom` — partial: no-op, layer is not locked (Phase 256) (`src/rom/lxa_graphics.c`)
 - `MakeVPort` — partial: builds empty placeholder copper list, UCopIns ignored (Phase 256) (`src/rom/lxa_graphics.c`)
@@ -205,6 +202,10 @@ implementing the function, never by deleting the macro.
 - `DisplayBeep` — stub: no screen flash or bell (Phase 256) (`src/rom/lxa_intuition.c`)
 - `PointInImage` — stub: always TRUE (Phase 256) (`src/rom/lxa_intuition.c`)
 - `SetDefaultPubScreen` — stub: default public screen not changed (Phase 256) (`src/rom/lxa_intuition.c`)
+
+## locale
+
+- `OpenLocale` — partial: locale prefs files are not parsed, the default locale is returned (`src/rom/lxa_locale.c`)
 
 ## rexxsyslib
 

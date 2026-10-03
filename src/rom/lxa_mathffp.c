@@ -446,15 +446,16 @@ FLOAT mathffp_SPSub ( register struct Library *MathBase __asm("a6"),
 {
     DPRINTF (LOG_DEBUG, "_mathffp: SPSub() called.\n");
 
-    // compute z = y - x (d1 - d0)
-    // SPAdd(d1, d0) = d1 + d0
-    // So we need: SPAdd(y, -x) = y + (-x) = y - x
+    /* The autodoc: "subtracts the first argument from the second", i.e.
+     * z = d0 - d1 (reference-verified on AmigaOS 3.1, Phase 220).
+     * SPAdd(x, -y) = x + (-y) = x - y */
 
-    union FFP_ULONG ufx = {.f = x};
+    union FFP_ULONG ufy = {.f = y};
 
-    ufx.ul ^= 0x00000080; // invert sign of x
+    if (ufy.ul)
+        ufy.ul ^= 0x00000080; // invert sign of y (FFP zero has no sign)
 
-    return SPAdd(y, ufx.f);
+    return SPAdd(x, ufy.f);
 }
 
 FLOAT mathffp_SPMul ( register struct Library *MathBase __asm("a6"),

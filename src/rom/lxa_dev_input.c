@@ -182,6 +182,8 @@ static void input_prepare_event(struct InputBase *inputbase,
     U_getSysTime(&event->ie_TimeStamp);
 }
 
+extern VOID _intuition_input_device_events(struct InputEvent *iEvent);
+
 static LONG input_dispatch_single_event(struct InputBase *inputbase,
                                         struct InputEvent *event)
 {
@@ -195,9 +197,15 @@ static LONG input_dispatch_single_event(struct InputBase *inputbase,
     return 0;
 }
 
+/* IND_WRITEEVENT: an application-written event passes the handler chain
+ * and then Intuition's input handler.  It keeps its own qualifier and does
+ * not change the device's qualifier state (PeekQualifier() reflects the
+ * keyboard and mouse only) - verified on AmigaOS 3.1, Phase 220. */
 static LONG input_write_event(struct InputBase *inputbase,
                               struct InputEvent *event)
 {
+    struct InputEvent *rest;
+
     if (!inputbase || !event)
     {
         return IOERR_BADADDRESS;
@@ -205,7 +213,11 @@ static LONG input_write_event(struct InputBase *inputbase,
 
     event->ie_NextEvent = NULL;
     U_getSysTime(&event->ie_TimeStamp);
-    input_forward_handlers(inputbase, event);
+    rest = input_forward_handlers(inputbase, event);
+    if (rest)
+    {
+        _intuition_input_device_events(rest);
+    }
     return 0;
 }
 

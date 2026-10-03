@@ -310,7 +310,10 @@ static void audio_dispatch_irq(UBYTE channel)
 
     if (handler && code && (ULONG)code != ~0UL)
     {
+        /* a handler vector: iv_Data holds the handler's is_Data, not a
+         * server list */
         audio_call_interrupt(code, handler->is_Data);
+        return;
     }
 
     for (server = (struct Interrupt *)GETHEAD((struct List *)iv->iv_Data);

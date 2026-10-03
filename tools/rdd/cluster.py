@@ -16,7 +16,8 @@ menu geometry diffs are folded per scenario (a layout shift moves every
 gadget; one cluster, not 40).  Reviewed findings are clustered by their
 `suspect` (library/function) and category.  A cluster is *owned* when a golden
 records one of its diffs as a known divergence with a phase, a finding names
-a phase, or the roadmap already mentions its signature.
+a phase, a rule in doc/sweeps/owners.yaml matches it, or the roadmap
+already mentions its signature.
 """
 
 import argparse
@@ -103,13 +104,13 @@ def golden_owners():
     return owners
 
 
-def cluster_run(run_dir, finding_files=(), roadmap=os.path.join(ROOT, "roadmap.md")):
+def cluster_run(run_dir, finding_files=(), roadmap=os.path.join(ROOT, "roadmap.md"), owners=None):
     with open(os.path.join(run_dir, "compare-summary.json")) as f:
         rows = json.load(f)
     with open(roadmap) as f:
         rm = f.read()
     clusters = {}
-    owners = golden_owners()
+    gowners = golden_owners()
 
     def add(sig, suspect, scenario, evidence, phase=None, category=None):
         c = clusters.setdefault(sig, {"signature": sig, "suspect": suspect, "apps": [], "evidence": [],
@@ -124,7 +125,7 @@ def cluster_run(run_dir, finding_files=(), roadmap=os.path.join(ROOT, "roadmap.m
         with open(os.path.join(run_dir, r["compare"])) as f:
             res = json.load(f)
         for sig, suspect, ev, key in signatures(r["scenario"], res):
-            add(sig, list(suspect) if suspect else None, r["scenario"], ev, owners.get(key))
+            add(sig, list(suspect) if suspect else None, r["scenario"], ev, gowners.get(key))
     for path in finding_files:
         with open(path) as f:
             doc = yaml.safe_load(f)
@@ -136,11 +137,39 @@ def cluster_run(run_dir, finding_files=(), roadmap=os.path.join(ROOT, "roadmap.m
                 "%s: %s" % (fd["id"], fd["description"].strip().split("\n")[0]),
                 (fd.get("action") or {}).get("phase"), fd.get("category"))
     out = sorted(clusters.values(), key=lambda c: (-len(c["apps"]), c["signature"]))
+    owners = load_owners() if owners is None else owners
     for c in out:
+        if not c["phases"]:
+            c["phases"] = [o["phase"] for o in owners if re.search(o["match"], c["signature"])][:1]
         if not c["phases"]:
             c["phases"] = owning_phases(c, rm)
         c["owned"] = bool(c["phases"])
     return out
+
+
+OWNERS = os.path.join(ROOT, "doc", "sweeps", "owners.yaml")
+
+
+def load_owners(path=OWNERS):
+    """doc/sweeps/owners.yaml: [{match: regex, phase: N, why: ...}]"""
+    if not os.path.exists(path):
+        return []
+    with open(path) as f:
+        return yaml.safe_load(f) or []
+
+
+def lint_owners(path=OWNERS, roadmap=os.path.join(ROOT, "roadmap.md")):
+    with open(roadmap) as f:
+        phases = set(re.findall(r"^### Phase (\d+)", f.read(), re.M))
+    probs = []
+    for o in load_owners(path):
+        if str(o.get("phase")) not in phases:
+            probs.append("owners.yaml: %r owned by unscheduled phase %s" % (o.get("match"), o.get("phase")))
+        try:
+            re.compile(o["match"])
+        except (KeyError, re.error) as e:
+            probs.append("owners.yaml: bad match %r: %s" % (o.get("match"), e))
+    return probs
 
 
 def owning_phases(c, roadmap_text):
@@ -152,6 +181,8 @@ def owning_phases(c, roadmap_text):
         probes.append("`%s,%s,%s`" % pm.groups())
     if m:
         probes += ["`%s`" % m.group(3), m.group(3)] if len(m.group(3)) > 3 else []
+        if re.match(r"^\d+$", m.group(3)) and int(m.group(3)) > 9:
+            probes.append("0x%x" % int(m.group(3)))
         probes += ["%s %s" % (m.group(2), m.group(3))]
     phases = []
     cur = None

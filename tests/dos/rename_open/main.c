@@ -85,11 +85,22 @@ static BOOL file_exists(const char *name)
 int main(void)
 {
     BPTR fh;
+    BPTR tdir;
+    BPTR olddir;
     LONG result;
     char buf[64];
     
     print("Rename with Open Handles Test\n");
     print("==============================\n\n");
+
+    /* work in T: (a real filesystem on every AmigaOS setup; the program's
+     * own directory may be a host-mapped volume) */
+    tdir = Lock((CONST_STRPTR)"T:", SHARED_LOCK);
+    if (!tdir) {
+        print("ERROR: Could not lock T:\n");
+        return 1;
+    }
+    olddir = CurrentDir(tdir);
     
     /* Test 1: Rename file while open for reading */
     print("Test 1: Rename file while open for reading\n");
@@ -257,6 +268,7 @@ int main(void)
     DeleteFile((CONST_STRPTR)"dir_renamed");
     
     print("  Cleanup complete\n");
+    UnLock(CurrentDir(olddir));
     
     /* Summary */
     print("\n=== Test Summary ===\n");

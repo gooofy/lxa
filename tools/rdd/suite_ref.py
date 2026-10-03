@@ -213,9 +213,11 @@ def run_lxa_one(name, build, timeout_ms):
     lxa = Lxa(build=build)
     try:
         lxa.run("SYS:" + name, "")
-        ok = lxa.wait_exit(timeout_ms)
-        res = {"name": name, "status": "exit" if ok and not lxa.running() else "hang",
-               "rc": lxa.exit_code() if not lxa.running() else None, "stdout": lxa.output()}
+        # like the reference agent's WAIT_EXIT: the launched program has
+        # returned, even if tasks it started (an app window...) still run
+        ok = lxa.wait_program_exit(timeout_ms)
+        res = {"name": name, "status": "exit" if ok else "hang",
+               "rc": lxa.exit_code() if ok else None, "stdout": lxa.output()}
     finally:
         lxa.close()
     return res

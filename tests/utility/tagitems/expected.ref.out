@@ -1,0 +1,135 @@
+utility/tagitems test
+Testing FindTagItem/GetTagData/NextTagItem...
+OK: FindTagItem finds first tag
+OK: FindTagItem returns matching data
+OK: GetTagData follows TAG_MORE chain
+OK: GetTagData stops at TAG_MORE terminator
+OK: GetTagData returns default for missing tag
+OK: NextTagItem returns first real tag
+OK: NextTagItem skips ignore/skip and follows TAG_MORE
+OK: NextTagItem ends on TAG_DONE in chained list
+Testing AllocateTagItems/CloneTagItems/RefreshTagItemClones...
+OK: AllocateTagItems returns memory
+OK: AllocateTagItems clears first tag
+OK: AllocateTagItems clears all tags
+OK: CloneTagItems(NULL) returns empty list
+OK: CloneTagItems(NULL) returns TAG_DONE terminator
+OK: CloneTagItems clones chained list
+OK: CloneTagItems preserves first tag
+OK: CloneTagItems preserves second data
+OK: CloneTagItems flattens TAG_MORE chain
+OK: CloneTagItems terminates clone
+OK: RefreshTagItemClones restores first data
+OK: RefreshTagItemClones restores second data
+OK: RefreshTagItemClones(NULL original) resets clone terminator
+Testing TagInArray/FilterTagItems...
+OK: TagInArray finds tag
+OK: TagInArray misses absent tag
+OK: FilterTagItems(TAGFILTER_AND) returns kept count
+OK: FilterTagItems(TAGFILTER_AND) keeps allowed tag
+OK: FilterTagItems(TAGFILTER_AND) ignores disallowed tag
+OK: FilterTagItems(TAGFILTER_NOT) returns kept count
+OK: FilterTagItems(TAGFILTER_NOT) removes matched tag
+OK: FilterTagItems(TAGFILTER_NOT) keeps unmatched tag
+Testing MapTags...
+OK: MapTags remaps matching tag
+OK: MapTags converts TAG_DONE mapping to TAG_IGNORE
+OK: MapTags keeps unmatched tag when requested
+OK: MapTags remaps matching tag with remove-not-found
+OK: MapTags ignores TAG_DONE-mapped tag with remove-not-found
+OK: MapTags removes unmatched tag when requested
+Testing FilterTagChanges...
+OK: FilterTagChanges ignores NULL change list
+OK: FilterTagChanges ignores NULL original list
+OK: FilterTagChanges ignores unchanged tag
+OK: FilterTagChanges keeps changed tag
+OK: FilterTagChanges follows TAG_MORE for unchanged tags
+OK: FilterTagChanges keeps tags missing from original list
+OK: FilterTagChanges does not update original when apply is false
+OK: FilterTagChanges updates original when apply is true
+Testing PackBoolTags...
+OK: PackBoolTags applies boolean mappings and last-tag wins
+OK: PackBoolTags leaves initial flags unchanged for NULL tag list
+OK: PackBoolTags ignores tags when bool map is NULL
+Testing ApplyTagChanges...
+OK: ApplyTagChanges ignores NULL destination list
+OK: ApplyTagChanges ignores NULL change list
+OK: ApplyTagChanges updates matching tags
+OK: ApplyTagChanges skips tags hidden by TAG_SKIP
+OK: ApplyTagChanges leaves unmatched tags unchanged
+OK: ApplyTagChanges uses the first matching change entry
+Testing CallHookPkt/GetUniqueID...
+OK: CallHookPkt returns hook result
+OK: CallHookPkt passes hook/object/message
+OK: HookEntry amiga.lib stub is installed as hook entry
+OK: GetUniqueID returns monotonically increasing ids
+Testing Amiga2Date/Date2Amiga/CheckDate...
+OK: Amiga2Date epoch year
+OK: Amiga2Date epoch month
+OK: Amiga2Date epoch day
+OK: Amiga2Date epoch hour
+OK: Amiga2Date epoch minute
+OK: Amiga2Date epoch second
+OK: Date2Amiga epoch returns zero
+OK: Date round-trip keeps year
+OK: Date round-trip keeps month
+OK: Date round-trip keeps day
+OK: Date round-trip keeps hour
+OK: Date round-trip keeps minute
+OK: Date round-trip keeps second
+OK: CheckDate returns seconds for valid leap date
+OK: CheckDate ignores the weekday
+OK: CheckDate rejects a leap second
+OK: CheckDate rejects February 29 on non-leap year
+Testing SMult32/UMult32/SDivMod32/UDivMod32...
+OK: SMult32 multiplies signed values
+OK: UMult32 returns low 32 bits
+OK: SDivMod32 returns signed quotient
+OK: SDivMod32 returns signed remainder in D1
+OK: UDivMod32 returns unsigned quotient
+OK: UDivMod32 returns unsigned remainder in D1
+Testing PackStructureTags...
+OK: PackStructureTags counts packed tags
+OK: PackStructureTags packs unsigned byte
+OK: PackStructureTags packs signed byte
+OK: PackStructureTags packs unsigned word
+OK: PackStructureTags packs signed word
+OK: PackStructureTags handles PACK_NEWOFFSET entries
+OK: PackStructureTags packs signed long
+OK: PackStructureTags sets bit fields
+OK: PackStructureTags flips inverted bit fields
+OK: PackStructureTags applies TAG_EXISTS hack
+Testing UnpackStructureTags...
+OK: UnpackStructureTags counts unpacked tags
+OK: UnpackStructureTags reads unsigned byte
+OK: UnpackStructureTags reads signed byte
+OK: UnpackStructureTags reads unsigned word
+OK: UnpackStructureTags reads signed word
+OK: UnpackStructureTags reads unsigned long
+OK: UnpackStructureTags reads signed long
+OK: UnpackStructureTags reads bit fields
+OK: UnpackStructureTags reads inverted bit fields
+OK: UnpackStructureTags handles PACK_NEWOFFSET entries
+Testing NamedObject namespace helpers...
+OK: AllocNamedObjectA allocates namespace root
+OK: AllocNamedObjectA allocates object with user space
+OK: AllocNamedObjectA allocates requested user space
+OK: NamedObjectName returns stored object name
+OK: AddNamedObject inserts child into namespace
+OK: AddNamedObject rejects reinserting same object
+OK: AllocNamedObjectA allocates duplicate-name candidate
+OK: AddNamedObject rejects duplicate names in NSF_NODUPS namespace
+OK: FindNamedObject matches case-insensitively by default
+OK: FindNamedObject(NULL name) returns first object
+OK: FindNamedObject(NULL name,last) advances past last object
+OK: FindNamedObject returns object for removal-hold test
+OK: AttemptRemNamedObject fails while find hold remains
+OK: AttemptRemNamedObject removes object after release
+OK: Removed object is no longer findable
+OK: AllocNamedObjectA allocates removable object
+OK: AddNamedObject inserts second child
+OK: CreateMsgPort allocates reply port for RemNamedObject
+OK: RemNamedObject replies removal message
+OK: RemNamedObject reply names removed object
+OK: Root namespace stays empty until object is added there
+PASS: utility/tagitems all tests passed

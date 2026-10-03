@@ -4,12 +4,18 @@
 
 extern void exit(int);
 
+/* lxa: an FPU form this core does not implement must not kill the
+ * emulator (Fred Fish mass run, Phase 232): report it and raise the F-line
+ * exception, as a CPU without that support would. */
 static void fatalerror(char *format, ...) {
+      static int reported;
       va_list ap;
-      va_start(ap,format);
-      vfprintf(stderr,format,ap);  // JFF: fixed. Was using fprintf and arguments were wrong
-      va_end(ap);
-      exit(1);
+      if (reported++ < 5) {
+            va_start(ap,format);
+            vfprintf(stderr,format,ap);  // JFF: fixed. Was using fprintf and arguments were wrong
+            va_end(ap);
+      }
+      m68ki_exception_1111();
 }
 
 #define FPCC_N			0x08000000

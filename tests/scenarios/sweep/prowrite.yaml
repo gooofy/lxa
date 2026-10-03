@@ -1,0 +1,11 @@
+# Phase 231 sweep scenario, generated from tests/scenarios/apps/prowrite.yaml
+# by `python3 -m rdd sweep gen` - edit the app scenario, not this file.
+name: sweep-prowrite
+app: {manifest: ProWrite}
+steps:
+  - launch
+  - wait_window: {title: "Untitled", timeout: 30000}
+  - frames: 100
+  - snapshot: startup
+  - menus
+  - quit

@@ -231,6 +231,8 @@ Built-in C: commands with full AmigaDOS template support:
 
 ## Current Status
 
+**Version 0.11.12** - Reference-validated test programs (Phase 220, in progress): the dos, intuition, gadtools, icon, iffparse and datatypes test programs now produce the same output as on AmigaOS 3.1, with many compatibility fixes in those libraries. CPU exceptions follow the AmigaOS trap convention (a crashed task is held), several emulator crashes found by the Fred Fish mass run are fixed, and `LXA_OVERRIDE` can load a user's real Workbench 3.1 disk library for debugging (Phase 235).
+
 **Version 0.11.11** - App corpus (Phase 230): 36 applications are catalogued in `apps/` with compatibility ratings derived from twin runs against AmigaOS 3.1 (`apps/compat.yaml`, `python3 -m rdd dashboard`). liblxa now reports CPU exceptions (`lxa_get_exception_log`).
 
 **Version 0.11.10** - Relay trace (Phase 233): `LXA_TRACE` logs library calls, and `python3 -m rdd tracediff` finds the first call where lxa and AmigaOS 3.1 differ. dos.library `Close()`/`Seek()` return values now match AmigaOS; the first API probe (utility.library) and reference-captured outputs for 54 test programs are in the suite.

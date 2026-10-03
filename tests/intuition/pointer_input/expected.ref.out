@@ -1,0 +1,18 @@
+Testing pointer/input Intuition helpers...
+
+Test 1: SetPointer() / ClearPointer()...
+  OK: SetPointer stores pointer metadata
+  OK: ClearPointer restores default pointer state
+
+Test 2: CurrentTime()...
+  OK: CurrentTime returns monotonic snapshots
+
+Test 3: SetMouseQueue()...
+  OK: SetMouseQueue returns the default queue length
+  OK: One mouse move message queued
+  OK: SetMouseQueue limits outstanding mouse moves
+
+Test 4: DisplayBeep() / TimedDisplayAlert()...
+  TimedDisplayAlert without a click returned FALSE
+
+PASS: pointer_input all tests completed

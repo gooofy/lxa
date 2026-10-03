@@ -1,0 +1,12 @@
+# Phase 231 sweep scenario, generated from tests/scenarios/apps/oberon.yaml
+# by `python3 -m rdd sweep gen` - edit the app scenario, not this file.
+name: sweep-oberon
+app: {manifest: Oberon}
+steps:
+  - launch
+  - wait_window: {title: "col: 1", timeout: 30000}
+  - wait_idle: {timeout: 20000}
+  - frames: 100
+  - snapshot: startup
+  - menus
+  - quit
