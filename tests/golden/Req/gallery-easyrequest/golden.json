@@ -1,7 +1,7 @@
 {
  "app": "Req",
  "disabled": null,
- "lxa_version": "0.11.14",
+ "lxa_version": "0.11.17",
  "promoted": "2026-10-03",
  "reference": "AmigaOS 3.1 (KS 40.70), profile aga",
  "requires_apps": false,
@@ -9,14 +9,6 @@
  "snapshots": {
   "requester": {
    "known_tree_diffs": [
-    {
-     "field": "idcmp",
-     "kind": "window",
-     "lxa": 64,
-     "phase": 222,
-     "ref": 2097216,
-     "where": "screen[Workbench Screen]/window[Gallery Request]"
-    },
     {
      "field": "count",
      "kind": "gadget",

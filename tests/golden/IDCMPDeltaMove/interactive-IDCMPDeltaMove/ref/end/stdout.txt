@@ -1,0 +1,19 @@
+Testing IDCMP_DELTAMOVE...
+OK: Screen opened
+Test 1: MOUSEMOVE with DELTAMOVE flag...
+OK: Window opened with MOUSEMOVE|DELTAMOVE
+READY: inject mouse moves
+  MOUSEMOVE #MouseX=300
+  MOUSEMOVE #MouseY=160
+  MOUSEMOVE #MouseX=20
+  MOUSEMOVE #MouseY=10
+  OK: MOUSEMOVE delta (20,10) correct
+Test 2: MOUSEMOVE without DELTAMOVE (absolute coords)...
+READY: inject absolute moves
+  ABS_MOUSEMOVE MouseX=130
+  ABS_MOUSEMOVE MouseY=70
+  OK: Absolute coords (large positive values)
+  OK: MOUSEMOVE with absolute coordinates received
+OK: Window closed
+OK: Screen closed
+PASS: idcmp_deltamove all tests passed

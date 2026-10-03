@@ -1,8 +1,8 @@
 {
  "app": "DPaintV",
  "disabled": null,
- "lxa_version": "0.11.18",
- "note": "remaining divergence: no AGA/RTG modes in the Screen Format mode list (Phase 240/241)",
+ "lxa_version": "0.11.20",
+ "note": "DPaint's Screen Format listviews use topaz 9, which lxa's ROM lacks (8 pixel lines instead of 9)",
  "promoted": "2026-10-03",
  "reference": "AmigaOS 3.1 (KS 40.70), profile aga",
  "requires_apps": true,
@@ -19,269 +19,54 @@
      "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]"
     },
     {
-     "field": "count",
-     "kind": "gadget",
-     "lxa": 19,
-     "phase": 240,
-     "ref": 35,
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]"
-    },
-    {
-     "field": "flags",
-     "kind": "gadget",
-     "lxa": 0,
-     "phase": 240,
-     "ref": 32772,
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[0 id=2]"
-    },
-    {
-     "field": "activation",
-     "kind": "gadget",
-     "lxa": 1,
-     "phase": 240,
-     "ref": 8193,
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[0 id=2]"
-    },
-    {
-     "field": "left",
-     "kind": "gadget",
-     "lxa": 6,
-     "phase": 240,
-     "ref": 14,
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[0 id=2]"
-    },
-    {
      "field": "top",
      "kind": "gadget",
-     "lxa": 3,
-     "phase": 240,
+     "lxa": 128,
+     "phase": 225,
      "ref": 122,
      "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[0 id=2]"
     },
     {
-     "field": "flags",
-     "kind": "gadget",
-     "lxa": 3,
-     "phase": 240,
-     "ref": 7,
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[1 id=1]"
-    },
-    {
-     "field": "activation",
-     "kind": "gadget",
-     "lxa": 3,
-     "phase": 240,
-     "ref": 11,
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[1 id=1]"
-    },
-    {
      "field": "height",
      "kind": "gadget",
-     "lxa": 112,
-     "phase": 240,
+     "lxa": 96,
+     "phase": 225,
      "ref": 90,
      "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[1 id=1]"
     },
     {
-     "field": "text",
-     "kind": "gadget",
-     "lxa": [
-      "Choose Display Mode"
-     ],
-     "phase": 240,
-     "ref": [],
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[1 id=1]"
-    },
-    {
-     "field": "id",
-     "kind": "gadget",
-     "lxa": 3,
-     "phase": 240,
-     "ref": 1,
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[2 id=1]"
-    },
-    {
-     "field": "type",
-     "kind": "gadget",
-     "lxa": 257,
-     "phase": 240,
-     "ref": 259,
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[2 id=1]"
-    },
-    {
-     "field": "flags",
-     "kind": "gadget",
-     "lxa": 3,
-     "phase": 240,
-     "ref": 7,
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[2 id=1]"
-    },
-    {
-     "field": "activation",
-     "kind": "gadget",
-     "lxa": 3,
-     "phase": 240,
-     "ref": 11,
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[2 id=1]"
-    },
-    {
-     "field": "left",
-     "kind": "gadget",
-     "lxa": 376,
-     "phase": 240,
-     "ref": 346,
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[2 id=1]"
-    },
-    {
-     "field": "width",
-     "kind": "gadget",
-     "lxa": 238,
-     "phase": 240,
-     "ref": 8,
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[2 id=1]"
-    },
-    {
      "field": "height",
      "kind": "gadget",
-     "lxa": 112,
-     "phase": 240,
+     "lxa": 80,
+     "phase": 225,
      "ref": 72,
      "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[2 id=1]"
     },
     {
-     "field": "text",
-     "kind": "gadget",
-     "lxa": [
-      "Display Information"
-     ],
-     "phase": 240,
-     "ref": [],
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[2 id=1]"
-    },
-    {
-     "field": "id",
-     "kind": "gadget",
-     "lxa": 4,
-     "phase": 240,
-     "ref": 1,
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[3 id=1]"
-    },
-    {
-     "field": "flags",
-     "kind": "gadget",
-     "lxa": 3,
-     "phase": 240,
-     "ref": 32774,
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[3 id=1]"
-    },
-    {
-     "field": "activation",
-     "kind": "gadget",
-     "lxa": 1,
-     "phase": 240,
-     "ref": 3,
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[3 id=1]"
-    },
-    {
-     "field": "left",
-     "kind": "gadget",
-     "lxa": 33,
-     "phase": 240,
-     "ref": 342,
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[3 id=1]"
-    },
-    {
      "field": "top",
      "kind": "gadget",
-     "lxa": 164,
-     "phase": 240,
+     "lxa": 109,
+     "phase": 225,
      "ref": 101,
      "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[3 id=1]"
     },
     {
-     "field": "width",
-     "kind": "gadget",
-     "lxa": 160,
-     "phase": 240,
-     "ref": 16,
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[3 id=1]"
-    },
-    {
      "field": "height",
      "kind": "gadget",
-     "lxa": 14,
-     "phase": 240,
+     "lxa": 8,
+     "phase": 225,
      "ref": 9,
      "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[3 id=1]"
     },
     {
-     "field": "text",
-     "kind": "gadget",
-     "lxa": [
-      "  Screen Size",
-      "Standard"
-     ],
-     "phase": 240,
-     "ref": [],
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[3 id=1]"
-    },
-    {
-     "field": "id",
-     "kind": "gadget",
-     "lxa": 6,
-     "phase": 240,
-     "ref": 1,
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[4 id=1]"
-    },
-    {
-     "field": "type",
-     "kind": "gadget",
-     "lxa": 260,
-     "phase": 240,
-     "ref": 257,
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[4 id=1]"
-    },
-    {
-     "field": "flags",
-     "kind": "gadget",
-     "lxa": 256,
-     "phase": 240,
-     "ref": 32774,
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[4 id=1]"
-    },
-    {
-     "field": "activation",
-     "kind": "gadget",
-     "lxa": 2049,
-     "phase": 240,
-     "ref": 3,
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[4 id=1]"
-    },
-    {
-     "field": "left",
-     "kind": "gadget",
-     "lxa": 215,
-     "phase": 240,
-     "ref": 342,
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[4 id=1]"
-    },
-    {
      "field": "top",
      "kind": "gadget",
-     "lxa": 167,
-     "phase": 240,
+     "lxa": 117,
+     "phase": 225,
      "ref": 110,
      "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[4 id=1]"
     },
     {
-     "field": "width",
-     "kind": "gadget",
-     "lxa": 40,
-     "phase": 240,
-     "ref": 16,
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[4 id=1]"
-    },
-    {
      "field": "height",
      "kind": "gadget",
      "lxa": 8,
@@ -290,721 +75,84 @@
      "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[4 id=1]"
     },
     {
-     "field": "text",
-     "kind": "gadget",
-     "lxa": [
-      ""
-     ],
-     "phase": 240,
-     "ref": [],
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[4 id=1]"
-    },
-    {
-     "field": "id",
-     "kind": "gadget",
-     "lxa": 7,
-     "phase": 240,
-     "ref": 1,
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[5 id=1]"
-    },
-    {
-     "field": "type",
-     "kind": "gadget",
-     "lxa": 260,
-     "phase": 240,
-     "ref": 256,
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[5 id=1]"
-    },
-    {
-     "field": "flags",
-     "kind": "gadget",
-     "lxa": 256,
-     "phase": 240,
-     "ref": 32775,
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[5 id=1]"
-    },
-    {
-     "field": "activation",
-     "kind": "gadget",
-     "lxa": 2049,
-     "phase": 240,
-     "ref": 0,
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[5 id=1]"
-    },
-    {
-     "field": "left",
-     "kind": "gadget",
-     "lxa": 290,
-     "phase": 240,
-     "ref": 342,
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[5 id=1]"
-    },
-    {
-     "field": "top",
-     "kind": "gadget",
-     "lxa": 167,
-     "phase": 240,
-     "ref": 25,
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[5 id=1]"
-    },
-    {
-     "field": "width",
-     "kind": "gadget",
-     "lxa": 40,
-     "phase": 240,
-     "ref": 16,
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[5 id=1]"
-    },
-    {
      "field": "height",
      "kind": "gadget",
-     "lxa": 8,
-     "phase": 240,
+     "lxa": 100,
+     "phase": 225,
      "ref": 94,
      "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[5 id=1]"
     },
     {
-     "field": "text",
-     "kind": "gadget",
-     "lxa": [
-      ""
-     ],
-     "phase": 240,
-     "ref": [],
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[5 id=1]"
-    },
-    {
-     "field": "id",
-     "kind": "gadget",
-     "lxa": 5,
-     "phase": 240,
-     "ref": 1,
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[6 id=1]"
-    },
-    {
-     "field": "type",
-     "kind": "gadget",
-     "lxa": 257,
-     "phase": 240,
-     "ref": 256,
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[6 id=1]"
-    },
-    {
-     "field": "flags",
-     "kind": "gadget",
-     "lxa": 3,
-     "phase": 240,
-     "ref": 32775,
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[6 id=1]"
-    },
-    {
-     "field": "activation",
-     "kind": "gadget",
-     "lxa": 1,
-     "phase": 240,
-     "ref": 0,
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[6 id=1]"
-    },
-    {
-     "field": "left",
-     "kind": "gadget",
-     "lxa": 33,
-     "phase": 240,
-     "ref": 8,
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[6 id=1]"
-    },
-    {
-     "field": "top",
-     "kind": "gadget",
-     "lxa": 192,
-     "phase": 240,
-     "ref": 25,
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[6 id=1]"
-    },
-    {
-     "field": "width",
-     "kind": "gadget",
-     "lxa": 160,
-     "phase": 240,
-     "ref": 350,
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[6 id=1]"
-    },
-    {
      "field": "height",
      "kind": "gadget",
-     "lxa": 14,
-     "phase": 240,
+     "lxa": 100,
+     "phase": 225,
      "ref": 94,
      "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[6 id=1]"
     },
     {
-     "field": "text",
-     "kind": "gadget",
-     "lxa": [
-      "  Page Size",
-      "Screen"
-     ],
-     "phase": 240,
-     "ref": [
-      "Choose Display Mode"
-     ],
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[6 id=1]"
-    },
-    {
-     "field": "id",
-     "kind": "gadget",
-     "lxa": 8,
-     "phase": 240,
-     "ref": 3,
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[7 id=3]"
-    },
-    {
-     "field": "type",
-     "kind": "gadget",
-     "lxa": 260,
-     "phase": 240,
-     "ref": 257,
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[7 id=3]"
-    },
-    {
-     "field": "flags",
-     "kind": "gadget",
-     "lxa": 256,
-     "phase": 240,
-     "ref": 7,
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[7 id=3]"
-    },
-    {
-     "field": "activation",
-     "kind": "gadget",
-     "lxa": 2049,
-     "phase": 240,
-     "ref": 11,
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[7 id=3]"
-    },
-    {
-     "field": "left",
-     "kind": "gadget",
-     "lxa": 215,
-     "phase": 240,
-     "ref": 376,
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[7 id=3]"
-    },
-    {
-     "field": "top",
-     "kind": "gadget",
-     "lxa": 195,
-     "phase": 240,
-     "ref": 27,
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[7 id=3]"
-    },
-    {
-     "field": "width",
-     "kind": "gadget",
-     "lxa": 48,
-     "phase": 240,
-     "ref": 238,
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[7 id=3]"
-    },
-    {
      "field": "height",
      "kind": "gadget",
-     "lxa": 8,
-     "phase": 240,
+     "lxa": 112,
+     "phase": 225,
      "ref": 108,
      "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[7 id=3]"
     },
     {
-     "field": "text",
+     "field": "height",
      "kind": "gadget",
-     "lxa": [
-      ""
-     ],
-     "phase": 240,
-     "ref": [],
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[7 id=3]"
-    },
-    {
-     "field": "id",
-     "kind": "gadget",
-     "lxa": 9,
-     "phase": 240,
-     "ref": 3,
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[8 id=3]"
-    },
-    {
-     "field": "type",
-     "kind": "gadget",
-     "lxa": 260,
-     "phase": 240,
-     "ref": 259,
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[8 id=3]"
-    },
-    {
-     "field": "flags",
-     "kind": "gadget",
-     "lxa": 256,
-     "phase": 240,
-     "ref": 7,
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[8 id=3]"
-    },
-    {
-     "field": "activation",
-     "kind": "gadget",
-     "lxa": 2049,
-     "phase": 240,
-     "ref": 11,
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[8 id=3]"
-    },
-    {
-     "field": "left",
-     "kind": "gadget",
-     "lxa": 290,
-     "phase": 240,
-     "ref": 620,
+     "lxa": 96,
+     "phase": 225,
+     "ref": 90,
      "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[8 id=3]"
     },
     {
      "field": "top",
      "kind": "gadget",
-     "lxa": 195,
-     "phase": 240,
-     "ref": 27,
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[8 id=3]"
-    },
-    {
-     "field": "width",
-     "kind": "gadget",
-     "lxa": 48,
-     "phase": 240,
-     "ref": 8,
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[8 id=3]"
+     "lxa": 125,
+     "phase": 225,
+     "ref": 119,
+     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[9 id=3]"
     },
     {
      "field": "height",
      "kind": "gadget",
      "lxa": 8,
-     "phase": 240,
-     "ref": 90,
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[8 id=3]"
-    },
-    {
-     "field": "text",
-     "kind": "gadget",
-     "lxa": [
-      ""
-     ],
-     "phase": 240,
-     "ref": [],
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[8 id=3]"
-    },
-    {
-     "field": "id",
-     "kind": "gadget",
-     "lxa": 10,
-     "phase": 240,
-     "ref": 3,
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[9 id=3]"
-    },
-    {
-     "field": "type",
-     "kind": "gadget",
-     "lxa": 259,
-     "phase": 240,
-     "ref": 257,
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[9 id=3]"
-    },
-    {
-     "field": "flags",
-     "kind": "gadget",
-     "lxa": 3,
-     "phase": 240,
-     "ref": 32774,
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[9 id=3]"
-    },
-    {
-     "field": "left",
-     "kind": "gadget",
-     "lxa": 57,
-     "phase": 240,
-     "ref": 616,
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[9 id=3]"
-    },
-    {
-     "field": "top",
-     "kind": "gadget",
-     "lxa": 222,
-     "phase": 240,
-     "ref": 119,
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[9 id=3]"
-    },
-    {
-     "field": "width",
-     "kind": "gadget",
-     "lxa": 132,
-     "phase": 240,
-     "ref": 16,
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[9 id=3]"
-    },
-    {
-     "field": "height",
-     "kind": "gadget",
-     "lxa": 10,
-     "phase": 240,
+     "phase": 225,
      "ref": 9,
      "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[9 id=3]"
     },
     {
-     "field": "text",
-     "kind": "gadget",
-     "lxa": [
-      "Palette Size",
-      "256"
-     ],
-     "phase": 240,
-     "ref": [],
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[9 id=3]"
-    },
-    {
-     "field": "id",
-     "kind": "gadget",
-     "lxa": 16,
-     "phase": 240,
-     "ref": 3,
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[10 id=3]"
-    },
-    {
-     "field": "flags",
-     "kind": "gadget",
-     "lxa": 3,
-     "phase": 240,
-     "ref": 32774,
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[10 id=3]"
-    },
-    {
-     "field": "activation",
-     "kind": "gadget",
-     "lxa": 1,
-     "phase": 240,
-     "ref": 3,
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[10 id=3]"
-    },
-    {
-     "field": "left",
-     "kind": "gadget",
-     "lxa": 209,
-     "phase": 240,
-     "ref": 616,
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[10 id=3]"
-    },
-    {
      "field": "top",
      "kind": "gadget",
-     "lxa": 220,
-     "phase": 240,
+     "lxa": 133,
+     "phase": 225,
      "ref": 128,
      "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[10 id=3]"
     },
     {
-     "field": "width",
-     "kind": "gadget",
-     "lxa": 135,
-     "phase": 240,
-     "ref": 16,
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[10 id=3]"
-    },
-    {
      "field": "height",
      "kind": "gadget",
-     "lxa": 14,
-     "phase": 240,
+     "lxa": 8,
+     "phase": 225,
      "ref": 9,
      "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[10 id=3]"
     },
     {
-     "field": "text",
-     "kind": "gadget",
-     "lxa": [
-      "Backing Store",
-      "None"
-     ],
-     "phase": 240,
-     "ref": [],
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[10 id=3]"
-    },
-    {
-     "field": "id",
-     "kind": "gadget",
-     "lxa": 11,
-     "phase": 240,
-     "ref": 3,
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[11 id=3]"
-    },
-    {
-     "field": "type",
-     "kind": "gadget",
-     "lxa": 257,
-     "phase": 240,
-     "ref": 256,
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[11 id=3]"
-    },
-    {
-     "field": "flags",
-     "kind": "gadget",
-     "lxa": 387,
-     "phase": 240,
-     "ref": 32775,
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[11 id=3]"
-    },
-    {
-     "field": "activation",
-     "kind": "gadget",
-     "lxa": 257,
-     "phase": 240,
-     "ref": 0,
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[11 id=3]"
-    },
-    {
-     "field": "left",
-     "kind": "gadget",
-     "lxa": 209,
-     "phase": 240,
-     "ref": 616,
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[11 id=3]"
-    },
-    {
-     "field": "top",
-     "kind": "gadget",
-     "lxa": 240,
-     "phase": 240,
-     "ref": 25,
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[11 id=3]"
-    },
-    {
-     "field": "width",
-     "kind": "gadget",
-     "lxa": 26,
-     "phase": 240,
-     "ref": 16,
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[11 id=3]"
-    },
-    {
      "field": "height",
      "kind": "gadget",
-     "lxa": 11,
-     "phase": 240,
+     "lxa": 116,
+     "phase": 225,
      "ref": 112,
      "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[11 id=3]"
     },
     {
-     "field": "text",
-     "kind": "gadget",
-     "lxa": [
-      "Retain Picture"
-     ],
-     "phase": 240,
-     "ref": [],
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[11 id=3]"
-    },
-    {
-     "field": "id",
-     "kind": "gadget",
-     "lxa": 13,
-     "phase": 240,
-     "ref": 3,
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[12 id=3]"
-    },
-    {
-     "field": "type",
-     "kind": "gadget",
-     "lxa": 257,
-     "phase": 240,
-     "ref": 256,
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[12 id=3]"
-    },
-    {
-     "field": "flags",
-     "kind": "gadget",
-     "lxa": 3,
-     "phase": 240,
-     "ref": 32775,
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[12 id=3]"
-    },
-    {
-     "field": "activation",
-     "kind": "gadget",
-     "lxa": 3,
-     "phase": 240,
-     "ref": 0,
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[12 id=3]"
-    },
-    {
-     "field": "left",
-     "kind": "gadget",
-     "lxa": 380,
-     "phase": 240,
-     "ref": 374,
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[12 id=3]"
-    },
-    {
-     "field": "top",
-     "kind": "gadget",
-     "lxa": 162,
-     "phase": 240,
-     "ref": 25,
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[12 id=3]"
-    },
-    {
-     "field": "width",
-     "kind": "gadget",
-     "lxa": 230,
-     "phase": 240,
-     "ref": 258,
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[12 id=3]"
-    },
-    {
      "field": "height",
      "kind": "gadget",
-     "lxa": 72,
-     "phase": 240,
+     "lxa": 116,
+     "phase": 225,
      "ref": 112,
      "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[12 id=3]"
-    },
-    {
-     "field": "text",
-     "kind": "gadget",
-     "lxa": [
-      "Credits"
-     ],
-     "phase": 240,
-     "ref": [
-      "Display Information"
-     ],
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[12 id=3]"
-    },
-    {
-     "field": "id",
-     "kind": "gadget",
-     "lxa": 14,
-     "phase": 240,
-     "ref": 4,
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[13 id=4]"
-    },
-    {
-     "field": "flags",
-     "kind": "gadget",
-     "lxa": 3,
-     "phase": 240,
-     "ref": 32774,
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[13 id=4]"
-    },
-    {
-     "field": "left",
-     "kind": "gadget",
-     "lxa": 12,
-     "phase": 240,
-     "ref": 33,
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[13 id=4]"
-    },
-    {
-     "field": "top",
-     "kind": "gadget",
-     "lxa": 238,
-     "phase": 240,
-     "ref": 164,
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[13 id=4]"
-    },
-    {
-     "field": "width",
-     "kind": "gadget",
-     "lxa": 50,
-     "phase": 240,
-     "ref": 160,
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[13 id=4]"
-    },
-    {
-     "field": "text",
-     "kind": "gadget",
-     "lxa": [],
-     "phase": 240,
-     "ref": [
-      "  Screen Size"
-     ],
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[13 id=4]"
-    },
-    {
-     "field": "id",
-     "kind": "gadget",
-     "lxa": 15,
-     "phase": 240,
-     "ref": 6,
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[14 id=6]"
-    },
-    {
-     "field": "type",
-     "kind": "gadget",
-     "lxa": 257,
-     "phase": 240,
-     "ref": 260,
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[14 id=6]"
-    },
-    {
-     "field": "flags",
-     "kind": "gadget",
-     "lxa": 3,
-     "phase": 240,
-     "ref": 33540,
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[14 id=6]"
-    },
-    {
-     "field": "activation",
-     "kind": "gadget",
-     "lxa": 1,
-     "phase": 240,
-     "ref": 10241,
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[14 id=6]"
-    },
-    {
-     "field": "left",
-     "kind": "gadget",
-     "lxa": 553,
-     "phase": 240,
-     "ref": 215,
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[14 id=6]"
-    },
-    {
-     "field": "top",
-     "kind": "gadget",
-     "lxa": 238,
-     "phase": 240,
-     "ref": 167,
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[14 id=6]"
-    },
-    {
-     "field": "width",
-     "kind": "gadget",
-     "lxa": 75,
-     "phase": 240,
-     "ref": 40,
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[14 id=6]"
-    },
-    {
-     "field": "height",
-     "kind": "gadget",
-     "lxa": 14,
-     "phase": 240,
-     "ref": 8,
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[14 id=6]"
-    },
-    {
-     "field": "text",
-     "kind": "gadget",
-     "lxa": [],
-     "phase": 240,
-     "ref": [
-      ""
-     ],
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[14 id=6]"
     },
     {
      "field": "width",
@@ -1087,7 +235,7 @@
      "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/menu[Settings]/History/#?"
     }
    ],
-   "pixel_budget": 26471,
+   "pixel_budget": 23515,
    "pixel_phase": 240,
    "stdout_known_diff": null
   }

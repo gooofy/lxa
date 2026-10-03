@@ -422,7 +422,9 @@ TEST_F(BlitzBasic2Test, StartupOpensVisibleIdeWindow) {
 
     ASSERT_TRUE(lxa_get_screen_dimensions(&active_width, &active_height, &active_depth));
     EXPECT_EQ(active_width, 640);
-    EXPECT_EQ(active_height, 256);
+    /* AmigaOS 3.1: Blitz sizes its screen from the Workbench
+     * (GetScreenData), 3 lines less */
+    EXPECT_EQ(active_height, 253);
     EXPECT_EQ(active_depth, 2);
 
     /* Phase 135: BlitzBasic 2 opens an "About" requester window at startup
@@ -460,7 +462,7 @@ TEST_F(BlitzBasic2Test, ProjectMenuRendersFullDropdown) {
 
     RgbImage menu_image = LoadPng(menu_path);
     ASSERT_EQ(menu_image.width, 640);
-    ASSERT_EQ(menu_image.height, 256);
+    ASSERT_EQ(menu_image.height, 253);   /* the screen is Workbench height - 3 (AmigaOS 3.1) */
 
     int white_pixels = 0;
     int black_pixels = 0;

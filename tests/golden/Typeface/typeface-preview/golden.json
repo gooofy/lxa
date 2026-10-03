@@ -1,8 +1,7 @@
 {
  "app": "Typeface",
  "disabled": null,
- "lxa_version": "0.11.19",
- "note": "GadTools menu item geometry/flags and underscore labels (222e), GACT_BORDERSNIFF and missing gadget (222d), ROM font (225)",
+ "lxa_version": "0.11.20",
  "promoted": "2026-10-03",
  "reference": "AmigaOS 3.1 (KS 40.70), profile aga",
  "requires_apps": true,
@@ -19,12 +18,12 @@
      "where": "screen[Typeface]/window[Font Preview]"
     },
     {
-     "field": "missing",
+     "field": "flags",
      "kind": "gadget",
-     "lxa": null,
+     "lxa": 32768,
      "phase": 222,
-     "ref": 0,
-     "where": "screen[Typeface]/window[Font Preview]/gadget[id=0]"
+     "ref": 32864,
+     "where": "screen[Typeface]/window[Font Preview]/gadget[0 id=0]"
     },
     {
      "field": "flags",
@@ -35,12 +34,12 @@
      "where": "screen[Typeface]/window[topaz/8]"
     },
     {
-     "field": "missing",
+     "field": "flags",
      "kind": "gadget",
-     "lxa": null,
+     "lxa": 32768,
      "phase": 222,
-     "ref": 0,
-     "where": "screen[Typeface]/window[topaz/8]/gadget[id=0]"
+     "ref": 32864,
+     "where": "screen[Typeface]/window[topaz/8]/gadget[0 id=0]"
     },
     {
      "field": "flags",
@@ -74,12 +73,12 @@
      "where": "screen[Typeface]/window[topaz/8]"
     },
     {
-     "field": "missing",
+     "field": "flags",
      "kind": "gadget",
-     "lxa": null,
+     "lxa": 32768,
      "phase": 222,
-     "ref": 0,
-     "where": "screen[Typeface]/window[topaz/8]/gadget[id=0]"
+     "ref": 32864,
+     "where": "screen[Typeface]/window[topaz/8]/gadget[0 id=0]"
     }
    ],
    "pixel_budget": 2122,

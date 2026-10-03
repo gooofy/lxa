@@ -1,0 +1,807 @@
+font ysize = 8
+font baseline = 6
+-- CreateContext
+glist == ctx = TRUE
+gad0 id=0 type=0x0100 flags=0x0003 act=0x0000 box=0,0,0x0 norender noselect notext nospecial mx=0
+CreateGadget(prev NULL) = NULL
+-- BUTTON
+returned index = 1
+returned UserData kept = TRUE
+returned is last = TRUE
+gad0 id=0 type=0x0100 flags=0x0003 act=0x0000 box=0,0,0x0 norender noselect notext nospecial mx=0
+gad1 id=7 type=0x0101 flags=0x8006 act=0x0001 box=100,40,120x14 render select notext nospecial mx=0
+ext more=0x00000003 box=100,40,120x14
+image0 box=0,0,120x14 depth=-1
+select:
+image0 box=0,0,120x14 depth=-1
+-- BUTTON left
+returned index = 1
+returned UserData kept = TRUE
+returned is last = TRUE
+gad0 id=0 type=0x0100 flags=0x0003 act=0x0000 box=0,0,0x0 norender noselect notext nospecial mx=0
+gad1 id=7 type=0x0101 flags=0x8006 act=0x0001 box=100,40,120x14 render select notext nospecial mx=0
+ext more=0x00000003 box=52,40,168x14
+image0 box=0,0,120x14 depth=-1
+select:
+image0 box=0,0,120x14 depth=-1
+-- BUTTON right highlabel
+returned index = 1
+returned UserData kept = TRUE
+returned is last = TRUE
+gad0 id=0 type=0x0100 flags=0x0003 act=0x0000 box=0,0,0x0 norender noselect notext nospecial mx=0
+gad1 id=7 type=0x0101 flags=0x8006 act=0x0001 box=100,40,120x14 render select notext nospecial mx=0
+ext more=0x00000003 box=100,40,168x14
+image0 box=0,0,120x14 depth=-1
+select:
+image0 box=0,0,120x14 depth=-1
+-- BUTTON underscore
+returned index = 1
+returned UserData kept = TRUE
+returned is last = TRUE
+gad0 id=0 type=0x0100 flags=0x0003 act=0x0000 box=0,0,0x0 norender noselect notext nospecial mx=0
+gad1 id=7 type=0x0101 flags=0x8006 act=0x0001 box=100,40,120x14 render select notext nospecial mx=0
+ext more=0x00000003 box=100,40,120x14
+image0 box=0,0,120x14 depth=-1
+select:
+image0 box=0,0,120x14 depth=-1
+-- BUTTON disabled
+returned index = 1
+returned UserData kept = TRUE
+returned is last = TRUE
+gad0 id=0 type=0x0100 flags=0x0003 act=0x0000 box=0,0,0x0 norender noselect notext nospecial mx=0
+gad1 id=7 type=0x0101 flags=0x8106 act=0x0001 box=100,40,120x14 render select notext nospecial mx=0
+ext more=0x00000003 box=100,40,120x14
+image0 box=0,0,120x14 depth=-1
+select:
+image0 box=0,0,120x14 depth=-1
+-- BUTTON immediate
+returned index = 1
+returned UserData kept = TRUE
+returned is last = TRUE
+gad0 id=0 type=0x0100 flags=0x0003 act=0x0000 box=0,0,0x0 norender noselect notext nospecial mx=0
+gad1 id=7 type=0x0101 flags=0x8006 act=0x0003 box=100,40,120x14 render select notext nospecial mx=0
+ext more=0x00000003 box=100,40,120x14
+image0 box=0,0,120x14 depth=-1
+select:
+image0 box=0,0,120x14 depth=-1
+-- BUTTON notext
+returned index = 1
+returned UserData kept = TRUE
+returned is last = TRUE
+gad0 id=0 type=0x0100 flags=0x0003 act=0x0000 box=0,0,0x0 norender noselect notext nospecial mx=0
+gad1 id=7 type=0x0101 flags=0x8006 act=0x0001 box=100,40,120x14 render select notext nospecial mx=0
+ext more=0x00000003 box=100,40,120x14
+image0 box=0,0,120x14 depth=-1
+select:
+image0 box=0,0,120x14 depth=-1
+-- CHECKBOX
+returned index = 1
+returned UserData kept = TRUE
+returned is last = TRUE
+gad0 id=0 type=0x0100 flags=0x0003 act=0x0000 box=0,0,0x0 norender noselect notext nospecial mx=0
+gad1 id=7 type=0x0101 flags=0x8006 act=0x0101 box=100,40,26x11 render select text nospecial mx=0
+ext more=0x00000003 box=52,40,74x11
+itext0 t="Label" l=-48 tp=2 fp=1 bp=0 dm=0 font=topaz.font/8
+image0 box=0,0,26x11 depth=-1
+select:
+image0 box=0,0,26x11 depth=-1
+-- CHECKBOX checked
+returned index = 1
+returned UserData kept = TRUE
+returned is last = TRUE
+gad0 id=0 type=0x0100 flags=0x0003 act=0x0000 box=0,0,0x0 norender noselect notext nospecial mx=0
+gad1 id=7 type=0x0101 flags=0x8086 act=0x0101 box=100,40,26x11 render select text nospecial mx=0
+ext more=0x00000003 box=52,40,74x11
+itext0 t="Label" l=-48 tp=2 fp=1 bp=0 dm=0 font=topaz.font/8
+image0 box=0,0,26x11 depth=-1
+select:
+image0 box=0,0,26x11 depth=-1
+-- CHECKBOX right
+returned index = 1
+returned UserData kept = TRUE
+returned is last = TRUE
+gad0 id=0 type=0x0100 flags=0x0003 act=0x0000 box=0,0,0x0 norender noselect notext nospecial mx=0
+gad1 id=7 type=0x0101 flags=0x8006 act=0x0101 box=100,40,26x11 render select text nospecial mx=0
+ext more=0x00000003 box=100,40,74x11
+itext0 t="Label" l=33 tp=2 fp=1 bp=0 dm=0 font=topaz.font/8
+image0 box=0,0,26x11 depth=-1
+select:
+image0 box=0,0,26x11 depth=-1
+-- CHECKBOX scaled
+returned index = 1
+returned UserData kept = TRUE
+returned is last = TRUE
+gad0 id=0 type=0x0100 flags=0x0003 act=0x0000 box=0,0,0x0 norender noselect notext nospecial mx=0
+gad1 id=7 type=0x0101 flags=0x8006 act=0x0101 box=100,40,30x20 render select text nospecial mx=0
+ext more=0x00000003 box=52,40,78x20
+itext0 t="Label" l=-48 tp=6 fp=1 bp=0 dm=0 font=topaz.font/8
+image0 box=0,0,30x20 depth=-1
+select:
+image0 box=0,0,30x20 depth=-1
+-- CHECKBOX small
+returned index = 1
+returned UserData kept = TRUE
+returned is last = TRUE
+gad0 id=0 type=0x0100 flags=0x0003 act=0x0000 box=0,0,0x0 norender noselect notext nospecial mx=0
+gad1 id=7 type=0x0101 flags=0x8006 act=0x0101 box=100,40,26x11 render select text nospecial mx=0
+ext more=0x00000003 box=52,40,74x11
+itext0 t="Label" l=-48 tp=2 fp=1 bp=0 dm=0 font=topaz.font/8
+image0 box=0,0,26x11 depth=-1
+select:
+image0 box=0,0,26x11 depth=-1
+-- CHECKBOX disabled
+returned index = 1
+returned UserData kept = TRUE
+returned is last = TRUE
+gad0 id=0 type=0x0100 flags=0x0003 act=0x0000 box=0,0,0x0 norender noselect notext nospecial mx=0
+gad1 id=7 type=0x0101 flags=0x8106 act=0x0101 box=100,40,26x11 render select text nospecial mx=0
+ext more=0x00000003 box=52,40,74x11
+itext0 t="Label" l=-48 tp=2 fp=1 bp=0 dm=0 font=topaz.font/8
+image0 box=0,0,26x11 depth=-1
+select:
+image0 box=0,0,26x11 depth=-1
+-- INTEGER
+returned index = 1
+returned UserData kept = TRUE
+returned is last = TRUE
+gad0 id=0 type=0x0100 flags=0x0003 act=0x0000 box=0,0,0x0 norender noselect notext nospecial mx=0
+gad1 id=7 type=0x0104 flags=0x8204 act=0x2801 box=106,43,108x8 render noselect text special mx=0
+ext more=0x00000003 box=52,40,168x14
+itext0 t="Label" l=-54 tp=0 fp=1 bp=0 dm=0 font=topaz.font/8
+image0 box=-6,-3,120x14 depth=-1
+str buf="42" max=11 num=0 pos=0 disp=0 long=42 undo ext font pen0=1 pen1=0 apen0=1 apen1=0 modes=0x00000000 nohook nowork
+-- INTEGER negative maxchars
+returned index = 1
+returned UserData kept = TRUE
+returned is last = TRUE
+gad0 id=0 type=0x0100 flags=0x0003 act=0x0000 box=0,0,0x0 norender noselect notext nospecial mx=0
+gad1 id=7 type=0x0104 flags=0x8204 act=0x2801 box=106,43,108x8 render noselect text special mx=0
+ext more=0x00000003 box=52,40,168x14
+itext0 t="Label" l=-54 tp=0 fp=1 bp=0 dm=0 font=topaz.font/8
+image0 box=-6,-3,120x14 depth=-1
+str buf="-5" max=4 num=0 pos=0 disp=0 long=-5 undo ext font pen0=1 pen1=0 apen0=1 apen1=0 modes=0x00000000 nohook nowork
+-- INTEGER above disabled
+returned index = 1
+returned UserData kept = TRUE
+returned is last = TRUE
+gad0 id=0 type=0x0100 flags=0x0003 act=0x0000 box=0,0,0x0 norender noselect notext nospecial mx=0
+gad1 id=7 type=0x0104 flags=0x8304 act=0x2801 box=106,43,108x8 render noselect text special mx=0
+ext more=0x00000003 box=100,28,120x26
+itext0 t="Label" l=34 tp=-15 fp=1 bp=0 dm=0 font=topaz.font/8
+image0 box=-6,-3,120x14 depth=-1
+str buf="0" max=11 num=0 pos=0 disp=0 long=0 undo ext font pen0=1 pen1=0 apen0=1 apen1=0 modes=0x00000000 nohook nowork
+-- INTEGER notabcycle
+returned index = 1
+returned UserData kept = TRUE
+returned is last = TRUE
+gad0 id=0 type=0x0100 flags=0x0003 act=0x0000 box=0,0,0x0 norender noselect notext nospecial mx=0
+gad1 id=7 type=0x0104 flags=0x8004 act=0x2801 box=106,43,108x8 render noselect text special mx=0
+ext more=0x00000003 box=52,40,168x14
+itext0 t="Label" l=-54 tp=0 fp=1 bp=0 dm=0 font=topaz.font/8
+image0 box=-6,-3,120x14 depth=-1
+str buf="0" max=11 num=0 pos=0 disp=0 long=0 undo ext font pen0=1 pen1=0 apen0=1 apen1=0 modes=0x00000000 nohook nowork
+-- STRING
+returned index = 1
+returned UserData kept = TRUE
+returned is last = TRUE
+gad0 id=0 type=0x0100 flags=0x0003 act=0x0000 box=0,0,0x0 norender noselect notext nospecial mx=0
+gad1 id=7 type=0x0104 flags=0x8204 act=0x2001 box=106,43,108x8 render noselect text special mx=0
+ext more=0x00000003 box=52,40,168x14
+itext0 t="Label" l=-54 tp=0 fp=1 bp=0 dm=0 font=topaz.font/8
+image0 box=-6,-3,120x14 depth=-1
+str buf="abc" max=65 num=0 pos=0 disp=0 undo ext font pen0=1 pen1=0 apen0=1 apen1=0 modes=0x00000000 nohook nowork
+-- STRING maxchars
+returned index = 1
+returned UserData kept = TRUE
+returned is last = TRUE
+gad0 id=0 type=0x0100 flags=0x0003 act=0x0000 box=0,0,0x0 norender noselect notext nospecial mx=0
+gad1 id=7 type=0x0104 flags=0x8204 act=0x2001 box=106,43,108x8 render noselect text special mx=0
+ext more=0x00000003 box=52,40,168x14
+itext0 t="Label" l=-54 tp=0 fp=1 bp=0 dm=0 font=topaz.font/8
+image0 box=-6,-3,120x14 depth=-1
+str buf="abcdef" max=6 num=0 pos=0 disp=0 undo ext font pen0=1 pen1=0 apen0=1 apen1=0 modes=0x00000000 nohook nowork
+-- STRING right
+returned index = 1
+returned UserData kept = TRUE
+returned is last = TRUE
+gad0 id=0 type=0x0100 flags=0x0003 act=0x0000 box=0,0,0x0 norender noselect notext nospecial mx=0
+gad1 id=7 type=0x0104 flags=0x8204 act=0x2001 box=106,43,108x8 render noselect text special mx=0
+ext more=0x00000003 box=100,40,168x14
+itext0 t="Label" l=121 tp=0 fp=1 bp=0 dm=0 font=topaz.font/8
+image0 box=-6,-3,120x14 depth=-1
+str buf="" max=65 num=0 pos=0 disp=0 undo ext font pen0=1 pen1=0 apen0=1 apen1=0 modes=0x00000000 nohook nowork
+-- STRING disabled
+returned index = 1
+returned UserData kept = TRUE
+returned is last = TRUE
+gad0 id=0 type=0x0100 flags=0x0003 act=0x0000 box=0,0,0x0 norender noselect notext nospecial mx=0
+gad1 id=7 type=0x0104 flags=0x8304 act=0x2001 box=106,43,108x8 render noselect text special mx=0
+ext more=0x00000003 box=52,40,168x14
+itext0 t="Label" l=-54 tp=0 fp=1 bp=0 dm=0 font=topaz.font/8
+image0 box=-6,-3,120x14 depth=-1
+str buf="" max=65 num=0 pos=0 disp=0 undo ext font pen0=1 pen1=0 apen0=1 apen1=0 modes=0x00000000 nohook nowork
+-- STRING justify
+returned index = 1
+returned UserData kept = TRUE
+returned is last = TRUE
+gad0 id=0 type=0x0100 flags=0x0003 act=0x0000 box=0,0,0x0 norender noselect notext nospecial mx=0
+gad1 id=7 type=0x0104 flags=0x8204 act=0x2201 box=106,43,108x8 render noselect text special mx=0
+ext more=0x00000003 box=52,40,168x14
+itext0 t="Label" l=-54 tp=0 fp=1 bp=0 dm=0 font=topaz.font/8
+image0 box=-6,-3,120x14 depth=-1
+str buf="" max=65 num=0 pos=0 disp=0 undo ext font pen0=1 pen1=0 apen0=1 apen1=0 modes=0x00000000 nohook nowork
+-- MX
+returned index = 4
+returned UserData kept = TRUE
+returned is last = TRUE
+gad0 id=0 type=0x0100 flags=0x0003 act=0x0000 box=0,0,0x0 norender noselect notext nospecial mx=0
+gad1 id=0 type=0x0101 flags=0x0086 act=0x0002 box=100,40,17x9 render select text nospecial mx=0
+itext0 t="Alpha" l=-48 tp=1 fp=1 bp=0 dm=0 font=topaz.font/8
+image0 box=0,0,17x9 depth=-1
+select:
+image0 box=0,0,17x9 depth=-1
+gad2 id=1 type=0x0101 flags=0x0006 act=0x0002 box=100,49,17x9 render select text nospecial mx=0
+itext0 t="Beta" l=-40 tp=1 fp=1 bp=0 dm=0 font=topaz.font/8
+image0 box=0,0,17x9 depth=-1
+select:
+image0 box=0,0,17x9 depth=-1
+gad3 id=2 type=0x0101 flags=0x0006 act=0x0002 box=100,58,17x9 render select text nospecial mx=0
+itext0 t="Gamma" l=-48 tp=1 fp=1 bp=0 dm=0 font=topaz.font/8
+image0 box=0,0,17x9 depth=-1
+select:
+image0 box=0,0,17x9 depth=-1
+gad4 id=7 type=0x0100 flags=0x8003 act=0x0000 box=52,40,65x28 norender noselect notext nospecial mx=0
+ext more=0x00000003 box=52,40,65x28
+-- MX spacing active
+returned index = 4
+returned UserData kept = TRUE
+returned is last = TRUE
+gad0 id=0 type=0x0100 flags=0x0003 act=0x0000 box=0,0,0x0 norender noselect notext nospecial mx=0
+gad1 id=0 type=0x0101 flags=0x0006 act=0x0002 box=100,40,17x9 render select text nospecial mx=0
+itext0 t="Alpha" l=-48 tp=1 fp=1 bp=0 dm=0 font=topaz.font/8
+image0 box=0,0,17x9 depth=-1
+select:
+image0 box=0,0,17x9 depth=-1
+gad2 id=1 type=0x0101 flags=0x0006 act=0x0002 box=100,52,17x9 render select text nospecial mx=0
+itext0 t="Beta" l=-40 tp=1 fp=1 bp=0 dm=0 font=topaz.font/8
+image0 box=0,0,17x9 depth=-1
+select:
+image0 box=0,0,17x9 depth=-1
+gad3 id=2 type=0x0101 flags=0x0086 act=0x0002 box=100,64,17x9 render select text nospecial mx=0
+itext0 t="Gamma" l=-48 tp=1 fp=1 bp=0 dm=0 font=topaz.font/8
+image0 box=0,0,17x9 depth=-1
+select:
+image0 box=0,0,17x9 depth=-1
+gad4 id=7 type=0x0100 flags=0x8003 act=0x0000 box=52,40,65x34 norender noselect notext nospecial mx=0
+ext more=0x00000003 box=52,40,65x34
+-- MX left
+returned index = 4
+returned UserData kept = TRUE
+returned is last = TRUE
+gad0 id=0 type=0x0100 flags=0x0003 act=0x0000 box=0,0,0x0 norender noselect notext nospecial mx=0
+gad1 id=0 type=0x0101 flags=0x0086 act=0x0002 box=100,40,17x9 render select text nospecial mx=0
+itext0 t="Alpha" l=-48 tp=1 fp=1 bp=0 dm=0 font=topaz.font/8
+image0 box=0,0,17x9 depth=-1
+select:
+image0 box=0,0,17x9 depth=-1
+gad2 id=1 type=0x0101 flags=0x0006 act=0x0002 box=100,49,17x9 render select text nospecial mx=0
+itext0 t="Beta" l=-40 tp=1 fp=1 bp=0 dm=0 font=topaz.font/8
+image0 box=0,0,17x9 depth=-1
+select:
+image0 box=0,0,17x9 depth=-1
+gad3 id=2 type=0x0101 flags=0x0006 act=0x0002 box=100,58,17x9 render select text nospecial mx=0
+itext0 t="Gamma" l=-48 tp=1 fp=1 bp=0 dm=0 font=topaz.font/8
+image0 box=0,0,17x9 depth=-1
+select:
+image0 box=0,0,17x9 depth=-1
+gad4 id=7 type=0x0100 flags=0x8003 act=0x0000 box=52,40,65x28 norender noselect notext nospecial mx=0
+ext more=0x00000003 box=52,40,65x28
+-- MX titleplace
+returned index = 4
+returned UserData kept = TRUE
+returned is last = TRUE
+gad0 id=0 type=0x0100 flags=0x0003 act=0x0000 box=0,0,0x0 norender noselect notext nospecial mx=0
+gad1 id=0 type=0x0101 flags=0x0086 act=0x0002 box=100,40,17x9 render select text nospecial mx=0
+itext0 t="Alpha" l=-48 tp=1 fp=1 bp=0 dm=0 font=topaz.font/8
+image0 box=0,0,17x9 depth=-1
+select:
+image0 box=0,0,17x9 depth=-1
+gad2 id=1 type=0x0101 flags=0x0006 act=0x0002 box=100,49,17x9 render select text nospecial mx=0
+itext0 t="Beta" l=-40 tp=1 fp=1 bp=0 dm=0 font=topaz.font/8
+image0 box=0,0,17x9 depth=-1
+select:
+image0 box=0,0,17x9 depth=-1
+gad3 id=2 type=0x0101 flags=0x0006 act=0x0002 box=100,58,17x9 render select text nospecial mx=0
+itext0 t="Gamma" l=-48 tp=1 fp=1 bp=0 dm=0 font=topaz.font/8
+image0 box=0,0,17x9 depth=-1
+select:
+image0 box=0,0,17x9 depth=-1
+gad4 id=7 type=0x0100 flags=0x8003 act=0x0000 box=52,40,65x28 norender noselect text nospecial mx=0
+ext more=0x00000003 box=52,28,65x40
+itext0 t="Label" l=13 tp=-12 fp=1 bp=0 dm=0 font=topaz.font/8
+-- MX scaled
+returned index = 4
+returned UserData kept = TRUE
+returned is last = TRUE
+gad0 id=0 type=0x0100 flags=0x0003 act=0x0000 box=0,0,0x0 norender noselect notext nospecial mx=0
+gad1 id=0 type=0x0101 flags=0x0086 act=0x0002 box=100,40,20x12 render select text nospecial mx=0
+itext0 t="Alpha" l=-48 tp=2 fp=1 bp=0 dm=0 font=topaz.font/8
+image0 box=0,0,20x12 depth=-1
+select:
+image0 box=0,0,20x12 depth=-1
+gad2 id=1 type=0x0101 flags=0x0006 act=0x0002 box=100,49,20x12 render select text nospecial mx=0
+itext0 t="Beta" l=-40 tp=2 fp=1 bp=0 dm=0 font=topaz.font/8
+image0 box=0,0,20x12 depth=-1
+select:
+image0 box=0,0,20x12 depth=-1
+gad3 id=2 type=0x0101 flags=0x0006 act=0x0002 box=100,58,20x12 render select text nospecial mx=0
+itext0 t="Gamma" l=-48 tp=2 fp=1 bp=0 dm=0 font=topaz.font/8
+image0 box=0,0,20x12 depth=-1
+select:
+image0 box=0,0,20x12 depth=-1
+gad4 id=7 type=0x0100 flags=0x8003 act=0x0000 box=52,40,68x30 norender noselect notext nospecial mx=0
+ext more=0x00000003 box=52,40,68x30
+-- MX disabled
+returned index = 4
+returned UserData kept = TRUE
+returned is last = TRUE
+gad0 id=0 type=0x0100 flags=0x0003 act=0x0000 box=0,0,0x0 norender noselect notext nospecial mx=0
+gad1 id=0 type=0x0101 flags=0x0186 act=0x0002 box=100,40,17x9 render select text nospecial mx=0
+itext0 t="Alpha" l=-48 tp=1 fp=1 bp=0 dm=0 font=topaz.font/8
+image0 box=0,0,17x9 depth=-1
+select:
+image0 box=0,0,17x9 depth=-1
+gad2 id=1 type=0x0101 flags=0x0106 act=0x0002 box=100,49,17x9 render select text nospecial mx=0
+itext0 t="Beta" l=-40 tp=1 fp=1 bp=0 dm=0 font=topaz.font/8
+image0 box=0,0,17x9 depth=-1
+select:
+image0 box=0,0,17x9 depth=-1
+gad3 id=2 type=0x0101 flags=0x0106 act=0x0002 box=100,58,17x9 render select text nospecial mx=0
+itext0 t="Gamma" l=-48 tp=1 fp=1 bp=0 dm=0 font=topaz.font/8
+image0 box=0,0,17x9 depth=-1
+select:
+image0 box=0,0,17x9 depth=-1
+gad4 id=7 type=0x0100 flags=0x8003 act=0x0000 box=52,40,65x28 norender noselect notext nospecial mx=0
+ext more=0x00000003 box=52,40,65x28
+-- MX nolabels
+result = NULL
+-- CYCLE
+returned index = 1
+returned UserData kept = TRUE
+returned is last = TRUE
+gad0 id=0 type=0x0100 flags=0x0003 act=0x0000 box=0,0,0x0 norender noselect notext nospecial mx=0
+gad1 id=7 type=0x0101 flags=0x8006 act=0x0001 box=100,40,120x14 render select text nospecial mx=0
+ext more=0x00000003 box=52,40,168x14
+itext0 t="Label" l=-48 tp=3 fp=1 bp=0 dm=0 font=topaz.font/8
+image0 box=0,0,120x14 depth=-1
+select:
+image0 box=0,0,120x14 depth=-1
+-- CYCLE active
+returned index = 1
+returned UserData kept = TRUE
+returned is last = TRUE
+gad0 id=0 type=0x0100 flags=0x0003 act=0x0000 box=0,0,0x0 norender noselect notext nospecial mx=0
+gad1 id=7 type=0x0101 flags=0x8006 act=0x0001 box=100,40,120x14 render select text nospecial mx=0
+ext more=0x00000003 box=52,40,168x14
+itext0 t="Label" l=-48 tp=3 fp=1 bp=0 dm=0 font=topaz.font/8
+image0 box=0,0,120x14 depth=-1
+select:
+image0 box=0,0,120x14 depth=-1
+-- CYCLE right disabled
+returned index = 1
+returned UserData kept = TRUE
+returned is last = TRUE
+gad0 id=0 type=0x0100 flags=0x0003 act=0x0000 box=0,0,0x0 norender noselect notext nospecial mx=0
+gad1 id=7 type=0x0101 flags=0x8106 act=0x0001 box=100,40,120x14 render select text nospecial mx=0
+ext more=0x00000003 box=100,40,168x14
+itext0 t="Label" l=127 tp=3 fp=1 bp=0 dm=0 font=topaz.font/8
+image0 box=0,0,120x14 depth=-1
+select:
+image0 box=0,0,120x14 depth=-1
+-- SLIDER
+returned index = 2
+returned UserData kept = TRUE
+returned is last = TRUE
+gad0 id=0 type=0x0100 flags=0x0003 act=0x0000 box=0,0,0x0 norender noselect notext nospecial mx=0
+gad1 id=7 type=0x0103 flags=0x0007 act=0x000b box=104,42,112x10 render noselect notext special mx=0
+image0 box=0,0,0x0 depth=0 nodata pick=0x00 onoff=0x00
+prop flags=0x000b hpot=0x3fff vpot=0x0000 hbody=0x0c30 vbody=0x0000
+gad2 id=7 type=0x0100 flags=0x8007 act=0x0000 box=100,40,120x14 render noselect text nospecial mx=0
+ext more=0x00000003 box=52,40,168x14
+itext0 t="Label" l=-48 tp=3 fp=1 bp=0 dm=0 font=topaz.font/8
+image0 box=0,0,120x14 depth=-1
+-- SLIDER level
+returned index = 2
+returned UserData kept = TRUE
+returned is last = TRUE
+gad0 id=0 type=0x0100 flags=0x0003 act=0x0000 box=0,0,0x0 norender noselect notext nospecial mx=0
+gad1 id=7 type=0x0103 flags=0x0007 act=0x000b box=104,42,112x10 render noselect notext special mx=0
+image0 box=0,0,0x0 depth=0 nodata pick=0x00 onoff=0x00
+prop flags=0x000b hpot=0xa665 vpot=0x0000 hbody=0x0c30 vbody=0x0000
+gad2 id=7 type=0x0100 flags=0x8007 act=0x0000 box=100,40,120x14 render noselect text nospecial mx=0
+ext more=0x00000003 box=52,40,168x14
+itext0 t="Label" l=-48 tp=3 fp=1 bp=0 dm=0 font=topaz.font/8
+image0 box=0,0,120x14 depth=-1
+-- SLIDER level right
+returned index = 2
+returned UserData kept = TRUE
+returned is last = TRUE
+gad0 id=0 type=0x0100 flags=0x0003 act=0x0000 box=0,0,0x0 norender noselect notext nospecial mx=0
+gad1 id=7 type=0x0103 flags=0x0007 act=0x000b box=104,42,112x10 render noselect notext special mx=0
+image0 box=0,0,0x0 depth=0 nodata pick=0x00 onoff=0x00
+prop flags=0x000b hpot=0x7fff vpot=0x0000 hbody=0x0288 vbody=0x0000
+gad2 id=7 type=0x0100 flags=0x8007 act=0x0000 box=100,40,120x14 render noselect text nospecial mx=0
+ext more=0x00000003 box=52,40,192x14
+itext0 t="Label" l=-48 tp=3 fp=1 bp=0 dm=0 font=topaz.font/8
+image0 box=0,0,120x14 depth=-1
+-- SLIDER vertical
+returned index = 2
+returned UserData kept = TRUE
+returned is last = TRUE
+gad0 id=0 type=0x0100 flags=0x0003 act=0x0000 box=0,0,0x0 norender noselect notext nospecial mx=0
+gad1 id=7 type=0x0103 flags=0x0007 act=0x000b box=104,42,8x56 render noselect notext special mx=0
+image0 box=0,0,0x0 depth=0 nodata pick=0x00 onoff=0x00
+prop flags=0x000d hpot=0x0000 vpot=0x0000 hbody=0x0000 vbody=0x1999
+gad2 id=7 type=0x0100 flags=0x8007 act=0x0000 box=100,40,16x60 render noselect text nospecial mx=0
+ext more=0x00000003 box=52,40,64x60
+itext0 t="Label" l=-48 tp=26 fp=1 bp=0 dm=0 font=topaz.font/8
+image0 box=0,0,16x60 depth=-1
+-- SLIDER disabled
+returned index = 2
+returned UserData kept = TRUE
+returned is last = TRUE
+gad0 id=0 type=0x0100 flags=0x0003 act=0x0000 box=0,0,0x0 norender noselect notext nospecial mx=0
+gad1 id=7 type=0x0103 flags=0x0107 act=0x000b box=104,42,112x10 render noselect notext special mx=0
+image0 box=0,0,0x0 depth=0 nodata pick=0x00 onoff=0x00
+prop flags=0x000b hpot=0x0000 vpot=0x0000 hbody=0x0fff vbody=0x0000
+gad2 id=7 type=0x0100 flags=0x8007 act=0x0000 box=100,40,120x14 render noselect text nospecial mx=0
+ext more=0x00000003 box=52,40,168x14
+itext0 t="Label" l=-48 tp=3 fp=1 bp=0 dm=0 font=topaz.font/8
+image0 box=0,0,120x14 depth=-1
+-- SLIDER relverify
+returned index = 2
+returned UserData kept = TRUE
+returned is last = TRUE
+gad0 id=0 type=0x0100 flags=0x0003 act=0x0000 box=0,0,0x0 norender noselect notext nospecial mx=0
+gad1 id=7 type=0x0103 flags=0x0007 act=0x000b box=104,42,112x10 render noselect notext special mx=0
+image0 box=0,0,0x0 depth=0 nodata pick=0x00 onoff=0x00
+prop flags=0x000b hpot=0x0000 vpot=0x0000 hbody=0x0fff vbody=0x0000
+gad2 id=7 type=0x0100 flags=0x8007 act=0x0000 box=100,40,120x14 render noselect text nospecial mx=0
+ext more=0x00000003 box=52,40,168x14
+itext0 t="Label" l=-48 tp=3 fp=1 bp=0 dm=0 font=topaz.font/8
+image0 box=0,0,120x14 depth=-1
+-- SCROLLER
+returned index = 2
+returned UserData kept = TRUE
+returned is last = TRUE
+gad0 id=0 type=0x0100 flags=0x0003 act=0x0000 box=0,0,0x0 norender noselect notext nospecial mx=0
+gad1 id=7 type=0x0103 flags=0x0007 act=0x000b box=104,42,112x10 render noselect notext special mx=0
+image0 box=0,0,0x0 depth=0 nodata pick=0x00 onoff=0x00
+prop flags=0x000b hpot=0x3333 vpot=0x0000 hbody=0x35e4 vbody=0x0000
+gad2 id=7 type=0x0100 flags=0x8007 act=0x0000 box=100,40,120x14 render noselect text nospecial mx=0
+ext more=0x00000003 box=52,40,168x14
+itext0 t="Label" l=-48 tp=3 fp=1 bp=0 dm=0 font=topaz.font/8
+image0 box=0,0,120x14 depth=-1
+-- SCROLLER arrows
+returned index = 4
+returned UserData kept = TRUE
+returned is last = TRUE
+gad0 id=0 type=0x0100 flags=0x0003 act=0x0000 box=0,0,0x0 norender noselect notext nospecial mx=0
+gad1 id=7 type=0x0103 flags=0x0007 act=0x000b box=104,42,80x10 render noselect notext special mx=0
+image0 box=0,0,0x0 depth=0 nodata pick=0x00 onoff=0x00
+prop flags=0x000b hpot=0xffff vpot=0x0000 hbody=0x35e4 vbody=0x0000
+gad2 id=7 type=0x0101 flags=0x8006 act=0x0003 box=188,40,16x14 render select notext nospecial mx=0
+ext more=0x00000001 box=188,40,16x14
+image0 box=0,0,16x14 depth=-1
+select:
+image0 box=0,0,16x14 depth=-1
+gad3 id=7 type=0x0101 flags=0x8006 act=0x0003 box=204,40,16x14 render select notext nospecial mx=0
+ext more=0x00000001 box=204,40,16x14
+image0 box=0,0,16x14 depth=-1
+select:
+image0 box=0,0,16x14 depth=-1
+gad4 id=7 type=0x0100 flags=0x8007 act=0x0000 box=100,40,120x14 render noselect text nospecial mx=0
+ext more=0x00000003 box=52,40,168x14
+itext0 t="Label" l=-48 tp=3 fp=1 bp=0 dm=0 font=topaz.font/8
+image0 box=0,0,88x14 depth=-1
+-- SCROLLER vertical arrows
+returned index = 4
+returned UserData kept = TRUE
+returned is last = TRUE
+gad0 id=0 type=0x0100 flags=0x0003 act=0x0000 box=0,0,0x0 norender noselect notext nospecial mx=0
+gad1 id=7 type=0x0103 flags=0x0007 act=0x000b box=104,42,10x56 render noselect notext special mx=0
+image0 box=0,0,0x0 depth=0 nodata pick=0x00 onoff=0x00
+prop flags=0x000d hpot=0x0000 vpot=0x0000 hbody=0x0000 vbody=0xffff
+gad2 id=7 type=0x0101 flags=0x8006 act=0x0003 box=100,100,18x10 render select notext nospecial mx=0
+ext more=0x00000001 box=100,100,18x10
+image0 box=0,0,18x10 depth=-1
+select:
+image0 box=0,0,18x10 depth=-1
+gad3 id=7 type=0x0101 flags=0x8006 act=0x0003 box=100,110,18x10 render select notext nospecial mx=0
+ext more=0x00000001 box=100,110,18x10
+image0 box=0,0,18x10 depth=-1
+select:
+image0 box=0,0,18x10 depth=-1
+gad4 id=7 type=0x0100 flags=0x8007 act=0x0000 box=100,40,18x80 render noselect text nospecial mx=0
+ext more=0x00000003 box=52,40,66x80
+itext0 t="Label" l=-48 tp=36 fp=1 bp=0 dm=0 font=topaz.font/8
+image0 box=0,0,18x60 depth=-1
+-- SCROLLER disabled
+returned index = 2
+returned UserData kept = TRUE
+returned is last = TRUE
+gad0 id=0 type=0x0100 flags=0x0003 act=0x0000 box=0,0,0x0 norender noselect notext nospecial mx=0
+gad1 id=7 type=0x0103 flags=0x0107 act=0x000b box=104,42,112x10 render noselect notext special mx=0
+image0 box=0,0,0x0 depth=0 nodata pick=0x00 onoff=0x00
+prop flags=0x000b hpot=0x0000 vpot=0x0000 hbody=0xffff vbody=0x0000
+gad2 id=7 type=0x0100 flags=0x8007 act=0x0000 box=100,40,120x14 render noselect text nospecial mx=0
+ext more=0x00000003 box=52,40,168x14
+itext0 t="Label" l=-48 tp=3 fp=1 bp=0 dm=0 font=topaz.font/8
+image0 box=0,0,120x14 depth=-1
+-- LISTVIEW
+returned index = 6
+returned UserData kept = TRUE
+returned is last = TRUE
+gad0 id=0 type=0x0100 flags=0x0003 act=0x0000 box=0,0,0x0 norender noselect notext nospecial mx=0
+gad1 id=7 type=0x0101 flags=0x0007 act=0x000b box=102,42,100x56 norender noselect notext nospecial mx=0
+gad2 id=7 type=0x0103 flags=0x0007 act=0x000b box=208,42,8x40 render noselect notext special mx=0
+image0 box=0,0,0x0 depth=0 nodata pick=0x00 onoff=0x00
+prop flags=0x000d hpot=0x0000 vpot=0x0000 hbody=0x0000 vbody=0xffff
+gad3 id=7 type=0x0101 flags=0x8006 act=0x0003 box=204,84,16x8 render select notext nospecial mx=0
+ext more=0x00000001 box=204,84,16x8
+image0 box=0,0,16x8 depth=-1
+select:
+image0 box=0,0,16x8 depth=-1
+gad4 id=7 type=0x0101 flags=0x8006 act=0x0003 box=204,92,16x8 render select notext nospecial mx=0
+ext more=0x00000001 box=204,92,16x8
+image0 box=0,0,16x8 depth=-1
+select:
+image0 box=0,0,16x8 depth=-1
+gad5 id=7 type=0x0100 flags=0x8007 act=0x0000 box=204,40,16x60 render noselect notext nospecial mx=0
+ext more=0x00000001 box=204,40,16x60
+image0 box=0,0,16x44 depth=-1
+gad6 id=7 type=0x0100 flags=0x8007 act=0x0000 box=100,40,120x60 render noselect text nospecial mx=0
+ext more=0x00000003 box=100,28,120x72
+itext0 t="Label" l=40 tp=-12 fp=1 bp=0 dm=0 font=topaz.font/8
+image0 box=0,0,104x60 depth=-1
+-- LISTVIEW showsel
+returned index = 6
+returned UserData kept = TRUE
+returned is last = TRUE
+gad0 id=0 type=0x0100 flags=0x0003 act=0x0000 box=0,0,0x0 norender noselect notext nospecial mx=0
+gad1 id=7 type=0x0101 flags=0x0007 act=0x000b box=102,42,100x56 norender noselect notext nospecial mx=0
+gad2 id=7 type=0x0103 flags=0x0007 act=0x000b box=208,42,8x40 render noselect notext special mx=0
+image0 box=0,0,0x0 depth=0 nodata pick=0x00 onoff=0x00
+prop flags=0x000d hpot=0x0000 vpot=0x0000 hbody=0x0000 vbody=0xffff
+gad3 id=7 type=0x0101 flags=0x8006 act=0x0003 box=204,84,16x8 render select notext nospecial mx=0
+ext more=0x00000001 box=204,84,16x8
+image0 box=0,0,16x8 depth=-1
+select:
+image0 box=0,0,16x8 depth=-1
+gad4 id=7 type=0x0101 flags=0x8006 act=0x0003 box=204,92,16x8 render select notext nospecial mx=0
+ext more=0x00000001 box=204,92,16x8
+image0 box=0,0,16x8 depth=-1
+select:
+image0 box=0,0,16x8 depth=-1
+gad5 id=7 type=0x0100 flags=0x8007 act=0x0000 box=204,40,16x60 render noselect notext nospecial mx=0
+ext more=0x00000001 box=204,40,16x60
+image0 box=0,0,16x44 depth=-1
+gad6 id=7 type=0x0100 flags=0x8007 act=0x0000 box=100,40,120x60 render noselect text nospecial mx=0
+ext more=0x00000003 box=100,28,120x72
+itext0 t="Label" l=40 tp=-12 fp=1 bp=0 dm=0 font=topaz.font/8
+image0 box=0,0,104x60 depth=-1
+-- LISTVIEW readonly top
+returned index = 6
+returned UserData kept = TRUE
+returned is last = TRUE
+gad0 id=0 type=0x0100 flags=0x0003 act=0x0000 box=0,0,0x0 norender noselect notext nospecial mx=0
+gad1 id=7 type=0x0101 flags=0x0007 act=0x000b box=102,42,100x56 norender noselect notext nospecial mx=0
+gad2 id=7 type=0x0103 flags=0x0007 act=0x000b box=208,42,8x40 render noselect notext special mx=0
+image0 box=0,0,0x0 depth=0 nodata pick=0x00 onoff=0x00
+prop flags=0x000d hpot=0x0000 vpot=0x0000 hbody=0x0000 vbody=0xffff
+gad3 id=7 type=0x0101 flags=0x8006 act=0x0003 box=204,84,16x8 render select notext nospecial mx=0
+ext more=0x00000001 box=204,84,16x8
+image0 box=0,0,16x8 depth=-1
+select:
+image0 box=0,0,16x8 depth=-1
+gad4 id=7 type=0x0101 flags=0x8006 act=0x0003 box=204,92,16x8 render select notext nospecial mx=0
+ext more=0x00000001 box=204,92,16x8
+image0 box=0,0,16x8 depth=-1
+select:
+image0 box=0,0,16x8 depth=-1
+gad5 id=7 type=0x0100 flags=0x8007 act=0x0000 box=204,40,16x60 render noselect notext nospecial mx=0
+ext more=0x00000001 box=204,40,16x60
+image0 box=0,0,16x44 depth=-1
+gad6 id=7 type=0x0100 flags=0x8007 act=0x0000 box=100,40,120x60 render noselect text nospecial mx=0
+ext more=0x00000003 box=100,28,120x72
+itext0 t="Label" l=40 tp=-12 fp=1 bp=0 dm=0 font=topaz.font/8
+image0 box=0,0,104x60 depth=-1
+-- LISTVIEW scrollwidth
+returned index = 6
+returned UserData kept = TRUE
+returned is last = TRUE
+gad0 id=0 type=0x0100 flags=0x0003 act=0x0000 box=0,0,0x0 norender noselect notext nospecial mx=0
+gad1 id=7 type=0x0101 flags=0x0007 act=0x000b box=102,42,96x56 norender noselect notext nospecial mx=0
+gad2 id=7 type=0x0103 flags=0x0007 act=0x000b box=204,42,12x40 render noselect notext special mx=0
+image0 box=0,0,0x0 depth=0 nodata pick=0x00 onoff=0x00
+prop flags=0x000d hpot=0x0000 vpot=0x0000 hbody=0x0000 vbody=0xffff
+gad3 id=7 type=0x0101 flags=0x8006 act=0x0003 box=200,84,20x8 render select notext nospecial mx=0
+ext more=0x00000001 box=200,84,20x8
+image0 box=0,0,20x8 depth=-1
+select:
+image0 box=0,0,20x8 depth=-1
+gad4 id=7 type=0x0101 flags=0x8006 act=0x0003 box=200,92,20x8 render select notext nospecial mx=0
+ext more=0x00000001 box=200,92,20x8
+image0 box=0,0,20x8 depth=-1
+select:
+image0 box=0,0,20x8 depth=-1
+gad5 id=7 type=0x0100 flags=0x8007 act=0x0000 box=200,40,20x60 render noselect notext nospecial mx=0
+ext more=0x00000001 box=200,40,20x60
+image0 box=0,0,20x44 depth=-1
+gad6 id=7 type=0x0100 flags=0x8007 act=0x0000 box=100,40,120x60 render noselect text nospecial mx=0
+ext more=0x00000003 box=100,28,120x72
+itext0 t="Label" l=40 tp=-12 fp=1 bp=0 dm=0 font=topaz.font/8
+image0 box=0,0,100x60 depth=-1
+-- LISTVIEW nolabels left
+returned index = 6
+returned UserData kept = TRUE
+returned is last = TRUE
+gad0 id=0 type=0x0100 flags=0x0003 act=0x0000 box=0,0,0x0 norender noselect notext nospecial mx=0
+gad1 id=7 type=0x0101 flags=0x0007 act=0x000b box=102,42,100x56 norender noselect notext nospecial mx=0
+gad2 id=7 type=0x0103 flags=0x0007 act=0x000b box=208,42,8x40 render noselect notext special mx=0
+image0 box=0,0,0x0 depth=0 nodata pick=0x00 onoff=0x00
+prop flags=0x000d hpot=0x0000 vpot=0x0000 hbody=0x0000 vbody=0xffff
+gad3 id=7 type=0x0101 flags=0x8006 act=0x0003 box=204,84,16x8 render select notext nospecial mx=0
+ext more=0x00000001 box=204,84,16x8
+image0 box=0,0,16x8 depth=-1
+select:
+image0 box=0,0,16x8 depth=-1
+gad4 id=7 type=0x0101 flags=0x8006 act=0x0003 box=204,92,16x8 render select notext nospecial mx=0
+ext more=0x00000001 box=204,92,16x8
+image0 box=0,0,16x8 depth=-1
+select:
+image0 box=0,0,16x8 depth=-1
+gad5 id=7 type=0x0100 flags=0x8007 act=0x0000 box=204,40,16x60 render noselect notext nospecial mx=0
+ext more=0x00000001 box=204,40,16x60
+image0 box=0,0,16x44 depth=-1
+gad6 id=7 type=0x0100 flags=0x8007 act=0x0000 box=100,40,120x60 render noselect text nospecial mx=0
+ext more=0x00000003 box=52,40,168x60
+itext0 t="Label" l=-48 tp=26 fp=1 bp=0 dm=0 font=topaz.font/8
+image0 box=0,0,104x60 depth=-1
+-- LISTVIEW showsel string
+result = non-NULL
+gad0 id=0 type=0x0100 flags=0x0003 act=0x0000 box=0,0,0x0 norender noselect notext nospecial mx=0
+gad1 id=8 type=0x0104 flags=0x8204 act=0x2001 box=106,87,108x8 render noselect notext special mx=0
+ext more=0x00000001 box=100,40,120x14
+image0 box=-6,-3,120x14 depth=-1
+str buf="" max=65 num=0 pos=0 disp=0 undo ext font pen0=1 pen1=0 apen0=1 apen1=0 modes=0x00000000 nohook nowork
+gad2 id=7 type=0x0101 flags=0x0007 act=0x000b box=102,42,100x40 norender noselect notext nospecial mx=0
+gad3 id=7 type=0x0103 flags=0x0007 act=0x000b box=208,42,8x24 render noselect notext special mx=0
+image0 box=0,0,0x0 depth=0 nodata pick=0x00 onoff=0x00
+prop flags=0x000d hpot=0x0000 vpot=0x0000 hbody=0x0000 vbody=0xffff
+gad4 id=7 type=0x0101 flags=0x8006 act=0x0003 box=204,68,16x8 render select notext nospecial mx=0
+ext more=0x00000001 box=204,68,16x8
+image0 box=0,0,16x8 depth=-1
+select:
+image0 box=0,0,16x8 depth=-1
+gad5 id=7 type=0x0101 flags=0x8006 act=0x0003 box=204,76,16x8 render select notext nospecial mx=0
+ext more=0x00000001 box=204,76,16x8
+image0 box=0,0,16x8 depth=-1
+select:
+image0 box=0,0,16x8 depth=-1
+gad6 id=7 type=0x0100 flags=0x8007 act=0x0000 box=204,40,16x44 render noselect notext nospecial mx=0
+ext more=0x00000001 box=204,40,16x44
+image0 box=0,0,16x28 depth=-1
+gad7 id=7 type=0x0100 flags=0x8007 act=0x0000 box=100,40,120x44 render noselect text nospecial mx=0
+ext more=0x00000003 box=100,28,120x70
+itext0 t="Label" l=40 tp=-12 fp=1 bp=0 dm=0 font=topaz.font/8
+image0 box=0,0,104x44 depth=-1
+-- PALETTE
+returned index = 1
+returned UserData kept = TRUE
+returned is last = TRUE
+gad0 id=0 type=0x0100 flags=0x0003 act=0x0000 box=0,0,0x0 norender noselect notext nospecial mx=0
+gad1 id=7 type=0x0105 flags=0x8007 act=0x0003 box=100,40,117x14 render noselect text nospecial mx=set
+ext more=0x00000003 box=100,28,117x26
+itext0 t="Label" l=39 tp=-12 fp=1 bp=0 dm=0 font=topaz.font/8
+-- PALETTE indicator width
+returned index = 1
+returned UserData kept = TRUE
+returned is last = TRUE
+gad0 id=0 type=0x0100 flags=0x0003 act=0x0000 box=0,0,0x0 norender noselect notext nospecial mx=0
+gad1 id=7 type=0x0105 flags=0x8007 act=0x0003 box=100,40,157x20 render noselect text nospecial mx=set
+ext more=0x00000003 box=52,40,205x20
+itext0 t="Label" l=-48 tp=6 fp=1 bp=0 dm=0 font=topaz.font/8
+-- PALETTE indicator height
+returned index = 1
+returned UserData kept = TRUE
+returned is last = TRUE
+gad0 id=0 type=0x0100 flags=0x0003 act=0x0000 box=0,0,0x0 norender noselect notext nospecial mx=0
+gad1 id=7 type=0x0105 flags=0x8007 act=0x0003 box=100,40,59x39 render noselect text nospecial mx=set
+ext more=0x00000003 box=100,28,59x51
+itext0 t="Label" l=10 tp=-12 fp=1 bp=0 dm=0 font=topaz.font/8
+-- PALETTE left
+returned index = 1
+returned UserData kept = TRUE
+returned is last = TRUE
+gad0 id=0 type=0x0100 flags=0x0003 act=0x0000 box=0,0,0x0 norender noselect notext nospecial mx=0
+gad1 id=7 type=0x0105 flags=0x8007 act=0x0003 box=100,40,117x14 render noselect text nospecial mx=set
+ext more=0x00000003 box=52,40,165x14
+itext0 t="Label" l=-48 tp=3 fp=1 bp=0 dm=0 font=topaz.font/8
+-- PALETTE below indicator width
+returned index = 1
+returned UserData kept = TRUE
+returned is last = TRUE
+gad0 id=0 type=0x0100 flags=0x0003 act=0x0000 box=0,0,0x0 norender noselect notext nospecial mx=0
+gad1 id=7 type=0x0105 flags=0x8007 act=0x0003 box=100,40,117x14 render noselect text nospecial mx=set
+ext more=0x00000003 box=100,40,117x26
+itext0 t="Label" l=39 tp=17 fp=1 bp=0 dm=0 font=topaz.font/8
+-- PALETTE disabled
+returned index = 1
+returned UserData kept = TRUE
+returned is last = TRUE
+gad0 id=0 type=0x0100 flags=0x0003 act=0x0000 box=0,0,0x0 norender noselect notext nospecial mx=0
+gad1 id=7 type=0x0105 flags=0x8107 act=0x0003 box=100,40,119x14 render noselect text nospecial mx=set
+ext more=0x00000003 box=100,28,119x26
+itext0 t="Label" l=40 tp=-12 fp=1 bp=0 dm=0 font=topaz.font/8
+-- TEXT
+returned index = 1
+returned UserData kept = TRUE
+returned is last = TRUE
+gad0 id=0 type=0x0100 flags=0x0003 act=0x0000 box=0,0,0x0 norender noselect notext nospecial mx=0
+gad1 id=7 type=0x0100 flags=0x8007 act=0x0000 box=100,40,120x14 norender noselect text nospecial mx=0
+ext more=0x00000003 box=52,40,168x14
+itext0 t="Label" l=-48 tp=3 fp=1 bp=0 dm=0 font=topaz.font/8
+-- TEXT border copy
+returned index = 1
+returned UserData kept = TRUE
+returned is last = TRUE
+gad0 id=0 type=0x0100 flags=0x0003 act=0x0000 box=0,0,0x0 norender noselect notext nospecial mx=0
+gad1 id=7 type=0x0100 flags=0x8007 act=0x0000 box=100,40,120x14 render noselect text nospecial mx=0
+ext more=0x00000003 box=52,40,168x14
+itext0 t="Label" l=-48 tp=3 fp=1 bp=0 dm=0 font=topaz.font/8
+image0 box=0,0,120x14 depth=-1
+-- TEXT right justify
+returned index = 1
+returned UserData kept = TRUE
+returned is last = TRUE
+gad0 id=0 type=0x0100 flags=0x0003 act=0x0000 box=0,0,0x0 norender noselect notext nospecial mx=0
+gad1 id=7 type=0x0100 flags=0x8007 act=0x0000 box=100,40,120x14 norender noselect text nospecial mx=0
+ext more=0x00000003 box=100,40,168x14
+itext0 t="Label" l=127 tp=3 fp=1 bp=0 dm=0 font=topaz.font/8
+-- NUMBER
+returned index = 1
+returned UserData kept = TRUE
+returned is last = TRUE
+gad0 id=0 type=0x0100 flags=0x0003 act=0x0000 box=0,0,0x0 norender noselect notext nospecial mx=0
+gad1 id=7 type=0x0100 flags=0x8007 act=0x0000 box=100,40,120x14 norender noselect text nospecial mx=0
+ext more=0x00000003 box=52,40,168x14
+itext0 t="Label" l=-48 tp=3 fp=1 bp=0 dm=0 font=topaz.font/8
+-- NUMBER border format
+returned index = 1
+returned UserData kept = TRUE
+returned is last = TRUE
+gad0 id=0 type=0x0100 flags=0x0003 act=0x0000 box=0,0,0x0 norender noselect notext nospecial mx=0
+gad1 id=7 type=0x0100 flags=0x8007 act=0x0000 box=100,40,120x14 render noselect text nospecial mx=0
+ext more=0x00000003 box=52,40,168x14
+itext0 t="Label" l=-48 tp=3 fp=1 bp=0 dm=0 font=topaz.font/8
+image0 box=0,0,120x14 depth=-1
+-- NUMBER above maxlen
+returned index = 1
+returned UserData kept = TRUE
+returned is last = TRUE
+gad0 id=0 type=0x0100 flags=0x0003 act=0x0000 box=0,0,0x0 norender noselect notext nospecial mx=0
+gad1 id=7 type=0x0100 flags=0x8007 act=0x0000 box=100,40,120x14 norender noselect text nospecial mx=0
+ext more=0x00000003 box=100,28,120x26
+itext0 t="Label" l=40 tp=-12 fp=1 bp=0 dm=0 font=topaz.font/8
+-- GENERIC
+returned index = 1
+returned UserData kept = TRUE
+returned is last = TRUE
+gad0 id=0 type=0x0100 flags=0x0003 act=0x0000 box=0,0,0x0 norender noselect notext nospecial mx=0
+gad1 id=7 type=0x0100 flags=0x8000 act=0x0000 box=100,40,120x14 norender noselect text nospecial mx=0
+ext more=0x00000003 box=100,40,120x14
+itext0 t="Label" l=0 tp=0 fp=1 bp=0 dm=0 font=topaz.font/8
+-- chain
+result = non-NULL
+count = 5

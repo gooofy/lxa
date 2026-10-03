@@ -1,0 +1,36 @@
+Testing Requester Functions...
+
+OK: Screen opened
+OK: Window opened
+
+Test 1: InitRequester()...
+  OK: InitRequester called
+  OK: InitRequester clears the whole structure
+
+Test 2: Request()...
+  conds: 111111
+  OK: Request linked and activated the requester
+
+Test 3: EndRequest()...
+  conds: 11111
+  OK: EndRequest unlinked and cleaned up the requester
+
+Test 3b: SetDMRequest() / ClearDMRequest()...
+  OK: DMRequest helpers honor attach, clear, and active-requester refusal
+
+Test 4: BuildSysRequest() / SysReqHandler(negative gadget)...
+  OK: BuildSysRequest opened a requester window
+READY: requester1_negative
+  OK: SysReqHandler returns the negative gadget's ID
+
+Test 5: BuildSysRequest() / SysReqHandler(IDCMP_GADGETUP)...
+  OK: BuildSysRequest created response gadgets
+READY: requester2_positive
+  OK: SysReqHandler returns the gadget ID
+  class/result/first-id/second-id: 0/1/1/0
+  OK: FreeSysRequest closed the system requester
+
+OK: Window closed
+OK: Screen closed
+
+PASS: requester_basic all tests completed

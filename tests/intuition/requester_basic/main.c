@@ -203,14 +203,14 @@ int main(void)
         b[n++] = window->FirstRequest == &requester ? '1' : '0';
         b[n++] = (requester.Flags & REQACTIVE) ? '1' : '0';
         b[n++] = requester.RWindow == window ? '1' : '0';
-        b[n++] = requester.ReqLayer == window->WLayer ? '1' : '0';
+        b[n++] = requester.ReqLayer != window->WLayer ? '1' : '0';
         b[n++] = requester.ReqLayer ? '1' : '0';
         b[n++] = '\n'; b[n] = 0;
         print(b);
     }
     if (result && window->FirstRequest == &requester &&
         (requester.Flags & REQACTIVE) && requester.RWindow == window &&
-        requester.ReqLayer == window->WLayer) {
+        requester.ReqLayer && requester.ReqLayer != window->WLayer) {
         print("  OK: Request linked and activated the requester\n");
     } else {
         print("  FAIL: Request did not fully activate the requester\n");
@@ -225,14 +225,14 @@ int main(void)
         int n = 9;
         b[n++] = window->FirstRequest == NULL ? '1' : '0';
         b[n++] = !(requester.Flags & REQACTIVE) ? '1' : '0';
-        b[n++] = requester.RWindow == NULL ? '1' : '0';
+        b[n++] = requester.RWindow == window ? '1' : '0';
         b[n++] = requester.ReqLayer == NULL ? '1' : '0';
         b[n++] = requester.OlderRequest == NULL ? '1' : '0';
         b[n++] = '\n'; b[n] = 0;
         print(b);
     }
     if (window->FirstRequest == NULL && !(requester.Flags & REQACTIVE) &&
-        requester.RWindow == NULL && requester.ReqLayer == NULL &&
+        requester.RWindow == window && requester.ReqLayer == NULL &&
         requester.OlderRequest == NULL) {
         print("  OK: EndRequest unlinked and cleaned up the requester\n\n");
     } else {

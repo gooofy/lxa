@@ -1,0 +1,16 @@
+# Phase 224: Tests/Intuition/RequesterBasic validated on AmigaOS 3.1 - the
+# requester clicks intuition_gtest injects (Cancel, then Retry); stdout
+# must match on both systems.
+name: interactive-RequesterBasic
+app:
+  sample: Tests/Intuition/RequesterBasic
+steps:
+  - launch
+  - wait_output: "READY: requester1_negative"
+  - frames: 10
+  - click: {label: "Cancel"}
+  - wait_output: "READY: requester2_positive"
+  - frames: 10
+  - click: {label: "Retry"}
+  - frames: 50
+  - snapshot: {name: end, screen: false}

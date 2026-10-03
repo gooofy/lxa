@@ -1,0 +1,127 @@
+-- easy one button
+size w=144 h=56 left=0 top=0
+   bl=4 bt=11 br=4 bb=2 minw=144 minh=56 maxw=144 maxh=56
+   flags=0x00031046 idcmp=0x00200040 title="Probe Request"
+button id=0 box=52,38,40x14
+SysReqHandler(no wait) = -2
+-- easy two buttons
+size w=144 h=56 left=0 top=0
+   bl=4 bt=11 br=4 bb=2 minw=144 minh=56 maxw=144 maxh=56
+   flags=0x00031046 idcmp=0x00200040 title="Probe Request"
+button id=1 box=8,38,48x14
+button id=0 box=96,38,40x14
+SysReqHandler(no wait) = -2
+-- easy four buttons
+size w=268 h=56 left=0 top=0
+   bl=4 bt=11 br=4 bb=2 minw=268 minh=56 maxw=268 maxh=56
+   flags=0x00031046 idcmp=0x00208040 title="Probe Request"
+button id=1 box=8,38,48x14
+button id=2 box=68,38,48x14
+button id=3 box=128,38,64x14
+button id=0 box=204,38,56x14
+SysReqHandler(no wait) = -2
+-- easy multiline long button
+size w=330 h=81 left=0 top=0
+   bl=4 bt=11 br=4 bb=2 minw=330 minh=81 maxw=330 maxh=81
+   flags=0x00031046 idcmp=0x00200040 title="Probe Request"
+button id=1 box=8,63,208x14
+button id=0 box=290,63,32x14
+SysReqHandler(no wait) = -2
+-- easy no title, formatted
+size w=202 h=56 left=0 top=0
+   bl=4 bt=11 br=4 bb=2 minw=202 minh=56 maxw=202 maxh=56
+   flags=0x00031046 idcmp=0x00200040 title="Probe parent"
+button id=1 box=8,38,48x14
+button id=0 box=122,38,72x14
+SysReqHandler(no wait) = -2
+-- easy wide title
+size w=544 h=56 left=0 top=0
+   bl=4 bt=11 br=4 bb=2 minw=544 minh=56 maxw=544 maxh=56
+   flags=0x00031046 idcmp=0x00200040 title="A title that is much wider than the body text of this requester"
+button id=0 box=252,38,40x14
+SysReqHandler(no wait) = -2
+-- easy empty body
+size w=72 h=60 left=0 top=0
+   bl=4 bt=11 br=4 bb=2 minw=72 minh=60 maxw=72 maxh=60
+   flags=0x00031046 idcmp=0x00200040 title="T"
+button id=0 box=8,42,56x14
+SysReqHandler(no wait) = -2
+-- sys pos neg
+size w=244 h=57 left=0 top=0
+   bl=4 bt=11 br=4 bb=2 minw=244 minh=57 maxw=244 maxh=57
+   flags=0x00031046 idcmp=0x00200040 title="Probe parent"
+button id=1 box=8,39,64x14
+button id=0 box=164,39,72x14
+-- sys small size
+size w=244 h=57 left=0 top=0
+   bl=4 bt=11 br=4 bb=2 minw=244 minh=57 maxw=244 maxh=57
+   flags=0x00031046 idcmp=0x00200040 title="Probe parent"
+button id=1 box=8,39,64x14
+button id=0 box=164,39,72x14
+-- sys large size
+size w=244 h=57 left=0 top=0
+   bl=4 bt=11 br=4 bb=2 minw=244 minh=57 maxw=244 maxh=57
+   flags=0x00031046 idcmp=0x00200040 title="Probe parent"
+button id=1 box=8,39,64x14
+button id=0 box=164,39,72x14
+-- sys neg only
+size w=244 h=57 left=0 top=0
+   bl=4 bt=11 br=4 bb=2 minw=244 minh=57 maxw=244 maxh=57
+   flags=0x00031046 idcmp=0x00200040 title="Probe parent"
+button id=0 box=86,39,72x14
+-- sys short
+size w=136 h=44 left=0 top=0
+   bl=4 bt=11 br=4 bb=2 minw=136 minh=44 maxw=136 maxh=44
+   flags=0x00031046 idcmp=0x00208040 title="Probe parent"
+button id=1 box=8,26,32x14
+button id=0 box=96,26,32x14
+-- window requester
+init LeftEdge = 0
+init Flags = 0
+Request = TRUE
+Flags after Request = 0x00002000
+window Flags & INREQUEST = 0x00004000
+ReqCount = 1
+ReqLayer = non-NULL
+ReqLayer MinX - window = 10
+ReqLayer MinY - window = 15
+ReqLayer width = 120
+ReqLayer height = 40
+Flags after EndRequest = 0x00000000
+ReqCount after = 0
+-- pos 0,0
+mouse x = 0
+mouse y = 0
+left = 0
+top = 0
+width = 154
+height = 56
+sys left = 0
+sys top = 0
+-- pos 300,100
+mouse x = 300
+mouse y = 100
+left = 0
+top = 0
+width = 154
+height = 56
+sys left = 0
+sys top = 0
+-- pos 630,250
+mouse x = 630
+mouse y = 250
+left = 0
+top = 0
+width = 154
+height = 56
+sys left = 0
+sys top = 0
+-- pos 100,200
+mouse x = 100
+mouse y = 200
+left = 0
+top = 0
+width = 154
+height = 56
+sys left = 0
+sys top = 0

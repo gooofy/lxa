@@ -51,6 +51,7 @@ extern UWORD _gadtools_GetCycleState(register struct Gadget *gad __asm("a0"));
 extern UWORD _gadtools_AdvanceCycleState(register struct Gadget *gad __asm("a0"));
 extern STRPTR _gadtools_GetCycleLabel(register struct Gadget *gad __asm("a0"));
 extern BOOL _gadtools_IsGadTools(register struct Gadget *gad __asm("a0"));
+extern VOID _gadtools_RefreshPass(register LONG begin __asm("d0"));
 extern LONG _gadtools_HandleClick(register struct Gadget *gad __asm("a0"),
                                   register LONG relx __asm("d0"),
                                   register LONG rely __asm("d1"));
@@ -229,6 +230,11 @@ static VOID _intuition_clear_window_runtime_state(struct Window *window);
 static VOID _intuition_clear_screen_runtime_state(struct IntuitionBase *IntuitionBase,
                                                   struct Screen *screen);
 static volatile BOOL g_processing_events;
+static BOOL g_screen_from_tags;     /* OpenScreen() called by OpenScreenTagList() */
+static BOOL g_sysreq_layout;        /* BuildSysRequest(): body extent below */
+static WORD g_sysreq_w, g_sysreq_h;
+static void _create_screen_sys_gadgets(struct Screen *screen);
+static void _free_screen_sys_gadgets(struct Screen *screen);
 
 /* Forward declaration for internal string gadget key handling */
 static BOOL _handle_string_gadget_key(struct Gadget *gad, struct Window *window, 
@@ -900,13 +906,13 @@ static VOID _intuition_register_pubscreen(struct IntuitionBase *IntuitionBase, s
 
     /* Pre-build DrawInfo for GetScreenDrawInfo() */
     entry->drawInfo.dri_Version    = 2;  /* V39 compatible */
-    entry->drawInfo.dri_NumPens    = NUMDRIPENS;
+    entry->drawInfo.dri_NumPens    = 12;     /* AmigaOS 3.1 (V40) */
     entry->drawInfo.dri_Pens       = entry->pens;
     entry->drawInfo.dri_Font       = screen->RastPort.Font;
     entry->drawInfo.dri_Depth      = screen->RastPort.BitMap ? screen->RastPort.BitMap->Depth : 2;
     /* reference: 22:44 on hires screens, 44:44 on lores screens */
     entry->drawInfo.dri_Resolution.X = (screen->Flags & SCREENHIRES) ? 22 : 44;
-    entry->drawInfo.dri_Resolution.Y = 44;
+    entry->drawInfo.dri_Resolution.Y = (screen->ViewPort.Modes & LACE) ? 22 : 44;
     entry->drawInfo.dri_Flags      = DRIF_NEWLOOK;
     if ((screen->Flags & SCREENTYPE) != WBENCHSCREEN)
         _intuition_set_oldlook_pens(entry);
@@ -1619,6 +1625,102 @@ static ULONG modelclass_dispatch(
  ******************************************************************************/
 
 /* GadgetClass dispatcher - base class for all gadgets */
+
+/*
+ * gadgetclass attributes (OM_NEW / OM_SET): the GA_* tags of
+ * intuition/gadgetclass.h map onto the Gadget fields and flags.
+ */
+static ULONG _gadgetclass_set_attrs(Object *obj, struct Gadget *gadget, struct TagItem *taglist, BOOL init)
+{
+    struct TagItem *tags = taglist;
+    struct TagItem *tag;
+    ULONG changed = 0;
+
+#define GC_FLAG(field, bit) do { if (tag->ti_Data) gadget->field |= (bit); else gadget->field &= ~(bit); } while (0)
+    while ((tag = NextTagItem(&tags)))
+    {
+        switch (tag->ti_Tag)
+        {
+            case GA_Left:      gadget->LeftEdge = (WORD)tag->ti_Data; gadget->Flags &= ~GFLG_RELRIGHT; break;
+            case GA_RelRight:  gadget->LeftEdge = (WORD)tag->ti_Data; gadget->Flags |= GFLG_RELRIGHT; break;
+            case GA_Top:       gadget->TopEdge = (WORD)tag->ti_Data; gadget->Flags &= ~GFLG_RELBOTTOM; break;
+            case GA_RelBottom: gadget->TopEdge = (WORD)tag->ti_Data; gadget->Flags |= GFLG_RELBOTTOM; break;
+            case GA_Width:     gadget->Width = (WORD)tag->ti_Data; gadget->Flags &= ~GFLG_RELWIDTH; break;
+            /* GA_RelWidth/GA_RelHeight: AmigaOS 3.1 also sets GFLG_RELWIDTH/
+             * RELHEIGHT (typeface-preview golden); lxa does not yet, because
+             * BGUI's group class then stops drawing its members here (its
+             * relative layout needs Intuition's GM_LAYOUT protocol in full) */
+            case GA_RelWidth:  gadget->Width = (WORD)tag->ti_Data; break;
+            case GA_Height:    gadget->Height = (WORD)tag->ti_Data; gadget->Flags &= ~GFLG_RELHEIGHT; break;
+            case GA_RelHeight: gadget->Height = (WORD)tag->ti_Data; break;
+            case GA_ID:        gadget->GadgetID = (UWORD)tag->ti_Data; break;
+            case GA_UserData:  gadget->UserData = (APTR)tag->ti_Data; break;
+            case GA_SpecialInfo: gadget->SpecialInfo = (APTR)tag->ti_Data; break;
+            case GA_Disabled:  GC_FLAG(Flags, GFLG_DISABLED); break;
+            case GA_Selected:  GC_FLAG(Flags, GFLG_SELECTED); break;
+            case GA_Highlight:
+                gadget->Flags = (gadget->Flags & ~GFLG_GADGHIGHBITS) | ((UWORD)tag->ti_Data & GFLG_GADGHIGHBITS);
+                break;
+            case GA_Image:
+                gadget->GadgetRender = (APTR)tag->ti_Data;
+                GC_FLAG(Flags, GFLG_GADGIMAGE);
+                break;
+            case GA_Border:
+                gadget->GadgetRender = (APTR)tag->ti_Data;
+                if (tag->ti_Data)
+                    gadget->Flags &= ~GFLG_GADGIMAGE;
+                break;
+            case GA_SelectRender:
+                gadget->SelectRender = (APTR)tag->ti_Data;
+                if (tag->ti_Data)
+                    gadget->Flags = (gadget->Flags & ~GFLG_GADGHIGHBITS) | GFLG_GADGHIMAGE;
+                break;
+            case GA_IntuiText:
+                gadget->GadgetText = (struct IntuiText *)tag->ti_Data;
+                gadget->Flags &= ~GFLG_LABELMASK;
+                break;
+            case GA_Text:
+                gadget->GadgetText = (struct IntuiText *)tag->ti_Data;
+                gadget->Flags = (gadget->Flags & ~GFLG_LABELMASK) | GFLG_LABELSTRING;
+                break;
+            case GA_LabelImage:
+                gadget->GadgetText = (struct IntuiText *)tag->ti_Data;
+                gadget->Flags = (gadget->Flags & ~GFLG_LABELMASK) | GFLG_LABELIMAGE;
+                break;
+            case GA_TabCycle:  GC_FLAG(Flags, GFLG_TABCYCLE); break;
+            case GA_Immediate: GC_FLAG(Activation, GACT_IMMEDIATE); break;
+            case GA_RelVerify: GC_FLAG(Activation, GACT_RELVERIFY); break;
+            case GA_FollowMouse: GC_FLAG(Activation, GACT_FOLLOWMOUSE); break;
+            case GA_RightBorder: GC_FLAG(Activation, GACT_RIGHTBORDER); break;
+            case GA_LeftBorder: GC_FLAG(Activation, GACT_LEFTBORDER); break;
+            case GA_TopBorder: GC_FLAG(Activation, GACT_TOPBORDER); break;
+            case GA_BottomBorder: GC_FLAG(Activation, GACT_BOTTOMBORDER); break;
+            case GA_ToggleSelect: GC_FLAG(Activation, GACT_TOGGLESELECT); break;
+            case GA_EndGadget: GC_FLAG(Activation, GACT_ENDGADGET); break;
+            case GA_GZZGadget: GC_FLAG(GadgetType, GTYP_GZZGADGET); break;
+            case GA_SysGadget: GC_FLAG(GadgetType, GTYP_SYSGADGET); break;
+            case GA_SysGType:
+                gadget->GadgetType = (gadget->GadgetType & ~GTYP_SYSTYPEMASK) | ((UWORD)tag->ti_Data & GTYP_SYSTYPEMASK);
+                break;
+            case GA_Previous:
+                if (init && tag->ti_Data)
+                {
+                    /* link the new gadget after this one (OM_NEW only) */
+                    struct Gadget *prev = (struct Gadget *)tag->ti_Data;
+                    gadget->NextGadget = prev->NextGadget;
+                    prev->NextGadget = gadget;
+                }
+                break;
+            default:
+                continue;
+        }
+        changed = 1;
+    }
+#undef GC_FLAG
+    (void)obj;
+    return changed;
+}
+
 static ULONG gadgetclass_dispatch(
     register struct IClass *cl __asm("a0"),
     register Object *obj __asm("a2"),
@@ -1643,7 +1745,8 @@ static ULONG gadgetclass_dispatch(
             
             /* Initialize gadget structure */
             gadget->GadgetType = GTYP_CUSTOMGADGET;
-            gadget->Flags = GFLG_GADGHNONE;
+            /* AmigaOS 3.1: gadgetclass objects are ExtGadgets, GADGHCOMP */
+            gadget->Flags = GFLG_EXTENDED;
             gadget->Activation = 0;
             gadget->GadgetID = 0;
             gadget->UserData = NULL;
@@ -1657,61 +1760,21 @@ static ULONG gadgetclass_dispatch(
             ic->ic_LoopCounter = 0;
             
             /* Process tags from opSet */
-            struct opSet *ops = (struct opSet *)msg;
-            struct TagItem *tags = ops->ops_AttrList;
-            struct TagItem *tag;
-            
-            while ((tag = NextTagItem(&tags)))
             {
-                switch (tag->ti_Tag)
+                struct opSet *ops = (struct opSet *)msg;
+                struct TagItem *tags = ops->ops_AttrList;
+                struct TagItem *tag;
+
+                _gadgetclass_set_attrs(obj, gadget, ops->ops_AttrList, TRUE);
+                while ((tag = NextTagItem(&tags)))
                 {
-                    case GA_Left:
-                        gadget->LeftEdge = (WORD)tag->ti_Data;
-                        break;
-                    case GA_Top:
-                        gadget->TopEdge = (WORD)tag->ti_Data;
-                        break;
-                    case GA_Width:
-                        gadget->Width = (WORD)tag->ti_Data;
-                        break;
-                    case GA_Height:
-                        gadget->Height = (WORD)tag->ti_Data;
-                        break;
-                    case GA_ID:
-                        gadget->GadgetID = (UWORD)tag->ti_Data;
-                        break;
-                    case GA_UserData:
-                        gadget->UserData = (APTR)tag->ti_Data;
-                        break;
-                    case GA_Disabled:
-                        if (tag->ti_Data)
-                            gadget->Flags |= GFLG_DISABLED;
-                        else
-                            gadget->Flags &= ~GFLG_DISABLED;
-                        break;
-                    case GA_Immediate:
-                        if (tag->ti_Data)
-                            gadget->Activation |= GACT_IMMEDIATE;
-                        break;
-                    case GA_RelVerify:
-                        if (tag->ti_Data)
-                            gadget->Activation |= GACT_RELVERIFY;
-                        break;
-                    case GA_Selected:
-                        if (tag->ti_Data)
-                            gadget->Flags |= GFLG_SELECTED;
-                        else
-                            gadget->Flags &= ~GFLG_SELECTED;
-                        break;
-                    case ICA_TARGET:
+                    if (tag->ti_Tag == ICA_TARGET)
                         ic->ic_Target = (Object *)tag->ti_Data;
-                        break;
-                    case ICA_MAP:
+                    else if (tag->ti_Tag == ICA_MAP)
                         ic->ic_Mapping = (struct TagItem *)tag->ti_Data;
-                        break;
                 }
             }
-            
+
             return (ULONG)obj;
         }
             
@@ -1747,64 +1810,10 @@ static ULONG gadgetclass_dispatch(
             if (_boopsi_set_icdata(ic, ops->ops_AttrList))
                 changed = 1;
             
-            while ((tag = NextTagItem(&tags)))
-            {
-                switch (tag->ti_Tag)
-                {
-                    case GA_Left:
-                        gadget->LeftEdge = (WORD)tag->ti_Data;
-                        changed = 1;
-                        break;
-                    case GA_Top:
-                        gadget->TopEdge = (WORD)tag->ti_Data;
-                        changed = 1;
-                        break;
-                    case GA_Width:
-                        gadget->Width = (WORD)tag->ti_Data;
-                        changed = 1;
-                        break;
-                    case GA_Height:
-                        gadget->Height = (WORD)tag->ti_Data;
-                        changed = 1;
-                        break;
-                    case GA_ID:
-                        gadget->GadgetID = (UWORD)tag->ti_Data;
-                        changed = 1;
-                        break;
-                    case GA_UserData:
-                        gadget->UserData = (APTR)tag->ti_Data;
-                        changed = 1;
-                        break;
-                    case GA_Disabled:
-                        if (tag->ti_Data)
-                            gadget->Flags |= GFLG_DISABLED;
-                        else
-                            gadget->Flags &= ~GFLG_DISABLED;
-                        changed = 1;
-                        break;
-                    case GA_Selected:
-                        if (tag->ti_Data)
-                            gadget->Flags |= GFLG_SELECTED;
-                        else
-                            gadget->Flags &= ~GFLG_SELECTED;
-                        changed = 1;
-                        break;
-                    case GA_Immediate:
-                        if (tag->ti_Data)
-                            gadget->Activation |= GACT_IMMEDIATE;
-                        else
-                            gadget->Activation &= ~GACT_IMMEDIATE;
-                        changed = 1;
-                        break;
-                    case GA_RelVerify:
-                        if (tag->ti_Data)
-                            gadget->Activation |= GACT_RELVERIFY;
-                        else
-                            gadget->Activation &= ~GACT_RELVERIFY;
-                        changed = 1;
-                        break;
-                }
-            }
+            if (_gadgetclass_set_attrs(obj, gadget, ops->ops_AttrList, FALSE))
+                changed = 1;
+            (void)tags;
+            (void)tag;
             return changed;
         }
             
@@ -3455,6 +3464,15 @@ static VOID _intuition_update_input_snapshot(struct IntuitionBase *IntuitionBase
     U_getSysTime(&tv);
     IntuitionBase->MouseX = mouseX;
     IntuitionBase->MouseY = mouseY;
+    {
+        /* every screen tracks the pointer in its own coordinates */
+        struct Screen *scr;
+        for (scr = IntuitionBase->FirstScreen; scr; scr = scr->NextScreen)
+        {
+            scr->MouseX = mouseX - scr->LeftEdge;
+            scr->MouseY = mouseY - scr->TopEdge;
+        }
+    }
     IntuitionBase->Seconds = tv.tv_secs;
     IntuitionBase->Micros = tv.tv_micro;
 }
@@ -3672,7 +3690,7 @@ static VOID _intuition_handle_mouse_button_event(struct IntuitionBase *Intuition
                                     LONG level;
 
                                     if (sl_max > sl_min)
-                                        level = sl_min + ((LONG)pi->HorizPot * (sl_max - sl_min)) / 0xFFFF;
+                                        level = sl_min + ((LONG)pi->HorizPot * (sl_max - sl_min) + 0x7FFF) / 0xFFFF;
                                     else
                                         level = sl_min;
 
@@ -3695,6 +3713,7 @@ static VOID _intuition_handle_mouse_button_event(struct IntuitionBase *Intuition
                 }
 
                 if ((gad->Flags & GFLG_GADGHIGHBITS) == GFLG_GADGHCOMP &&
+                    (gad->GadgetType & GTYP_GTYPEMASK) != GTYP_CUSTOMGADGET &&
                     (gad->GadgetType & GTYP_GTYPEMASK) != GTYP_PROPGADGET &&
                     (gad->GadgetType & GTYP_GTYPEMASK) != GTYP_STRGADGET)
                 {
@@ -3766,7 +3785,7 @@ static VOID _intuition_handle_mouse_button_event(struct IntuitionBase *Intuition
                         LONG level;
 
                         if (range > 0)
-                            level = sl_min + ((LONG)pi->HorizPot * range) / 0xFFFF;
+                            level = sl_min + ((LONG)pi->HorizPot * range + 0x7FFF) / 0xFFFF;
                         else
                             level = sl_min;
                         _gadtools_UpdateSliderLevelDisplay(gad, level);
@@ -3794,7 +3813,11 @@ static VOID _intuition_handle_mouse_button_event(struct IntuitionBase *Intuition
                             _gadtools_SetCheckboxState(gad,
                                                        _gadtools_GetCheckboxState(gad) ? FALSE : TRUE);
                         }
-                        gad->Flags &= ~GFLG_SELECTED;
+                        /* a checked GadTools checkbox stays GFLG_SELECTED (AmigaOS 3.1) */
+                        if (_gadtools_GetCheckboxState(gad))
+                            gad->Flags |= GFLG_SELECTED;
+                        else
+                            gad->Flags &= ~GFLG_SELECTED;
                     }
                     else if (_gadtools_IsCycle(gad))
                     {
@@ -3846,7 +3869,8 @@ static VOID _intuition_handle_mouse_button_event(struct IntuitionBase *Intuition
                     {
                         _render_gadget(activeWin, NULL, gad);
                     }
-                    else if ((gad->Flags & GFLG_GADGHIGHBITS) == GFLG_GADGHCOMP)
+                    else if ((gad->Flags & GFLG_GADGHIGHBITS) == GFLG_GADGHCOMP &&
+                             (gad->GadgetType & GTYP_GTYPEMASK) != GTYP_CUSTOMGADGET)
                     {
                         _complement_gadget_area(activeWin, NULL, gad);
                     }
@@ -4201,7 +4225,7 @@ static VOID _intuition_handle_pointerpos_event(struct IntuitionBase *IntuitionBa
                 sl_max = (WORD)pi->CHeight;
                 range = sl_max - sl_min;
                 if (range > 0)
-                    level = sl_min + ((LONG)pi->HorizPot * range) / 0xFFFF;
+                    level = sl_min + ((LONG)pi->HorizPot * range + 0x7FFF) / 0xFFFF;
                 else
                     level = sl_min;
 
@@ -4375,6 +4399,18 @@ static VOID _intuition_process_input_events(struct IntuitionBase *IntuitionBase,
         {
             mouseX = current_event.ie_X;
             mouseY = current_event.ie_Y;
+        }
+        else if (current_event.ie_Class == IECLASS_NEWPOINTERPOS)
+        {
+            /* V36 pointer positioning: IESUBCLASS_PIXEL gives a position on
+             * a screen (ie_EventAddress -> IEPointerPixel) */
+            struct IEPointerPixel *pp = (struct IEPointerPixel *)current_event.ie_EventAddress;
+            if (current_event.ie_SubClass == IESUBCLASS_PIXEL && pp)
+            {
+                mouseX = pp->iepp_Position.X + (pp->iepp_Screen ? pp->iepp_Screen->LeftEdge : 0);
+                mouseY = pp->iepp_Position.Y + (pp->iepp_Screen ? pp->iepp_Screen->TopEdge : 0);
+            }
+            current_event.ie_Class = IECLASS_POINTERPOS;
         }
         else if (current_event.ie_X != 0 || current_event.ie_Y != 0)
         {
@@ -4632,6 +4668,8 @@ BOOL _intuition_CloseScreen ( register struct IntuitionBase * IntuitionBase __as
         IntuitionBase->ActiveScreen = IntuitionBase->FirstScreen;
     }
     
+    _free_screen_sys_gadgets(screen);
+
     /* Free the RasInfo if allocated */
     if (screen->ViewPort.RasInfo)
     {
@@ -4689,6 +4727,17 @@ VOID _intuition_CloseWindow ( register struct IntuitionBase * IntuitionBase __as
 
     /* Dispose any pending and replied IDCMP messages, then remove both ports. */
     _dispose_window_idcmp_ports(window);
+
+    /* requesters still up: their layers go with the window */
+    {
+        struct Requester *rq;
+        for (rq = window->FirstRequest; rq; rq = rq->OlderRequest)
+            if (rq->ReqLayer && rq->ReqLayer != window->WLayer)
+            {
+                DeleteLayer(0, rq->ReqLayer);
+                rq->ReqLayer = NULL;
+            }
+    }
 
     if (window->BorderRPort)
         border_layer = window->BorderRPort->Layer;
@@ -4987,10 +5036,20 @@ VOID _intuition_EndRequest ( register struct IntuitionBase * IntuitionBase __asm
     
     requester->Flags &= ~REQACTIVE;
     requester->OlderRequest = NULL;
-    requester->ReqLayer = NULL;
-    requester->RWindow = NULL;
-    
-    if (window->RPort)
+    if (window->ReqCount > 0)
+        window->ReqCount--;
+    if (!window->ReqCount)
+        window->Flags &= ~WFLG_INREQUEST;
+
+    if (requester->ReqLayer && requester->ReqLayer != window->WLayer)
+    {
+        /* deleting the layer uncovers the window: its backing store (smart
+         * refresh) or a refresh message (simple refresh) restores it */
+        DeleteLayer(0, requester->ReqLayer);
+        requester->ReqLayer = NULL;
+        _rerender_requester_stack(window);
+    }
+    else if (window->RPort)
     {
         _calculate_requester_box(window, requester, &left, &top, &width, &height);
         UBYTE save_fg = window->RPort->FgPen;
@@ -5000,6 +5059,8 @@ VOID _intuition_EndRequest ( register struct IntuitionBase * IntuitionBase __asm
         SetAPen(window->RPort, save_fg);
         _rerender_requester_stack(window);
     }
+    /* AmigaOS 3.1 clears ReqLayer but keeps RWindow */
+    requester->ReqLayer = NULL;
 
     /* Post IDCMP_REQCLEAR to notify the window that a requester was removed.
      * Per RKRM: one REQCLEAR is sent for each requester closed in the window. */
@@ -5390,6 +5451,10 @@ static struct Gadget *_find_gadget_at_pos_in_list(struct Window *window,
     for (gad = first_gadget; gad; gad = gad->NextGadget)
     {
         if (gad->Flags & GFLG_DISABLED)
+            continue;
+
+        /* screen title bar gadgets are handled by the screen code */
+        if ((gad->GadgetType & (GTYP_SYSGADGET | GTYP_SCRGADGET)) == (GTYP_SYSGADGET | GTYP_SCRGADGET))
             continue;
 
         /* the drag bar gadget is handled by the window drag code */
@@ -5803,11 +5868,11 @@ static VOID _init_string_gadget_info(struct Gadget *gadget)
         struct StringInfo *si = (struct StringInfo *)gadget->SpecialInfo;
         if (si && si->Buffer)
         {
-            /* Compute NumChars from buffer contents */
+            /* AmigaOS 3.1 leaves NumChars alone here; rendering the gadget
+             * recomputes it (tests/probes/intuition/strgad) */
             WORD len = 0;
             while (si->Buffer[len] != '\0' && len < si->MaxChars)
                 len++;
-            si->NumChars = len;
 
             if (si->BufferPos < 0)
                 si->BufferPos = 0;
@@ -5820,6 +5885,78 @@ static VOID _init_string_gadget_info(struct Gadget *gadget)
                 si->DispPos = len;
         }
     }
+}
+
+/*
+ * GM_LAYOUT for BOOPSI gadgets whose size depends on the window
+ * (GFLG_REL*): sent when the gadget joins a window and after every size
+ * change (gpl_Initial FALSE), as Intuition V39 does.
+ */
+static VOID _layout_custom_gadget(struct Window *window, struct Requester *req, struct Gadget *gad,
+                                  BOOL initial)
+{
+    struct IClass *cl;
+    struct GadgetInfo gi;
+    struct gpLayout gpl;
+
+    if (!window || !gad || (gad->GadgetType & GTYP_GTYPEMASK) != GTYP_CUSTOMGADGET ||
+        (gad->GadgetType & GTYP_SYSGADGET) ||
+        !(gad->Flags & (GFLG_RELRIGHT | GFLG_RELBOTTOM | GFLG_RELWIDTH | GFLG_RELHEIGHT | GFLG_RELSPECIAL)))
+        return;
+    cl = OCLASS((Object *)gad);
+    if (!cl)
+        return;
+    memset(&gi, 0, sizeof(gi));
+    gi.gi_Screen = window->WScreen;
+    gi.gi_Window = window;
+    gi.gi_Requester = req;
+    gi.gi_RastPort = window->RPort;
+    gi.gi_Layer = window->WLayer;
+    if (window->Flags & WFLG_GIMMEZEROZERO)
+    {
+        gi.gi_Domain.Left = window->BorderLeft;
+        gi.gi_Domain.Top = window->BorderTop;
+        gi.gi_Domain.Width = window->Width - window->BorderLeft - window->BorderRight;
+        gi.gi_Domain.Height = window->Height - window->BorderTop - window->BorderBottom;
+    }
+    else
+    {
+        gi.gi_Domain.Width = window->Width;
+        gi.gi_Domain.Height = window->Height;
+    }
+    gi.gi_DrInfo = _intuition_GetScreenDrawInfo(IntuitionBase, window->WScreen);
+    gpl.MethodID = GM_LAYOUT;
+    gpl.gpl_GInfo = &gi;
+    gpl.gpl_Initial = initial;
+    _intuition_dispatch_method(cl, (Object *)gad, (Msg)&gpl);
+    if (gi.gi_DrInfo)
+        _intuition_FreeScreenDrawInfo(IntuitionBase, window->WScreen, gi.gi_DrInfo);
+}
+
+/*
+ * AmigaOS 3.1 marks every gadget that reaches into the window border with
+ * GACT_BORDERSNIFF when it joins a window (reference: dopus-startup and
+ * devpac-edit goldens): border gadgets (GACT_*BORDER) and gadgets whose box
+ * leaves the window's inner area.
+ */
+static VOID _sniff_border_gadget(struct Window *window, struct Requester *req, struct Gadget *gad)
+{
+    LONG l, t, w, h;
+
+    if (!window || req || !gad || (gad->GadgetType & GTYP_SYSGADGET) ||
+        (window->Flags & WFLG_GIMMEZEROZERO))
+        return;
+    if (gad->Activation & (GACT_RIGHTBORDER | GACT_LEFTBORDER | GACT_TOPBORDER | GACT_BOTTOMBORDER))
+    {
+        gad->Activation |= GACT_BORDERSNIFF;
+        return;
+    }
+    _calculate_gadget_box(window, NULL, gad, &l, &t, &w, &h);
+    if (w > 0 && h > 0 &&
+        (l < window->BorderLeft || t < window->BorderTop ||
+         l + w > window->Width - window->BorderRight ||
+         t + h > window->Height - window->BorderBottom))
+        gad->Activation |= GACT_BORDERSNIFF;
 }
 
 /*
@@ -7085,9 +7222,13 @@ static void _compute_idcmp_mouse_coords(struct Window *window, ULONG class,
     if ((class == IDCMP_MOUSEMOVE || class == IDCMP_MOUSEBUTTONS) &&
         (window->IDCMPFlags & IDCMP_DELTAMOVE))
     {
-        /* Delta mode: report change from previous absolute position */
-        *outX = absX - g_prev_abs_mouse_x;
-        *outY = absY - g_prev_abs_mouse_y;
+        /* Delta mode: report change from previous absolute position, in
+         * Intuition's internal (hires interlace) resolution - AmigaOS 3.1
+         * reports 20/10 for a 10/5 pixel move on a lores screen
+         * (tests/scenarios/interactive/IDCMPDeltaMove.yaml) */
+        UWORD modes = window->WScreen ? window->WScreen->ViewPort.Modes : HIRES;
+        *outX = (WORD)((absX - g_prev_abs_mouse_x) * ((modes & (HIRES | SUPERHIRES)) ? 1 : 2));
+        *outY = (WORD)((absY - g_prev_abs_mouse_y) * ((modes & LACE) ? 1 : 2));
     }
     else
     {
@@ -7623,7 +7764,7 @@ VOID _intuition_ProcessInputEvents(struct Screen *hint_screen)
                                             LONG level;
 
                                             if (sl_max > sl_min)
-                                                level = sl_min + ((LONG)pi->HorizPot * (sl_max - sl_min)) / 0xFFFF;
+                                                level = sl_min + ((LONG)pi->HorizPot * (sl_max - sl_min) + 0x7FFF) / 0xFFFF;
                                             else
                                                 level = sl_min;
 
@@ -7733,7 +7874,7 @@ VOID _intuition_ProcessInputEvents(struct Screen *hint_screen)
                                     LONG level;
 
                                     if (range > 0)
-                                        level = sl_min + ((LONG)pi->HorizPot * range) / 0xFFFF;
+                                        level = sl_min + ((LONG)pi->HorizPot * range + 0x7FFF) / 0xFFFF;
                                     else
                                         level = sl_min;
                                     _gadtools_UpdateSliderLevelDisplay(gad, level);
@@ -7764,7 +7905,11 @@ VOID _intuition_ProcessInputEvents(struct Screen *hint_screen)
                                         _gadtools_SetCheckboxState(gad,
                                                                    _gadtools_GetCheckboxState(gad) ? FALSE : TRUE);
                                     }
-                                    gad->Flags &= ~GFLG_SELECTED;
+                                    /* a checked GadTools checkbox stays GFLG_SELECTED (AmigaOS 3.1) */
+                                    if (_gadtools_GetCheckboxState(gad))
+                                        gad->Flags |= GFLG_SELECTED;
+                                    else
+                                        gad->Flags &= ~GFLG_SELECTED;
                                 }
                                 else if (_gadtools_IsCycle(gad))
                                 {
@@ -8220,7 +8365,7 @@ VOID _intuition_ProcessInputEvents(struct Screen *hint_screen)
                             LONG range = sl_max - sl_min;
                             LONG level;
                             if (range > 0)
-                                level = sl_min + ((LONG)pi->HorizPot * range) / 0xFFFF;
+                                level = sl_min + ((LONG)pi->HorizPot * range + 0x7FFF) / 0xFFFF;
                             else
                                 level = sl_min;
 
@@ -8830,13 +8975,24 @@ struct Screen * _intuition_OpenScreen ( register struct IntuitionBase * Intuitio
      * validation so sentinel values such as STDSCREENHEIGHT (-1) and other
      * negative compatibility values do not wrap to huge unsigned sizes.
      */
+    /* AmigaOS 3.1 refuses a zero width or height
+     * (tests/probes/intuition/screens) */
+    if (requested_width == 0 || requested_height == 0)
+    {
+        DPRINTF (LOG_DEBUG, "_intuition: OpenScreen() zero size %dx%d\n",
+                 (int)requested_width, (int)requested_height);
+        return NULL;
+    }
+
+    /* STDSCREENWIDTH/HEIGHT: the size of the display mode
+     * (AmigaOS 3.1: lores 320, hires 640, interlace doubles the height) */
     if (requested_width <= 0)
-        width = 640;
+        width = (newScreen->ViewModes & SUPERHIRES) ? 1280 : (newScreen->ViewModes & HIRES) ? 640 : 320;
     else
         width = (UWORD)requested_width;
 
     if (requested_height <= 0)
-        height = 256;
+        height = (newScreen->ViewModes & LACE) ? 512 : 256;
     else
         height = (UWORD)requested_height;
 
@@ -8846,8 +9002,8 @@ struct Screen * _intuition_OpenScreen ( register struct IntuitionBase * Intuitio
     /* Small heights are kept as requested (AmigaOS 3.1 reference: a 40 line
      * screen opens 40 lines high; no expansion to the display height). */
 
-    DPRINTF (LOG_DEBUG, "_intuition: OpenScreen() %dx%dx%d ViewModes=0x%04x\n",
-             (int)width, (int)height, (int)depth, (UWORD)newScreen->ViewModes);
+    DPRINTF (LOG_DEBUG, "_intuition: OpenScreen() tags=%d req=%d,%d %dx%dx%d ViewModes=0x%04x\n",
+             (int)g_screen_from_tags, (int)requested_width, (int)requested_height, (int)width, (int)height, (int)depth, (UWORD)newScreen->ViewModes);
 
     /* Allocate Screen structure */
     screen = (struct Screen *)AllocMem(sizeof(struct Screen), MEMF_PUBLIC | MEMF_CLEAR);
@@ -8887,6 +9043,10 @@ struct Screen * _intuition_OpenScreen ( register struct IntuitionBase * Intuitio
     /* NS_EXTENDED only describes the NewScreen structure (AmigaOS 3.1
      * reference: dopus-startup) */
     screen->Flags = newScreen->Type & ~NS_EXTENDED;
+    /* OpenScreen() always shows the title bar (AmigaOS 3.1); only
+     * SA_ShowTitle FALSE hides it */
+    if (!g_screen_from_tags)
+        screen->Flags |= SHOWTITLE;
     screen->Title = newScreen->DefaultTitle;
     screen->DefaultTitle = newScreen->DefaultTitle;
     screen->DetailPen = newScreen->DetailPen;
@@ -8935,13 +9095,15 @@ struct Screen * _intuition_OpenScreen ( register struct IntuitionBase * Intuitio
          * and then read screen->ViewPort.Modes to determine the display class.
          * Apply the same auto-correction that real Intuition performs: if the
          * physical width is >= 640, set the HIRES bit. */
+        /* AmigaOS 3.1 keeps the requested mode: a 640 pixel wide screen
+         * with ViewModes 0 is a (wide) lores screen
+         * (tests/probes/intuition/screens) */
         UWORD adjModes = newScreen->ViewModes;
-        if (width >= 640 && !(adjModes & HIRES))
-        {
-            adjModes |= HIRES;
-            DPRINTF (LOG_DEBUG, "_intuition: OpenScreen() auto-setting HIRES for width=%d\n", (int)width);
-        }
-        screen->ViewPort.Modes = adjModes;
+        /* AmigaOS 3.1 screens always have SPRITES set */
+        screen->ViewPort.Modes = adjModes | SPRITES;
+        /* a screen opened behind the others is hidden */
+        if (newScreen->Type & SCREENBEHIND)
+            screen->ViewPort.Modes |= VP_HIDE;
     }
     
     /* Allocate and initialize RasInfo for the ViewPort.
@@ -9004,7 +9166,7 @@ struct Screen * _intuition_OpenScreen ( register struct IntuitionBase * Intuitio
                          ? newScreen->Font->ta_YSize : 8) + 2;
     screen->BarVBorder = 1;
     /* AmigaOS 3.1 reference: 5 on hires screens, 2 on lores screens */
-    screen->BarHBorder = ((screen->ViewPort.Modes & (HIRES | SUPERHIRES)) || width >= 640) ? 5 : 2;
+    screen->BarHBorder = (screen->ViewPort.Modes & (HIRES | SUPERHIRES)) ? 5 : 2;
     /* AmigaOS 3.1 reference: WBorTop is the border above the window title
      * (the title bar height is WBorTop + font height + 1), MenuHBorder 4 and
      * MenuVBorder 2 on hires, 4 on lores screens. */
@@ -9116,6 +9278,8 @@ struct Screen * _intuition_OpenScreen ( register struct IntuitionBase * Intuitio
     screen->NextScreen = IntuitionBase->FirstScreen;
     IntuitionBase->FirstScreen = screen;
     _intuition_register_pubscreen(IntuitionBase, screen);
+
+    _create_screen_sys_gadgets(screen);
 
     if (screen->Flags & SHOWTITLE)
         _render_screen_title_bar(screen);
@@ -9236,6 +9400,8 @@ static void _window_compute_borders(struct Screen *screen, ULONG flags, const UB
 
 /* sysgadgets carry a BOOPSI header with o_Class == NULL, so OCLASS() is
  * valid but never dispatched; the image is a real sysiclass object */
+static struct Hook g_sysgadget_hook;
+
 static struct Gadget *_create_sys_gadget(struct Window *window, UWORD systype,
                                          WORD left, WORD top, WORD width, WORD height,
                                          UWORD flags, UWORD activation, LONG which)
@@ -9243,10 +9409,14 @@ static struct Gadget *_create_sys_gadget(struct Window *window, UWORD systype,
     UBYTE *mem;
     struct Gadget *gad;
 
-    mem = (UBYTE *)AllocMem(sizeof(struct _Object) + sizeof(struct Gadget), MEMF_PUBLIC | MEMF_CLEAR);
+    mem = (UBYTE *)AllocMem(sizeof(struct _Object) + sizeof(struct ExtGadget), MEMF_PUBLIC | MEMF_CLEAR);
     if (!mem)
         return NULL;
     gad = (struct Gadget *)(mem + sizeof(struct _Object));
+    /* AmigaOS 3.1: system gadgets are gadget-help capable custom gadgets
+     * whose MutualExclude holds their dispatcher hook */
+    ((struct ExtGadget *)gad)->MoreFlags = GMORE_GADGETHELP;
+    gad->MutualExclude = (ULONG)&g_sysgadget_hook;
 
     gad->LeftEdge = left;
     gad->TopEdge = top;
@@ -9277,7 +9447,7 @@ static void _free_sys_gadget(struct Gadget *gad)
         return;
     if (gad->GadgetRender)
         _intuition_DisposeObject(IntuitionBase, gad->GadgetRender);
-    FreeMem((UBYTE *)gad - sizeof(struct _Object), sizeof(struct _Object) + sizeof(struct Gadget));
+    FreeMem((UBYTE *)gad - sizeof(struct _Object), sizeof(struct _Object) + sizeof(struct ExtGadget));
 }
 
 static BOOL _is_sys_gadget(const struct Gadget *gad)
@@ -9298,9 +9468,7 @@ static void _create_window_sys_gadgets(struct Window *window)
     UWORD size = _screen_sysi_size(window->WScreen);
     UWORD dw = 24, zw = 24, sw = 18, sh = 10, cw = 20, h;
     WORD right_left = 0;
-
-    if (window->Flags & WFLG_BORDERLESS)
-        return;
+    BOOL borderless = (window->Flags & WFLG_BORDERLESS) != 0;
 
     lxa_sysi_dims(DEPTHIMAGE, size, &dw, NULL);
     lxa_sysi_dims(ZOOMIMAGE, size, &zw, NULL);
@@ -9308,7 +9476,8 @@ static void _create_window_sys_gadgets(struct Window *window)
     lxa_sysi_dims(CLOSEIMAGE, size, &cw, NULL);
     h = window->BorderTop;
 
-    if (window->Flags & WFLG_DEPTHGADGET)
+    /* a borderless window keeps only its drag bar (AmigaOS 3.1) */
+    if ((window->Flags & WFLG_DEPTHGADGET) && !borderless)
     {
         right_left = -(WORD)(dw - 2);
         list[n] = _create_sys_gadget(window, GTYP_WDEPTH, right_left, 0, dw, h,
@@ -9316,7 +9485,7 @@ static void _create_window_sys_gadgets(struct Window *window)
                                      GACT_BORDERSNIFF | GACT_RELVERIFY, DEPTHIMAGE);
         if (list[n]) n++;
     }
-    if (window->Flags & WFLG_HASZOOM)
+    if ((window->Flags & WFLG_HASZOOM) && !borderless)
     {
         right_left = right_left ? right_left - (WORD)(zw - 1) : -(WORD)(zw - 2);
         list[n] = _create_sys_gadget(window, GTYP_WZOOM, right_left, 0, zw, h,
@@ -9324,14 +9493,14 @@ static void _create_window_sys_gadgets(struct Window *window)
                                      GACT_BORDERSNIFF | GACT_RELVERIFY, ZOOMIMAGE);
         if (list[n]) n++;
     }
-    if (window->Flags & WFLG_SIZEGADGET)
+    if ((window->Flags & WFLG_SIZEGADGET) && !borderless)
     {
         list[n] = _create_sys_gadget(window, GTYP_SIZING, -(WORD)(sw - 1), -(WORD)(sh - 1), sw, sh,
                                      GFLG_EXTENDED | GFLG_RELRIGHT | GFLG_RELBOTTOM | GFLG_GADGIMAGE,
                                      GACT_BORDERSNIFF | GACT_RELVERIFY, SIZEIMAGE);
         if (list[n]) n++;
     }
-    if (window->Flags & WFLG_CLOSEGADGET)
+    if ((window->Flags & WFLG_CLOSEGADGET) && !borderless)
     {
         list[n] = _create_sys_gadget(window, GTYP_CLOSE, 0, 0, cw, h,
                                      GFLG_EXTENDED | GFLG_GADGIMAGE,
@@ -9354,6 +9523,63 @@ static void _create_window_sys_gadgets(struct Window *window)
         list[i]->NextGadget = window->FirstGadget;
         window->FirstGadget = list[i];
     }
+}
+
+/* The screen's depth and drag gadgets (AmigaOS 3.1: Screen->FirstGadget) */
+static void _create_screen_sys_gadgets(struct Screen *screen)
+{
+    UBYTE *mem;
+    struct Gadget *depth, *drag;
+    UWORD dw = 24, size = _screen_sysi_size(screen);
+    WORD h = screen->BarHeight + 1;
+
+    lxa_sysi_dims(DEPTHIMAGE, size, &dw, NULL);
+    mem = (UBYTE *)AllocMem(2 * (sizeof(struct _Object) + sizeof(struct ExtGadget)), MEMF_PUBLIC | MEMF_CLEAR);
+    if (!mem)
+        return;
+    depth = (struct Gadget *)(mem + sizeof(struct _Object));
+    drag = (struct Gadget *)(mem + 2 * sizeof(struct _Object) + sizeof(struct ExtGadget));
+
+    depth->LeftEdge = -(WORD)(dw - 2);
+    depth->Width = dw - 1;
+    depth->Height = h;
+    depth->Flags = GFLG_EXTENDED | GFLG_RELRIGHT | GFLG_GADGIMAGE;
+    depth->Activation = GACT_RELVERIFY;
+    depth->GadgetType = GTYP_SYSGADGET | GTYP_SCRGADGET | GTYP_SDEPTH | GTYP_CUSTOMGADGET;
+    if (!(screen->Flags & SCREENQUIET))
+    {
+        struct TagItem tags[] = {
+            { SYSIA_Which, DEPTHIMAGE },
+            { SYSIA_Size, size },
+            { TAG_DONE, 0 }
+        };
+        depth->GadgetRender = _intuition_NewObjectA(IntuitionBase, NULL, (CONST_STRPTR)SYSICLASS, tags);
+    }
+    drag->Height = h;
+    drag->Flags = GFLG_EXTENDED | GFLG_RELWIDTH | GFLG_GADGIMAGE;
+    drag->GadgetType = GTYP_SYSGADGET | GTYP_SCRGADGET | GTYP_SDRAGGING | GTYP_CUSTOMGADGET;
+    ((struct ExtGadget *)depth)->MoreFlags = GMORE_GADGETHELP;
+    ((struct ExtGadget *)drag)->MoreFlags = GMORE_GADGETHELP;
+    depth->MutualExclude = (ULONG)&g_sysgadget_hook;
+    drag->MutualExclude = (ULONG)&g_sysgadget_hook;
+    depth->UserData = (APTR)screen;
+    drag->UserData = (APTR)screen;
+    depth->NextGadget = drag;
+    drag->NextGadget = screen->FirstGadget;
+    screen->FirstGadget = depth;
+}
+
+static void _free_screen_sys_gadgets(struct Screen *screen)
+{
+    struct Gadget *depth = screen->FirstGadget;
+
+    if (!depth || !(depth->GadgetType & GTYP_SCRGADGET) ||
+        (depth->GadgetType & GTYP_SYSTYPEMASK) != GTYP_SDEPTH || depth->UserData != (APTR)screen)
+        return;
+    screen->FirstGadget = depth->NextGadget ? depth->NextGadget->NextGadget : NULL;
+    if (depth->GadgetRender)
+        _intuition_DisposeObject(IntuitionBase, depth->GadgetRender);
+    FreeMem((UBYTE *)depth - sizeof(struct _Object), 2 * (sizeof(struct _Object) + sizeof(struct ExtGadget)));
 }
 
 /* free the system gadgets (they are always the first gadgets of the list) */
@@ -9555,11 +9781,13 @@ static void _render_window_user_gadgets(struct Window *window)
     if (!window)
         return;
 
+    _gadtools_RefreshPass(TRUE);
     for (gad = window->FirstGadget; gad; gad = gad->NextGadget)
     {
         if (!(gad->GadgetType & GTYP_SYSGADGET))
             _render_gadget(window, NULL, gad);
     }
+    _gadtools_RefreshPass(FALSE);
 }
 
 /* Phase 147a: Decide whether a window should get its own native host SDL
@@ -9803,6 +10031,11 @@ struct Window * _intuition_OpenWindow ( register struct IntuitionBase * Intuitio
     /* AmigaOS 3.1 reference: 0 means "the window's initial size" */
     window->MaxWidth = newWindow->MaxWidth ? newWindow->MaxWidth : width;
     window->MaxHeight = newWindow->MaxHeight ? newWindow->MaxHeight : height;
+    /* the limits always include the initial size (AmigaOS 3.1) */
+    if (window->MinWidth > width) window->MinWidth = width;
+    if (window->MinHeight > height) window->MinHeight = height;
+    if ((UWORD)window->MaxWidth < (UWORD)width) window->MaxWidth = width;
+    if ((UWORD)window->MaxHeight < (UWORD)height) window->MaxHeight = height;
     window->Flags = newWindow->Flags;
     window->IDCMPFlags = newWindow->IDCMPFlags;
     window->Title = newWindow->Title;
@@ -9839,11 +10072,12 @@ struct Window * _intuition_OpenWindow ( register struct IntuitionBase * Intuitio
         window->BorderBottom = bb;
     }
 
-    if (window->Flags & WFLG_GIMMEZEROZERO)
-    {
-        window->GZZWidth = window->Width - window->BorderLeft - window->BorderRight;
-        window->GZZHeight = window->Height - window->BorderTop - window->BorderBottom;
-    }
+    /* AmigaOS 3.1 sets the inner size for every window, GZZ or not */
+    window->GZZWidth = window->Width - window->BorderLeft - window->BorderRight;
+    window->GZZHeight = window->Height - window->BorderTop - window->BorderBottom;
+    /* without WA_ScreenTitle a window shows the screen's default title */
+    if (!window->ScreenTitle)
+        window->ScreenTitle = screen->DefaultTitle;
 
     /* Create the window layer(s). */
     {
@@ -9920,7 +10154,8 @@ struct Window * _intuition_OpenWindow ( register struct IntuitionBase * Intuitio
                     SetFont(border_layer->rp, screen->RastPort.Font);
                 window->IFont = screen->RastPort.Font;
             }
-            window->BorderRPort = border_layer ? border_layer->rp : content_layer->rp;
+            /* only GZZ windows have a separate border RastPort (3.1) */
+            window->BorderRPort = border_layer ? border_layer->rp : NULL;
             DPRINTF(LOG_DEBUG,
                     "_intuition: OpenWindow() created border_layer=0x%08lx content_layer=0x%08lx rp=0x%08lx bounds=[%ld,%ld]-[%ld,%ld]\n",
                     (ULONG)border_layer,
@@ -10039,6 +10274,8 @@ struct Window * _intuition_OpenWindow ( register struct IntuitionBase * Intuitio
         while (gad)
         {
             _init_string_gadget_info(gad);
+            _sniff_border_gadget(window, NULL, gad);
+            _layout_custom_gadget(window, NULL, gad, TRUE);
             gad = gad->NextGadget;
         }
     }
@@ -10129,6 +10366,7 @@ ULONG _intuition_OpenWorkBench ( register struct IntuitionBase * IntuitionBase _
     ns.DetailPen = 0;
     ns.BlockPen = 1;
     ns.Type = CUSTOMSCREEN;
+    ns.ViewModes = HIRES;           /* the Workbench is a hires screen */
     ns.DefaultTitle = (UBYTE *)"Workbench Screen";
     
     /* Phase 147a: tell the EMU_CALL_INT_OPEN_SCREEN site that this is
@@ -10315,7 +10553,14 @@ static void _render_requester(struct Window *window, struct Requester *req)
     rp = window->RPort;
     
     _calculate_requester_box(window, req, &left, &top, &width, &height);
-    
+    /* the requester renders into its own layer (AmigaOS 3.1) */
+    if (req->ReqLayer && req->ReqLayer != window->WLayer && req->ReqLayer->rp)
+    {
+        rp = req->ReqLayer->rp;
+        left = 0;
+        top = 0;
+    }
+
     /* Draw background */
     if (!(req->Flags & NOREQBACKFILL))
     {
@@ -10353,7 +10598,31 @@ BOOL _intuition_Request ( register struct IntuitionBase * IntuitionBase __asm("a
     
     requester->Flags |= REQACTIVE;
     requester->RWindow = window;
-    requester->ReqLayer = window->WLayer;
+    /* AmigaOS 3.1: a requester is a layer of its own in front of the
+     * window, inside the window's bounds */
+    requester->ReqLayer = NULL;
+    if (window->WScreen && LayersBase)
+    {
+        LONG l, t, w, h;
+        _calculate_requester_box(window, requester, &l, &t, &w, &h);
+        if (w > window->Width - l)
+            w = window->Width - l;
+        if (h > window->Height - t)
+            h = window->Height - t;
+        if (w > 0 && h > 0)
+            requester->ReqLayer = CreateUpfrontLayer(&window->WScreen->LayerInfo,
+                                                     &window->WScreen->BitMap,
+                                                     window->LeftEdge + l, window->TopEdge + t,
+                                                     window->LeftEdge + l + w - 1,
+                                                     window->TopEdge + t + h - 1,
+                                                     LAYERSMART, NULL);
+        if (requester->ReqLayer && window->RPort && window->RPort->Font)
+            SetFont(requester->ReqLayer->rp, window->RPort->Font);
+    }
+    if (!requester->ReqLayer)
+        requester->ReqLayer = window->WLayer;
+    window->ReqCount++;
+    window->Flags |= WFLG_INREQUEST;
     
     /* Render */
     _render_requester(window, requester);
@@ -10424,6 +10693,8 @@ VOID _intuition_ScreenToFront ( register struct IntuitionBase * IntuitionBase __
     DPRINTF (LOG_DEBUG, "_intuition: ScreenToFront() screen=0x%08lx\n", (ULONG)screen);
     
     if (!screen || !IntuitionBase->FirstScreen) return;
+
+    screen->ViewPort.Modes &= ~VP_HIDE;
     
     if (screen == IntuitionBase->FirstScreen) return; /* Already at front */
 
@@ -10624,11 +10895,8 @@ VOID _intuition_SizeWindow ( register struct IntuitionBase * IntuitionBase __asm
     window->Width = new_w;
     window->Height = new_h;
 
-    if (window->Flags & WFLG_GIMMEZEROZERO)
-    {
-        window->GZZWidth = window->Width - window->BorderLeft - window->BorderRight;
-        window->GZZHeight = window->Height - window->BorderTop - window->BorderBottom;
-    }
+    window->GZZWidth = window->Width - window->BorderLeft - window->BorderRight;
+    window->GZZHeight = window->Height - window->BorderTop - window->BorderBottom;
 
     /* Update Layer if present */
     if (window->WLayer && LayersBase)
@@ -11228,13 +11496,49 @@ struct Window * _intuition_BuildSysRequest ( register struct IntuitionBase * Int
         return NULL;
     }
 
+    /* without a positive text only the negative button (AmigaOS 3.1) */
+    dst = gad_buf;
     if (posText && posText->IText)
-        strcpy(gad_buf, (char *)posText->IText);
-    gad_buf[pos_len] = '|';
+    {
+        strcpy(dst, (char *)posText->IText);
+        dst += pos_len;
+        *dst++ = '|';
+    }
     if (negText && negText->IText)
-        strcpy(gad_buf + pos_len + 1, (char *)negText->IText);
+        strcpy(dst, (char *)negText->IText);
     else
-        strcpy(gad_buf + pos_len + 1, "Cancel");
+        strcpy(dst, "Cancel");
+
+    /* the body's extent: the texts' right and bottom edges plus their
+     * smallest LeftEdge/TopEdge (AmigaOS 3.1 reference) */
+    {
+        struct Screen *scr = (window && window->WScreen) ? window->WScreen
+                                                         : _intuition_find_workbench_screen(IntuitionBase);
+        struct RastPort *srp = scr ? &scr->RastPort : NULL;
+        WORD fh = (srp && srp->TxHeight) ? (WORD)srp->TxHeight : 8;
+        WORD ew = 0, eh = 0, ml = 0x7fff, mt = 0x7fff;
+
+        /* the texts' box with the same margin on both sides */
+        for (it = bodyText; it; it = it->NextText)
+        {
+            WORD tw = (it->IText && srp) ? (WORD)TextLength(srp, it->IText, (UWORD)strlen((char *)it->IText)) : 0;
+            if (it->LeftEdge + tw > ew)
+                ew = it->LeftEdge + tw;
+            if (it->TopEdge + fh > eh)
+                eh = it->TopEdge + fh;
+            if (it->LeftEdge < ml)
+                ml = it->LeftEdge;
+            if (it->TopEdge < mt)
+                mt = it->TopEdge;
+        }
+        if (bodyText)
+        {
+            ew += ml;
+            eh += mt;
+        }
+        g_sysreq_w = ew;
+        g_sysreq_h = eh;
+    }
 
     easy.es_StructSize = sizeof(easy);
     easy.es_Flags = 0;
@@ -11243,9 +11547,13 @@ struct Window * _intuition_BuildSysRequest ( register struct IntuitionBase * Int
     easy.es_TextFormat = (UBYTE *)body_buf;
     easy.es_GadgetFormat = (UBYTE *)gad_buf;
 
+    /* AmigaOS 3.1 sizes the requester from its texts: width and height
+     * are ignored */
     (void)width;
     (void)height;
+    g_sysreq_layout = TRUE;
     reqWindow = _intuition_BuildEasyRequestArgs(IntuitionBase, window, &easy, flags, NULL);
+    g_sysreq_layout = FALSE;
 
     FreeMem(gad_buf, pos_len + neg_len + 2);
     FreeMem(body_buf, body_len + 1);
@@ -11523,8 +11831,14 @@ LONG _intuition_GetScreenData ( register struct IntuitionBase * IntuitionBase __
     /* If screen is NULL, get screen based on type */
     if (!src) {
         if (type == 1) {  /* WBENCHSCREEN */
-            /* Use FirstScreen if available, otherwise let app open its own */
-            src = IntuitionBase->FirstScreen;
+            /* the Workbench screen; AmigaOS 3.1 always has it open (an
+             * application sizing its screen from it - BlitzBasic2 - needs
+             * real data) */
+            src = _intuition_find_workbench_screen(IntuitionBase);
+            if (!src && _intuition_OpenWorkBench(IntuitionBase))
+                src = _intuition_find_workbench_screen(IntuitionBase);
+            if (!src)
+                src = IntuitionBase->FirstScreen;
         }
     }
     
@@ -11563,6 +11877,10 @@ static void _complement_gadget_area(struct Window *window, struct Requester *req
         _render_sys_gadget(window, gad);
         return;
     }
+
+    /* a BOOPSI gadget draws its own selected state */
+    if ((gad->GadgetType & GTYP_GTYPEMASK) == GTYP_CUSTOMGADGET)
+        return;
 
     /* For GZZ windows, border/system gadgets use BorderRPort */
     if ((window->Flags & WFLG_GIMMEZEROZERO) && window->BorderRPort &&
@@ -11714,6 +12032,16 @@ static void _render_gadget(struct Window *window, struct Requester *req, struct 
     }
     
     _calculate_gadget_box(window, req, gad, &left, &top, &width, &height);
+
+    /* a requester's gadgets live in the requester's own layer */
+    if (req && req->ReqLayer && req->ReqLayer != window->WLayer && req->ReqLayer->rp)
+    {
+        LONG rl, rt;
+        _calculate_requester_box(window, req, &rl, &rt, NULL, NULL);
+        rp = req->ReqLayer->rp;
+        left -= rl;
+        top -= rt;
+    }
 
     /* GadTools draws its own gadgets (frames, labels, images) */
     if (_gadtools_IsGadTools(gad) && _gadtools_RenderGadget(window, gad, rp, left, top))
@@ -12172,87 +12500,63 @@ static void _render_gadget(struct Window *window, struct Requester *req, struct 
         struct StringInfo *si = (struct StringInfo *)gad->SpecialInfo;
         if (si && si->Buffer)
         {
-            LONG len = (LONG)si->NumChars;
-            WORD textY;
-            WORD textX;
-            
-            DPRINTF(LOG_DEBUG, "_render_gadget: strgad clear interior left=%ld top=%ld w=%ld h=%ld\n",
-                    left, top, width, height);
-            
+            /* AmigaOS 3.1 (tests/probes/intuition/strgad): rendering takes
+             * the buffer as it is now - NumChars is recomputed, a DispPos
+             * that is not needed to show the cursor is reset - and draws
+             * the text from the gadget's top left corner (baseline at top
+             * + font baseline), justified per GACT_STRINGCENTER/RIGHT, with
+             * a full-height block cursor (COMPLEMENT) when the gadget is
+             * selected. */
+            LONG len = 0;
+            WORD disp, fit, tw, textX;
+
+            while (si->Buffer[len] != '\0' && len < si->MaxChars)
+                len++;
+            si->NumChars = (WORD)len;
+            if (si->BufferPos > len)
+                si->BufferPos = (WORD)len;
+            disp = si->DispPos;
+            if (disp < 0 || disp > len || TextLength(rp, si->Buffer, (UWORD)len) <= width)
+                disp = 0;
+            if (si->BufferPos < disp)
+                disp = si->BufferPos;
+            si->DispPos = disp;
+
             /* Clear gadget interior with background pen */
             SetAPen(rp, 0);
+            SetDrMd(rp, JAM2);
             RectFill(rp, left, top, left + width - 1, top + height - 1);
-            
-            DPRINTF(LOG_DEBUG, "_render_gadget: strgad RectFill done\n");
-            
-            /* Calculate text Y position (vertically centered).
-             * Text() uses baseline: y - tf_Baseline for actual rendering.
-             * Default topaz font: tf_Baseline = 6, tf_YSize = 8.
-             * For vertical centering: textY = top + (height / 2) + 3
-             * gives good baseline alignment.
-             */
-            textY = top + (height / 2) + 3;
-            textX = left + 2;  /* Small left margin */
-            
-            /* Handle GACT_STRINGCENTER: center text horizontally */
+
+            fit = lxa_text_fit(rp, si->Buffer + disp, (WORD)(len - disp), (WORD)width);
+            tw = fit > 0 ? TextLength(rp, si->Buffer + disp, fit) : 0;
+            textX = left;
             if (gad->Activation & GACT_STRINGCENTER)
-            {
-                WORD textWidth = len * 8;  /* topaz 8: 8px per character */
-                textX = left + (width - textWidth) / 2;
-                if (textX < left + 2)
-                    textX = left + 2;
-            }
-            
-            /* Handle GACT_STRINGRIGHT: right-align text */
-            if (gad->Activation & GACT_STRINGRIGHT)
-            {
-                WORD textWidth = len * 8;
-                textX = left + width - textWidth - 2;
-                if (textX < left + 2)
-                    textX = left + 2;
-            }
-            
-            /* Draw buffer text */
+                textX = left + (width - tw) / 2;
+            else if (gad->Activation & GACT_STRINGRIGHT)
+                textX = left + width - tw;
+
             SetAPen(rp, 1);  /* Text pen */
             SetBPen(rp, 0);  /* Background pen */
-            SetDrMd(rp, JAM2);
-            
-            DPRINTF(LOG_DEBUG, "_render_gadget: strgad Text textX=%d textY=%d len=%ld\n",
-                    textX, textY, len);
-            
-            Move(rp, textX, textY);
-            if (len > 0)
-            {
-                Text(rp, si->Buffer, len);
-            }
-            
-            DPRINTF(LOG_DEBUG, "_render_gadget: strgad Text done\n");
-            
+            Move(rp, textX, top + rp->TxBaseline);
+            if (fit > 0)
+                Text(rp, si->Buffer + disp, fit);
+
             /* Draw cursor if gadget is active (selected) */
             if (gad->Flags & GFLG_SELECTED)
             {
-                WORD cursorX;
-                WORD cursorPos = si->BufferPos;
-                
-                if (cursorPos > 0)
-                {
-                    DPRINTF(LOG_DEBUG, "_render_gadget: strgad TextLength pos=%d\n", cursorPos);
-                    cursorX = textX + TextLength(rp, si->Buffer, cursorPos);
-                    DPRINTF(LOG_DEBUG, "_render_gadget: strgad TextLength done cursorX=%d\n", cursorX);
-                }
-                else
-                {
-                    cursorX = textX;
-                }
-                
-                /* Draw cursor as vertical bar in COMPLEMENT mode */
+                WORD pos = si->BufferPos - disp;
+                WORD cx = textX + (pos > 0 ? TextLength(rp, si->Buffer + disp, pos) : 0);
+                WORD cw = (si->BufferPos < len) ? TextLength(rp, si->Buffer + si->BufferPos, 1)
+                                                : TextLength(rp, (STRPTR)" ", 1);
+                WORD ch = rp->TxHeight ? rp->TxHeight : 8;
+
+                if (ch > height)
+                    ch = height;
                 SetAPen(rp, 1);
                 SetDrMd(rp, COMPLEMENT);
-                RectFill(rp, cursorX, top + 1, cursorX + 1, top + height - 2);
+                RectFill(rp, cx, top, cx + cw - 1, top + ch - 1);
                 SetDrMd(rp, JAM2);
-                DPRINTF(LOG_DEBUG, "_render_gadget: strgad cursor done\n");
             }
-            DPRINTF(LOG_DEBUG, "_render_gadget: strgad rendering complete\n");
         }
     }
 
@@ -12276,7 +12580,8 @@ VOID _intuition_RefreshGList ( register struct IntuitionBase * IntuitionBase __a
              (ULONG)gadgets, (ULONG)window, (ULONG)requester, numGad);
              
     if (!window || !gadgets) return;
-    
+
+    _gadtools_RefreshPass(TRUE);
     while (gad && (numGad == -1 || count < numGad))
     {
         /* Don't render if disabled (unless we want to render disabled state - which we should) 
@@ -12293,6 +12598,7 @@ VOID _intuition_RefreshGList ( register struct IntuitionBase * IntuitionBase __a
         gad = gad->NextGadget;
         count++;
     }
+    _gadtools_RefreshPass(FALSE);
 }
 
 UWORD _intuition_AddGList ( register struct IntuitionBase * IntuitionBase __asm("a6"),
@@ -12354,16 +12660,16 @@ UWORD _intuition_AddGList ( register struct IntuitionBase * IntuitionBase __asm(
         while (init && (init_remaining == -1 || init_remaining > 0))
         {
             _init_string_gadget_info(init);
+            _sniff_border_gadget(window, requester, init);
+            _layout_custom_gadget(window, requester, init, TRUE);
             init = init->NextGadget;
             if (init_remaining > 0)
                 init_remaining--;
         }
     }
 
-    if (!requester || requester->ReqLayer)
-    {
-        _intuition_RefreshGList(IntuitionBase, gadget, window, requester, numGad);
-    }
+    /* AmigaOS 3.1 does not draw added gadgets: the application calls
+     * RefreshGList() (tests/probes/intuition/strgad: NumChars stays 0) */
 
     return actual_position;
 }
@@ -12514,8 +12820,10 @@ BOOL _intuition_ActivateGadget ( register struct IntuitionBase * IntuitionBase _
                 len++;
             si->NumChars = len;
         }
+        /* the active string gadget shows its cursor (AmigaOS 3.1) */
+        _render_gadget(window, requester, gadget);
     }
-    
+
     return TRUE;
 }
 
@@ -13442,9 +13750,13 @@ struct Window * _intuition_BuildEasyRequestArgs ( register struct IntuitionBase 
     WORD char_h = srp->TxHeight ? (WORD)srp->TxHeight : 8;
     WORD line_h = char_h + 1;
 
-    /* Measure body text: split on \n, find max width and line count */
+    /* Measure body text: split on \n, find max width and line count.
+     * AmigaOS 3.1 reference (tests/probes/intuition/reqlayout): lines are
+     * fontY high, empty ones fontY-2, one pixel apart; an empty first line
+     * adds another fontY-2. */
     WORD body_lines = 1;
     WORD body_pixel_w = 0;
+    WORD body_pixel_h = 0;
     {
         char *p = body_buf;
         char *ls = p;
@@ -13454,15 +13766,19 @@ struct Window * _intuition_BuildEasyRequestArgs ( register struct IntuitionBase 
             {
                 WORD w = (WORD)TextLength(srp, (STRPTR)ls, (UWORD)(p - ls));
                 if (w > body_pixel_w) body_pixel_w = w;
+                body_pixel_h += (p == ls) ? char_h - 2 : char_h;
+                if (p == ls && ls == body_buf)
+                    body_pixel_h += char_h - 2;
                 if (*p == '\0')
                     break;
                 body_lines++;
+                body_pixel_h++;
                 ls = p + 1;
             }
             p++;
         }
     }
-    WORD body_pixel_h = body_lines * line_h - 1;
+    (void)line_h;
 
     WORD gad_height = char_h + 6;
     WORD total_gad_width = 0;
@@ -13482,10 +13798,16 @@ struct Window * _intuition_BuildEasyRequestArgs ( register struct IntuitionBase 
     WORD border_bottom = scr->WBorBottom;
 
     WORD box_w = body_pixel_w + 50;
-    /* not verified on the reference: keep at least 8 pixels between buttons */
-    if (box_w < total_gad_width + (num_gadgets - 1) * 8)
-        box_w = total_gad_width + (num_gadgets - 1) * 8;
     WORD box_h = body_pixel_h + 2 * char_h;
+    /* AutoRequest(): the body texts' own extent (BuildSysRequest) */
+    if (g_sysreq_layout)
+    {
+        box_w = g_sysreq_w + 44;
+        box_h = g_sysreq_h + 4;
+    }
+    /* AmigaOS 3.1 reference: at least 12 pixels between buttons */
+    if (box_w < total_gad_width + (num_gadgets - 1) * 12)
+        box_w = total_gad_width + (num_gadgets - 1) * 12;
     WORD box_x = border_left + 4;
     WORD box_y = border_top + 2;
     WORD gad_row_y = box_y + box_h + 1;
@@ -13493,14 +13815,11 @@ struct Window * _intuition_BuildEasyRequestArgs ( register struct IntuitionBase 
     WORD win_w = border_left + 4 + box_w + 4 + border_right;
     WORD win_h = gad_row_y + gad_height + 2 + border_bottom;
 
-    /* ---- Step 5: Position: the reference opens the requester at the
-     * mouse pointer (top-left corner, clamped to the screen) ---- */
-    WORD win_x = scr->MouseX;
-    WORD win_y = scr->MouseY;
-    if (win_x + win_w > scr->Width) win_x = scr->Width - win_w;
-    if (win_y + win_h > scr->Height) win_y = scr->Height - win_h;
-    if (win_x < 0) win_x = 0;
-    if (win_y < 0) win_y = 0;
+    /* ---- Step 5: Position: AmigaOS 3.1 opens requesters at the top left
+     * corner of the screen, wherever the pointer is
+     * (tests/probes/intuition/requesters) ---- */
+    WORD win_x = 0;
+    WORD win_y = 0;
 
     /* ---- Step 6: Resolve title ---- */
     const char *title = (const char *)easyStruct->es_Title;
@@ -13510,6 +13829,15 @@ struct Window * _intuition_BuildEasyRequestArgs ( register struct IntuitionBase 
             title = (const char *)window->Title;
         else
             title = "System Request";
+    }
+    /* the title (plus the bar's gadgets) fits into the window */
+    {
+        WORD tw = (WORD)TextLength(srp, (STRPTR)title, (UWORD)strlen(title)) + 40;
+        if (win_w < tw)
+        {
+            box_w += tw - win_w;
+            win_w = tw;
+        }
     }
 
     /* ---- Step 7: Allocate gadgets, borders, and IntuiText ---- */
@@ -13639,7 +13967,8 @@ struct Window * _intuition_BuildEasyRequestArgs ( register struct IntuitionBase 
     nw.Title = (UBYTE *)title;
     nw.Flags = WFLG_DRAGBAR | WFLG_DEPTHGADGET | WFLG_ACTIVATE | WFLG_RMBTRAP |
                WFLG_SIMPLE_REFRESH | WFLG_NOCAREREFRESH;
-    nw.IDCMPFlags = IDCMP_GADGETUP | idcmp;
+    /* VANILLAKEY for the keyboard shortcuts (AmigaOS 3.1) */
+    nw.IDCMPFlags = IDCMP_GADGETUP | IDCMP_VANILLAKEY | idcmp;
     nw.FirstGadget = NULL;
     nw.Type = CUSTOMSCREEN;
     nw.Screen = scr;
@@ -14290,10 +14619,6 @@ struct Window * _intuition_OpenWindowTagList ( register struct IntuitionBase * I
                 win->MaxWidth = zd->zd_Width;
             if (zd->zd_Height > 0 && (UWORD)zd->zd_Height > win->MaxHeight)
                 win->MaxHeight = zd->zd_Height;
-            if (zd->zd_Width > 0 && zd->zd_Width < win->MinWidth)
-                win->MinWidth = zd->zd_Width;
-            if (zd->zd_Height > 0 && zd->zd_Height < win->MinHeight)
-                win->MinHeight = zd->zd_Height;
             DPRINTF(LOG_DEBUG, "_intuition: OpenWindowTagList() WA_Zoom set: alt pos=%d,%d size=%dx%d\n",
                     (int)zd->zd_Left, (int)zd->zd_Top, (int)zd->zd_Width, (int)zd->zd_Height);
         }
@@ -14332,6 +14657,7 @@ struct Screen * _intuition_OpenScreenTagList ( register struct IntuitionBase * I
          * itself has been consumed */
         ns = *newScreen;
         ns.Type &= ~NS_EXTENDED;
+        ns.Type |= SHOWTITLE;               /* SA_ShowTitle defaults to TRUE */
         if ((newScreen->Type & NS_EXTENDED) &&
             ((const struct ExtNewScreen *)newScreen)->Extension &&
             ((const struct ExtNewScreen *)newScreen)->Extension != tagList)
@@ -14341,8 +14667,8 @@ struct Screen * _intuition_OpenScreenTagList ( register struct IntuitionBase * I
     {
         /* Initialize with defaults */
         memset(&ns, 0, sizeof(ns));
-        ns.Width = 640;
-        ns.Height = 256;
+        ns.Width = STDSCREENWIDTH;          /* the display mode's size */
+        ns.Height = STDSCREENHEIGHT;
         ns.Depth = 2;
         ns.Type = CUSTOMSCREEN | SHOWTITLE;   /* SA_ShowTitle defaults to TRUE */
         ns.DetailPen = 0;
@@ -14442,9 +14768,12 @@ struct Screen * _intuition_OpenScreenTagList ( register struct IntuitionBase * I
                     break;
                 case SA_LikeWorkbench:
                     /* AmigaOS 3.1 reference (gallery-menus): a screen like
-                     * the Workbench shares its pens */
+                     * the Workbench shares its pens and has its mode */
                     if (tag->ti_Data)
+                    {
                         share_pens = TRUE;
+                        ns.ViewModes |= HIRES;
+                    }
                     break;
                 case SA_PubName:
                     pub_name = tag->ti_Data ? TRUE : FALSE;
@@ -14480,7 +14809,9 @@ struct Screen * _intuition_OpenScreenTagList ( register struct IntuitionBase * I
     }
     
     /* Call our existing OpenScreen with the assembled NewScreen */
+    g_screen_from_tags = TRUE;
     struct Screen *screen = _intuition_OpenScreen(IntuitionBase, &ns);
+    g_screen_from_tags = FALSE;
     if (!screen)
         return NULL;
 
@@ -15333,12 +15664,12 @@ struct DrawInfo * _intuition_GetScreenDrawInfo ( register struct IntuitionBase *
     }
 
     drawInfo->dri_Version    = 2;
-    drawInfo->dri_NumPens    = NUMDRIPENS;
+    drawInfo->dri_NumPens    = 12;     /* AmigaOS 3.1 (V40) */
     drawInfo->dri_Pens       = pens;
     drawInfo->dri_Font       = screen->RastPort.Font;
     drawInfo->dri_Depth      = screen->RastPort.BitMap ? screen->RastPort.BitMap->Depth : 2;
     drawInfo->dri_Resolution.X = (screen->Flags & SCREENHIRES) ? 22 : 44;
-    drawInfo->dri_Resolution.Y = 44;
+    drawInfo->dri_Resolution.Y = (screen->ViewPort.Modes & LACE) ? 22 : 44;
     drawInfo->dri_CheckMark  = NULL;
     drawInfo->dri_AmigaKey   = NULL;
 

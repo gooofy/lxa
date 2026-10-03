@@ -1,0 +1,177 @@
+-- CreateMenus only
+menu0 name="Project" box=0,0,0x0 flags=0x0001
+ item0 box=0,0,0x0 flags=0x0056 mx=0x00000000 cmd=79 noselfill
+    itext0 t="Open..." l=0 tp=1 fp=0 bp=0 dm=0 font=NULL
+ item1 box=0,0,0x0 flags=0x0056 mx=0x00000000 cmd=83 noselfill
+    itext0 t="Save" l=0 tp=1 fp=0 bp=0 dm=0 font=NULL
+ item2 box=0,0,0x0 flags=0x00c0 mx=0x00000000 cmd=0 noselfill
+    image0 box=2,2,0x2 depth=0 nodata pick=0x00 onoff=0x00
+ item3 box=0,0,0x0 flags=0x0052 mx=0x00000000 cmd=0 noselfill
+    itext0 t="Print" l=0 tp=1 fp=0 bp=0 dm=0 font=NULL
+    itext1 t="�" l=0 tp=1 fp=0 bp=0 dm=0 font=NULL
+  sub0 box=0,0,0x0 flags=0x0056 mx=0x00000000 cmd=68 noselfill
+      itext0 t="Draft" l=0 tp=1 fp=0 bp=0 dm=0 font=NULL
+  sub1 box=0,0,0x0 flags=0x00c0 mx=0x00000000 cmd=0 noselfill
+      image0 box=2,2,0x2 depth=0 nodata pick=0x00 onoff=0x00
+  sub2 box=0,0,0x0 flags=0x0042 mx=0x00000000 cmd=0 noselfill
+      itext0 t="Letter quality" l=0 tp=1 fp=0 bp=0 dm=0 font=NULL
+ item4 box=0,0,0x0 flags=0x0042 mx=0x00000000 cmd=0 noselfill
+    itext0 t="Disabled" l=0 tp=1 fp=0 bp=0 dm=0 font=NULL
+ item5 box=0,0,0x0 flags=0x0056 mx=0x00000000 cmd=81 noselfill
+    itext0 t="Quit" l=0 tp=1 fp=0 bp=0 dm=0 font=NULL
+menu1 name="Settings" box=0,0,0x0 flags=0x0001
+ item0 box=0,0,0x0 flags=0x0053 mx=0x00000000 cmd=0 noselfill
+    itext0 t="Check" l=0 tp=1 fp=0 bp=0 dm=0 font=NULL
+ item1 box=0,0,0x0 flags=0x015f mx=0x00000000 cmd=84 noselfill
+    itext0 t="Toggle on" l=0 tp=1 fp=0 bp=0 dm=0 font=NULL
+ item2 box=0,0,0x0 flags=0x0153 mx=0xfffffffe cmd=0 noselfill
+    itext0 t="Radio A" l=0 tp=1 fp=0 bp=0 dm=0 font=NULL
+ item3 box=0,0,0x0 flags=0x0053 mx=0xfffffffd cmd=0 noselfill
+    itext0 t="Radio B" l=0 tp=1 fp=0 bp=0 dm=0 font=NULL
+ item4 box=0,0,0x0 flags=0x0052 mx=0x00000000 cmd=0 noselfill
+    itext0 t="Command" l=0 tp=1 fp=0 bp=0 dm=0 font=NULL
+    itext1 t="Cmd" l=0 tp=1 fp=0 bp=0 dm=0 font=NULL
+menu2 name="Off" box=0,0,0x0 flags=0x0000
+ item0 box=0,0,0x0 flags=0x0052 mx=0x00000000 cmd=0 noselfill
+    itext0 t="Nothing" l=0 tp=1 fp=0 bp=0 dm=0 font=NULL
+ item1 box=0,0,0x0 flags=0x0050 mx=0x00000000 cmd=0 noselfill
+    image0 box=0,1,20x4 depth=2 data pick=0x03 onoff=0x00
+menu3 name="A very long menu title" box=0,0,0x0 flags=0x0001
+ item0 box=0,0,0x0 flags=0x0052 mx=0x00000000 cmd=0 noselfill
+    itext0 t="x" l=0 tp=1 fp=0 bp=0 dm=0 font=NULL
+-- LayoutMenus topaz8 newlook
+LayoutMenus = TRUE
+menu0 name="Project" box=2,0,64x0 flags=0x0001
+ item0 box=0,0,106x9 flags=0x0056 mx=0x00000000 cmd=79 noselfill
+    itext0 t="Open..." l=2 tp=1 fp=1 bp=0 dm=0 font=topaz.font/8
+ item1 box=0,9,106x9 flags=0x0056 mx=0x00000000 cmd=83 noselfill
+    itext0 t="Save" l=2 tp=1 fp=1 bp=0 dm=0 font=topaz.font/8
+ item2 box=0,18,106x6 flags=0x00c0 mx=0x00000000 cmd=0 noselfill
+    image0 box=2,2,102x2 depth=0 nodata pick=0x00 onoff=0x01
+ item3 box=0,24,106x9 flags=0x0052 mx=0x00000000 cmd=0 noselfill
+    itext0 t="Print" l=2 tp=1 fp=1 bp=0 dm=0 font=topaz.font/8
+    itext1 t="�" l=96 tp=1 fp=1 bp=0 dm=0 font=topaz.font/8
+  sub0 box=80,-1,154x9 flags=0x0056 mx=0x00000000 cmd=68 noselfill
+      itext0 t="Draft" l=2 tp=1 fp=1 bp=0 dm=0 font=topaz.font/8
+  sub1 box=80,8,154x6 flags=0x00c0 mx=0x00000000 cmd=0 noselfill
+      image0 box=2,2,150x2 depth=0 nodata pick=0x00 onoff=0x01
+  sub2 box=80,14,154x9 flags=0x0042 mx=0x00000000 cmd=0 noselfill
+      itext0 t="Letter quality" l=2 tp=1 fp=1 bp=0 dm=0 font=topaz.font/8
+ item4 box=0,33,106x9 flags=0x0042 mx=0x00000000 cmd=0 noselfill
+    itext0 t="Disabled" l=2 tp=1 fp=1 bp=0 dm=0 font=topaz.font/8
+ item5 box=0,42,106x9 flags=0x0056 mx=0x00000000 cmd=81 noselfill
+    itext0 t="Quit" l=2 tp=1 fp=1 bp=0 dm=0 font=topaz.font/8
+menu1 name="Settings" box=74,0,72x0 flags=0x0001
+ item0 box=0,0,129x9 flags=0x0053 mx=0x00000000 cmd=0 noselfill
+    itext0 t="Check" l=17 tp=1 fp=1 bp=0 dm=0 font=topaz.font/8
+ item1 box=0,9,129x9 flags=0x015f mx=0x00000000 cmd=84 noselfill
+    itext0 t="Toggle on" l=17 tp=1 fp=1 bp=0 dm=0 font=topaz.font/8
+ item2 box=0,18,129x9 flags=0x0153 mx=0xfffffffe cmd=0 noselfill
+    itext0 t="Radio A" l=17 tp=1 fp=1 bp=0 dm=0 font=topaz.font/8
+ item3 box=0,27,129x9 flags=0x0053 mx=0xfffffffd cmd=0 noselfill
+    itext0 t="Radio B" l=17 tp=1 fp=1 bp=0 dm=0 font=topaz.font/8
+ item4 box=0,36,129x9 flags=0x0052 mx=0x00000000 cmd=0 noselfill
+    itext0 t="Command" l=2 tp=1 fp=1 bp=0 dm=0 font=topaz.font/8
+    itext1 t="Cmd" l=103 tp=1 fp=1 bp=0 dm=0 font=topaz.font/8
+menu2 name="Off" box=154,0,32x0 flags=0x0000
+ item0 box=0,0,61x9 flags=0x0052 mx=0x00000000 cmd=0 noselfill
+    itext0 t="Nothing" l=2 tp=1 fp=1 bp=0 dm=0 font=topaz.font/8
+ item1 box=0,9,61x5 flags=0x0050 mx=0x00000000 cmd=0 noselfill
+    image0 box=2,1,20x4 depth=2 data pick=0x03 onoff=0x00
+menu3 name="A very long menu title" box=194,0,184x0 flags=0x0001
+ item0 box=0,0,185x9 flags=0x0052 mx=0x00000000 cmd=0 noselfill
+    itext0 t="x" l=2 tp=1 fp=1 bp=0 dm=0 font=topaz.font/8
+-- LayoutMenus topaz8 oldlook
+LayoutMenus = TRUE
+menu0 name="Project" box=2,0,64x0 flags=0x0001
+ item0 box=0,0,110x9 flags=0x0056 mx=0x00000000 cmd=79 noselfill
+    itext0 t="Open..." l=2 tp=1 fp=0 bp=0 dm=0 font=topaz.font/8
+ item1 box=0,9,110x9 flags=0x0056 mx=0x00000000 cmd=83 noselfill
+    itext0 t="Save" l=2 tp=1 fp=0 bp=0 dm=0 font=topaz.font/8
+ item2 box=0,18,110x6 flags=0x00c0 mx=0x00000000 cmd=0 noselfill
+    image0 box=2,2,106x2 depth=0 nodata pick=0x00 onoff=0x00
+ item3 box=0,24,110x9 flags=0x0052 mx=0x00000000 cmd=0 noselfill
+    itext0 t="Print" l=2 tp=1 fp=0 bp=0 dm=0 font=topaz.font/8
+    itext1 t="�" l=100 tp=1 fp=0 bp=0 dm=0 font=topaz.font/8
+  sub0 box=83,-1,158x9 flags=0x0056 mx=0x00000000 cmd=68 noselfill
+      itext0 t="Draft" l=2 tp=1 fp=0 bp=0 dm=0 font=topaz.font/8
+  sub1 box=83,8,158x6 flags=0x00c0 mx=0x00000000 cmd=0 noselfill
+      image0 box=2,2,154x2 depth=0 nodata pick=0x00 onoff=0x00
+  sub2 box=83,14,158x9 flags=0x0042 mx=0x00000000 cmd=0 noselfill
+      itext0 t="Letter quality" l=2 tp=1 fp=0 bp=0 dm=0 font=topaz.font/8
+ item4 box=0,33,110x9 flags=0x0042 mx=0x00000000 cmd=0 noselfill
+    itext0 t="Disabled" l=2 tp=1 fp=0 bp=0 dm=0 font=topaz.font/8
+ item5 box=0,42,110x9 flags=0x0056 mx=0x00000000 cmd=81 noselfill
+    itext0 t="Quit" l=2 tp=1 fp=0 bp=0 dm=0 font=topaz.font/8
+menu1 name="Settings" box=74,0,72x0 flags=0x0001
+ item0 box=0,0,137x9 flags=0x0053 mx=0x00000000 cmd=0 noselfill
+    itext0 t="Check" l=21 tp=1 fp=0 bp=0 dm=0 font=topaz.font/8
+ item1 box=0,9,137x9 flags=0x015f mx=0x00000000 cmd=84 noselfill
+    itext0 t="Toggle on" l=21 tp=1 fp=0 bp=0 dm=0 font=topaz.font/8
+ item2 box=0,18,137x9 flags=0x0153 mx=0xfffffffe cmd=0 noselfill
+    itext0 t="Radio A" l=21 tp=1 fp=0 bp=0 dm=0 font=topaz.font/8
+ item3 box=0,27,137x9 flags=0x0053 mx=0xfffffffd cmd=0 noselfill
+    itext0 t="Radio B" l=21 tp=1 fp=0 bp=0 dm=0 font=topaz.font/8
+ item4 box=0,36,137x9 flags=0x0052 mx=0x00000000 cmd=0 noselfill
+    itext0 t="Command" l=2 tp=1 fp=0 bp=0 dm=0 font=topaz.font/8
+    itext1 t="Cmd" l=111 tp=1 fp=0 bp=0 dm=0 font=topaz.font/8
+menu2 name="Off" box=154,0,32x0 flags=0x0000
+ item0 box=0,0,61x9 flags=0x0052 mx=0x00000000 cmd=0 noselfill
+    itext0 t="Nothing" l=2 tp=1 fp=0 bp=0 dm=0 font=topaz.font/8
+ item1 box=0,9,61x5 flags=0x0050 mx=0x00000000 cmd=0 noselfill
+    image0 box=2,1,20x4 depth=2 data pick=0x03 onoff=0x00
+menu3 name="A very long menu title" box=194,0,184x0 flags=0x0001
+ item0 box=0,0,185x9 flags=0x0052 mx=0x00000000 cmd=0 noselfill
+    itext0 t="x" l=2 tp=1 fp=0 bp=0 dm=0 font=topaz.font/8
+-- LayoutMenus screen font newlook
+LayoutMenus = TRUE
+menu0 name="Project" box=2,0,64x0 flags=0x0001
+ item0 box=0,0,106x9 flags=0x0056 mx=0x00000000 cmd=79 noselfill
+    itext0 t="Open..." l=2 tp=1 fp=1 bp=0 dm=0 font=topaz.font/8
+ item1 box=0,9,106x9 flags=0x0056 mx=0x00000000 cmd=83 noselfill
+    itext0 t="Save" l=2 tp=1 fp=1 bp=0 dm=0 font=topaz.font/8
+ item2 box=0,18,106x6 flags=0x00c0 mx=0x00000000 cmd=0 noselfill
+    image0 box=2,2,102x2 depth=0 nodata pick=0x00 onoff=0x01
+ item3 box=0,24,106x9 flags=0x0052 mx=0x00000000 cmd=0 noselfill
+    itext0 t="Print" l=2 tp=1 fp=1 bp=0 dm=0 font=topaz.font/8
+    itext1 t="�" l=96 tp=1 fp=1 bp=0 dm=0 font=topaz.font/8
+  sub0 box=80,-1,154x9 flags=0x0056 mx=0x00000000 cmd=68 noselfill
+      itext0 t="Draft" l=2 tp=1 fp=1 bp=0 dm=0 font=topaz.font/8
+  sub1 box=80,8,154x6 flags=0x00c0 mx=0x00000000 cmd=0 noselfill
+      image0 box=2,2,150x2 depth=0 nodata pick=0x00 onoff=0x01
+  sub2 box=80,14,154x9 flags=0x0042 mx=0x00000000 cmd=0 noselfill
+      itext0 t="Letter quality" l=2 tp=1 fp=1 bp=0 dm=0 font=topaz.font/8
+ item4 box=0,33,106x9 flags=0x0042 mx=0x00000000 cmd=0 noselfill
+    itext0 t="Disabled" l=2 tp=1 fp=1 bp=0 dm=0 font=topaz.font/8
+ item5 box=0,42,106x9 flags=0x0056 mx=0x00000000 cmd=81 noselfill
+    itext0 t="Quit" l=2 tp=1 fp=1 bp=0 dm=0 font=topaz.font/8
+menu1 name="Settings" box=74,0,72x0 flags=0x0001
+ item0 box=0,0,129x9 flags=0x0053 mx=0x00000000 cmd=0 noselfill
+    itext0 t="Check" l=17 tp=1 fp=1 bp=0 dm=0 font=topaz.font/8
+ item1 box=0,9,129x9 flags=0x015f mx=0x00000000 cmd=84 noselfill
+    itext0 t="Toggle on" l=17 tp=1 fp=1 bp=0 dm=0 font=topaz.font/8
+ item2 box=0,18,129x9 flags=0x0153 mx=0xfffffffe cmd=0 noselfill
+    itext0 t="Radio A" l=17 tp=1 fp=1 bp=0 dm=0 font=topaz.font/8
+ item3 box=0,27,129x9 flags=0x0053 mx=0xfffffffd cmd=0 noselfill
+    itext0 t="Radio B" l=17 tp=1 fp=1 bp=0 dm=0 font=topaz.font/8
+ item4 box=0,36,129x9 flags=0x0052 mx=0x00000000 cmd=0 noselfill
+    itext0 t="Command" l=2 tp=1 fp=1 bp=0 dm=0 font=topaz.font/8
+    itext1 t="Cmd" l=103 tp=1 fp=1 bp=0 dm=0 font=topaz.font/8
+menu2 name="Off" box=154,0,32x0 flags=0x0000
+ item0 box=0,0,61x9 flags=0x0052 mx=0x00000000 cmd=0 noselfill
+    itext0 t="Nothing" l=2 tp=1 fp=1 bp=0 dm=0 font=topaz.font/8
+ item1 box=0,9,61x5 flags=0x0050 mx=0x00000000 cmd=0 noselfill
+    image0 box=2,1,20x4 depth=2 data pick=0x03 onoff=0x00
+menu3 name="A very long menu title" box=194,0,184x0 flags=0x0001
+ item0 box=0,0,185x9 flags=0x0052 mx=0x00000000 cmd=0 noselfill
+    itext0 t="x" l=2 tp=1 fp=1 bp=0 dm=0 font=topaz.font/8
+-- CreateMenus error
+result = NULL
+secondary error = 2
+-- CreateMenus items only
+result = non-NULL
+LayoutMenuItems = TRUE
+ item0 box=0,0,70x9 flags=0x0052 mx=0x00000000 cmd=0 noselfill
+    itext0 t="One" l=2 tp=1 fp=0 bp=0 dm=0 font=topaz.font/8
+ item1 box=0,9,70x9 flags=0x0056 mx=0x00000000 cmd=87 noselfill
+    itext0 t="Two" l=2 tp=1 fp=0 bp=0 dm=0 font=topaz.font/8
