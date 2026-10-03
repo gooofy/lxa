@@ -1568,6 +1568,48 @@ void _exec_Deallocate ( register struct ExecBase  *SysBase     __asm("a6"),
     _exec_dump_memh (freeList);
 }
 
+static APTR exec_alloc_from_memlist (struct ExecBase *SysBase, ULONG byteSize, ULONG requirements)
+{
+    struct MemHeader *mhCur = (struct MemHeader *)SysBase->MemList.lh_Head;
+    UWORD req = (UWORD) requirements;
+
+    while (mhCur->mh_Node.ln_Succ)
+    {
+        if ((mhCur->mh_Attributes & req) == req && mhCur->mh_Free >= byteSize)
+        {
+            APTR mem = Allocate (mhCur, byteSize);
+            if (mem)
+                return mem;
+        }
+        mhCur = (struct MemHeader *)mhCur->mh_Node.ln_Succ;
+    }
+    return NULL;
+}
+
+/* Low-memory handler (AddMemHandler()): A0 = MemHandlerData, A1 = is_Data,
+ * A6 = ExecBase, called under Forbid(); returns MEM_DID_NOTHING,
+ * MEM_ALL_DONE or MEM_TRY_AGAIN in D0. */
+static LONG exec_call_mem_handler (struct ExecBase *SysBase, struct Interrupt *h,
+                                   struct MemHandlerData *mhd)
+{
+    register LONG  result __asm("d0");
+    register APTR  rcode  __asm("a2") = (APTR)h->is_Code;
+    register APTR  rmhd   __asm("a0") = (APTR)mhd;
+    register APTR  rdata  __asm("a1") = h->is_Data;
+    register APTR  rsys   __asm("d2") = (APTR)SysBase;
+
+    __asm volatile (
+        "movem.l d2-d7/a2-a6,-(sp)\n\t"
+        "move.l  d2,a6\n\t"
+        "jsr     (a2)\n\t"
+        "movem.l (sp)+,d2-d7/a2-a6"
+        : "=r" (result), "+r" (rmhd), "+r" (rdata)
+        : "r" (rcode), "r" (rsys)
+        : "d1", "memory", "cc"
+    );
+    return result;
+}
+
 APTR _exec_AllocMem ( register struct ExecBase *SysBase __asm("a6"),
                       register ULONG ___byteSize  __asm("d0"),
                       register ULONG ___requirements  __asm("d1"))
@@ -1580,35 +1622,39 @@ APTR _exec_AllocMem ( register struct ExecBase *SysBase __asm("a6"),
 
     Forbid();
 
-    struct MemHeader *mhCur = (struct MemHeader *)SysBase->MemList.lh_Head;
+    APTR mem = exec_alloc_from_memlist (SysBase, ___byteSize, ___requirements);
 
-    APTR mem = NULL;
-
-    while (mhCur->mh_Node.ln_Succ)
+    /* Out of memory: give the low-memory handlers (AddMemHandler()) a
+     * chance to free something, in priority order, unless the caller asked
+     * for MEMF_NO_EXPUNGE.  MEM_TRY_AGAIN calls the same handler again
+     * (with MEMHF_RECYCLE) as long as the retry fails; MEM_ALL_DONE moves
+     * on to the next handler after a failed retry. */
+    if (!mem && !(___requirements & MEMF_NO_EXPUNGE))
     {
-        DPRINTF (LOG_DEBUG, "                MemHeader mh_Free=%d, mh_Attributes=0x%08lx\n",
-                 mhCur->mh_Free, mhCur->mh_Attributes);
+        struct MemHandlerData mhd;
+        struct Node *n = (struct Node *)SysBase->ex_MemHandlers.mlh_Head;
 
-        UWORD req = (UWORD) ___requirements;
-        if ((mhCur->mh_Attributes & req) == req)
+        mhd.memh_RequestSize  = ___byteSize;
+        mhd.memh_RequestFlags = ___requirements;
+
+        while (!mem && n && n->ln_Succ)
         {
-            if (mhCur->mh_Free >= ___byteSize)
+            struct Node *next = n->ln_Succ;
+            mhd.memh_Flags = 0;
+            for (;;)
             {
-                mem = Allocate (mhCur, ___byteSize);
-                if (mem)
+                SysBase->ex_MemHandler = (APTR)n;
+                LONG r = exec_call_mem_handler (SysBase, (struct Interrupt *)n, &mhd);
+                SysBase->ex_MemHandler = NULL;
+                if (r == MEM_DID_NOTHING)
                     break;
+                mem = exec_alloc_from_memlist (SysBase, ___byteSize, ___requirements);
+                if (mem || r != MEM_TRY_AGAIN)
+                    break;
+                mhd.memh_Flags |= MEMHF_RECYCLE;
             }
-            else
-            {
-                DPRINTF (LOG_DEBUG, "      *** too small ***");
-            }
+            n = next;
         }
-        else
-        {
-            DPRINTF (LOG_DEBUG, "      *** does not meet requirements ***");
-        }
-
-        mhCur = (struct MemHeader *)mhCur->mh_Node.ln_Succ;
     }
 
     if (mem && (___requirements & MEMF_CLEAR))
@@ -6118,6 +6164,12 @@ void coldstart (void)
     // init semaphore list for AddSemaphore/RemSemaphore/FindSemaphore
     NEWLIST (&SysBase->SemaphoreList);
     SysBase->SemaphoreList.lh_Type = NT_SIGNALSEM;
+
+    /* low-memory handlers (AddMemHandler/RemMemHandler, called by AllocMem) */
+    SysBase->ex_MemHandlers.mlh_Head     = (struct MinNode *)&SysBase->ex_MemHandlers.mlh_Tail;
+    SysBase->ex_MemHandlers.mlh_Tail     = NULL;
+    SysBase->ex_MemHandlers.mlh_TailPred = (struct MinNode *)&SysBase->ex_MemHandlers.mlh_Head;
+    SysBase->ex_MemHandler = NULL;
 
     SysBase->TaskExitCode = _defaultTaskExit;
     SysBase->TaskSigAlloc = 0xFFFF;
