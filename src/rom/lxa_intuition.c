@@ -9364,7 +9364,7 @@ static void _render_window_frame(struct Window *window)
     _render_window_frame_impl(window);
     SetAPen(rp, fg);
     SetBPen(rp, bg);
-    SetOPen(rp, ol);
+    rp->AOlPen = ol;    /* not SetOPen(): that also sets AREAOUTLINE */
     SetDrMd(rp, dm);
 }
 
@@ -9805,7 +9805,7 @@ struct Window * _intuition_OpenWindow ( register struct IntuitionBase * Intuitio
         if (window->Flags & WFLG_GIMMEZEROZERO)
         {
             struct TagItem content_tags[] = {
-                { LA_BackfillHook, (ULONG)LAYERS_NOBACKFILL },
+                { LA_BackfillHook, (ULONG)LAYERS_BACKFILL },
                 { (layer_flags & LAYERSUPER) ? LA_SuperBitMap : TAG_IGNORE, (ULONG)newWindow->BitMap },
                 { LA_WindowPtr, (ULONG)window },
                 { TAG_DONE, 0 }
@@ -9835,7 +9835,7 @@ struct Window * _intuition_OpenWindow ( register struct IntuitionBase * Intuitio
         else
         {
             struct TagItem content_tags[] = {
-                { LA_BackfillHook, (ULONG)LAYERS_NOBACKFILL },
+                { LA_BackfillHook, (ULONG)LAYERS_BACKFILL },
                 { (layer_flags & LAYERSUPER) ? LA_SuperBitMap : TAG_IGNORE, (ULONG)newWindow->BitMap },
                 { LA_WindowPtr, (ULONG)window },
                 { TAG_DONE, 0 }
@@ -11922,7 +11922,7 @@ static void _render_gadget(struct Window *window, struct Requester *req, struct 
                 {
                     SetSoftStyle(rp, FSF_UNDERLINED, 1);
                     Text(rp, (STRPTR)it->IText, strlen((char *)it->IText));
-                    SetSoftStyle(rp, 0, 0);
+                    SetSoftStyle(rp, 0, FSF_UNDERLINED);   /* enable 0 would change nothing */
                 }
                 else
                 {

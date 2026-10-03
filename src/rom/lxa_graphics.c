@@ -30,6 +30,8 @@
 
 #include <clib/utility_protos.h>
 #include <inline/utility.h>
+#include <clib/layers_protos.h>
+#include <inline/layers.h>
 
 #include <intuition/intuitionbase.h>
 
@@ -576,6 +578,14 @@ static void gfx_fill_rect(struct RastPort *rp, WORD xMin, WORD yMin, WORD xMax, 
 #define AREAOUTLINE 0x08
 #define NOCROSSFILL 0x20
 #endif
+
+/* Move(), SetAPen(), SetBPen(), SetDrMd() and SetABPenDrMd() restart the
+ * line pattern and the first-dot handling (observed on AmigaOS 3.1). */
+static inline void gfx_reset_line(struct RastPort *rp)
+{
+    rp->linpatcnt = 15;
+    rp->Flags |= FRST_DOT;
+}
 
 /* BitMap flags */
 #ifndef BMF_STANDARD
@@ -1677,32 +1687,43 @@ static void FillRectDirect(struct BitMap *bm, WORD xMin, WORD yMin, WORD xMax, W
 }
 
 /*
- * FillRectPattern - like FillRectDirect but applies a repeating UWORD area
- * pattern from the RastPort (rp->AreaPtrn / rp->AreaPtSz).
+ * FillRectPattern - like FillRectDirect but applies the RastPort's area
+ * pattern (rp->AreaPtrn / rp->AreaPtSz), as AmigaOS 3.1 does:
  *
- * The pattern height is 2^AreaPtSz rows.  For each scanline y the pattern
- * row is pattern[(y - yMin) % patHeight].  Bits within each UWORD select
- * between FgPen and BgPen (JAM2) or FgPen/transparent (JAM1).
+ *  - the pattern is anchored to the bitmap: pixel (X,Y) uses bit
+ *    15 - (X & 15) of row (Y & (rows - 1)); offX/offY give the position of
+ *    bm's pixel (0,0) in that coordinate space (backing-store bitmaps);
+ *  - AreaPtSz >= 0: one pattern of 2^AreaPtSz rows for all planes;
+ *    AreaPtSz < 0: a multicolour pattern of 2^-AreaPtSz rows per plane,
+ *    the planes stored one after the other;
+ *  - JAM1 draws FgPen where the pattern is set, JAM2 BgPen elsewhere,
+ *    COMPLEMENT inverts where it is set, INVERSVID inverts the pattern;
+ *    only the planes enabled in rp->Mask are written.
  */
 static void FillRectPattern(struct RastPort *rp, struct BitMap *bm,
-                            WORD xMin, WORD yMin, WORD xMax, WORD yMax)
+                            WORD xMin, WORD yMin, WORD xMax, WORD yMax,
+                            WORD offX, WORD offY)
 {
     UWORD *pat;
-    WORD   patHeight;
+    WORD   rows;
+    BOOL   multi;
     WORD   y;
     WORD   bmMaxX = bm->BytesPerRow * 8;
     WORD   bmMaxY = bm->Rows;
     UWORD  bpr    = bm->BytesPerRow;
     UBYTE  fgPen  = (UBYTE)rp->FgPen;
     UBYTE  bgPen  = (UBYTE)rp->BgPen;
-    UBYTE  dm     = rp->DrawMode & ~INVERSVID;
+    UBYTE  dm     = rp->DrawMode;
     UBYTE  plane;
 
     if (!rp->AreaPtrn)
         return;
 
-    pat       = rp->AreaPtrn;
-    patHeight = (WORD)(1 << rp->AreaPtSz);
+    pat   = rp->AreaPtrn;
+    multi = rp->AreaPtSz < 0;
+    rows  = (WORD)(1 << (multi ? -rp->AreaPtSz : rp->AreaPtSz) & 0x7fff);
+    if (rows <= 0)
+        rows = 1;
 
     /* Clamp to bitmap bounds */
     if (xMin < 0) xMin = 0;
@@ -1720,58 +1741,53 @@ static void FillRectPattern(struct RastPort *rp, struct BitMap *bm,
 
         for (y = yMin; y <= yMax; y++)
         {
-            /* Which pattern row applies to this scanline? */
-            UWORD patRow = pat[(y - yMin) % patHeight];
-            UWORD rowOffset = (UWORD)y * bpr;
+            WORD row = (WORD)((y + offY) & (rows - 1));
+            ULONG rowOffset = (ULONG)y * bpr;
 
             for (plane = 0; plane < bm->Depth; plane++)
             {
                 UBYTE *planeData;
+                UWORD  w;
+                ULONG  w32;
+                UBYTE  fgBit, bgBit;
                 WORD   bx;
 
-                if (!bm->Planes[plane])
+                if (!(rp->Mask & (1 << plane)))
+                    continue;
+                planeData = bm->Planes[plane];
+                if (!planeData || planeData == (PLANEPTR)-1)
                     continue;
 
-                planeData = bm->Planes[plane];
+                w = multi ? pat[plane * rows + row] : pat[row];
+                if (dm & INVERSVID)
+                    w = (UWORD)~w;
+                w32 = ((ULONG)w << 16) | w;
+                fgBit = (fgPen >> plane) & 1;
+                bgBit = (bgPen >> plane) & 1;
 
                 for (bx = firstByte; bx <= lastByte; bx++)
                 {
-                    /* Map byte column bx to pattern bits.
-                     * Pattern UWORD has bit15=leftmost pixel.
-                     * Each byte covers 8 pixels; bx*8 is the leftmost pixel of this byte. */
-                    UBYTE pxStart = (UBYTE)((bx * 8) & 15); /* position within 16-pixel repeat */
-                    UBYTE bytePat = (UBYTE)((patRow >> (8 - pxStart)) & 0xFF);
+                    WORD   shift   = (WORD)((bx * 8 + offX) & 15);
+                    UBYTE  bytePat = (UBYTE)(w32 >> (24 - shift));
+                    UBYTE  edge    = 0xFF;
+                    UBYTE *dest    = planeData + rowOffset + bx;
+                    UBYTE  setMask, clrMask;
 
-                    /* Edge masks */
-                    UBYTE edgeMask = 0xFF;
-                    if (bx == firstByte) edgeMask &= leftMask;
-                    if (bx == lastByte)  edgeMask &= rightMask;
+                    if (bx == firstByte) edge &= leftMask;
+                    if (bx == lastByte)  edge &= rightMask;
+                    setMask = bytePat & edge;
+                    clrMask = (UBYTE)~bytePat & edge;
 
+                    if (dm & COMPLEMENT)
+                        *dest ^= setMask;
+                    else
                     {
-                        UBYTE fgBit    = (fgPen & (1 << plane)) ? 1 : 0;
-                        UBYTE bgBit    = (bgPen & (1 << plane)) ? 1 : 0;
-                        UBYTE *dest    = planeData + rowOffset + bx;
-                        UBYTE setMask  = bytePat & edgeMask;
-                        UBYTE clrMask  = ((UBYTE)~bytePat) & edgeMask;
-
-                        if (dm == COMPLEMENT)
+                        if (fgBit)
+                            *dest |= setMask;
+                        else
+                            *dest &= ~setMask;
+                        if (dm & JAM2)
                         {
-                            *dest ^= setMask;
-                        }
-                        else if (dm == JAM1)
-                        {
-                            if (fgBit)
-                                *dest |= setMask;
-                            else
-                                *dest &= ~setMask;
-                        }
-                        else /* JAM2 */
-                        {
-                            if (fgBit)
-                                *dest |= setMask;
-                            else
-                                *dest &= ~setMask;
-
                             if (bgBit)
                                 *dest |= clrMask;
                             else
@@ -2063,6 +2079,9 @@ static LONG _graphics_BltBitMap ( register struct GfxBase * GfxBase __asm("a6"),
     return planesAffected;
 }
 
+static void gfx_template_blit(struct RastPort *rp, const UBYTE *src, LONG xSrc, LONG srcMod,
+                              LONG xDest, LONG yDest, LONG xSize, LONG ySize);
+
 static VOID _graphics_BltTemplate ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register CONST PLANEPTR source __asm("a0"),
                                                         register LONG xSrc __asm("d0"),
@@ -2075,123 +2094,14 @@ static VOID _graphics_BltTemplate ( register struct GfxBase * GfxBase __asm("a6"
 {
     /* GCC m68k inline stubs may use move.w to set d-register args, leaving
      * the upper 16 bits with residual data.  Sign-extend coordinates. */
-    CONST PLANEPTR _source = source;
-    LONG _xSrc = (LONG)(WORD)xSrc;
-    LONG _srcMod = (LONG)(WORD)srcMod;
-    struct RastPort *_destRP = destRP;
-    LONG _xDest = (LONG)(WORD)xDest;
-    LONG _yDest = (LONG)(WORD)yDest;
-    LONG _xSize = (LONG)(WORD)xSize;
-    LONG _ySize = (LONG)(WORD)ySize;
-    struct BitMap *bm;
-    LONG row, col, plane;
-    UBYTE fgpen, bgpen, drawmode;
-
     DPRINTF (LOG_DEBUG, "_graphics: BltTemplate() source=0x%08lx xSrc=%ld srcMod=%ld dest=(%ld,%ld) size=%ldx%ld\n",
-             (ULONG)_source, _xSrc, _srcMod, _xDest, _yDest, _xSize, _ySize);
-    DPRINTF(LOG_DEBUG, "_graphics: BltTemplate() dest=(%ld,%ld) size=%ldx%ld\n",
-             _xDest, _yDest, _xSize, _ySize);
+             (ULONG)source, xSrc, srcMod, xDest, yDest, xSize, ySize);
 
-    if (!_source || !_destRP)
-    {
-        LPRINTF (LOG_ERROR, "_graphics: BltTemplate() NULL parameter\n");
+    if (!source || !destRP || !destRP->BitMap)
         return;
-    }
 
-    bm = _destRP->BitMap;
-    if (!bm)
-    {
-        LPRINTF (LOG_ERROR, "_graphics: BltTemplate() RastPort has no BitMap\n");
-        return;
-    }
-
-    if (_xSize <= 0 || _ySize <= 0)
-    {
-        return;
-    }
-
-    fgpen = (UBYTE)_destRP->FgPen;
-    bgpen = (UBYTE)_destRP->BgPen;
-    drawmode = _destRP->DrawMode;
-
-    /* Handle INVERSVID - swap foreground and background colors */
-    if (drawmode & INVERSVID)
-    {
-        UBYTE tmp = fgpen;
-        fgpen = bgpen;
-        bgpen = tmp;
-    }
-
-    /* Mask out INVERSVID to get base draw mode */
-    UBYTE basemode = drawmode & ~INVERSVID;
-
-    /* Process each row of the template */
-    for (row = 0; row < _ySize; row++)
-    {
-        LONG destY = _yDest + row;
-        const UBYTE *srcRow = (const UBYTE *)_source + row * _srcMod;
-
-        /* Skip if outside bitmap */
-        if (destY < 0 || destY >= (LONG)bm->Rows)
-            continue;
-
-        for (col = 0; col < _xSize; col++)
-        {
-            LONG destX = _xDest + col;
-            LONG srcPixelX = _xSrc + col;
-            LONG srcByteOffset = srcPixelX / 8;
-            UBYTE srcBitMask = (UBYTE)(0x80 >> (srcPixelX % 8));
-            BOOL templateBit = (srcRow[srcByteOffset] & srcBitMask) != 0;
-
-            /* Skip if outside bitmap */
-            if (destX < 0 || destX >= (LONG)(bm->BytesPerRow * 8))
-                continue;
-
-            LONG destByteOffset = destX / 8;
-            UBYTE destBitMask = (UBYTE)(0x80 >> (destX % 8));
-
-            if (basemode == JAM1)
-            {
-                /* JAM1: only draw where template is 1 */
-                if (templateBit)
-                {
-                    for (plane = 0; plane < bm->Depth; plane++)
-                    {
-                        UBYTE *destPlane = bm->Planes[plane] + destY * bm->BytesPerRow + destByteOffset;
-                        if (fgpen & (1 << plane))
-                            *destPlane |= destBitMask;
-                        else
-                            *destPlane &= ~destBitMask;
-                    }
-                }
-            }
-            else if (basemode == JAM2)
-            {
-                /* JAM2: draw foreground where template is 1, background where 0 */
-                UBYTE pen = templateBit ? fgpen : bgpen;
-                for (plane = 0; plane < bm->Depth; plane++)
-                {
-                    UBYTE *destPlane = bm->Planes[plane] + destY * bm->BytesPerRow + destByteOffset;
-                    if (pen & (1 << plane))
-                        *destPlane |= destBitMask;
-                    else
-                        *destPlane &= ~destBitMask;
-                }
-            }
-            else if (basemode == COMPLEMENT)
-            {
-                /* COMPLEMENT: XOR where template is 1 */
-                if (templateBit)
-                {
-                    for (plane = 0; plane < bm->Depth; plane++)
-                    {
-                        UBYTE *destPlane = bm->Planes[plane] + destY * bm->BytesPerRow + destByteOffset;
-                        *destPlane ^= destBitMask;
-                    }
-                }
-            }
-        }
-    }
+    gfx_template_blit(destRP, (const UBYTE *)source, (LONG)(WORD)xSrc, (LONG)(WORD)srcMod,
+                      (LONG)(WORD)xDest, (LONG)(WORD)yDest, (LONG)(WORD)xSize, (LONG)(WORD)ySize);
 }
 
 static VOID _graphics_ClearEOL ( register struct GfxBase * GfxBase __asm("a6"),
@@ -2456,6 +2366,115 @@ static WORD _graphics_TextLength ( register struct GfxBase * GfxBase __asm("a6")
     return width;
 }
 
+/*
+ * Fast path for one Text() template row: when the whole row lies inside
+ * the bitmap (no layer) or inside one visible ClipRect, it is written a
+ * byte at a time per plane.  Returns FALSE when the caller has to fall
+ * back to clipped runs.
+ *
+ * always_inline: compiled out of line (two callers), m68k GCC produced a
+ * version that rendered nothing for some Text() calls (AGENTS.md §6.1
+ * kind of miscompile; seen as missing labels in dpaint_gtest).
+ */
+static inline __attribute__((always_inline)) BOOL gfx_text_row_direct(
+                                struct RastPort *rp, const UBYTE *row, WORD x0, WORD y,
+                                WORD tw, UBYTE fg, UBYTE bg, BOOL jam2, BOOL complement, BOOL inv)
+{
+    struct BitMap *bm = rp->BitMap;
+    WORD x1, bx, bx0, bx1;
+    UBYTE p;
+    ULONG rowoff;
+
+    if (rp->Layer)
+    {
+        struct ClipRect *cr;
+        x0 += LAYER_ORIGIN_X(rp->Layer);
+        y += LAYER_ORIGIN_Y(rp->Layer);
+        x1 = (WORD)(x0 + tw - 1);
+        for (cr = rp->Layer->ClipRect; cr; cr = cr->Next)
+            if (y >= cr->bounds.MinY && y <= cr->bounds.MaxY &&
+                x0 <= cr->bounds.MaxX && x1 >= cr->bounds.MinX)
+                break;
+        if (!cr)
+            return TRUE;        /* row not in the layer at all */
+        if (cr->obscured || x0 < cr->bounds.MinX || x1 > cr->bounds.MaxX)
+            return FALSE;
+    }
+    else
+        x1 = (WORD)(x0 + tw - 1);
+
+    if (y < 0 || y >= (WORD)bm->Rows || x0 < 0 || x1 >= (WORD)(bm->BytesPerRow * 8))
+        return FALSE;
+
+    rowoff = (ULONG)y * bm->BytesPerRow;
+    bx0 = (WORD)(x0 >> 3);
+    bx1 = (WORD)(x1 >> 3);
+    for (bx = bx0; bx <= bx1; bx++)
+    {
+        WORD start = (WORD)(bx * 8 - x0);
+        UBYTE t, edge = 0xff;
+
+        if (start >= 0)
+        {
+            WORD i = (WORD)(start >> 3), sh = (WORD)(start & 7);
+            t = (UBYTE)((row[i] << sh) | (sh ? (row[i + 1] >> (8 - sh)) : 0));
+        }
+        else
+            t = (UBYTE)(row[0] >> (-start));
+        if (bx == bx0)
+            edge &= (UBYTE)(0xff >> (x0 & 7));
+        if (bx == bx1)
+            edge &= (UBYTE)(0xff << (7 - (x1 & 7)));
+        if (inv)
+            t = (UBYTE)~t;
+        t &= edge;
+
+        for (p = 0; p < bm->Depth && p < 8; p++)
+        {
+            UBYTE *d = bm->Planes[p];
+            if (!(rp->Mask & (1 << p)) || !d || d == (UBYTE *)-1)
+                continue;
+            d += rowoff + bx;
+            if (complement)
+            {
+                if (fg & (1 << p))
+                    *d ^= t;
+            }
+            else
+            {
+                if (fg & (1 << p))
+                    *d |= t;
+                else
+                    *d &= (UBYTE)~t;
+                if (jam2)
+                {
+                    UBYTE b = (UBYTE)(edge & ~t);
+                    if (bg & (1 << p))
+                        *d |= b;
+                    else
+                        *d &= (UBYTE)~b;
+                }
+            }
+        }
+    }
+    return TRUE;
+}
+
+/* line/template pixel writer (defined with Draw()) */
+struct gfx_line_ctx
+{
+    struct BitMap   *bm;
+    struct Layer    *layer;
+    struct ClipRect *cr;        /* ClipRect of the last pixel (or NULL) */
+    WORD             bmw, bmh;
+    UBYTE            mask;
+};
+
+static void gfx_line_plot(struct gfx_line_ctx *c, WORD x, WORD y, UBYTE pen, BOOL complement);
+static void gfx_text_style_extra(struct RastPort *rp, struct TextFont *tf, WORD *left, WORD *right);
+static WORD gfx_text_plain_extent(struct RastPort *rp, struct TextFont *tf,
+                                  CONST_STRPTR string, LONG count, WORD *minx, WORD *maxx);
+
 static LONG _graphics_Text ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a1"),
                                                         register CONST_STRPTR string __asm("a0"),
@@ -2509,6 +2528,170 @@ static LONG _graphics_Text ( register struct GfxBase * GfxBase __asm("a6"),
     bgpen = (UBYTE)rp->BgPen;
     drawmode = rp->DrawMode;
     colorfont = graphics_text_is_colorfont(font);
+
+    /*
+     * Plain (non-colour) fonts are rendered the way AmigaOS 3.1 does it
+     * (observed on the reference): the string is composed row by row into
+     * a one-bit template covering its TextExtent() - glyphs at their kerned
+     * positions, italic rows shifted right by floor((Baseline - row) / 2),
+     * bold ORed tf_BoldSmear pixels to the right, the underline row
+     * (Baseline + 1) filled except next to glyph pixels - and the template
+     * is drawn like BltTemplate(): JAM2 fills the whole extent with BgPen,
+     * INVERSVID inverts it, COMPLEMENT inverts the planes in Mask; layers
+     * clip and Mask is honoured.
+     */
+    if (!colorfont)
+    {
+        WORD minx, maxx, left, right, adv, ox, tw, bpr, r;
+        BOOL prop = (font->tf_Flags & FPF_PROPORTIONAL) || font->tf_CharKern || font->tf_CharSpace;
+        UBYTE stackbuf[192];
+        UBYTE *row, *orig, *mem = NULL;
+        ULONG memsize = 0;
+        UBYTE dm = rp->DrawMode;
+        BOOL complement = (dm & COMPLEMENT) != 0;
+        BOOL jam2 = (dm & JAM2) && !complement;
+        BOOL inv = (dm & INVERSVID) != 0;
+        UBYTE fg = complement ? rp->Mask : (UBYTE)rp->FgPen;
+        UBYTE bg = (UBYTE)rp->BgPen;
+        WORD ulrow = (rp->AlgoStyle & FSF_UNDERLINED) ? (WORD)(font->tf_Baseline + 1) : -1;
+
+        adv = gfx_text_plain_extent(rp, font, string, count, &minx, &maxx);
+        gfx_text_style_extra(rp, font, &left, &right);
+        ox = (WORD)(minx - left);
+        tw = (WORD)(maxx + right - ox + 1);
+
+        if (tw > 0)
+        {
+            bpr = (WORD)((((tw + 15) >> 4) << 1) + 2);
+            if (2 * bpr <= (WORD)sizeof(stackbuf))
+                row = stackbuf;
+            else
+            {
+                memsize = (ULONG)bpr * 2;
+                mem = (UBYTE *)AllocMem(memsize, MEMF_ANY);
+                row = mem;
+            }
+            if (row)
+            {
+                orig = row + bpr;
+
+                for (r = 0; r < font->tf_YSize; r++)
+                {
+                    WORD shift = 0, xx = 0, k;
+                    const UBYTE *src_row = NULL;
+
+                    lxa_memset(row, 0, (ULONG)bpr);
+                    if (rp->AlgoStyle & FSF_ITALIC)
+                    {
+                        WORD d = (WORD)(font->tf_Baseline - r);
+                        shift = (WORD)(d >= 0 ? d / 2 : -((1 - d) / 2));
+                    }
+                    if (font->tf_CharData && font->tf_CharLoc)
+                        src_row = (const UBYTE *)font->tf_CharData + (ULONG)r * (UWORD)font->tf_Modulo;
+
+                    for (k = 0; k < (WORD)count; k++)
+                    {
+                        WORD idx = graphics_text_char_index(font, (UBYTE)string[k]);
+                        WORD gx = xx, gw, col;
+                        const UBYTE *topaz_glyph = NULL;
+                        WORD gpos = 0;
+
+                        if (prop)
+                        {
+                            if (font->tf_CharKern)
+                                gx += ((WORD *)font->tf_CharKern)[idx];
+                            gw = font->tf_CharLoc ? graphics_text_glyph_width(font, idx) : font->tf_XSize;
+                            xx = (WORD)(gx + (font->tf_CharSpace ? ((WORD *)font->tf_CharSpace)[idx] : font->tf_XSize));
+                        }
+                        else
+                        {
+                            gw = font->tf_CharLoc ? graphics_text_glyph_width(font, idx) : font->tf_XSize;
+                            xx = (WORD)(xx + font->tf_XSize);
+                        }
+                        xx = (WORD)(xx + rp->TxSpacing);
+
+                        if (src_row)
+                            gpos = graphics_text_glyph_pos(font, idx);
+                        else if (font->tf_CharData)
+                            topaz_glyph = topaz8_get_glyph((UBYTE)(font->tf_LoChar + idx));
+
+                        for (col = 0; col < gw; col++)
+                        {
+                            BOOL set;
+                            WORD px;
+                            if (src_row)
+                            {
+                                WORD bx = (WORD)(gpos + col);
+                                set = (src_row[bx >> 3] & (0x80 >> (bx & 7))) != 0;
+                            }
+                            else if (topaz_glyph)
+                                set = col < 8 && (topaz_glyph[r] & (0x80 >> col)) != 0;
+                            else
+                                set = FALSE;
+                            px = (WORD)(gx + col + shift - ox);
+                            if (set && px >= 0 && px < tw)
+                                row[px >> 3] |= (UBYTE)(0x80 >> (px & 7));
+                        }
+                    }
+
+                    /* bold: the row ORed with itself shifted tf_BoldSmear
+                     * pixels to the right (one copy, not a smear run) */
+                    if ((rp->AlgoStyle & FSF_BOLD) && font->tf_BoldSmear > 0)
+                    {
+                        WORD px, s = font->tf_BoldSmear;
+                        lxa_memcpy(orig, row, (ULONG)bpr);
+                        for (px = s; px < tw; px++)
+                            if (orig[(px - s) >> 3] & (0x80 >> ((px - s) & 7)))
+                                row[px >> 3] |= (UBYTE)(0x80 >> (px & 7));
+                    }
+
+                    /* underline: the whole extent, except next to glyph pixels */
+                    if (r == ulrow)
+                    {
+                        WORD px;
+                        lxa_memcpy(orig, row, (ULONG)bpr);
+#define ORIG_BIT(p) ((p) >= 0 && (p) < tw && (orig[(p) >> 3] & (0x80 >> ((p) & 7))))
+                        for (px = 0; px < tw; px++)
+                            if (!ORIG_BIT(px - 1) && !ORIG_BIT(px) && !ORIG_BIT(px + 1))
+                                row[px >> 3] |= (UBYTE)(0x80 >> (px & 7));
+#undef ORIG_BIT
+                    }
+
+                    /* draw the template row as runs (RastPort coordinates;
+                     * gfx_fill_rect() clips through the layer) */
+                    {
+                        WORD px = 0;
+                        WORD dy = (WORD)(rp->cp_y - font->tf_Baseline + r);
+                        WORD dx0 = (WORD)(rp->cp_x + ox);
+                        if (gfx_text_row_direct(rp, row, dx0, dy, tw, fg, bg, jam2, complement, inv))
+                            continue;
+                        if (jam2)
+                            gfx_fill_rect(rp, dx0, dy, (WORD)(dx0 + tw - 1), dy, (BYTE)bg, JAM2, FALSE);
+                        while (px < tw)
+                        {
+                            WORD xs;
+                            BOOL bit = (row[px >> 3] & (0x80 >> (px & 7))) != 0;
+                            if (bit == inv)
+                            {
+                                px++;
+                                continue;
+                            }
+                            xs = px;
+                            while (px < tw && ((row[px >> 3] & (0x80 >> (px & 7))) != 0) != inv)
+                                px++;
+                            gfx_fill_rect(rp, (WORD)(dx0 + xs), dy, (WORD)(dx0 + px - 1), dy, (BYTE)fg,
+                                          complement ? COMPLEMENT : JAM2, FALSE);
+                        }
+                    }
+                }
+                if (mem)
+                    FreeMem(mem, memsize);
+            }
+        }
+        rp->cp_x = (WORD)(rp->cp_x + adv);
+        return (LONG)count;
+    }
+
 
     /* If RastPort has a Layer, add layer offset for coordinate translation */
     if (rp->Layer)
@@ -2825,16 +3008,18 @@ static VOID _graphics_CloseFont ( register struct GfxBase * GfxBase __asm("a6"),
 static ULONG _graphics_AskSoftStyle ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a1"))
 {
-    LXA_UNIMPLEMENTED("graphics", "AskSoftStyle", "partial: reports all styles regardless of font (Phase 256)");
-
     /*
-     * AskSoftStyle() returns a mask of font styles that can be algorithmically
-     * generated for the current font. Styles include:
-     *   FSF_UNDERLINED (0x01), FSF_BOLD (0x02), FSF_ITALIC (0x04), FSF_EXTENDED (0x08)
-     * We return that all styles can be software-rendered.
+     * The styles that can still be added algorithmically: every bit the
+     * font does not have intrinsically (AmigaOS 3.1 returns 0xffffffff for
+     * a plain font, so the complement is not limited to the style bits).
      */
+    struct TextFont *tf;
+
     DPRINTF (LOG_DEBUG, "_graphics: AskSoftStyle() rp=0x%08lx\n", rp);
-    return 0x0F;  /* All basic styles available: underline, bold, italic, extended */
+    if (!rp)
+        return 0;
+    tf = rp->Font ? rp->Font : get_default_font();
+    return ~(ULONG)tf->tf_Style;
 }
 
 static ULONG _graphics_SetSoftStyle ( register struct GfxBase * GfxBase __asm("a6"),
@@ -3476,6 +3661,109 @@ static VOID _graphics_InitGMasks ( register struct GfxBase * GfxBase __asm("a6")
     }
 }
 
+/*
+ * Ellipse rasterisation observed on AmigaOS 3.1: one quadrant is traced
+ * from (a,0) to (0,b); each step goes up, left or diagonally up-left,
+ * whichever point has the smallest |b^2*x^2 + a^2*y^2 - a^2*b^2| (first
+ * minimum in that order).  plot() receives every distinct pixel offset of
+ * the full outline once.
+ */
+typedef void (*gfx_ellipse_plot)(void *ctx, WORD dx, WORD dy);
+
+static void gfx_ellipse_trace(WORD a, WORD b, gfx_ellipse_plot plot, void *ctx)
+{
+    LONG x, y, a2, b2, f;
+
+    if (a < 0) a = -a;
+    if (b < 0) b = -b;
+
+    if (a == 0 || b == 0)
+    {
+        WORD xx, yy;
+        for (yy = -b; yy <= b; yy++)
+            for (xx = -a; xx <= a; xx++)
+                plot(ctx, xx, yy);
+        return;
+    }
+
+    a2 = (LONG)a * a;
+    b2 = (LONG)b * b;
+    x = a;
+    y = 0;
+    f = 0;                      /* F(x,y) = b2*x^2 + a2*y^2 - a2*b2 */
+
+    for (;;)
+    {
+        LONG fn, fw, fd, an, aw, ad, best;
+        WORD choice;
+
+        plot(ctx, (WORD)x, (WORD)-y);
+        if (x)
+            plot(ctx, (WORD)-x, (WORD)-y);
+        if (y)
+        {
+            plot(ctx, (WORD)x, (WORD)y);
+            if (x)
+                plot(ctx, (WORD)-x, (WORD)y);
+        }
+        if (x == 0 && y == b)
+            break;
+
+        fn = f + a2 * (2 * y + 1);          /* (x, y+1)   */
+        fw = f - b2 * (2 * x - 1);          /* (x-1, y)   */
+        fd = fn - b2 * (2 * x - 1);         /* (x-1, y+1) */
+        an = fn < 0 ? -fn : fn;
+        aw = fw < 0 ? -fw : fw;
+        ad = fd < 0 ? -fd : fd;
+
+        /* candidates in order up, diagonal, left; the first minimum wins */
+        choice = 0;
+        best = 0;
+        if (y < b)
+        {
+            choice = 1;
+            best = an;
+        }
+        if (x > 0 && y < b && (!choice || ad < best))
+        {
+            choice = 2;
+            best = ad;
+        }
+        if (x > 0 && (!choice || aw < best))
+            choice = 3;
+
+        if (choice == 1)
+        {
+            y++;
+            f = fn;
+        }
+        else if (choice == 2)
+        {
+            x--;
+            y++;
+            f = fd;
+        }
+        else
+        {
+            x--;
+            f = fw;
+        }
+    }
+}
+
+struct gfx_ellipse_draw_ctx
+{
+    struct GfxBase  *gfx;
+    struct RastPort *rp;
+    WORD             cx, cy;
+};
+
+static void gfx_ellipse_draw_plot(void *ctx, WORD dx, WORD dy)
+{
+    struct gfx_ellipse_draw_ctx *c = (struct gfx_ellipse_draw_ctx *)ctx;
+    _graphics_WritePixel(c->gfx, c->rp, (WORD)(c->cx + dx), (WORD)(c->cy + dy));
+}
+
 static VOID _graphics_DrawEllipse ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a1"),
                                                         register WORD xCenter __asm("d0"),
@@ -3483,82 +3771,18 @@ static VOID _graphics_DrawEllipse ( register struct GfxBase * GfxBase __asm("a6"
                                                         register WORD a __asm("d2"),
                                                         register WORD b __asm("d3"))
 {
-    LONG x, y;
-    LONG a2, b2;
-    LONG fa2, fb2;
-    LONG sigma;
+    /* Every pixel is drawn exactly once (COMPLEMENT draws a clean outline);
+     * the line pattern and the current position are not used. */
+    struct gfx_ellipse_draw_ctx c;
 
     if (!rp)
         return;
 
-    /* Handle degenerate cases */
-    if (a == 0 && b == 0)
-    {
-        _graphics_WritePixel(GfxBase, rp, (WORD)xCenter, (WORD)yCenter);
-        return;
-    }
-    if (a == 0)
-    {
-        /* Vertical line */
-        WORD y_coord;
-        for (y_coord = yCenter - b; y_coord <= yCenter + b; y_coord++)
-            _graphics_WritePixel(GfxBase, rp, xCenter, y_coord);
-        return;
-    }
-    if (b == 0)
-    {
-        /* Horizontal line */
-        WORD x_coord;
-        for (x_coord = xCenter - a; x_coord <= xCenter + a; x_coord++)
-            _graphics_WritePixel(GfxBase, rp, x_coord, yCenter);
-        return;
-    }
-
-    /* Midpoint ellipse algorithm */
-    x = 0;
-    y = b;
-    a2 = a * a;
-    b2 = b * b;
-    fa2 = 4 * a2;
-    fb2 = 4 * b2;
-    sigma = 2 * b2 + a2 * (1 - 2 * b);
-
-    /* Region 1 */
-    while (b2 * x <= a2 * y)
-    {
-        _graphics_WritePixel(GfxBase, rp, (WORD)(xCenter + x), (WORD)(yCenter + y));
-        _graphics_WritePixel(GfxBase, rp, (WORD)(xCenter - x), (WORD)(yCenter + y));
-        _graphics_WritePixel(GfxBase, rp, (WORD)(xCenter + x), (WORD)(yCenter - y));
-        _graphics_WritePixel(GfxBase, rp, (WORD)(xCenter - x), (WORD)(yCenter - y));
-
-        if (sigma >= 0)
-        {
-            sigma += fa2 * (1 - y);
-            y--;
-        }
-        sigma += b2 * ((4 * x) + 6);
-        x++;
-    }
-
-    /* Region 2 */
-    sigma = 2 * a2 + b2 * (1 - 2 * a);
-    x = a;
-    y = 0;
-    while (x >= 0)
-    {
-        _graphics_WritePixel(GfxBase, rp, (WORD)(xCenter + x), (WORD)(yCenter + y));
-        _graphics_WritePixel(GfxBase, rp, (WORD)(xCenter - x), (WORD)(yCenter + y));
-        _graphics_WritePixel(GfxBase, rp, (WORD)(xCenter + x), (WORD)(yCenter - y));
-        _graphics_WritePixel(GfxBase, rp, (WORD)(xCenter - x), (WORD)(yCenter - y));
-
-        if (sigma >= 0)
-        {
-            sigma += fb2 * (1 - x);
-            x--;
-        }
-        sigma += a2 * ((4 * y) + 6);
-        y++;
-    }
+    c.gfx = GfxBase;
+    c.rp = rp;
+    c.cx = xCenter;
+    c.cy = yCenter;
+    gfx_ellipse_trace(a, b, gfx_ellipse_draw_plot, &c);
 }
 
 static LONG _graphics_AreaEllipse ( register struct GfxBase * GfxBase __asm("a6"),
@@ -3881,100 +4105,253 @@ static VOID _graphics_Move ( register struct GfxBase * GfxBase __asm("a6"),
     {
         rp->cp_x = (WORD)x;
         rp->cp_y = (WORD)y;
+        /* a new line starts the pattern over and draws its first dot */
+        gfx_reset_line(rp);
     }
 }
 
+/*
+ * Pixel writer for lines: absolute bitmap coordinates, honouring the
+ * layer's ClipRects (visible part or SMART_REFRESH backing store).  The
+ * ClipRect of the previous pixel is remembered, so a line costs one list
+ * walk per ClipRect it crosses instead of one per pixel.
+ */
+
+static void gfx_line_plot(struct gfx_line_ctx *c, WORD x, WORD y, UBYTE pen, BOOL complement)
+{
+    struct BitMap *bm = c->bm;
+    struct ClipRect *cr;
+    ULONG off;
+    UBYTE bit, p;
+
+    if (x < 0 || y < 0 || x >= c->bmw || y >= c->bmh)
+        return;
+    if (c->layer)
+    {
+        cr = c->cr;
+        if (!cr || x < cr->bounds.MinX || x > cr->bounds.MaxX ||
+            y < cr->bounds.MinY || y > cr->bounds.MaxY)
+        {
+            for (cr = c->layer->ClipRect; cr != NULL; cr = cr->Next)
+            {
+                if (x >= cr->bounds.MinX && x <= cr->bounds.MaxX &&
+                    y >= cr->bounds.MinY && y <= cr->bounds.MaxY)
+                    break;
+            }
+            c->cr = cr;
+        }
+        if (!cr)
+            return;
+        if (cr->obscured)
+        {
+            if (!cr->BitMap)
+                return;
+            bm = cr->BitMap;
+            x -= cr->bounds.MinX;
+            y -= cr->bounds.MinY;
+            if (x >= bm->BytesPerRow * 8 || y >= bm->Rows)
+                return;
+        }
+    }
+
+    off = (ULONG)y * bm->BytesPerRow + (x >> 3);
+    bit = (UBYTE)(0x80 >> (x & 7));
+    for (p = 0; p < bm->Depth && p < 8; p++)
+    {
+        UBYTE *plane = bm->Planes[p];
+        if (!(c->mask & (1 << p)) || !plane || plane == (UBYTE *)-1)
+            continue;
+        if (complement)
+        {
+            if (pen & (1 << p))
+                plane[off] ^= bit;
+        }
+        else if (pen & (1 << p))
+            plane[off] |= bit;
+        else
+            plane[off] &= (UBYTE)~bit;
+    }
+}
+
+/*
+ * BltTemplate() as on AmigaOS 3.1 (observed): the template selects FgPen
+ * (bit set) or, with JAM2, BgPen (bit clear); INVERSVID inverts the
+ * template, COMPLEMENT inverts the planes enabled in Mask where it is set.
+ * Coordinates are RastPort-relative; layers clip (backing store included).
+ */
+static void gfx_template_blit(struct RastPort *rp, const UBYTE *src, LONG xSrc, LONG srcMod,
+                              LONG xDest, LONG yDest, LONG xSize, LONG ySize)
+{
+    UBYTE dm = rp->DrawMode;
+    BOOL complement = (dm & COMPLEMENT) != 0;
+    BOOL jam2 = (dm & JAM2) && !complement;
+    BOOL inv = (dm & INVERSVID) != 0;
+    UBYTE fg = complement ? rp->Mask : (UBYTE)rp->FgPen;
+    UBYTE bg = (UBYTE)rp->BgPen;
+    LONG row, col;
+
+    if (xSize <= 0 || ySize <= 0)
+        return;
+
+
+    for (row = 0; row < ySize; row++)
+    {
+        const UBYTE *s = src + row * srcMod;
+
+
+        /* fast path: the row realigned to bit 0, written a byte at a time
+         * when it is not clipped */
+        if (xSize <= 8 * 60)
+        {
+            UBYTE buf[64];
+            WORD nb = (WORD)((xSize + 7) >> 3), k;
+            WORD sh = (WORD)(xSrc & 7);
+            const UBYTE *sp = s + (xSrc >> 3);
+            for (k = 0; k < nb; k++)
+                buf[k] = (UBYTE)((sp[k] << sh) | (sh ? (sp[k + 1] >> (8 - sh)) : 0));
+            buf[nb] = 0;
+            buf[nb + 1] = 0;
+            if (xSize & 7)
+                buf[nb - 1] &= (UBYTE)(0xff << (8 - (xSize & 7)));
+            if (gfx_text_row_direct(rp, buf, (WORD)xDest, (WORD)(yDest + row), (WORD)xSize,
+                                    fg, bg, jam2, complement, inv))
+                continue;
+        }
+
+        /* clipped: runs of set bits through gfx_fill_rect() (layer aware) */
+
+        if (jam2)
+            gfx_fill_rect(rp, (WORD)xDest, (WORD)(yDest + row), (WORD)(xDest + xSize - 1),
+                          (WORD)(yDest + row), (BYTE)bg, JAM2, FALSE);
+        col = 0;
+        while (col < xSize)
+        {
+            LONG cs;
+#define TBIT(cc) ((((s[(xSrc + (cc)) >> 3] >> (7 - ((xSrc + (cc)) & 7))) & 1) != 0) != inv)
+            if (!TBIT(col))
+            {
+                col++;
+                continue;
+            }
+            cs = col;
+            while (col < xSize && TBIT(col))
+                col++;
+#undef TBIT
+            gfx_fill_rect(rp, (WORD)(xDest + cs), (WORD)(yDest + row), (WORD)(xDest + col - 1),
+                          (WORD)(yDest + row), (BYTE)fg, complement ? COMPLEMENT : JAM2, FALSE);
+        }
+    }
+
+}
+
+/*
+ * Draw() as AmigaOS 3.1 renders it (observed on the reference):
+ *  - every pixel from the current position to (x,y) is drawn, stepping
+ *    along the major axis; pixel i uses LinePtrn bit ((linpatcnt - i) & 15)
+ *    and linpatcnt decreases by the major-axis length, so a pattern
+ *    continues across consecutive Draw() calls;
+ *  - in COMPLEMENT mode, unless FRST_DOT is set (Move() and SetDrPt() set
+ *    it, Draw() clears it), the first pixel is toggled once more before the
+ *    line is drawn, so connected solid lines do not toggle their shared
+ *    vertex twice (with a pattern the vertex toggles where the bit is 0);
+ *  - INVERSVID inverts the pattern; JAM2 draws clear bits with BgPen,
+ *    COMPLEMENT inverts the planes enabled in Mask.
+ */
 static VOID _graphics_Draw ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a1"),
                                                         register WORD x __asm("d0"),
                                                         register WORD y __asm("d1"))
 {
-    struct BitMap *bm;
-    BYTE pen;
-    BYTE bgpen = 0;
+    struct gfx_line_ctx c;
     UBYTE dm;
     WORD x0, y0, x1, y1;
-    WORD dx, dy, sx, sy, err;
+    WORD dx, dy, sx, sy, err, i, len;
+    BYTE cnt;
+    UWORD ptrn;
 
     DPRINTF (LOG_DEBUG, "_graphics: Draw() rp=0x%08lx, from (%d,%d) to (%d,%d)\n",
              (ULONG)rp, rp ? rp->cp_x : 0, rp ? rp->cp_y : 0, (int)x, (int)y);
 
-    if (!rp || !rp->BitMap)
+    if (!rp)
+        return;
+
+    x0 = rp->cp_x;
+    y0 = rp->cp_y;
+    dx = x > x0 ? x - x0 : x0 - x;
+    dy = y > y0 ? y - y0 : y0 - y;
+    len = dx > dy ? dx : dy;
+    cnt = rp->linpatcnt;
+    ptrn = rp->LinePtrn;
+    dm = rp->DrawMode;
+
+    if (rp->BitMap)
     {
-        /* No bitmap to draw to - just update position */
-        if (rp)
+        BOOL complement = (dm & COMPLEMENT) != 0;
+        BOOL jam2 = (dm & JAM2) != 0;
+        UBYTE fg = complement ? rp->Mask : (UBYTE)rp->FgPen;
+        UBYTE bg = (UBYTE)rp->BgPen;
+
+        if (dm & INVERSVID)
+            ptrn = (UWORD)~ptrn;
+
+        /* fast path: horizontal and vertical lines drawn in one pen are
+         * one-pixel rectangles (the common case for frames and boxes) */
+        if ((x0 == x || y0 == y) &&
+            (ptrn == 0xffff || (ptrn == 0 && jam2 && !complement)))
         {
-            rp->cp_x = (WORD)x;
-            rp->cp_y = (WORD)y;
+            WORD ax = x0, ay = y0;
+            if (complement && !(rp->Flags & FRST_DOT))
+            {
+                /* the first pixel is toggled twice: leave it out */
+                if (len == 0)
+                    goto done;
+                if (x0 == x)
+                    ay += (y > y0) ? 1 : -1;
+                else
+                    ax += (x > x0) ? 1 : -1;
+            }
+            gfx_fill_rect(rp, ax < x ? ax : x, ay < y ? ay : y, ax > x ? ax : x, ay > y ? ay : y,
+                          (BYTE)(ptrn ? fg : bg), complement ? COMPLEMENT : JAM2, FALSE);
+            goto done;
         }
-        return;
-    }
 
-    bm = rp->BitMap;
-    (void)bgpen;
+        c.bm = rp->BitMap;
+        c.layer = rp->Layer;
+        c.cr = NULL;
+        c.bmw = (WORD)(c.bm->BytesPerRow * 8);
+        c.bmh = (WORD)c.bm->Rows;
+        c.mask = rp->Mask;
 
-    if (!gfx_solid_pen(rp, &pen, &dm))
-    {
-        /* JAM1|INVERSVID: the inverted solid line pattern draws nothing */
-        rp->cp_x = (WORD)x;
-        rp->cp_y = (WORD)y;
-        return;
-    }
-
-    /* If RastPort has a Layer, use ClipRect-aware drawing */
-    if (rp->Layer)
-    {
-        struct Layer *layer = rp->Layer;
-        WORD layerOffX = LAYER_ORIGIN_X(layer);
-        WORD layerOffY = LAYER_ORIGIN_Y(layer);
-
-        /* Software line drawing using Bresenham's algorithm */
-        x0 = rp->cp_x + layerOffX;
-        y0 = rp->cp_y + layerOffY;
-        x1 = x + layerOffX;
-        y1 = y + layerOffY;
-
-        dx = x1 > x0 ? x1 - x0 : x0 - x1;
-        dy = y1 > y0 ? y0 - y1 : y1 - y0;  /* Negative for Bresenham */
+        if (c.layer)
+        {
+            x0 += LAYER_ORIGIN_X(c.layer);
+            y0 += LAYER_ORIGIN_Y(c.layer);
+            x1 = x + LAYER_ORIGIN_X(c.layer);
+            y1 = y + LAYER_ORIGIN_Y(c.layer);
+        }
+        else
+        {
+            x1 = x;
+            y1 = y;
+        }
         sx = x0 < x1 ? 1 : -1;
         sy = y0 < y1 ? 1 : -1;
+        dy = -dy;
         err = dx + dy;
 
-        while (1)
+        for (i = 0; ; i++)
         {
-            /* For each pixel, check if it falls in a visible ClipRect */
-            if (x0 >= 0 && y0 >= 0 && x0 < (bm->BytesPerRow * 8) && y0 < bm->Rows)
-            {
-                struct ClipRect *cr;
-                for (cr = layer->ClipRect; cr != NULL; cr = cr->Next)
-                {
-                    if (cr->obscured && !cr->BitMap)
-                        continue;
+            BOOL bit = (ptrn >> ((cnt - i) & 15)) & 1;
 
-                    if (x0 >= cr->bounds.MinX && x0 <= cr->bounds.MaxX &&
-                        y0 >= cr->bounds.MinY && y0 <= cr->bounds.MaxY)
-                    {
-                        if (cr->obscured && cr->BitMap)
-                        {
-                            /* SMART_REFRESH: draw pixel into backing store */
-                            SetPixelDirect(cr->BitMap,
-                                           (WORD)(x0 - cr->bounds.MinX),
-                                           (WORD)(y0 - cr->bounds.MinY),
-                                           pen, dm, rp->Mask);
-                        }
-                        else
-                        {
-                            /* Visible: draw directly on screen */
-                            SetPixelDirect(bm, x0, y0, pen, dm, rp->Mask);
-                        }
-                        break;
-                    }
-                }
-            }
+            if (i == 0 && complement && !(rp->Flags & FRST_DOT))
+                bit = !bit;     /* the shared vertex is toggled back first */
+            if (bit)
+                gfx_line_plot(&c, x0, y0, fg, complement);
+            else if (jam2 && !complement)
+                gfx_line_plot(&c, x0, y0, bg, FALSE);
 
             if (x0 == x1 && y0 == y1)
                 break;
-
             {
                 WORD e2 = 2 * err;
                 if (e2 >= dy)
@@ -3989,51 +4366,11 @@ static VOID _graphics_Draw ( register struct GfxBase * GfxBase __asm("a6"),
                 }
             }
         }
-
-        /* Update current position */
-        rp->cp_x = (WORD)x;
-        rp->cp_y = (WORD)y;
-        return;
     }
 
-    /* No layer - simple drawing with just bitmap bounds check */
-    x0 = rp->cp_x;
-    y0 = rp->cp_y;
-    x1 = x;
-    y1 = y;
-
-    dx = x1 > x0 ? x1 - x0 : x0 - x1;
-    dy = y1 > y0 ? y0 - y1 : y1 - y0;
-    sx = x0 < x1 ? 1 : -1;
-    sy = y0 < y1 ? 1 : -1;
-    err = dx + dy;
-
-    while (1)
-    {
-        if (x0 >= 0 && y0 >= 0 && x0 < (bm->BytesPerRow * 8) && y0 < bm->Rows)
-        {
-            SetPixelDirect(bm, x0, y0, pen, dm, rp->Mask);
-        }
-
-        if (x0 == x1 && y0 == y1)
-            break;
-
-        {
-            WORD e2 = 2 * err;
-            if (e2 >= dy)
-            {
-                err += dy;
-                x0 += sx;
-            }
-            if (e2 <= dx)
-            {
-                err += dx;
-                y0 += sy;
-            }
-        }
-    }
-
-    /* Update current position */
+done:
+    rp->linpatcnt = (BYTE)(cnt - len);
+    rp->Flags &= ~FRST_DOT;
     rp->cp_x = (WORD)x;
     rp->cp_y = (WORD)y;
 }
@@ -4192,382 +4529,410 @@ static LONG _graphics_AreaDraw ( register struct GfxBase * GfxBase __asm("a6"),
 }
 
 /*
- * AreaEnd - Complete and fill polygon(s) defined by AreaMove/AreaDraw.
+ * AreaEnd - fill the polygons and ellipses collected by AreaMove/AreaDraw/
+ * AreaEllipse, the way AmigaOS 3.1 does (observed on the reference):
  *
- * Uses scan-line polygon fill algorithm:
- * 1. Extract polygon edges from the vertex list
- * 2. For each scan line between yMin and yMax:
- *    a. Compute X intersections with all edges
- *    b. Sort intersections
- *    c. Fill between pairs of intersections (even-odd rule)
- * 3. Draw the polygon outline on top
+ *  1. A one-bit mask covering the bounding box is built in the TmpRas
+ *     (bit offset x & 15, rows of whole words, like the blitter uses it).
+ *  2. Every non-horizontal polygon edge, taken from its upper to its lower
+ *     end, toggles one dot per row (the first pixel of each row of the
+ *     line, the lower end row excluded).
+ *  3. Each row is filled right to left, exclusive fill: a dot toggles the
+ *     fill state, and pixels are set while it is on.  Overlapping polygons
+ *     therefore cancel (even-odd rule over all polygons).
+ *  4. Ellipses (spans plus their outline) and the full edge lines of every
+ *     polygon are added, so thin and degenerate shapes stay visible.
+ *  5. The mask is drawn with FgPen/BgPen, AreaPtrn and the draw mode.
+ *  6. With AREAOUTLINE set, the outline is drawn on top with AOlPen as a
+ *     line (pattern, current position and linpatcnt are updated as by
+ *     Move()/Draw()); COMPLEMENT and INVERSVID do not apply to it.
  */
 
-/* Helper: Fill a single polygon using scan-line algorithm */
-static void AreaFillPolygon(struct GfxBase *GfxBase, struct RastPort *rp,
-                            WORD *vertices, UWORD numVertices)
+struct gfx_area_mask
 {
-    WORD yMin, yMax;
-    WORD scanY;
-    UWORD i;
+    UBYTE *buf;
+    WORD   minx, miny, maxx, maxy;
+    WORD   wx0;         /* first word column (minx >> 4) */
+    WORD   bpr;
+    BOOL   clear;       /* gfx_am_set() clears instead of setting */
+};
 
-    if (numVertices < 3)
-        return;
-
-    /* Find bounding box Y range */
-    yMin = vertices[1];
-    yMax = vertices[1];
-    for (i = 1; i < numVertices; i++)
-    {
-        WORD vy = vertices[i * 2 + 1];
-        if (vy < yMin) yMin = vy;
-        if (vy > yMax) yMax = vy;
-    }
-
-    /* Clip to bitmap bounds */
-    if (rp->BitMap)
-    {
-        WORD bmHeight = rp->BitMap->Rows;
-        WORD bmWidth = rp->BitMap->BytesPerRow * 8;
-        WORD offsetY = 0, offsetX = 0;
-
-        if (rp->Layer)
-        {
-            offsetY = LAYER_ORIGIN_Y(rp->Layer);
-            offsetX = LAYER_ORIGIN_X(rp->Layer);
-        }
-
-        if (yMin + offsetY < 0) yMin = -offsetY;
-        if (yMax + offsetY >= bmHeight) yMax = bmHeight - 1 - offsetY;
-
-        (void)bmWidth;
-        (void)offsetX;
-    }
-
-    if (yMin > yMax)
-        return;
-
-    /*
-     * Scan-line fill with even-odd rule.
-     * For each scan line, compute X intersections with all polygon edges,
-     * sort them, and fill between pairs.
-     *
-     * We use a small fixed-size intersection buffer on the stack.
-     * Maximum intersections = number of edges = numVertices.
-     */
-    #define AREA_MAX_INTERSECTIONS 256
-    WORD xIntersections[AREA_MAX_INTERSECTIONS];
-
-    for (scanY = yMin; scanY <= yMax; scanY++)
-    {
-        UWORD numIntersections = 0;
-
-        /* Find intersections with all edges */
-        for (i = 0; i < numVertices; i++)
-        {
-            UWORD j = (i + 1) % numVertices;
-            WORD x0 = vertices[i * 2];
-            WORD y0 = vertices[i * 2 + 1];
-            WORD x1 = vertices[j * 2];
-            WORD y1 = vertices[j * 2 + 1];
-
-            /* Skip horizontal edges */
-            if (y0 == y1)
-                continue;
-
-            /* Ensure y0 < y1 */
-            if (y0 > y1)
-            {
-                WORD tmp;
-                tmp = x0; x0 = x1; x1 = tmp;
-                tmp = y0; y0 = y1; y1 = tmp;
-            }
-
-            /* Check if scan line intersects this edge.
-             * Use half-open interval [y0, y1) to avoid double-counting
-             * at vertices shared between adjacent edges. */
-            if (scanY >= y0 && scanY < y1)
-            {
-                /* Compute X intersection using integer arithmetic */
-                LONG xInt = x0 + (LONG)(scanY - y0) * (LONG)(x1 - x0) / (LONG)(y1 - y0);
-
-                if (numIntersections < AREA_MAX_INTERSECTIONS)
-                {
-                    xIntersections[numIntersections++] = (WORD)xInt;
-                }
-            }
-        }
-
-        /* Sort intersections (simple insertion sort - usually very few) */
-        {
-            UWORD a, b;
-            for (a = 1; a < numIntersections; a++)
-            {
-                WORD key = xIntersections[a];
-                b = a;
-                while (b > 0 && xIntersections[b - 1] > key)
-                {
-                    xIntersections[b] = xIntersections[b - 1];
-                    b--;
-                }
-                xIntersections[b] = key;
-            }
-        }
-
-        /* Fill between pairs of intersections (even-odd rule) */
-        {
-            UWORD p;
-            for (p = 0; p + 1 < numIntersections; p += 2)
-            {
-                WORD xLeft = xIntersections[p];
-                WORD xRight = xIntersections[p + 1];
-
-                if (xLeft <= xRight)
-                {
-                    /* Use RectFill to draw the horizontal span */
-                    _graphics_RectFill(GfxBase, rp, xLeft, scanY, xRight, scanY);
-                }
-            }
-        }
-    }
-    #undef AREA_MAX_INTERSECTIONS
+static UBYTE *gfx_am_byte(struct gfx_area_mask *m, WORD x, WORD y, UBYTE *bit)
+{
+    if (x < m->minx || x > m->maxx || y < m->miny || y > m->maxy)
+        return NULL;
+    *bit = (UBYTE)(0x80 >> (x & 7));
+    return m->buf + (LONG)(y - m->miny) * m->bpr + (((x >> 4) - m->wx0) << 1) + ((x & 15) >> 3);
 }
 
-static void AreaFillEllipse(struct GfxBase *GfxBase, struct RastPort *rp,
-                            WORD xCenter, WORD yCenter, WORD a, WORD b)
+static void gfx_am_set(struct gfx_area_mask *m, WORD x, WORD y)
 {
-    LONG radius_x = a;
-    LONG radius_y = b;
-    LONG a2;
-    LONG b2;
-    LONG rhs;
-    LONG y;
-    LONG x;
-
-    if (radius_x < 0)
-        radius_x = -radius_x;
-    if (radius_y < 0)
-        radius_y = -radius_y;
-
-    if (radius_x == 0 && radius_y == 0)
+    UBYTE bit, *p = gfx_am_byte(m, x, y, &bit);
+    if (p)
     {
-        _graphics_WritePixel(GfxBase, rp, xCenter, yCenter);
-        return;
+        if (m->clear)
+            *p &= (UBYTE)~bit;
+        else
+            *p |= bit;
     }
+}
 
-    if (radius_x == 0)
-    {
-        _graphics_RectFill(GfxBase, rp,
-                           xCenter, yCenter - radius_y,
-                           xCenter, yCenter + radius_y);
+struct gfx_am_ellipse_ctx
+{
+    struct gfx_area_mask *m;
+    WORD cx, cy;
+    WORD lasty;
+};
+
+static void gfx_am_ellipse_point(void *ctx, WORD dx, WORD dy)
+{
+    struct gfx_am_ellipse_ctx *c = (struct gfx_am_ellipse_ctx *)ctx;
+    gfx_am_set(c->m, (WORD)(c->cx + dx), (WORD)(c->cy + dy));
+}
+
+static void gfx_am_toggle(struct gfx_area_mask *m, WORD x, WORD y)
+{
+    UBYTE bit, *p = gfx_am_byte(m, x, y, &bit);
+    if (p)
+        *p ^= bit;
+}
+
+/* fill edges of an ellipse: the outermost outline pixel on both sides of
+ * every row toggles one dot (the first point of each quadrant step that
+ * reaches a new row is the outermost one) */
+static void gfx_am_ellipse_dots(void *ctx, WORD dx, WORD dy)
+{
+    struct gfx_am_ellipse_ctx *c = (struct gfx_am_ellipse_ctx *)ctx;
+    WORD y = (WORD)-dy;
+
+    if (dx < 0 || dy > 0 || y == c->lasty)
         return;
-    }
-
-    if (radius_y == 0)
+    c->lasty = y;
+    if (dx == 0)
+        return;                 /* both dots on the same pixel */
+    gfx_am_toggle(c->m, (WORD)(c->cx + dx), (WORD)(c->cy - y));
+    gfx_am_toggle(c->m, (WORD)(c->cx - dx), (WORD)(c->cy - y));
+    if (y)
     {
-        _graphics_RectFill(GfxBase, rp,
-                           xCenter - radius_x, yCenter,
-                           xCenter + radius_x, yCenter);
-        return;
+        gfx_am_toggle(c->m, (WORD)(c->cx + dx), (WORD)(c->cy + y));
+        gfx_am_toggle(c->m, (WORD)(c->cx - dx), (WORD)(c->cy + y));
     }
+}
 
-    a2 = radius_x * radius_x;
-    b2 = radius_y * radius_y;
-    rhs = a2 * b2;
-    x = radius_x;
+/* Bresenham pixels of a line in Draw() order; dots_only toggles the first
+ * pixel of each row (lower end row excluded), otherwise all pixels are set */
+static void gfx_am_line(struct gfx_area_mask *m, WORD x0, WORD y0, WORD x1, WORD y1, BOOL dots_only)
+{
+    WORD dx, dy, sx, sy, err, row;
 
-    for (y = 0; y <= radius_y; y++)
+    if (dots_only)
     {
-        LONG yy = y * y;
-
-        while (x > 0 && ((x * x * b2) + (yy * a2)) > rhs)
-            x--;
-
-        _graphics_RectFill(GfxBase, rp,
-                           xCenter - x, yCenter + y,
-                           xCenter + x, yCenter + y);
-
-        if (y != 0)
+        if (y0 == y1)
+            return;
+        if (y0 > y1)
         {
-            _graphics_RectFill(GfxBase, rp,
-                               xCenter - x, yCenter - y,
-                               xCenter + x, yCenter - y);
+            WORD t;
+            t = x0; x0 = x1; x1 = t;
+            t = y0; y0 = y1; y1 = t;
         }
     }
+
+    dx = x1 > x0 ? x1 - x0 : x0 - x1;
+    dy = y1 > y0 ? y0 - y1 : y1 - y0;
+    sx = x0 < x1 ? 1 : -1;
+    sy = y0 < y1 ? 1 : -1;
+    err = dx + dy;
+    row = (WORD)(y0 - 1);
+
+    for (;;)
+    {
+        if (!dots_only)
+            gfx_am_set(m, x0, y0);
+        else if (y0 != row)
+        {
+            row = y0;
+            if (y0 != y1)
+            {
+                UBYTE bit, *p = gfx_am_byte(m, x0, y0, &bit);
+                if (p)
+                    *p ^= bit;
+            }
+        }
+        if (x0 == x1 && y0 == y1)
+            break;
+        {
+            WORD e2 = 2 * err;
+            if (e2 >= dy)
+            {
+                err += dy;
+                x0 += sx;
+            }
+            if (e2 <= dx)
+            {
+                err += dx;
+                y0 += sy;
+            }
+        }
+    }
+}
+
+/* walk the vector table: op 0 = edge dots, 1 = full edges, 2 = ellipses */
+static void gfx_am_walk(struct gfx_area_mask *m, struct AreaInfo *ai, UWORD count, WORD op)
+{
+    WORD *v = ai->VctrTbl;
+    BYTE *f = ai->FlagTbl;
+    WORD firstx = 0, firsty = 0, lastx = 0, lasty = 0;
+    BOOL open = FALSE;
+
+    while (count > 0)
+    {
+        UBYTE flag = (UBYTE)f[0];
+
+        if (flag == AREAINFOFLAG_ELLIPSE)
+        {
+            if (count < 2)
+                break;
+            if (open && op != 2)
+                gfx_am_line(m, lastx, lasty, firstx, firsty, op == 0);
+            open = FALSE;
+            if (op != 1)
+            {
+                struct gfx_am_ellipse_ctx c;
+
+                c.m = m;
+                c.cx = v[0];
+                c.cy = v[1];
+                c.lasty = -1;
+                gfx_ellipse_trace(v[2], v[3], op == 0 ? gfx_am_ellipse_dots : gfx_am_ellipse_point, &c);
+            }
+            v += 4;
+            f += 2;
+            count -= 2;
+            continue;
+        }
+
+        if (flag == AREAINFOFLAG_MOVE)
+        {
+            if (open && op != 2)
+                gfx_am_line(m, lastx, lasty, firstx, firsty, op == 0);
+            firstx = lastx = v[0];
+            firsty = lasty = v[1];
+            open = TRUE;
+        }
+        else
+        {
+            if (op != 2)
+                gfx_am_line(m, lastx, lasty, v[0], v[1], op == 0);
+            lastx = v[0];
+            lasty = v[1];
+        }
+        v += 2;
+        f++;
+        count--;
+    }
+    if (open && op != 2)
+        gfx_am_line(m, lastx, lasty, firstx, firsty, op == 0);
 }
 
 static LONG _graphics_AreaEnd ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a1"))
 {
-    struct AreaInfo *areainfo;
-    WORD *CurVctr;
-    BYTE *CurFlag;
-    UWORD Count;
-    UWORD Rem_cp_x, Rem_cp_y;
+    struct AreaInfo *ai;
+    struct gfx_area_mask m;
+    UWORD count, i;
+    WORD *v;
+    BYTE *f;
+    LONG need, rc = 0;
 
     DPRINTF (LOG_DEBUG, "_graphics: AreaEnd() rp=0x%08lx\n", (ULONG)rp);
 
     if (!rp || !rp->AreaInfo)
-    {
-        LPRINTF (LOG_ERROR, "_graphics: AreaEnd() NULL RastPort or AreaInfo\n");
         return -1;
+
+    ai = rp->AreaInfo;
+    count = ai->Count;
+
+    if (count == 0)
+        goto done;
+    if (!rp->TmpRas || !rp->TmpRas->RasPtr)
+        goto done;              /* 3.1 returns 0 (tests/graphics/area_fill) */
+
+    /* the last polygon is closed through the vector table: with no room
+     * left for the closing vertex, 3.1 fails and draws nothing */
+    if (count >= ai->MaxCount && (UBYTE)ai->FlagPtr[-1] != AREAINFOFLAG_ELLIPSE &&
+        (ai->VctrPtr[-2] != ai->FirstX || ai->VctrPtr[-1] != ai->FirstY))
+    {
+        rc = -1;
+        goto done;
     }
 
-    areainfo = rp->AreaInfo;
-
-    DPRINTF (LOG_DEBUG, "_graphics: AreaEnd() count=%d tmpras=%p\n", (int)areainfo->Count, (void*)rp->TmpRas);
-
-    /* Check if there's anything to draw and we have TmpRas */
-    if (areainfo->Count == 0 || !rp->TmpRas)
+    /* bounding box */
+    m.minx = m.miny = 0x7fff;
+    m.maxx = m.maxy = -0x7fff;
+    v = ai->VctrTbl;
+    f = ai->FlagTbl;
+    for (i = 0; i < count; )
     {
-        /* Reset AreaInfo for next polygon */
-        areainfo->VctrPtr = areainfo->VctrTbl;
-        areainfo->FlagPtr = areainfo->FlagTbl;
-        areainfo->Count = 0;
-        return (areainfo->Count == 0) ? 0 : -1;
-    }
-
-    /* Save cursor position */
-    Rem_cp_x = rp->cp_x;
-    Rem_cp_y = rp->cp_y;
-
-    /* Close the polygon if needed */
-    areaclosepolygon(areainfo);
-
-    Count = areainfo->Count;
-    CurVctr = areainfo->VctrTbl;
-    CurFlag = areainfo->FlagTbl;
-
-    /*
-     * Fill polygon(s) using scan-line algorithm.
-     *
-     * The vertex list may contain multiple polygons separated by MOVE commands.
-     * We process each polygon independently:
-     * 1. A MOVE starts a new polygon
-     * 2. DRAW/CLOSEDRAW vertices are added to the current polygon
-     * 3. When we hit the next MOVE or end of vertices, fill the current polygon
-     */
-    {
-        /* Temporary vertex buffer for the current polygon.
-         * Each polygon's vertices are extracted here for filling. */
-        #define AREA_POLY_MAX 256
-        WORD polyVerts[AREA_POLY_MAX * 2];
-        UWORD polyCount = 0;
-        WORD *vp = CurVctr;
-        BYTE *fp = CurFlag;
-        UWORD remaining = Count;
-
-        while (remaining > 0)
+        WORD x0, y0, x1, y1;
+        if ((UBYTE)f[i] == AREAINFOFLAG_ELLIPSE && i + 1 < count)
         {
-            if ((unsigned char)fp[0] == AREAINFOFLAG_ELLIPSE)
+            WORD a = v[2] < 0 ? -v[2] : v[2];
+            WORD b = v[3] < 0 ? -v[3] : v[3];
+            x0 = v[0] - a; x1 = v[0] + a;
+            y0 = v[1] - b; y1 = v[1] + b;
+            v += 4;
+            i += 2;
+        }
+        else
+        {
+            x0 = x1 = v[0];
+            y0 = y1 = v[1];
+            v += 2;
+            i++;
+        }
+        if (x0 < m.minx) m.minx = x0;
+        if (x1 > m.maxx) m.maxx = x1;
+        if (y0 < m.miny) m.miny = y0;
+        if (y1 > m.maxy) m.maxy = y1;
+    }
+
+    m.wx0 = (WORD)(m.minx >> 4);
+    m.bpr = (WORD)((((m.maxx >> 4) - m.wx0) + 1) << 1);
+    need = (LONG)m.bpr * (m.maxy - m.miny + 1);
+    if (need > (LONG)rp->TmpRas->Size)
+    {
+        rc = -1;
+        goto done;
+    }
+    m.buf = (UBYTE *)rp->TmpRas->RasPtr;
+    m.clear = FALSE;
+    lxa_memset(m.buf, 0, (ULONG)need);
+
+    /* edges -> fill -> ellipses and full edges */
+    gfx_am_walk(&m, ai, count, 0);
+    {
+        WORD y;
+        for (y = m.miny; y <= m.maxy; y++)
+        {
+            UBYTE *row = m.buf + (LONG)(y - m.miny) * m.bpr;
+            WORD   b;
+            UBYTE  st = 0;
+            for (b = m.bpr - 1; b >= 0; b--)
             {
-                if (polyCount >= 3)
+                UBYTE in = row[b], out = 0;
+                WORD  k;
+                for (k = 0; k < 8; k++)
                 {
-                    AreaFillPolygon(GfxBase, rp, polyVerts, polyCount);
+                    UBYTE bit = (UBYTE)(1 << k);
+                    if (in & bit)
+                        st ^= 1;
+                    if (st)
+                        out |= bit;
                 }
-                polyCount = 0;
+                row[b] = out;
+            }
+        }
+    }
+    gfx_am_walk(&m, ai, count, 2);
+    gfx_am_walk(&m, ai, count, 1);
 
-                if (remaining < 2)
-                    break;
+    /* AmigaOS 3.1 quirk (observed): with DrawMode JAM1 and a 4-row area
+     * pattern (AreaPtSz 2, no other size or mode) only the interior is
+     * drawn - the outline pixels of every polygon and ellipse are left out */
+    if (rp->AreaPtrn && rp->AreaPtSz == 2 && rp->DrawMode == JAM1)
+    {
+        m.clear = TRUE;
+        gfx_am_walk(&m, ai, count, 2);
+        gfx_am_walk(&m, ai, count, 1);
+        m.clear = FALSE;
+    }
 
-                AreaFillEllipse(GfxBase, rp, vp[0], vp[1], vp[2], vp[3]);
-                vp = &vp[4];
-                fp = &fp[2];
-                remaining -= 2;
+    /* draw the mask */
+    {
+        BYTE  pen = rp->FgPen;
+        UBYTE dm = rp->DrawMode;
+        BOOL  pattern = rp->AreaPtrn != NULL;
+        BOOL  draw = TRUE;
+        WORD  y;
+
+        if (!pattern)
+            draw = gfx_solid_pen(rp, &pen, &dm);
+        for (y = m.miny; draw && y <= m.maxy; y++)
+        {
+            WORD x = m.minx;
+            while (x <= m.maxx)
+            {
+                UBYTE bit, *p = gfx_am_byte(&m, x, y, &bit);
+                WORD  xs;
+                if (!(*p & bit))
+                {
+                    x++;
+                    continue;
+                }
+                xs = x;
+                while (x <= m.maxx)
+                {
+                    p = gfx_am_byte(&m, x, y, &bit);
+                    if (!(*p & bit))
+                        break;
+                    x++;
+                }
+                gfx_fill_rect(rp, xs, y, (WORD)(x - 1), y, pen, dm, pattern);
+            }
+        }
+    }
+
+    /* outline */
+    if (rp->Flags & AREAOUTLINE)
+    {
+        BYTE  oldFg = rp->FgPen;
+        UBYTE oldDm = rp->DrawMode;
+        WORD  firstx = 0, firsty = 0;
+        BOOL  open = FALSE;
+
+        rp->FgPen = rp->AOlPen;
+        rp->DrawMode = (UBYTE)(oldDm & JAM2);
+        v = ai->VctrTbl;
+        f = ai->FlagTbl;
+        for (i = 0; i < count; )
+        {
+            UBYTE flag = (UBYTE)f[i];
+            if (flag == AREAINFOFLAG_ELLIPSE && i + 1 < count)
+            {
+                if (open)
+                    _graphics_Draw(GfxBase, rp, firstx, firsty);
+                open = FALSE;
+                _graphics_DrawEllipse(GfxBase, rp, v[0], v[1], v[2], v[3]);
+                v += 4;
+                i += 2;
                 continue;
             }
-
-            if ((unsigned char)fp[0] == AREAINFOFLAG_MOVE)
+            if (flag == AREAINFOFLAG_MOVE)
             {
-                /* Fill any previous polygon */
-                if (polyCount >= 3)
-                {
-                    AreaFillPolygon(GfxBase, rp, polyVerts, polyCount);
-                }
-                polyCount = 0;
+                if (open)
+                    _graphics_Draw(GfxBase, rp, firstx, firsty);
+                firstx = v[0];
+                firsty = v[1];
+                open = TRUE;
+                _graphics_Move(GfxBase, rp, v[0], v[1]);
             }
-
-            /* Add vertex to current polygon */
-            if (polyCount < AREA_POLY_MAX)
-            {
-                polyVerts[polyCount * 2] = vp[0];
-                polyVerts[polyCount * 2 + 1] = vp[1];
-                polyCount++;
-            }
-
-            vp = &vp[2];
-            fp = &fp[1];
-            remaining--;
+            else
+                _graphics_Draw(GfxBase, rp, v[0], v[1]);
+            v += 2;
+            i++;
         }
-
-        /* Fill the last polygon */
-        if (polyCount >= 3)
-        {
-            AreaFillPolygon(GfxBase, rp, polyVerts, polyCount);
-        }
-        #undef AREA_POLY_MAX
+        if (open)
+            _graphics_Draw(GfxBase, rp, firstx, firsty);
+        rp->FgPen = oldFg;
+        rp->DrawMode = oldDm;
     }
 
-    /* Draw the polygon outline on top of the fill */
-    {
-        WORD *ovp = CurVctr;
-        BYTE *ofp = CurFlag;
-        UWORD ocount = Count;
-
-        while (ocount > 0)
-        {
-            switch ((unsigned char)ofp[0])
-            {
-                case AREAINFOFLAG_MOVE:
-                    _graphics_Move(GfxBase, rp, ovp[0], ovp[1]);
-                    ovp = &ovp[2];
-                    ofp = &ofp[1];
-                    ocount--;
-                    break;
-
-                case AREAINFOFLAG_DRAW:
-                case AREAINFOFLAG_CLOSEDRAW:
-                    _graphics_Draw(GfxBase, rp, ovp[0], ovp[1]);
-                    ovp = &ovp[2];
-                    ofp = &ofp[1];
-                    ocount--;
-                    break;
-
-                case AREAINFOFLAG_ELLIPSE:
-                    if (ocount < 2)
-                    {
-                        LPRINTF(LOG_ERROR, "_graphics: AreaEnd() malformed ellipse record\n");
-                        ocount = 0;
-                        break;
-                    }
-
-                    _graphics_DrawEllipse(GfxBase, rp, ovp[0], ovp[1], ovp[2], ovp[3]);
-                    ovp = &ovp[4];
-                    ofp = &ofp[2];
-                    ocount -= 2;
-                    break;
-
-                default:
-                    LPRINTF(LOG_ERROR, "_graphics: AreaEnd() unknown AreaInfo flag %u\n",
-                            (unsigned int)(unsigned char)ofp[0]);
-                    ocount = 0;
-                    break;
-            }
-        }
-    }
-
-    /* Restore cursor position */
-    rp->cp_x = Rem_cp_x;
-    rp->cp_y = Rem_cp_y;
-
-    /* Reset AreaInfo for next polygon */
-    areainfo->VctrPtr = areainfo->VctrTbl;
-    areainfo->FlagPtr = areainfo->FlagTbl;
-    areainfo->Count = 0;
-
-    return 0;
+done:
+    ai->VctrPtr = ai->VctrTbl;
+    ai->FlagPtr = ai->FlagTbl;
+    ai->Count = 0;
+    return rc;
 }
-
 
 /*
  * Block the calling task until the next vertical blank.
@@ -4844,13 +5209,33 @@ static VOID _graphics_RectFill ( register struct GfxBase * GfxBase __asm("a6"),
     if (!rp || !rp->BitMap)
         return;
 
-    if (rp->AreaPtrn)
+    if (xMin <= xMax && yMin <= yMax)
     {
-        gfx_fill_rect(rp, xMin, yMin, xMax, yMax, rp->FgPen, rp->DrawMode, TRUE);
-        return;
+        if (rp->AreaPtrn)
+            gfx_fill_rect(rp, xMin, yMin, xMax, yMax, rp->FgPen, rp->DrawMode, TRUE);
+        else if (gfx_solid_pen(rp, &pen, &drawmode))
+            gfx_fill_rect(rp, xMin, yMin, xMax, yMax, pen, drawmode, FALSE);
     }
-    if (gfx_solid_pen(rp, &pen, &drawmode))
-        gfx_fill_rect(rp, xMin, yMin, xMax, yMax, pen, drawmode, FALSE);
+
+    /* AREAOUTLINE (SetOutlinePen): 3.1 draws a frame in AOlPen on top,
+     * counter-clockwise from the top left corner, as lines (so the line
+     * pattern applies and cp/linpatcnt change); COMPLEMENT and INVERSVID
+     * do not apply to it.  This also happens for an empty rectangle. */
+    if (rp->Flags & AREAOUTLINE)
+    {
+        BYTE  oldFg = rp->FgPen;
+        UBYTE oldDm = rp->DrawMode;
+
+        rp->FgPen = rp->AOlPen;
+        rp->DrawMode = (UBYTE)(oldDm & JAM2);
+        _graphics_Move(GfxBase, rp, xMin, yMin);
+        _graphics_Draw(GfxBase, rp, xMin, yMax);
+        _graphics_Draw(GfxBase, rp, xMax, yMax);
+        _graphics_Draw(GfxBase, rp, xMax, yMin);
+        _graphics_Draw(GfxBase, rp, xMin, yMin);
+        rp->FgPen = oldFg;
+        rp->DrawMode = oldDm;
+    }
 }
 
 /*
@@ -4902,7 +5287,8 @@ static void gfx_fill_rect(struct RastPort *rp, WORD xMin, WORD yMin, WORD xMax, 
                                         (WORD)(clipXMin - cr->bounds.MinX),
                                         (WORD)(clipYMin - cr->bounds.MinY),
                                         (WORD)(clipXMax - cr->bounds.MinX),
-                                        (WORD)(clipYMax - cr->bounds.MinY));
+                                        (WORD)(clipYMax - cr->bounds.MinY),
+                                        cr->bounds.MinX, cr->bounds.MinY);
                     else
                         FillRectDirect(cr->BitMap,
                                        (WORD)(clipXMin - cr->bounds.MinX),
@@ -4915,7 +5301,7 @@ static void gfx_fill_rect(struct RastPort *rp, WORD xMin, WORD yMin, WORD xMax, 
                 {
                     /* Visible: fill directly on screen */
                     if (usePattern)
-                        FillRectPattern(rp, bm, clipXMin, clipYMin, clipXMax, clipYMax);
+                        FillRectPattern(rp, bm, clipXMin, clipYMin, clipXMax, clipYMax, 0, 0);
                     else
                         FillRectDirect(bm, clipXMin, clipYMin, clipXMax, clipYMax, pen, drawmode, mask);
                 }
@@ -4926,7 +5312,7 @@ static void gfx_fill_rect(struct RastPort *rp, WORD xMin, WORD yMin, WORD xMax, 
 
     /* No layer - simple drawing with just bitmap bounds check */
     if (usePattern)
-        FillRectPattern(rp, bm, xMin, yMin, xMax, yMax);
+        FillRectPattern(rp, bm, xMin, yMin, xMax, yMax, 0, 0);
     else
         FillRectDirect(bm, xMin, yMin, xMax, yMax, pen, drawmode, mask);
 }
@@ -4940,57 +5326,55 @@ static VOID _graphics_BltPattern ( register struct GfxBase * GfxBase __asm("a6")
                                                         register LONG yMax __asm("d3"),
                                                         register ULONG maskBPR __asm("d4"))
 {
-    LXA_UNIMPLEMENTED("graphics", "BltPattern", "partial: ignores RastPort AreaPtrn (Phase 256)");
+    /*
+     * The rectangle (or the pixels of it selected by the mask, whose bit 0
+     * of each row is xMin) is filled using the area fill rules: FgPen/BgPen,
+     * the area pattern (anchored to the bitmap), DrawMode and Mask - the
+     * same rendering as RectFill(), without its AREAOUTLINE frame.
+     */
+    WORD x0 = (WORD)xMin, y0 = (WORD)yMin, x1 = (WORD)xMax, y1 = (WORD)yMax;
+    WORD bpr = (WORD)maskBPR;
+    BYTE pen;
+    UBYTE dm;
+    BOOL pattern;
+    WORD y;
 
-    /* GCC m68k inline stubs may use move.w to set d-register args, leaving
-     * the upper 16 bits of the register with residual data.  Sign-extend
-     * the coordinate parameters from WORD to LONG so the values are correct
-     * regardless of how the caller populated the registers. */
-    LONG _xMin = (LONG)(WORD)xMin;
-    LONG _yMin = (LONG)(WORD)yMin;
-    LONG _xMax = (LONG)(WORD)xMax;
-    LONG _yMax = (LONG)(WORD)yMax;
-    ULONG _maskBPR = maskBPR;
-    struct RastPort *_rp = rp;
-    CONST PLANEPTR _mask = mask;
-    UBYTE old_drawmode;
+    DPRINTF (LOG_DEBUG, "_graphics: BltPattern() rp=0x%08lx, mask=0x%08lx, rect=(%d,%d)-(%d,%d), bpr=%d\n",
+             (ULONG)rp, (ULONG)mask, x0, y0, x1, y1, bpr);
 
-    DPRINTF (LOG_DEBUG, "_graphics: BltPattern() rp=0x%08lx, mask=0x%08lx, rect=(%ld,%ld)-(%ld,%ld), bpr=%lu\n",
-             (ULONG)_rp, (ULONG)_mask, _xMin, _yMin, _xMax, _yMax, _maskBPR);
-
-    if (!_rp)
+    if (!rp || !rp->BitMap || x0 > x1 || y0 > y1)
         return;
 
-    /* For now, we don't support AreaPtrn patterns - just mask or solid fill */
-    if (_rp->AreaPtrn)
+    pen = rp->FgPen;
+    dm = rp->DrawMode;
+    pattern = rp->AreaPtrn != NULL;
+    if (!pattern && !gfx_solid_pen(rp, &pen, &dm))
+        return;
+
+    if (!mask)
     {
-        DPRINTF(LOG_DEBUG, "_graphics: BltPattern() with AreaPtrn not yet fully supported\n");
-        /* Fall through to mask/solid handling */
+        gfx_fill_rect(rp, x0, y0, x1, y1, pen, dm, pattern);
+        return;
     }
 
-    if (_mask)
+    for (y = y0; y <= y1; y++)
     {
-        /* Use BltTemplate to blit the mask */
-        /* Save and restore draw mode if needed */
-        old_drawmode = (UBYTE)_rp->DrawMode;
+        const UBYTE *row = (const UBYTE *)mask + (LONG)(y - y0) * bpr;
+        WORD x = 0, w = (WORD)(x1 - x0 + 1);
 
-        /* If in JAM2 mode, switch to JAM1 for template blitting */
-        if ((old_drawmode & ~INVERSVID) == JAM2)
+        while (x < w)
         {
-            _graphics_SetDrMd(GfxBase, _rp, JAM1 | (old_drawmode & INVERSVID));
+            WORD xs;
+            if (!(row[x >> 3] & (0x80 >> (x & 7))))
+            {
+                x++;
+                continue;
+            }
+            xs = x;
+            while (x < w && (row[x >> 3] & (0x80 >> (x & 7))))
+                x++;
+            gfx_fill_rect(rp, (WORD)(x0 + xs), y, (WORD)(x0 + x - 1), y, pen, dm, pattern);
         }
-
-        /* BltTemplate params: source, xSrc, srcMod, destRP, xDest, yDest, xSize, ySize */
-        _graphics_BltTemplate(GfxBase, (CONST PLANEPTR)_mask, 0, _maskBPR, _rp,
-                             _xMin, _yMin, _xMax - _xMin + 1, _yMax - _yMin + 1);
-
-        /* Restore original draw mode */
-        _graphics_SetDrMd(GfxBase, _rp, old_drawmode);
-    }
-    else
-    {
-        /* No mask - just fill the rectangle */
-        _graphics_RectFill(GfxBase, _rp, (WORD)_xMin, (WORD)_yMin, (WORD)_xMax, (WORD)_yMax);
     }
 }
 
@@ -5159,6 +5543,7 @@ struct FloodFillInfo
     ULONG orig_apen;     /* Original APen */
     UWORD rp_width;
     UWORD rp_height;
+    BOOL overflow;       /* the span stack ran full */
     BOOL (*is_fillable)(struct FloodFillInfo *, LONG, LONG);
 };
 
@@ -5216,11 +5601,51 @@ static BOOL FloodIsFillable_Color(struct FloodFillInfo *fi, LONG x, LONG y)
 
 static void FloodPutPixel(struct FloodFillInfo *fi, LONG x, LONG y)
 {
-    /* Write pixel using current APen */
-    _graphics_WritePixel(fi->gfxbase, fi->rp, x, y);
-    
-    /* Mark as processed in tmpras */
+    /* Only the TmpRas mask is built here; it is drawn afterwards */
     SetTmpRasPixel(fi->rasptr, x, y, fi->bpr, TRUE);
+}
+
+/*
+ * Finish a flood whose span stack ran full: grow the mask row by row
+ * (horizontally, and from marked pixels above/below) until it is stable.
+ * Slower than the span fill, but needs no memory.
+ */
+static void FloodComplete(struct FloodFillInfo *fi)
+{
+    BOOL changed = TRUE;
+
+    while (changed)
+    {
+        WORD pass;
+        changed = FALSE;
+        for (pass = 0; pass < 2; pass++)
+        {
+            LONG y;
+            for (y = 0; y < fi->rp_height; y++)
+            {
+                LONG yy = pass ? fi->rp_height - 1 - y : y;
+                LONG x;
+                for (x = 0; x < fi->rp_width; x++)
+                {
+                    BOOL seed;
+                    if (GetTmpRasPixel(fi->rasptr, x, yy, fi->bpr))
+                        continue;
+                    seed = (x > 0 && GetTmpRasPixel(fi->rasptr, x - 1, yy, fi->bpr)) ||
+                           (x + 1 < fi->rp_width && GetTmpRasPixel(fi->rasptr, x + 1, yy, fi->bpr)) ||
+                           (yy > 0 && GetTmpRasPixel(fi->rasptr, x, yy - 1, fi->bpr)) ||
+                           (yy + 1 < fi->rp_height && GetTmpRasPixel(fi->rasptr, x, yy + 1, fi->bpr));
+                    if (seed && fi->is_fillable(fi, x, yy))
+                    {
+                        FloodPutPixel(fi, x, yy);
+                        changed = TRUE;
+                        /* run to the right in the same row */
+                        while (x + 1 < fi->rp_width && fi->is_fillable(fi, x + 1, yy))
+                            FloodPutPixel(fi, ++x, yy);
+                    }
+                }
+            }
+        }
+    }
 }
 
 static void FloodInitStack(struct FloodStack *s)
@@ -5291,7 +5716,7 @@ static BOOL FloodFillScanline(struct FloodFillInfo *fi, LONG start_x, LONG start
                         }
                         
                         if (!FloodPush(&stack, rightmost_above, start_y - 1))
-                            return FALSE;  /* Stack full */
+                            fi->overflow = TRUE;  /* finished by flood_complete() */
                     }
                 }
                 
@@ -5308,7 +5733,7 @@ static BOOL FloodFillScanline(struct FloodFillInfo *fi, LONG start_x, LONG start
                         }
                         
                         if (!FloodPush(&stack, rightmost_below, start_y + 1))
-                            return FALSE;  /* Stack full */
+                            fi->overflow = TRUE;  /* finished by flood_complete() */
                     }
                 }
             }
@@ -5339,7 +5764,7 @@ static BOOL FloodFillScanline(struct FloodFillInfo *fi, LONG start_x, LONG start
                         }
                         
                         if (!FloodPush(&stack, leftmost_above, start_y - 1))
-                            return FALSE;  /* Stack full */
+                            fi->overflow = TRUE;  /* finished by flood_complete() */
                     }
                 }
                 
@@ -5356,7 +5781,7 @@ static BOOL FloodFillScanline(struct FloodFillInfo *fi, LONG start_x, LONG start
                         }
                         
                         if (!FloodPush(&stack, leftmost_below, start_y + 1))
-                            return FALSE;  /* Stack full */
+                            fi->overflow = TRUE;  /* finished by flood_complete() */
                     }
                 }
             }
@@ -5459,11 +5884,41 @@ static BOOL _graphics_Flood ( register struct GfxBase * GfxBase __asm("a6"),
         fi.is_fillable = FloodIsFillable_Color;
     }
     
-    /* Do the flood fill */
+    /* Build the mask in the TmpRas, then draw it like an area fill: with
+     * FgPen/BgPen, the area pattern (anchored to the bitmap) and the draw
+     * mode (observed on AmigaOS 3.1) */
+    fi.overflow = FALSE;
     success = FloodFillScanline(&fi, _x, _y);
-    
-    /* Restore original APen */
-    _graphics_SetAPen(GfxBase, rp, (UBYTE)fi.orig_apen);
+    if (fi.overflow)
+        FloodComplete(&fi);
+    success = TRUE;
+    {
+        BYTE  pen = rp->FgPen;
+        UBYTE dm = rp->DrawMode;
+        BOOL  pattern = rp->AreaPtrn != NULL;
+        LONG  yy;
+
+        if (pattern || gfx_solid_pen(rp, &pen, &dm))
+        {
+            for (yy = 0; yy < fi.rp_height; yy++)
+            {
+                LONG xx = 0;
+                while (xx < fi.rp_width)
+                {
+                    LONG xs;
+                    if (!GetTmpRasPixel(fi.rasptr, xx, yy, fi.bpr))
+                    {
+                        xx++;
+                        continue;
+                    }
+                    xs = xx;
+                    while (xx < fi.rp_width && GetTmpRasPixel(fi.rasptr, xx, yy, fi.bpr))
+                        xx++;
+                    gfx_fill_rect(rp, (WORD)xs, (WORD)yy, (WORD)(xx - 1), (WORD)yy, pen, dm, pattern);
+                }
+            }
+        }
+    }
     
     DPRINTF(LOG_DEBUG, "_graphics: Flood() completed %s\n", success ? "successfully" : "with errors");
     
@@ -5506,6 +5961,7 @@ static VOID _graphics_SetAPen ( register struct GfxBase * GfxBase __asm("a6"),
     if (rp)
     {
         rp->FgPen = (BYTE)pen;
+        gfx_reset_line(rp);
     }
 }
 
@@ -5518,6 +5974,7 @@ static VOID _graphics_SetBPen ( register struct GfxBase * GfxBase __asm("a6"),
     if (rp)
     {
         rp->BgPen = (BYTE)pen;
+        gfx_reset_line(rp);
     }
 }
 
@@ -5530,6 +5987,7 @@ static VOID _graphics_SetDrMd ( register struct GfxBase * GfxBase __asm("a6"),
     if (rp)
     {
         rp->DrawMode = (BYTE)drawMode;
+        gfx_reset_line(rp);
     }
 }
 
@@ -5706,6 +6164,94 @@ static VOID _graphics_InitBitMap ( register struct GfxBase * GfxBase __asm("a6")
      * This matches AROS behavior where planes are left untouched. */
 }
 
+static struct BitMap * _graphics_AllocBitMap ( register struct GfxBase * GfxBase __asm("a6"),
+                                                        register ULONG sizex __asm("d0"),
+                                                        register ULONG sizey __asm("d1"),
+                                                        register ULONG depth __asm("d2"),
+                                                        register ULONG flags __asm("d3"),
+                                                        register const struct BitMap * friend_bitmap __asm("a0"));
+static VOID _graphics_FreeBitMap ( register struct GfxBase * GfxBase __asm("a6"),
+                                                        register struct BitMap * bm __asm("a0"));
+
+/*
+ * Move the contents of a rectangle (RastPort coordinates) of a layered
+ * RastPort by (-dx,-dy) through the layer's ClipRects: visible parts on
+ * the screen and SMART_REFRESH backing store both scroll (AmigaOS 3.1).
+ * The vacated strips are left to the caller.
+ */
+static void gfx_scroll_layer(struct GfxBase *GfxBase, struct RastPort *rp, LONG dx, LONG dy,
+                             LONG xMin, LONG yMin, LONG xMax, LONG yMax)
+{
+    struct Layer *l = rp->Layer;
+    struct Rectangle a, lb;
+    struct BitMap *img;
+    struct ClipRect *cr;
+    WORD w, h;
+
+    a.MinX = (WORD)(xMin + LAYER_ORIGIN_X(l));
+    a.MinY = (WORD)(yMin + LAYER_ORIGIN_Y(l));
+    a.MaxX = (WORD)(xMax + LAYER_ORIGIN_X(l));
+    a.MaxY = (WORD)(yMax + LAYER_ORIGIN_Y(l));
+    lb = l->bounds;
+    if (!ClipIntersectRects(a.MinX, a.MinY, a.MaxX, a.MaxY, lb.MinX, lb.MinY, lb.MaxX, lb.MaxY,
+                            &a.MinX, &a.MinY, &a.MaxX, &a.MaxY))
+        return;
+    w = a.MaxX - a.MinX + 1;
+    h = a.MaxY - a.MinY + 1;
+    img = _graphics_AllocBitMap(GfxBase, w, h, rp->BitMap->Depth, BMF_CLEAR, NULL);
+    if (!img)
+        return;
+
+    for (cr = l->ClipRect; cr; cr = cr->Next)
+    {
+        struct Rectangle is;
+        if (!ClipIntersectRects(a.MinX, a.MinY, a.MaxX, a.MaxY, cr->bounds.MinX, cr->bounds.MinY,
+                                cr->bounds.MaxX, cr->bounds.MaxY, &is.MinX, &is.MinY, &is.MaxX, &is.MaxY))
+            continue;
+        if (!cr->obscured)
+            _graphics_BltBitMap(GfxBase, rp->BitMap, is.MinX, is.MinY, img, is.MinX - a.MinX, is.MinY - a.MinY,
+                                is.MaxX - is.MinX + 1, is.MaxY - is.MinY + 1, 0xC0, 0xFF, NULL);
+        else if (cr->BitMap)
+            _graphics_BltBitMap(GfxBase, cr->BitMap, is.MinX - cr->bounds.MinX, is.MinY - cr->bounds.MinY,
+                                img, is.MinX - a.MinX, is.MinY - a.MinY,
+                                is.MaxX - is.MinX + 1, is.MaxY - is.MinY + 1, 0xC0, 0xFF, NULL);
+    }
+
+    for (cr = l->ClipRect; cr; cr = cr->Next)
+    {
+        struct Rectangle is;
+        struct BitMap *dst;
+        WORD ox, oy;
+
+        if (!ClipIntersectRects(a.MinX, a.MinY, a.MaxX, a.MaxY, cr->bounds.MinX, cr->bounds.MinY,
+                                cr->bounds.MaxX, cr->bounds.MaxY, &is.MinX, &is.MinY, &is.MaxX, &is.MaxY))
+            continue;
+        /* the part of this ClipRect whose source lies inside the area */
+        if (!ClipIntersectRects(is.MinX, is.MinY, is.MaxX, is.MaxY,
+                                (WORD)(a.MinX - dx), (WORD)(a.MinY - dy), (WORD)(a.MaxX - dx), (WORD)(a.MaxY - dy),
+                                &is.MinX, &is.MinY, &is.MaxX, &is.MaxY))
+            continue;
+        if (!cr->obscured)
+        {
+            dst = rp->BitMap;
+            ox = 0;
+            oy = 0;
+        }
+        else if (cr->BitMap)
+        {
+            dst = cr->BitMap;
+            ox = cr->bounds.MinX;
+            oy = cr->bounds.MinY;
+        }
+        else
+            continue;
+        _graphics_BltBitMap(GfxBase, img, is.MinX + dx - a.MinX, is.MinY + dy - a.MinY,
+                            dst, is.MinX - ox, is.MinY - oy,
+                            is.MaxX - is.MinX + 1, is.MaxY - is.MinY + 1, 0xC0, 0xFF, NULL);
+    }
+    _graphics_FreeBitMap(GfxBase, img);
+}
+
 static VOID _graphics_ScrollRaster ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a1"),
                                                         register LONG dx __asm("d0"),
@@ -5719,7 +6265,8 @@ static VOID _graphics_ScrollRaster ( register struct GfxBase * GfxBase __asm("a6
     LONG srcX, srcY, destX, destY;
     LONG width, height;
     LONG clearX1, clearY1, clearX2, clearY2;
-    UBYTE savedAPen;
+    BYTE savedAPen;
+    UWORD savedFlags;
 
     /* GCC m68k inline stubs may use move.w for d-register args, leaving
      * upper 16 bits with garbage.  Sign-extend from WORD to LONG. */
@@ -5739,20 +6286,32 @@ static VOID _graphics_ScrollRaster ( register struct GfxBase * GfxBase __asm("a6
     }
     
     bm = rp->BitMap;
-    
+
+    /* in a layer the rectangle is clipped to the layer first (3.1): the
+     * vacated strips lie inside the layer */
+    if (rp->Layer)
+    {
+        struct Layer *l = rp->Layer;
+        LONG lx0 = l->Scroll_X, ly0 = l->Scroll_Y;
+        LONG lx1 = lx0 + l->bounds.MaxX - l->bounds.MinX;
+        LONG ly1 = ly0 + l->bounds.MaxY - l->bounds.MinY;
+        if (xMin < lx0) xMin = lx0;
+        if (yMin < ly0) yMin = ly0;
+        if (xMax > lx1) xMax = lx1;
+        if (yMax > ly1) yMax = ly1;
+        if (xMin > xMax || yMin > yMax)
+            return;
+    }
+
     /* Calculate the source and destination regions */
     width = xMax - xMin + 1;
     height = yMax - yMin + 1;
     
-    /* If scroll amount exceeds the area, just clear the entire area */
-    if (dx >= width || dx <= -width || dy >= height || dy <= -height) {
-        /* Clear entire area */
-        savedAPen = rp->FgPen;
-        _graphics_SetAPen(GfxBase, rp, rp->BgPen);
-        _graphics_RectFill(GfxBase, rp, xMin, yMin, xMax, yMax);
-        _graphics_SetAPen(GfxBase, rp, savedAPen);
+    /* AmigaOS 3.1 (observed on the reference) leaves the area untouched
+     * when the scroll distance is not smaller than the area: nothing is
+     * moved and nothing is cleared. */
+    if (dx >= width || dx <= -width || dy >= height || dy <= -height)
         return;
-    }
     
     /* Calculate source and destination coordinates for the blit */
     /* Positive dx = scroll right (content moves left), negative dx = scroll left */
@@ -5799,15 +6358,20 @@ static VOID _graphics_ScrollRaster ( register struct GfxBase * GfxBase __asm("a6
     }
     
     /* Perform the blit if there's any content to move */
-    if (width > 0 && height > 0) {
+    if (rp->Layer)
+        gfx_scroll_layer(GfxBase, rp, dx, dy, xMin, yMin, xMax, yMax);
+    else if (width > 0 && height > 0) {
         _graphics_BltBitMap(GfxBase, bm, srcX, srcY, bm, destX, destY, 
                            width, height, 0xC0, 0xFF, NULL);  /* 0xC0 = copy minterm */
     }
     
-    /* Clear the exposed area with background pen */
+    /* Clear the exposed area with background pen (no outline, and the
+     * line state of the RastPort is left alone) */
     savedAPen = rp->FgPen;
-    _graphics_SetAPen(GfxBase, rp, rp->BgPen);
-    
+    savedFlags = rp->Flags;
+    rp->FgPen = rp->BgPen;
+    rp->Flags &= ~AREAOUTLINE;
+
     /* Clear horizontal strip if dx != 0 */
     if (dx != 0 && clearX1 >= xMin && clearX2 <= xMax) {
         _graphics_RectFill(GfxBase, rp, clearX1, yMin, clearX2, yMax);
@@ -5817,8 +6381,9 @@ static VOID _graphics_ScrollRaster ( register struct GfxBase * GfxBase __asm("a6
     if (dy != 0 && clearY1 >= yMin && clearY2 <= yMax) {
         _graphics_RectFill(GfxBase, rp, xMin, clearY1, xMax, clearY2);
     }
-    
-    _graphics_SetAPen(GfxBase, rp, savedAPen);
+
+    rp->FgPen = savedAPen;
+    rp->Flags = savedFlags;
 }
 
 static VOID _graphics_WaitBOVP ( register struct GfxBase * GfxBase __asm("a6"),
@@ -6013,96 +6578,67 @@ static VOID __attribute__((optimize("O0"))) _graphics_UnlockLayerRom ( register 
     (void)layer;
 }
 
-static VOID _graphics_SyncSBitMap ( register struct GfxBase * GfxBase __asm("a6"),
-                                                        register struct Layer * layer __asm("a0"))
+/*
+ * SuperBitMap layers keep their obscured parts in backing store ClipRects
+ * (as on AmigaOS 3.1); SyncSBitMap()/CopySBitMap() transfer the visible
+ * parts and the backing store.
+ */
+static void gfx_sync_superbitmap(struct GfxBase *GfxBase, struct Layer *layer, BOOL to_super)
 {
     struct ClipRect *cr;
 
-    DPRINTF (LOG_DEBUG, "_graphics: SyncSBitMap() layer=0x%08lx\n", (ULONG)layer);
-
     if (!layer || !layer->rp || !layer->rp->BitMap)
         return;
-
     if (!layer->SuperBitMap || ((layer->Flags & LAYERSUPER) == 0))
         return;
 
     ObtainSemaphore(&layer->Lock);
-
-    cr = layer->ClipRect;
-    while (cr)
+    for (cr = layer->ClipRect; cr; cr = cr->Next)
     {
+        WORD width = cr->bounds.MaxX - cr->bounds.MinX + 1;
+        WORD height = cr->bounds.MaxY - cr->bounds.MinY + 1;
+        WORD sx = (WORD)(cr->bounds.MinX - layer->bounds.MinX + layer->Scroll_X);
+        WORD sy = (WORD)(cr->bounds.MinY - layer->bounds.MinY + layer->Scroll_Y);
+        struct BitMap *bm;
+        WORD bx, by;
+
+        if (width <= 0 || height <= 0)
+            continue;
         if (!cr->obscured)
         {
-            WORD width = cr->bounds.MaxX - cr->bounds.MinX + 1;
-            WORD height = cr->bounds.MaxY - cr->bounds.MinY + 1;
-
-            if (width > 0 && height > 0)
-            {
-                _graphics_BltBitMap(GfxBase,
-                                    layer->rp->BitMap,
-                                    cr->bounds.MinX,
-                                    cr->bounds.MinY,
-                                    layer->SuperBitMap,
-                                    (WORD)(cr->bounds.MinX - layer->bounds.MinX + layer->Scroll_X),
-                                    (WORD)(cr->bounds.MinY - layer->bounds.MinY + layer->Scroll_Y),
-                                    width,
-                                    height,
-                                    0xC0,
-                                    0xFF,
-                                    NULL);
-            }
+            bm = layer->rp->BitMap;
+            bx = cr->bounds.MinX;
+            by = cr->bounds.MinY;
         }
+        else if (cr->BitMap)
+        {
+            bm = cr->BitMap;
+            bx = 0;
+            by = 0;
+        }
+        else
+            continue;
 
-        cr = cr->Next;
+        if (to_super)
+            _graphics_BltBitMap(GfxBase, bm, bx, by, layer->SuperBitMap, sx, sy, width, height, 0xC0, 0xFF, NULL);
+        else
+            _graphics_BltBitMap(GfxBase, layer->SuperBitMap, sx, sy, bm, bx, by, width, height, 0xC0, 0xFF, NULL);
     }
-
     ReleaseSemaphore(&layer->Lock);
+}
+
+static VOID _graphics_SyncSBitMap ( register struct GfxBase * GfxBase __asm("a6"),
+                                                        register struct Layer * layer __asm("a0"))
+{
+    DPRINTF (LOG_DEBUG, "_graphics: SyncSBitMap() layer=0x%08lx\n", (ULONG)layer);
+    gfx_sync_superbitmap(GfxBase, layer, TRUE);
 }
 
 static VOID _graphics_CopySBitMap ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct Layer * layer __asm("a0"))
 {
-    struct ClipRect *cr;
-
     DPRINTF (LOG_DEBUG, "_graphics: CopySBitMap() layer=0x%08lx\n", (ULONG)layer);
-
-    if (!layer || !layer->rp || !layer->rp->BitMap)
-        return;
-
-    if (!layer->SuperBitMap || ((layer->Flags & LAYERSUPER) == 0))
-        return;
-
-    ObtainSemaphore(&layer->Lock);
-
-    cr = layer->ClipRect;
-    while (cr)
-    {
-        if (!cr->obscured)
-        {
-            WORD width = cr->bounds.MaxX - cr->bounds.MinX + 1;
-            WORD height = cr->bounds.MaxY - cr->bounds.MinY + 1;
-
-            if (width > 0 && height > 0)
-            {
-                _graphics_BltBitMap(GfxBase,
-                                    layer->SuperBitMap,
-                                    (WORD)(cr->bounds.MinX - layer->bounds.MinX + layer->Scroll_X),
-                                    (WORD)(cr->bounds.MinY - layer->bounds.MinY + layer->Scroll_Y),
-                                    layer->rp->BitMap,
-                                    cr->bounds.MinX,
-                                    cr->bounds.MinY,
-                                    width,
-                                    height,
-                                    0xC0,
-                                    0xFF,
-                                    NULL);
-            }
-        }
-
-        cr = cr->Next;
-    }
-
-    ReleaseSemaphore(&layer->Lock);
+    gfx_sync_superbitmap(GfxBase, layer, FALSE);
 }
 
 static VOID _graphics_OwnBlitter ( register struct GfxBase * GfxBase __asm("a6"))
@@ -7968,6 +8504,19 @@ static VOID _graphics_GfxAssociate ( register struct GfxBase * GfxBase __asm("a6
     *bucket = gfxNodePtr;
 }
 
+/* number of destination pixels BitMapScale() produces from n source pixels:
+ * every i with (i * sf + off) / df < n (observed on AmigaOS 3.1) */
+static UWORD gfx_scale_count(UWORD n, UWORD sf, UWORD df)
+{
+    ULONG off;
+    if (!n)
+        return 0;
+    if (!sf) sf = 1;
+    if (!df) df = 1;
+    off = (sf > df) ? (df >> 1) : ((ULONG)(sf - 1) >> 1);
+    return (UWORD)(((ULONG)n * df - 1 - off) / sf + 1);
+}
+
 static VOID _graphics_BitMapScale ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct BitScaleArgs * bsa __asm("a0"))
 {
@@ -7993,10 +8542,8 @@ static VOID _graphics_BitMapScale ( register struct GfxBase * GfxBase __asm("a6"
     destY = bsa->bsa_DestY;
     
     /* Calculate destination dimensions using scale factors */
-    destWidth = _graphics_ScalerDiv(GfxBase, srcWidth, 
-                                     bsa->bsa_XDestFactor, bsa->bsa_XSrcFactor);
-    destHeight = _graphics_ScalerDiv(GfxBase, srcHeight, 
-                                      bsa->bsa_YDestFactor, bsa->bsa_YSrcFactor);
+    destWidth = gfx_scale_count(srcWidth, bsa->bsa_XSrcFactor, bsa->bsa_XDestFactor);
+    destHeight = gfx_scale_count(srcHeight, bsa->bsa_YSrcFactor, bsa->bsa_YDestFactor);
     
     /* Store calculated results back in structure */
     bsa->bsa_DestWidth = destWidth;
@@ -8010,47 +8557,51 @@ static VOID _graphics_BitMapScale ( register struct GfxBase * GfxBase __asm("a6"
     if (!linePattern)
         return;
     
-    /* Precalculate which source Y line maps to each destination Y line */
+    /*
+     * Pixel mapping observed on AmigaOS 3.1: destination pixel i takes
+     * source pixel (i * SrcFactor + off) / DestFactor, with
+     * off = DestFactor / 2 when shrinking and (SrcFactor - 1) / 2 when
+     * enlarging (or copying), independently for x and y.
+     */
     {
         ULONG count = 0;
         UWORD ys = srcY;
-        ULONG dyd = destHeight;
-        ULONG dys = srcHeight;
-        LONG accuys = dyd;
-        LONG accuyd = -(dys >> 1);
-        
+        UWORD sf = bsa->bsa_YSrcFactor ? bsa->bsa_YSrcFactor : 1;
+        UWORD df = bsa->bsa_YDestFactor ? bsa->bsa_YDestFactor : 1;
+        ULONG acc = (sf > df) ? (df >> 1) : ((sf - 1) >> 1);
+
         while (count < destHeight) {
-            accuyd += dys;
-            while (accuyd > accuys) {
-                ys++;
-                accuys += dyd;
-            }
             linePattern[count] = ys;
+            acc += sf;
+            while (acc >= df) {
+                acc -= df;
+                ys++;
+            }
             count++;
         }
     }
-    
+
     /* Now perform the actual scaling, pixel by pixel */
-    /* Using simple nearest-neighbor algorithm */
     {
         UWORD minDepth = (srcBM->Depth < destBM->Depth) ? srcBM->Depth : destBM->Depth;
-        ULONG dxd = destWidth;
-        ULONG dxs = srcWidth;
-        
+        UWORD sf = bsa->bsa_XSrcFactor ? bsa->bsa_XSrcFactor : 1;
+        UWORD df = bsa->bsa_XDestFactor ? bsa->bsa_XDestFactor : 1;
+        ULONG acc0 = (sf > df) ? (df >> 1) : ((sf - 1) >> 1);
+
         for (y = 0; y < destHeight; y++) {
             UWORD sourceY = linePattern[y];
             UWORD xs = srcX;
-            LONG accuxs = dxd;
-            LONG accuxd = -(dxs >> 1);
-            
+            ULONG acc = acc0;
+
             for (x = 0; x < destWidth; x++) {
-                /* Calculate source X for this destination X */
-                accuxd += dxs;
-                while (accuxd > accuxs) {
-                    xs++;
-                    accuxs += dxd;
+                if (x)
+                {
+                    acc += sf;
+                    while (acc >= df) {
+                        acc -= df;
+                        xs++;
+                    }
                 }
-                
                 /* Copy pixel from source to destination for each plane */
                 for (plane = 0; plane < minDepth; plane++) {
                     UBYTE *srcPlane = srcBM->Planes[plane];
@@ -8110,6 +8661,68 @@ static UWORD _graphics_ScalerDiv ( register struct GfxBase * GfxBase __asm("a6")
     return (UWORD)res;
 }
 
+/*
+ * Text metrics as AmigaOS 3.1 computes them (observed on the reference):
+ *  - the unstyled extent of a string runs from the leftmost to the
+ *    rightmost pixel any character can cover (kerning, glyph width, a
+ *    fixed font's XSize cell, TxSpacing);
+ *  - bold adds tf_BoldSmear on the right; italic adds Baseline / 2 on the
+ *    right and (YSize - 1 - Baseline) / 2 + 1 on the left;
+ *  - an empty string has a null extent (height 0, MaxX/MaxY -1).
+ */
+static void gfx_text_style_extra(struct RastPort *rp, struct TextFont *tf,
+                                 WORD *left, WORD *right)
+{
+    *left = 0;
+    *right = 0;
+    if (rp->AlgoStyle & FSF_BOLD)
+        *right += tf->tf_BoldSmear;
+    if (rp->AlgoStyle & FSF_ITALIC)
+    {
+        *right += tf->tf_Baseline / 2;
+        *left += (tf->tf_YSize - 1 - tf->tf_Baseline) / 2 + 1;
+    }
+}
+
+/* unstyled extent of count characters: returns the advance width */
+static WORD gfx_text_plain_extent(struct RastPort *rp, struct TextFont *tf,
+                                  CONST_STRPTR string, LONG count, WORD *minx, WORD *maxx)
+{
+    WORD x = 0;
+
+    *minx = 0;
+    *maxx = -1;
+    while (count-- > 0)
+    {
+        WORD idx = graphics_text_char_index(tf, *string++);
+        WORD gx = x, gw;
+
+        if ((tf->tf_Flags & FPF_PROPORTIONAL) || tf->tf_CharKern || tf->tf_CharSpace)
+        {
+            if (tf->tf_CharKern)
+                gx += ((WORD *)tf->tf_CharKern)[idx];
+            gw = tf->tf_CharLoc ? (WORD)(((ULONG *)tf->tf_CharLoc)[idx] & 0xFFFF) : tf->tf_XSize;
+            x = gx + (tf->tf_CharSpace ? ((WORD *)tf->tf_CharSpace)[idx] : tf->tf_XSize);
+        }
+        else
+        {
+            gw = tf->tf_XSize;
+            x += tf->tf_XSize;
+        }
+        x += rp->TxSpacing;
+
+        if (gx < *minx)
+            *minx = gx;
+        if (gx + gw - 1 > *maxx)
+            *maxx = gx + gw - 1;
+        if (x < *minx)
+            *minx = x;
+        if (x - 1 > *maxx)
+            *maxx = x - 1;
+    }
+    return x;
+}
+
 static WORD _graphics_TextExtent ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a1"),
                                                         register CONST_STRPTR string __asm("a0"),
@@ -8117,108 +8730,37 @@ static WORD _graphics_TextExtent ( register struct GfxBase * GfxBase __asm("a6")
                                                         register struct TextExtent * textExtent __asm("a2"))
 {
     struct TextFont *tf;
-    WORD width;
+    WORD width, minx, maxx, left, right;
 
     count = (LONG)(WORD)count;  /* sign-extend: GCC m68k move.w workaround */
 
-    DPRINTF (LOG_DEBUG, "_graphics: TextExtent() rp=0x%08lx, string='%s', count=%ld\n",
-             (ULONG)rp, string ? (char *)string : "(null)", count);
+    DPRINTF (LOG_DEBUG, "_graphics: TextExtent() rp=0x%08lx, count=%ld\n", (ULONG)rp, count);
 
     if (!rp || !textExtent)
+        return 0;
+
+    tf = rp->Font ? rp->Font : get_default_font();
+
+    if (count <= 0 || !string)
     {
+        textExtent->te_Width = 0;
+        textExtent->te_Height = 0;
+        textExtent->te_Extent.MinX = 0;
+        textExtent->te_Extent.MinY = 0;
+        textExtent->te_Extent.MaxX = -1;
+        textExtent->te_Extent.MaxY = -1;
         return 0;
     }
 
-    /* Get the font from the RastPort, or use default */
-    tf = rp->Font;
-    if (!tf)
-    {
-        tf = get_default_font();
-    }
+    width = gfx_text_plain_extent(rp, tf, string, count, &minx, &maxx);
+    gfx_text_style_extra(rp, tf, &left, &right);
 
-    /* Calculate text width using TextLength */
-    width = _graphics_TextLength(GfxBase, rp, string, (UWORD)count);
-    
     textExtent->te_Width = width;
     textExtent->te_Height = tf->tf_YSize;
+    textExtent->te_Extent.MinX = minx - left;
     textExtent->te_Extent.MinY = -tf->tf_Baseline;
-    textExtent->te_Extent.MaxY = textExtent->te_Height - 1 - tf->tf_Baseline;
-
-    if ((tf->tf_Flags & FPF_PROPORTIONAL) || tf->tf_CharKern || tf->tf_CharSpace)
-    {
-        WORD x = 0;
-        WORD x2 = 0;
-
-        textExtent->te_Extent.MinX = 0;
-        textExtent->te_Extent.MaxX = 0;
-
-        while (count--)
-        {
-            WORD idx = graphics_text_char_index(tf, *string++);
-            WORD char_width = tf->tf_XSize;
-
-            if (tf->tf_CharKern)
-                x += ((WORD *)tf->tf_CharKern)[idx];
-
-            if (x < textExtent->te_Extent.MinX)
-                textExtent->te_Extent.MinX = x;
-            if (x > textExtent->te_Extent.MaxX)
-                textExtent->te_Extent.MaxX = x;
-
-            if (tf->tf_CharLoc)
-                char_width = (WORD)(((ULONG *)tf->tf_CharLoc)[idx] & 0xFFFF);
-
-            x2 = x + char_width;
-            if (x2 < textExtent->te_Extent.MinX)
-                textExtent->te_Extent.MinX = x2;
-            if (x2 > textExtent->te_Extent.MaxX)
-                textExtent->te_Extent.MaxX = x2;
-
-            if (tf->tf_CharSpace)
-                x += ((WORD *)tf->tf_CharSpace)[idx];
-            else
-                x += tf->tf_XSize;
-
-            if (x < textExtent->te_Extent.MinX)
-                textExtent->te_Extent.MinX = x;
-            if (x > textExtent->te_Extent.MaxX)
-                textExtent->te_Extent.MaxX = x;
-
-            x += rp->TxSpacing;
-            if (x < textExtent->te_Extent.MinX)
-                textExtent->te_Extent.MinX = x;
-            if (x > textExtent->te_Extent.MaxX)
-                textExtent->te_Extent.MaxX = x;
-        }
-
-        if (width > 0)
-            textExtent->te_Extent.MaxX--;
-    }
-    else
-    {
-        /* For fixed-width fonts (like Topaz-8), MinX is 0 and MaxX is width-1 */
-        textExtent->te_Extent.MinX = 0;
-        textExtent->te_Extent.MaxX = (width > 0) ? (width - 1) : 0;
-    }
-
-    /* Handle bold style - adds smear to right side */
-    if (rp->AlgoStyle & FSF_BOLD)
-    {
-        textExtent->te_Extent.MaxX += tf->tf_BoldSmear;
-    }
-
-    /* Handle italic style - shears the text */
-    if (rp->AlgoStyle & FSF_ITALIC)
-    {
-        /* Italic shifts top right and bottom left */
-        textExtent->te_Extent.MaxX += tf->tf_Baseline / 2;
-        textExtent->te_Extent.MinX -= (tf->tf_YSize - tf->tf_Baseline) / 2;
-    }
-
-    DPRINTF (LOG_DEBUG, "_graphics: TextExtent() -> width=%d height=%d extent=(%d,%d)-(%d,%d)\n",
-             textExtent->te_Width, textExtent->te_Height,
-             textExtent->te_Extent.MinX, textExtent->te_Extent.MinY,
-             textExtent->te_Extent.MaxX, textExtent->te_Extent.MaxY);
+    textExtent->te_Extent.MaxX = maxx + right;
+    textExtent->te_Extent.MaxY = tf->tf_YSize - 1 - tf->tf_Baseline;
 
     return width;
 }
@@ -8233,96 +8775,36 @@ static ULONG _graphics_TextFit ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register ULONG constrainingBitWidth __asm("d2"),
                                                         register ULONG constrainingBitHeight __asm("d3"))
 {
+    /*
+     * The style overhang is taken from the width first; on 3.1 that is an
+     * unsigned subtraction, so a width smaller than the overhang lets the
+     * whole string fit (observed).  Characters are added while the
+     * unstyled extent fits the rest and the styled one the constraining
+     * extent.
+     */
     struct TextFont *tf;
-    ULONG retval = 0;
+    ULONG n = 0, i;
+    WORD width = 0, minx = 0, maxx = -1, left, right;
+    ULONG avail;
 
     strDirection = (LONG)(WORD)strDirection; /* sign-extend: GCC m68k move.w workaround */
+    constrainingBitWidth &= 0xFFFF;
+    constrainingBitHeight &= 0xFFFF;
 
     DPRINTF (LOG_DEBUG, "_graphics: TextFit() rp=0x%08lx, strLen=%lu, dir=%ld, w=%lu, h=%lu\n",
              (ULONG)rp, strLen, strDirection, constrainingBitWidth, constrainingBitHeight);
 
     if (!rp || !textExtent)
-    {
         return 0;
-    }
 
-    /* Get the font from the RastPort, or use default */
-    tf = rp->Font;
-    if (!tf)
-    {
-        tf = get_default_font();
-    }
+    tf = rp->Font ? rp->Font : get_default_font();
+    gfx_text_style_extra(rp, tf, &left, &right);
 
-    /* Check if height constraint allows at least one line of text */
-    if (strLen && (constrainingBitHeight >= tf->tf_YSize))
-    {
-        BOOL ok = TRUE;
-
-        /* Initialize textExtent with font metrics */
-        textExtent->te_Extent.MinX = 0;
-        textExtent->te_Extent.MinY = -tf->tf_Baseline;
-        textExtent->te_Extent.MaxX = 0;
-        textExtent->te_Extent.MaxY = tf->tf_YSize - tf->tf_Baseline - 1;
-        textExtent->te_Width       = 0;
-        textExtent->te_Height      = tf->tf_YSize;
-
-        /* Check if constrainingExtent allows our font height */
-        if (constrainingExtent)
-        {
-            if (constrainingExtent->te_Extent.MinY > textExtent->te_Extent.MinY ||
-                constrainingExtent->te_Extent.MaxY < textExtent->te_Extent.MaxY ||
-                constrainingExtent->te_Height < textExtent->te_Height)
-            {
-                ok = FALSE;
-            }
-        }
-
-        if (ok)
-        {
-            /* Try to fit characters one by one */
-            while (strLen--)
-            {
-                struct TextExtent char_extent;
-                WORD newwidth, newminx, newmaxx, minx, maxx;
-
-                /* Get extent for this single character */
-                _graphics_TextExtent(GfxBase, rp, string, 1, &char_extent);
-                string += strDirection;
-
-                /* Calculate new dimensions if we include this character */
-                newwidth = textExtent->te_Width + char_extent.te_Width;
-                minx = textExtent->te_Width + char_extent.te_Extent.MinX;
-                maxx = textExtent->te_Width + char_extent.te_Extent.MaxX;
-
-                newminx = (minx < textExtent->te_Extent.MinX) ?
-                    minx : textExtent->te_Extent.MinX;
-                newmaxx = (maxx > textExtent->te_Extent.MaxX) ?
-                    maxx : textExtent->te_Extent.MaxX;
-
-                /* Check if new character exceeds width constraint */
-                if ((ULONG)(newmaxx - newminx + 1) > constrainingBitWidth)
-                    break;
-
-                /* Check constrainingExtent constraints */
-                if (constrainingExtent)
-                {
-                    if (constrainingExtent->te_Extent.MinX > newminx) break;
-                    if (constrainingExtent->te_Extent.MaxX < newmaxx) break;
-                    if (constrainingExtent->te_Width < newwidth) break;
-                }
-
-                /* Character fits, update textExtent */
-                textExtent->te_Width = newwidth;
-                textExtent->te_Extent.MinX = newminx;
-                textExtent->te_Extent.MaxX = newmaxx;
-
-                retval++;
-            }
-        }
-    }
-
-    /* If no characters fit, zero out the extent */
-    if (retval == 0)
+    if (!strLen || !string || constrainingBitHeight < tf->tf_YSize ||
+        (constrainingExtent &&
+         (constrainingExtent->te_Extent.MinY > -tf->tf_Baseline ||
+          constrainingExtent->te_Extent.MaxY < tf->tf_YSize - 1 - tf->tf_Baseline ||
+          constrainingExtent->te_Height < tf->tf_YSize)))
     {
         textExtent->te_Width = 0;
         textExtent->te_Height = 0;
@@ -8330,11 +8812,40 @@ static ULONG _graphics_TextFit ( register struct GfxBase * GfxBase __asm("a6"),
         textExtent->te_Extent.MinY = 0;
         textExtent->te_Extent.MaxX = 0;
         textExtent->te_Extent.MaxY = 0;
+        return 0;
     }
 
-    DPRINTF (LOG_DEBUG, "_graphics: TextFit() -> %lu chars fit\n", retval);
+    avail = (ULONG)((LONG)constrainingBitWidth - left - right);
 
-    return retval;
+    for (i = 1; i <= strLen; i++)
+    {
+        WORD w, mn, mx;
+        CONST_STRPTR s = (strDirection < 0) ? string - (i - 1) : string;
+
+        w = gfx_text_plain_extent(rp, tf, s, (LONG)i, &mn, &mx);
+        if ((ULONG)(LONG)(mx - mn + 1) > avail)
+            break;
+        if (constrainingExtent &&
+            (constrainingExtent->te_Extent.MinX > mn - left ||
+             constrainingExtent->te_Extent.MaxX < mx + right ||
+             constrainingExtent->te_Width < w))
+            break;
+        n = i;
+        width = w;
+        minx = mn;
+        maxx = mx;
+    }
+
+    textExtent->te_Width = width;
+    textExtent->te_Height = tf->tf_YSize;
+    textExtent->te_Extent.MinX = minx - left;
+    textExtent->te_Extent.MinY = -tf->tf_Baseline;
+    textExtent->te_Extent.MaxX = maxx + right;
+    textExtent->te_Extent.MaxY = tf->tf_YSize - 1 - tf->tf_Baseline;
+
+    DPRINTF (LOG_DEBUG, "_graphics: TextFit() -> %lu chars fit\n", n);
+
+    return n;
 }
 
 static APTR _graphics_GfxLookUp ( register struct GfxBase * GfxBase __asm("a6"),
@@ -9165,9 +9676,32 @@ static VOID _graphics_EraseRect ( register struct GfxBase * GfxBase __asm("a6"),
     if (!rp || !rp->BitMap)
         return;
 
-    /* EraseRect fills with the background pen, independent of the draw mode */
     (void)oldDrawMode;
-    gfx_fill_rect(rp, (WORD)xMin, (WORD)yMin, (WORD)xMax, (WORD)yMax, (rp->DrawMode & INVERSVID) ? rp->FgPen : rp->BgPen, JAM2, FALSE);
+    if (xMin > xMax || yMin > yMax)
+        return;
+
+    /* With a layer, AmigaOS 3.1 calls the layer's backfill hook for the
+     * rectangle (observed: tests/probes/layers/refresh.c), through
+     * DoHookClipRects(); LAYERS_BACKFILL clears to pen 0. */
+    if (rp->Layer)
+    {
+        struct Library *LayersBase = OpenLibrary((STRPTR)"layers.library", 0);
+        if (LayersBase)
+        {
+            struct Rectangle r;
+            r.MinX = (WORD)xMin;
+            r.MinY = (WORD)yMin;
+            r.MaxX = (WORD)xMax;
+            r.MaxY = (WORD)yMax;
+            DoHookClipRects(rp->Layer->BackFill, rp, &r);
+            CloseLibrary(LayersBase);
+            return;
+        }
+    }
+
+    /* without a layer the area is cleared to pen 0 (3.1 clears an erratic
+     * part of it, see tests/probes/graphics/lines.c) */
+    gfx_fill_rect(rp, (WORD)xMin, (WORD)yMin, (WORD)xMax, (WORD)yMax, 0, JAM2, FALSE);
 }
 
 static ULONG _graphics_ExtendFont ( register struct GfxBase * GfxBase __asm("a6"),
@@ -9605,6 +10139,7 @@ static VOID _graphics_SetABPenDrMd ( register struct GfxBase * GfxBase __asm("a6
         rp->FgPen = (BYTE)apen;
         rp->BgPen = (BYTE)bpen;
         rp->DrawMode = (BYTE)drawmode;
+        gfx_reset_line(rp);
     }
 }
 
@@ -10110,6 +10645,7 @@ static ULONG _graphics_SetOutlinePen ( register struct GfxBase * GfxBase __asm("
 
     oldPen = (ULONG)(UBYTE)rp->AOlPen;
     rp->AOlPen = (UBYTE)pen;
+    rp->Flags |= AREAOUTLINE;       /* as on 3.1, also for pen 0 */
     return oldPen;
 }
 
@@ -10298,7 +10834,9 @@ static VOID _graphics_ScrollRasterBF ( register struct GfxBase * GfxBase __asm("
     }
     
     /* Perform the blit if there's any content to move */
-    if ((width - absdx) > 0 && (height - absdy) > 0) {
+    if (rp->Layer)
+        gfx_scroll_layer(GfxBase, rp, dx, dy, xMin, yMin, xMax, yMax);
+    else if ((width - absdx) > 0 && (height - absdy) > 0) {
         _graphics_BltBitMap(GfxBase, bm, srcX, srcY, bm, destX, destY, 
                            width - absdx, height - absdy, 0xC0, 0xFF, NULL);
     }

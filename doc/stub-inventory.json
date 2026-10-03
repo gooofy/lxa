@@ -713,14 +713,6 @@
  },
  {
   "lib": "graphics",
-  "function": "AskSoftStyle",
-  "kind": "partial",
-  "detail": "partial: reports all styles regardless of font (Phase 256)",
-  "file": "src/rom/lxa_graphics.c",
-  "symbol": "_graphics_AskSoftStyle"
- },
- {
-  "lib": "graphics",
   "function": "MrgCop",
   "kind": "partial",
   "detail": "partial: builds empty placeholder copper lists, UCopLists ignored (Phase 256)",
@@ -742,14 +734,6 @@
   "detail": "partial: only updates GfxBase->ActiView (Phase 256)",
   "file": "src/rom/lxa_graphics.c",
   "symbol": "_graphics_LoadView"
- },
- {
-  "lib": "graphics",
-  "function": "BltPattern",
-  "kind": "partial",
-  "detail": "partial: ignores RastPort AreaPtrn (Phase 256)",
-  "file": "src/rom/lxa_graphics.c",
-  "symbol": "_graphics_BltPattern"
  },
  {
   "lib": "graphics",
