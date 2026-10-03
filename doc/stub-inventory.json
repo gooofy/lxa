@@ -512,14 +512,6 @@
   "symbol": "_datatypes_PrintDTObjectA"
  },
  {
-  "lib": "clipboard",
-  "function": "Open",
-  "kind": "partial",
-  "detail": "partial: only unit 0 (PRIMARY_CLIP) can be opened (Phase 255)",
-  "file": "src/rom/lxa_dev_clipboard.c",
-  "symbol": "__g_lxa_clipboard_Open"
- },
- {
   "lib": "console",
   "function": "CDInputHandler",
   "kind": "stub",
