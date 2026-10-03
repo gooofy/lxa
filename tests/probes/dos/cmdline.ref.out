@@ -1,0 +1,98 @@
+-- command line via Input()
+ReadArgs args "a b\n"
+  ReadArgs FROM,TO OK "a" "b"
+  then FGets "line1 x\n"
+  rc = 7
+  caller FGets EOF
+ReadArgs args "a b c\n"
+  ReadArgs FROM,TO FAIL 118
+  then FGets "line1 x\n"
+  rc = 7
+  caller FGets EOF
+ReadArgs args "a b"
+  ReadArgs FROM,TO FAIL 118
+  then FGets "line2\n"
+  rc = 7
+  caller FGets EOF
+ReadArgs args ""
+  ReadArgs FROM,TO OK - -
+  then FGets EOF
+  rc = 7
+  caller FGets EOF
+ReadArgs args "a ; c\n"
+  ReadArgs FROM,TO OK "a" -
+  then FGets " c\n"
+  rc = 7
+  caller FGets "line1 x\n"
+ReadArgs twice args "a b\n"
+  ReadArgs FROM,TO OK "a" "b"
+  ReadArgs FROM,TO OK "line1" "x"
+  rc = 7
+  caller FGets EOF
+ReadArgs /F args "a b\n"
+  ReadArgs FROM/F OK "a b" -
+  then FGets "line1 x\n"
+  rc = 7
+  caller FGets EOF
+ReadItem args "x "y z"\n"
+  ReadItem 1 "x"
+  ReadItem 2 "y z"
+  ReadItem 0 ""
+  then FGets "\n"
+  rc = 7
+  caller FGets "line1 x\n"
+FGetC args "a b\n"
+  FGetC line "a b\n"
+  rc = 7
+  caller FGets "line1 x\n"
+FGetC args ""
+  FGetC line ""
+  rc = 7
+  caller FGets EOF
+Read args "a b\n"
+  Read = 14
+  Read data "line1 x\nline2\n"
+  rc = 7
+  caller FGets EOF
+GetArgStr args "a b\n"
+  GetArgStr "a b\n"
+  rc = 7
+  caller FGets "line1 x\n"
+nothing read args "a b\n"
+  rc = 7
+  caller FGets "line1 x\n"
+FGetC then Read args "a b\n"
+  FGetC = 97
+  Read = 6
+  Read data "line1 "
+  rc = 7
+  caller FGets "x\n"
+unflushed output args "\n"
+  rc = 7
+  caller FGets "line1 x\n"
+(caller FGetC = 108) nothing read args "a b\n"
+  rc = 7
+  caller FGets "ine1 x\n"
+(caller FGetC = 108) FGetC args "a b\n"
+  FGetC line "a b\n"
+  rc = 7
+  caller FGets "ine1 x\n"
+(caller FGetC = 108) FGetC args ""
+  FGetC line ""
+  rc = 7
+  caller FGets EOF
+(caller FGetC = 108) ReadArgs args "a b\n"
+  ReadArgs FROM,TO OK "a" "b"
+  then FGets EOF
+  rc = 7
+  caller FGets "ine1 x\n"
+-- CreateNewProc NP_Arguments
+CreateNewProc NP_Arguments "a b\n"
+  ReadArgs FROM,TO OK "a" "b"
+  GetArgStr "a b\n"
+  then FGets "line1 x\n"
+CreateNewProc NP_Arguments "a b\n"
+  FGets "a b\n"
+  GetArgStr "a b\n"
+  then FGets "line1 x\n"
+  [buffered by the command]

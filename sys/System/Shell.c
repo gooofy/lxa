@@ -554,7 +554,7 @@ static LONG cmd_echo(char *args, const char *name)
     }
     if (len < 0)
         len = 0;
-    Write(Output(), buf + first, len);
+    FWrite(Output(), buf + first, 1, len);
     if (!a[1])
         out_str("\n");
     free_args(rda);
@@ -679,7 +679,7 @@ static void list_locals(UBYTE type)
             LONG l = best->lv_Len;
             while (l > 0 && best->lv_Value[l - 1] == '\0')
                 l--;
-            Write(Output(), best->lv_Value, l);
+            FWrite(Output(), best->lv_Value, 1, l);
         }
         out_str("\n");
         strncpy(last, best->lv_Node.ln_Name, sizeof(last) - 1);

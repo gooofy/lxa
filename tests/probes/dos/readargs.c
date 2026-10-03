@@ -78,6 +78,8 @@ static void run(const char *tmpl, const char *input)
     if (!res) {
         probe_s("FAIL IoErr ");
         probe_dec(IoErr());
+        probe_s(" CurChr ");
+        probe_dec(rda->RDA_Source.CS_CurChr);
     } else {
         probe_s("OK CurChr ");
         probe_dec(rda->RDA_Source.CS_CurChr);

@@ -76,7 +76,7 @@ static void type_hex(BPTR fh)
         for (i = 0; i < 5; i++)
             line[p++] = ' ';
         line[p++] = '\n';
-        Write(out, line, p);
+        FWrite(out, line, 1, p);
         offset += n;
     }
 }
@@ -100,7 +100,7 @@ static void type_plain(BPTR fh)
     LONG n;
 
     while (!check_break() && (n = Read(fh, buf, sizeof(buf))) > 0)
-        Write(out, buf, n);
+        FWrite(out, buf, 1, n);
 }
 
 int main(void)

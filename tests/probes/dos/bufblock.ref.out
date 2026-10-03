@@ -1,0 +1,64 @@
+-- read-ahead
+FGetC = 48
+after FGetC Read(4) = 4 "00c4"
+Seek(0, CURRENT) = 5
+FGetC after Seek = 48
+FGetC = 48
+Flush = -1
+after Flush Read(4) = 4 "0000"
+FGetC = 48
+after 300 FGetC Read(4) = 4 "0188"
+after 300 more FGetC Read(4) = 4 "0314"
+FGetC = 48
+UnGetC(-1) = -1
+after UnGetC Read(4) = 4 "00c4"
+FGetC = 48
+SetVBuf(BUF_FULL, 100) = 0
+FGetC = 48
+100-byte buffer Read(4) = 4 "00c4"
+SetVBuf(BUF_FULL, 1000) = 0
+FGetC = 48
+1000-byte buffer Read(4) = 4 "03e8"
+SetVBuf(BUF_FULL, 300) = 0
+FGetC = 48
+300-byte buffer Read(4) = 4 "012c"
+FGetC = 48
+SetVBuf(BUF_FULL, 1000) while reading = 0
+after SetVBuf Read(4) = 4 "0000"
+FGetC = 48
+then Read(4) = 4 "3ec0"
+FGetC = 48
+FPutC = 87
+after FGetC, FPutC Read(4) = 4 "0000"
+FPutC = 87
+FGetC after FPutC = 48
+then Read(4) = 4 "0c40"
+SetVBuf(BUF_NONE) = 0
+FGetC = 48
+unbuffered Read(4) = 4 "0000"
+FRead(4 x 1) = 1
+after FRead Read(4) = 4 "00c4"
+-- EOF
+FGetC = 97
+FGetC = 98
+FGetC (EOF) = -1
+FGetC after the file grew = 99
+FGetC = 100
+Flush = -1
+FGetC after Flush = -1
+then Read(4) = 0
+-- buffered output vs Write
+FPuts A, Write B, FPuts C\n, Write D, FPutC E: 6 bytes "BDAC\nE"
+Flush = -1
+FPuts A, Flush, Write B: 2 bytes "AB"
+500 FPutC, Write |: 501 bytes, '|' at 392
+BUF_LINE: FPuts A\nB, Write C: 4 bytes "CA\nB"
+BUF_LINE: FPutC A, FPutC \n, Write C: 3 bytes "CA\n"
+FPutC A, FPutC \n, Write C: 3 bytes "CA\n"
+1000-byte buffer: 500 FPutC, Write |: 501 bytes, '|' at 0
+FPuts A, SetVBuf, Write B: 2 bytes "AB"
+BUF_NONE: FPuts A, Write B: 2 bytes "AB"
+Seek(0, BEGINNING) with buffered output = 2
+FPuts AB, Seek 0, FPuts x: 2 bytes "xB"
+FGetC = 48
+0123, FGetC, FPuts w: 4 bytes "0w23"

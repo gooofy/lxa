@@ -42,6 +42,8 @@
 extern BOOL lxa_dos_try_handle_special_port(struct MsgPort *port,
                                             struct Message *message);
 extern struct MsgPort *lxa_dos_host_console_port(void);
+BOOL lxa_dos_inject_input(BPTR fh, CONST_STRPTR args, LONG len);
+void lxa_dos_flush_pending(struct DosLibrary *DOSBase, BPTR fh);
 
 #define DEFAULT_SCHED_QUANTUM 4
 
@@ -5637,12 +5639,16 @@ void _bootstrap(void)
     char args_buf[4096];
     emucall1 (EMU_CALL_GETARGS, (ULONG) args_buf);
     int args_len = strlen(args_buf);
-    if (args_len == 0) {
-        args_buf[0] = '\n';
-        args_buf[1] = '\0';
-        args_len = 1;
+    /* the shell ends every argument line with '\n' */
+    if (args_len == 0 || (args_buf[args_len - 1] != '\n' && args_len < (int)sizeof(args_buf) - 1)) {
+        args_buf[args_len++] = '\n';
+        args_buf[args_len] = '\0';
     }
     DPRINTF (LOG_INFO, "_exec: _bootstrap(): args='%s' len=%d\n", args_buf, args_len);
+
+    /* and puts it into Input()'s buffer, where ReadArgs() reads it */
+    if (((struct Process *)SysBase->ThisTask)->pr_CIS)
+        lxa_dos_inject_input(((struct Process *)SysBase->ThisTask)->pr_CIS, (CONST_STRPTR)args_buf, args_len);
 
     /* simply JSR() into our child process
      * 
@@ -5713,6 +5719,9 @@ void _bootstrap(void)
     while (TRUE);
     //    DPRINTF (LOG_INFO, "bootstrap() loop, SysBase->TDNestCnt=%d\n", SysBase->TDNestCnt);
 #endif
+
+    /* like the shell after a command: buffered output is written */
+    lxa_dos_flush_pending(DOSBase, ((struct Process *)SysBase->ThisTask)->pr_COS);
 
     DPRINTF (LOG_DEBUG, "_exec: _bootstrap(): calling emu_stop(%ld)...\n", rv);
     

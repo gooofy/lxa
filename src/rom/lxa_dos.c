@@ -44,8 +44,10 @@
 #define FILE_KIND_CONSOLE    23
 #define FILE_KIND_CON        99   /* CON:/RAW: window (m68k-side handling) */
 
-#define LXA_DOS_BUFFER_MIN_SIZE      208
-#define LXA_DOS_BUFFER_DEFAULT_SIZE  2048
+/* AmigaOS 3.1 reads and writes 196-byte blocks; SetVBuf() never goes
+ * below that (Tests/Probes/dos/bufblock) */
+#define LXA_DOS_BUFFER_MIN_SIZE      196
+#define LXA_DOS_BUFFER_DEFAULT_SIZE  196
 
 #define LXA_DOS_BF_WRITE     (1UL << 0)
 #define LXA_DOS_BF_NOBUF     (1UL << 1)
@@ -106,12 +108,30 @@ LONG _dos_VFPrintf ( register struct DosLibrary * DOSBase __asm("a6"),
                                     register CONST_STRPTR format __asm("d2"),
                                     register const APTR argarray __asm("d3"));
 
+/* a buffer state saved while an argument line is in the buffer */
+struct lxa_dos_inject
+{
+    struct lxa_dos_inject *next;
+    UBYTE *buffer;
+    ULONG  size;
+    LONG   pos, end;
+    LONG   unget_char;
+    BOOL   own, writing, eof, empty;
+};
+
+/* dos buffered I/O state of a FileHandle (in fh_Port): the buffer holds
+ * either read-ahead data [pos, end) or pending output [0, pos) (flag
+ * LXA_DOS_BF_WRITE) */
 struct lxa_dos_buffer_state
 {
     ULONG  magic;
     UBYTE *buffer;
     ULONG  size;
     ULONG  flags;
+    LONG   mode;            /* BUF_LINE (default), BUF_FULL, BUF_NONE */
+    LONG   pos, end;
+    BOOL   eof;             /* empty argument line: reads are EOF */
+    struct lxa_dos_inject *saved;
     LONG   unget_char;      /* -1 none, LXA_DOS_UNGET_EOF: next read is EOF */
     LONG   last_char;       /* last character read (-1: EOF) */
     UBYTE  last_valid;      /* a buffered read happened */
@@ -1058,6 +1078,7 @@ struct ConHandle {
     struct IOStdReq  *ch_IORequest;   /* Console device IORequest */
     struct MsgPort   *ch_MsgPort;     /* Reply port for console I/O */
     BOOL              ch_RawMode;     /* TRUE for RAW:, FALSE for CON: */
+    char              ch_Title[128];  /* window title (Intuition keeps the pointer) */
 };
 
 /*
@@ -1145,6 +1166,8 @@ static BOOL parse_con_path(const char *path, WORD *x, WORD *y, WORD *w, WORD *h,
  * Open a CON:/RAW: window and attach console.device
  * Returns the ConHandle on success, NULL on failure
  */
+static LONG con_write(struct ConHandle *ch, CONST APTR buffer, LONG length);
+
 static struct ConHandle *open_con_window(const char *path)
 {
     struct IntuitionBase *IntuitionBase;
@@ -1176,6 +1199,7 @@ static struct ConHandle *open_con_window(const char *path)
         return NULL;
     }
     ch->ch_RawMode = is_raw;
+    strcpy(ch->ch_Title, title[0] ? title : "CON:");
     
     /* Create message port */
     ch->ch_MsgPort = CreateMsgPort();
@@ -1197,7 +1221,7 @@ static struct ConHandle *open_con_window(const char *path)
                WFLG_SIZEGADGET | WFLG_ACTIVATE | WFLG_SMART_REFRESH;
     nw.FirstGadget = NULL;
     nw.CheckMark = NULL;
-    nw.Title = (UBYTE *)(title[0] ? title : "CON:");
+    nw.Title = (UBYTE *)ch->ch_Title;
     nw.Screen = NULL;  /* Use default public screen (Workbench) */
     nw.BitMap = NULL;
     nw.MinWidth = 80;
@@ -1243,7 +1267,11 @@ static struct ConHandle *open_con_window(const char *path)
     }
     
     DPRINTF(LOG_DEBUG, "_dos: open_con_window: console.device opened, ch=0x%08lx\n", ch);
-    
+
+    /* the console handler runs the console in line feed/new line mode:
+     * '\n' starts a new line (AmigaOS 3.1, tests/scenarios/interactive/conbuf) */
+    con_write(ch, (CONST APTR)"\x9b" "20h", 4);
+
     CloseLibrary((struct Library *)IntuitionBase);
     return ch;
 }
@@ -1333,6 +1361,18 @@ static void lxa_dos_buffer_state_reset_io(struct lxa_dos_buffer_state *state)
     state->unget_char = -1;
 }
 
+static void lxa_dos_inject_free(struct lxa_dos_inject *in)
+{
+    while (in)
+    {
+        struct lxa_dos_inject *next = in->next;
+        if (in->own && in->buffer)
+            FreeVec(in->buffer);
+        FreeVec(in);
+        in = next;
+    }
+}
+
 static void lxa_dos_buffer_state_discard(struct FileHandle *fh)
 {
     struct lxa_dos_buffer_state *state = lxa_dos_buffer_state_from_fh(fh);
@@ -1342,6 +1382,7 @@ static void lxa_dos_buffer_state_discard(struct FileHandle *fh)
 
     if ((state->flags & LXA_DOS_BF_OWNBUF) && state->buffer)
         FreeVec(state->buffer);
+    lxa_dos_inject_free(state->saved);
 
     state->magic = 0;
     FreeVec(state);
@@ -1365,132 +1406,53 @@ static struct lxa_dos_buffer_state *lxa_dos_buffer_state_ensure(struct FileHandl
 
     state->magic = LXA_DOS_BUFFER_MAGIC;
     state->size = LXA_DOS_BUFFER_DEFAULT_SIZE;
+    state->mode = BUF_LINE;
     state->unget_char = -1;
     fh->fh_Port = (struct MsgPort *)state;
 
     return state;
 }
 
-static LONG lxa_dos_buffer_state_setvbuf(struct FileHandle *fh, STRPTR buff, LONG type, LONG size)
+static BOOL lxa_dos_fh_interactive(struct FileHandle *fh)
 {
-    struct lxa_dos_buffer_state *state = lxa_dos_buffer_state_ensure(fh);
-    ULONG new_flags;
-    ULONG alloc_size;
-    UBYTE *new_buffer = NULL;
-
-    if (!state)
-    {
-        SetIoErr(ERROR_NO_FREE_STORE);
-        return -1;
-    }
-
-    new_flags = state->flags & LXA_DOS_BF_WRITE;
-
-    switch (type)
-    {
-        case BUF_LINE:
-            new_flags |= LXA_DOS_BF_LINEBUF;
-            break;
-
-        case BUF_FULL:
-            break;
-
-        case BUF_NONE:
-            new_flags |= LXA_DOS_BF_NOBUF;
-            break;
-
-        default:
-            /* an unknown mode fails with 1 (AmigaOS 3.1, reference-verified) */
-            SetIoErr(ERROR_BAD_NUMBER);
-            return 1;
-    }
-
-    if (size >= 0)
-    {
-        alloc_size = (ULONG)size;
-        if (alloc_size < LXA_DOS_BUFFER_MIN_SIZE)
-            alloc_size = LXA_DOS_BUFFER_MIN_SIZE;
-
-        if (!(new_flags & LXA_DOS_BF_NOBUF))
-        {
-            if (buff)
-            {
-                new_buffer = (UBYTE *)buff;
-            }
-            else
-            {
-                new_buffer = (UBYTE *)AllocVec(alloc_size, MEMF_PUBLIC);
-                if (!new_buffer)
-                {
-                    SetIoErr(ERROR_NO_FREE_STORE);
-                    return -1;
-                }
-                new_flags |= LXA_DOS_BF_OWNBUF;
-            }
-        }
-
-        if ((state->flags & LXA_DOS_BF_OWNBUF) && state->buffer)
-            FreeVec(state->buffer);
-
-        state->buffer = new_buffer;
-        state->size = alloc_size;
-    }
-    else if (new_flags & LXA_DOS_BF_NOBUF)
-    {
-        if ((state->flags & LXA_DOS_BF_OWNBUF) && state->buffer)
-            FreeVec(state->buffer);
-
-        state->buffer = NULL;
-    }
-
-    state->flags = new_flags;
-    lxa_dos_buffer_state_reset_io(state);
-    SetIoErr(0);
-    return 0;
+    return fh && (fh->fh_Func3 == FILE_KIND_CONSOLE || fh->fh_Func3 == FILE_KIND_CON);
 }
 
-static LONG lxa_dos_read_single_byte(struct DosLibrary *DOSBase, BPTR fh, struct FileHandle *fhp,
-                                     struct lxa_dos_buffer_state *state)
+/* the buffer, allocated when first needed */
+static UBYTE *lxa_dos_buffer_get(struct lxa_dos_buffer_state *state)
 {
-    UBYTE ch;
-    LONG result;
-
-    (void)fhp;
-
-    if (state && state->unget_char >= 0)
+    if (state->mode == BUF_NONE)
+        return NULL;
+    if (!state->buffer)
     {
-        LONG ungot = state->unget_char;
-        state->unget_char = -1;
-        state->last_char = ungot;
-        state->last_valid = TRUE;
-        return ungot;
+        state->buffer = (UBYTE *)AllocVec(state->size, MEMF_PUBLIC);
+        if (state->buffer)
+            state->flags |= LXA_DOS_BF_OWNBUF;
     }
-    if (state && state->unget_char == LXA_DOS_UNGET_EOF)
-    {
-        state->unget_char = -1;
-        return -1;
-    }
-
-    result = _dos_Read(DOSBase, fh, &ch, 1);
-    if (result < 0)
-        return -2;
-
-    if (state)
-    {
-        state->last_char = result == 0 ? -1 : (LONG)ch;
-        state->last_valid = TRUE;
-    }
-
-    if (result == 0)
-        return -1;
-
-    return (LONG)ch;
+    return state->buffer;
 }
 
-/* Buffered output (FPutC/FWrite/FPuts/VFPrintf/PutStr/WriteChars) goes
- * through dos buffers on AmigaOS 3.1 and sends no packet per call, so a
- * successful call leaves IoErr() alone (unlike a plain Write(), whose
- * packet resets it).  lxa writes through immediately: keep IoErr(). */
+/* Seek without looking at the buffer */
+static LONG lxa_dos_raw_seek(struct FileHandle *fh, LONG position, LONG mode)
+{
+    LONG l;
+
+    if (fh->fh_Func3 == FILE_KIND_CON)
+    {
+        SetIoErr(ERROR_ACTION_NOT_KNOWN);
+        return -1;
+    }
+    l = emucall3(EMU_CALL_DOS_SEEK, (ULONG)fh, (ULONG)position, (ULONG)mode);
+    if (l < 0)
+        SetIoErr(fh->fh_Arg2);
+    else
+        SetIoErr(0);
+    return l;
+}
+
+/* Buffered output goes through dos buffers on AmigaOS 3.1 and sends no
+ * packet per call, so a successful call leaves IoErr() alone (unlike a
+ * plain Write(), whose packet resets it). */
 static LONG lxa_dos_buffered_write(struct DosLibrary *DOSBase, BPTR fh, CONST APTR buf, LONG len)
 {
     LONG saved = IoErr();
@@ -1500,50 +1462,388 @@ static LONG lxa_dos_buffered_write(struct DosLibrary *DOSBase, BPTR fh, CONST AP
     return result;
 }
 
-static LONG lxa_dos_fputc_internal(struct DosLibrary *DOSBase, struct FileHandle *fhp, BPTR fh, LONG ch)
+/* write out pending output; FALSE on a write error */
+static BOOL lxa_dos_wflush(struct DosLibrary *DOSBase, BPTR fh, struct lxa_dos_buffer_state *state)
 {
-    struct lxa_dos_buffer_state *state;
-    UBYTE c = (UBYTE)ch;
+    LONG n;
+
+    if (!state || !(state->flags & LXA_DOS_BF_WRITE))
+        return TRUE;
+    n = state->pos;
+    state->pos = 0;
+    state->end = 0;
+    state->flags &= ~LXA_DOS_BF_WRITE;
+    if (n > 0 && state->buffer)
+    {
+        LONG r = lxa_dos_buffered_write(DOSBase, fh, state->buffer, n);
+        if (r != n)
+        {
+            if (r >= 0)
+                SetIoErr(ERROR_DISK_FULL);
+            return FALSE;
+        }
+    }
+    return TRUE;
+}
+
+/* characters read ahead but not consumed yet */
+static LONG lxa_dos_unread(struct lxa_dos_buffer_state *state)
+{
+    LONG n;
+
+    if (!state || (state->flags & LXA_DOS_BF_WRITE))
+        return 0;
+    n = state->end - state->pos;
+    if (n < 0)
+        n = 0;
+    if (state->unget_char >= 0)
+        n++;
+    return n;
+}
+
+/* drop read-ahead data; with 'seekback' the file position goes back to
+ * the logical position (Flush(), SetVBuf(), a switch to writing) */
+static void lxa_dos_rdiscard(struct FileHandle *fhp, struct lxa_dos_buffer_state *state, BOOL seekback)
+{
+    LONG n;
+
+    if (!state || (state->flags & LXA_DOS_BF_WRITE))
+        return;
+    n = lxa_dos_unread(state);
+    if (seekback && n > 0)
+    {
+        LONG saved = IoErr();
+        lxa_dos_raw_seek(fhp, -n, OFFSET_CURRENT);
+        SetIoErr(saved);
+    }
+    state->pos = state->end = 0;
+    state->unget_char = -1;
+}
+
+/* one character from the buffer: -1 EOF, -2 error */
+static LONG lxa_dos_read_single_byte(struct DosLibrary *DOSBase, BPTR fh, struct FileHandle *fhp,
+                                     struct lxa_dos_buffer_state *state)
+{
+    UBYTE ch;
+    UBYTE *buf;
     LONG result;
 
-    state = lxa_dos_buffer_state_ensure(fhp);
+    if (!state)
+        return -2;
+
+    if (state->unget_char >= 0)
+    {
+        LONG ungot = state->unget_char;
+        state->unget_char = -1;
+        state->last_char = ungot;
+        state->last_valid = TRUE;
+        return ungot;
+    }
+    if (state->unget_char == LXA_DOS_UNGET_EOF)
+    {
+        state->unget_char = -1;
+        return -1;
+    }
+
+    /* reading shows the output still pending on the handle (AmigaOS 3.1:
+     * a prompt is visible while the console waits for input) */
+    if (state->flags & LXA_DOS_BF_WRITE)
+        lxa_dos_wflush(DOSBase, fh, state);
+
+    if (state->pos < state->end)
+    {
+        ch = state->buffer[state->pos++];
+        state->last_char = ch;
+        state->last_valid = TRUE;
+        return ch;
+    }
+
+    if (state->eof)
+    {
+        state->last_char = -1;
+        state->last_valid = TRUE;
+        return -1;
+    }
+
+    /* AmigaOS 3.1 reads a whole buffer (196 bytes by default), so an
+     * unbuffered Read() continues behind it (Tests/Probes/dos/bufblock) */
+    buf = lxa_dos_buffer_get(state);
+    if (buf)
+    {
+        result = _dos_Read(DOSBase, fh, buf, (LONG)state->size);
+        if (result > 0)
+        {
+            state->pos = 1;
+            state->end = result;
+            ch = buf[0];
+        }
+    }
+    else
+    {
+        result = _dos_Read(DOSBase, fh, &ch, 1);
+    }
+
+    if (result < 0)
+        return -2;
+
+    state->last_char = result == 0 ? -1 : (LONG)ch;
+    state->last_valid = TRUE;
+
+    if (result == 0)
+        return -1;
+
+    return (LONG)ch;
+}
+
+/* buffered output of len bytes; a console in line mode is flushed when
+ * the data contains a '\n' (AmigaOS 3.1: files never are, whatever the
+ * mode - tests/scenarios/interactive/conbuf, Tests/Probes/dos/bufblock) */
+static LONG lxa_dos_bwrite(struct DosLibrary *DOSBase, struct FileHandle *fhp, BPTR fh,
+                           const UBYTE *data, LONG len)
+{
+    struct lxa_dos_buffer_state *state = lxa_dos_buffer_state_ensure(fhp);
+    UBYTE *buf;
+    LONG i;
+    BOOL nl = FALSE;
+
     if (!state)
     {
         SetIoErr(ERROR_NO_FREE_STORE);
         return -1;
     }
 
-    lxa_dos_buffer_state_reset_io(state);
-    state->flags |= LXA_DOS_BF_WRITE;
-
-    if ((state->flags & LXA_DOS_BF_NOBUF) || !state->buffer)
+    if (!(state->flags & LXA_DOS_BF_WRITE))
     {
-        result = lxa_dos_buffered_write(DOSBase, fh, &c, 1);
-        if (result <= 0)
+        /* switch from reading: back to the logical position */
+        lxa_dos_rdiscard(fhp, state, TRUE);
+        state->pos = state->end = 0;
+    }
+    state->unget_char = -1;
+    state->eof = FALSE;
+
+    buf = lxa_dos_buffer_get(state);
+    if (!buf)
+    {
+        LONG r = len ? lxa_dos_buffered_write(DOSBase, fh, (CONST APTR)data, len) : 0;
+        if (r != len)
         {
-            if (result == 0)
+            if (r >= 0)
                 SetIoErr(ERROR_DISK_FULL);
             return -1;
         }
-        return ch;
+        return len;
     }
 
-    state->buffer[0] = c;
-    result = lxa_dos_buffered_write(DOSBase, fh, state->buffer, 1);
-    if (result <= 0)
+    state->flags |= LXA_DOS_BF_WRITE;
+    for (i = 0; i < len; i++)
     {
-        if (result == 0)
-            SetIoErr(ERROR_DISK_FULL);
+        if (state->pos >= (LONG)state->size)
+        {
+            if (!lxa_dos_wflush(DOSBase, fh, state))
+                return i ? i : -1;
+            state->flags |= LXA_DOS_BF_WRITE;
+        }
+        buf[state->pos++] = data[i];
+        if (data[i] == '\n')
+            nl = TRUE;
+    }
+
+    if (nl && state->mode == BUF_LINE && lxa_dos_fh_interactive(fhp))
+    {
+        if (!lxa_dos_wflush(DOSBase, fh, state))
+            return -1;
+    }
+    return len;
+}
+
+static LONG lxa_dos_fputc_internal(struct DosLibrary *DOSBase, struct FileHandle *fhp, BPTR fh, LONG ch)
+{
+    UBYTE c = (UBYTE)ch;
+    return lxa_dos_bwrite(DOSBase, fhp, fh, &c, 1) == 1 ? ch : -1;
+}
+
+static LONG lxa_dos_buffer_state_setvbuf(struct DosLibrary *DOSBase, struct FileHandle *fh,
+                                         STRPTR buff, LONG type, LONG size)
+{
+    struct lxa_dos_buffer_state *state = lxa_dos_buffer_state_ensure(fh);
+
+    if (!state)
+    {
+        SetIoErr(ERROR_NO_FREE_STORE);
         return -1;
     }
 
-    if ((state->flags & LXA_DOS_BF_LINEBUF) && (c == '\n' || c == '\r' || c == '\0'))
+    if (type != BUF_LINE && type != BUF_FULL && type != BUF_NONE)
     {
-        if (_dos_Flush(DOSBase, fh) == 0)
-            return -1;
+        /* an unknown mode fails with 1 (AmigaOS 3.1, reference-verified) */
+        SetIoErr(ERROR_BAD_NUMBER);
+        return 1;
     }
 
-    return ch;
+    /* pending output is written, read-ahead data given back */
+    lxa_dos_wflush(DOSBase, MKBADDR(fh), state);
+    lxa_dos_rdiscard(fh, state, TRUE);
+
+    if (size >= 0)
+    {
+        /* at least 196 bytes (AmigaOS 3.1: SetVBuf(100) still reads 196
+         * bytes ahead, 300 and 1000 are taken as given) */
+        ULONG alloc_size = (ULONG)size;
+        UBYTE *new_buffer = NULL;
+        BOOL own = FALSE;
+
+        if (alloc_size < LXA_DOS_BUFFER_MIN_SIZE)
+            alloc_size = buff ? (ULONG)size : LXA_DOS_BUFFER_MIN_SIZE;
+        if (buff && alloc_size > 0)
+        {
+            new_buffer = (UBYTE *)buff;
+        }
+        else if (alloc_size > 0)
+        {
+            new_buffer = (UBYTE *)AllocVec(alloc_size, MEMF_PUBLIC);
+            if (!new_buffer)
+            {
+                SetIoErr(ERROR_NO_FREE_STORE);
+                return -1;
+            }
+            own = TRUE;
+        }
+        if (new_buffer)
+        {
+            if ((state->flags & LXA_DOS_BF_OWNBUF) && state->buffer)
+                FreeVec(state->buffer);
+            state->buffer = new_buffer;
+            state->size = alloc_size;
+            if (own)
+                state->flags |= LXA_DOS_BF_OWNBUF;
+            else
+                state->flags &= ~LXA_DOS_BF_OWNBUF;
+        }
+    }
+
+    state->mode = type;
+    lxa_dos_buffer_state_reset_io(state);
+    SetIoErr(0);
+    return 0;
+}
+
+/*
+ * The command line in Input()'s buffer (AmigaOS 3.1, Tests/Probes/dos/
+ * cmdline): RunCommand() and CreateNewProc(NP_Arguments) put the argument
+ * string into the input handle's buffer, where ReadArgs() and FGetC()
+ * find it; unbuffered Read() does not see it.  After the command the
+ * caller's own buffer is back.  An empty argument string leaves the
+ * handle at end-of-file instead (also for the caller).
+ */
+/* SystemTagList(SYS_Asynch): the caller keeps its input buffer */
+static BOOL lxa_dos_no_inject;
+
+BOOL lxa_dos_inject_input(BPTR fh, CONST_STRPTR args, LONG len)
+{
+    struct FileHandle *fhp = (struct FileHandle *)BADDR(fh);
+    struct lxa_dos_buffer_state *state;
+    struct lxa_dos_inject *save;
+    UBYTE *buf;
+    LONG size;
+
+    if (!fhp)
+        return FALSE;
+    state = lxa_dos_buffer_state_ensure(fhp);
+    if (!state)
+        return FALSE;
+
+    save = (struct lxa_dos_inject *)AllocVec(sizeof(*save), MEMF_PUBLIC | MEMF_CLEAR);
+    if (!save)
+        return FALSE;
+    save->buffer = state->buffer;
+    save->size = state->size;
+    save->own = (state->flags & LXA_DOS_BF_OWNBUF) ? TRUE : FALSE;
+    save->pos = state->pos;
+    save->end = state->end;
+    save->writing = (state->flags & LXA_DOS_BF_WRITE) ? TRUE : FALSE;
+    save->unget_char = state->unget_char;
+    save->eof = state->eof;
+    save->empty = len <= 0;
+    save->next = state->saved;
+    state->saved = save;
+
+    if (len <= 0)
+    {
+        /* no argument line: end-of-file, which outlives the command */
+        state->pos = state->end = 0;
+        state->eof = TRUE;
+        state->unget_char = -1;
+        state->flags &= ~LXA_DOS_BF_WRITE;
+        return TRUE;
+    }
+
+    size = len > (LONG)LXA_DOS_BUFFER_DEFAULT_SIZE ? len : (LONG)LXA_DOS_BUFFER_DEFAULT_SIZE;
+    buf = (UBYTE *)AllocVec(size, MEMF_PUBLIC);
+    if (!buf)
+    {
+        state->saved = save->next;
+        FreeVec(save);
+        return FALSE;
+    }
+    CopyMem((APTR)args, buf, len);
+    state->buffer = buf;
+    state->size = size;
+    state->flags |= LXA_DOS_BF_OWNBUF;
+    state->flags &= ~LXA_DOS_BF_WRITE;
+    state->pos = 0;
+    state->end = len;
+    state->unget_char = -1;
+    state->eof = FALSE;
+    return TRUE;
+}
+
+/* pending buffered output of a handle (the end of the bootstrap program) */
+void lxa_dos_flush_pending(struct DosLibrary *DOSBase, BPTR fh)
+{
+    struct FileHandle *fhp = (struct FileHandle *)BADDR(fh);
+    if (fhp)
+        lxa_dos_wflush(DOSBase, fh, lxa_dos_buffer_state_from_fh(fhp));
+}
+
+void lxa_dos_inject_restore(BPTR fh)
+{
+    struct FileHandle *fhp = (struct FileHandle *)BADDR(fh);
+    struct lxa_dos_buffer_state *state = lxa_dos_buffer_state_from_fh(fhp);
+    struct lxa_dos_inject *save;
+
+    if (!state || !state->saved)
+        return;
+    save = state->saved;
+    state->saved = save->next;
+
+    if (save->empty)
+    {
+        /* the caller's read-ahead is gone as well (AmigaOS 3.1) */
+        if (save->own && save->buffer && save->buffer != state->buffer)
+            FreeVec(save->buffer);
+        state->pos = state->end = 0;
+        state->unget_char = -1;
+        FreeVec(save);
+        return;
+    }
+
+    if ((state->flags & LXA_DOS_BF_OWNBUF) && state->buffer)
+        FreeVec(state->buffer);
+    state->buffer = save->buffer;
+    state->size = save->size;
+    if (save->own)
+        state->flags |= LXA_DOS_BF_OWNBUF;
+    else
+        state->flags &= ~LXA_DOS_BF_OWNBUF;
+    state->pos = save->pos;
+    state->end = save->end;
+    if (save->writing)
+        state->flags |= LXA_DOS_BF_WRITE;
+    else
+        state->flags &= ~LXA_DOS_BF_WRITE;
+    state->unget_char = save->unget_char;
+    state->eof = save->eof;
+    FreeVec(save);
 }
 
 static STRPTR lxa_dos_format_to_string(CONST_STRPTR format, const APTR argarray)
@@ -1561,6 +1861,13 @@ static STRPTR lxa_dos_format_to_string(CONST_STRPTR format, const APTR argarray)
     cursor = buffer;
     RawDoFmt(format, argarray, (VOID (*)())lxa_dos_sprintf_hook, &cursor);
     return buffer;
+}
+
+static void lxa_dos_count_hook(register UBYTE ch __asm("d0"),
+                               register ULONG *count __asm("a3"))
+{
+    (void)ch;
+    (*count)++;
 }
 
 static void lxa_dos_sprintf_hook(register UBYTE ch __asm("d0"),
@@ -1919,7 +2226,7 @@ BPTR _dos_Open ( register struct DosLibrary * DOSBase        __asm("a6"),
             if (fh->fh_Func3 == FILE_KIND_CONSOLE && !fh->fh_Type)
                 fh->fh_Type = lxa_dos_host_console_port();
 
-            if (lxa_dos_buffer_state_setvbuf(fh, NULL, BUF_FULL, -1) < 0)
+            if (!lxa_dos_buffer_state_ensure(fh))
             {
                 if (fh->fh_Func3 == FILE_KIND_CON)
                 {
@@ -1966,6 +2273,9 @@ LONG _dos_Close ( register struct DosLibrary * __libBase __asm("a6"),
         return DOSTRUE;
 
     int l = 0;
+
+    /* pending buffered output is written first */
+    lxa_dos_wflush(DOSBase, file, lxa_dos_buffer_state_from_fh(fh));
     
     /* Check if this is a CON:/RAW: window */
     if (fh->fh_Func3 == FILE_KIND_CON)
@@ -2153,7 +2463,22 @@ LONG _dos_Seek ( register struct DosLibrary * __libBase __asm("a6"),
     }
 
     struct FileHandle *fh = (struct FileHandle *) BADDR(file);
-    int l = emucall3 (EMU_CALL_DOS_SEEK, (ULONG) fh, (ULONG) position, (ULONG) mode);
+    struct lxa_dos_buffer_state *state = lxa_dos_buffer_state_from_fh(fh);
+    LONG unread = 0;
+    int l;
+
+    /* buffered data: pending output is written, read-ahead dropped; the
+     * position is the logical one (AmigaOS 3.1, Tests/Probes/dos/bufblock) */
+    if (state)
+    {
+        if (!lxa_dos_wflush(__libBase, file, state))
+            return -1;
+        unread = lxa_dos_unread(state);
+        if (mode == OFFSET_CURRENT)
+            position -= unread;
+    }
+
+    l = emucall3 (EMU_CALL_DOS_SEEK, (ULONG) fh, (ULONG) position, (ULONG) mode);
 
     DPRINTF (LOG_DEBUG, "_dos: Seek() result from emucall3: l=%ld\n", l);
 
@@ -2161,13 +2486,17 @@ LONG _dos_Seek ( register struct DosLibrary * __libBase __asm("a6"),
     {
         struct Process *me = U_getCurrentProcess();
         me->pr_Result2 = fh->fh_Arg2;
-    }
-    else
-    {
-        SetIoErr(0);    /* successful packet (AmigaOS 3.1) */
+        return l;
     }
 
-    return l;
+    SetIoErr(0);    /* successful packet (AmigaOS 3.1) */
+    if (state)
+    {
+        state->pos = state->end = 0;
+        state->unget_char = -1;
+        state->eof = FALSE;
+    }
+    return l - unread;
 }
 
 LONG _dos_DeleteFile ( register struct DosLibrary * __libBase __asm("a6"),
@@ -3191,8 +3520,8 @@ LONG _dos_IsInteractive ( register struct DosLibrary *DOSBase __asm("a6"),
 {
     DPRINTF (LOG_DEBUG, "_dos: IsInteractive() called, file=0x%08lx\n", file);
     struct FileHandle *fh = (struct FileHandle *) BADDR(file);
-    ULONG kind = fh->fh_Func3;
-    return kind == FILE_KIND_CONSOLE;
+    /* the host console and CON:/RAW: windows */
+    return lxa_dos_fh_interactive(fh) ? DOSTRUE : DOSFALSE;
 }
 
 void _dos_Delay ( register struct DosLibrary * __libBase __asm("a6"),
@@ -4040,7 +4369,6 @@ LONG _dos_FRead ( register struct DosLibrary * DOSBase __asm("a6"),
         return -1;
     }
 
-    state->flags &= ~LXA_DOS_BF_WRITE;
     dst = (UBYTE *)block;
 
     while (bytes_read < total)
@@ -4095,15 +4423,12 @@ LONG _dos_FWrite ( register struct DosLibrary * DOSBase __asm("a6"),
     fhp = (struct FileHandle *)BADDR(fh);
     src = (const UBYTE *)block;
 
-    while (written < total)
     {
-        if (lxa_dos_fputc_internal(DOSBase, fhp, fh, src[written]) < 0)
-            break;
-        written++;
+        LONG r = lxa_dos_bwrite(DOSBase, fhp, fh, src, (LONG)total);
+        if (r <= 0)
+            return -1;
+        written = (ULONG)r;
     }
-
-    if (written == 0)
-        return -1;
 
     return (LONG)(written / blocklen);
 }
@@ -4306,14 +4631,26 @@ LONG _dos_VFPrintf ( register struct DosLibrary * DOSBase __asm("a6"),
         return -1;
     }
 
-    formatted = lxa_dos_format_to_string(format, argarray);
-    if (!formatted)
+    /* RawDoFmt output up to its terminating NUL - which can include the
+     * stray NUL it leaves after zero-padded negative numbers ("%05ld" of -1
+     * writes "-0001\0", 9 bytes for "%05ld|x\n" on AmigaOS 3.1) */
     {
-        SetIoErr(ERROR_NO_FREE_STORE);
-        return -1;
+        ULONG count = 0;
+        STRPTR cursor;
+        RawDoFmt(format, argarray, (VOID (*)())lxa_dos_count_hook, &count);
+        formatted = AllocVec(count + 1, MEMF_PUBLIC | MEMF_CLEAR);
+        if (!formatted)
+        {
+            SetIoErr(ERROR_NO_FREE_STORE);
+            return -1;
+        }
+        cursor = formatted;
+        RawDoFmt(format, argarray, (VOID (*)())lxa_dos_sprintf_hook, &cursor);
+        result = count > 0 ? (LONG)count - 1 : 0;
+        if (result > 0 && lxa_dos_bwrite(DOSBase, (struct FileHandle *)BADDR(fh), fh,
+                                         (const UBYTE *)formatted, result) != result)
+            result = -1;
     }
-
-    result = _dos_FWrite(DOSBase, fh, formatted, 1, strlen((char *)formatted));
     FreeVec(formatted);
 
     if (result < 0)
@@ -4330,9 +4667,15 @@ LONG _dos_Flush ( register struct DosLibrary * DOSBase __asm("a6"),
 
     if (fhp)
     {
+        /* pending output is written; read-ahead data is given back, the
+         * file position returns to the logical one (AmigaOS 3.1) */
         struct lxa_dos_buffer_state *state = lxa_dos_buffer_state_from_fh(fhp);
         if (state)
-            state->flags &= ~LXA_DOS_BF_WRITE;
+        {
+            if (!lxa_dos_wflush(DOSBase, fh, state))
+                return DOSFALSE;
+            lxa_dos_rdiscard(fhp, state, TRUE);
+        }
     }
 
     /* DOSTRUE on success (AmigaOS 3.1, reference-verified) */
@@ -4355,7 +4698,7 @@ LONG _dos_SetVBuf ( register struct DosLibrary * DOSBase __asm("a6"),
         return -1;
     }
 
-    return lxa_dos_buffer_state_setvbuf(fhp, buff, type, size);
+    return lxa_dos_buffer_state_setvbuf(DOSBase, fhp, buff, type, size);
 }
 
 BPTR _dos_DupLockFromFH ( register struct DosLibrary * DOSBase __asm("a6"),
@@ -5636,6 +5979,11 @@ struct Process * _dos_CreateNewProc ( register struct DosLibrary * DOSBase __asm
         sync_cli_setname_from_lock(cli, curdir);
     }
 
+    /* NP_Arguments also go into the child's Input() buffer (AmigaOS 3.1,
+     * Tests/Probes/dos/cmdline: FGets(Input()) in the child returns them) */
+    if (args && args[0] && inp && !lxa_dos_no_inject)
+        lxa_dos_inject_input(inp, (CONST_STRPTR)args, strlen(args));
+
     // launch it
 
     Disable();
@@ -5717,6 +6065,7 @@ asm(
 "        move.l     sp, a4                          | a4 near sp                            \n"
 "        move.l     a3, a2                          | no caller frame pointers in a2/d5     \n"
 "        move.l     a3, d5                                                                  \n"
+"        move.l     a3, d1                          | d1: no leftover argument value         \n"
 "        jsr        (a3)                                                                    \n"
 "        move.l     4(sp), sp                       | back to the caller stack              \n"
 "        movem.l    (sp)+, d2-d7/a2-a6                                                      \n"
@@ -5734,8 +6083,8 @@ LONG _dos_RunCommand ( register struct DosLibrary * DOSBase __asm("a6"),
      * Input()/Output(), current directory, CLI structure and local
      * variables) on a fresh stack of 'stack' bytes; the result is the
      * command's return code, -1 if the stack could not be allocated.
-     * pr_Arguments holds the argument string while the command runs
-     * (lxa's ReadArgs() reads it from there).
+     * pr_Arguments holds the argument string while the command runs, and
+     * Input()'s buffer starts with it.
      */
     struct Process *me = U_getCurrentProcess();
     UBYTE *stack_mem;
@@ -5743,6 +6092,8 @@ LONG _dos_RunCommand ( register struct DosLibrary * DOSBase __asm("a6"),
     APTR old_lower, old_upper, old_return;
     STRPTR old_args;
     ULONG old_stacksize;
+    BPTR in;
+    BOOL injected;
     LONG len, result, req_stack;
 
     (void)DOSBase;
@@ -5788,6 +6139,10 @@ LONG _dos_RunCommand ( register struct DosLibrary * DOSBase __asm("a6"),
 
     me->pr_Arguments = (STRPTR)args;
     me->pr_StackSize = stack;
+    /* the argument line goes into Input()'s buffer, where ReadArgs() reads
+     * it; the caller's buffer is back afterwards (AmigaOS 3.1) */
+    in = me->pr_CIS;
+    injected = in ? lxa_dos_inject_input(in, (CONST_STRPTR)args, len) : FALSE;
     me->pr_Task.tc_SPLower = stack_mem;
     me->pr_Task.tc_SPUpper = stack_mem + stack;
 
@@ -5801,6 +6156,8 @@ LONG _dos_RunCommand ( register struct DosLibrary * DOSBase __asm("a6"),
     me->pr_ReturnAddr = old_return;
     me->pr_Arguments = old_args;
     me->pr_StackSize = old_stacksize;
+    if (injected)
+        lxa_dos_inject_restore(in);
 
     FreeVec(stack_mem);
     FreeVec(args);
@@ -6327,7 +6684,11 @@ static LONG lxa_dos_system(struct DosLibrary *DOSBase, CONST_STRPTR command,
         { TAG_DONE, 0 }
     };
 
+    /* the child finds its arguments in its input buffer as well; an
+     * asynchronous child shares nothing with the caller's buffer */
+    lxa_dos_no_inject = asynch;
     struct Process *proc = _dos_CreateNewProc(DOSBase, procTags);
+    lxa_dos_no_inject = FALSE;
     if (!proc) {
         LPRINTF(LOG_ERROR, "_dos: SystemTagList() failed to create process\n");
         if (blk)
@@ -6428,6 +6789,10 @@ static LONG lxa_dos_system(struct DosLibrary *DOSBase, CONST_STRPTR command,
     DPRINTF(LOG_DEBUG, "_dos: SystemTagList wait loop finished after %d iterations\n", loopCount);
 
     me->pr_Task.tc_SigWait = oldSig;
+
+    /* the caller's input buffer is back */
+    if (input && args[0])
+        lxa_dos_inject_restore(input);
 
     DPRINTF(LOG_INFO, "_dos: SystemTagList task %ld finished\n", taskNum);
 
@@ -8478,13 +8843,6 @@ struct RDArgs * _dos_ReadArgs ( register struct DosLibrary * DOSBase __asm("a6")
     src.dosbase = DOSBase;
     src.cs = (args && args->RDA_Source.CS_Buffer) ? &args->RDA_Source : NULL;
     src.fh = src.cs ? 0 : Input();
-    struct CSource tmpcs;
-    if (!src.cs) {
-        tmpcs.CS_Buffer = me->pr_Arguments ? me->pr_Arguments : (STRPTR)"\n";
-        tmpcs.CS_Length = strlen((const char *)tmpcs.CS_Buffer);
-        tmpcs.CS_CurChr = 0;
-        src.cs = &tmpcs;
-    }
 
 restart:
     for (i = 0; i < num_items; i++) {
@@ -8644,6 +9002,16 @@ restart:
             }
             filled[target] = 1;
         }
+    }
+
+    /* an error inside the line: the rest of the line is skipped (AmigaOS
+     * 3.1, Tests/Probes/dos/cmdline: the next FGets(Input()) returns the
+     * following line) */
+    if (err) {
+        LONG c;
+        do {
+            c = _ra_getc(&src);
+        } while (c != -1 && c != '\n');
     }
 
     if (!err && multi_item >= 0) {
@@ -10574,7 +10942,8 @@ LONG _dos_WriteChars ( register struct DosLibrary * DOSBase __asm("a6"),
     }
     
     /* Write the specified number of characters */
-    LONG result = lxa_dos_buffered_write(DOSBase, out, (CONST APTR)buf, buflen);
+    LONG result = lxa_dos_bwrite(DOSBase, (struct FileHandle *)BADDR(out), out,
+                                 (const UBYTE *)buf, (LONG)buflen);
     
     if (result < 0)
         return -1;
