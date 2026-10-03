@@ -5850,11 +5850,11 @@ static VOID _init_string_gadget_info(struct Gadget *gadget)
         struct StringInfo *si = (struct StringInfo *)gadget->SpecialInfo;
         if (si && si->Buffer)
         {
-            /* Compute NumChars from buffer contents */
+            /* AmigaOS 3.1 leaves NumChars alone here; rendering the gadget
+             * recomputes it (tests/probes/intuition/strgad) */
             WORD len = 0;
             while (si->Buffer[len] != '\0' && len < si->MaxChars)
                 len++;
-            si->NumChars = len;
 
             if (si->BufferPos < 0)
                 si->BufferPos = 0;
@@ -8837,7 +8837,16 @@ struct Screen * _intuition_OpenScreen ( register struct IntuitionBase * Intuitio
      * validation so sentinel values such as STDSCREENHEIGHT (-1) and other
      * negative compatibility values do not wrap to huge unsigned sizes.
      */
-    /* STDSCREENWIDTH/HEIGHT (or 0): the size of the display mode
+    /* AmigaOS 3.1 refuses a zero width or height
+     * (tests/probes/intuition/screens) */
+    if (requested_width == 0 || requested_height == 0)
+    {
+        DPRINTF (LOG_DEBUG, "_intuition: OpenScreen() zero size %dx%d\n",
+                 (int)requested_width, (int)requested_height);
+        return NULL;
+    }
+
+    /* STDSCREENWIDTH/HEIGHT: the size of the display mode
      * (AmigaOS 3.1: lores 320, hires 640, interlace doubles the height) */
     if (requested_width <= 0)
         width = (newScreen->ViewModes & SUPERHIRES) ? 1280 : (newScreen->ViewModes & HIRES) ? 640 : 320;
@@ -8855,8 +8864,8 @@ struct Screen * _intuition_OpenScreen ( register struct IntuitionBase * Intuitio
     /* Small heights are kept as requested (AmigaOS 3.1 reference: a 40 line
      * screen opens 40 lines high; no expansion to the display height). */
 
-    DPRINTF (LOG_DEBUG, "_intuition: OpenScreen() %dx%dx%d ViewModes=0x%04x\n",
-             (int)width, (int)height, (int)depth, (UWORD)newScreen->ViewModes);
+    DPRINTF (LOG_DEBUG, "_intuition: OpenScreen() tags=%d req=%d,%d %dx%dx%d ViewModes=0x%04x\n",
+             (int)g_screen_from_tags, (int)requested_width, (int)requested_height, (int)width, (int)height, (int)depth, (UWORD)newScreen->ViewModes);
 
     /* Allocate Screen structure */
     screen = (struct Screen *)AllocMem(sizeof(struct Screen), MEMF_PUBLIC | MEMF_CLEAR);
@@ -10217,6 +10226,7 @@ ULONG _intuition_OpenWorkBench ( register struct IntuitionBase * IntuitionBase _
     ns.DetailPen = 0;
     ns.BlockPen = 1;
     ns.Type = CUSTOMSCREEN;
+    ns.ViewModes = HIRES;           /* the Workbench is a hires screen */
     ns.DefaultTitle = (UBYTE *)"Workbench Screen";
     
     /* Phase 147a: tell the EMU_CALL_INT_OPEN_SCREEN site that this is
@@ -11359,15 +11369,16 @@ struct Window * _intuition_BuildSysRequest ( register struct IntuitionBase * Int
     else
         strcpy(dst, "Cancel");
 
-    /* the body's extent: the texts' right edge, and their bottom edge
-     * below the first text's TopEdge (AmigaOS 3.1 reference) */
+    /* the body's extent: the texts' right and bottom edges plus their
+     * smallest LeftEdge/TopEdge (AmigaOS 3.1 reference) */
     {
         struct Screen *scr = (window && window->WScreen) ? window->WScreen
                                                          : _intuition_find_workbench_screen(IntuitionBase);
         struct RastPort *srp = scr ? &scr->RastPort : NULL;
         WORD fh = (srp && srp->TxHeight) ? (WORD)srp->TxHeight : 8;
-        WORD ew = 0, eh = 0;
+        WORD ew = 0, eh = 0, ml = 0x7fff, mt = 0x7fff;
 
+        /* the texts' box with the same margin on both sides */
         for (it = bodyText; it; it = it->NextText)
         {
             WORD tw = (it->IText && srp) ? (WORD)TextLength(srp, it->IText, (UWORD)strlen((char *)it->IText)) : 0;
@@ -11375,9 +11386,16 @@ struct Window * _intuition_BuildSysRequest ( register struct IntuitionBase * Int
                 ew = it->LeftEdge + tw;
             if (it->TopEdge + fh > eh)
                 eh = it->TopEdge + fh;
+            if (it->LeftEdge < ml)
+                ml = it->LeftEdge;
+            if (it->TopEdge < mt)
+                mt = it->TopEdge;
         }
         if (bodyText)
-            eh += bodyText->TopEdge;
+        {
+            ew += ml;
+            eh += mt;
+        }
         g_sysreq_w = ew;
         g_sysreq_h = eh;
     }
@@ -11673,8 +11691,14 @@ LONG _intuition_GetScreenData ( register struct IntuitionBase * IntuitionBase __
     /* If screen is NULL, get screen based on type */
     if (!src) {
         if (type == 1) {  /* WBENCHSCREEN */
-            /* Use FirstScreen if available, otherwise let app open its own */
-            src = IntuitionBase->FirstScreen;
+            /* the Workbench screen; AmigaOS 3.1 always has it open (an
+             * application sizing its screen from it - BlitzBasic2 - needs
+             * real data) */
+            src = _intuition_find_workbench_screen(IntuitionBase);
+            if (!src && _intuition_OpenWorkBench(IntuitionBase))
+                src = _intuition_find_workbench_screen(IntuitionBase);
+            if (!src)
+                src = IntuitionBase->FirstScreen;
         }
     }
     
@@ -12332,87 +12356,63 @@ static void _render_gadget(struct Window *window, struct Requester *req, struct 
         struct StringInfo *si = (struct StringInfo *)gad->SpecialInfo;
         if (si && si->Buffer)
         {
-            LONG len = (LONG)si->NumChars;
-            WORD textY;
-            WORD textX;
-            
-            DPRINTF(LOG_DEBUG, "_render_gadget: strgad clear interior left=%ld top=%ld w=%ld h=%ld\n",
-                    left, top, width, height);
-            
+            /* AmigaOS 3.1 (tests/probes/intuition/strgad): rendering takes
+             * the buffer as it is now - NumChars is recomputed, a DispPos
+             * that is not needed to show the cursor is reset - and draws
+             * the text from the gadget's top left corner (baseline at top
+             * + font baseline), justified per GACT_STRINGCENTER/RIGHT, with
+             * a full-height block cursor (COMPLEMENT) when the gadget is
+             * selected. */
+            LONG len = 0;
+            WORD disp, fit, tw, textX;
+
+            while (si->Buffer[len] != '\0' && len < si->MaxChars)
+                len++;
+            si->NumChars = (WORD)len;
+            if (si->BufferPos > len)
+                si->BufferPos = (WORD)len;
+            disp = si->DispPos;
+            if (disp < 0 || disp > len || TextLength(rp, si->Buffer, (UWORD)len) <= width)
+                disp = 0;
+            if (si->BufferPos < disp)
+                disp = si->BufferPos;
+            si->DispPos = disp;
+
             /* Clear gadget interior with background pen */
             SetAPen(rp, 0);
+            SetDrMd(rp, JAM2);
             RectFill(rp, left, top, left + width - 1, top + height - 1);
-            
-            DPRINTF(LOG_DEBUG, "_render_gadget: strgad RectFill done\n");
-            
-            /* Calculate text Y position (vertically centered).
-             * Text() uses baseline: y - tf_Baseline for actual rendering.
-             * Default topaz font: tf_Baseline = 6, tf_YSize = 8.
-             * For vertical centering: textY = top + (height / 2) + 3
-             * gives good baseline alignment.
-             */
-            textY = top + (height / 2) + 3;
-            textX = left + 2;  /* Small left margin */
-            
-            /* Handle GACT_STRINGCENTER: center text horizontally */
+
+            fit = lxa_text_fit(rp, si->Buffer + disp, (WORD)(len - disp), (WORD)width);
+            tw = fit > 0 ? TextLength(rp, si->Buffer + disp, fit) : 0;
+            textX = left;
             if (gad->Activation & GACT_STRINGCENTER)
-            {
-                WORD textWidth = len * 8;  /* topaz 8: 8px per character */
-                textX = left + (width - textWidth) / 2;
-                if (textX < left + 2)
-                    textX = left + 2;
-            }
-            
-            /* Handle GACT_STRINGRIGHT: right-align text */
-            if (gad->Activation & GACT_STRINGRIGHT)
-            {
-                WORD textWidth = len * 8;
-                textX = left + width - textWidth - 2;
-                if (textX < left + 2)
-                    textX = left + 2;
-            }
-            
-            /* Draw buffer text */
+                textX = left + (width - tw) / 2;
+            else if (gad->Activation & GACT_STRINGRIGHT)
+                textX = left + width - tw;
+
             SetAPen(rp, 1);  /* Text pen */
             SetBPen(rp, 0);  /* Background pen */
-            SetDrMd(rp, JAM2);
-            
-            DPRINTF(LOG_DEBUG, "_render_gadget: strgad Text textX=%d textY=%d len=%ld\n",
-                    textX, textY, len);
-            
-            Move(rp, textX, textY);
-            if (len > 0)
-            {
-                Text(rp, si->Buffer, len);
-            }
-            
-            DPRINTF(LOG_DEBUG, "_render_gadget: strgad Text done\n");
-            
+            Move(rp, textX, top + rp->TxBaseline);
+            if (fit > 0)
+                Text(rp, si->Buffer + disp, fit);
+
             /* Draw cursor if gadget is active (selected) */
             if (gad->Flags & GFLG_SELECTED)
             {
-                WORD cursorX;
-                WORD cursorPos = si->BufferPos;
-                
-                if (cursorPos > 0)
-                {
-                    DPRINTF(LOG_DEBUG, "_render_gadget: strgad TextLength pos=%d\n", cursorPos);
-                    cursorX = textX + TextLength(rp, si->Buffer, cursorPos);
-                    DPRINTF(LOG_DEBUG, "_render_gadget: strgad TextLength done cursorX=%d\n", cursorX);
-                }
-                else
-                {
-                    cursorX = textX;
-                }
-                
-                /* Draw cursor as vertical bar in COMPLEMENT mode */
+                WORD pos = si->BufferPos - disp;
+                WORD cx = textX + (pos > 0 ? TextLength(rp, si->Buffer + disp, pos) : 0);
+                WORD cw = (si->BufferPos < len) ? TextLength(rp, si->Buffer + si->BufferPos, 1)
+                                                : TextLength(rp, (STRPTR)" ", 1);
+                WORD ch = rp->TxHeight ? rp->TxHeight : 8;
+
+                if (ch > height)
+                    ch = height;
                 SetAPen(rp, 1);
                 SetDrMd(rp, COMPLEMENT);
-                RectFill(rp, cursorX, top + 1, cursorX + 1, top + height - 2);
+                RectFill(rp, cx, top, cx + cw - 1, top + ch - 1);
                 SetDrMd(rp, JAM2);
-                DPRINTF(LOG_DEBUG, "_render_gadget: strgad cursor done\n");
             }
-            DPRINTF(LOG_DEBUG, "_render_gadget: strgad rendering complete\n");
         }
     }
 
@@ -12522,10 +12522,8 @@ UWORD _intuition_AddGList ( register struct IntuitionBase * IntuitionBase __asm(
         }
     }
 
-    if (!requester || requester->ReqLayer)
-    {
-        _intuition_RefreshGList(IntuitionBase, gadget, window, requester, numGad);
-    }
+    /* AmigaOS 3.1 does not draw added gadgets: the application calls
+     * RefreshGList() (tests/probes/intuition/strgad: NumChars stays 0) */
 
     return actual_position;
 }
@@ -12676,8 +12674,10 @@ BOOL _intuition_ActivateGadget ( register struct IntuitionBase * IntuitionBase _
                 len++;
             si->NumChars = len;
         }
+        /* the active string gadget shows its cursor (AmigaOS 3.1) */
+        _render_gadget(window, requester, gadget);
     }
-    
+
     return TRUE;
 }
 
@@ -14622,9 +14622,12 @@ struct Screen * _intuition_OpenScreenTagList ( register struct IntuitionBase * I
                     break;
                 case SA_LikeWorkbench:
                     /* AmigaOS 3.1 reference (gallery-menus): a screen like
-                     * the Workbench shares its pens */
+                     * the Workbench shares its pens and has its mode */
                     if (tag->ti_Data)
+                    {
                         share_pens = TRUE;
+                        ns.ViewModes |= HIRES;
+                    }
                     break;
                 case SA_PubName:
                     pub_name = tag->ti_Data ? TRUE : FALSE;

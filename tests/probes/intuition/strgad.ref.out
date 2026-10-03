@@ -1,0 +1,64 @@
+-- plain
+after AddGList NumChars = 0
+after AddGList BufferPos = 0
+after AddGList DispPos = 0
+NumChars = 6
+BufferPos = 0
+DispPos = 0
+Flags = 0x00000000
+cells=######.............. pens=1  rows=0 to=6 outside=0
+-- disppos 2
+after AddGList NumChars = 0
+after AddGList BufferPos = 0
+after AddGList DispPos = 0
+NumChars = 6
+BufferPos = 0
+DispPos = 0
+Flags = 0x00000000
+cells=######.............. pens=1  rows=0 to=6 outside=0
+-- center
+after AddGList NumChars = 0
+after AddGList BufferPos = 0
+after AddGList DispPos = 0
+NumChars = 6
+BufferPos = 0
+DispPos = 0
+Flags = 0x00000000
+cells=.......######....... pens=1  rows=0 to=6 outside=0
+-- right
+after AddGList NumChars = 0
+after AddGList BufferPos = 0
+after AddGList DispPos = 0
+NumChars = 6
+BufferPos = 0
+DispPos = 0
+Flags = 0x00000000
+cells=..............###### pens=1  rows=0 to=6 outside=0
+-- border
+after AddGList NumChars = 0
+after AddGList BufferPos = 0
+after AddGList DispPos = 0
+NumChars = 6
+BufferPos = 0
+DispPos = 0
+Flags = 0x00000000
+cells=######.............. pens=1  rows=0 to=6 outside=352
+-- selected flag
+after AddGList NumChars = 0
+after AddGList BufferPos = 0
+after AddGList DispPos = 0
+NumChars = 6
+BufferPos = 0
+DispPos = 0
+Flags = 0x00000080
+cells=######.............. pens=1 2 3  rows=0 to=7 outside=0
+-- activated
+after AddGList NumChars = 0
+after AddGList BufferPos = 0
+after AddGList DispPos = 0
+ActivateGadget = TRUE
+NumChars = 6
+BufferPos = 0
+DispPos = 0
+Flags = 0x00000080
+cells=######.............. pens=1 2 3  rows=0 to=7 outside=0

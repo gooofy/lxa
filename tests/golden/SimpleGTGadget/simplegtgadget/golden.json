@@ -1,68 +1,14 @@
 {
  "app": "SimpleGTGadget",
  "disabled": null,
- "lxa_version": "0.11.14",
+ "lxa_version": "0.11.17",
  "promoted": "2026-10-03",
  "reference": "AmigaOS 3.1 (KS 40.70), profile aga",
  "requires_apps": false,
  "scenario": "simplegtgadget",
  "snapshots": {
   "startup": {
-   "known_tree_diffs": [
-    {
-     "field": "flags",
-     "kind": "gadget",
-     "lxa": 3,
-     "phase": 222,
-     "ref": 32774,
-     "where": "screen[Workbench Screen]/window[GadTools Gadget Demo]/gadget[0 id=1]"
-    },
-    {
-     "field": "flags",
-     "kind": "gadget",
-     "lxa": 3,
-     "phase": 222,
-     "ref": 32774,
-     "where": "screen[Workbench Screen]/window[GadTools Gadget Demo]/gadget[1 id=2]"
-    },
-    {
-     "field": "flags",
-     "kind": "gadget",
-     "lxa": 0,
-     "phase": 222,
-     "ref": 33284,
-     "where": "screen[Workbench Screen]/window[GadTools Gadget Demo]/gadget[2 id=3]"
-    },
-    {
-     "field": "activation",
-     "kind": "gadget",
-     "lxa": 2049,
-     "phase": 222,
-     "ref": 10241,
-     "where": "screen[Workbench Screen]/window[GadTools Gadget Demo]/gadget[2 id=3]"
-    },
-    {
-     "field": "flags",
-     "kind": "gadget",
-     "lxa": 3,
-     "phase": 222,
-     "ref": 32774,
-     "where": "screen[Workbench Screen]/window[GadTools Gadget Demo]/gadget[3 id=4]"
-    },
-    {
-     "field": "text",
-     "kind": "gadget",
-     "lxa": [
-      "Cycle:",
-      "Option 1"
-     ],
-     "phase": 222,
-     "ref": [
-      "Cycle:"
-     ],
-     "where": "screen[Workbench Screen]/window[GadTools Gadget Demo]/gadget[3 id=4]"
-    }
-   ],
+   "known_tree_diffs": [],
    "pixel_budget": 492,
    "pixel_phase": 225,
    "stdout_known_diff": 222

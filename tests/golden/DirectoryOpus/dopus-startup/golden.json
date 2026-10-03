@@ -1,7 +1,7 @@
 {
  "app": "DirectoryOpus",
  "disabled": null,
- "lxa_version": "0.11.14",
+ "lxa_version": "0.11.17",
  "promoted": "2026-10-03",
  "reference": "AmigaOS 3.1 (KS 40.70), profile aga",
  "requires_apps": true,
@@ -19,14 +19,6 @@
     }
    ],
    "known_tree_diffs": [
-    {
-     "field": "flags",
-     "kind": "screen",
-     "lxa": 18050,
-     "phase": 222,
-     "ref": 18066,
-     "where": "screen[DOPUS.1]"
-    },
     {
      "field": "activation",
      "kind": "gadget",
@@ -60,7 +52,7 @@
      "where": "screen[DOPUS.1]/window[DOPUS.1]/gadget[31 id=65000]"
     }
    ],
-   "pixel_budget": 25245,
+   "pixel_budget": 18245,
    "pixel_phase": 224,
    "stdout_known_diff": null
   }

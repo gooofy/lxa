@@ -52,6 +52,23 @@ screen box=0,0,640x480 flags=0x001f title="Old" deftitle="Old"
  sg gad1 id=0 type=0xc035 flags=0x8024 act=0x0000 box=0,0,0x11 norender noselect notext nospecial mx=set
  sg ext more=0x00000002
  dri version=2 numpens=12 flags=0x00000000 depth=2 resx=44 resy=44 font=8 pens=0,1,1,1,1,1,0,0,1,0,1,1
+-- NewScreen size 0 viewmodes 0
+OpenScreen = NULL
+-- NewScreen width 0 height -3
+OpenScreen = NULL
+-- ExtNewScreen width 0 height -3 pens
+OpenScreen = NULL
+-- ExtNewScreen width 0 height -3 no tags
+OpenScreen = NULL
+-- ExtNewScreen 320x200 pens
+screen box=0,0,320x200 flags=0x001f title="Old" deftitle="Old"
+  barh=10 barv=1 barhb=2 menuv=4 menuh=4 wbt=2 wbl=4 wbr=4 wbb=2
+  font=topaz.font/8 rpfont=8 depth=2 vpmodes=16384 detailpen=0 blockpen=1 barlayer box=0,0,320x11 gadgets
+ sg gad0 id=0 type=0xc055 flags=0x8014 act=0x0001 box=-16,0,17x11 render noselect notext nospecial mx=set
+ sg ext more=0x00000002
+ sg gad1 id=0 type=0xc035 flags=0x8024 act=0x0000 box=0,0,0x11 norender noselect notext nospecial mx=set
+ sg ext more=0x00000002
+ dri version=2 numpens=12 flags=0x00000001 depth=2 resx=44 resy=44 font=8 pens=0,1,1,2,1,3,1,0,2,1,2,1
 -- NewScreen std quiet
 screen box=0,0,640x256 flags=0x031f title="Old" deftitle="Old"
   barh=10 barv=1 barhb=5 menuv=2 menuh=4 wbt=2 wbl=4 wbr=4 wbb=2

@@ -1,80 +1,15 @@
 {
  "app": "DPaintV",
  "disabled": null,
- "lxa_version": "0.11.14",
+ "lxa_version": "0.11.17",
  "promoted": "2026-10-03",
  "reference": "AmigaOS 3.1 (KS 40.70), profile aga",
  "requires_apps": true,
  "scenario": "dpaintv-startup",
  "snapshots": {
   "startup": {
-   "known_tree_diffs": [
-    {
-     "field": "flags",
-     "kind": "gadget",
-     "lxa": 3,
-     "phase": 224,
-     "ref": 32775,
-     "where": "screen[Workbench Screen]/window[Ownership Information]/gadget[0 id=8]"
-    },
-    {
-     "field": "flags",
-     "kind": "gadget",
-     "lxa": 3,
-     "phase": 224,
-     "ref": 32775,
-     "where": "screen[Workbench Screen]/window[Ownership Information]/gadget[1 id=8]"
-    },
-    {
-     "field": "flags",
-     "kind": "gadget",
-     "lxa": 3,
-     "phase": 224,
-     "ref": 32775,
-     "where": "screen[Workbench Screen]/window[Ownership Information]/gadget[2 id=4]"
-    },
-    {
-     "field": "flags",
-     "kind": "gadget",
-     "lxa": 3,
-     "phase": 224,
-     "ref": 32775,
-     "where": "screen[Workbench Screen]/window[Ownership Information]/gadget[3 id=5]"
-    },
-    {
-     "field": "flags",
-     "kind": "gadget",
-     "lxa": 3,
-     "phase": 224,
-     "ref": 32775,
-     "where": "screen[Workbench Screen]/window[Ownership Information]/gadget[4 id=6]"
-    },
-    {
-     "field": "flags",
-     "kind": "gadget",
-     "lxa": 3,
-     "phase": 224,
-     "ref": 32775,
-     "where": "screen[Workbench Screen]/window[Ownership Information]/gadget[5 id=7]"
-    },
-    {
-     "field": "flags",
-     "kind": "gadget",
-     "lxa": 3,
-     "phase": 222,
-     "ref": 32774,
-     "where": "screen[Workbench Screen]/window[Ownership Information]/gadget[6 id=1]"
-    },
-    {
-     "field": "activation",
-     "kind": "gadget",
-     "lxa": 1,
-     "phase": 224,
-     "ref": 3,
-     "where": "screen[Workbench Screen]/window[Ownership Information]/gadget[6 id=1]"
-    }
-   ],
-   "pixel_budget": 40690,
+   "known_tree_diffs": [],
+   "pixel_budget": 35863,
    "pixel_phase": 224,
    "stdout_known_diff": null
   }

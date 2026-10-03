@@ -132,6 +132,26 @@ int main(void)
     ns.Width = 640; ns.Height = 480; ns.ViewModes = 0; ns.Depth = 2;
     show("NewScreen 640x480 viewmodes 0", OpenScreen(&ns));
 
+    ns.Width = 0; ns.Height = 0; ns.ViewModes = 0; ns.Depth = 2;
+    show("NewScreen size 0 viewmodes 0", OpenScreen(&ns));
+    ns.Height = -3;
+    show("NewScreen width 0 height -3", OpenScreen(&ns));
+    {
+        struct ExtNewScreen ens;
+        struct TagItem ext[] = { { SA_Pens, (ULONG)pens }, { TAG_DONE, 0 } };
+        struct TagItem noext[] = { { TAG_DONE, 0 } };
+
+        memcpy(&ens, &ns, sizeof(ns));
+        ens.Type |= NS_EXTENDED;
+        ens.Extension = ext;
+        show("ExtNewScreen width 0 height -3 pens", OpenScreen((struct NewScreen *)&ens));
+        ens.Extension = noext;
+        show("ExtNewScreen width 0 height -3 no tags", OpenScreen((struct NewScreen *)&ens));
+        ens.Width = 320; ens.Height = 200;
+        ens.Extension = ext;
+        show("ExtNewScreen 320x200 pens", OpenScreen((struct NewScreen *)&ens));
+    }
+
     ns.Width = STDSCREENWIDTH; ns.Height = STDSCREENHEIGHT; ns.ViewModes = HIRES; ns.Depth = 2;
     ns.Type = CUSTOMSCREEN | SCREENQUIET;
     show("NewScreen std quiet", OpenScreen(&ns));

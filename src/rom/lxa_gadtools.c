@@ -2508,6 +2508,11 @@ BOOL _gadtools_RenderGadget(register struct Window *win __asm("a0"),
             {
                 WORD len = gt_strlen(si->Buffer);
                 WORD disp = si->DispPos;
+
+                /* rendering takes the buffer as it is (AmigaOS 3.1) */
+                si->NumChars = len;
+                if (si->BufferPos > len)
+                    si->BufferPos = len;
                 WORD fit;
 
                 if (disp < 0 || disp > len)
