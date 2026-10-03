@@ -115,8 +115,7 @@ protected:
             Click(window_info.x + 95, window_info.y + 28);
             ASSERT_TRUE(WaitForOutputContains("OK: raw gadget-down report returned expected prefix", 12000));
 
-            ASSERT_TRUE(WaitForOutputContains("Waiting for size-window raw event report", 12000));
-            ASSERT_TRUE(WaitForOutputContains("OK: size-window raw event report returned expected prefix", 12000));
+            ASSERT_TRUE(WaitForOutputContains("size-window raw event report: class 12 subclass 0 code 0 x;y = window", 12000));
 
             ASSERT_TRUE(WaitForOutputContains("Waiting for ASCII after raw reset", 12000));
             RunCyclesWithVBlank(30, 50000);

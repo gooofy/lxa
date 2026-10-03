@@ -1,21 +1,15 @@
 {
  "backend": "ref",
  "files": [
-  "screen.png",
-  "palette.json",
   "tree.json",
   "text.jsonl",
   "stdout.txt"
  ],
  "profile": "aga",
  "refsys_checksum": "8eacd2ee453b8cc1-2b20021b88db",
- "scenario": "dpaintv-startup",
+ "scenario": "interactive-idcmp_console",
  "schema": "lxa-bundle/1",
- "screen": {
-  "depth": 2,
-  "height": 256,
-  "width": 640
- },
- "snapshot": "startup",
+ "screen": null,
+ "snapshot": "end",
  "window": null
 }

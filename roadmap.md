@@ -145,6 +145,8 @@ Complete (Phases 210–216, v0.11.9); see the summary table.
 - [ ] **222d** (from Phase 224) `IDCMP_DELTAMOVE` reports deltas and positions in Intuition's internal pointer resolution on 3.1 (a 10/5 pixel move on a 640x256 hires screen reports 20/10; lxa reports pixels) - then validate `tests/scenarios/interactive/IDCMPDeltaMove.yaml` on both systems and promote it.
 - [ ] **222d** (from Phase 223) `AutoRequest()` requester sizing rule; where a requester opens when the pointer is not at 0,0; minimum gap between requester buttons; whether `SHOWTITLE` defaults on for NewScreen-opened screens (DirectoryOpus golden).
 - [ ] **222d** intuition geometry: border sizes per flag combination, `WA_*` tag effects, requester layout, `EasyRequest` layout, screen title bar. Includes the `OpenWindowTags` defaults seen in the `simplegad`/`simplegtgadget` goldens: untitled window `Title` is `""` not NULL, `MaxWidth`/`MaxHeight` default to the window size (not 65535) without a sizing gadget, `WFLG_VISITOR` on public screens, system gadget type bits (close gadget `0x8085`).
+- [ ] **222e** (from Phase 224) the `dpaintv-startup` golden (Screen Format dialog) records 130 gadget tree diffs and the mode list under Phase 240: re-promote once 222e lands and move what remains to 240/241.
+- [ ] **222d** (from Phase 224) string gadgets: `RefreshGList` after the application changed `StringInfo->Buffer` draws nothing on lxa (stale `NumChars`, `DispPos` ignored, text at left+2 / centred instead of left / baseline) - DOpus path fields stay empty.
 - [ ] **222e** (from Phase 223) GadTools gadget internals still differ in the tree (label gadgets, `GFLG_IMAGEDISABLE`/extended flags, frame images as gadget render) - known diffs of the gallery-gt-* and GadToolsGadgets goldens.
 - [ ] **222e** gadtools: `CreateGadget` resulting geometry for every kind, font and flag combination; `CreateMenus`/`LayoutMenus` item geometry. Includes finding starter-4: GadTools gadgets lack `GTYP_GADTOOLS` (0x0100) and the zero-size context gadget.
 - [ ] **222f** clipboard.device holds off writes while a read is unfinished (3.1) - lxa does not.
@@ -163,10 +165,9 @@ Complete (Phases 210–216, v0.11.9); see the summary table.
 **Class**: Quality.
 - [ ] Re-express the strongest existing app assertions (DPaint, Devpac, DOpus, Typeface…) as scenarios with reference goldens.
 - [ ] Retire pixel-count heuristics that the goldens make redundant.
-- [ ] Re-express the `interactive` test programs in `tests/ref_suite.yaml` (console key input, IDCMP mouse/menu/size verify, requester clicks, keyboard.device) as reference scenarios that inject the same input through `lxaprobe`, so they are validated on AmigaOS 3.1 like the unattended programs (Phase 220).
+- [ ] Re-express the `interactive` test programs in `tests/ref_suite.yaml` as reference scenarios (`tests/scenarios/interactive/`). Done: console input (con_handler, input_console, input_inject, kp2_test, setmode, raw_events_unit, idcmp_console), IDCMPMenuVerify, IDCMPSizeVerify. Left: keymap_unit (222f), IDCMPDeltaMove and RequesterBasic (222d).
 - [ ] First twin-run findings (Phase 213 starter scenarios, `tests/scenarios/`):
   - `dopus-startup` (v0.11.18: `pr_SegList` array fixed, both panes and the "OK" line now as on 3.1): the path string gadgets stay empty on lxa (reference: `SYS:x/`, `SYS:`) and the right pane's header shows no volume name; the right pane lists pylxa's `SYS:` (the samples directory) where the reference lists its system root - give the lxa backend a `SYS:` laid out like the reference's.
-  - `dpaintv-startup`: lxa opens the "Ownership Information" registration dialog; the reference goes straight to "Choose Display Mode" (DPaint reads its personalisation from its own executable via the CLI command name).
 
 **Test gate**: no regression in coverage of app behaviour; suite wall time recorded.
 
