@@ -22,7 +22,7 @@ asm(
 #define VERSION    40
 #define REVISION   1
 #define EXLIBNAME  "mathffp"
-#define EXLIBVER   " 40.1 (2022/03/03)"
+#define EXLIBVER   " 40.1 (16.3.93)\r\n"
 
 union FFP_ULONG { ULONG ul; FLOAT f; };
 

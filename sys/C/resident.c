@@ -48,13 +48,13 @@ extern struct ExecBase *SysBase;
 /* Helper: output a string */
 static void out_str(const char *str)
 {
-    Write(Output(), (STRPTR)str, strlen(str));
+    FWrite(Output(), (STRPTR)str, 1, strlen(str));
 }
 
 /* Helper: output newline */
 static void out_nl(void)
 {
-    Write(Output(), (STRPTR)"\n", 1);
+    FWrite(Output(), (STRPTR)"\n", 1, 1);
 }
 
 /* List libraries and devices (the actual populated lists in lxa) */

@@ -21,9 +21,9 @@
 
 
 #define VERSION    40
-#define REVISION   1
+#define REVISION   4
 #define EXLIBNAME  "keymap"
-#define EXLIBVER   " 40.1 (2025/02/02)"
+#define EXLIBVER   " 40.4 (12.3.93)\r\n"
 
 char __aligned _g_keymap_ExLibName [] = EXLIBNAME ".library";
 char __aligned _g_keymap_ExLibID   [] = EXLIBNAME EXLIBVER;

@@ -64,9 +64,9 @@ int main(int argc, char **argv)
     /* Output the value */
     if (len > 0)
     {
-        Write(out, (STRPTR)buffer, len);
+        FWrite(out, (STRPTR)buffer, 1, len);
     }
-    Write(out, (STRPTR)"\n", 1);
+    FWrite(out, (STRPTR)"\n", 1, 1);
     
     FreeArgs(rdargs);
     return RETURN_OK;

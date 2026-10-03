@@ -17,6 +17,20 @@ Echo "rc=$RC r2=$Result2"
 Type dst2
 Copy f1 newdir/
 Echo "rc=$RC r2=$Result2"
+Copy f1 TO f1
+Echo "rc=$RC r2=$Result2"
+Type f1
+Copy f1 TO /work-copy/F1
+Echo "rc=$RC r2=$Result2"
+Type f1
+Copy f1 TO ""
+Echo "rc=$RC r2=$Result2"
+Type f1
+Copy f1 TO /work-copy
+Echo "rc=$RC r2=$Result2"
+Copy f1 TO /work-copy/
+Echo "rc=$RC r2=$Result2"
+Type f1
 Copy d1 dst3
 Echo "rc=$RC"
 Copy d1 dst4 ALL
