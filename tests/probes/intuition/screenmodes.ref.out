@@ -1,0 +1,49 @@
+-- PAL HIRES
+FindDisplayInfo = non-NULL
+ModeNotAvailable = 0x00000000
+DisplayInfo.NotAvailable = 0x00000000
+OpenScreenTags = non-NULL
+Width = 640
+Height = 256
+-- default HIRES
+FindDisplayInfo = non-NULL
+ModeNotAvailable = 0x00000000
+DisplayInfo.NotAvailable = 0x00000000
+OpenScreenTags = non-NULL
+Width = 640
+Height = 256
+-- PAL LORES
+FindDisplayInfo = non-NULL
+ModeNotAvailable = 0x00000000
+DisplayInfo.NotAvailable = 0x00000000
+OpenScreenTags = non-NULL
+Width = 320
+Height = 256
+-- NTSC HIRES (no ntsc.monitor)
+FindDisplayInfo = non-NULL
+ModeNotAvailable = 0x00000002
+DisplayInfo.NotAvailable = 0x00000002
+OpenScreenTags = NULL
+SA_ErrorCode = 0x00000001
+-- PAL SUPER72 key 0x00029024 (PAL monitor, no such mode)
+FindDisplayInfo = non-NULL
+ModeNotAvailable = 0x00000000
+DisplayInfo.NotAvailable = 0x00000000
+OpenScreenTags = non-NULL
+Width = 640
+Height = 256
+-- RTG mode ID 0x40120032 (UAE/P96 monitor)
+FindDisplayInfo = NULL
+ModeNotAvailable = 0xffffffff
+OpenScreenTags = NULL
+SA_ErrorCode = 0x00000006
+-- unknown monitor 0x00fa1000
+FindDisplayInfo = NULL
+ModeNotAvailable = 0xffffffff
+OpenScreenTags = NULL
+SA_ErrorCode = 0x00000006
+-- DBLPAL HIRES (no monitor driver)
+FindDisplayInfo = NULL
+ModeNotAvailable = 0xffffffff
+OpenScreenTags = NULL
+SA_ErrorCode = 0x00000006

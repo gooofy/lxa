@@ -2,11 +2,10 @@
  * Test: graphics/display_ext
  *
  * lxa-only (tests/ref_suite.yaml): lxa deliberately extends the display
- * database beyond AmigaOS 3.1 (Phase 129):
- *   - unknown mode IDs are virtualised to the closest physical mode
- *     (AmigaOS 3.1 returns NULL / 0 for them);
- *   - DTAG_NAME returns mode names (the AmigaOS 3.1 ROM database without
- *     DEVS:Monitors has no NameInfo and returns 0).
+ * database beyond AmigaOS 3.1 (Phase 129): DTAG_NAME returns mode names
+ * (the AmigaOS 3.1 ROM database without DEVS:Monitors has no NameInfo and
+ * returns 0).  IDs of unknown monitors are not virtualised any more: as on
+ * 3.1 they do not exist (Phase 238, tests/probes/intuition/screenmodes).
  */
 
 #include <exec/types.h>
@@ -62,14 +61,14 @@ int main(void)
 
     print("Testing lxa display database extensions...\n");
 
-    check(FindDisplayInfo(0x00F00000) != NULL,
-          "OK: FindDisplayInfo() virtualises an unknown ID\n",
-          "FAIL: FindDisplayInfo() did not virtualise an unknown ID\n");
+    check(FindDisplayInfo(0x00F00000) == NULL,
+          "OK: FindDisplayInfo() of an unknown monitor's ID is NULL\n",
+          "FAIL: FindDisplayInfo() found an unknown monitor's ID\n");
 
-    result = GetDisplayInfoData(NULL, &dims, sizeof(dims), DTAG_DIMS, 0x00F00000);
+    result = GetDisplayInfoData(NULL, &dims, sizeof(dims), DTAG_DIMS, PAL_MONITOR_ID | 0x9024);
     check(result != 0 && dims.MaxRasterWidth > dims.MinRasterWidth,
-          "OK: virtualised mode returns DTAG_DIMS\n",
-          "FAIL: virtualised mode returned no DTAG_DIMS\n");
+          "OK: an unlisted PAL mode key returns DTAG_DIMS\n",
+          "FAIL: an unlisted PAL mode key returned no DTAG_DIMS\n");
 
     result = GetDisplayInfoData(NULL, &name, sizeof(name), DTAG_NAME, HIRES_KEY);
     check(result == sizeof(name) && has((const char *)name.Name, "HIRES"),

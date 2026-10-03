@@ -14687,12 +14687,13 @@ struct Screen * _intuition_OpenScreenTagList ( register struct IntuitionBase * I
                                                         register const struct NewScreen * newScreen __asm("a0"),
                                                         register const struct TagItem * tagList __asm("a1"))
 {
-    LXA_UNIMPLEMENTED("intuition", "OpenScreenTagList", "partial: ignores SA_DClip, SA_Overscan, SA_Colors, SA_SysFont, SA_ErrorCode (Phase 256)");
+    LXA_UNIMPLEMENTED("intuition", "OpenScreenTagList", "partial: ignores SA_DClip, SA_Overscan, SA_Colors, SA_SysFont; SA_ErrorCode only for mode errors (Phase 256)");
 
     struct NewScreen ns;
     struct TagItem *tstate;
     struct TagItem *tag;
     ULONG sa_display_id = (ULONG)INVALID_ID;  /* Track SA_DisplayID for VPModeID override */
+    ULONG *sa_error = NULL;
     
     DPRINTF(LOG_DEBUG, "_intuition: OpenScreenTagList() called, newScreen=0x%08lx, tagList=0x%08lx\n",
             (ULONG)newScreen, (ULONG)tagList);
@@ -14848,11 +14849,13 @@ struct Screen * _intuition_OpenScreenTagList ( register struct IntuitionBase * I
                             (ULONG)tag->ti_Data);
                     break;
                 /* Tags we recognize but don't fully implement yet */
+                case SA_ErrorCode:
+                    sa_error = (ULONG *)tag->ti_Data;
+                    break;
                 case SA_DClip:
                 case SA_Overscan:
                 case SA_Colors:
                 case SA_SysFont:
-                case SA_ErrorCode:
                     DPRINTF(LOG_DEBUG, "_intuition: OpenScreenTagList() ignoring tag 0x%08lx (not yet implemented)\n",
                             tag->ti_Tag);
                     break;
@@ -14864,12 +14867,34 @@ struct Screen * _intuition_OpenScreenTagList ( register struct IntuitionBase * I
         }
     }
     
+    /* AmigaOS 3.1 reference (tests/probes/intuition/screenmodes): a
+     * display ID the machine does not have fails the open - IDs of an
+     * unknown monitor (RTG, DblPAL without DEVS:Monitors) with
+     * OSERR_UNKNOWNMODE, NTSC modes without ntsc.monitor with
+     * OSERR_NOMONITOR.  (ASM-One asks for a screen mode only when its
+     * default RTG screen fails to open.) */
+    if (sa_display_id != (ULONG)INVALID_ID)
+    {
+        ULONG na = (ULONG)ModeNotAvailable(sa_display_id);
+        if (na)
+        {
+            if (sa_error)
+                *sa_error = (na == 0xffffffffUL) ? OSERR_UNKNOWNMODE :
+                            (na & DI_AVAIL_NOMONITOR) ? OSERR_NOMONITOR : OSERR_NOCHIPS;
+            return NULL;
+        }
+    }
+
     /* Call our existing OpenScreen with the assembled NewScreen */
     g_screen_from_tags = TRUE;
     struct Screen *screen = _intuition_OpenScreen(IntuitionBase, &ns);
     g_screen_from_tags = FALSE;
     if (!screen)
+    {
+        if (sa_error)
+            *sa_error = OSERR_NOMEM;
         return NULL;
+    }
 
     /* AmigaOS 3.1 reference (dopus-startup, gallery-menus): a screen opened
      * with SA_PubName is a PUBLICSCREEN, SA_SharePens sets PENSHARED */

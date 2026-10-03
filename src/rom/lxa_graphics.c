@@ -816,6 +816,33 @@ static BOOL graphics_display_id_is_known(ULONG display_id)
 }
 
 /*
+ * Which display IDs exist on the emulated machine (AmigaOS 3.1, PAL, no
+ * DEVS:Monitors - reference-verified by tests/probes/intuition/screenmodes):
+ * the display database knows the default, PAL and NTSC monitors; IDs of
+ * any other monitor (RTG, DblPAL, ...) do not exist (FindDisplayInfo()
+ * NULL, ModeNotAvailable() ~0, OpenScreen() OSERR_UNKNOWNMODE).  NTSC
+ * modes exist but have no monitor (DI_AVAIL_NOMONITOR, OSERR_NOMONITOR).
+ * Unknown mode keys of an existing monitor are mapped to the closest
+ * physical mode (graphics_virtualize_display_id).
+ */
+BOOL graphics_display_id_exists(ULONG display_id)
+{
+    ULONG mon = display_id & MONITOR_ID_MASK;
+
+    if (display_id == INVALID_ID)
+        return FALSE;
+    return mon == DEFAULT_MONITOR_ID || mon == PAL_MONITOR_ID || mon == NTSC_MONITOR_ID;
+}
+
+/* DI_AVAIL_* flags of an existing display ID (0: available) */
+ULONG graphics_display_id_not_available(ULONG display_id)
+{
+    if ((display_id & MONITOR_ID_MASK) == NTSC_MONITOR_ID)
+        return DI_AVAIL_NOMONITOR;
+    return 0;
+}
+
+/*
  * Phase 129: Virtualization helper.
  * Maps any known (or unknown) display ID to a canonical "physical" ID
  * that our display layer can render.  We map to PAL HIRES or PAL LORES
@@ -9151,7 +9178,7 @@ static DisplayInfoHandle _graphics_FindDisplayInfo ( register struct GfxBase * G
     DPRINTF (LOG_DEBUG, "_graphics: FindDisplayInfo() displayID=0x%08lx\n", displayID);
 
     /* INVALID_ID is never a valid display ID — always reject explicitly. */
-    if (displayID == INVALID_ID)
+    if (displayID == INVALID_ID || !graphics_display_id_exists(displayID))
         return (DisplayInfoHandle)0;
 
     if (!graphics_display_id_is_known(displayID))
@@ -9233,6 +9260,9 @@ static ULONG _graphics_GetDisplayInfoData ( register struct GfxBase * GfxBase __
         return 0;
     }
 
+    if (!graphics_display_id_exists(actualDisplayID))
+        return 0;
+
     if (!graphics_display_id_is_known(actualDisplayID))
     {
         /* Phase 129: Virtualize unknown mode IDs — map to the closest
@@ -9271,7 +9301,7 @@ static ULONG _graphics_GetDisplayInfoData ( register struct GfxBase * GfxBase __
             di.Header.DisplayID = actualDisplayID;
             di.Header.SkipID = TAG_SKIP;
             di.Header.Length = graphics_query_header_length(sizeof(di));
-            di.NotAvailable = FALSE;
+            di.NotAvailable = graphics_display_id_not_available(actualDisplayID);
             /* PAL, sprites, genlock, WB, draggable, beamsync, attached /
              * resolution / border / base / priority sprite features, dbuffer */
             di.PropertyFlags = 0x001cebe0UL;
@@ -9639,14 +9669,14 @@ static LONG _graphics_GetVPModeID ( register struct GfxBase * GfxBase __asm("a6"
 static LONG _graphics_ModeNotAvailable ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register ULONG modeID __asm("d0"))
 {
-    LXA_UNIMPLEMENTED("graphics", "ModeNotAvailable", "partial: every mode reported available (Phase 240)");
+    LXA_UNIMPLEMENTED("graphics", "ModeNotAvailable", "partial: no chipset check (DI_AVAIL_NOCHIPS), lxa reports all ECS/AGA modes of the PAL monitor available (Phase 240)");
 
-    DPRINTF (LOG_DEBUG, "_graphics: ModeNotAvailable() modeID=0x%08lx -> 0 (available)\n", modeID);
-    /* Return 0 = mode IS available (no error flags)
-     * Non-zero returns would be DI_AVAIL_* flags indicating why mode is not available.
-     * For our emulated display, we accept all modes.
-     */
-    return 0;
+    /* AmigaOS 3.1 reference (tests/probes/intuition/screenmodes): ~0 for
+     * IDs that do not exist, DI_AVAIL_NOMONITOR for NTSC modes without
+     * ntsc.monitor */
+    if (!graphics_display_id_exists(modeID))
+        return (LONG)0xffffffffUL;
+    return (LONG)graphics_display_id_not_available(modeID);
 }
 
 static VOID _graphics_private5 ( register struct GfxBase * GfxBase __asm("a6"))

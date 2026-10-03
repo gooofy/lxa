@@ -755,7 +755,7 @@
   "lib": "graphics",
   "function": "ModeNotAvailable",
   "kind": "partial",
-  "detail": "partial: every mode reported available (Phase 240)",
+  "detail": "partial: no chipset check (DI_AVAIL_NOCHIPS), lxa reports all ECS/AGA modes of the PAL monitor available (Phase 240)",
   "file": "src/rom/lxa_graphics.c",
   "symbol": "_graphics_ModeNotAvailable"
  },
@@ -971,7 +971,7 @@
   "lib": "intuition",
   "function": "OpenScreenTagList",
   "kind": "partial",
-  "detail": "partial: ignores SA_DClip, SA_Overscan, SA_Colors, SA_SysFont, SA_ErrorCode (Phase 256)",
+  "detail": "partial: ignores SA_DClip, SA_Overscan, SA_Colors, SA_SysFont; SA_ErrorCode only for mode errors (Phase 256)",
   "file": "src/rom/lxa_intuition.c",
   "symbol": "_intuition_OpenScreenTagList"
  },
