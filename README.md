@@ -231,6 +231,8 @@ Built-in C: commands with full AmigaDOS template support:
 
 ## Current Status
 
+**Version 0.11.17** - App sweep (Phase 231): every corpus app is launched on lxa and AmigaOS 3.1 with each menu opened; divergences are ranked and clustered, and every cluster seen in two or more apps is owned by a roadmap phase (`doc/sweeps/2026-10-03-sweep.md`).
+
 **Version 0.11.16** - Fred Fish mass run (Phase 232): all 9932 executables from the Fred Fish collection run under lxa without crashing or stalling the emulator itself; crashes inside emulated programs behave like AmigaOS (held task / Guru) and are classified against a real AmigaOS 3.1 run (`doc/sweeps/2026-10-03-fish-massrun.md`).
 
 **Version 0.11.15** - Rendering matches AmigaOS 3.1 (Phase 223): Workbench screen and window chrome, system gadgets, menus, requesters, BOOPSI images and GadTools gadgets are checked pixel-by-pixel against the reference in 15 gallery goldens - the remaining differences are the ROM font's glyphs (Phase 225). API conformance probes for utility/exec/dos (Phase 222a) and fixes for Fred Fish programs (`Open("*")`, CLI stack-size convention).
