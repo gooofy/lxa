@@ -333,13 +333,23 @@ static uint32_t lxa_api_get_window_gadget(int window_index, int gadget_index)
     if (!window_ptr)
         return 0;
 
-    gadget_ptr = m68k_read_memory_32(window_ptr + WINDOW_FIRSTGADGET_OFFSET);
-    while (gadget_ptr)
+    /* Application gadgets first, then the system gadgets: Intuition keeps
+     * the system gadgets at the head of the list (AmigaOS 3.1), but test
+     * drivers index the application's own gadgets from 0. */
+    for (int pass = 0; pass < 2; pass++)
     {
-        if (current_index == gadget_index)
-            return gadget_ptr;
-        current_index++;
-        gadget_ptr = m68k_read_memory_32(gadget_ptr + GADGET_NEXT_OFFSET);
+        gadget_ptr = m68k_read_memory_32(window_ptr + WINDOW_FIRSTGADGET_OFFSET);
+        while (gadget_ptr)
+        {
+            bool is_sys = (m68k_read_memory_16(gadget_ptr + GADGET_TYPE_OFFSET) & 0x8000) != 0;
+            if (is_sys == (pass == 1))
+            {
+                if (current_index == gadget_index)
+                    return gadget_ptr;
+                current_index++;
+            }
+            gadget_ptr = m68k_read_memory_32(gadget_ptr + GADGET_NEXT_OFFSET);
+        }
     }
 
     screen_ptr = m68k_read_memory_32(window_ptr + WINDOW_WSCREEN_OFFSET);

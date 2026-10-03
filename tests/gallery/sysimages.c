@@ -20,6 +20,8 @@ static const ULONG states[] = { IDS_NORMAL, IDS_SELECTED, IDS_INACTIVENORMAL, ID
 #define NW (sizeof(which) / sizeof(which[0]))
 #define CELLW 44
 #define CELLH 17
+#define CELLH_HIRES 23   /* SYSISIZE_HIRES arrows are 22 pixels high */
+#define ROWY(si, st) ((si) < 2 ? ((si) * 4 + (st)) * CELLH : 8 * CELLH + (st) * CELLH_HIRES)
 
 int main(int argc, char **argv)
 {
@@ -35,7 +37,7 @@ int main(int argc, char **argv)
     dri = GetScreenDrawInfo(scr);
 
     win = OpenWindowTags(NULL,
-        WA_Left, 8, WA_Top, 12, WA_Width, 6 + NW * CELLW + 8, WA_Height, 12 + 12 * CELLH + 4,
+        WA_Left, 8, WA_Top, 11, WA_Width, 6 + NW * CELLW + 8, WA_Height, 13 + 8 * CELLH + 4 * CELLH_HIRES + 4,
         WA_Title, (ULONG)"SysI Gallery",
         WA_DragBar, TRUE, WA_DepthGadget, TRUE, WA_CloseGadget, TRUE, WA_Activate, TRUE,
         WA_IDCMP, IDCMP_CLOSEWINDOW | IDCMP_REFRESHWINDOW,
@@ -71,7 +73,7 @@ int main(int argc, char **argv)
             {
                 DrawImageState(win->RPort, im,
                                win->BorderLeft + 4 + wi * CELLW,
-                               win->BorderTop + 2 + (si * 4 + st) * CELLH,
+                               win->BorderTop + 2 + ROWY(si, st),
                                states[st], dri);
             }
             DisposeObject(im);

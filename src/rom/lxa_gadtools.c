@@ -32,6 +32,8 @@
 #include <inline/utility.h>
 
 #include "util.h"
+#include "lxa_images.h"
+#include <intuition/imageclass.h>
 
 #define VERSION    40
 #define REVISION   1
@@ -2759,24 +2761,19 @@ void _gadtools_DrawBevelBoxA ( register struct GadToolsBase *GadToolsBase __asm(
                                register WORD height __asm("d3"),
                                register struct TagItem *taglist __asm("a1") )
 {
-    LXA_UNIMPLEMENTED("gadtools", "DrawBevelBoxA", "partial: BBFT_ICONDROPBOX drawn as a plain recessed box (Phase 256)");
-
     struct VisualInfo *vi = NULL;
     BOOL recessed = FALSE;
     ULONG frameType = BBFT_BUTTON;
-    UBYTE shiPen = 2;    /* Default shine pen */
-    UBYTE shaPen = 1;    /* Default shadow pen */
-    WORD x0, y0, x1, y1;
-    UBYTE topPen, botPen;
+    const UWORD *pens = NULL;
     UBYTE savedAPen;
     struct TagItem *tag;
-    
+
     DPRINTF (LOG_DEBUG, "_gadtools: DrawBevelBoxA() at %d,%d size %dx%d\n",
              left, top, width, height);
-    
+
     if (!rport || width <= 0 || height <= 0)
         return;
-    
+
     /* Parse tags manually without NextTagItem to avoid UtilityBase dependency */
     if (taglist) {
         for (tag = taglist; tag->ti_Tag != TAG_DONE; tag++) {
@@ -2792,10 +2789,12 @@ void _gadtools_DrawBevelBoxA ( register struct GadToolsBase *GadToolsBase __asm(
                 tag--;  /* Will be incremented by loop */
                 continue;
             }
-            
+
             switch (tag->ti_Tag) {
                 case GTBB_Recessed:
-                    recessed = (BOOL)tag->ti_Data;
+                    /* AmigaOS 3.1 reference: the presence of the tag makes
+                     * the box recessed, whatever its value */
+                    recessed = TRUE;
                     break;
                 case GT_VisualInfo:
                     vi = (struct VisualInfo *)tag->ti_Data;
@@ -2806,75 +2805,29 @@ void _gadtools_DrawBevelBoxA ( register struct GadToolsBase *GadToolsBase __asm(
             }
         }
     }
-    
-    /* Get pen colors from VisualInfo if available */
-    if (vi && vi->vi_DrawInfo && vi->vi_DrawInfo->dri_Pens) {
-        shiPen = vi->vi_DrawInfo->dri_Pens[SHINEPEN];
-        shaPen = vi->vi_DrawInfo->dri_Pens[SHADOWPEN];
-    }
-    
-    /* Save current pen */
+
+    if (vi && vi->vi_DrawInfo && vi->vi_DrawInfo->dri_Pens)
+        pens = vi->vi_DrawInfo->dri_Pens;
+
     savedAPen = rport->FgPen;
-    
-    /* Calculate corners */
-    x0 = left;
-    y0 = top;
-    x1 = left + width - 1;
-    y1 = top + height - 1;
-    
-    /* Determine which pen goes where based on recessed state */
-    topPen = recessed ? shaPen : shiPen;
-    botPen = recessed ? shiPen : shaPen;
-    
+
+    /* BBFT_* match the frameiclass FRAME_* types (BUTTON 1, RIDGE 2,
+     * ICONDROPBOX 3); the box is drawn exactly like the frameiclass frame */
     switch (frameType) {
         case BBFT_RIDGE:
-            /* Double border: outer raised, inner recessed */
-            /* Outer frame - raised */
-            SetAPen(rport, shiPen);
-            Move(rport, x0, y1);
-            Draw(rport, x0, y0);
-            Draw(rport, x1, y0);
-            SetAPen(rport, shaPen);
-            Draw(rport, x1, y1);
-            Draw(rport, x0, y1);
-            
-            /* Inner frame - recessed (inset by 1 pixel) */
-            if (width > 2 && height > 2) {
-                SetAPen(rport, shaPen);
-                Move(rport, x0 + 1, y1 - 1);
-                Draw(rport, x0 + 1, y0 + 1);
-                Draw(rport, x1 - 1, y0 + 1);
-                SetAPen(rport, shiPen);
-                Draw(rport, x1 - 1, y1 - 1);
-                Draw(rport, x0 + 1, y1 - 1);
-            }
+            lxa_draw_frame(rport, FRAME_RIDGE, recessed, left, top, width, height,
+                           IDS_NORMAL, TRUE, pens);
             break;
-            
         case BBFT_ICONDROPBOX:
-            /* Similar to ridge but with different appearance */
-            /* Fall through to default for now */
-        case BBFT_DISPLAY:
-            /* Display box - usually recessed */
-            topPen = shaPen;
-            botPen = shiPen;
-            /* Fall through */
-        case BBFT_BUTTON:
+            lxa_draw_frame(rport, FRAME_ICONDROPBOX, recessed, left, top, width, height,
+                           IDS_NORMAL, TRUE, pens);
+            break;
         default:
-            /* Standard single bevel box */
-            /* Top and left edges (light or dark based on recessed) */
-            SetAPen(rport, topPen);
-            Move(rport, x0, y1 - 1);  /* Start at bottom-left, one pixel up */
-            Draw(rport, x0, y0);       /* Draw up to top-left */
-            Draw(rport, x1 - 1, y0);   /* Draw across to top-right (minus corner) */
-            
-            /* Bottom and right edges */
-            SetAPen(rport, botPen);
-            Move(rport, x1, y0);       /* Start at top-right */
-            Draw(rport, x1, y1);       /* Draw down to bottom-right */
-            Draw(rport, x0, y1);       /* Draw across to bottom-left */
+            lxa_draw_frame(rport, FRAME_BUTTON, recessed, left, top, width, height,
+                           IDS_NORMAL, TRUE, pens);
             break;
     }
-    
+
     /* Restore pen */
     SetAPen(rport, savedAPen);
 }
