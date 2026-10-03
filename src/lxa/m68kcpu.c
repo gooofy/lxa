@@ -1094,6 +1094,15 @@ void m68k_init(void)
 }
 
 /* Trigger a Bus Error exception */
+/* lxa: raise `vector` before the next instruction is fetched (called from
+ * the instruction hook, i.e. at an instruction boundary - no longjmp). */
+void m68k_raise_exception_at_boundary(int vector)
+{
+	uint sr = m68ki_init_exception();
+	m68ki_stack_frame_0000(REG_PC, sr, vector);
+	m68ki_jump_vector(vector);
+}
+
 void m68k_pulse_bus_error(void)
 {
 	m68ki_exception_bus_error();

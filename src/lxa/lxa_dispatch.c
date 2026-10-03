@@ -371,8 +371,8 @@ int op_illg(int level)
                 uint32_t task = sysbase ? m68k_read_memory_32(sysbase + EXECBASE_THISTASK) : 0;
                 uint32_t tname = task ? m68k_read_memory_32(task + 10) : 0;
                 lxa_exception_log_add((int)excn, pc, tname ? _mgetstr(tname) : "");
-                /* user-mode fault: exec holds the task (exceptions.s) */
-                if (!(m68k_read_memory_16(isp + 12) & 0x2000))
+                /* exec holds the faulting task (exceptions.s) */
+                if (task)
                     lxa_note_held_task(task);
             }
 

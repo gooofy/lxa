@@ -467,8 +467,9 @@ _dispatchTrap:
      * exec's default trap handler (SysBase->TaskTrapCode): a CPU exception in
      * a task is a "Software Failure": the host logs it, and a task that
      * faulted in user mode is held (it continues in _exec_TaskHeld, which
-     * never returns) while all other tasks keep running.  A fault in
-     * supervisor mode is logged and execution continues after RTE.
+     * never returns) while all other tasks keep running; this includes a
+     * fault in supervisor mode (a dead-end alert on AmigaOS).  Without a
+     * current task the fault is logged and execution continues after RTE.
      * Stack on entry: [number.l] [SR.w] [PC.l] ...
      */
     .globl __exec_DefaultTrapCode
@@ -478,10 +479,15 @@ __exec_DefaultTrapCode:
     move.l      #5, d0                              | EMU_CALL_EXCEPTION
     illegal                                         | emucall (host log + exception record)
     movem.l     (a7)+, d0/d1
-    btst        #5, 4(a7)                           | S bit of the saved SR
-    bne.s       1f
+    move.l      a0, -(a7)
+    move.l      4, a0
+    tst.l       ThisTask(a0)                        | no task (boot/interrupt): just return
+    move.l      (a7)+, a0
+    beq.s       1f
     move.l      #__exec_TaskHeld, 6(a7)              | resume the task in _exec_TaskHeld
-    andi.w      #0x3fff, 4(a7)                      | ... without trace bits
+    andi.w      #0x1fff, 4(a7)                      | ... in user mode, without trace bits
+                                                    | (a supervisor-mode fault is a dead end
+                                                    | on AmigaOS; lxa holds the task instead)
 1:  addq.l      #4, a7                              | pop the exception number
     rte
 
