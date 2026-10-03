@@ -1,0 +1,467 @@
+-- prop/collection/stop scan
+PropChunk = 0
+CollectionChunk = 0
+StopChunk = 0
+StopChunk = 0
+OpenIFF = 0
+    FindPropContext = NULL
+    FindProp ILBM.BMHD = NULL
+    FindProp 8SVX.BMHD = NULL
+    FindProp ILBM.CRNG = NULL
+    FindCollection ILBM.CRNG = NULL
+    FindCollection ILBM.BMHD = NULL
+scan: rc=0 d=3 top=BODY/ILBM sz=2 sc=0 < FORM/ILBM sz=48 sc=46 < LIST/ILBM sz=146 sc=44
+    FindPropContext = FORM/ILBM sz=48 sc=46
+    FindProp ILBM.BMHD = 4 "F1F1"
+    FindProp 8SVX.BMHD = NULL
+    FindProp ILBM.CRNG = NULL
+    FindCollection ILBM.CRNG = 3:"c3x" 2:"c2" 2:"c1"
+    FindCollection ILBM.BMHD = NULL
+scan: rc=0 d=3 top=BODY/ILBM sz=2 sc=0 < FORM/ILBM sz=24 sc=22 < LIST/ILBM sz=146 sc=100
+    FindPropContext = FORM/ILBM sz=24 sc=22
+    FindProp ILBM.BMHD = 2 "L1"
+    FindProp 8SVX.BMHD = NULL
+    FindProp ILBM.CRNG = NULL
+    FindCollection ILBM.CRNG = 2:"c4" 2:"c1"
+    FindCollection ILBM.BMHD = NULL
+scan: rc=0 d=3 top=BODY/8SVX sz=1 sc=0 < FORM/8SVX sz=14 sc=12 < LIST/ILBM sz=146 sc=132
+    FindPropContext = FORM/8SVX sz=14 sc=12
+    FindProp ILBM.BMHD = 2 "L1"
+    FindProp 8SVX.BMHD = NULL
+    FindProp ILBM.CRNG = NULL
+    FindCollection ILBM.CRNG = 2:"c1"
+    FindCollection ILBM.BMHD = NULL
+scan: rc=-1(EOF) d=0 top=NULL
+    FindPropContext = NULL
+    FindProp ILBM.BMHD = NULL
+    FindProp 8SVX.BMHD = NULL
+    FindProp ILBM.CRNG = NULL
+    FindCollection ILBM.CRNG = NULL
+    FindCollection ILBM.BMHD = NULL
+-- prop/collection step
+PropChunks(0) = 0
+PropChunks = 0
+CollectionChunks = 0
+StopChunks(0) = 0
+OpenIFF = 0
+step: rc=0 d=1 top=LIST/ILBM sz=146 sc=4
+    FindPropContext = NULL
+    FindProp ILBM.BMHD = NULL
+    FindCollection ILBM.CRNG = NULL
+    FindCollection 8SVX.BODY = NULL
+step: rc=0 d=2 top=PROP/ILBM sz=24 sc=4 < LIST/ILBM sz=146 sc=12
+    FindPropContext = LIST/ILBM sz=146 sc=12
+    FindProp ILBM.BMHD = NULL
+    FindCollection ILBM.CRNG = NULL
+    FindCollection 8SVX.BODY = NULL
+step: rc=0 d=3 top=BMHD/ILBM sz=2 sc=2 < PROP/ILBM sz=24 sc=12 < LIST/ILBM sz=146 sc=12
+    FindPropContext = LIST/ILBM sz=146 sc=12
+    FindProp ILBM.BMHD = 2 "L1"
+    FindCollection ILBM.CRNG = NULL
+    FindCollection 8SVX.BODY = NULL
+step: rc=-2(EOC) d=3 top=BMHD/ILBM sz=2 sc=2 < PROP/ILBM sz=24 sc=12 < LIST/ILBM sz=146 sc=12
+    FindPropContext = LIST/ILBM sz=146 sc=12
+    FindProp ILBM.BMHD = 2 "L1"
+    FindCollection ILBM.CRNG = NULL
+    FindCollection 8SVX.BODY = NULL
+step: rc=0 d=3 top=CRNG/ILBM sz=2 sc=2 < PROP/ILBM sz=24 sc=22 < LIST/ILBM sz=146 sc=12
+    FindPropContext = LIST/ILBM sz=146 sc=12
+    FindProp ILBM.BMHD = 2 "L1"
+    FindCollection ILBM.CRNG = 2:"c1"
+    FindCollection 8SVX.BODY = NULL
+step: rc=-2(EOC) d=3 top=CRNG/ILBM sz=2 sc=2 < PROP/ILBM sz=24 sc=22 < LIST/ILBM sz=146 sc=12
+    FindPropContext = LIST/ILBM sz=146 sc=12
+    FindProp ILBM.BMHD = 2 "L1"
+    FindCollection ILBM.CRNG = 2:"c1"
+    FindCollection 8SVX.BODY = NULL
+step: rc=-2(EOC) d=2 top=PROP/ILBM sz=24 sc=24 < LIST/ILBM sz=146 sc=12
+    FindPropContext = LIST/ILBM sz=146 sc=12
+    FindProp ILBM.BMHD = 2 "L1"
+    FindCollection ILBM.CRNG = 2:"c1"
+    FindCollection 8SVX.BODY = NULL
+step: rc=0 d=2 top=FORM/ILBM sz=48 sc=4 < LIST/ILBM sz=146 sc=44
+    FindPropContext = LIST/ILBM sz=146 sc=44
+    FindProp ILBM.BMHD = 2 "L1"
+    FindCollection ILBM.CRNG = 2:"c1"
+    FindCollection 8SVX.BODY = NULL
+step: rc=0 d=3 top=BMHD/ILBM sz=4 sc=4 < FORM/ILBM sz=48 sc=12 < LIST/ILBM sz=146 sc=44
+    FindPropContext = FORM/ILBM sz=48 sc=12
+    FindProp ILBM.BMHD = 4 "F1F1"
+    FindCollection ILBM.CRNG = 2:"c1"
+    FindCollection 8SVX.BODY = NULL
+step: rc=-2(EOC) d=3 top=BMHD/ILBM sz=4 sc=4 < FORM/ILBM sz=48 sc=12 < LIST/ILBM sz=146 sc=44
+    FindPropContext = FORM/ILBM sz=48 sc=12
+    FindProp ILBM.BMHD = 4 "F1F1"
+    FindCollection ILBM.CRNG = 2:"c1"
+    FindCollection 8SVX.BODY = NULL
+step: rc=0 d=3 top=CRNG/ILBM sz=2 sc=2 < FORM/ILBM sz=48 sc=24 < LIST/ILBM sz=146 sc=44
+    FindPropContext = FORM/ILBM sz=48 sc=24
+    FindProp ILBM.BMHD = 4 "F1F1"
+    FindCollection ILBM.CRNG = 2:"c2" 2:"c1"
+    FindCollection 8SVX.BODY = NULL
+step: rc=-2(EOC) d=3 top=CRNG/ILBM sz=2 sc=2 < FORM/ILBM sz=48 sc=24 < LIST/ILBM sz=146 sc=44
+    FindPropContext = FORM/ILBM sz=48 sc=24
+    FindProp ILBM.BMHD = 4 "F1F1"
+    FindCollection ILBM.CRNG = 2:"c2" 2:"c1"
+    FindCollection 8SVX.BODY = NULL
+step: rc=0 d=3 top=CRNG/ILBM sz=3 sc=3 < FORM/ILBM sz=48 sc=34 < LIST/ILBM sz=146 sc=44
+    FindPropContext = FORM/ILBM sz=48 sc=34
+    FindProp ILBM.BMHD = 4 "F1F1"
+    FindCollection ILBM.CRNG = 3:"c3x" 2:"c2" 2:"c1"
+    FindCollection 8SVX.BODY = NULL
+step: rc=-2(EOC) d=3 top=CRNG/ILBM sz=3 sc=3 < FORM/ILBM sz=48 sc=34 < LIST/ILBM sz=146 sc=44
+    FindPropContext = FORM/ILBM sz=48 sc=34
+    FindProp ILBM.BMHD = 4 "F1F1"
+    FindCollection ILBM.CRNG = 3:"c3x" 2:"c2" 2:"c1"
+    FindCollection 8SVX.BODY = NULL
+step: rc=0 d=3 top=BODY/ILBM sz=2 sc=0 < FORM/ILBM sz=48 sc=46 < LIST/ILBM sz=146 sc=44
+    FindPropContext = FORM/ILBM sz=48 sc=46
+    FindProp ILBM.BMHD = 4 "F1F1"
+    FindCollection ILBM.CRNG = 3:"c3x" 2:"c2" 2:"c1"
+    FindCollection 8SVX.BODY = NULL
+step: rc=-2(EOC) d=3 top=BODY/ILBM sz=2 sc=0 < FORM/ILBM sz=48 sc=46 < LIST/ILBM sz=146 sc=44
+    FindPropContext = FORM/ILBM sz=48 sc=46
+    FindProp ILBM.BMHD = 4 "F1F1"
+    FindCollection ILBM.CRNG = 3:"c3x" 2:"c2" 2:"c1"
+    FindCollection 8SVX.BODY = NULL
+step: rc=-2(EOC) d=2 top=FORM/ILBM sz=48 sc=48 < LIST/ILBM sz=146 sc=44
+    FindPropContext = LIST/ILBM sz=146 sc=44
+    FindProp ILBM.BMHD = 4 "F1F1"
+    FindCollection ILBM.CRNG = 3:"c3x" 2:"c2" 2:"c1"
+    FindCollection 8SVX.BODY = NULL
+step: rc=0 d=2 top=FORM/ILBM sz=24 sc=4 < LIST/ILBM sz=146 sc=100
+    FindPropContext = LIST/ILBM sz=146 sc=100
+    FindProp ILBM.BMHD = 2 "L1"
+    FindCollection ILBM.CRNG = 2:"c1"
+    FindCollection 8SVX.BODY = NULL
+step: rc=0 d=3 top=CRNG/ILBM sz=2 sc=2 < FORM/ILBM sz=24 sc=12 < LIST/ILBM sz=146 sc=100
+    FindPropContext = FORM/ILBM sz=24 sc=12
+    FindProp ILBM.BMHD = 2 "L1"
+    FindCollection ILBM.CRNG = 2:"c4" 2:"c1"
+    FindCollection 8SVX.BODY = NULL
+step: rc=-2(EOC) d=3 top=CRNG/ILBM sz=2 sc=2 < FORM/ILBM sz=24 sc=12 < LIST/ILBM sz=146 sc=100
+    FindPropContext = FORM/ILBM sz=24 sc=12
+    FindProp ILBM.BMHD = 2 "L1"
+    FindCollection ILBM.CRNG = 2:"c4" 2:"c1"
+    FindCollection 8SVX.BODY = NULL
+step: rc=0 d=3 top=BODY/ILBM sz=2 sc=0 < FORM/ILBM sz=24 sc=22 < LIST/ILBM sz=146 sc=100
+    FindPropContext = FORM/ILBM sz=24 sc=22
+    FindProp ILBM.BMHD = 2 "L1"
+    FindCollection ILBM.CRNG = 2:"c4" 2:"c1"
+    FindCollection 8SVX.BODY = NULL
+step: rc=-2(EOC) d=3 top=BODY/ILBM sz=2 sc=0 < FORM/ILBM sz=24 sc=22 < LIST/ILBM sz=146 sc=100
+    FindPropContext = FORM/ILBM sz=24 sc=22
+    FindProp ILBM.BMHD = 2 "L1"
+    FindCollection ILBM.CRNG = 2:"c4" 2:"c1"
+    FindCollection 8SVX.BODY = NULL
+step: rc=-2(EOC) d=2 top=FORM/ILBM sz=24 sc=24 < LIST/ILBM sz=146 sc=100
+    FindPropContext = LIST/ILBM sz=146 sc=100
+    FindProp ILBM.BMHD = 2 "L1"
+    FindCollection ILBM.CRNG = 2:"c4" 2:"c1"
+    FindCollection 8SVX.BODY = NULL
+step: rc=0 d=2 top=FORM/8SVX sz=14 sc=4 < LIST/ILBM sz=146 sc=132
+    FindPropContext = LIST/ILBM sz=146 sc=132
+    FindProp ILBM.BMHD = 2 "L1"
+    FindCollection ILBM.CRNG = 2:"c1"
+    FindCollection 8SVX.BODY = NULL
+step: rc=0 d=3 top=BODY/8SVX sz=1 sc=1 < FORM/8SVX sz=14 sc=12 < LIST/ILBM sz=146 sc=132
+    FindPropContext = FORM/8SVX sz=14 sc=12
+    FindProp ILBM.BMHD = 2 "L1"
+    FindCollection ILBM.CRNG = 2:"c1"
+    FindCollection 8SVX.BODY = 1:"s"
+step: rc=-2(EOC) d=3 top=BODY/8SVX sz=1 sc=1 < FORM/8SVX sz=14 sc=12 < LIST/ILBM sz=146 sc=132
+    FindPropContext = FORM/8SVX sz=14 sc=12
+    FindProp ILBM.BMHD = 2 "L1"
+    FindCollection ILBM.CRNG = 2:"c1"
+    FindCollection 8SVX.BODY = 1:"s"
+step: rc=-2(EOC) d=2 top=FORM/8SVX sz=14 sc=14 < LIST/ILBM sz=146 sc=132
+    FindPropContext = LIST/ILBM sz=146 sc=132
+    FindProp ILBM.BMHD = 2 "L1"
+    FindCollection ILBM.CRNG = 2:"c1"
+    FindCollection 8SVX.BODY = 1:"s"
+step: rc=-2(EOC) d=1 top=LIST/ILBM sz=146 sc=146
+    FindPropContext = NULL
+    FindProp ILBM.BMHD = 2 "L1"
+    FindCollection ILBM.CRNG = 2:"c1"
+    FindCollection 8SVX.BODY = NULL
+step: rc=-1(EOF) d=0 top=NULL
+    FindPropContext = NULL
+    FindProp ILBM.BMHD = NULL
+    FindCollection ILBM.CRNG = NULL
+    FindCollection 8SVX.BODY = NULL
+-- prop/collection rawstep
+raw end: rc=-1(EOF) d=0 top=NULL
+-- stoponexit
+StopOnExit = 0
+StopOnExit = 0
+PropChunk = 0
+scan: rc=-2(EOC) d=3 top=CRNG/ILBM sz=2 sc=0 < PROP/ILBM sz=24 sc=22 < LIST/ILBM sz=146 sc=12
+    FindProp ILBM.BMHD = 2 "L1"
+scan: rc=-2(EOC) d=3 top=CRNG/ILBM sz=2 sc=0 < FORM/ILBM sz=48 sc=24 < LIST/ILBM sz=146 sc=44
+    FindProp ILBM.BMHD = 4 "F1F1"
+scan: rc=-2(EOC) d=3 top=CRNG/ILBM sz=3 sc=0 < FORM/ILBM sz=48 sc=34 < LIST/ILBM sz=146 sc=44
+    FindProp ILBM.BMHD = 4 "F1F1"
+scan: rc=-2(EOC) d=2 top=FORM/ILBM sz=48 sc=48 < LIST/ILBM sz=146 sc=44
+    FindProp ILBM.BMHD = 4 "F1F1"
+scan: rc=-2(EOC) d=3 top=CRNG/ILBM sz=2 sc=0 < FORM/ILBM sz=24 sc=12 < LIST/ILBM sz=146 sc=100
+    FindProp ILBM.BMHD = 2 "L1"
+scan: rc=-2(EOC) d=2 top=FORM/ILBM sz=24 sc=24 < LIST/ILBM sz=146 sc=100
+    FindProp ILBM.BMHD = 2 "L1"
+scan: rc=-1(EOF) d=0 top=NULL
+    FindProp ILBM.BMHD = NULL
+-- stop on composite
+StopChunk LIST = 0
+StopChunk PROP = 0
+StopChunk FORM = 0
+StopChunk any BODY = 0
+scan: rc=0 d=1 top=LIST/ILBM sz=146 sc=4
+scan: rc=0 d=2 top=PROP/ILBM sz=24 sc=4 < LIST/ILBM sz=146 sc=12
+scan: rc=0 d=2 top=FORM/8SVX sz=14 sc=4 < LIST/ILBM sz=146 sc=132
+scan: rc=-1(EOF) d=0 top=NULL
+-- handlers
+EntryHandler LIST = 0
+EntryHandler FORM = 0
+ExitHandler FORM = 0
+EntryHandler BODY = 0
+ExitHandler BODY = 0
+EntryHandler CRNG = 0
+EntryHandler PROP = 0
+EntryHandler 8SVX = 0
+EntryHandler PROP pos = -3
+EntryHandler bad pos = 0
+EntryHandler bad pos 4 = 0
+OpenIFF = 0
+    handler LIST-enter cmd=5 top=LIST/ILBM sz=146 sc=4 -> 0
+    handler PROP-enter cmd=5 top=PROP/ILBM sz=24 sc=4 -> 0
+    handler CRNG-enter cmd=5 top=CRNG/ILBM sz=2 sc=0 -> 0
+    handler FORM-enter cmd=5 top=FORM/ILBM sz=48 sc=4 -> 0
+    handler CRNG-enter cmd=5 top=CRNG/ILBM sz=2 sc=0 -> 0
+    handler CRNG-enter cmd=5 top=CRNG/ILBM sz=3 sc=0 -> 0
+    handler BODY-enter cmd=5 top=BODY/ILBM sz=2 sc=0 -> -12
+scan: rc=0 d=3 top=BODY/ILBM sz=2 sc=0 < FORM/ILBM sz=48 sc=46 < LIST/ILBM sz=146 sc=44
+    handler BODY-exit cmd=6 top=BODY/ILBM sz=2 sc=0 -> 0
+    handler FORM-exit cmd=6 top=FORM/ILBM sz=48 sc=48 -> 0
+    handler FORM-enter cmd=5 top=FORM/ILBM sz=24 sc=4 -> -12
+scan: rc=0 d=2 top=FORM/ILBM sz=24 sc=4 < LIST/ILBM sz=146 sc=100
+  EntryHandler scoped = 0
+    handler scoped-CRNG cmd=5 top=CRNG/ILBM sz=2 sc=0 -> 0
+    handler BODY-enter cmd=5 top=BODY/ILBM sz=2 sc=0 -> -12
+scan: rc=0 d=3 top=BODY/ILBM sz=2 sc=0 < FORM/ILBM sz=24 sc=22 < LIST/ILBM sz=146 sc=100
+    handler BODY-exit cmd=6 top=BODY/ILBM sz=2 sc=0 -> 0
+    handler FORM-exit cmd=6 top=FORM/ILBM sz=24 sc=24 -> 0
+    handler 8SVX-BODY cmd=5 top=BODY/8SVX sz=1 sc=0 -> 4711
+scan: rc=4711 d=3 top=BODY/8SVX sz=1 sc=0 < FORM/8SVX sz=14 sc=12 < LIST/ILBM sz=146 sc=132
+-- handlers step
+step: rc=0 d=1 top=LIST/ILBM sz=146 sc=4
+step: rc=0 d=2 top=PROP/ILBM sz=24 sc=4 < LIST/ILBM sz=146 sc=12
+step: rc=0 d=3 top=BMHD/ILBM sz=2 sc=0 < PROP/ILBM sz=24 sc=12 < LIST/ILBM sz=146 sc=12
+step: rc=-2(EOC) d=3 top=BMHD/ILBM sz=2 sc=0 < PROP/ILBM sz=24 sc=12 < LIST/ILBM sz=146 sc=12
+step: rc=0 d=3 top=CRNG/ILBM sz=2 sc=0 < PROP/ILBM sz=24 sc=22 < LIST/ILBM sz=146 sc=12
+step: rc=-2(EOC) d=3 top=CRNG/ILBM sz=2 sc=0 < PROP/ILBM sz=24 sc=22 < LIST/ILBM sz=146 sc=12
+step: rc=-2(EOC) d=2 top=PROP/ILBM sz=24 sc=24 < LIST/ILBM sz=146 sc=12
+    handler FORM-enter cmd=5 top=FORM/ILBM sz=48 sc=4 -> 0
+step: rc=0 d=2 top=FORM/ILBM sz=48 sc=4 < LIST/ILBM sz=146 sc=44
+step: rc=0 d=3 top=BMHD/ILBM sz=4 sc=0 < FORM/ILBM sz=48 sc=12 < LIST/ILBM sz=146 sc=44
+step: rc=-2(EOC) d=3 top=BMHD/ILBM sz=4 sc=0 < FORM/ILBM sz=48 sc=12 < LIST/ILBM sz=146 sc=44
+step: rc=0 d=3 top=CRNG/ILBM sz=2 sc=0 < FORM/ILBM sz=48 sc=24 < LIST/ILBM sz=146 sc=44
+step: rc=-2(EOC) d=3 top=CRNG/ILBM sz=2 sc=0 < FORM/ILBM sz=48 sc=24 < LIST/ILBM sz=146 sc=44
+step: rc=0 d=3 top=CRNG/ILBM sz=3 sc=0 < FORM/ILBM sz=48 sc=34 < LIST/ILBM sz=146 sc=44
+step: rc=-2(EOC) d=3 top=CRNG/ILBM sz=3 sc=0 < FORM/ILBM sz=48 sc=34 < LIST/ILBM sz=146 sc=44
+step: rc=0 d=3 top=BODY/ILBM sz=2 sc=0 < FORM/ILBM sz=48 sc=46 < LIST/ILBM sz=146 sc=44
+    handler BODY-exit cmd=6 top=BODY/ILBM sz=2 sc=0 -> -12
+step: rc=0 d=3 top=BODY/ILBM sz=2 sc=0 < FORM/ILBM sz=48 sc=46 < LIST/ILBM sz=146 sc=44
+    handler FORM-exit cmd=6 top=FORM/ILBM sz=48 sc=48 -> 0
+step: rc=-2(EOC) d=2 top=FORM/ILBM sz=48 sc=48 < LIST/ILBM sz=146 sc=44
+    handler FORM-enter cmd=5 top=FORM/ILBM sz=24 sc=4 -> 0
+step: rc=0 d=2 top=FORM/ILBM sz=24 sc=4 < LIST/ILBM sz=146 sc=100
+step: rc=0 d=3 top=CRNG/ILBM sz=2 sc=0 < FORM/ILBM sz=24 sc=12 < LIST/ILBM sz=146 sc=100
+step: rc=-2(EOC) d=3 top=CRNG/ILBM sz=2 sc=0 < FORM/ILBM sz=24 sc=12 < LIST/ILBM sz=146 sc=100
+step: rc=0 d=3 top=BODY/ILBM sz=2 sc=0 < FORM/ILBM sz=24 sc=22 < LIST/ILBM sz=146 sc=100
+    handler BODY-exit cmd=6 top=BODY/ILBM sz=2 sc=0 -> -12
+step: rc=0 d=3 top=BODY/ILBM sz=2 sc=0 < FORM/ILBM sz=24 sc=22 < LIST/ILBM sz=146 sc=100
+    handler FORM-exit cmd=6 top=FORM/ILBM sz=24 sc=24 -> 0
+step: rc=-2(EOC) d=2 top=FORM/ILBM sz=24 sc=24 < LIST/ILBM sz=146 sc=100
+step: rc=0 d=2 top=FORM/8SVX sz=14 sc=4 < LIST/ILBM sz=146 sc=132
+step: rc=0 d=3 top=BODY/8SVX sz=1 sc=0 < FORM/8SVX sz=14 sc=12 < LIST/ILBM sz=146 sc=132
+step: rc=-2(EOC) d=3 top=BODY/8SVX sz=1 sc=0 < FORM/8SVX sz=14 sc=12 < LIST/ILBM sz=146 sc=132
+step: rc=-2(EOC) d=2 top=FORM/8SVX sz=14 sc=14 < LIST/ILBM sz=146 sc=132
+step: rc=-2(EOC) d=1 top=LIST/ILBM sz=146 sc=146
+step: rc=-1(EOF) d=0 top=NULL
+FORM-enter calls = 2
+FORM-exit calls = 2
+-- handler precedence
+scan: rc=0 d=2 top=FORM/ILBM sz=48 sc=4 < LIST/ILBM sz=146 sc=44
+    FindProp ILBM.BMHD = NULL
+    FindCollection ILBM.BMHD = 2:"L1"
+  EntryHandler top = 0
+    handler C-top cmd=5 top=BMHD/ILBM sz=4 sc=0 -> 0
+scan: rc=0 d=2 top=FORM/ILBM sz=24 sc=4 < LIST/ILBM sz=146 sc=100
+    FindProp ILBM.BMHD = NULL
+    FindCollection ILBM.BMHD = 2:"L1"
+scan: rc=-1(EOF) d=0 top=NULL
+    FindProp ILBM.BMHD = NULL
+    FindCollection ILBM.BMHD = NULL
+-- local items
+lci_Type = 1
+lci_ID = 1
+lci_Ident = 0x74737431
+LocalItemData(NULL) = NULL
+AllocLocalItem size 0 = non-NULL
+LocalItemData size 0 = non-NULL
+Store a ROOT = 0
+    purge tst1 ILBM.BMHD cmd=7 data=a-root
+Store b ROOT = 0
+Store c TOP = 0
+Store d PROP = -3
+    FindLocalItem ILBM.BMHD.tst1 = b-root [ILBM.BMHD.tst1]
+    FindLocalItem ILBM.CRNG.tst1 = c-top [ILBM.CRNG.tst1]
+    FindLocalItem .....BMHD.tst1 = NULL
+    FindLocalItem ILBM......tst1 = NULL
+    FindLocalItem ILBM.BMHD.tst2 = NULL
+    FindLocalItem ..........tst2 = NULL
+OpenIFF = 0
+step: rc=0 d=1 top=LIST/ILBM sz=146 sc=4
+Store e TOP = 0
+    FindLocalItem ILBM.BMHD.tst1 = e-list [ILBM.BMHD.tst1]
+step: rc=0 d=2 top=PROP/ILBM sz=24 sc=4 < LIST/ILBM sz=146 sc=12
+step: rc=0 d=3 top=BMHD/ILBM sz=2 sc=0 < PROP/ILBM sz=24 sc=12 < LIST/ILBM sz=146 sc=12
+step: rc=-2(EOC) d=3 top=BMHD/ILBM sz=2 sc=0 < PROP/ILBM sz=24 sc=12 < LIST/ILBM sz=146 sc=12
+step: rc=0 d=3 top=CRNG/ILBM sz=2 sc=0 < PROP/ILBM sz=24 sc=22 < LIST/ILBM sz=146 sc=12
+step: rc=-2(EOC) d=3 top=CRNG/ILBM sz=2 sc=0 < PROP/ILBM sz=24 sc=22 < LIST/ILBM sz=146 sc=12
+    purge tst1 ILBM.BMHD cmd=7 data=e-list
+Store f PROP = 0
+Store g TOP = 0
+StoreItemInContext into PROP/ILBM sz=24 sc=22
+    FindLocalItem ILBM.BMHD.tst1 = g-top [ILBM.BMHD.tst1]
+    purge tst1 ILBM.BMHD cmd=7 data=g-top
+step: rc=-2(EOC) d=2 top=PROP/ILBM sz=24 sc=24 < LIST/ILBM sz=146 sc=12
+    FindLocalItem ILBM.BMHD.tst1 = h-ctx [ILBM.BMHD.tst1]
+    purge tst1 ILBM.BMHD cmd=7 data=h-ctx
+step: rc=0 d=2 top=FORM/ILBM sz=48 sc=4 < LIST/ILBM sz=146 sc=44
+    FindLocalItem ILBM.BMHD.tst1 = f-prop [ILBM.BMHD.tst1]
+step: rc=0 d=3 top=BMHD/ILBM sz=4 sc=0 < FORM/ILBM sz=48 sc=12 < LIST/ILBM sz=146 sc=44
+    FindLocalItem ILBM.BMHD.tst1 = f-prop [ILBM.BMHD.tst1]
+step: rc=-2(EOC) d=3 top=BMHD/ILBM sz=4 sc=0 < FORM/ILBM sz=48 sc=12 < LIST/ILBM sz=146 sc=44
+    FindLocalItem ILBM.BMHD.tst1 = f-prop [ILBM.BMHD.tst1]
+step: rc=0 d=3 top=CRNG/ILBM sz=2 sc=0 < FORM/ILBM sz=48 sc=24 < LIST/ILBM sz=146 sc=44
+    FindLocalItem ILBM.BMHD.tst1 = f-prop [ILBM.BMHD.tst1]
+step: rc=-2(EOC) d=3 top=CRNG/ILBM sz=2 sc=0 < FORM/ILBM sz=48 sc=24 < LIST/ILBM sz=146 sc=44
+    FindLocalItem ILBM.BMHD.tst1 = f-prop [ILBM.BMHD.tst1]
+step: rc=0 d=3 top=CRNG/ILBM sz=3 sc=0 < FORM/ILBM sz=48 sc=34 < LIST/ILBM sz=146 sc=44
+    FindLocalItem ILBM.BMHD.tst1 = f-prop [ILBM.BMHD.tst1]
+step: rc=-2(EOC) d=3 top=CRNG/ILBM sz=3 sc=0 < FORM/ILBM sz=48 sc=34 < LIST/ILBM sz=146 sc=44
+    FindLocalItem ILBM.BMHD.tst1 = f-prop [ILBM.BMHD.tst1]
+step: rc=0 d=3 top=BODY/ILBM sz=2 sc=0 < FORM/ILBM sz=48 sc=46 < LIST/ILBM sz=146 sc=44
+    FindLocalItem ILBM.BMHD.tst1 = f-prop [ILBM.BMHD.tst1]
+step: rc=-2(EOC) d=3 top=BODY/ILBM sz=2 sc=0 < FORM/ILBM sz=48 sc=46 < LIST/ILBM sz=146 sc=44
+    FindLocalItem ILBM.BMHD.tst1 = f-prop [ILBM.BMHD.tst1]
+step: rc=-2(EOC) d=2 top=FORM/ILBM sz=48 sc=48 < LIST/ILBM sz=146 sc=44
+    FindLocalItem ILBM.BMHD.tst1 = f-prop [ILBM.BMHD.tst1]
+step: rc=0 d=2 top=FORM/ILBM sz=24 sc=4 < LIST/ILBM sz=146 sc=100
+    FindLocalItem ILBM.BMHD.tst1 = f-prop [ILBM.BMHD.tst1]
+step: rc=0 d=3 top=CRNG/ILBM sz=2 sc=0 < FORM/ILBM sz=24 sc=12 < LIST/ILBM sz=146 sc=100
+    FindLocalItem ILBM.BMHD.tst1 = f-prop [ILBM.BMHD.tst1]
+step: rc=-2(EOC) d=3 top=CRNG/ILBM sz=2 sc=0 < FORM/ILBM sz=24 sc=12 < LIST/ILBM sz=146 sc=100
+    FindLocalItem ILBM.BMHD.tst1 = f-prop [ILBM.BMHD.tst1]
+step: rc=0 d=3 top=BODY/ILBM sz=2 sc=0 < FORM/ILBM sz=24 sc=22 < LIST/ILBM sz=146 sc=100
+    FindLocalItem ILBM.BMHD.tst1 = f-prop [ILBM.BMHD.tst1]
+step: rc=-2(EOC) d=3 top=BODY/ILBM sz=2 sc=0 < FORM/ILBM sz=24 sc=22 < LIST/ILBM sz=146 sc=100
+    FindLocalItem ILBM.BMHD.tst1 = f-prop [ILBM.BMHD.tst1]
+step: rc=-2(EOC) d=2 top=FORM/ILBM sz=24 sc=24 < LIST/ILBM sz=146 sc=100
+    FindLocalItem ILBM.BMHD.tst1 = f-prop [ILBM.BMHD.tst1]
+step: rc=0 d=2 top=FORM/8SVX sz=14 sc=4 < LIST/ILBM sz=146 sc=132
+    FindLocalItem ILBM.BMHD.tst1 = f-prop [ILBM.BMHD.tst1]
+step: rc=0 d=3 top=BODY/8SVX sz=1 sc=0 < FORM/8SVX sz=14 sc=12 < LIST/ILBM sz=146 sc=132
+    FindLocalItem ILBM.BMHD.tst1 = f-prop [ILBM.BMHD.tst1]
+step: rc=-2(EOC) d=3 top=BODY/8SVX sz=1 sc=0 < FORM/8SVX sz=14 sc=12 < LIST/ILBM sz=146 sc=132
+    FindLocalItem ILBM.BMHD.tst1 = f-prop [ILBM.BMHD.tst1]
+step: rc=-2(EOC) d=2 top=FORM/8SVX sz=14 sc=14 < LIST/ILBM sz=146 sc=132
+    FindLocalItem ILBM.BMHD.tst1 = f-prop [ILBM.BMHD.tst1]
+step: rc=-2(EOC) d=1 top=LIST/ILBM sz=146 sc=146
+    FindLocalItem ILBM.BMHD.tst1 = f-prop [ILBM.BMHD.tst1]
+    purge tst1 ILBM.BMHD cmd=7 data=f-prop
+step: rc=-1(EOF) d=0 top=NULL
+    FindLocalItem ILBM.BMHD.tst1 = b-root [ILBM.BMHD.tst1]
+CloseIFF = "->"
+    FindLocalItem ILBM.BMHD.tst1 = b-root [ILBM.BMHD.tst1]
+FreeIFF = "->"
+    purge tst1 ILBM.CRNG cmd=7 data=c-top
+    purge tst1 ILBM.BMHD cmd=7 data=b-root
+FreeIFF = "done"
+-- item positions
+scan: rc=0 d=2 top=FORM/ILBM sz=48 sc=4 < LIST/ILBM sz=146 sc=44
+StoreLocalItem pos 0 = 0
+StoreLocalItem pos 4 = 0
+StoreLocalItem pos -1 = 0
+StoreLocalItem ROOT = 0
+StoreItemInContext = "ctx1"
+    purge .... ......... cmd=7 data=ctx1
+StoreItemInContext = "ctx2"
+    FindLocalItem .............. = NULL
+    FindLocalItem .............. = NULL
+    FindLocalItem .............. = NULL
+    FindLocalItem .............. = ctx2 [..............]
+    purge .... ......... cmd=7 data=ctx2
+scan: rc=0 d=2 top=FORM/ILBM sz=24 sc=4 < LIST/ILBM sz=146 sc=100
+    FindLocalItem .............. = NULL
+    FindLocalItem .............. = NULL
+    FindLocalItem .............. = NULL
+    FindLocalItem .............. = root [..............]
+FreeIFF = "->"
+    purge .... ......... cmd=7 data=root
+-- items before open
+StoreLocalItem PROP on fresh handle = -3
+StoreLocalItem TOP on fresh handle = 0
+    FindLocalItem .............. = y [..............]
+PropChunk = 0
+FindLocalItem enhd = non-NULL
+FindLocalItem exhd = NULL
+FindLocalItem prop = NULL
+StopOnExit = 0
+FindLocalItem exhd BODY = non-NULL
+FindLocalItem enhd BODY = NULL
+StopChunk = 0
+FindLocalItem enhd BODY = non-NULL
+CollectionChunk = 0
+FindLocalItem enhd CMAP = non-NULL
+FindProp = NULL
+FindCollection = NULL
+FindPropContext = NULL
+CurrentChunk = NULL
+-- ids
+id 0x464f524d GoodID=1 GoodType=1 IDtoStr=1  = 46 4f 52 4d 00 5a
+id 0x43415420 GoodID=1 GoodType=1 IDtoStr=1  = 43 41 54 20 00 5a
+id 0x20202020 GoodID=1 GoodType=1 IDtoStr=1  = 20 20 20 20 00 5a
+id 0x41202020 GoodID=1 GoodType=1 IDtoStr=1  = 41 20 20 20 00 5a
+id 0x20414243 GoodID=0 GoodType=0 IDtoStr=1  = 20 41 42 43 00 5a
+id 0x41422043 GoodID=1 GoodType=1 IDtoStr=1  = 41 42 20 43 00 5a
+id 0x41424320 GoodID=1 GoodType=1 IDtoStr=1  = 41 42 43 20 00 5a
+id 0x696c626d GoodID=1 GoodType=0 IDtoStr=1  = 69 6c 62 6d 00 5a
+id 0x494c624d GoodID=1 GoodType=0 IDtoStr=1  = 49 4c 62 4d 00 5a
+id 0x38535658 GoodID=1 GoodType=1 IDtoStr=1  = 38 53 56 58 00 5a
+id 0x31323334 GoodID=1 GoodType=1 IDtoStr=1  = 31 32 33 34 00 5a
+id 0x4142437e GoodID=1 GoodType=0 IDtoStr=1  = 41 42 43 7e 00 5a
+id 0x4142437f GoodID=0 GoodType=0 IDtoStr=1  = 41 42 43 7f 00 5a
+id 0x4142431f GoodID=0 GoodType=0 IDtoStr=1  = 41 42 43 1f 00 5a
+id 0x7e424344 GoodID=1 GoodType=0 IDtoStr=1  = 7e 42 43 44 00 5a
+id 0x41804344 GoodID=0 GoodType=0 IDtoStr=1  = 41 80 43 44 00 5a
+id 0x41ff4344 GoodID=0 GoodType=0 IDtoStr=1  = 41 ff 43 44 00 5a
+id 0x412e4344 GoodID=1 GoodType=0 IDtoStr=1  = 41 2e 43 44 00 5a
+id 0x413b4344 GoodID=1 GoodType=0 IDtoStr=1  = 41 3b 43 44 00 5a
+id 0x41234344 GoodID=1 GoodType=0 IDtoStr=1  = 41 23 43 44 00 5a
+id 0x412c4344 GoodID=1 GoodType=0 IDtoStr=1  = 41 2c 43 44 00 5a
+id 0x415f4344 GoodID=1 GoodType=0 IDtoStr=1  = 41 5f 43 44 00 5a
+id 0x412d4344 GoodID=1 GoodType=0 IDtoStr=1  = 41 2d 43 44 00 5a
+id 0x28632920 GoodID=1 GoodType=0 IDtoStr=1  = 28 63 29 20 00 5a
+id 0x41424300 GoodID=0 GoodType=0 IDtoStr=1  = 41 42 43 00 00 5a
+id 0x41004344 GoodID=0 GoodType=0 IDtoStr=1  = 41 00 43 44 00 5a
+id 0x00000000 GoodID=0 GoodType=0 IDtoStr=1  = 00 00 00 00 00 5a
+id 0xffffffff GoodID=0 GoodType=0 IDtoStr=1  = ff ff ff ff 00 5a
+id 0x20202021 GoodID=0 GoodType=0 IDtoStr=1  = 20 20 20 21 00 5a
+id 0x50524f50 GoodID=1 GoodType=1 IDtoStr=1  = 50 52 4f 50 00 5a
+id 0x4c495331 GoodID=1 GoodType=1 IDtoStr=1  = 4c 49 53 31 00 5a
+id 0x464f5231 GoodID=1 GoodType=1 IDtoStr=1  = 46 4f 52 31 00 5a
+id 0x43415434 GoodID=1 GoodType=1 IDtoStr=1  = 43 41 54 34 00 5a
+id 0x464f5239 GoodID=1 GoodType=1 IDtoStr=1  = 46 4f 52 39 00 5a
+id 0x43415453 GoodID=1 GoodType=1 IDtoStr=1  = 43 41 54 53 00 5a
+id 0x4a4a4a4a GoodID=1 GoodType=1 IDtoStr=1  = 4a 4a 4a 4a 00 5a
