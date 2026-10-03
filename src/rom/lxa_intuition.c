@@ -37,6 +37,10 @@
 
 #include "util.h"
 #include "lxa_images.h"
+#include "lxa_iprefs.h"
+
+#include <graphics/displayinfo.h>
+#include <graphics/modeid.h>
 
 extern void _input_device_dispatch_event(struct InputEvent *event);
 extern void _keyboard_device_record_event(UWORD rawkey, UWORD qualifier);
@@ -210,6 +214,17 @@ struct LXAIntuitionBase {
     struct Preferences DefaultPrefs;
     struct Preferences ActivePrefs;
     struct Hook *EditHook;
+    /* Phase 236: preferences installed by IPrefs through SetIPrefs() */
+    ULONG PrefColors[11][3];        /* 0-7 Workbench colours, 8-10 pointer
+                                     * colours 17-19 (32 bit components) */
+    UWORD Pens4[NUMDRIPENS + 1];    /* Workbench pens below 8 colours */
+    UWORD Pens8[NUMDRIPENS + 1];    /* Workbench pens from 8 colours on */
+    struct LxaIScreenModePrefs ScreenModePrefs;
+    BOOL HasScreenModePrefs;
+    struct TextFont *ScreenFont;    /* screen font prefs (NULL: topaz 8) */
+    struct LxaIIControlPrefs IControlPrefs;
+    struct LxaIPointerPrefs PointerPrefs[2];   /* normal, busy (image copied) */
+    UWORD *PointerData[2];
     struct MinList ScreenDataList; /* per-screen records (LXAPubScreenNode.all_node) */
 };
 
@@ -231,6 +246,9 @@ static VOID _intuition_clear_screen_runtime_state(struct IntuitionBase *Intuitio
                                                   struct Screen *screen);
 static volatile BOOL g_processing_events;
 static BOOL g_screen_from_tags;     /* OpenScreen() called by OpenScreenTagList() */
+static ULONG g_screen_display_id;   /* OpenScreenTagList(): SA_DisplayID + 1 (0: none) */
+static BYTE g_screen_sysfont;       /* OpenScreenTagList(): SA_SysFont (-1: none) */
+static BOOL g_screen_full_palette;  /* OpenScreenTagList(): SA_FullPalette */
 static BOOL g_sysreq_layout;        /* BuildSysRequest(): body extent below */
 static WORD g_sysreq_w, g_sysreq_h;
 static void _create_screen_sys_gadgets(struct Screen *screen);
@@ -616,6 +634,18 @@ static void _intuition_strncpy(char *dst, const char *src, LONG maxchars)
     dst[i] = '\0';
 }
 
+/* The pointer of the AmigaOS 3.1 Preferences (PointerMatrix, two words
+ * per row between the control words; reference: tests/gallery/prefs.c) */
+static const UWORD _intuition_default_pointer[POINTERSIZE] = {
+    0x0000, 0x0000,
+    0xc000, 0x4000, 0x7000, 0xb000, 0x3c00, 0x4c00, 0x3f00, 0x4300,
+    0x1fc0, 0x20c0, 0x1fc0, 0x2000, 0x0f00, 0x1100, 0x0d80, 0x1280,
+    0x04c0, 0x0940, 0x0460, 0x08a0, 0x0020, 0x0040
+};
+
+/* Preferences of a freshly booted AmigaOS 3.1 (reference-verified, Phase
+ * 236: tests/scenarios/gallery-prefs-default.yaml); GetDefPrefs() reports
+ * a 9 pixel font and a 1.5 s double-click time, GetPrefs() 8 and 1.02 s. */
 static VOID _intuition_init_preferences(struct Preferences *prefs)
 {
     if (!prefs)
@@ -628,15 +658,16 @@ static VOID _intuition_init_preferences(struct Preferences *prefs)
     prefs->BaudRate = 5;
 
     prefs->KeyRptDelay.tv_secs = 0;
-    prefs->KeyRptDelay.tv_micro = 500000;
+    prefs->KeyRptDelay.tv_micro = 600000;
     prefs->KeyRptSpeed.tv_secs = 0;
-    prefs->KeyRptSpeed.tv_micro = 100000;
+    prefs->KeyRptSpeed.tv_micro = 50000;
 
-    prefs->DoubleClick.tv_secs = 0;
-    prefs->DoubleClick.tv_micro = 500000;
+    prefs->DoubleClick.tv_secs = 1;
+    prefs->DoubleClick.tv_micro = 20000;
 
+    CopyMem((APTR)_intuition_default_pointer, prefs->PointerMatrix, sizeof(_intuition_default_pointer));
     prefs->XOffset = -1;
-    prefs->YOffset = -1;
+    prefs->YOffset = 0;
     prefs->PointerTicks = 1;
 
     prefs->color0 = 0x0AAA;
@@ -853,6 +884,269 @@ static struct PubScreenNode *_intuition_default_pubscreen_node(struct LXAIntuiti
 struct LXAPubScreenNode;
 static VOID _intuition_set_oldlook_pens(struct LXAPubScreenNode *entry);
 
+/* ------------------------------------------------------------------------
+ * Preferences installed by IPrefs (Phase 236, reference-verified with
+ * tests/scenarios/gallery-prefs-*.yaml)
+ * ------------------------------------------------------------------------ */
+
+static const UWORD _intuition_newlook_pens[NUMDRIPENS] = {
+    0, 1, 1, 2, 1, 3, 1, 0, 2, 1, 2, 1
+};
+
+static VOID _intuition_init_iprefs(struct LXAIntuitionBase *base)
+{
+    /* the Workbench palette of AmigaOS 3.1: colours 0-3, the four colours
+     * the Workbench puts at the end of a palette of 8 or more, and the
+     * pointer colours */
+    static const UBYTE rgb[11][3] = {
+        { 0xaa, 0xaa, 0xaa }, { 0x00, 0x00, 0x00 }, { 0xff, 0xff, 0xff }, { 0x66, 0x88, 0xbb },
+        { 0xee, 0x44, 0x44 }, { 0x55, 0xdd, 0x55 }, { 0x00, 0x44, 0xdd }, { 0xee, 0x99, 0x00 },
+        { 0xee, 0x44, 0x44 }, { 0x00, 0x00, 0x00 }, { 0xee, 0xee, 0xcc }
+    };
+    UWORD i, c;
+
+    for (i = 0; i < 11; i++)
+        for (c = 0; c < 3; c++)
+            base->PrefColors[i][c] = rgb[i][c] * 0x01010101UL;
+    for (i = 0; i < NUMDRIPENS; i++)
+    {
+        base->Pens4[i] = _intuition_newlook_pens[i];
+        base->Pens8[i] = _intuition_newlook_pens[i];
+    }
+    base->Pens4[NUMDRIPENS] = (UWORD)~0;
+    base->Pens8[NUMDRIPENS] = (UWORD)~0;
+    base->HasScreenModePrefs = FALSE;
+    base->ScreenFont = NULL;
+    /* IControl defaults as written by the 3.1 IControl editor */
+    base->IControlPrefs.ic_TimeOut = 50;
+    base->IControlPrefs.ic_MetaDrag = IEQUALIFIER_LCOMMAND;
+    base->IControlPrefs.ic_Flags = 0x1e;
+    base->IControlPrefs.ic_WBtoFront = 'N';
+    base->IControlPrefs.ic_FrontToBack = 'M';
+    base->IControlPrefs.ic_ReqTrue = 'V';
+    base->IControlPrefs.ic_ReqFalse = 'B';
+}
+
+/* one colour into a ColorMap and the host palette */
+static VOID _intuition_set_screen_color(struct Screen *screen, ULONG index, const ULONG *rgb)
+{
+    ULONG display_handle = (ULONG)screen->ExtData;
+
+    if (!screen->ViewPort.ColorMap || index >= (ULONG)screen->ViewPort.ColorMap->Count)
+        return;
+    SetRGB32CM(screen->ViewPort.ColorMap, index, rgb[0], rgb[1], rgb[2]);
+    if (display_handle)
+        emucall3(EMU_CALL_GFX_SET_COLOR, display_handle, index,
+                 ((rgb[0] >> 8) & 0xff0000) | ((rgb[1] >> 16) & 0xff00) | (rgb[2] >> 24));
+}
+
+/* The preferences colours of a screen (AmigaOS 3.1 reference): colours 0-3
+ * on every screen, the pointer colours 17-19 on screens of 32 colours or
+ * more, and on the Workbench (SA_FullPalette) colours 4-7 as the last four
+ * colours of a palette of 8 or more. */
+static VOID _intuition_apply_pref_colors(struct Screen *screen, BOOL full_palette)
+{
+    struct LXAIntuitionBase *base = (struct LXAIntuitionBase *)IntuitionBase;
+    ULONG ncolors;
+    ULONG i;
+
+    if (!screen->ViewPort.ColorMap)
+        return;
+    ncolors = 1UL << screen->BitMap.Depth;
+    for (i = 0; i < 4 && i < ncolors; i++)
+        _intuition_set_screen_color(screen, i, base->PrefColors[i]);
+    if (full_palette && ncolors >= 8)
+        for (i = 0; i < 4; i++)
+            _intuition_set_screen_color(screen, ncolors - 4 + i, base->PrefColors[4 + i]);
+    if (ncolors >= 32)
+        for (i = 0; i < 3; i++)
+            _intuition_set_screen_color(screen, 17 + i, base->PrefColors[8 + i]);
+}
+
+static struct Screen *_intuition_find_workbench_screen(struct IntuitionBase *IntuitionBase);
+static VOID _intuition_register_pubscreen(struct IntuitionBase *IntuitionBase, struct Screen *screen);
+ULONG _intuition_OpenWorkBench ( register struct IntuitionBase * IntuitionBase __asm("a6"));
+LONG _intuition_CloseWorkBench ( register struct IntuitionBase * IntuitionBase __asm("a6"));
+
+/* graphics.library SetDisplayInfoData() (-750, system private) */
+static ULONG _intuition_set_display_info(APTR buf, ULONG size, ULONG tagID, ULONG displayID)
+{
+    register ULONG d0 __asm("d0") = size;
+    register ULONG d1 __asm("d1") = tagID;
+    register ULONG d2 __asm("d2") = displayID;
+    register APTR a0 __asm("a0") = NULL;
+    register APTR a1 __asm("a1") = buf;
+    register struct GfxBase *a6 __asm("a6") = GfxBase;
+
+    __asm__ __volatile__ ("jsr -750(%%a6)"
+                          : "+r" (d0), "+r" (d1), "+r" (a0), "+r" (a1)
+                          : "r" (d2), "r" (a6)
+                          : "cc", "memory");
+    return d0;
+}
+
+static VOID _intuition_set_wb_pens(struct LXAPubScreenNode *entry, struct Screen *screen)
+{
+    struct LXAIntuitionBase *base = (struct LXAIntuitionBase *)IntuitionBase;
+    const UWORD *src = (screen->BitMap.Depth >= 3) ? base->Pens8 : base->Pens4;
+    UWORD i;
+
+    for (i = 0; i < NUMDRIPENS; i++)
+        entry->pens[i] = src[i];
+    entry->pens[NUMDRIPENS] = (UWORD)~0;
+}
+
+/* SetIPrefs() (-576, private): IPrefs installs the preferences that belong
+ * to Intuition (lxa_iprefs.h).  The values apply to screens opened from now
+ * on; the Workbench screen, if open, gets the new palette and pens at once,
+ * and a new screen mode reopens it when no windows are open on it. */
+ULONG _intuition_SetIPrefs ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+                             register APTR data __asm("a0"),
+                             register ULONG length __asm("d0"),
+                             register ULONG type __asm("d1"))
+{
+    struct LXAIntuitionBase *base = (struct LXAIntuitionBase *)IntuitionBase;
+    struct Screen *wb = _intuition_find_workbench_screen(IntuitionBase);
+
+    DPRINTF(LOG_DEBUG, "_intuition: SetIPrefs() data=0x%08lx length=%lu type=%lu\n",
+            (ULONG)data, length, type);
+    if (!data)
+        return FALSE;
+
+    switch (type)
+    {
+        case LXA_IPREFS_SCREENMODE:
+        {
+            const struct LxaIScreenModePrefs *sm = (const struct LxaIScreenModePrefs *)data;
+
+            if (base->HasScreenModePrefs &&
+                base->ScreenModePrefs.smp_DisplayID == sm->smp_DisplayID &&
+                base->ScreenModePrefs.smp_Width == sm->smp_Width &&
+                base->ScreenModePrefs.smp_Height == sm->smp_Height &&
+                base->ScreenModePrefs.smp_Depth == sm->smp_Depth &&
+                base->ScreenModePrefs.smp_Control == sm->smp_Control)
+                return TRUE;
+            if (wb && wb->FirstWindow)
+                return FALSE;           /* cannot reset the Workbench now */
+            base->ScreenModePrefs = *sm;
+            base->HasScreenModePrefs = TRUE;
+            if (wb && _intuition_CloseWorkBench(IntuitionBase))
+                _intuition_OpenWorkBench(IntuitionBase);
+            return TRUE;
+        }
+
+        case LXA_IPREFS_FONT:
+        {
+            const struct LxaIFontPrefs *fp = (const struct LxaIFontPrefs *)data;
+            struct TextAttr ta = fp->fp_TextAttr;
+            struct TextFont *font;
+
+            ta.ta_Name = (STRPTR)fp->fp_Name;
+            font = OpenFont(&ta);
+            if (!font)
+                return FALSE;
+            if (!fp->fp_ScrFont)
+            {
+                /* the system default font stays open for good */
+                GfxBase->DefaultFont = font;
+            }
+            else
+            {
+                if (base->ScreenFont)
+                    CloseFont(base->ScreenFont);
+                base->ScreenFont = font;
+            }
+            return TRUE;
+        }
+
+        case LXA_IPREFS_OVERSCAN:
+        {
+            const struct LxaIOverscanPrefs *op = (const struct LxaIOverscanPrefs *)data;
+            struct DimensionInfo dims;
+
+            if (!GetDisplayInfoData(NULL, (UBYTE *)&dims, sizeof(dims), DTAG_DIMS, op->os_DisplayID))
+                return FALSE;
+            dims.TxtOScan.MinX = 0;
+            dims.TxtOScan.MinY = 0;
+            dims.TxtOScan.MaxX = op->os_Text.x - 1;
+            dims.TxtOScan.MaxY = op->os_Text.y - 1;
+            dims.StdOScan = op->os_Standard;
+            return _intuition_set_display_info(&dims, sizeof(dims), DTAG_DIMS,
+                                               op->os_DisplayID) ? TRUE : FALSE;
+        }
+
+        case LXA_IPREFS_ICONTROL:
+            CopyMem(data, &base->IControlPrefs,
+                    length < sizeof(base->IControlPrefs) ? length : sizeof(base->IControlPrefs));
+            return TRUE;
+
+        case LXA_IPREFS_POINTER:
+        {
+            const struct LxaIPointerPrefs *pp = (const struct LxaIPointerPrefs *)data;
+            UWORD which = pp->Which ? 1 : 0;
+            ULONG rows = pp->BitMap ? pp->BitMap->Rows : 0;
+            ULONG words = pp->BitMap ? pp->BitMap->BytesPerRow / 2 : 0;
+            UWORD *copy;
+            ULONG r, w, pl;
+
+            /* keep a copy of the image (both planes, row by row) */
+            copy = (rows && words) ? AllocVec(rows * words * 2 * sizeof(UWORD), MEMF_PUBLIC) : NULL;
+            if (copy)
+            {
+                for (pl = 0; pl < 2; pl++)
+                    for (r = 0; r < rows; r++)
+                        for (w = 0; w < words; w++)
+                            copy[(pl * rows + r) * words + w] = pp->BitMap->Depth > pl
+                                ? ((UWORD *)pp->BitMap->Planes[pl])[r * words + w] : 0;
+            }
+            if (base->PointerData[which])
+                FreeVec(base->PointerData[which]);
+            base->PointerData[which] = copy;
+            base->PointerPrefs[which] = *pp;
+            base->PointerPrefs[which].BitMap = NULL;
+            /* the AmigaOS 3.x convention for this call */
+            return (ULONG)-1;
+        }
+
+        case LXA_IPREFS_PALETTE:
+        {
+            const struct ColorSpec *cs = (const struct ColorSpec *)data;
+
+            for (; cs->ColorIndex != -1; cs++)
+            {
+                if (cs->ColorIndex < 0 || cs->ColorIndex > 10)
+                    continue;
+                base->PrefColors[cs->ColorIndex][0] = (ULONG)cs->Red * 0x10001UL;
+                base->PrefColors[cs->ColorIndex][1] = (ULONG)cs->Green * 0x10001UL;
+                base->PrefColors[cs->ColorIndex][2] = (ULONG)cs->Blue * 0x10001UL;
+            }
+            if (wb)
+                _intuition_apply_pref_colors(wb, TRUE);
+            return TRUE;
+        }
+
+        case LXA_IPREFS_PENS:
+        {
+            const struct LxaIPenPrefs *pp = (const struct LxaIPenPrefs *)data;
+            UWORD *dst = pp->Type ? base->Pens8 : base->Pens4;
+            UWORD i;
+
+            for (i = 0; i < NUMDRIPENS && pp->PenTable[i] != (UWORD)~0; i++)
+                dst[i] = pp->PenTable[i];
+            if (wb && ((wb->BitMap.Depth >= 3) == (pp->Type != 0)))
+            {
+                struct PubScreenNode *pub = _intuition_find_pubscreen_by_screen(base, wb);
+                if (pub)
+                    _intuition_set_wb_pens((struct LXAPubScreenNode *)pub, wb);
+            }
+            return TRUE;
+        }
+
+        default:
+            return FALSE;
+    }
+}
+
 static VOID _intuition_register_pubscreen(struct IntuitionBase *IntuitionBase, struct Screen *screen)
 {
     struct LXAIntuitionBase *base = (struct LXAIntuitionBase *)IntuitionBase;
@@ -916,6 +1210,8 @@ static VOID _intuition_register_pubscreen(struct IntuitionBase *IntuitionBase, s
     entry->drawInfo.dri_Flags      = DRIF_NEWLOOK;
     if ((screen->Flags & SCREENTYPE) != WBENCHSCREEN)
         _intuition_set_oldlook_pens(entry);
+    else
+        _intuition_set_wb_pens(entry, screen);
     entry->drawInfo.dri_CheckMark  = NULL;
     entry->drawInfo.dri_AmigaKey   = NULL;
 
@@ -3057,9 +3353,13 @@ struct IntuitionBase * __g_lxa_intuition_InitLib    ( register struct IntuitionB
     NewList((struct List *)&base->ScreenDataList);
     NewList(&base->WindowStateList);
     base->DefaultPubScreen = NULL;
-    _intuition_init_preferences(&base->DefaultPrefs);
-    base->ActivePrefs = base->DefaultPrefs;
+    _intuition_init_preferences(&base->ActivePrefs);
+    base->DefaultPrefs = base->ActivePrefs;
+    base->DefaultPrefs.FontHeight = 9;
+    base->DefaultPrefs.DoubleClick.tv_secs = 1;
+    base->DefaultPrefs.DoubleClick.tv_micro = 500000;
     base->EditHook = NULL;
+    _intuition_init_iprefs(base);
 
     /* Create rootclass */
     struct IClass *root = AllocMem(sizeof(struct IClass) + sizeof("rootclass"), MEMF_PUBLIC | MEMF_CLEAR);
@@ -8987,17 +9287,30 @@ struct Screen * _intuition_OpenScreen ( register struct IntuitionBase * Intuitio
         return NULL;
     }
 
-    /* STDSCREENWIDTH/HEIGHT: the size of the display mode
-     * (AmigaOS 3.1: lores 320, hires 640, interlace doubles the height) */
-    if (requested_width <= 0)
-        width = (newScreen->ViewModes & SUPERHIRES) ? 1280 : (newScreen->ViewModes & HIRES) ? 640 : 320;
-    else
-        width = (UWORD)requested_width;
+    /* STDSCREENWIDTH/HEIGHT: the text overscan of the display mode
+     * (AmigaOS 3.1: lores 320, hires 640, interlace doubles the height;
+     * the overscan preferences change it - Phase 236) */
+    {
+        struct DimensionInfo dims;
+        ULONG mode_id = g_screen_display_id ? g_screen_display_id - 1
+                      : (ULONG)(newScreen->ViewModes & (HIRES | SUPERHIRES | LACE));
+        BOOL have_dims = (requested_width <= 0 || requested_height <= 0) &&
+                         GetDisplayInfoData(NULL, (UBYTE *)&dims, sizeof(dims), DTAG_DIMS, mode_id);
 
-    if (requested_height <= 0)
-        height = (newScreen->ViewModes & LACE) ? 512 : 256;
-    else
-        height = (UWORD)requested_height;
+        if (requested_width > 0)
+            width = (UWORD)requested_width;
+        else if (have_dims)
+            width = (UWORD)(dims.TxtOScan.MaxX - dims.TxtOScan.MinX + 1);
+        else
+            width = (newScreen->ViewModes & SUPERHIRES) ? 1280 : (newScreen->ViewModes & HIRES) ? 640 : 320;
+
+        if (requested_height > 0)
+            height = (UWORD)requested_height;
+        else if (have_dims)
+            height = (UWORD)(dims.TxtOScan.MaxY - dims.TxtOScan.MinY + 1);
+        else
+            height = (newScreen->ViewModes & LACE) ? 512 : 256;
+    }
 
     if (depth == 0)
         depth = 2;
@@ -9141,32 +9454,67 @@ struct Screen * _intuition_OpenScreen ( register struct IntuitionBase * Intuitio
                             (HIRES | SUPERHIRES | LACE | HAM | EXTRA_HALFBRITE);
             screen->ViewPort.ColorMap->VPModeID = modeKey;
         }
-        /* Default palette of a freshly booted AmigaOS 3.1 (reference
-         * palette.json): Workbench pens 0-3 and the default pens 4-7. */
+        /* The palette: the ColorMap's defaults with the preferences colours
+         * (AmigaOS 3.1 reference: gallery-prefs-*).  The screen is not
+         * linked into IntuitionBase yet, so the host palette is set
+         * directly. */
         {
-            static const UWORD default_rgb4[8] = {
-                0xAAA, 0x000, 0xFFF, 0x68B, 0x00F, 0xF0F, 0x0FF, 0xFFF
-            };
-            ULONG c;
+            ULONG c, rgb[3];
 
-            for (c = 0; c < 8 && c < num_colors; c++)
+            _intuition_apply_pref_colors(screen, g_opening_workbench_screen || g_screen_full_palette);
+            for (c = 0; c < num_colors && c < 256; c++)
             {
-                UWORD rgb = default_rgb4[c];
-                ULONG r = (rgb >> 8) & 0xF, g = (rgb >> 4) & 0xF, b = rgb & 0xF;
-
-                SetRGB4CM(screen->ViewPort.ColorMap, c, r, g, b);
-                /* The screen is not linked into IntuitionBase yet, so the
-                 * host palette is set directly. */
+                GetRGB32(screen->ViewPort.ColorMap, c, 1, rgb);
                 emucall3(EMU_CALL_GFX_SET_COLOR, display_handle, c,
-                         ((r * 17) << 16) | ((g * 17) << 8) | (b * 17));
+                         ((rgb[0] >> 8) & 0xff0000) | ((rgb[1] >> 16) & 0xff00) | (rgb[2] >> 24));
             }
         }
     }
 
+    /* The screen font: NewScreen.Font / SA_Font, else the Workbench and
+     * SA_SysFont 1 screens get the screen font of the preferences and all
+     * others the system default font GfxBase->DefaultFont (AmigaOS 3.1
+     * reference: gallery-prefs-fontpal). */
+    {
+        struct TextAttr *ta = NULL;
+        struct TextFont *deffont = NULL;
+
+        if (newScreen->Font)
+        {
+            ta = newScreen->Font;
+        }
+        else
+        {
+            struct LXAIntuitionBase *ibase = (struct LXAIntuitionBase *)IntuitionBase;
+
+            if (g_opening_workbench_screen || g_screen_sysfont == 1)
+                deffont = ibase->ScreenFont;
+            else
+                deffont = GfxBase->DefaultFont;
+            ta = (struct TextAttr *)AllocMem(sizeof(struct TextAttr), MEMF_PUBLIC | MEMF_CLEAR);
+            if (ta)
+            {
+                if (deffont)
+                {
+                    ta->ta_Name = (STRPTR)deffont->tf_Message.mn_Node.ln_Name;
+                    ta->ta_YSize = deffont->tf_YSize;
+                    ta->ta_Style = deffont->tf_Style;
+                    ta->ta_Flags = deffont->tf_Flags;
+                }
+                else
+                {
+                    ta->ta_Name = (STRPTR)"topaz.font";
+                    ta->ta_YSize = 8;
+                }
+            }
+        }
+        screen->Font = ta;
+    }
+
     /* Bar height: font height + 2 (AmigaOS 3.1 reference: 10 for topaz 8,
      * 13 for topaz 11) */
-    screen->BarHeight = ((newScreen->Font && newScreen->Font->ta_YSize > 0)
-                         ? newScreen->Font->ta_YSize : 8) + 2;
+    screen->BarHeight = ((screen->Font && screen->Font->ta_YSize > 0)
+                         ? screen->Font->ta_YSize : 8) + 2;
     screen->BarVBorder = 1;
     /* AmigaOS 3.1 reference: 5 on hires screens, 2 on lores screens */
     screen->BarHBorder = (screen->ViewPort.Modes & (HIRES | SUPERHIRES)) ? 5 : 2;
@@ -9182,30 +9530,6 @@ struct Screen * _intuition_OpenScreen ( register struct IntuitionBase * Intuitio
     screen->WBorRight = 4;
     screen->WBorBottom = 2;
 
-    /* Set screen font (TextAttr pointer).
-     * Per RKRM, screen->Font describes the default font for this screen.
-     * If the caller supplied a font via NewScreen.Font (or SA_Font tag),
-     * use that; otherwise, allocate a TextAttr describing the default
-     * system font (Topaz 8).
-     */
-    if (newScreen->Font)
-    {
-        screen->Font = newScreen->Font;
-    }
-    else
-    {
-        /* Allocate a persistent TextAttr for the default font */
-        struct TextAttr *ta;
-        ta = (struct TextAttr *)AllocMem(sizeof(struct TextAttr), MEMF_PUBLIC | MEMF_CLEAR);
-        if (ta)
-        {
-            ta->ta_Name = (STRPTR)"topaz.font";
-            ta->ta_YSize = 8;
-            ta->ta_Style = 0;
-            ta->ta_Flags = 0;
-        }
-        screen->Font = ta;
-    }
 
     /* Clear the screen to color 0 */
     SetRast(&screen->RastPort, 0);
@@ -10362,24 +10686,45 @@ ULONG _intuition_OpenWorkBench ( register struct IntuitionBase * IntuitionBase _
      * OpenScreen() rejects WBENCHSCREEN from public callers.
      * We set Flags to WBENCHSCREEN after creation so the screen
      * is properly identified as the Workbench screen. */
+    /* The screen mode preferences choose mode, size (~0: the mode's text
+     * overscan) and depth; without them the Workbench is a 4 colour hires
+     * screen of the text overscan size (AmigaOS 3.1 reference:
+     * gallery-prefs-sys). */
+    struct LXAIntuitionBase *ibase = (struct LXAIntuitionBase *)IntuitionBase;
     memset(&ns, 0, sizeof(ns));
     ns.LeftEdge = 0;
     ns.TopEdge = 0;
-    ns.Width = 640;
-    ns.Height = 256;
+    ns.Width = STDSCREENWIDTH;
+    ns.Height = STDSCREENHEIGHT;
     ns.Depth = 2;
     ns.DetailPen = 0;
     ns.BlockPen = 1;
     ns.Type = CUSTOMSCREEN;
     ns.ViewModes = HIRES;           /* the Workbench is a hires screen */
     ns.DefaultTitle = (UBYTE *)"Workbench Screen";
-    
+    if (ibase->HasScreenModePrefs)
+    {
+        const struct LxaIScreenModePrefs *sm = &ibase->ScreenModePrefs;
+
+        ns.ViewModes = (UWORD)(sm->smp_DisplayID & 0xffff);
+        if (sm->smp_Width != (UWORD)~0 && sm->smp_Width)
+            ns.Width = (WORD)sm->smp_Width;
+        if (sm->smp_Height != (UWORD)~0 && sm->smp_Height)
+            ns.Height = (WORD)sm->smp_Height;
+        if (sm->smp_Depth)
+            ns.Depth = sm->smp_Depth;
+        g_screen_display_id = sm->smp_DisplayID + 1;
+    }
+
     /* Phase 147a: tell the EMU_CALL_INT_OPEN_SCREEN site that this is
      * the Workbench screen so the host can suppress the screen's own
      * SDL window in rootless mode. */
     g_opening_workbench_screen = TRUE;
     wbscreen = _intuition_OpenScreen(IntuitionBase, &ns);
     g_opening_workbench_screen = FALSE;
+    g_screen_display_id = 0;
+    if (wbscreen && ibase->HasScreenModePrefs && wbscreen->ViewPort.ColorMap)
+        wbscreen->ViewPort.ColorMap->VPModeID = ibase->ScreenModePrefs.smp_DisplayID;
     
     if (wbscreen)
     {
@@ -12862,40 +13207,22 @@ LONG _intuition_QueryOverscan ( register struct IntuitionBase * IntuitionBase __
                                                         register struct Rectangle * rect __asm("a1"),
                                                         register WORD oScanType __asm("d0"))
 {
+    struct DimensionInfo dims;
+
     if (!rect)
         return FALSE;
-    
-    /* Return standard PAL hires dimensions for all modes
-     * oScanType: 1=TEXT (visible), 2=STANDARD (past edges), 3=MAX, 4=VIDEO
-     */
+
+    /* the overscan rectangles of the display database (AmigaOS 3.1
+     * reference: tests/probes/graphics/colormap) */
+    if (!GetDisplayInfoData(NULL, (UBYTE *)&dims, sizeof(dims), DTAG_DIMS, displayID))
+        return FALSE;
     switch (oScanType) {
-        case 1:  /* OSCAN_TEXT - entirely visible */
-            rect->MinX = 0;
-            rect->MinY = 0;
-            rect->MaxX = 639;
-            rect->MaxY = 255;
-            break;
-        case 2:  /* OSCAN_STANDARD - just past edges */
-            rect->MinX = 0;
-            rect->MinY = 0;
-            rect->MaxX = 703;
-            rect->MaxY = 283;
-            break;
-        case 3:  /* OSCAN_MAX - as much as possible */
-        case 4:  /* OSCAN_VIDEO - even more */
-            rect->MinX = 0;
-            rect->MinY = 0;
-            rect->MaxX = 719;
-            rect->MaxY = 283;
-            break;
-        default:
-            rect->MinX = 0;
-            rect->MinY = 0;
-            rect->MaxX = 639;
-            rect->MaxY = 255;
-            break;
+        case OSCAN_TEXT:     *rect = dims.TxtOScan;   break;
+        case OSCAN_STANDARD: *rect = dims.StdOScan;   break;
+        case OSCAN_MAX:      *rect = dims.MaxOScan;   break;
+        case OSCAN_VIDEO:    *rect = dims.VideoOScan; break;
+        default:             return FALSE;
     }
-    
     return TRUE;
 }
 
@@ -13392,10 +13719,6 @@ VOID _intuition_GadgetMouse ( register struct IntuitionBase * IntuitionBase __as
     }
 }
 
-VOID _intuition_private1 ( register struct IntuitionBase * IntuitionBase __asm("a6"))
-{
-    PRIVATE_FUNCTION_ERROR("_intuition", "private1");
-}
 
 VOID _intuition_GetDefaultPubScreen ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register STRPTR nameBuffer __asm("a0"))
@@ -14640,7 +14963,7 @@ struct Screen * _intuition_OpenScreenTagList ( register struct IntuitionBase * I
                                                         register const struct NewScreen * newScreen __asm("a0"),
                                                         register const struct TagItem * tagList __asm("a1"))
 {
-    LXA_UNIMPLEMENTED("intuition", "OpenScreenTagList", "partial: ignores SA_DClip, SA_Overscan, SA_Colors, SA_SysFont, SA_ErrorCode (Phase 256)");
+    LXA_UNIMPLEMENTED("intuition", "OpenScreenTagList", "partial: ignores SA_DClip, SA_Overscan, SA_Colors, SA_ErrorCode (Phase 256)");
 
     struct NewScreen ns;
     struct TagItem *tstate;
@@ -14654,6 +14977,8 @@ struct Screen * _intuition_OpenScreenTagList ( register struct IntuitionBase * I
     int tl;
     BOOL share_pens = FALSE;
     BOOL pub_name = FALSE;
+    BYTE sys_font = -1;
+    BOOL full_palette = FALSE;
 
     tag_lists[0] = NULL;
     tag_lists[1] = tagList;
@@ -14800,11 +15125,16 @@ struct Screen * _intuition_OpenScreenTagList ( register struct IntuitionBase * I
                     DPRINTF(LOG_DEBUG, "_intuition: OpenScreenTagList() SA_Colors32=0x%08lx\n",
                             (ULONG)tag->ti_Data);
                     break;
+                case SA_SysFont:
+                    sys_font = (BYTE)tag->ti_Data;
+                    break;
+                case SA_FullPalette:
+                    full_palette = tag->ti_Data ? TRUE : FALSE;
+                    break;
                 /* Tags we recognize but don't fully implement yet */
                 case SA_DClip:
                 case SA_Overscan:
                 case SA_Colors:
-                case SA_SysFont:
                 case SA_ErrorCode:
                     DPRINTF(LOG_DEBUG, "_intuition: OpenScreenTagList() ignoring tag 0x%08lx (not yet implemented)\n",
                             tag->ti_Tag);
@@ -14819,8 +15149,14 @@ struct Screen * _intuition_OpenScreenTagList ( register struct IntuitionBase * I
     
     /* Call our existing OpenScreen with the assembled NewScreen */
     g_screen_from_tags = TRUE;
+    g_screen_display_id = (sa_display_id != (ULONG)INVALID_ID) ? sa_display_id + 1 : 0;
+    g_screen_sysfont = sys_font;
+    g_screen_full_palette = full_palette;
     struct Screen *screen = _intuition_OpenScreen(IntuitionBase, &ns);
     g_screen_from_tags = FALSE;
+    g_screen_display_id = 0;
+    g_screen_sysfont = -1;
+    g_screen_full_palette = FALSE;
     if (!screen)
         return NULL;
 
@@ -16272,7 +16608,7 @@ APTR __g_lxa_intuition_FuncTab [] =
     _intuition_ObtainGIRPort, // offset = -558
     _intuition_ReleaseGIRPort, // offset = -564
     _intuition_GadgetMouse, // offset = -570
-    _intuition_private1, // offset = -576
+    _intuition_SetIPrefs, // offset = -576
     _intuition_GetDefaultPubScreen, // offset = -582
     _intuition_EasyRequestArgs, // offset = -588
     _intuition_BuildEasyRequestArgs, // offset = -594
