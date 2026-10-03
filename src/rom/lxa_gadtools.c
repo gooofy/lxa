@@ -171,6 +171,11 @@ struct GTGad
     APTR select_img;
     BOOL boopsi_imgs;           /* render/select are BOOPSI objects */
     struct Gadget *ctx_last;    /* context gadget: last gadget appended */
+    /* what GadTools allocated (the application may replace the fields,
+     * e.g. GadgetText or SpecialInfo of a GENERIC_KIND gadget) */
+    struct IntuiText *own_text;
+    APTR own_special;
+    UWORD own_special_type;     /* GTYP_STRGADGET / GTYP_PROPGADGET / 0 */
 };
 
 #define GT_GAD_MAGIC 0x47544741UL    /* "GTGA" */
@@ -343,7 +348,9 @@ BOOL _gadtools_IsGadTools(register struct Gadget *gad __asm("a0"))
 {
     struct GTGad *g = gt_gad(gad);
 
-    return (g && g->role != GT_ROLE_CONTEXT && g->data) ? TRUE : FALSE;
+    if (!g)     /* the palette (a BOOPSI gadget) */
+        return gt_get_data(gad) != NULL;
+    return (g->role != GT_ROLE_CONTEXT && g->data) ? TRUE : FALSE;
 }
 
 /* RefreshGList() brackets a whole list with this, so that a GadTools group
@@ -2027,6 +2034,18 @@ struct Gadget * _gadtools_CreateGadgetA ( register struct GadToolsBase *GadTools
     }
     data->main = mg;
     data->pub = pub;
+    for (x = b.first; x; x = x->NextGadget)
+    {
+        struct GTGad *gg = gt_gad(x);
+        if (gg)
+        {
+            gg->own_text = x->GadgetText;
+            gg->own_special = x->SpecialInfo;
+            gg->own_special_type = x->SpecialInfo ? (x->GadgetType & GTYP_GTYPEMASK) : 0;
+        }
+        if (x == b.last)
+            break;
+    }
     if (data->kind == GT_KIND_SLIDER)
         _gadtools_UpdateSliderLevelDisplay(mg, data->value);
     if (!b.first)
@@ -2762,9 +2781,9 @@ static void gt_free_member(struct Gadget *gad)
     }
     data = g->data;
 
-    if ((gad->GadgetType & GTYP_GTYPEMASK) == GTYP_STRGADGET && gad->SpecialInfo)
+    if (g->own_special_type == GTYP_STRGADGET && g->own_special)
     {
-        struct StringInfo *si = (struct StringInfo *)gad->SpecialInfo;
+        struct StringInfo *si = (struct StringInfo *)g->own_special;
         if (si->Buffer)
             FreeMem(si->Buffer, si->MaxChars + 1);
         if (si->UndoBuffer)
@@ -2773,8 +2792,8 @@ static void gt_free_member(struct Gadget *gad)
             FreeMem(si->Extension, sizeof(struct StringExtend));
         FreeMem(si, sizeof(struct StringInfo));
     }
-    if ((gad->GadgetType & GTYP_GTYPEMASK) == GTYP_PROPGADGET && gad->SpecialInfo)
-        FreeMem(gad->SpecialInfo, sizeof(struct PropInfo));
+    if (g->own_special_type == GTYP_PROPGADGET && g->own_special)
+        FreeMem(g->own_special, sizeof(struct PropInfo));
     if (g->boopsi_imgs)
     {
         if (g->render_img)
@@ -2784,7 +2803,7 @@ static void gt_free_member(struct Gadget *gad)
     }
     else if (g->render_img)
         FreeMem(g->render_img, sizeof(struct Image));
-    gt_free_itext(gad->GadgetText);
+    gt_free_itext(g->own_text);
     g->magic = 0;
     if (data)
         gt_release_data(data);
@@ -3809,6 +3828,26 @@ BOOL _gadtools_LayoutMenusA ( register struct GadToolsBase *GadToolsBase __asm("
 
         if (menu->FirstItem)
             ok = gt_layout_menu_item_chain(&ml, menu->FirstItem, 0, 0, menu->Width + 1);
+
+        /* sub-menus that would leave the screen move left (AmigaOS 3.1
+         * reference: devpac-edit golden) */
+        if (ok && vi && ((struct VisualInfo *)vi)->vi_Screen)
+        {
+            struct Screen *scr = ((struct VisualInfo *)vi)->vi_Screen;
+            WORD limit = scr->Width - menu->LeftEdge - 2 * scr->MenuHBorder - 1;
+            struct MenuItem *it, *sub;
+
+            for (it = menu->FirstItem; it; it = it->NextItem)
+            {
+                WORD maxleft;
+                if (!it->SubItem)
+                    continue;
+                maxleft = limit - it->SubItem->Width;
+                if (it->SubItem->LeftEdge > maxleft)
+                    for (sub = it->SubItem; sub; sub = sub->NextItem)
+                        sub->LeftEdge = maxleft;
+            }
+        }
 
         left += menu->Width + 8;
     }

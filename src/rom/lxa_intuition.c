@@ -1625,6 +1625,102 @@ static ULONG modelclass_dispatch(
  ******************************************************************************/
 
 /* GadgetClass dispatcher - base class for all gadgets */
+
+/*
+ * gadgetclass attributes (OM_NEW / OM_SET): the GA_* tags of
+ * intuition/gadgetclass.h map onto the Gadget fields and flags.
+ */
+static ULONG _gadgetclass_set_attrs(Object *obj, struct Gadget *gadget, struct TagItem *taglist, BOOL init)
+{
+    struct TagItem *tags = taglist;
+    struct TagItem *tag;
+    ULONG changed = 0;
+
+#define GC_FLAG(field, bit) do { if (tag->ti_Data) gadget->field |= (bit); else gadget->field &= ~(bit); } while (0)
+    while ((tag = NextTagItem(&tags)))
+    {
+        switch (tag->ti_Tag)
+        {
+            case GA_Left:      gadget->LeftEdge = (WORD)tag->ti_Data; gadget->Flags &= ~GFLG_RELRIGHT; break;
+            case GA_RelRight:  gadget->LeftEdge = (WORD)tag->ti_Data; gadget->Flags |= GFLG_RELRIGHT; break;
+            case GA_Top:       gadget->TopEdge = (WORD)tag->ti_Data; gadget->Flags &= ~GFLG_RELBOTTOM; break;
+            case GA_RelBottom: gadget->TopEdge = (WORD)tag->ti_Data; gadget->Flags |= GFLG_RELBOTTOM; break;
+            case GA_Width:     gadget->Width = (WORD)tag->ti_Data; gadget->Flags &= ~GFLG_RELWIDTH; break;
+            /* GA_RelWidth/GA_RelHeight: AmigaOS 3.1 also sets GFLG_RELWIDTH/
+             * RELHEIGHT (typeface-preview golden); lxa does not yet, because
+             * BGUI's group class then stops drawing its members here (its
+             * relative layout needs Intuition's GM_LAYOUT protocol in full) */
+            case GA_RelWidth:  gadget->Width = (WORD)tag->ti_Data; break;
+            case GA_Height:    gadget->Height = (WORD)tag->ti_Data; gadget->Flags &= ~GFLG_RELHEIGHT; break;
+            case GA_RelHeight: gadget->Height = (WORD)tag->ti_Data; break;
+            case GA_ID:        gadget->GadgetID = (UWORD)tag->ti_Data; break;
+            case GA_UserData:  gadget->UserData = (APTR)tag->ti_Data; break;
+            case GA_SpecialInfo: gadget->SpecialInfo = (APTR)tag->ti_Data; break;
+            case GA_Disabled:  GC_FLAG(Flags, GFLG_DISABLED); break;
+            case GA_Selected:  GC_FLAG(Flags, GFLG_SELECTED); break;
+            case GA_Highlight:
+                gadget->Flags = (gadget->Flags & ~GFLG_GADGHIGHBITS) | ((UWORD)tag->ti_Data & GFLG_GADGHIGHBITS);
+                break;
+            case GA_Image:
+                gadget->GadgetRender = (APTR)tag->ti_Data;
+                GC_FLAG(Flags, GFLG_GADGIMAGE);
+                break;
+            case GA_Border:
+                gadget->GadgetRender = (APTR)tag->ti_Data;
+                if (tag->ti_Data)
+                    gadget->Flags &= ~GFLG_GADGIMAGE;
+                break;
+            case GA_SelectRender:
+                gadget->SelectRender = (APTR)tag->ti_Data;
+                if (tag->ti_Data)
+                    gadget->Flags = (gadget->Flags & ~GFLG_GADGHIGHBITS) | GFLG_GADGHIMAGE;
+                break;
+            case GA_IntuiText:
+                gadget->GadgetText = (struct IntuiText *)tag->ti_Data;
+                gadget->Flags &= ~GFLG_LABELMASK;
+                break;
+            case GA_Text:
+                gadget->GadgetText = (struct IntuiText *)tag->ti_Data;
+                gadget->Flags = (gadget->Flags & ~GFLG_LABELMASK) | GFLG_LABELSTRING;
+                break;
+            case GA_LabelImage:
+                gadget->GadgetText = (struct IntuiText *)tag->ti_Data;
+                gadget->Flags = (gadget->Flags & ~GFLG_LABELMASK) | GFLG_LABELIMAGE;
+                break;
+            case GA_TabCycle:  GC_FLAG(Flags, GFLG_TABCYCLE); break;
+            case GA_Immediate: GC_FLAG(Activation, GACT_IMMEDIATE); break;
+            case GA_RelVerify: GC_FLAG(Activation, GACT_RELVERIFY); break;
+            case GA_FollowMouse: GC_FLAG(Activation, GACT_FOLLOWMOUSE); break;
+            case GA_RightBorder: GC_FLAG(Activation, GACT_RIGHTBORDER); break;
+            case GA_LeftBorder: GC_FLAG(Activation, GACT_LEFTBORDER); break;
+            case GA_TopBorder: GC_FLAG(Activation, GACT_TOPBORDER); break;
+            case GA_BottomBorder: GC_FLAG(Activation, GACT_BOTTOMBORDER); break;
+            case GA_ToggleSelect: GC_FLAG(Activation, GACT_TOGGLESELECT); break;
+            case GA_EndGadget: GC_FLAG(Activation, GACT_ENDGADGET); break;
+            case GA_GZZGadget: GC_FLAG(GadgetType, GTYP_GZZGADGET); break;
+            case GA_SysGadget: GC_FLAG(GadgetType, GTYP_SYSGADGET); break;
+            case GA_SysGType:
+                gadget->GadgetType = (gadget->GadgetType & ~GTYP_SYSTYPEMASK) | ((UWORD)tag->ti_Data & GTYP_SYSTYPEMASK);
+                break;
+            case GA_Previous:
+                if (init && tag->ti_Data)
+                {
+                    /* link the new gadget after this one (OM_NEW only) */
+                    struct Gadget *prev = (struct Gadget *)tag->ti_Data;
+                    gadget->NextGadget = prev->NextGadget;
+                    prev->NextGadget = gadget;
+                }
+                break;
+            default:
+                continue;
+        }
+        changed = 1;
+    }
+#undef GC_FLAG
+    (void)obj;
+    return changed;
+}
+
 static ULONG gadgetclass_dispatch(
     register struct IClass *cl __asm("a0"),
     register Object *obj __asm("a2"),
@@ -1649,7 +1745,8 @@ static ULONG gadgetclass_dispatch(
             
             /* Initialize gadget structure */
             gadget->GadgetType = GTYP_CUSTOMGADGET;
-            gadget->Flags = GFLG_GADGHNONE;
+            /* AmigaOS 3.1: gadgetclass objects are ExtGadgets, GADGHCOMP */
+            gadget->Flags = GFLG_EXTENDED;
             gadget->Activation = 0;
             gadget->GadgetID = 0;
             gadget->UserData = NULL;
@@ -1663,61 +1760,21 @@ static ULONG gadgetclass_dispatch(
             ic->ic_LoopCounter = 0;
             
             /* Process tags from opSet */
-            struct opSet *ops = (struct opSet *)msg;
-            struct TagItem *tags = ops->ops_AttrList;
-            struct TagItem *tag;
-            
-            while ((tag = NextTagItem(&tags)))
             {
-                switch (tag->ti_Tag)
+                struct opSet *ops = (struct opSet *)msg;
+                struct TagItem *tags = ops->ops_AttrList;
+                struct TagItem *tag;
+
+                _gadgetclass_set_attrs(obj, gadget, ops->ops_AttrList, TRUE);
+                while ((tag = NextTagItem(&tags)))
                 {
-                    case GA_Left:
-                        gadget->LeftEdge = (WORD)tag->ti_Data;
-                        break;
-                    case GA_Top:
-                        gadget->TopEdge = (WORD)tag->ti_Data;
-                        break;
-                    case GA_Width:
-                        gadget->Width = (WORD)tag->ti_Data;
-                        break;
-                    case GA_Height:
-                        gadget->Height = (WORD)tag->ti_Data;
-                        break;
-                    case GA_ID:
-                        gadget->GadgetID = (UWORD)tag->ti_Data;
-                        break;
-                    case GA_UserData:
-                        gadget->UserData = (APTR)tag->ti_Data;
-                        break;
-                    case GA_Disabled:
-                        if (tag->ti_Data)
-                            gadget->Flags |= GFLG_DISABLED;
-                        else
-                            gadget->Flags &= ~GFLG_DISABLED;
-                        break;
-                    case GA_Immediate:
-                        if (tag->ti_Data)
-                            gadget->Activation |= GACT_IMMEDIATE;
-                        break;
-                    case GA_RelVerify:
-                        if (tag->ti_Data)
-                            gadget->Activation |= GACT_RELVERIFY;
-                        break;
-                    case GA_Selected:
-                        if (tag->ti_Data)
-                            gadget->Flags |= GFLG_SELECTED;
-                        else
-                            gadget->Flags &= ~GFLG_SELECTED;
-                        break;
-                    case ICA_TARGET:
+                    if (tag->ti_Tag == ICA_TARGET)
                         ic->ic_Target = (Object *)tag->ti_Data;
-                        break;
-                    case ICA_MAP:
+                    else if (tag->ti_Tag == ICA_MAP)
                         ic->ic_Mapping = (struct TagItem *)tag->ti_Data;
-                        break;
                 }
             }
-            
+
             return (ULONG)obj;
         }
             
@@ -1753,64 +1810,10 @@ static ULONG gadgetclass_dispatch(
             if (_boopsi_set_icdata(ic, ops->ops_AttrList))
                 changed = 1;
             
-            while ((tag = NextTagItem(&tags)))
-            {
-                switch (tag->ti_Tag)
-                {
-                    case GA_Left:
-                        gadget->LeftEdge = (WORD)tag->ti_Data;
-                        changed = 1;
-                        break;
-                    case GA_Top:
-                        gadget->TopEdge = (WORD)tag->ti_Data;
-                        changed = 1;
-                        break;
-                    case GA_Width:
-                        gadget->Width = (WORD)tag->ti_Data;
-                        changed = 1;
-                        break;
-                    case GA_Height:
-                        gadget->Height = (WORD)tag->ti_Data;
-                        changed = 1;
-                        break;
-                    case GA_ID:
-                        gadget->GadgetID = (UWORD)tag->ti_Data;
-                        changed = 1;
-                        break;
-                    case GA_UserData:
-                        gadget->UserData = (APTR)tag->ti_Data;
-                        changed = 1;
-                        break;
-                    case GA_Disabled:
-                        if (tag->ti_Data)
-                            gadget->Flags |= GFLG_DISABLED;
-                        else
-                            gadget->Flags &= ~GFLG_DISABLED;
-                        changed = 1;
-                        break;
-                    case GA_Selected:
-                        if (tag->ti_Data)
-                            gadget->Flags |= GFLG_SELECTED;
-                        else
-                            gadget->Flags &= ~GFLG_SELECTED;
-                        changed = 1;
-                        break;
-                    case GA_Immediate:
-                        if (tag->ti_Data)
-                            gadget->Activation |= GACT_IMMEDIATE;
-                        else
-                            gadget->Activation &= ~GACT_IMMEDIATE;
-                        changed = 1;
-                        break;
-                    case GA_RelVerify:
-                        if (tag->ti_Data)
-                            gadget->Activation |= GACT_RELVERIFY;
-                        else
-                            gadget->Activation &= ~GACT_RELVERIFY;
-                        changed = 1;
-                        break;
-                }
-            }
+            if (_gadgetclass_set_attrs(obj, gadget, ops->ops_AttrList, FALSE))
+                changed = 1;
+            (void)tags;
+            (void)tag;
             return changed;
         }
             
@@ -3710,6 +3713,7 @@ static VOID _intuition_handle_mouse_button_event(struct IntuitionBase *Intuition
                 }
 
                 if ((gad->Flags & GFLG_GADGHIGHBITS) == GFLG_GADGHCOMP &&
+                    (gad->GadgetType & GTYP_GTYPEMASK) != GTYP_CUSTOMGADGET &&
                     (gad->GadgetType & GTYP_GTYPEMASK) != GTYP_PROPGADGET &&
                     (gad->GadgetType & GTYP_GTYPEMASK) != GTYP_STRGADGET)
                 {
@@ -3865,7 +3869,8 @@ static VOID _intuition_handle_mouse_button_event(struct IntuitionBase *Intuition
                     {
                         _render_gadget(activeWin, NULL, gad);
                     }
-                    else if ((gad->Flags & GFLG_GADGHIGHBITS) == GFLG_GADGHCOMP)
+                    else if ((gad->Flags & GFLG_GADGHIGHBITS) == GFLG_GADGHCOMP &&
+                             (gad->GadgetType & GTYP_GTYPEMASK) != GTYP_CUSTOMGADGET)
                     {
                         _complement_gadget_area(activeWin, NULL, gad);
                     }
@@ -5880,6 +5885,78 @@ static VOID _init_string_gadget_info(struct Gadget *gadget)
                 si->DispPos = len;
         }
     }
+}
+
+/*
+ * GM_LAYOUT for BOOPSI gadgets whose size depends on the window
+ * (GFLG_REL*): sent when the gadget joins a window and after every size
+ * change (gpl_Initial FALSE), as Intuition V39 does.
+ */
+static VOID _layout_custom_gadget(struct Window *window, struct Requester *req, struct Gadget *gad,
+                                  BOOL initial)
+{
+    struct IClass *cl;
+    struct GadgetInfo gi;
+    struct gpLayout gpl;
+
+    if (!window || !gad || (gad->GadgetType & GTYP_GTYPEMASK) != GTYP_CUSTOMGADGET ||
+        (gad->GadgetType & GTYP_SYSGADGET) ||
+        !(gad->Flags & (GFLG_RELRIGHT | GFLG_RELBOTTOM | GFLG_RELWIDTH | GFLG_RELHEIGHT | GFLG_RELSPECIAL)))
+        return;
+    cl = OCLASS((Object *)gad);
+    if (!cl)
+        return;
+    memset(&gi, 0, sizeof(gi));
+    gi.gi_Screen = window->WScreen;
+    gi.gi_Window = window;
+    gi.gi_Requester = req;
+    gi.gi_RastPort = window->RPort;
+    gi.gi_Layer = window->WLayer;
+    if (window->Flags & WFLG_GIMMEZEROZERO)
+    {
+        gi.gi_Domain.Left = window->BorderLeft;
+        gi.gi_Domain.Top = window->BorderTop;
+        gi.gi_Domain.Width = window->Width - window->BorderLeft - window->BorderRight;
+        gi.gi_Domain.Height = window->Height - window->BorderTop - window->BorderBottom;
+    }
+    else
+    {
+        gi.gi_Domain.Width = window->Width;
+        gi.gi_Domain.Height = window->Height;
+    }
+    gi.gi_DrInfo = _intuition_GetScreenDrawInfo(IntuitionBase, window->WScreen);
+    gpl.MethodID = GM_LAYOUT;
+    gpl.gpl_GInfo = &gi;
+    gpl.gpl_Initial = initial;
+    _intuition_dispatch_method(cl, (Object *)gad, (Msg)&gpl);
+    if (gi.gi_DrInfo)
+        _intuition_FreeScreenDrawInfo(IntuitionBase, window->WScreen, gi.gi_DrInfo);
+}
+
+/*
+ * AmigaOS 3.1 marks every gadget that reaches into the window border with
+ * GACT_BORDERSNIFF when it joins a window (reference: dopus-startup and
+ * devpac-edit goldens): border gadgets (GACT_*BORDER) and gadgets whose box
+ * leaves the window's inner area.
+ */
+static VOID _sniff_border_gadget(struct Window *window, struct Requester *req, struct Gadget *gad)
+{
+    LONG l, t, w, h;
+
+    if (!window || req || !gad || (gad->GadgetType & GTYP_SYSGADGET) ||
+        (window->Flags & WFLG_GIMMEZEROZERO))
+        return;
+    if (gad->Activation & (GACT_RIGHTBORDER | GACT_LEFTBORDER | GACT_TOPBORDER | GACT_BOTTOMBORDER))
+    {
+        gad->Activation |= GACT_BORDERSNIFF;
+        return;
+    }
+    _calculate_gadget_box(window, NULL, gad, &l, &t, &w, &h);
+    if (w > 0 && h > 0 &&
+        (l < window->BorderLeft || t < window->BorderTop ||
+         l + w > window->Width - window->BorderRight ||
+         t + h > window->Height - window->BorderBottom))
+        gad->Activation |= GACT_BORDERSNIFF;
 }
 
 /*
@@ -10197,6 +10274,8 @@ struct Window * _intuition_OpenWindow ( register struct IntuitionBase * Intuitio
         while (gad)
         {
             _init_string_gadget_info(gad);
+            _sniff_border_gadget(window, NULL, gad);
+            _layout_custom_gadget(window, NULL, gad, TRUE);
             gad = gad->NextGadget;
         }
     }
@@ -11799,6 +11878,10 @@ static void _complement_gadget_area(struct Window *window, struct Requester *req
         return;
     }
 
+    /* a BOOPSI gadget draws its own selected state */
+    if ((gad->GadgetType & GTYP_GTYPEMASK) == GTYP_CUSTOMGADGET)
+        return;
+
     /* For GZZ windows, border/system gadgets use BorderRPort */
     if ((window->Flags & WFLG_GIMMEZEROZERO) && window->BorderRPort &&
         (gad->GadgetType & (GTYP_GZZGADGET | GTYP_SYSGADGET)))
@@ -12577,6 +12660,8 @@ UWORD _intuition_AddGList ( register struct IntuitionBase * IntuitionBase __asm(
         while (init && (init_remaining == -1 || init_remaining > 0))
         {
             _init_string_gadget_info(init);
+            _sniff_border_gadget(window, requester, init);
+            _layout_custom_gadget(window, requester, init, TRUE);
             init = init->NextGadget;
             if (init_remaining > 0)
                 init_remaining--;
