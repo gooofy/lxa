@@ -1,0 +1,666 @@
+-- GetDefDiskObject
+GetDefDiskObject(-1): NULL IoErr=1234
+GetDefDiskObject(0): NULL IoErr=1234
+GetDefDiskObject(1): magic=0xe310 version=1 type=1 stack=0 curx=0x80000000 cury=0x80000000
+  gadget: next=NULL left=0 top=0 w=35 h=18 flags=0x0004 act=0x0003 gtype=0x0001 text=NULL mutex=0x00000000 special=NULL id=0 userdata=0x00000000
+  render: left=0 top=0 w=35 h=17 depth=2 pick=0x03 onoff=0x00 data=ptr next=NULL hash=0xf57b4ec9
+  select: NULL
+  defaulttool = "SYS:System/DiskCopy"
+  tooltypes = NULL
+  toolwindow = NULL
+  drawer: left=50 top=50 w=400 h=100 dpen=255 bpen=255 idcmp=0x00000000 wflags=0x0240027f fgad=NULL check=NULL title=NULL scr=NULL bm=NULL minw=90 minh=40 maxw=65535 maxh=65535 wtype=1 cx=0 cy=0
+  drawer2: ddflags=0x00000000 viewmodes=0x0000
+  render data = 7f 80 00 1f 80 00 ff 80 07 1f e0 00 ff 80 07 1f e0 00 ff 80 07 1f e0 00 ff 80 07 1f e0 00 ff c0 00 3f e0 00 ff ff ff ff e0 00 ff ff ff ff e0 00 f8 00 00 03 e0 00 f0 00 00 01 e0 00 f0 00 06 c1 e0 00 f0 00 0d 81 e0 00 f0 00 1b 01 e0 00 f0 1b 36 01 e0 00 f0 0d ec 01 e0 00 90 06 d8 01 e0 00 f0 00 00 01 e0 00 00 7f ff e0 00 00 00 7f f8 e0 00 00 00 7f f8 e0 00 00 00 7f f8 e0 00 00 00 7f f8 e0 00 00 00 3f ff c0 00 00 00 00 00 00 00 00 00 00 00 00 00 00 07 ff ff fc 00 00 0f ff ff fe 00 00 0f ff f9 3e 00 00 0f ff f2 7e 00 00 0f ff e4 fe 00 00 0f e4 c9 fe 00 00 0f f2 13 fe 00 00 0f f9 27 fe 00 00 0f ff ff fe 00 00
+  put default: PutDiskObject = TRUE IoErr=0
+  file size = 388
+  hdr+0 = e3 10 00 01 00 00 00 00 00 00 00 00 00 23 00 12 00 04 00 03 00 01 00 00 00 01 00 00 00 00 00 00
+  hdr+32 = 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 01 00 00 00 00 01 00 00 00 00 80 00 00 00 80 00
+  hdr+64 = 00 00 00 00 00 01 00 00 00 00 00 00 00 00
+  drawer+0 = 00 32 00 32 01 90 00 64 ff ff 00 00 00 00 02 40 02 7f 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  drawer+32 = 00 00 00 00 00 00 00 5a 00 28 ff ff ff ff 00 01 00 00 00 00 00 00 00 00
+  image1 struct = 00 00 00 00 00 23 00 11 00 02 00 00 00 01 03 00 00 00 00 00
+  image1 databytes=204 hash=0xf57b4ec9
+  tail+0 = 00 00 00 14 53 59 53 3a 53 79 73 74 65 6d 2f 44 69 73 6b 43 6f 70 79 00 00 00 00 00 00 00
+  read back: magic=0xe310 version=1 type=1 stack=0 curx=0x80000000 cury=0x80000000
+  gadget: next=NULL left=0 top=0 w=35 h=18 flags=0x0004 act=0x0003 gtype=0x0001 text=NULL mutex=0x00000000 special=NULL id=0 userdata=0x00000000
+  render: left=0 top=0 w=35 h=17 depth=2 pick=0x03 onoff=0x00 data=ptr next=NULL hash=0xf57b4ec9
+  select: NULL
+  defaulttool = "SYS:System/DiskCopy"
+  tooltypes = NULL
+  toolwindow = NULL
+  drawer: left=50 top=50 w=400 h=100 dpen=255 bpen=255 idcmp=0x00000000 wflags=0x0240027f fgad=NULL check=NULL title=NULL scr=NULL bm=NULL minw=90 minh=40 maxw=65535 maxh=65535 wtype=1 cx=0 cy=0
+  drawer2: ddflags=0x00000000 viewmodes=0x0000
+  DeleteDiskObject = TRUE IoErr=0
+GetDefDiskObject(2): magic=0xe310 version=1 type=2 stack=0 curx=0x80000000 cury=0x80000000
+  gadget: next=NULL left=0 top=0 w=57 h=14 flags=0x0006 act=0x0003 gtype=0x0001 text=NULL mutex=0x00000000 special=NULL id=0 userdata=0x00000000
+  render: left=0 top=0 w=57 h=14 depth=2 pick=0x03 onoff=0x00 data=ptr next=NULL hash=0x1df25a35
+  select: left=0 top=0 w=57 h=14 depth=2 pick=0x03 onoff=0x00 data=ptr next=NULL hash=0x9d3216cb
+  defaulttool = NULL
+  tooltypes = NULL
+  toolwindow = NULL
+  drawer: left=50 top=50 w=400 h=100 dpen=255 bpen=255 idcmp=0x00000000 wflags=0x0240027f fgad=NULL check=NULL title=NULL scr=NULL bm=NULL minw=90 minh=40 maxw=65535 maxh=65535 wtype=1 cx=0 cy=0
+  drawer2: ddflags=0x00000000 viewmodes=0x0000
+  render data = 00 00 00 00 00 00 00 00 0f ff ff ff ff ff e4 00 0c 00 00 00 00 00 04 00 08 00 00 00 00 00 24 00 08 00 09 ff 20 00 24 00 08 00 09 d5 20 00 24 00 08 00 08 00 20 00 24 00 08 00 07 ff c0 00 24 00 08 00 00 00 00 00 24 00 09 ff ff ff ff ff e4 00 00 00 00 00 00 00 04 00 0f ff ff ff ff ff fc 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 3f ff ff ff ff ff f8 00 30 00 00 00 00 00 18 00 33 ff ff ff ff ff f8 00 37 ff ff ff ff ff d8 00 37 ff f6 00 df ff d8 00 37 ff f6 2a df ff d8 00 37 ff f7 ff df ff d8 00 37 ff f8 00 3f ff d8 00 37 ff ff ff ff ff d8 00 36 00 00 00 00 00 18 00 3f ff ff ff ff ff f8 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  select data = 00 00 00 00 00 00 00 00 0f ff ff ff ff ff e4 00 1a aa aa aa aa aa b4 00 35 55 55 55 55 55 5c 00 7f ff ff ff ff ff fc 00 40 00 00 00 00 00 04 00 40 00 00 00 00 00 06 00 40 00 09 ff 20 00 06 00 40 00 09 d5 20 00 06 80 40 00 08 00 20 00 06 80 40 00 07 ff c0 00 06 80 40 00 00 00 00 00 06 80 7f ff ff ff ff ff fe 80 02 aa aa aa aa aa aa 80 3f ff ff ff ff ff f8 00 30 00 00 00 00 00 18 00 22 aa aa aa aa aa a8 00 05 55 55 55 55 55 50 00 00 00 00 00 00 00 00 00 3f ff ff ff ff ff f8 00 3f ff ff ff ff ff f8 00 3f ff f6 00 df ff f8 00 3f ff f6 2a df ff f8 00 3f ff f7 ff df ff f8 00 3f ff f8 00 3f ff f8 00 3f ff ff ff ff ff f8 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  put default: PutDiskObject = TRUE IoErr=0
+  file size = 628
+  hdr+0 = e3 10 00 01 00 00 00 00 00 00 00 00 00 39 00 0e 00 06 00 03 00 01 00 00 00 01 00 00 00 01 00 00
+  hdr+32 = 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 02 00 00 00 00 00 00 00 00 00 80 00 00 00 80 00
+  hdr+64 = 00 00 00 00 00 01 00 00 00 00 00 00 00 00
+  drawer+0 = 00 32 00 32 01 90 00 64 ff ff 00 00 00 00 02 40 02 7f 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  drawer+32 = 00 00 00 00 00 00 00 5a 00 28 ff ff ff ff 00 01 00 00 00 00 00 00 00 00
+  image1 struct = 00 00 00 00 00 39 00 0e 00 02 00 00 00 01 03 00 00 00 00 00
+  image1 databytes=224 hash=0x1df25a35
+  image2 struct = 00 00 00 00 00 39 00 0e 00 02 00 00 00 01 03 00 00 00 00 00
+  image2 databytes=224 hash=0x9d3216cb
+  tail+0 = 00 00 00 00 00 00
+  read back: magic=0xe310 version=1 type=2 stack=0 curx=0x80000000 cury=0x80000000
+  gadget: next=NULL left=0 top=0 w=57 h=14 flags=0x0006 act=0x0003 gtype=0x0001 text=NULL mutex=0x00000000 special=NULL id=0 userdata=0x00000000
+  render: left=0 top=0 w=57 h=14 depth=2 pick=0x03 onoff=0x00 data=ptr next=NULL hash=0x1df25a35
+  select: left=0 top=0 w=57 h=14 depth=2 pick=0x03 onoff=0x00 data=ptr next=NULL hash=0x9d3216cb
+  defaulttool = NULL
+  tooltypes = NULL
+  toolwindow = NULL
+  drawer: left=50 top=50 w=400 h=100 dpen=255 bpen=255 idcmp=0x00000000 wflags=0x0240027f fgad=NULL check=NULL title=NULL scr=NULL bm=NULL minw=90 minh=40 maxw=65535 maxh=65535 wtype=1 cx=0 cy=0
+  drawer2: ddflags=0x00000000 viewmodes=0x0000
+  DeleteDiskObject = TRUE IoErr=0
+GetDefDiskObject(3): magic=0xe310 version=1 type=3 stack=0 curx=0x80000000 cury=0x80000000
+  gadget: next=NULL left=0 top=0 w=54 h=23 flags=0x0004 act=0x0001 gtype=0x0001 text=NULL mutex=0x00000000 special=NULL id=0 userdata=0x00000000
+  render: left=0 top=0 w=54 h=22 depth=2 pick=0x03 onoff=0x00 data=ptr next=NULL hash=0x4aed8f30
+  select: NULL
+  defaulttool = NULL
+  tooltypes = NULL
+  toolwindow = NULL
+  drawer = NULL
+  render data = 00 00 00 00 00 00 04 00 00 00 00 00 00 00 0c 00 00 00 00 00 00 00 0c 00 00 00 00 00 00 00 0c 00 00 00 00 00 00 00 0c 00 00 00 00 00 00 00 0c 00 03 f0 0f ff e0 00 0c 00 02 08 30 00 1c 00 0c 00 02 07 c0 00 03 80 0c 00 02 00 00 00 00 60 0c 00 02 00 00 00 00 10 0c 00 02 00 00 00 00 08 0c 00 02 07 c0 00 1f c4 0c 00 02 08 20 00 20 32 0c 00 03 f0 18 00 c0 0d 0c 00 00 00 06 03 00 03 0c 00 00 00 02 02 00 00 0c 00 00 00 02 02 00 00 0c 00 00 00 02 02 00 00 0c 00 00 00 03 fe 00 00 0c 00 00 00 00 00 00 00 0c 00 7f ff ff ff ff ff fc 00 ff ff ff ff ff ff f8 00 d5 55 55 55 55 55 50 00 d5 55 55 55 55 55 50 00 d5 55 55 55 55 55 50 00 d5 55 55 55 55 55 50 00 d5 55 55 55 55 55 50 00 d4 05 50 00 15 55 50 00 d4 05 40 00 01 55 50 00 d4 00 00 00 00 55 50 00 d4 00 00 00 00 15 50 00 d4 00 00 00 00 05 50 00 d4 00 00 00 00 05 50 00 d4 00 00 00 00 01 50 00 d4 05 40 00 15 41 50 00 d4 05 40 00 15 50 50 00 d5 55 50 00 55 54 50 00 d5 55 54 01 55 55 50 00 d5 55 54 01 55 55 50 00 d5 55 54 01 55 55 50 00 d5 55 54 01 55 55 50 00 d5 55 55 55 55 55 50 00 80 00 00 00 00 00 00 00
+  put default: PutDiskObject = TRUE IoErr=0
+  file size = 450
+  hdr+0 = e3 10 00 01 00 00 00 00 00 00 00 00 00 36 00 17 00 04 00 01 00 01 00 00 00 01 00 00 00 00 00 00
+  hdr+32 = 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 03 00 00 00 00 00 00 00 00 00 80 00 00 00 80 00
+  hdr+64 = 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  image1 struct = 00 00 00 00 00 36 00 16 00 02 00 00 00 01 03 00 00 00 00 00
+  image1 databytes=352 hash=0x4aed8f30
+  read back: magic=0xe310 version=1 type=3 stack=0 curx=0x80000000 cury=0x80000000
+  gadget: next=NULL left=0 top=0 w=54 h=23 flags=0x0004 act=0x0001 gtype=0x0001 text=NULL mutex=0x00000000 special=NULL id=0 userdata=0x00000000
+  render: left=0 top=0 w=54 h=22 depth=2 pick=0x03 onoff=0x00 data=ptr next=NULL hash=0x4aed8f30
+  select: NULL
+  defaulttool = NULL
+  tooltypes = NULL
+  toolwindow = NULL
+  drawer = NULL
+  DeleteDiskObject = TRUE IoErr=0
+GetDefDiskObject(4): magic=0xe310 version=1 type=4 stack=0 curx=0x80000000 cury=0x80000000
+  gadget: next=NULL left=0 top=0 w=54 h=23 flags=0x0005 act=0x0001 gtype=0x0001 text=NULL mutex=0x00000000 special=NULL id=0 userdata=0x00000000
+  render: left=0 top=0 w=54 h=22 depth=2 pick=0x03 onoff=0x00 data=ptr next=NULL hash=0x9f2a0e5c
+  select: NULL
+  defaulttool = NULL
+  tooltypes = NULL
+  toolwindow = NULL
+  drawer = NULL
+  render data = 00 00 00 00 00 04 00 00 00 00 00 00 00 01 00 00 00 00 00 00 00 00 40 00 00 00 00 00 00 00 10 00 00 00 00 00 00 00 08 00 00 00 e0 00 00 00 0c 00 00 01 f0 00 00 00 0c 00 00 03 b8 00 00 00 0c 00 00 07 1c 00 00 00 0c 00 00 0e 0e 00 00 00 0c 00 00 1c 07 00 00 00 0c 00 00 3f ff 80 7f f0 0c 00 00 1f ff 80 00 00 0c 00 00 00 00 00 7e 00 0c 00 00 00 00 00 00 00 0c 00 00 00 00 1f ff fc 0c 00 00 00 00 00 00 00 0c 00 00 00 00 1f ff c0 0c 00 40 00 00 00 00 00 0c 00 10 00 00 00 00 00 0c 00 04 00 00 00 00 00 0c 00 01 ff ff ff ff ff fc 00 ff ff ff ff ff f8 00 00 d5 55 55 55 55 56 00 00 d5 55 55 55 55 55 80 00 df ff ff ff 55 55 60 00 d0 00 00 01 55 55 50 00 d0 00 c0 01 55 55 50 00 d0 01 e0 01 55 55 50 00 d0 03 30 01 55 55 50 00 d0 06 18 01 7f ff 50 00 d0 0c 0c 01 7f ff 50 00 d0 18 06 01 7f ff 50 00 d0 3f ff 01 00 0f 50 00 d0 00 00 01 7f ff 50 00 d0 00 00 01 01 ff 50 00 df ff ff ff 7f ff 50 00 d5 55 55 e0 00 03 50 00 d5 55 55 ff ff ff 50 00 d5 55 55 e0 00 3f 50 00 35 55 55 ff ff ff 50 00 0d 55 55 ff ff ff 50 00 03 55 55 55 55 55 50 00 00 00 00 00 00 00 00 00
+  put default: PutDiskObject = TRUE IoErr=0
+  file size = 450
+  hdr+0 = e3 10 00 01 00 00 00 00 00 00 00 00 00 36 00 17 00 05 00 01 00 01 00 00 00 01 00 00 00 00 00 00
+  hdr+32 = 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 04 00 00 00 00 00 00 00 00 00 80 00 00 00 80 00
+  hdr+64 = 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  image1 struct = 00 00 00 00 00 36 00 16 00 02 00 00 00 01 03 00 00 00 00 00
+  image1 databytes=352 hash=0x9f2a0e5c
+  read back: magic=0xe310 version=1 type=4 stack=0 curx=0x80000000 cury=0x80000000
+  gadget: next=NULL left=0 top=0 w=54 h=23 flags=0x0005 act=0x0001 gtype=0x0001 text=NULL mutex=0x00000000 special=NULL id=0 userdata=0x00000000
+  render: left=0 top=0 w=54 h=22 depth=2 pick=0x03 onoff=0x00 data=ptr next=NULL hash=0x9f2a0e5c
+  select: NULL
+  defaulttool = NULL
+  tooltypes = NULL
+  toolwindow = NULL
+  drawer = NULL
+  DeleteDiskObject = TRUE IoErr=0
+GetDefDiskObject(5): magic=0xe310 version=1 type=5 stack=0 curx=0x80000000 cury=0x80000000
+  gadget: next=NULL left=0 top=0 w=51 h=31 flags=0x0006 act=0x0003 gtype=0x0001 text=NULL mutex=0x00000000 special=NULL id=0 userdata=0x00000000
+  render: left=0 top=0 w=51 h=31 depth=2 pick=0x03 onoff=0x00 data=ptr next=NULL hash=0xa219a468
+  select: left=0 top=0 w=51 h=31 depth=2 pick=0x03 onoff=0x00 data=ptr next=NULL hash=0xc62afe6e
+  defaulttool = NULL
+  tooltypes = NULL
+  toolwindow = NULL
+  drawer: left=50 top=50 w=400 h=100 dpen=255 bpen=255 idcmp=0x00000000 wflags=0x0240027f fgad=NULL check=NULL title=NULL scr=NULL bm=NULL minw=90 minh=40 maxw=65535 maxh=65535 wtype=1 cx=0 cy=0
+  drawer2: ddflags=0x00000000 viewmodes=0x0000
+  render data = 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 3f e0 00 00 00 00 00 00 e0 38 00 00 00 00 07 ff ff ff ff c0 00 00 0f ff ff ff ff e0 00 00 1f ff ff ff ff f0 00 00 1f ff ff ff ff f0 00 00 0f ff ff ff ff e0 00 00 0f ff ff ff ff e0 00 00 0f ff ff ff ff e0 00 00 0f ff ff ff ff e0 00 00 0f ff ff ff ff e0 00 00 0f ff ff ff ff e0 00 00 07 ff ff ff ff e0 00 00 07 ff ff ff ff c0 00 00 07 ff ff ff ff c0 00 00 07 ff ff ff ff c0 00 00 07 ff ff ff ff c0 00 00 07 ff ff ff ff c0 00 00 07 ff ff ff ff c0 00 00 03 ff ff ff ff 80 00 00 03 ff ff ff ff 80 00 00 03 ff ff ff ff 80 00 00 03 ff ff ff ff f8 00 00 03 ff ff ff ff ff e0 00 01 ff ff ff ff ff e0 00 00 0f ff ff ff fc 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 03 ff ff f5 55 00 00 00 07 ff ff ff aa 80 00 00 00 00 00 00 00 00 00 00 03 ff ff 55 54 00 00 00 03 ff ff ff aa 80 00 00 03 8f fc 7d 42 00 00 00 03 17 f8 be 88 80 00 00 03 37 f9 bf 91 00 00 00 03 13 f9 bf 10 00 00 00 01 9b f9 be 91 00 00 00 01 9b f9 3f 12 00 00 00 01 9b f9 be 91 00 00 00 01 9b f9 3f 22 00 00 00 01 9b f9 be 25 00 00 00 01 89 f9 3f 22 00 00 00 01 cd f9 be 24 00 00 00 00 c9 f9 3d 2a 00 00 00 00 cd f9 be 44 00 00 00 00 c7 f9 fe 4a 00 00 00 00 e3 fe 75 14 00 00 00 00 7f ff ea a8 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  select data = 00 00 00 00 00 00 00 00 00 03 ff ff 80 00 00 00 00 ff ff ff fe 00 00 00 07 ff ff ff ff c0 00 00 0f ff ff ff ff e0 00 00 1f ff ff ff ff f0 00 00 1f ff ff ff ff f0 00 00 0f ff ff ff ff e0 00 00 00 ff ff ff fe 00 00 00 00 03 ff ff 80 00 00 00 1f ff ff ff ff f0 00 00 0f ff ff ff ff e0 00 00 0f ff ff ff ff e0 00 00 0f ff ff ff ff e0 00 00 0f ff ff ff ff e0 00 00 0f ff ff ff ff e0 00 00 0f ff ff ff ff e0 00 00 07 ff ff ff ff e0 00 00 07 ff ff ff ff c0 00 00 07 ff ff ff ff c0 00 00 07 ff ff ff ff c0 00 00 07 ff ff ff ff c0 00 00 07 ff ff ff ff c0 00 00 07 ff ff ff ff c0 00 00 03 ff ff ff ff 80 00 00 03 ff ff ff ff 80 00 00 03 ff ff ff ff 80 00 00 03 ff ff ff ff f8 00 00 03 ff ff ff ff ff e0 00 01 ff ff ff ff ff e0 00 00 0f ff ff ff fc 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 03 ff ff 80 00 00 00 00 fc 00 00 7e 00 00 00 07 02 aa aa 81 c0 00 00 08 55 6a b5 54 20 00 00 02 aa aa aa ab c0 00 00 00 fd 55 55 7e 00 00 00 00 03 ff ff 80 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 03 ff ff 55 54 00 00 00 03 ff ff ff aa 80 00 00 03 8f fc 7d 42 00 00 00 03 17 f8 be 88 80 00 00 03 37 f9 bf 91 00 00 00 03 13 f9 bf 10 00 00 00 01 9b f9 be 91 00 00 00 01 9b f9 3f 12 00 00 00 01 9b f9 be 91 00 00 00 01 9b f9 3f 22 00 00 00 01 9b f9 be 25 00 00 00 01 89 f9 3f 22 00 00 00 01 cd f9 be 24 00 00 00 00 c9 f9 3d 2a 00 00 00 00 cd f9 be 44 00 00 00 00 c7 f9 fe 4a 00 00 00 00 e3 fe 75 14 00 00 00 00 7f ff ea a8 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  put default: PutDiskObject = TRUE IoErr=0
+  file size = 1172
+  hdr+0 = e3 10 00 01 00 00 00 00 00 00 00 00 00 33 00 1f 00 06 00 03 00 01 00 00 00 01 00 00 00 01 00 00
+  hdr+32 = 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 05 00 00 00 00 00 00 00 00 00 80 00 00 00 80 00
+  hdr+64 = 00 00 00 00 00 01 00 00 00 00 00 00 00 00
+  drawer+0 = 00 32 00 32 01 90 00 64 ff ff 00 00 00 00 02 40 02 7f 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  drawer+32 = 00 00 00 00 00 00 00 5a 00 28 ff ff ff ff 00 01 00 00 00 00 00 00 00 00
+  image1 struct = 00 00 00 00 00 33 00 1f 00 02 00 00 00 01 03 00 00 00 00 00
+  image1 databytes=496 hash=0xa219a468
+  image2 struct = 00 00 00 00 00 33 00 1f 00 02 00 00 00 01 03 00 00 00 00 00
+  image2 databytes=496 hash=0xc62afe6e
+  tail+0 = 00 00 00 00 00 00
+  read back: magic=0xe310 version=1 type=5 stack=0 curx=0x80000000 cury=0x80000000
+  gadget: next=NULL left=0 top=0 w=51 h=31 flags=0x0006 act=0x0003 gtype=0x0001 text=NULL mutex=0x00000000 special=NULL id=0 userdata=0x00000000
+  render: left=0 top=0 w=51 h=31 depth=2 pick=0x03 onoff=0x00 data=ptr next=NULL hash=0xa219a468
+  select: left=0 top=0 w=51 h=31 depth=2 pick=0x03 onoff=0x00 data=ptr next=NULL hash=0xc62afe6e
+  defaulttool = NULL
+  tooltypes = NULL
+  toolwindow = NULL
+  drawer: left=50 top=50 w=400 h=100 dpen=255 bpen=255 idcmp=0x00000000 wflags=0x0240027f fgad=NULL check=NULL title=NULL scr=NULL bm=NULL minw=90 minh=40 maxw=65535 maxh=65535 wtype=1 cx=0 cy=0
+  drawer2: ddflags=0x00000000 viewmodes=0x0000
+  DeleteDiskObject = TRUE IoErr=0
+GetDefDiskObject(6): NULL IoErr=205
+GetDefDiskObject(7): magic=0xe310 version=1 type=7 stack=0 curx=0x80000000 cury=0x80000000
+  gadget: next=NULL left=0 top=0 w=35 h=18 flags=0x0004 act=0x0003 gtype=0x0001 text=NULL mutex=0x00000000 special=NULL id=0 userdata=0x00000000
+  render: left=0 top=0 w=35 h=17 depth=2 pick=0x03 onoff=0x00 data=ptr next=NULL hash=0xf57b4ec9
+  select: NULL
+  defaulttool = NULL
+  tooltypes = NULL
+  toolwindow = NULL
+  drawer = NULL
+  render data = 7f 80 00 1f 80 00 ff 80 07 1f e0 00 ff 80 07 1f e0 00 ff 80 07 1f e0 00 ff 80 07 1f e0 00 ff c0 00 3f e0 00 ff ff ff ff e0 00 ff ff ff ff e0 00 f8 00 00 03 e0 00 f0 00 00 01 e0 00 f0 00 06 c1 e0 00 f0 00 0d 81 e0 00 f0 00 1b 01 e0 00 f0 1b 36 01 e0 00 f0 0d ec 01 e0 00 90 06 d8 01 e0 00 f0 00 00 01 e0 00 00 7f ff e0 00 00 00 7f f8 e0 00 00 00 7f f8 e0 00 00 00 7f f8 e0 00 00 00 7f f8 e0 00 00 00 3f ff c0 00 00 00 00 00 00 00 00 00 00 00 00 00 00 07 ff ff fc 00 00 0f ff ff fe 00 00 0f ff f9 3e 00 00 0f ff f2 7e 00 00 0f ff e4 fe 00 00 0f e4 c9 fe 00 00 0f f2 13 fe 00 00 0f f9 27 fe 00 00 0f ff ff fe 00 00
+  put default: PutDiskObject = TRUE IoErr=0
+  file size = 302
+  hdr+0 = e3 10 00 01 00 00 00 00 00 00 00 00 00 23 00 12 00 04 00 03 00 01 00 00 00 01 00 00 00 00 00 00
+  hdr+32 = 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 07 00 00 00 00 00 00 00 00 00 80 00 00 00 80 00
+  hdr+64 = 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  image1 struct = 00 00 00 00 00 23 00 11 00 02 00 00 00 01 03 00 00 00 00 00
+  image1 databytes=204 hash=0xf57b4ec9
+  read back: magic=0xe310 version=1 type=7 stack=0 curx=0x80000000 cury=0x80000000
+  gadget: next=NULL left=0 top=0 w=35 h=18 flags=0x0004 act=0x0003 gtype=0x0001 text=NULL mutex=0x00000000 special=NULL id=0 userdata=0x00000000
+  render: left=0 top=0 w=35 h=17 depth=2 pick=0x03 onoff=0x00 data=ptr next=NULL hash=0xf57b4ec9
+  select: NULL
+  defaulttool = NULL
+  tooltypes = NULL
+  toolwindow = NULL
+  drawer = NULL
+  DeleteDiskObject = TRUE IoErr=0
+GetDefDiskObject(8): NULL IoErr=1234
+GetDefDiskObject(9): NULL IoErr=1234
+GetDefDiskObject(10): NULL IoErr=1234
+-- hand-built icons
+tool with tooltypes: PutDiskObject = TRUE IoErr=0
+  file size = 190
+  hdr+0 = e3 10 00 01 00 00 00 00 00 00 00 00 00 10 00 07 00 04 00 03 00 01 00 00 00 01 00 00 00 00 00 00
+  hdr+32 = 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 01 03 00 00 00 00 00 00 00 00 01 00 00 00 0a 00 00
+  hdr+64 = 00 14 00 00 00 00 00 00 00 00 00 00 20 00
+  image1 struct = 00 00 00 00 00 10 00 06 00 02 00 00 00 01 03 00 00 00 00 00
+  image1 databytes=24 hash=0x17b62b21
+  tail+0 = 00 00 00 18 00 00 00 14 46 49 4c 45 54 59 50 45 3d 74 65 78 74 7c 61 73 63 69 69 00 00 00 00 0a
+  tail+32 = 28 43 4f 4d 4d 45 4e 54 29 00 00 00 00 0a 44 4f 4e 4f 54 57 41 49 54 00 00 00 00 01 00 00 00 00
+  tail+64 = 03 58 3d 00
+  read back: magic=0xe310 version=1 type=3 stack=8192 curx=0x0000000a cury=0x00000014
+  gadget: next=NULL left=0 top=0 w=16 h=7 flags=0x0004 act=0x0003 gtype=0x0001 text=NULL mutex=0x00000000 special=NULL id=0 userdata=0x00000001
+  render: left=0 top=0 w=16 h=6 depth=2 pick=0x03 onoff=0x00 data=ptr next=NULL hash=0x17b62b21
+  select: NULL
+  defaulttool = NULL
+  tooltype[0] = "FILETYPE=text|ascii"
+  tooltype[1] = "(COMMENT)"
+  tooltype[2] = "DONOTWAIT"
+  tooltype[3] = ""
+  tooltype[4] = "X="
+  tooltypes count = 5
+  toolwindow = NULL
+  drawer = NULL
+  DeleteDiskObject = TRUE IoErr=0
+project with two images: PutDiskObject = TRUE IoErr=0
+  file size = 177
+  hdr+0 = e3 10 00 01 00 00 00 00 00 00 00 00 00 10 00 07 00 06 00 03 00 01 00 00 00 01 00 00 00 01 00 00
+  hdr+32 = 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 01 04 00 00 00 00 01 00 00 00 00 80 00 00 00 80 00
+  hdr+64 = 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  image1 struct = 00 00 00 00 00 10 00 06 00 02 00 00 00 01 03 00 00 00 00 00
+  image1 databytes=24 hash=0x17b62b21
+  image2 struct = 00 01 00 02 00 14 00 03 00 01 00 00 00 01 01 00 00 00 00 00
+  image2 databytes=12 hash=0xd8e56965
+  tail+0 = 00 00 00 13 53 59 53 3a 55 74 69 6c 69 74 69 65 73 2f 4d 6f 72 65 00
+  read back: magic=0xe310 version=1 type=4 stack=0 curx=0x80000000 cury=0x80000000
+  gadget: next=NULL left=0 top=0 w=16 h=7 flags=0x0006 act=0x0003 gtype=0x0001 text=NULL mutex=0x00000000 special=NULL id=0 userdata=0x00000001
+  render: left=0 top=0 w=16 h=6 depth=2 pick=0x03 onoff=0x00 data=ptr next=NULL hash=0x17b62b21
+  select: left=0 top=0 w=20 h=3 depth=1 pick=0x01 onoff=0x00 data=ptr next=NULL hash=0xd8e56965
+  defaulttool = "SYS:Utilities/More"
+  tooltypes = NULL
+  toolwindow = NULL
+  drawer = NULL
+  DeleteDiskObject = TRUE IoErr=0
+images with offsets: PutDiskObject = TRUE IoErr=0
+  file size = 154
+  hdr+0 = e3 10 00 01 00 00 00 00 00 00 00 00 00 10 00 07 00 06 00 03 00 01 00 00 00 01 00 00 00 01 00 00
+  hdr+32 = 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 01 04 00 00 00 00 00 00 00 00 00 80 00 00 00 80 00
+  hdr+64 = 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  image1 struct = 00 03 00 04 00 10 00 06 00 02 00 00 00 01 03 00 00 00 00 00
+  image1 databytes=24 hash=0x17b62b21
+  image2 struct = ff ff ff fe 00 14 00 03 00 01 00 00 00 01 01 00 00 00 00 00
+  image2 databytes=12 hash=0xd8e56965
+  read back: magic=0xe310 version=1 type=4 stack=0 curx=0x80000000 cury=0x80000000
+  gadget: next=NULL left=0 top=0 w=16 h=7 flags=0x0006 act=0x0003 gtype=0x0001 text=NULL mutex=0x00000000 special=NULL id=0 userdata=0x00000001
+  render: left=0 top=0 w=16 h=6 depth=2 pick=0x03 onoff=0x00 data=ptr next=NULL hash=0x17b62b21
+  select: left=0 top=0 w=20 h=3 depth=1 pick=0x01 onoff=0x00 data=ptr next=NULL hash=0xd8e56965
+  defaulttool = NULL
+  tooltypes = NULL
+  toolwindow = NULL
+  drawer = NULL
+  DeleteDiskObject = TRUE IoErr=0
+  in-memory render after put: left=3 top=4 w=16 h=6 depth=2 pick=0x03 onoff=0x00 data=ptr next=NULL hash=0x17b62b21
+  in-memory select after put: left=-1 top=-2 w=20 h=3 depth=1 pick=0x01 onoff=0x00 data=ptr next=NULL hash=0xd8e56965
+project empty tool, empty tooltypes: PutDiskObject = TRUE IoErr=0
+  file size = 131
+  hdr+0 = e3 10 00 01 00 00 00 00 00 00 00 00 00 10 00 07 00 04 00 03 00 01 00 00 00 01 00 00 00 00 00 00
+  hdr+32 = 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 01 04 00 00 00 00 01 00 00 00 01 80 00 00 00 80 00
+  hdr+64 = 00 00 00 00 00 00 00 00 00 00 ff ff ff fb
+  image1 struct = 00 00 00 00 00 10 00 06 00 02 00 00 00 01 03 00 00 00 00 00
+  image1 databytes=24 hash=0x17b62b21
+  tail+0 = 00 00 00 01 00 00 00 00 04
+  read back: magic=0xe310 version=1 type=4 stack=-5 curx=0x80000000 cury=0x80000000
+  gadget: next=NULL left=0 top=0 w=16 h=7 flags=0x0004 act=0x0003 gtype=0x0001 text=NULL mutex=0x00000000 special=NULL id=0 userdata=0x00000001
+  render: left=0 top=0 w=16 h=6 depth=2 pick=0x03 onoff=0x00 data=ptr next=NULL hash=0x17b62b21
+  select: NULL
+  defaulttool = ""
+  tooltypes count = 0
+  toolwindow = NULL
+  drawer = NULL
+  DeleteDiskObject = TRUE IoErr=0
+drawer revision 1: PutDiskObject = TRUE IoErr=0
+  file size = 184
+  hdr+0 = e3 10 00 01 00 00 00 00 00 00 00 00 00 10 00 07 00 04 00 03 00 01 00 00 00 01 00 00 00 00 00 00
+  hdr+32 = 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 01 02 00 00 00 00 00 00 00 00 00 80 00 00 00 80 00
+  hdr+64 = 00 00 00 00 00 01 00 00 00 00 00 00 00 00
+  drawer+0 = 00 0a 00 14 01 2c 00 64 ff ff 12 34 56 78 00 00 00 03 00 00 00 00 00 00 00 00 00 00 00 01 00 00
+  drawer+32 = 00 00 00 00 00 00 00 5a 00 28 ff ff ff ff 00 01 00 00 00 07 ff ff ff fd
+  image1 struct = 00 00 00 00 00 10 00 06 00 02 00 00 00 01 03 00 00 00 00 00
+  image1 databytes=24 hash=0x17b62b21
+  tail+0 = 00 00 00 02 00 02
+  read back: magic=0xe310 version=1 type=2 stack=0 curx=0x80000000 cury=0x80000000
+  gadget: next=NULL left=0 top=0 w=16 h=7 flags=0x0004 act=0x0003 gtype=0x0001 text=NULL mutex=0x00000000 special=NULL id=0 userdata=0x00000001
+  render: left=0 top=0 w=16 h=6 depth=2 pick=0x03 onoff=0x00 data=ptr next=NULL hash=0x17b62b21
+  select: NULL
+  defaulttool = NULL
+  tooltypes = NULL
+  toolwindow = NULL
+  drawer: left=10 top=20 w=300 h=100 dpen=255 bpen=255 idcmp=0x12345678 wflags=0x00000003 fgad=NULL check=NULL title=ptr scr=NULL bm=NULL minw=90 minh=40 maxw=65535 maxh=65535 wtype=1 cx=7 cy=-3
+  drawer2: ddflags=0x00000002 viewmodes=0x0002
+  DeleteDiskObject = TRUE IoErr=0
+drawer revision 0: PutDiskObject = TRUE IoErr=0
+  file size = 184
+  hdr+0 = e3 10 00 01 00 00 00 00 00 00 00 00 00 10 00 07 00 04 00 03 00 01 00 00 00 01 00 00 00 00 00 00
+  hdr+32 = 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 02 00 00 00 00 00 00 00 00 00 80 00 00 00 80 00
+  hdr+64 = 00 00 00 00 00 01 00 00 00 00 00 00 00 00
+  drawer+0 = 00 0a 00 14 01 2c 00 64 ff ff 12 34 56 78 00 00 00 03 00 00 00 00 00 00 00 00 00 00 00 01 00 00
+  drawer+32 = 00 00 00 00 00 00 00 5a 00 28 ff ff ff ff 00 01 00 00 00 07 ff ff ff fd
+  image1 struct = 00 00 00 00 00 10 00 06 00 02 00 00 00 01 03 00 00 00 00 00
+  image1 databytes=24 hash=0x17b62b21
+  tail+0 = 00 00 00 02 00 02
+  read back: magic=0xe310 version=1 type=2 stack=0 curx=0x80000000 cury=0x80000000
+  gadget: next=NULL left=0 top=0 w=16 h=7 flags=0x0004 act=0x0003 gtype=0x0001 text=NULL mutex=0x00000000 special=NULL id=0 userdata=0x00000000
+  render: left=0 top=0 w=16 h=6 depth=2 pick=0x03 onoff=0x00 data=ptr next=NULL hash=0x17b62b21
+  select: NULL
+  defaulttool = NULL
+  tooltypes = NULL
+  toolwindow = NULL
+  drawer: left=10 top=20 w=300 h=100 dpen=255 bpen=255 idcmp=0x12345678 wflags=0x00000003 fgad=NULL check=NULL title=ptr scr=NULL bm=NULL minw=90 minh=40 maxw=65535 maxh=65535 wtype=1 cx=7 cy=-3
+  drawer2: ddflags=0x00000000 viewmodes=0x0000
+  DeleteDiskObject = TRUE IoErr=0
+disk: PutDiskObject = TRUE IoErr=0
+  file size = 208
+  hdr+0 = e3 10 00 01 00 00 00 00 00 00 00 00 00 10 00 07 00 04 00 03 00 01 00 00 00 01 00 00 00 00 00 00
+  hdr+32 = 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 01 01 00 00 00 00 01 00 00 00 00 80 00 00 00 80 00
+  hdr+64 = 00 00 00 00 00 01 00 00 00 00 00 00 00 00
+  drawer+0 = 00 0a 00 14 01 2c 00 64 ff ff 12 34 56 78 00 00 00 03 00 00 00 00 00 00 00 00 00 00 00 01 00 00
+  drawer+32 = 00 00 00 00 00 00 00 5a 00 28 ff ff ff ff 00 01 00 00 00 07 ff ff ff fd
+  image1 struct = 00 00 00 00 00 10 00 06 00 02 00 00 00 01 03 00 00 00 00 00
+  image1 databytes=24 hash=0x17b62b21
+  tail+0 = 00 00 00 14 53 59 53 3a 53 79 73 74 65 6d 2f 44 69 73 6b 43 6f 70 79 00 00 00 00 02 00 02
+  read back: magic=0xe310 version=1 type=1 stack=0 curx=0x80000000 cury=0x80000000
+  gadget: next=NULL left=0 top=0 w=16 h=7 flags=0x0004 act=0x0003 gtype=0x0001 text=NULL mutex=0x00000000 special=NULL id=0 userdata=0x00000001
+  render: left=0 top=0 w=16 h=6 depth=2 pick=0x03 onoff=0x00 data=ptr next=NULL hash=0x17b62b21
+  select: NULL
+  defaulttool = "SYS:System/DiskCopy"
+  tooltypes = NULL
+  toolwindow = NULL
+  drawer: left=10 top=20 w=300 h=100 dpen=255 bpen=255 idcmp=0x12345678 wflags=0x00000003 fgad=NULL check=NULL title=ptr scr=NULL bm=NULL minw=90 minh=40 maxw=65535 maxh=65535 wtype=1 cx=7 cy=-3
+  drawer2: ddflags=0x00000002 viewmodes=0x0002
+  DeleteDiskObject = TRUE IoErr=0
+garbage: PutDiskObject = TRUE IoErr=0
+  file size = 184
+  hdr+0 = e3 10 00 01 00 00 00 00 00 00 00 00 00 10 00 07 00 04 00 03 00 01 00 00 00 01 00 00 00 00 00 00
+  hdr+32 = 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 01 05 00 00 00 00 00 00 00 00 00 80 00 00 00 80 00
+  hdr+64 = 00 00 00 00 00 01 00 00 00 00 00 00 00 00
+  drawer+0 = 00 0a 00 14 01 2c 00 64 ff ff 12 34 56 78 00 00 00 03 00 00 00 00 00 00 00 00 00 00 00 01 00 00
+  drawer+32 = 00 00 00 00 00 00 00 5a 00 28 ff ff ff ff 00 01 00 00 00 07 ff ff ff fd
+  image1 struct = 00 00 00 00 00 10 00 06 00 02 00 00 00 01 03 00 00 00 00 00
+  image1 databytes=24 hash=0x17b62b21
+  tail+0 = 00 00 00 02 00 02
+  read back: magic=0xe310 version=1 type=5 stack=0 curx=0x80000000 cury=0x80000000
+  gadget: next=NULL left=0 top=0 w=16 h=7 flags=0x0004 act=0x0003 gtype=0x0001 text=NULL mutex=0x00000000 special=NULL id=0 userdata=0x00000001
+  render: left=0 top=0 w=16 h=6 depth=2 pick=0x03 onoff=0x00 data=ptr next=NULL hash=0x17b62b21
+  select: NULL
+  defaulttool = NULL
+  tooltypes = NULL
+  toolwindow = NULL
+  drawer: left=10 top=20 w=300 h=100 dpen=255 bpen=255 idcmp=0x12345678 wflags=0x00000003 fgad=NULL check=NULL title=ptr scr=NULL bm=NULL minw=90 minh=40 maxw=65535 maxh=65535 wtype=1 cx=7 cy=-3
+  drawer2: ddflags=0x00000002 viewmodes=0x0002
+  DeleteDiskObject = TRUE IoErr=0
+tool with drawerdata: PutDiskObject = TRUE IoErr=0
+  file size = 184
+  hdr+0 = e3 10 00 01 00 00 00 00 00 00 00 00 00 10 00 07 00 04 00 03 00 01 00 00 00 01 00 00 00 00 00 00
+  hdr+32 = 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 01 03 00 00 00 00 00 00 00 00 00 80 00 00 00 80 00
+  hdr+64 = 00 00 00 00 00 01 00 00 00 00 00 00 00 00
+  drawer+0 = 00 0a 00 14 01 2c 00 64 ff ff 12 34 56 78 00 00 00 03 00 00 00 00 00 00 00 00 00 00 00 01 00 00
+  drawer+32 = 00 00 00 00 00 00 00 5a 00 28 ff ff ff ff 00 01 00 00 00 07 ff ff ff fd
+  image1 struct = 00 00 00 00 00 10 00 06 00 02 00 00 00 01 03 00 00 00 00 00
+  image1 databytes=24 hash=0x17b62b21
+  tail+0 = 00 00 00 02 00 02
+  read back: magic=0xe310 version=1 type=3 stack=0 curx=0x80000000 cury=0x80000000
+  gadget: next=NULL left=0 top=0 w=16 h=7 flags=0x0004 act=0x0003 gtype=0x0001 text=NULL mutex=0x00000000 special=NULL id=0 userdata=0x00000001
+  render: left=0 top=0 w=16 h=6 depth=2 pick=0x03 onoff=0x00 data=ptr next=NULL hash=0x17b62b21
+  select: NULL
+  defaulttool = NULL
+  tooltypes = NULL
+  toolwindow = NULL
+  drawer: left=10 top=20 w=300 h=100 dpen=255 bpen=255 idcmp=0x12345678 wflags=0x00000003 fgad=NULL check=NULL title=ptr scr=NULL bm=NULL minw=90 minh=40 maxw=65535 maxh=65535 wtype=1 cx=7 cy=-3
+  drawer2: ddflags=0x00000002 viewmodes=0x0002
+  DeleteDiskObject = TRUE IoErr=0
+project without image: PutDiskObject = TRUE IoErr=0
+  file size = 78
+  hdr+0 = e3 10 00 01 00 00 00 00 00 00 00 00 00 00 00 00 00 04 00 03 00 01 00 00 00 00 00 00 00 00 00 00
+  hdr+32 = 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 01 04 00 00 00 00 00 00 00 00 00 80 00 00 00 80 00
+  hdr+64 = 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  read back: magic=0xe310 version=1 type=4 stack=0 curx=0x80000000 cury=0x80000000
+  gadget: next=NULL left=0 top=0 w=0 h=0 flags=0x0004 act=0x0003 gtype=0x0001 text=NULL mutex=0x00000000 special=NULL id=0 userdata=0x00000001
+  render: NULL
+  select: NULL
+  defaulttool = NULL
+  tooltypes = NULL
+  toolwindow = NULL
+  drawer = NULL
+  DeleteDiskObject = TRUE IoErr=0
+kick odd fields: PutDiskObject = TRUE IoErr=0
+  file size = 122
+  hdr+0 = e3 10 00 01 00 00 00 00 00 05 00 06 00 10 00 07 ff ff 00 00 12 34 00 00 00 01 00 00 00 00 00 00
+  hdr+32 = 00 00 11 22 33 44 00 00 00 00 00 63 00 00 00 01 07 00 00 00 00 00 00 00 00 00 80 00 00 00 80 00
+  hdr+64 = 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  image1 struct = 00 00 00 00 00 10 00 06 00 02 00 00 00 01 03 00 00 00 00 00
+  image1 databytes=24 hash=0x17b62b21
+  read back: magic=0xe310 version=1 type=7 stack=0 curx=0x80000000 cury=0x80000000
+  gadget: next=NULL left=5 top=6 w=16 h=7 flags=0xffff act=0x0000 gtype=0x1234 text=NULL mutex=0x11223344 special=NULL id=99 userdata=0x00000001
+  render: left=0 top=0 w=16 h=6 depth=2 pick=0x03 onoff=0x00 data=ptr next=NULL hash=0x17b62b21
+  select: NULL
+  defaulttool = NULL
+  tooltypes = NULL
+  toolwindow = NULL
+  drawer = NULL
+  DeleteDiskObject = TRUE IoErr=0
+version 7: PutDiskObject = TRUE IoErr=0
+  file size = 122
+  hdr+0 = e3 10 00 07 00 00 00 00 00 00 00 00 00 10 00 07 00 04 00 03 00 01 00 00 00 01 00 00 00 00 00 00
+  hdr+32 = 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 01 03 00 00 00 00 00 00 00 00 00 80 00 00 00 80 00
+  hdr+64 = 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  image1 struct = 00 00 00 00 00 10 00 06 00 02 00 00 00 01 03 00 00 00 00 00
+  image1 databytes=24 hash=0x17b62b21
+  read back: NULL IoErr=0
+  DeleteDiskObject = TRUE IoErr=0
+version 0: PutDiskObject = TRUE IoErr=0
+  file size = 122
+  hdr+0 = e3 10 00 00 00 00 00 00 00 00 00 00 00 10 00 07 00 04 00 03 00 01 00 00 00 01 00 00 00 00 00 00
+  hdr+32 = 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 01 03 00 00 00 00 00 00 00 00 00 80 00 00 00 80 00
+  hdr+64 = 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  image1 struct = 00 00 00 00 00 10 00 06 00 02 00 00 00 01 03 00 00 00 00 00
+  image1 databytes=24 hash=0x17b62b21
+  read back: NULL IoErr=0
+  DeleteDiskObject = TRUE IoErr=0
+userdata 0x105: PutDiskObject = TRUE IoErr=0
+  file size = 122
+  hdr+0 = e3 10 00 01 00 00 00 00 00 00 00 00 00 10 00 07 00 04 00 03 00 01 00 00 00 01 00 00 00 00 00 00
+  hdr+32 = 00 00 00 00 00 00 00 00 00 00 00 00 00 00 01 05 03 00 00 00 00 00 00 00 00 00 80 00 00 00 80 00
+  hdr+64 = 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  image1 struct = 00 00 00 00 00 10 00 06 00 02 00 00 00 01 03 00 00 00 00 00
+  image1 databytes=24 hash=0x17b62b21
+  read back: magic=0xe310 version=1 type=3 stack=0 curx=0x80000000 cury=0x80000000
+  gadget: next=NULL left=0 top=0 w=16 h=7 flags=0x0004 act=0x0003 gtype=0x0001 text=NULL mutex=0x00000000 special=NULL id=0 userdata=0x00000105
+  render: left=0 top=0 w=16 h=6 depth=2 pick=0x03 onoff=0x00 data=ptr next=NULL hash=0x17b62b21
+  select: NULL
+  defaulttool = NULL
+  tooltypes = NULL
+  toolwindow = NULL
+  drawer = NULL
+  DeleteDiskObject = TRUE IoErr=0
+userdata 0x100: PutDiskObject = TRUE IoErr=0
+  file size = 122
+  hdr+0 = e3 10 00 01 00 00 00 00 00 00 00 00 00 10 00 07 00 04 00 03 00 01 00 00 00 01 00 00 00 00 00 00
+  hdr+32 = 00 00 00 00 00 00 00 00 00 00 00 00 00 00 01 00 03 00 00 00 00 00 00 00 00 00 80 00 00 00 80 00
+  hdr+64 = 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  image1 struct = 00 00 00 00 00 10 00 06 00 02 00 00 00 01 03 00 00 00 00 00
+  image1 databytes=24 hash=0x17b62b21
+  read back: magic=0xe310 version=1 type=3 stack=0 curx=0x80000000 cury=0x80000000
+  gadget: next=NULL left=0 top=0 w=16 h=7 flags=0x0004 act=0x0003 gtype=0x0001 text=NULL mutex=0x00000000 special=NULL id=0 userdata=0x00000100
+  render: left=0 top=0 w=16 h=6 depth=2 pick=0x03 onoff=0x00 data=ptr next=NULL hash=0x17b62b21
+  select: NULL
+  defaulttool = NULL
+  tooltypes = NULL
+  toolwindow = NULL
+  drawer = NULL
+  DeleteDiskObject = TRUE IoErr=0
+userdata 2: PutDiskObject = TRUE IoErr=0
+  file size = 122
+  hdr+0 = e3 10 00 01 00 00 00 00 00 00 00 00 00 10 00 07 00 04 00 03 00 01 00 00 00 01 00 00 00 00 00 00
+  hdr+32 = 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 02 03 00 00 00 00 00 00 00 00 00 80 00 00 00 80 00
+  hdr+64 = 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  image1 struct = 00 00 00 00 00 10 00 06 00 02 00 00 00 01 03 00 00 00 00 00
+  image1 databytes=24 hash=0x17b62b21
+  read back: magic=0xe310 version=1 type=3 stack=0 curx=0x80000000 cury=0x80000000
+  gadget: next=NULL left=0 top=0 w=16 h=7 flags=0x0004 act=0x0003 gtype=0x0001 text=NULL mutex=0x00000000 special=NULL id=0 userdata=0x00000002
+  render: left=0 top=0 w=16 h=6 depth=2 pick=0x03 onoff=0x00 data=ptr next=NULL hash=0x17b62b21
+  select: NULL
+  defaulttool = NULL
+  tooltypes = NULL
+  toolwindow = NULL
+  drawer = NULL
+  DeleteDiskObject = TRUE IoErr=0
+type 0: PutDiskObject = TRUE IoErr=0
+  file size = 122
+  hdr+0 = e3 10 00 01 00 00 00 00 00 00 00 00 00 10 00 07 00 04 00 03 00 01 00 00 00 01 00 00 00 00 00 00
+  hdr+32 = 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 01 00 00 00 00 00 00 00 00 00 00 80 00 00 00 80 00
+  hdr+64 = 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  image1 struct = 00 00 00 00 00 10 00 06 00 02 00 00 00 01 03 00 00 00 00 00
+  image1 databytes=24 hash=0x17b62b21
+  read back: magic=0xe310 version=1 type=0 stack=0 curx=0x80000000 cury=0x80000000
+  gadget: next=NULL left=0 top=0 w=16 h=7 flags=0x0004 act=0x0003 gtype=0x0001 text=NULL mutex=0x00000000 special=NULL id=0 userdata=0x00000001
+  render: left=0 top=0 w=16 h=6 depth=2 pick=0x03 onoff=0x00 data=ptr next=NULL hash=0x17b62b21
+  select: NULL
+  defaulttool = NULL
+  tooltypes = NULL
+  toolwindow = NULL
+  drawer = NULL
+  DeleteDiskObject = TRUE IoErr=0
+type 200: PutDiskObject = TRUE IoErr=0
+  file size = 122
+  hdr+0 = e3 10 00 01 00 00 00 00 00 00 00 00 00 10 00 07 00 04 00 03 00 01 00 00 00 01 00 00 00 00 00 00
+  hdr+32 = 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 01 c8 00 00 00 00 00 00 00 00 00 80 00 00 00 80 00
+  hdr+64 = 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  image1 struct = 00 00 00 00 00 10 00 06 00 02 00 00 00 01 03 00 00 00 00 00
+  image1 databytes=24 hash=0x17b62b21
+  read back: magic=0xe310 version=1 type=200 stack=0 curx=0x80000000 cury=0x80000000
+  gadget: next=NULL left=0 top=0 w=16 h=7 flags=0x0004 act=0x0003 gtype=0x0001 text=NULL mutex=0x00000000 special=NULL id=0 userdata=0x00000001
+  render: left=0 top=0 w=16 h=6 depth=2 pick=0x03 onoff=0x00 data=ptr next=NULL hash=0x17b62b21
+  select: NULL
+  defaulttool = NULL
+  tooltypes = NULL
+  toolwindow = NULL
+  drawer = NULL
+  DeleteDiskObject = TRUE IoErr=0
+put to missing dir: PutDiskObject = FALSE IoErr=205
+-- GetDiskObject errors
+GetDiskObject(NULL): magic=0x0000 version=0 type=0 stack=0 curx=0x00000000 cury=0x00000000
+  gadget: next=NULL left=0 top=0 w=0 h=0 flags=0x0000 act=0x0000 gtype=0x0000 text=NULL mutex=0x00000000 special=NULL id=0 userdata=0x00000000
+  render: NULL
+  select: NULL
+  defaulttool = NULL
+  tooltypes = NULL
+  toolwindow = NULL
+  drawer = NULL
+missing: NULL IoErr=205
+bad magic: NULL IoErr=0
+truncated header: NULL IoErr=0
+minimal header: NULL IoErr=0
+truncated image: NULL IoErr=212
+header only: NULL IoErr=212
+header only, default tool missing: NULL IoErr=212
+header only, GADGIMAGE: magic=0xe310 version=1 type=4 stack=0 curx=0x00000000 cury=0x00000000
+  gadget: next=NULL left=0 top=0 w=0 h=0 flags=0x0004 act=0x0000 gtype=0x0000 text=NULL mutex=0x00000000 special=NULL id=0 userdata=0x00000000
+  render: NULL
+  select: NULL
+  defaulttool = NULL
+  tooltypes = NULL
+  toolwindow = NULL
+  drawer = NULL
+header only, GADGHIMAGE: NULL IoErr=212
+header only, flags 0xff00: NULL IoErr=212
+GADGIMAGE, default tool missing: NULL IoErr=0
+GADGIMAGE, image missing: NULL IoErr=0
+garbage pointers: magic=0xe310 version=1 type=3 stack=0 curx=0x00000000 cury=0x00000000
+  gadget: next=NULL left=0 top=0 w=16 h=2 flags=0x0004 act=0x0000 gtype=0x0000 text=NULL mutex=0x00000000 special=ptr id=0 userdata=0x00000000
+  render: left=0 top=0 w=16 h=2 depth=1 pick=0x01 onoff=0x00 data=ptr next=ptr hash=0x7801265f
+  select: NULL
+  defaulttool = NULL
+  tooltypes = NULL
+  toolwindow = NULL
+  drawer = NULL
+  image data = f0 0f 55 aa
+image fields: magic=0xe310 version=1 type=3 stack=0 curx=0x00000000 cury=0x00000000
+  gadget: next=NULL left=0 top=0 w=16 h=2 flags=0x0004 act=0x0000 gtype=0x0000 text=NULL mutex=0x00000000 special=ptr id=0 userdata=0x00000000
+  render: left=0 top=0 w=16 h=2 depth=1 pick=0x01 onoff=0x00 data=ptr next=ptr hash=0x7801265f
+  select: NULL
+  defaulttool = NULL
+  tooltypes = NULL
+  toolwindow = NULL
+  drawer = NULL
+DeleteDiskObject(missing) = FALSE
+  IoErr = 0
+-- GetDiskObjectNew
+GetDiskObjectNew(T:icprobe_file): magic=0xe310 version=1 type=3 stack=0 curx=0x80000000 cury=0x80000000
+  gadget: next=NULL left=0 top=0 w=54 h=23 flags=0x0004 act=0x0001 gtype=0x0001 text=NULL mutex=0x00000000 special=NULL id=0 userdata=0x00000000
+  render: left=0 top=0 w=54 h=22 depth=2 pick=0x03 onoff=0x00 data=ptr next=NULL hash=0x4aed8f30
+  select: NULL
+  defaulttool = NULL
+  tooltypes = NULL
+  toolwindow = NULL
+  drawer = NULL
+GetDiskObjectNew(T:icprobe_exe): magic=0xe310 version=1 type=3 stack=0 curx=0x80000000 cury=0x80000000
+  gadget: next=NULL left=0 top=0 w=54 h=23 flags=0x0004 act=0x0001 gtype=0x0001 text=NULL mutex=0x00000000 special=NULL id=0 userdata=0x00000000
+  render: left=0 top=0 w=54 h=22 depth=2 pick=0x03 onoff=0x00 data=ptr next=NULL hash=0x4aed8f30
+  select: NULL
+  defaulttool = NULL
+  tooltypes = NULL
+  toolwindow = NULL
+  drawer = NULL
+GetDiskObjectNew(T:icprobe_dir): magic=0xe310 version=1 type=2 stack=0 curx=0x80000000 cury=0x80000000
+  gadget: next=NULL left=0 top=0 w=57 h=14 flags=0x0006 act=0x0003 gtype=0x0001 text=NULL mutex=0x00000000 special=NULL id=0 userdata=0x00000000
+  render: left=0 top=0 w=57 h=14 depth=2 pick=0x03 onoff=0x00 data=ptr next=NULL hash=0x1df25a35
+  select: left=0 top=0 w=57 h=14 depth=2 pick=0x03 onoff=0x00 data=ptr next=NULL hash=0x9d3216cb
+  defaulttool = NULL
+  tooltypes = NULL
+  toolwindow = NULL
+  drawer: left=50 top=50 w=400 h=100 dpen=255 bpen=255 idcmp=0x00000000 wflags=0x0240027f fgad=NULL check=NULL title=NULL scr=NULL bm=NULL minw=90 minh=40 maxw=65535 maxh=65535 wtype=1 cx=0 cy=0
+  drawer2: ddflags=0x00000000 viewmodes=0x0000
+GetDiskObjectNew(T:icprobe_missing): NULL IoErr=205
+GetDiskObjectNew(T:): magic=0xe310 version=1 type=2 stack=0 curx=0x80000000 cury=0x80000000
+  gadget: next=NULL left=0 top=0 w=57 h=14 flags=0x0006 act=0x0003 gtype=0x0001 text=NULL mutex=0x00000000 special=NULL id=0 userdata=0x00000000
+  render: left=0 top=0 w=57 h=14 depth=2 pick=0x03 onoff=0x00 data=ptr next=NULL hash=0x1df25a35
+  select: left=0 top=0 w=57 h=14 depth=2 pick=0x03 onoff=0x00 data=ptr next=NULL hash=0x9d3216cb
+  defaulttool = NULL
+  tooltypes = NULL
+  toolwindow = NULL
+  drawer: left=50 top=50 w=400 h=100 dpen=255 bpen=255 idcmp=0x00000000 wflags=0x0240027f fgad=NULL check=NULL title=NULL scr=NULL bm=NULL minw=90 minh=40 maxw=65535 maxh=65535 wtype=1 cx=0 cy=0
+  drawer2: ddflags=0x00000000 viewmodes=0x0000
+GetDiskObjectNew(RAM:): magic=0xe310 version=1 type=1 stack=0 curx=0x80000000 cury=0x80000000
+  gadget: next=NULL left=0 top=0 w=35 h=18 flags=0x0004 act=0x0003 gtype=0x0001 text=NULL mutex=0x00000000 special=NULL id=0 userdata=0x00000000
+  render: left=0 top=0 w=35 h=17 depth=2 pick=0x03 onoff=0x00 data=ptr next=NULL hash=0xf57b4ec9
+  select: NULL
+  defaulttool = "SYS:System/DiskCopy"
+  tooltypes = NULL
+  toolwindow = NULL
+  drawer: left=50 top=50 w=400 h=100 dpen=255 bpen=255 idcmp=0x00000000 wflags=0x0240027f fgad=NULL check=NULL title=NULL scr=NULL bm=NULL minw=90 minh=40 maxw=65535 maxh=65535 wtype=1 cx=0 cy=0
+  drawer2: ddflags=0x00000000 viewmodes=0x0000
+GetDiskObjectNew(file, not executable) type = 4
+GetDiskObjectNew(dir with kick icon) type = 7
+-- PutDefDiskObject
+PutDefDiskObject(type 1) = TRUE IoErr=0
+  GetDefDiskObject: magic=0xe310 version=1 type=1 stack=1001 curx=0x80000000 cury=0x80000000
+  gadget: next=NULL left=0 top=0 w=16 h=7 flags=0x0004 act=0x0003 gtype=0x0001 text=NULL mutex=0x00000000 special=NULL id=0 userdata=0x00000001
+  render: left=0 top=0 w=16 h=6 depth=2 pick=0x03 onoff=0x00 data=ptr next=NULL hash=0x17b62b21
+  select: NULL
+  defaulttool = "deftool"
+  tooltypes = NULL
+  toolwindow = NULL
+  drawer: left=10 top=20 w=300 h=100 dpen=255 bpen=255 idcmp=0x12345678 wflags=0x00000003 fgad=NULL check=NULL title=ptr scr=NULL bm=NULL minw=90 minh=40 maxw=65535 maxh=65535 wtype=1 cx=7 cy=-3
+  drawer2: ddflags=0x00000002 viewmodes=0x0002
+PutDefDiskObject(type 2) = TRUE IoErr=0
+  GetDefDiskObject: magic=0xe310 version=1 type=2 stack=1002 curx=0x80000000 cury=0x80000000
+  gadget: next=NULL left=0 top=0 w=16 h=7 flags=0x0004 act=0x0003 gtype=0x0001 text=NULL mutex=0x00000000 special=NULL id=0 userdata=0x00000001
+  render: left=0 top=0 w=16 h=6 depth=2 pick=0x03 onoff=0x00 data=ptr next=NULL hash=0x17b62b21
+  select: NULL
+  defaulttool = "deftool"
+  tooltypes = NULL
+  toolwindow = NULL
+  drawer: left=10 top=20 w=300 h=100 dpen=255 bpen=255 idcmp=0x12345678 wflags=0x00000003 fgad=NULL check=NULL title=ptr scr=NULL bm=NULL minw=90 minh=40 maxw=65535 maxh=65535 wtype=1 cx=7 cy=-3
+  drawer2: ddflags=0x00000002 viewmodes=0x0002
+PutDefDiskObject(type 3) = TRUE IoErr=0
+  GetDefDiskObject: magic=0xe310 version=1 type=3 stack=1003 curx=0x80000000 cury=0x80000000
+  gadget: next=NULL left=0 top=0 w=16 h=7 flags=0x0004 act=0x0003 gtype=0x0001 text=NULL mutex=0x00000000 special=NULL id=0 userdata=0x00000001
+  render: left=0 top=0 w=16 h=6 depth=2 pick=0x03 onoff=0x00 data=ptr next=NULL hash=0x17b62b21
+  select: NULL
+  defaulttool = "deftool"
+  tooltypes = NULL
+  toolwindow = NULL
+  drawer = NULL
+PutDefDiskObject(type 4) = TRUE IoErr=0
+  GetDefDiskObject: magic=0xe310 version=1 type=4 stack=1004 curx=0x80000000 cury=0x80000000
+  gadget: next=NULL left=0 top=0 w=16 h=7 flags=0x0004 act=0x0003 gtype=0x0001 text=NULL mutex=0x00000000 special=NULL id=0 userdata=0x00000001
+  render: left=0 top=0 w=16 h=6 depth=2 pick=0x03 onoff=0x00 data=ptr next=NULL hash=0x17b62b21
+  select: NULL
+  defaulttool = "deftool"
+  tooltypes = NULL
+  toolwindow = NULL
+  drawer = NULL
+PutDefDiskObject(type 5) = TRUE IoErr=0
+  GetDefDiskObject: magic=0xe310 version=1 type=5 stack=1005 curx=0x80000000 cury=0x80000000
+  gadget: next=NULL left=0 top=0 w=16 h=7 flags=0x0004 act=0x0003 gtype=0x0001 text=NULL mutex=0x00000000 special=NULL id=0 userdata=0x00000001
+  render: left=0 top=0 w=16 h=6 depth=2 pick=0x03 onoff=0x00 data=ptr next=NULL hash=0x17b62b21
+  select: NULL
+  defaulttool = "deftool"
+  tooltypes = NULL
+  toolwindow = NULL
+  drawer: left=10 top=20 w=300 h=100 dpen=255 bpen=255 idcmp=0x12345678 wflags=0x00000003 fgad=NULL check=NULL title=ptr scr=NULL bm=NULL minw=90 minh=40 maxw=65535 maxh=65535 wtype=1 cx=7 cy=-3
+  drawer2: ddflags=0x00000002 viewmodes=0x0002
+PutDefDiskObject(type 6) = TRUE IoErr=0
+  GetDefDiskObject: magic=0xe310 version=1 type=6 stack=1006 curx=0x80000000 cury=0x80000000
+  gadget: next=NULL left=0 top=0 w=16 h=7 flags=0x0004 act=0x0003 gtype=0x0001 text=NULL mutex=0x00000000 special=NULL id=0 userdata=0x00000001
+  render: left=0 top=0 w=16 h=6 depth=2 pick=0x03 onoff=0x00 data=ptr next=NULL hash=0x17b62b21
+  select: NULL
+  defaulttool = "deftool"
+  tooltypes = NULL
+  toolwindow = NULL
+  drawer = NULL
+PutDefDiskObject(type 7) = TRUE IoErr=0
+  GetDefDiskObject: magic=0xe310 version=1 type=7 stack=1007 curx=0x80000000 cury=0x80000000
+  gadget: next=NULL left=0 top=0 w=16 h=7 flags=0x0004 act=0x0003 gtype=0x0001 text=NULL mutex=0x00000000 special=NULL id=0 userdata=0x00000001
+  render: left=0 top=0 w=16 h=6 depth=2 pick=0x03 onoff=0x00 data=ptr next=NULL hash=0x17b62b21
+  select: NULL
+  defaulttool = "deftool"
+  tooltypes = NULL
+  toolwindow = NULL
+  drawer = NULL
+PutDefDiskObject(type 8) = FALSE IoErr=1234
+  GetDefDiskObject: NULL IoErr=0
+PutDefDiskObject(type 0) = FALSE
+  IoErr = 0
+PutDefDiskObject(type 9) = FALSE
+  IoErr = 0
+PutDefDiskObject(type 10) = FALSE
+  IoErr = 0
+PutDefDiskObject(type 255) = FALSE
+  IoErr = 0
+ENV:Sys entry = "def_.info"
+ENV:Sys entry = "def_disk.info"
+ENV:Sys entry = "def_drawer.info"
+ENV:Sys entry = "def_kick.info"
+ENV:Sys entry = "def_project.info"
+ENV:Sys entry = "def_tool.info"
+ENV:Sys entry = "def_trashcan.info"
