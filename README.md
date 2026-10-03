@@ -231,6 +231,8 @@ Built-in C: commands with full AmigaDOS template support:
 
 ## Current Status
 
+**Version 0.11.21** - Commands start with the AmigaOS 3.1 register convention (D2 = stack size, D3/D4 = arguments, A0 = the caller's buffer, requested stack size at 4(sp)): Lattice 3.03-compiled programs no longer take a false stack overflow - 99 of 299 Fred Fish programs that crashed only on lxa now run.
+
 **Version 0.11.20** - Legacy app tests validated on AmigaOS 3.1 (Phase 224): reference goldens for DPaint, Devpac (incl. typing and Settings), Directory Opus and Typeface (incl. Preview) replace five pixel-count heuristics.
 
 **Version 0.11.19** - console.device no longer takes over the window's IDCMP: as on AmigaOS 3.1 it receives the input events the window's own IDCMP does not request (a window with `IDCMP_RAWKEY` gets the keys, its console none), follows window resizes by itself, and reports the window address in size-window raw events. `raw_events_unit` and the new `idcmp_console` test are validated on the reference; the DPaint startup golden now waits for the 4 s ownership splash.

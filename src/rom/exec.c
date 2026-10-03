@@ -5622,8 +5622,15 @@ void _bootstrap(void)
         register STRPTR a0 __asm("a0") = (STRPTR)args_buf;
         register APTR a1 __asm("a1") = initPC;
 
+        /* and as on AmigaOS 3.1 (tests/probes/dos/entryregs.c): d2 = stack
+         * size, d3 = arguments, d4 = argument length, a4 near sp - Lattice
+         * 3.03 c.o takes its stack bound from the saved d2 */
         __asm__ __volatile__ (
             "move.l  %1, -(%%sp)\n\t"
+            "move.l  %1, %%d2\n\t"
+            "move.l  %2, %%d3\n\t"
+            "move.l  %0, %%d4\n\t"
+            "move.l  %%sp, %%a4\n\t"
             "jsr     (%3)\n\t"
             "addq.l  #4, %%sp"
             : "+r" (d0), "+r" (d1), "+r" (a0), "+r" (a1)

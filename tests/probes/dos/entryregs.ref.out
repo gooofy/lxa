@@ -1,0 +1,38 @@
+-- RunCommand(seg, 8000, "abc def\n", 8)
+d0 = arg length
+d1 = other
+d2 = stack size
+d3 = args (caller's buffer)
+d4 = arg length
+d5 = other
+d6 = other
+d7 = other
+a0 = args (caller's buffer)
+a1 = other
+a2 = other
+a3 = other
+a4 = near sp
+a5 = other
+a6 = other
+a7 = other
+4(sp) = stack size
+d2 == 4(sp) = TRUE
+-- System("T:probe-entryregs abc def")
+d0 = arg length
+d1 = other
+d2 = other
+d3 = other
+d4 = arg length
+d5 = other
+d6 = other
+d7 = other
+a0 = other
+a1 = other
+a2 = other
+a3 = other
+a4 = near sp
+a5 = other
+a6 = other
+a7 = other
+4(sp) = (not compared)
+d2 == 4(sp) = TRUE

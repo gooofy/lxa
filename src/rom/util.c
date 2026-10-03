@@ -843,16 +843,17 @@ void U_prepareTask (struct Task *task, APTR initPC, APTR finalPC, char *args)
     else
         *(--sp) = (ULONG) SysBase->TaskExitCode;
 
-    // regs
+    // regs (pushed a6 .. a0, d7 .. d0)
     for (int i = 0; i<15; i++)
     {
-        if (args && (i==6))
+        if (args && (i==6 || i==11))                /* a0, d3: arguments */
             *(--sp) = (ULONG) args;
-        else if (args && (i==14))
+        else if (args && (i==14 || i==10))          /* d0, d4: argument length */
             *(--sp) = strlen(args);
+        else if (i==12 && task->tc_Node.ln_Type == NT_PROCESS)
+            *(--sp) = ((struct Process *)task)->pr_StackSize;   /* d2: stack size */
         else
             *(--sp) = 0;
-            //*(--sp) = 0xdead0000 + i;
     }
 
     UWORD *spw = (UWORD*) sp;
@@ -897,6 +898,17 @@ void U_prepareProcess (struct Process *process, APTR initPC, APTR finalPC, ULONG
     struct List *l = (struct List *)&process->pr_LocalVars;
 
     NEWLIST (l);
+
+    /* a process starts with its stack size at 4(sp) and in d2, as a
+     * command does on AmigaOS 3.1 (tests/probes/dos/entryregs.c) */
+    process->pr_StackSize = stacksize;
+    if (!process->pr_Task.tc_SPReg)
+        process->pr_Task.tc_SPReg = process->pr_Task.tc_SPUpper;
+    {
+        ULONG *top = (ULONG *)process->pr_Task.tc_SPReg;
+        *(--top) = stacksize;
+        process->pr_Task.tc_SPReg = top;
+    }
 
 	U_prepareTask (&process->pr_Task, initPC, finalPC, args);
 

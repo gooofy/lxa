@@ -5688,7 +5688,8 @@ struct Process * _dos_CreateNewProc ( register struct DosLibrary * DOSBase __asm
  *   lxa_dos_rc_call(entry, stack_top, stack_size, args, len, &pr_ReturnAddr)
  *
  * The new stack holds [caller sp][stack size][return address]; at entry
- * the command sees the stack size at 4(sp), the arguments in a0/d0.
+ * the command sees the stack size at 4(sp) and in d2, the arguments in
+ * a0/d0 and d3/d4 (AmigaOS 3.1, tests/probes/dos/entryregs.c).
  * pr_ReturnAddr points at the stack size slot, so Exit() can unwind with
  * sp = pr_ReturnAddr - 4; rts (see _dos_Exit).
  */
@@ -5706,11 +5707,17 @@ asm(
 "        move.l     56(a1), -(a2)                   | stack size -> 4(sp) at entry          \n"
 "        move.l     68(a1), a3                      | &pr_ReturnAddr                        \n"
 "        move.l     a2, (a3)                        | pr_ReturnAddr                         \n"
-"        move.l     48(a1), a4                      | entry                                 \n"
+"        move.l     48(a1), a3                      | entry                                 \n"
 "        move.l     60(a1), a0                      | args                                  \n"
 "        move.l     64(a1), d0                      | length                                \n"
+"        move.l     56(a1), d2                      | d2 = stack size (as on 3.1)           \n"
+"        move.l     a0, d3                          | d3 = args                             \n"
+"        move.l     d0, d4                          | d4 = length                           \n"
 "        move.l     a2, sp                                                                  \n"
-"        jsr        (a4)                                                                    \n"
+"        move.l     sp, a4                          | a4 near sp                            \n"
+"        move.l     a3, a2                          | no caller frame pointers in a2/d5     \n"
+"        move.l     a3, d5                                                                  \n"
+"        jsr        (a3)                                                                    \n"
 "        move.l     4(sp), sp                       | back to the caller stack              \n"
 "        movem.l    (sp)+, d2-d7/a2-a6                                                      \n"
 "        rts                                                                                \n"
@@ -5736,7 +5743,7 @@ LONG _dos_RunCommand ( register struct DosLibrary * DOSBase __asm("a6"),
     APTR old_lower, old_upper, old_return;
     STRPTR old_args;
     ULONG old_stacksize;
-    LONG len, result;
+    LONG len, result, req_stack;
 
     (void)DOSBase;
 
@@ -5751,7 +5758,9 @@ LONG _dos_RunCommand ( register struct DosLibrary * DOSBase __asm("a6"),
         len = 0;
 
     /* lxa's ROM functions (ReadArgs() alone keeps ~2.5 KB of locals) need
-     * more stack than Kickstart's: commands get at least 16 KB */
+     * more stack than Kickstart's: commands get at least 16 KB, but see the
+     * size that was asked for (d2, 4(sp)) as on AmigaOS 3.1 */
+    req_stack = stack;
     if (stack < LXA_MIN_COMMAND_STACK)
         stack = LXA_MIN_COMMAND_STACK;
     stack = (stack + 3) & ~3;
@@ -5782,8 +5791,10 @@ LONG _dos_RunCommand ( register struct DosLibrary * DOSBase __asm("a6"),
     me->pr_Task.tc_SPLower = stack_mem;
     me->pr_Task.tc_SPUpper = stack_mem + stack;
 
-    result = lxa_dos_rc_call(BADDR(seg) + sizeof(BPTR), stack_mem + stack, stack,
-                             (CONST_STRPTR)args, len, &me->pr_ReturnAddr);
+    /* a0 is the caller's own buffer on 3.1; pr_Arguments keeps the copy */
+    result = lxa_dos_rc_call(BADDR(seg) + sizeof(BPTR), stack_mem + stack, req_stack,
+                             (paramptr && len) ? paramptr : (CONST_STRPTR)args, len,
+                             &me->pr_ReturnAddr);
 
     me->pr_Task.tc_SPLower = old_lower;
     me->pr_Task.tc_SPUpper = old_upper;
