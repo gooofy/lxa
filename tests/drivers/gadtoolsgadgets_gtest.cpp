@@ -18,9 +18,17 @@ constexpr int PEN_BLUE  = 3;  /* Blue */
 
 constexpr int TITLE_BAR_HEIGHT = 11;
 
-/* GadTools bevel constants (must match GT_BEVEL_* in lxa_gadtools.c) */
-constexpr int GT_BEVEL_LEFT = 4;
-constexpr int GT_BEVEL_TOP  = 2;
+/* AmigaOS 3.1 geometry (Phase 223, tests/golden/GadToolsGadgets): the
+ * sample places its gadgets at 20 + topborder, topborder = WBorTop (2) +
+ * font height (8) + 1 = 11:
+ *   slider   NewGadget (140, 31) 200x12, prop container (144, 33) 192x8
+ *   string 1 NewGadget (140, 51) 200x14, string area (146, 54) 188x8
+ *   string 2 (140, 71), string 3 (140, 91)
+ *   button   (190, 111) 100x12 */
+constexpr int SLIDER_TOP = 31;
+constexpr int STR1_TOP   = 51;
+constexpr int STR2_TOP   = 71;
+constexpr int BUTTON_TOP = 111;
 
 // ============================================================================
 // Functional Tests - verify gadget creation and event handling via output
@@ -137,13 +145,9 @@ TEST_F(GadToolsGadgetsTest, EventLoopEntered) {
 }
 
 TEST_F(GadToolsGadgetsTest, ButtonClick) {
-    /* The button is the last gadget: ng_LeftEdge=140+50=190, at the bottom.
-     * topborder = WBorTop(11) + FontYSize(8) + 1 = 20
-     * Gadget TopEdge progression: 20+20=40, +20=60, +20=80, +20=100, +20=120
-     * Button TopEdge = 120, Width=100, Height=12
-     * Click center of button. */
+    /* The button is the last gadget: (190, 111), 100x12. Click its centre. */
     int btn_x = window_info.x + 190 + 50;  /* center of 100px wide button */
-    int btn_y = window_info.y + 120 + 6;   /* center of 12px tall button */
+    int btn_y = window_info.y + BUTTON_TOP + 6;   /* center of 12px tall button */
 
     Click(btn_x, btn_y);
     RunCyclesWithVBlank(20, 100000);
@@ -155,7 +159,7 @@ TEST_F(GadToolsGadgetsTest, ButtonClick) {
 
 TEST_F(GadToolsGadgetsTest, ButtonClickCompletesWithinOneVBlank) {
     int btn_x = window_info.x + 190 + 50;
-    int btn_y = window_info.y + 120 + 6;
+    int btn_y = window_info.y + BUTTON_TOP + 6;
 
     bool event_loop_ready = false;
     for (int i = 0; i < 200; i++) {
@@ -215,7 +219,7 @@ TEST_F(GadToolsGadgetsTest, SliderClick) {
      * which should generate GADGETDOWN + GADGETUP with the level as Code.
      */
     int slider_left = 140;
-    int slider_top  = 40;
+    int slider_top  = SLIDER_TOP;
     int slider_w    = 200;
     int slider_h    = 12;
 
@@ -243,7 +247,7 @@ TEST_F(GadToolsGadgetsTest, SliderDrag) {
      * the drag interaction.
      */
     int slider_left = 140;
-    int slider_top  = 40;
+    int slider_top  = SLIDER_TOP;
     int slider_w    = 200;
     int slider_h    = 12;
 
@@ -276,7 +280,7 @@ TEST_F(GadToolsGadgetsTest, ButtonResetsSlider) {
      * and calls GT_SetGadgetAttrs to update the slider.
      */
     int slider_left = 140;
-    int slider_top  = 40;
+    int slider_top  = SLIDER_TOP;
     int slider_w    = 200;
     int slider_h    = 12;
 
@@ -289,7 +293,7 @@ TEST_F(GadToolsGadgetsTest, ButtonResetsSlider) {
 
     /* Now click the button to reset slider to 10 */
     int btn_x = window_info.x + 190 + 50;   /* center of 100px wide button */
-    int btn_y = window_info.y + 120 + 6;    /* center of 12px tall button */
+    int btn_y = window_info.y + BUTTON_TOP + 6;    /* center of 12px tall button */
 
     Click(btn_x, btn_y);
     RunCyclesWithVBlank(20, 100000);
@@ -361,7 +365,7 @@ TEST_F(GadToolsGadgetsTest, TabCyclesStringGadgets) {
 
     /* Click on string gadget 1 to activate it */
     int str1_x = window_info.x + 140 + 100;  /* center of 200px wide */
-    int str1_y = window_info.y + 60 + 7;     /* center of 14px tall */
+    int str1_y = window_info.y + STR1_TOP + 7;     /* center of 14px tall */
     Click(str1_x, str1_y);
     RunCyclesWithVBlank(15, 100000);
 
@@ -389,7 +393,7 @@ TEST_F(GadToolsGadgetsTest, ShiftTabCyclesBackward) {
 
     /* Click on string gadget 2 to activate it */
     int str2_x = window_info.x + 140 + 100;
-    int str2_y = window_info.y + 80 + 7;
+    int str2_y = window_info.y + STR2_TOP + 7;
     Click(str2_x, str2_y);
     RunCyclesWithVBlank(15, 100000);
 
@@ -520,11 +524,12 @@ TEST_F(GadToolsGadgetsPixelTest, ButtonBevelBorderRendered) {
      *   Raised bevel: shine(2) top-left L, shadow(1) bottom-right L
      */
     int btn_left = 190;
-    int btn_top  = 120;
+    int btn_top  = BUTTON_TOP;
     int btn_w = 100;
     int btn_h = 12;
 
-    /* Check top edge of button bevel: should have shine (pen 2) pixels */
+    /* AmigaOS 3.1 button frame: shine top row and left two columns, shadow
+     * bottom row and right two columns */
     int shine_count = 0;
     for (int x = btn_left; x < btn_left + btn_w; x++) {
         int pen = ReadPixel(window_info.x + x, window_info.y + btn_top);
@@ -574,89 +579,69 @@ TEST_F(GadToolsGadgetsPixelTest, StringGadgetBevelBorderRendered) {
      * the full ng_Width x ng_Height.
      */
     int str1_left = 140;                     /* ng_LeftEdge */
-    int str1_top  = 60;                      /* first string gadget TopEdge */
+    int str1_top  = STR1_TOP;
     int str1_w = 200;                        /* ng_Width */
     int str1_h = 14;                         /* ng_Height */
 
-    /* Check top edge of string bevel: should have shadow (pen 1) pixels (recessed) */
-    int shadow_top = 0;
+    /* AmigaOS 3.1 ridge: the outer edge is raised (shine top, shadow bottom) */
+    int shine_top = 0;
     for (int x = str1_left; x < str1_left + str1_w; x++) {
         int pen = ReadPixel(window_info.x + x, window_info.y + str1_top);
-        if (pen == PEN_BLACK) shadow_top++;
+        if (pen == PEN_WHITE) shine_top++;
     }
-    EXPECT_GT(shadow_top, str1_w / 2)
-        << "String gadget top edge should have shadow pixels (pen 1, recessed), got " << shadow_top;
+    EXPECT_GT(shine_top, str1_w / 2)
+        << "String gadget top edge should have shine pixels (pen 2, raised ridge), got " << shine_top;
 
-    /* Check bottom edge: should have shine (pen 2) pixels (recessed) */
-    int shine_bottom = 0;
+    int shadow_bottom = 0;
     for (int x = str1_left; x < str1_left + str1_w; x++) {
         int pen = ReadPixel(window_info.x + x, window_info.y + str1_top + str1_h - 1);
-        if (pen == PEN_WHITE) shine_bottom++;
+        if (pen == PEN_BLACK) shadow_bottom++;
     }
-    EXPECT_GT(shine_bottom, str1_w / 2)
-        << "String gadget bottom edge should have shine pixels (pen 2, recessed), got " << shine_bottom;
+    EXPECT_GT(shadow_bottom, str1_w / 2)
+        << "String gadget bottom edge should have shadow pixels (pen 1, raised ridge), got " << shadow_bottom;
 }
 
 TEST_F(GadToolsGadgetsPixelTest, StringGadgetDoubleBevelRendered) {
-    /* STRING_KIND gadgets should use a double-bevel (ridge/groove) border style,
-     * like FRAME_RIDGE in AROS frameiclass.c:
-     *
-     * Outer bevel (row 0, last row, col 0, last col) - RECESSED:
-     *   top/left = SHADOWPEN (1), bottom/right = SHINEPEN (2)
-     *
-     * Inner bevel (row 1, second-to-last row, col 1, second-to-last col) - RAISED:
-     *   top/left = SHINEPEN (2), bottom/right = SHADOWPEN (1)
-     *
-     * This creates a groove effect: dark-light-content-dark-light
-     *
-     * First string gadget: ng_LeftEdge=140, ng_TopEdge=60, ng_Width=200, ng_Height=14
-     */
+    /* STRING_KIND uses the 3.1 FRAME_RIDGE: a raised outer button frame and
+     * a recessed inner one at (x+2, y+1, w-4, h-2):
+     *   inner top row (y+1) and left column (x+2): shadow
+     *   inner bottom row (y+h-2) and right column (x+w-3): shine */
     int str1_left = 140;
-    int str1_top  = 60;
+    int str1_top  = STR1_TOP;
     int str1_w = 200;
     int str1_h = 14;
 
-    /* Inner bevel row 1 (y = str1_top + 1): should have SHINE (pen 2) pixels (raised) */
-    int inner_shine_top = 0;
-    for (int x = str1_left + 1; x < str1_left + str1_w - 1; x++) {
+    int inner_shadow_top = 0;
+    for (int x = str1_left + 3; x < str1_left + str1_w - 4; x++) {
         int pen = ReadPixel(window_info.x + x, window_info.y + str1_top + 1);
-        if (pen == PEN_WHITE) inner_shine_top++;
+        if (pen == PEN_BLACK) inner_shadow_top++;
     }
-    EXPECT_GT(inner_shine_top, (str1_w - 2) / 2)
-        << "Inner bevel row 1 should have shine (pen 2) pixels (raised), got "
-        << inner_shine_top;
+    EXPECT_GT(inner_shadow_top, (str1_w - 8) / 2)
+        << "Inner ridge row 1 should have shadow (pen 1) pixels (recessed), got " << inner_shadow_top;
 
-    /* Inner bevel second-to-last row (y = str1_top + str1_h - 2):
-     * should have SHADOW (pen 1) pixels (raised) */
-    int inner_shadow_bot = 0;
-    for (int x = str1_left + 1; x < str1_left + str1_w - 1; x++) {
+    int inner_shine_bot = 0;
+    for (int x = str1_left + 3; x < str1_left + str1_w - 4; x++) {
         int pen = ReadPixel(window_info.x + x, window_info.y + str1_top + str1_h - 2);
-        if (pen == PEN_BLACK) inner_shadow_bot++;
+        if (pen == PEN_WHITE) inner_shine_bot++;
     }
-    EXPECT_GT(inner_shadow_bot, (str1_w - 2) / 2)
-        << "Inner bevel second-to-last row should have shadow (pen 1) pixels (raised), got "
-        << inner_shadow_bot;
+    EXPECT_GT(inner_shine_bot, (str1_w - 8) / 2)
+        << "Inner ridge second-to-last row should have shine (pen 2) pixels, got " << inner_shine_bot;
 
-    /* Inner bevel col 1 (x = str1_left + 1): should have SHINE (pen 2) pixels (raised) */
-    int inner_shine_left = 0;
+    int inner_shadow_left = 0;
     for (int y = str1_top + 1; y < str1_top + str1_h - 1; y++) {
-        int pen = ReadPixel(window_info.x + str1_left + 1, window_info.y + y);
-        if (pen == PEN_WHITE) inner_shine_left++;
+        int pen = ReadPixel(window_info.x + str1_left + 2, window_info.y + y);
+        if (pen == PEN_BLACK) inner_shadow_left++;
     }
-    EXPECT_GT(inner_shine_left, (str1_h - 2) / 2)
-        << "Inner bevel col 1 should have shine (pen 2) pixels (raised), got "
-        << inner_shine_left;
+    EXPECT_GT(inner_shadow_left, (str1_h - 2) / 2)
+        << "Inner ridge column 2 should have shadow (pen 1) pixels, got " << inner_shadow_left;
 
-    /* Inner bevel second-to-last col (x = str1_left + str1_w - 2):
-     * should have SHADOW (pen 1) pixels (raised) */
-    int inner_shadow_right = 0;
+    int inner_shine_right = 0;
     for (int y = str1_top + 1; y < str1_top + str1_h - 1; y++) {
-        int pen = ReadPixel(window_info.x + str1_left + str1_w - 2, window_info.y + y);
-        if (pen == PEN_BLACK) inner_shadow_right++;
+        int pen = ReadPixel(window_info.x + str1_left + str1_w - 3, window_info.y + y);
+        if (pen == PEN_WHITE) inner_shine_right++;
     }
-    EXPECT_GT(inner_shadow_right, (str1_h - 2) / 2)
-        << "Inner bevel second-to-last col should have shadow (pen 1) pixels (raised), got "
-        << inner_shadow_right;
+    EXPECT_GT(inner_shine_right, (str1_h - 2) / 2)
+        << "Inner ridge third-to-last column should have shine (pen 2) pixels, got " << inner_shine_right;
 }
 
 TEST_F(GadToolsGadgetsPixelTest, StringGadgetTextRendered) {
@@ -665,10 +650,10 @@ TEST_F(GadToolsGadgetsPixelTest, StringGadgetTextRendered) {
      * in the text area.
      * topborder = 20, string 1 TopEdge = 60
      */
-    int str1_left = 140 + GT_BEVEL_LEFT;     /* text area starts after bevel inset */
-    int str1_top  = 60 + GT_BEVEL_TOP;
-    int str1_w = 200 - 2 * GT_BEVEL_LEFT;
-    int str1_h = 14 - 2 * GT_BEVEL_TOP;
+    int str1_left = 140 + 6;                 /* 3.1 string area inside the ridge */
+    int str1_top  = STR1_TOP + 3;
+    int str1_w = 200 - 12;
+    int str1_h = 14 - 6;
 
     /* Count non-background pixels in the text area */
     int text_pixels = CountContentPixels(
@@ -689,7 +674,7 @@ TEST_F(GadToolsGadgetsPixelTest, ButtonLabelRendered) {
      * Check that the interior of the button has non-background pixels (the text).
      */
     int btn_left = 190;
-    int btn_top  = 120;
+    int btn_top  = BUTTON_TOP;
     int btn_w = 100;
     int btn_h = 12;
 
@@ -706,147 +691,87 @@ TEST_F(GadToolsGadgetsPixelTest, ButtonLabelRendered) {
 }
 
 TEST_F(GadToolsGadgetsPixelTest, SliderKnobVisible) {
-    /* Slider gadget: ng_LeftEdge=140, TopEdge=40, Width=200, Height=12.
-     * The slider has a recessed bevel border (1px), so the container
-     * interior is at (141, 41) with size 198x10.
-     * The knob should be rendered with non-background pixels (bevel edges).
-     * Initial level is 5, min=1, max=20.
-     */
-    int slider_left = 140;
-    int slider_top  = 40;
-    int slider_w    = 200;
-    int slider_h    = 12;
+    /* AmigaOS 3.1 slider: a raised button frame around the prop container
+     * (144, 33) 192x8; the knob is a solid shadow-pen block (level 5 of
+     * 1..20). */
+    int cont_left = 144, cont_top = SLIDER_TOP + 2, cont_w = 192, cont_h = 8;
 
-    /* Check for non-background pixels inside the slider container.
-     * The knob is drawn with pen 2 (shine) and pen 1 (shadow) edges.
-     * The container interior (after 1px border) should have these pixels. */
-    int knob_pixels = CountContentPixels(
-        window_info.x + slider_left + 2,
-        window_info.y + slider_top + 2,
-        window_info.x + slider_left + slider_w - 3,
-        window_info.y + slider_top + slider_h - 3,
-        PEN_GREY
-    );
-    EXPECT_GT(knob_pixels, 0)
-        << "Slider knob should contain non-background pixels (bevel edges)";
-
-    /* Additionally check for shine pixels (pen 2) in the knob area,
-     * which indicates the raised bevel knob top/left edge */
-    int shine_pixels = 0;
-    for (int x = slider_left + 2; x < slider_left + slider_w - 2; x++) {
-        for (int y = slider_top + 2; y < slider_top + slider_h - 2; y++) {
-            int pen = ReadPixel(window_info.x + x, window_info.y + y);
-            if (pen == PEN_WHITE) shine_pixels++;
+    int knob_pixels = 0;
+    for (int x = cont_left; x < cont_left + cont_w; x++) {
+        for (int y = cont_top; y < cont_top + cont_h; y++) {
+            if (ReadPixel(window_info.x + x, window_info.y + y) == PEN_BLACK)
+                knob_pixels++;
         }
     }
-    EXPECT_GT(shine_pixels, 0)
-        << "Slider knob should have shine (pen 2) pixels from raised bevel";
+    EXPECT_GE(knob_pixels, 6 * cont_h)
+        << "Slider knob should be a solid shadow-pen block";
 }
 
 TEST_F(GadToolsGadgetsPixelTest, SliderBevelBorderRendered) {
-    /* Slider gadget: ng_LeftEdge=140, TopEdge=40, Width=200, Height=12.
-     * The slider uses a RECESSED bevel (shadow top-left, shine bottom-right).
-     */
+    /* Slider NewGadget box (140, 31) 200x12 carries a raised button frame */
     int slider_left = 140;
-    int slider_top  = 40;
+    int slider_top  = SLIDER_TOP;
     int slider_w    = 200;
     int slider_h    = 12;
 
-    /* Check top edge for shadow (pen 1) - recessed bevel */
-    int shadow_top = 0;
+    int shine_top = 0;
     for (int x = slider_left; x < slider_left + slider_w; x++) {
         int pen = ReadPixel(window_info.x + x, window_info.y + slider_top);
-        if (pen == PEN_BLACK) shadow_top++;
+        if (pen == PEN_WHITE) shine_top++;
     }
-    EXPECT_GT(shadow_top, slider_w / 2)
-        << "Slider top edge should have shadow pixels (pen 1, recessed), got " << shadow_top;
+    EXPECT_GT(shine_top, slider_w / 2)
+        << "Slider top edge should have shine pixels (pen 2, raised), got " << shine_top;
 
-    /* Check bottom edge for shine (pen 2) - recessed bevel */
-    int shine_bottom = 0;
+    int shadow_bottom = 0;
     for (int x = slider_left; x < slider_left + slider_w; x++) {
         int pen = ReadPixel(window_info.x + x, window_info.y + slider_top + slider_h - 1);
-        if (pen == PEN_WHITE) shine_bottom++;
+        if (pen == PEN_BLACK) shadow_bottom++;
     }
-    EXPECT_GT(shine_bottom, slider_w / 2)
-        << "Slider bottom edge should have shine pixels (pen 2, recessed), got " << shine_bottom;
+    EXPECT_GT(shadow_bottom, slider_w / 2)
+        << "Slider bottom edge should have shadow pixels (pen 1, raised), got " << shadow_bottom;
 }
 
 TEST_F(GadToolsGadgetsPixelTest, UnderscoreLabelRendered) {
-    /* Verify that GT_Underscore labels are rendered correctly:
-     * - The underscore prefix character '_' is stripped from the displayed text
-     * - The shortcut character has an underline drawn beneath it
-     *
-     * The slider label "_Volume:   " should display as "Volume:   " with
-     * 'V' underlined. The label is positioned to the left of the slider gadget.
-     *
-     * Slider gadget: LeftEdge=140, TopEdge=40, Width=200, Height=12.
-     * Label: "Volume:   " = 10 chars = 80px wide
-     * PLACETEXT_LEFT with NG_HIGHLABEL:
-     *   LeftEdge = -80 - 4 = -84 (relative to gadget)
-     *   TopEdge  = (12 - 8) / 2 + 6 = 8 (relative to gadget, baseline position)
-     *
-     * So the label text starts at screen position:
-     *   x = window_x + 140 + (-84) = window_x + 56
-     *   baseline y = window_y + 40 + 8 = window_y + 48
-     *   character top = baseline_y - 6 = window_y + 42
-     *   character bottom = baseline_y + 1 = window_y + 49
-     *
-     * The underline '_' character is drawn at ul_pos=0 (under 'V'),
-     * at the same position as the 'V' character.
-     */
-    int label_x = 56;   /* Label text starts here (relative to window) */
-    int char_top = 42;  /* Top of character cell (baseline - 6) */
-    int char_h = 8;     /* Character height in topaz 8 */
+    /* GT_Underscore: "_Volume:   " is displayed as "Volume:   " left of the
+     * slider (AmigaOS 3.1: 8 pixels from the NewGadget box, label at x 52,
+     * top 33) with a one-character-wide line under the 'V' at text top + 7.
+     * "_Click Here" is centred in the button: x 200, top 113, line at 120. */
+    int label_x = 52;
+    int char_top = SLIDER_TOP + 2;
+    int char_h = 8;
 
-    /* Check that label area has non-background pixels (the "Volume:" text) */
     int label_content = CountContentPixels(
         window_info.x + label_x,
         window_info.y + char_top,
-        window_info.x + label_x + 79,  /* 10 chars * 8px */
-        window_info.y + char_top + char_h - 1,
+        window_info.x + label_x + 55,
+        window_info.y + char_top + char_h - 2,
         PEN_GREY
     );
     EXPECT_GT(label_content, 20)
         << "Slider label area should contain text pixels ('Volume:')";
 
-    /* Check for underline pixels under the 'V' character.  lxa currently draws
-     * the underline as a one-pixel rule near the baseline rather than relying
-     * on the underscore glyph bitmap, so probe the baseline-adjacent row. */
     int underline_pixels = 0;
     for (int x = label_x; x < label_x + 8; x++) {
-        int pen = ReadPixel(window_info.x + x, window_info.y + char_top + 6);
+        int pen = ReadPixel(window_info.x + x, window_info.y + char_top + 7);
         if (pen != PEN_GREY) underline_pixels++;
     }
-    EXPECT_GT(underline_pixels, 0)
-        << "Underline row of 'V' cell should have underline pixels";
+    EXPECT_EQ(underline_pixels, 8)
+        << "The 'V' cell should be underlined over its full width";
 
-    /* Also verify the button label "_Click Here" has its underscore rendered.
-     * Button: LeftEdge=190, TopEdge=120, Width=100, Height=12
-     * Label: "Click Here" = 10 chars = 80px, PLACETEXT_IN
-     *   LeftEdge = (100 - 80) / 2 = 10 (relative to gadget)
-     *   TopEdge  = (12 - 8) / 2 + 6 = 8 (relative to gadget, baseline)
-     *
-     * Button label screen position:
-     *   x = window_x + 190 + 10 = window_x + 200
-     *   baseline y = window_y + 120 + 8 = window_y + 128
-     *   char_top = window_y + 122
-     */
-    int btn_label_x = 200;      /* Button label text starts here */
-    int btn_char_top = 122;     /* Top of character cell */
-
-    /* Check underline row of the 'C' cell for underline */
+    int btn_label_x = 200;
+    int btn_char_top = BUTTON_TOP + 2;
     int btn_underline = 0;
     for (int x = btn_label_x; x < btn_label_x + 8; x++) {
-        int pen = ReadPixel(window_info.x + x, window_info.y + btn_char_top + 6);
+        int pen = ReadPixel(window_info.x + x, window_info.y + btn_char_top + 7);
         if (pen != PEN_GREY) btn_underline++;
     }
-    EXPECT_GT(btn_underline, 0)
-        << "Underline row of 'C' cell in button label should have underline pixels";
+    EXPECT_EQ(btn_underline, 8)
+        << "The 'C' cell of the button label should be underlined";
 }
 
 TEST_F(GadToolsGadgetsPixelTest, SliderLevelValueRendered) {
     int value_x = 120;
-    int char_top = 42;
+    int char_top = SLIDER_TOP + 2;
     int char_h = 8;
 
     int value_content = CountContentPixels(
@@ -861,95 +786,47 @@ TEST_F(GadToolsGadgetsPixelTest, SliderLevelValueRendered) {
 }
 
 TEST_F(GadToolsGadgetsPixelTest, SizeGadgetRendered) {
-    /* When WA_SizeGadget=TRUE, a sizing gadget should be created in the
-     * bottom-right corner of the window. The sizing gadget has a 3D frame
-     * and a sizing icon drawn inside it.
-     *
-     * When WFLG_SIZEGADGET is set, the window's BorderBottom should be
-     * enlarged to accommodate the sizing gadget (from 2 to at least 10).
-     *
-     * The sizing gadget's 3D frame should have:
-     * - Shine (pen 2) pixels on the top-left edges
-     * - Shadow (pen 1) pixels on the bottom-right edges
-     *
-     * Check that the interior of the sizing gadget area (not just the outer
-     * border) contains shine pixels from the 3D gadget frame.
-     */
+    /* AmigaOS 3.1: the sizing gadget is a SIZEIMAGE (18x10) in the bottom
+     * right corner; the window border is widened on the right only. Its
+     * glyph is a triangle of shine pixels outlined in shadow. */
     int win_w = window_info.width;
     int win_h = window_info.height;
-
-    /* The sizing gadget area is 18x10 in the bottom-right corner.
-     * Check the interior (inset 2px from edges to avoid outer window border)
-     * for shine (pen 2) pixels that come from the sizing gadget's 3D frame. */
     int size_area_left = window_info.x + win_w - 16;
     int size_area_top  = window_info.y + win_h - 8;
     int size_area_right = window_info.x + win_w - 3;
     int size_area_bottom = window_info.y + win_h - 3;
 
-    int shine_count = 0;
+    int shine_count = 0, shadow_count = 0;
     for (int x = size_area_left; x <= size_area_right; x++) {
         for (int y = size_area_top; y <= size_area_bottom; y++) {
             int pen = ReadPixel(x, y);
             if (pen == PEN_WHITE) shine_count++;
+            else if (pen == PEN_BLACK) shadow_count++;
         }
     }
-    EXPECT_GT(shine_count, 3)
-        << "Sizing gadget interior should have shine (pen 2) pixels from 3D frame, got "
-        << shine_count;
-
-    /* Also verify that shadow (pen 1) pixels exist in the sizing area */
-    int shadow_count = 0;
-    for (int x = size_area_left; x <= size_area_right; x++) {
-        for (int y = size_area_top; y <= size_area_bottom; y++) {
-            int pen = ReadPixel(x, y);
-            if (pen == PEN_BLACK) shadow_count++;
-        }
-    }
-    EXPECT_GT(shadow_count, 3)
-        << "Sizing gadget interior should have shadow (pen 1) pixels from 3D frame, got "
-        << shadow_count;
+    EXPECT_GT(shine_count, 3) << "Sizing image should contain shine pixels, got " << shine_count;
+    EXPECT_GT(shadow_count, 3) << "Sizing image should contain shadow pixels, got " << shadow_count;
 }
 
 TEST_F(GadToolsGadgetsPixelTest, DepthGadgetRendered) {
-    /* The depth gadget is in the top-right corner of the window title bar.
-     * It should show two overlapping window-outline rectangles (AROS style):
-     * - Back rectangle (top-left): outline in shadow pen (pen 1)
-     * - Front rectangle (bottom-right): outline in shadow pen, filled with shine pen (pen 2)
-     * - Background (pen 0) fills the rest of the gadget interior
-     * Gadget position: rightX = Width - gadWidth (at far right of title bar)
-     */
-    int gadWidth = 18;
-    int gadHeight = TITLE_BAR_HEIGHT - 1;  /* 10 */
-
-    /* Depth gadget is at the far right of the window, inside the title bar */
-    int depth_left = window_info.x + window_info.width - gadWidth;
+    /* AmigaOS 3.1 DEPTHIMAGE (24x11, drawn from one pixel left of the
+     * gadget): two overlapping window outlines in shadow pen, the front one
+     * filled with shine; FILLPEN background in the active window. */
+    int depth_left = window_info.x + window_info.width - 23;
     int depth_top = window_info.y;
 
-    /* Count shadow pixels (pen 1) in the depth gadget interior.
-     * Both the back and front rectangle outlines are drawn in shadow pen,
-     * so there should be a significant number. */
-    int shadow_count = 0;
-    int shine_count = 0;
-    int bg_count = 0;
-    for (int x = depth_left + 2; x < depth_left + gadWidth - 1; x++) {
-        for (int y = depth_top + 2; y < depth_top + gadHeight - 1; y++) {
+    int shadow_count = 0, shine_count = 0, fill_count = 0;
+    for (int x = depth_left + 1; x < depth_left + 22; x++) {
+        for (int y = depth_top + 1; y < depth_top + 10; y++) {
             int pen = ReadPixel(x, y);
             if (pen == PEN_BLACK) shadow_count++;
             else if (pen == PEN_WHITE) shine_count++;
-            else if (pen == 0) bg_count++;
+            else if (pen == PEN_BLUE) fill_count++;
         }
     }
-    /* Shadow pixels form rectangle outlines - expect multiple edges worth */
-    EXPECT_GT(shadow_count, 8)
-        << "Depth gadget should have shadow (pen 1) pixels for rectangle outlines";
-
-    /* Shine pixels fill the front rectangle interior */
-    EXPECT_GT(shine_count, 2)
-        << "Depth gadget should have shine (pen 2) pixels for front rectangle fill";
-
-    /* Background pixels fill the back rectangle interior and margins */
-    EXPECT_GT(bg_count, 2)
-        << "Depth gadget should have background (pen 0) pixels in margins/back rect";
+    EXPECT_GT(shadow_count, 8) << "Depth image should have shadow outlines";
+    EXPECT_GT(shine_count, 2) << "Depth image front window should be filled with shine";
+    EXPECT_GT(fill_count, 2) << "Depth image background is FILLPEN in the active window";
 }
 
 // Phase 138: ensure size-gadget chrome is re-rendered after a resize event.
@@ -961,12 +838,12 @@ TEST_F(GadToolsGadgetsPixelTest, ResizeKeepsSizeGadgetBordersClean) {
 
     int start_x = window_info.x + orig_w - (size_gadget_w / 2);
     int start_y = window_info.y + orig_h - (size_gadget_h / 2);
-    /* the window has no WA_MaxWidth/MaxHeight, so (as on AmigaOS 3.1)
-     * it cannot grow beyond its initial size: shrink it instead */
-    int end_x = start_x - 8;
-    int end_y = start_y - 6;
-    int expected_w = orig_w - 8;
-    int expected_h = orig_h - 6;
+    /* AmigaOS 3.1: without WA_MaxWidth/WA_MaxHeight the maximum size is the
+     * initial size, so the window can only shrink by mouse sizing */
+    int end_x = start_x - 36;
+    int end_y = start_y - 20;
+    int expected_w = orig_w - 36;
+    int expected_h = orig_h - 20;
 
     ASSERT_TRUE(lxa_inject_drag(start_x, start_y, end_x, end_y, LXA_MOUSE_LEFT, 5));
 
@@ -1012,29 +889,33 @@ TEST_F(GadToolsGadgetsPixelTest, ResizeKeepsSizeGadgetBordersClean) {
     ASSERT_TRUE(GetWindowInfo(0, &window_info))
         << "Window info should be available after resizing";
 
-    int right_border_left = window_info.x + window_info.width - 18;
+    /* AmigaOS 3.1: the right border of the active window is FILLPEN between
+     * its inner shine line and the outer shadow line; it must be uniform
+     * (no stale gadget pixels) after resizing */
+    int right_border_left = window_info.x + window_info.width - 17;
     int right_border_top = window_info.y + TITLE_BAR_HEIGHT + 2;
     int right_border_bottom = window_info.y + window_info.height - size_gadget_h - 2;
     int right_border_content = CountContentPixels(
         right_border_left,
         right_border_top,
-        window_info.x + window_info.width - 3,
+        window_info.x + window_info.width - 2,
         right_border_bottom,
-        PEN_GREY
+        PEN_BLUE
     );
     EXPECT_EQ(right_border_content, 0)
-        << "Right resize border should be cleared instead of leaving stale gadget pixels";
+        << "Right resize border should be uniform FILLPEN instead of leaving stale gadget pixels";
 
-    int bottom_border_top = window_info.y + window_info.height - size_gadget_h;
-    int bottom_border_content = CountContentPixels(
-        window_info.x + 2,
-        bottom_border_top,
+    /* the window contents below the gadgets are background */
+    int bottom_area_top = window_info.y + window_info.height - size_gadget_h;
+    int bottom_area_content = CountContentPixels(
+        window_info.x + 4,
+        bottom_area_top,
         window_info.x + window_info.width - 20,
         window_info.y + window_info.height - 3,
         PEN_GREY
     );
-    EXPECT_EQ(bottom_border_content, 0)
-        << "Bottom resize border should stay clean during resize redraws";
+    EXPECT_EQ(bottom_area_content, 0)
+        << "The area above the bottom border should stay clean during resize redraws";
 
     int size_content = CountContentPixels(
         window_info.x + window_info.width - 16,

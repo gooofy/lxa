@@ -1336,7 +1336,7 @@ struct TextFont * _diskfont_OpenDiskFont ( register struct DiskfontBase *Diskfon
 
     /* First try to open from ROM font list via graphics.library */
     font = OpenFont(textAttr);
-    if (font)
+    if (font && font->tf_YSize == textAttr->ta_YSize)
     {
         DPRINTF (LOG_DEBUG, "_diskfont: Found font in ROM/memory\n");
         if (DiskfontBase->cache_enabled)
@@ -1344,11 +1344,23 @@ struct TextFont * _diskfont_OpenDiskFont ( register struct DiskfontBase *Diskfon
         return font;
     }
 
-    /* Try to load from FONTS: directory */
-    font = _df_load_from_disk(textAttr);
+    /* OpenFont() returned the closest size only (e.g. ROM topaz 8 for a
+     * topaz 11 request): the exact size on disk wins (AmigaOS 3.1). */
+    {
+        struct TextFont *disk = _df_load_from_disk(textAttr);
+        if (disk)
+        {
+            DPRINTF (LOG_DEBUG, "_diskfont: Loaded font from disk\n");
+            if (font)
+                CloseFont(font);
+            if (DiskfontBase->cache_enabled)
+                _df_cache_font(DiskfontBase, textAttr, disk);
+            return disk;
+        }
+    }
+
     if (font)
     {
-        DPRINTF (LOG_DEBUG, "_diskfont: Loaded font from disk\n");
         if (DiskfontBase->cache_enabled)
             _df_cache_font(DiskfontBase, textAttr, font);
         return font;

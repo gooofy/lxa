@@ -1,0 +1,21 @@
+{
+ "backend": "ref",
+ "files": [
+  "screen.png",
+  "palette.json",
+  "tree.json",
+  "text.jsonl",
+  "stdout.txt"
+ ],
+ "profile": "aga",
+ "refsys_checksum": "3c156b79be0fb51d-d3092425337c",
+ "scenario": "gallery-chrome",
+ "schema": "lxa-bundle/1",
+ "screen": {
+  "depth": 2,
+  "height": 70,
+  "width": 150
+ },
+ "snapshot": "gzz",
+ "window": 6
+}

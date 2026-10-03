@@ -36,6 +36,7 @@
 #include <inline/utility.h>
 
 #include "util.h"
+#include "lxa_images.h"
 
 extern void _input_device_dispatch_event(struct InputEvent *event);
 extern void _keyboard_device_record_event(UWORD rawkey, UWORD qualifier);
@@ -49,6 +50,15 @@ extern BOOL _gadtools_IsCycle(register struct Gadget *gad __asm("a0"));
 extern UWORD _gadtools_GetCycleState(register struct Gadget *gad __asm("a0"));
 extern UWORD _gadtools_AdvanceCycleState(register struct Gadget *gad __asm("a0"));
 extern STRPTR _gadtools_GetCycleLabel(register struct Gadget *gad __asm("a0"));
+extern BOOL _gadtools_IsGadTools(register struct Gadget *gad __asm("a0"));
+extern LONG _gadtools_HandleClick(register struct Gadget *gad __asm("a0"),
+                                  register LONG relx __asm("d0"),
+                                  register LONG rely __asm("d1"));
+extern BOOL _gadtools_RenderGadget(register struct Window *win __asm("a0"),
+                                   register struct Gadget *gad __asm("a1"),
+                                   register struct RastPort *rp __asm("a2"),
+                                   register LONG gl __asm("d0"),
+                                   register LONG gt __asm("d1"));
 extern VOID graphics_screen_sync_viewport_bitmap(struct Screen *screen);
 
 /*
@@ -330,7 +340,7 @@ static VOID _dispose_window_idcmp_ports(struct Window *window)
     if (owned_flags & LXA_WMF_IDCMP_WINDOWPORT_OWNED)
     {
         _flush_idcmp_port(reply_port);
-        DeleteMsgPort(reply_port);
+        FreeMem(reply_port, sizeof(struct MsgPort));
     }
 
     if (owned_flags & LXA_WMF_IDCMP_USERPORT_OWNED)
@@ -359,7 +369,17 @@ static BOOL _ensure_window_idcmp_ports(struct Window *window)
 
     if (!window->WindowPort)
     {
-        window->WindowPort = CreateMsgPort();
+        /* The reply port belongs to Intuition, not to the window's task:
+         * it must not take a signal bit from the application (AmigaOS 3.1
+         * opens 11+ IDCMP windows per task).  Replies are reaped by polling
+         * (_reap_window_idcmp_replies), so the port never signals. */
+        window->WindowPort = (struct MsgPort *)AllocMem(sizeof(struct MsgPort), MEMF_PUBLIC | MEMF_CLEAR);
+        if (window->WindowPort)
+        {
+            window->WindowPort->mp_Node.ln_Type = NT_MSGPORT;
+            window->WindowPort->mp_Flags = PA_IGNORE;
+            NewList(&window->WindowPort->mp_MsgList);
+        }
         if (!window->WindowPort)
         {
             if (window->MoreFlags & LXA_WMF_IDCMP_USERPORT_OWNED)
@@ -405,6 +425,19 @@ struct LXAPubScreenNode {
     struct MinNode all_node;      /* ScreenDataList link */
     BOOL is_public;               /* pub.psn_Node is in PubScreenList */
 };
+
+/* AmigaOS 3.1 reference: a custom screen opened without SA_Pens keeps the
+ * pre-V36 pens and has DRIF_NEWLOOK clear (dri_Pens 0 1 1 1 1 1 0 0 1 0 1 1). */
+static VOID _intuition_set_oldlook_pens(struct LXAPubScreenNode *entry)
+{
+    static const UBYTE old_pens[NUMDRIPENS] = { 0, 1, 1, 1, 1, 1, 0, 0, 1, 0, 1, 1 };
+    UWORD i;
+
+    for (i = 0; i < NUMDRIPENS; i++)
+        entry->pens[i] = (i < sizeof(old_pens)) ? old_pens[i] : 1;
+    entry->pens[NUMDRIPENS] = (UWORD)~0;
+    entry->drawInfo.dri_Flags &= ~DRIF_NEWLOOK;
+}
 
 #define LXA_PUB_FROM_ALL_NODE(n) \
     ((struct LXAPubScreenNode *)((UBYTE *)(n) - (ULONG)&((struct LXAPubScreenNode *)0)->all_node))
@@ -798,6 +831,9 @@ static struct PubScreenNode *_intuition_default_pubscreen_node(struct LXAIntuiti
     return NULL;
 }
 
+struct LXAPubScreenNode;
+static VOID _intuition_set_oldlook_pens(struct LXAPubScreenNode *entry);
+
 static VOID _intuition_register_pubscreen(struct IntuitionBase *IntuitionBase, struct Screen *screen)
 {
     struct LXAIntuitionBase *base = (struct LXAIntuitionBase *)IntuitionBase;
@@ -829,7 +865,10 @@ static VOID _intuition_register_pubscreen(struct IntuitionBase *IntuitionBase, s
     entry->pub.psn_SigTask = NULL;
     entry->pub.psn_SigBit = 0;
 
-    /* Initialize default pen array */
+    /* Initialize default pen array.  AmigaOS 3.1 reference: the Workbench
+     * and every screen opened with SA_Pens get the 3D "new look" pens; a
+     * custom screen without SA_Pens keeps the pre-V36 pens (DRIF_NEWLOOK
+     * clear, dri_Pens 0 1 1 1 1 1 0 0 1 0 1 1). */
     entry->pens[DETAILPEN]        = 0;
     entry->pens[BLOCKPEN]         = 1;
     entry->pens[TEXTPEN]          = 1;
@@ -852,13 +891,12 @@ static VOID _intuition_register_pubscreen(struct IntuitionBase *IntuitionBase, s
     entry->drawInfo.dri_Pens       = entry->pens;
     entry->drawInfo.dri_Font       = screen->RastPort.Font;
     entry->drawInfo.dri_Depth      = screen->RastPort.BitMap ? screen->RastPort.BitMap->Depth : 2;
-    entry->drawInfo.dri_Resolution.X = 44;
+    /* reference: 22:44 on hires screens, 44:44 on lores screens */
+    entry->drawInfo.dri_Resolution.X = (screen->Flags & SCREENHIRES) ? 22 : 44;
     entry->drawInfo.dri_Resolution.Y = 44;
-    /* DRIF_NEWLOOK is set for any screen with depth >= 2, matching OS 3.x
-     * behavior.  SA_Pens merely customizes the pen mapping; the 3D look
-     * is driven by having enough colours available.
-     */
-    entry->drawInfo.dri_Flags      = (entry->drawInfo.dri_Depth >= 2) ? DRIF_NEWLOOK : 0;
+    entry->drawInfo.dri_Flags      = DRIF_NEWLOOK;
+    if ((screen->Flags & SCREENTYPE) != WBENCHSCREEN)
+        _intuition_set_oldlook_pens(entry);
     entry->drawInfo.dri_CheckMark  = NULL;
     entry->drawInfo.dri_AmigaKey   = NULL;
 
@@ -998,6 +1036,9 @@ static void _draw_bevel_box(struct RastPort *rp, WORD left, WORD top, WORD width
 static void _complement_gadget_area(struct Window *window, struct Requester *req, struct Gadget *gad);
 static void _render_gadget(struct Window *window, struct Requester *req, struct Gadget *gad);
 static void _render_window_user_gadgets(struct Window *window);
+static void _free_window_sys_gadgets(struct Window *window);
+static BOOL _is_sys_gadget(const struct Gadget *gad);
+static void _render_sys_gadget(struct Window *window, struct Gadget *gad);
 static void _render_requester(struct Window *window, struct Requester *req);
 static void _calculate_requester_box(struct Window *window, struct Requester *req,
                                      LONG *left, LONG *top,
@@ -1013,6 +1054,14 @@ static BOOL _point_in_gadget(struct Window *window, struct Gadget *gad, WORD rel
 static struct Menu * _find_menu_at_x(struct Window *window, WORD screenX);
 static struct MenuItem * _find_item_at_pos(struct Menu *menu, WORD x, WORD y);
 static struct MenuItem * _find_item_in_chain_at_pos(struct MenuItem *firstItem, WORD x, WORD y);
+static void _menu_item_origin(struct Screen *screen, struct Menu *menu, WORD *ox, WORD *oy);
+static BOOL _get_menu_submenu_origin(struct Window *window, struct Menu *menu,
+                                     struct MenuItem *item, WORD *ox, WORD *oy);
+VOID _intuition_PrintIText ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+                             register struct RastPort * rp __asm("a0"),
+                             register const struct IntuiText * iText __asm("a1"),
+                             register WORD left __asm("d0"),
+                             register WORD top __asm("d1"));
 static BOOL _get_active_submenu_box(struct Window *window,
                                     WORD *submenuX,
                                     WORD *submenuY,
@@ -1024,6 +1073,7 @@ static BOOL _menu_hover_redraw_can_repaint_in_place(struct Window *window,
 static void _restore_menu_dropdown_area(struct Screen *screen);
 static void _save_dropdown_for_menu(struct Window *window, struct Menu *menu);
 static void _render_menu_bar(struct Window *window);
+static const UWORD *_intuition_screen_pens(struct Screen *screen);
 static void _render_menu_items(struct Window *window);
 static void _render_menu_items_in_place(struct Window *window);
 static void _enter_menu_mode(struct Window *window, struct Screen *screen, WORD mouseX, WORD mouseY);
@@ -1042,6 +1092,7 @@ VOID _intuition_SizeWindow(register struct IntuitionBase *IntuitionBase __asm("a
 static struct Gadget *g_active_gadget;
 static struct Window *g_active_window;
 static WORD g_prop_click_offset;
+static LONG g_gt_down_code;      /* GADGETDOWN code of a GadTools MX click */
 static UWORD g_intuitick_counter;   /* VBlank counter for IDCMP_INTUITICKS (fires every 10th VBlank) */
 static UWORD g_current_qualifier;   /* last known input qualifier (for INTUITICKS messages) */
 static BOOL g_menu_mode;
@@ -3029,7 +3080,7 @@ struct IntuitionBase * __g_lxa_intuition_InitLib    ( register struct IntuitionB
 
             imageclass->cl_ID = (ClassID)id;
             imageclass->cl_Super = base->RootClass;
-            imageclass->cl_Dispatcher.h_Entry = (ULONG (*)())rootclass_dispatch;
+            imageclass->cl_Dispatcher.h_Entry = (ULONG (*)())lxa_imageclass_dispatch;
             imageclass->cl_Dispatcher.h_Data = NULL;
             imageclass->cl_Dispatcher.h_SubEntry = NULL;
             imageclass->cl_Reserved = 0;
@@ -3065,12 +3116,12 @@ struct IntuitionBase * __g_lxa_intuition_InitLib    ( register struct IntuitionB
 
             sysiclass->cl_ID = (ClassID)id;
             sysiclass->cl_Super = base->ImageClass;
-            sysiclass->cl_Dispatcher.h_Entry = (ULONG (*)())rootclass_dispatch;
+            sysiclass->cl_Dispatcher.h_Entry = (ULONG (*)())lxa_sysiclass_dispatch;
             sysiclass->cl_Dispatcher.h_Data = NULL;
             sysiclass->cl_Dispatcher.h_SubEntry = NULL;
             sysiclass->cl_Reserved = 0;
             sysiclass->cl_InstOffset = base->ImageClass->cl_InstOffset + base->ImageClass->cl_InstSize;
-            sysiclass->cl_InstSize = 0;
+            sysiclass->cl_InstSize = lxa_sysiclass_instsize;
 
             base->ImageClass->cl_SubclassCount++;
 
@@ -3089,6 +3140,32 @@ struct IntuitionBase * __g_lxa_intuition_InitLib    ( register struct IntuitionB
             DPRINTF(LOG_DEBUG, "_intuition: sysiclass created at 0x%08lx\n", (ULONG)sysiclass);
         } else {
             DPRINTF(LOG_ERROR, "_intuition: Failed to allocate sysiclass!\n");
+        }
+    }
+
+    /* Create frameiclass (subclass of imageclass) */
+    {
+        struct IClass *frameiclass = AllocMem(sizeof(struct IClass) + sizeof(FRAMEICLASS), MEMF_PUBLIC | MEMF_CLEAR);
+        if (frameiclass && base->ImageClass) {
+            UBYTE *id = (UBYTE *)(frameiclass + 1);
+            strcpy((char *)id, FRAMEICLASS);
+
+            frameiclass->cl_ID = (ClassID)id;
+            frameiclass->cl_Super = base->ImageClass;
+            frameiclass->cl_Dispatcher.h_Entry = (ULONG (*)())lxa_frameiclass_dispatch;
+            frameiclass->cl_InstOffset = base->ImageClass->cl_InstOffset + base->ImageClass->cl_InstSize;
+            frameiclass->cl_InstSize = lxa_frameiclass_instsize;
+            base->ImageClass->cl_SubclassCount++;
+            {
+                struct LXAClassNode *node = AllocMem(sizeof(struct LXAClassNode), MEMF_PUBLIC | MEMF_CLEAR);
+                if (node) {
+                    node->class_ptr = frameiclass;
+                    node->node.ln_Type = NT_UNKNOWN;
+                    node->node.ln_Name = (char *)id;
+                    AddTail(&base->ClassList, &node->node);
+                    frameiclass->cl_Flags |= CLF_INLIST;
+                }
+            }
         }
     }
 
@@ -3490,8 +3567,18 @@ static VOID _intuition_handle_mouse_button_event(struct IntuitionBase *Intuition
 
                 gad->Flags |= GFLG_SELECTED;
 
-                if (_gadtools_IsCheckbox(gad) || _gadtools_IsCycle(gad))
+                if (_gadtools_IsGadTools(gad))
+                {
+                    if (gad->Activation & GACT_IMMEDIATE)
+                    {
+                        LONG gbl, gbt, gbw, gbh;
+                        _calculate_gadget_box(window, NULL, gad, &gbl, &gbt, &gbw, &gbh);
+                        g_gt_down_code = _gadtools_HandleClick(gad, relX - gbl, relY - gbt);
+                        if (g_gt_down_code < 0)
+                            g_gt_down_code = 0;
+                    }
                     _render_gadget(window, NULL, gad);
+                }
 
                 if ((gad->GadgetType & GTYP_SYSGADGET) &&
                     (gad->GadgetType & GTYP_SYSTYPEMASK) == GTYP_SIZING)
@@ -3590,7 +3677,7 @@ static VOID _intuition_handle_mouse_button_event(struct IntuitionBase *Intuition
 
                 if (gad->Activation & GACT_IMMEDIATE)
                 {
-                    _post_idcmp_message(window, IDCMP_GADGETDOWN, 0,
+                    _post_idcmp_message(window, IDCMP_GADGETDOWN, (UWORD)g_gt_down_code,
                                        qualifier, gad, relX, relY);
                 }
 
@@ -3722,18 +3809,27 @@ static VOID _intuition_handle_mouse_button_event(struct IntuitionBase *Intuition
 
                     if (inside)
                     {
+                        LONG up_code = 0;
+                        if (_gadtools_IsGadTools(gad) && !(gad->Activation & GACT_IMMEDIATE))
+                        {
+                            LONG gbl, gbt, gbw, gbh;
+                            _calculate_gadget_box(activeWin, NULL, gad, &gbl, &gbt, &gbw, &gbh);
+                            up_code = _gadtools_HandleClick(gad, activeRelX - gbl, activeRelY - gbt);
+                            if (up_code < 0)
+                                up_code = 0;
+                        }
                         if (gad->GadgetType & GTYP_SYSGADGET)
                         {
                             _handle_sys_gadget_verify(activeWin, gad);
                         }
                         else if (gad->Activation & GACT_RELVERIFY)
                         {
-                            _post_idcmp_message(activeWin, IDCMP_GADGETUP, 0,
+                            _post_idcmp_message(activeWin, IDCMP_GADGETUP, (UWORD)up_code,
                                                qualifier, gad, activeRelX, activeRelY);
                         }
                     }
 
-                    if (_gadtools_IsCheckbox(gad) || _gadtools_IsCycle(gad))
+                    if (_gadtools_IsGadTools(gad))
                     {
                         _render_gadget(activeWin, NULL, gad);
                     }
@@ -3915,9 +4011,12 @@ static VOID _intuition_handle_pointerpos_event(struct IntuitionBase *IntuitionBa
                     struct MenuItem *newSubItem;
 
                     handledSubmenu = TRUE;
-                    newSubItem = _find_item_in_chain_at_pos(g_active_item->SubItem,
-                                                            mouseX - submenuX,
-                                                            mouseY - submenuY);
+                    {
+                                                            WORD sox = 0, soy = 0;
+                                                            _get_menu_submenu_origin(g_menu_window, g_active_menu, g_active_item, &sox, &soy);
+                                                            newSubItem = _find_item_in_chain_at_pos(g_active_item->SubItem,
+                                                                                                    mouseX - sox, mouseY - soy);
+                                                            }
                     if (newSubItem != g_active_subitem)
                     {
                         g_active_subitem = newSubItem;
@@ -3928,10 +4027,11 @@ static VOID _intuition_handle_pointerpos_event(struct IntuitionBase *IntuitionBa
 
             if (!handledSubmenu)
             {
-                WORD menuTop = screen->BarHeight + 1;
-                WORD menuLeft = screen->BarHBorder + g_active_menu->LeftEdge;
-                WORD itemX = mouseX - menuLeft;
-                WORD itemY = mouseY - menuTop;
+                WORD menuTop, menuLeft;
+                WORD itemX, itemY;
+                _menu_item_origin(screen, g_active_menu, &menuLeft, &menuTop);
+                itemX = mouseX - menuLeft;
+                itemY = mouseY - menuTop;
                 struct MenuItem *newItem = _find_item_at_pos(g_active_menu, itemX, itemY);
 
                 DPRINTF(LOG_DEBUG, "_intuition: menu_item_hit: menuTop=%d menuLeft=%d itemX=%d itemY=%d newItem=0x%08lx BarHBorder=%d LeftEdge=%d\n",
@@ -4022,6 +4122,11 @@ static VOID _intuition_handle_pointerpos_event(struct IntuitionBase *IntuitionBa
         WORD dy = mouseY - g_size_start_y;
         WORD newW = g_size_orig_w + dx;
         WORD newH = g_size_orig_h + dy;
+        /* sizing with the mouse respects the window limits */
+        if (newW < g_size_window->MinWidth) newW = g_size_window->MinWidth;
+        if ((UWORD)newW > g_size_window->MaxWidth) newW = g_size_window->MaxWidth;
+        if (newH < g_size_window->MinHeight) newH = g_size_window->MinHeight;
+        if ((UWORD)newH > g_size_window->MaxHeight) newH = g_size_window->MaxHeight;
         WORD size_dx = newW - g_size_window->Width;
         WORD size_dy = newH - g_size_window->Height;
 
@@ -4589,21 +4694,8 @@ VOID _intuition_CloseWindow ( register struct IntuitionBase * IntuitionBase __as
     window->BorderRPort = NULL;
 
     /* Free system gadgets we created */
-    {
-        struct Gadget *gad = window->FirstGadget;
-        struct Gadget *next;
-        while (gad)
-        {
-            next = gad->NextGadget;
-            /* Only free gadgets we allocated (system gadgets) */
-            if (gad->GadgetType & GTYP_SYSGADGET)
-            {
-                FreeMem(gad, sizeof(struct Gadget));
-            }
-            gad = next;
-        }
-        window->FirstGadget = NULL;
-    }
+    _free_window_sys_gadgets(window);
+    window->FirstGadget = NULL;
 
     _intuition_remove_window_state((struct LXAIntuitionBase *)IntuitionBase, window);
 
@@ -5286,7 +5378,11 @@ static struct Gadget *_find_gadget_at_pos_in_list(struct Window *window,
     {
         if (gad->Flags & GFLG_DISABLED)
             continue;
-        
+
+        /* the drag bar gadget is handled by the window drag code */
+        if (_is_sys_gadget(gad) && (gad->GadgetType & GTYP_SYSTYPEMASK) == GTYP_WDRAGGING)
+            continue;
+
         _calculate_gadget_box(window, NULL, gad, &gx0, &gy0, &width, &height);
         
         DPRINTF(LOG_DEBUG, "_intuition: _find_gadget_at_pos() checking gad=0x%08lx type=0x%04x bounds=(%d,%d)-(%d,%d) point=(%d,%d)\n",
@@ -5831,58 +5927,25 @@ static BOOL _is_separator_menu_item(const struct MenuItem *item)
 {
     struct IntuiText *it;
 
-    if (!item || !(item->Flags & ITEMTEXT) || !item->ItemFill)
+    if (!item || !item->ItemFill)
         return FALSE;
+
+    /* GadTools NM_BARLABEL: an image item without image data */
+    if (!(item->Flags & ITEMTEXT))
+    {
+        const struct Image *im = (const struct Image *)item->ItemFill;
+        return im->Depth == 0 && im->ImageData == NULL && im->PlanePick == 0 &&
+               (item->Flags & HIGHFLAGS) == HIGHNONE;
+    }
 
     it = (struct IntuiText *)item->ItemFill;
     if (!it || !it->IText)
         return FALSE;
 
-    return it->IText[0] == '-';
+    return it->IText[0] == '-' && it->IText[1] == '-';
 }
 
-static WORD _menu_item_required_width(const struct MenuItem *item)
-{
-    WORD width;
 
-    if (!item)
-        return 0;
-
-    width = item->Width;
-
-    if ((item->Flags & ITEMTEXT) && item->ItemFill)
-    {
-        const struct IntuiText *it = (const struct IntuiText *)item->ItemFill;
-
-        if (it && it->IText)
-        {
-            WORD label_width = (WORD)(strlen((const char *)it->IText) * 8);
-            WORD text_width = (WORD)(4 + it->LeftEdge + label_width + 4);
-
-            if (text_width > width)
-                width = text_width;
-        }
-    }
-
-    return width;
-}
-
-static void _draw_submenu_indicator(struct RastPort *rp, WORD right, WORD center_y)
-{
-    WORD x;
-    WORD half_height;
-
-    if (!rp)
-        return;
-
-    half_height = 3;
-
-    for (x = 0; x <= 3; x++)
-    {
-        Move(rp, right - x, center_y - half_height + x);
-        Draw(rp, right - x, center_y + half_height - x);
-    }
-}
 
 /*
  * Find which menu title is at a given screen X position
@@ -5919,58 +5982,62 @@ static struct Menu * _find_menu_at_x(struct Window *window, WORD screenX)
  */
 static struct MenuItem * _find_item_at_pos(struct Menu *menu, WORD x, WORD y)
 {
-    struct MenuItem *item;
-    WORD chain_left;
-    
-    if (!menu || !menu->FirstItem)
+    /* x, y relative to the menu's item origin (_menu_item_origin) */
+    if (!menu || !(menu->Flags & MENUENABLED))
         return NULL;
-
-    chain_left = menu->FirstItem->LeftEdge;
-    
-    for (item = menu->FirstItem; item; item = item->NextItem)
-    {
-        /* Skip disabled items */
-        if (!(item->Flags & ITEMENABLED))
-            continue;
-
-        DPRINTF(LOG_DEBUG, "_intuition: _find_item_at_pos: checking item TE=%d H=%d LE=%d-CL=%d W=%d against x=%d y=%d\n",
-                (int)item->TopEdge, (int)item->Height, (int)item->LeftEdge, (int)chain_left, (int)item->Width, (int)x, (int)y);
-        
-        if (x >= item->LeftEdge - chain_left &&
-            x < item->LeftEdge - chain_left + item->Width &&
-            y >= item->TopEdge && y < item->TopEdge + item->Height)
-        {
-            return item;
-        }
-    }
-    
-    return NULL;
+    return _find_item_in_chain_at_pos(menu->FirstItem, x, y);
 }
 
 static struct MenuItem * _find_item_in_chain_at_pos(struct MenuItem *firstItem, WORD x, WORD y)
 {
     struct MenuItem *item;
-    WORD chain_left;
-
-    if (!firstItem)
-        return NULL;
-
-    chain_left = firstItem->LeftEdge;
 
     for (item = firstItem; item; item = item->NextItem)
     {
-        if (!(item->Flags & ITEMENABLED))
-            continue;
-
-        if (x >= item->LeftEdge - chain_left &&
-            x < item->LeftEdge - chain_left + item->Width &&
+        if (x >= item->LeftEdge && x < item->LeftEdge + item->Width &&
             y >= item->TopEdge && y < item->TopEdge + item->Height)
-        {
-            return item;
-        }
+            return (item->Flags & ITEMENABLED) ? item : NULL;
     }
 
     return NULL;
+}
+
+/*
+ * AmigaOS 3.1 drop-down geometry (reference: tests/scenarios/gallery-menus.yaml).
+ * The items of a menu are placed relative to the "item origin"
+ *   x = Menu.LeftEdge + 1 + MenuHBorder,  y = BarHeight + MenuVBorder - 1;
+ * the box around them has a 2 pixel frame left and right and a 1 pixel
+ * frame at the top and the bottom, MenuHBorder/2 of padding left and right,
+ * MenuVBorder - 1 at the top and 1 at the bottom.  The items of a sub-menu are
+ * relative to the origin of their parent item.
+ */
+/* pens of the menu imagery: NewLook menus use the screen's bar pens, the
+ * classic look the window's DetailPen (text, frame) and BlockPen (fill) */
+static void _menu_pens(struct Window *window, UWORD *pens)
+{
+    const UWORD *sp = _intuition_screen_pens(window->WScreen);
+    UWORD i;
+
+    for (i = 0; i < NUMDRIPENS; i++)
+        pens[i] = sp[i];
+    if (!(window->Flags & WFLG_NEWLOOKMENUS))
+    {
+        pens[BARDETAILPEN] = window->DetailPen;
+        pens[BARBLOCKPEN] = window->BlockPen;
+        pens[BARTRIMPEN] = window->DetailPen;
+    }
+}
+
+/* the classic look box has 8 more pixels of padding on the right */
+static WORD _menu_extra_right(struct Window *window)
+{
+    return (window && !(window->Flags & WFLG_NEWLOOKMENUS)) ? 8 : 0;
+}
+
+static void _menu_item_origin(struct Screen *screen, struct Menu *menu, WORD *ox, WORD *oy)
+{
+    *ox = menu->LeftEdge + 1 + screen->MenuHBorder;
+    *oy = screen->BarHeight + screen->MenuVBorder - 1;
 }
 
 /*
@@ -6031,47 +6098,51 @@ static WORD _get_item_chain_index(struct MenuItem *firstItem, struct MenuItem *t
     return NOITEM;
 }
 
-static void _get_menu_item_chain_box(struct MenuItem *firstItem,
-                                     WORD baseX, WORD baseY,
+static void _get_menu_item_chain_box(struct Screen *screen, struct MenuItem *firstItem,
+                                     WORD originX, WORD originY, WORD extra,
                                      WORD *boxX, WORD *boxY,
                                      WORD *boxWidth, WORD *boxHeight)
 {
     struct MenuItem *item;
-    WORD chain_left;
-    WORD max_width;
-    WORD max_height;
-
-    if (boxX)
-        *boxX = baseX;
-    if (boxY)
-        *boxY = baseY;
-    if (boxWidth)
-        *boxWidth = 0;
-    if (boxHeight)
-        *boxHeight = 0;
-
-    if (!firstItem)
-        return;
-
-    chain_left = firstItem->LeftEdge;
-    max_width = 0;
-    max_height = 0;
+    WORD minx = 0, miny = 0, maxx = 0, maxy = 0;
+    WORD hb = screen ? screen->MenuHBorder : 4;
+    WORD vb = screen ? screen->MenuVBorder : 2;
 
     for (item = firstItem; item; item = item->NextItem)
     {
-        WORD width = (item->LeftEdge - chain_left) + _menu_item_required_width(item);
-        WORD height = item->TopEdge + item->Height;
-
-        if (width > max_width)
-            max_width = width;
-        if (height > max_height)
-            max_height = height;
+        if (item == firstItem || item->LeftEdge < minx)
+            minx = item->LeftEdge;
+        if (item == firstItem || item->TopEdge < miny)
+            miny = item->TopEdge;
+        if (item->LeftEdge + item->Width > maxx)
+            maxx = item->LeftEdge + item->Width;
+        if (item->TopEdge + item->Height > maxy)
+            maxy = item->TopEdge + item->Height;
     }
+    if (minx > 0)
+        minx = 0;
+    if (miny > 0)
+        miny = 0;
 
+    if (boxX)
+        *boxX = originX + minx - hb;
+    if (boxY)
+        *boxY = originY + miny - vb;
     if (boxWidth)
-        *boxWidth = max_width + 8;
+        *boxWidth = (firstItem ? (maxx - minx) : 0) + 2 * hb + extra;
     if (boxHeight)
-        *boxHeight = max_height + 4;
+        *boxHeight = (firstItem ? (maxy - miny) : 0) + vb + 2;
+}
+
+static BOOL _get_menu_submenu_origin(struct Window *window, struct Menu *menu,
+                                     struct MenuItem *item, WORD *ox, WORD *oy)
+{
+    if (!window || !window->WScreen || !menu || !item || !item->SubItem)
+        return FALSE;
+    _menu_item_origin(window->WScreen, menu, ox, oy);
+    *ox += item->LeftEdge;
+    *oy += item->TopEdge;
+    return TRUE;
 }
 
 static BOOL _get_menu_submenu_box(struct Window *window,
@@ -6080,9 +6151,7 @@ static BOOL _get_menu_submenu_box(struct Window *window,
                                   WORD *boxX, WORD *boxY,
                                   WORD *boxWidth, WORD *boxHeight)
 {
-    struct Screen *screen;
-    WORD menuX;
-    WORD menuY;
+    WORD ox, oy;
 
     if (boxX)
         *boxX = 0;
@@ -6093,18 +6162,11 @@ static BOOL _get_menu_submenu_box(struct Window *window,
     if (boxHeight)
         *boxHeight = 0;
 
-    if (!window || !window->WScreen || !menu || !item || !item->SubItem)
+    if (!_get_menu_submenu_origin(window, menu, item, &ox, &oy))
         return FALSE;
 
-    screen = window->WScreen;
-    menuX = screen->BarHBorder + menu->LeftEdge;
-    menuY = screen->BarHeight + 1;
-
-    _get_menu_item_chain_box(item->SubItem,
-                             menuX + item->LeftEdge + item->Width,
-                             menuY + item->TopEdge,
+    _get_menu_item_chain_box(window->WScreen, item->SubItem, ox, oy, _menu_extra_right(window),
                              boxX, boxY, boxWidth, boxHeight);
-
     return TRUE;
 }
 
@@ -6244,122 +6306,58 @@ static void _restore_menu_dropdown_area(struct Screen *screen)
  * Render the screen title bar (shown when not in menu mode)
  * This restores the title bar after menu mode ends
  */
+static const UWORD *_intuition_screen_pens(struct Screen *screen);
+static UWORD _screen_sysi_size(struct Screen *screen);
+
 static void _render_screen_title_bar(struct Screen *screen)
 {
     struct RastPort *rp;
-    WORD barHeight;
-    
+    const UWORD *pens;
+    UWORD dw = 23;
+    UBYTE oldpen, olddm;
+
     if (!screen)
         return;
-    
+
     rp = &screen->RastPort;
-    
+
     /* Validate RastPort has a valid BitMap */
     if (!rp->BitMap || !rp->BitMap->Planes[0])
         return;
-    
-    barHeight = screen->BarHeight + 1;
-    
-    /* Fill the title bar area with the screen title bar color (pen 1) */
-    SetAPen(rp, 1);
-    RectFill(rp, 0, 0, screen->Width - 1, barHeight - 1);
-    
-    /* Draw bottom border line */
-    SetAPen(rp, 0);
-    Move(rp, 0, barHeight - 1);
-    Draw(rp, screen->Width - 1, barHeight - 1);
-    
-    /* Draw screen title if present */
+
+    /* AmigaOS 3.1 reference: BARBLOCKPEN bar, BARTRIMPEN line below it,
+     * the title in BARDETAILPEN, the screen depth gadget at the right */
+    pens = _intuition_screen_pens(screen);
+    oldpen = rp->FgPen;
+    olddm = rp->DrawMode;
+    SetAPen(rp, pens[BARBLOCKPEN]);
+    RectFill(rp, 0, 0, screen->Width - 1, screen->BarHeight - 1);
+    SetAPen(rp, pens[BARTRIMPEN]);
+    RectFill(rp, 0, screen->BarHeight, screen->Width - 1, screen->BarHeight);
+
+    lxa_sysi_dims(SDEPTHIMAGE, _screen_sysi_size(screen), &dw, NULL);
     if (screen->Title)
     {
-        SetAPen(rp, 0);    /* Text in black */
-        SetBPen(rp, 1);    /* Background */
-        SetDrMd(rp, JAM2);
-        
-        /* Draw title centered or left-aligned, after any screen gadgets */
-        /* Standard position is a few pixels from the left */
+        WORD len = strlen((const char *)screen->Title);
+        WORD avail = screen->Width - dw - screen->BarHBorder;
+        WORD fit = (avail > 0) ? lxa_text_fit(rp, (STRPTR)screen->Title, len, avail) : 0;
+
+        SetAPen(rp, pens[BARDETAILPEN]);
+        SetDrMd(rp, JAM1);
         Move(rp, screen->BarHBorder, screen->BarVBorder + rp->TxBaseline);
-        Text(rp, (STRPTR)screen->Title, strlen((const char *)screen->Title));
+        if (fit > 0)
+            Text(rp, (STRPTR)screen->Title, fit);
     }
-    
+    lxa_sysi_draw(rp, SDEPTHIMAGE, _screen_sysi_size(screen), screen->Width - dw, 0,
+                  IDS_NORMAL, pens);
+    SetAPen(rp, oldpen);
+    SetDrMd(rp, olddm);
+
     DPRINTF(LOG_DEBUG, "_intuition: _render_screen_title_bar() screen=0x%08lx title='%s'\n",
             (ULONG)screen, screen->Title ? (const char *)screen->Title : "(none)");
 }
 
-/*
- * Phase 133: ensure the off-screen menu compose BitMap is at least
- * (w x h) at the screen's depth. Reuses the existing allocation when
- * possible; otherwise frees and re-allocates. Returns the compose
- * BitMap or NULL on failure (caller should fall back to direct
- * screen rendering in that case).
- */
-static struct BitMap *_menu_ensure_compose_bitmap(struct Screen *screen,
-                                                  WORD w, WORD h)
-{
-    WORD depth;
 
-    if (!screen || w <= 0 || h <= 0)
-        return NULL;
-    if (!screen->BitMap.Planes[0])
-        return NULL;
-
-    depth = screen->BitMap.Depth;
-    if (depth <= 0)
-        return NULL;
-
-    if (g_menu_compose_bm
-        && g_menu_compose_w >= w
-        && g_menu_compose_h >= h
-        && g_menu_compose_depth == depth)
-    {
-        return g_menu_compose_bm;
-    }
-
-    if (g_menu_compose_bm)
-    {
-        FreeBitMap(g_menu_compose_bm);
-        g_menu_compose_bm = NULL;
-    }
-
-    /* Round width up to byte boundary so blits don't overshoot. */
-    g_menu_compose_bm = AllocBitMap(w, h, depth, BMF_CLEAR, NULL);
-    if (!g_menu_compose_bm)
-    {
-        DPRINTF(LOG_ERROR, "_intuition: _menu_ensure_compose_bitmap() AllocBitMap(%d,%d,%d) failed\n",
-                (int)w, (int)h, (int)depth);
-        g_menu_compose_w = 0;
-        g_menu_compose_h = 0;
-        g_menu_compose_depth = 0;
-        return NULL;
-    }
-
-    g_menu_compose_w = w;
-    g_menu_compose_h = h;
-    g_menu_compose_depth = depth;
-    return g_menu_compose_bm;
-}
-
-/*
- * Phase 133: initialise a temporary RastPort over the compose BitMap,
- * inheriting font/draw-mode settings from the screen RastPort so that
- * Text() renders identically.
- */
-static void _menu_init_compose_rp(struct RastPort *compose_rp,
-                                  struct BitMap *compose_bm,
-                                  struct RastPort *screen_rp)
-{
-    InitRastPort(compose_rp);
-    compose_rp->BitMap = compose_bm;
-    if (screen_rp)
-    {
-        compose_rp->Font = screen_rp->Font;
-        compose_rp->TxBaseline = screen_rp->TxBaseline;
-        compose_rp->TxHeight = screen_rp->TxHeight;
-        compose_rp->TxWidth = screen_rp->TxWidth;
-        compose_rp->TxSpacing = screen_rp->TxSpacing;
-    }
-    SetDrMd(compose_rp, JAM2);
-}
 
 /*
  * Render the menu bar background on the screen's title bar area
@@ -6367,104 +6365,60 @@ static void _menu_init_compose_rp(struct RastPort *compose_rp,
 static void _render_menu_bar(struct Window *window)
 {
     struct Screen *screen;
-    struct RastPort *screen_rp;
-    struct RastPort compose_rp;
     struct RastPort *rp;
-    struct BitMap *compose_bm;
+    const UWORD *pens;
+    UWORD mpens[NUMDRIPENS + 1];
     struct Menu *menu;
-    WORD barHeight, barHBorder, barVBorder;
-    WORD x, y;
+    UBYTE oldpen, olddm;
 
     if (!window || !window->WScreen)
         return;
 
     screen = window->WScreen;
-    screen_rp = &screen->RastPort;
-
-    /* Validate RastPort has a valid BitMap */
-    if (!screen_rp->BitMap || !screen_rp->BitMap->Planes[0])
-    {
-        DPRINTF(LOG_ERROR, "_intuition: _render_menu_bar() invalid RastPort BitMap\n");
+    rp = &screen->RastPort;
+    if (!rp->BitMap || !rp->BitMap->Planes[0])
         return;
-    }
 
-    DPRINTF(LOG_DEBUG, "_intuition: _render_menu_bar() screen=%08lx rp=%08lx bm=%08lx planes[0]=%08lx\n",
-            (ULONG)screen, (ULONG)screen_rp, (ULONG)screen_rp->BitMap, (ULONG)screen_rp->BitMap->Planes[0]);
-    DPRINTF(LOG_DEBUG, "_intuition: _render_menu_bar() width=%d height=%d barHeight=%d\n",
-            screen->Width, screen->Height, screen->BarHeight + 1);
-
-    barHeight = screen->BarHeight + 1;  /* BarHeight is one less than actual */
-    barHBorder = screen->BarHBorder;
-    barVBorder = screen->BarVBorder;
-
-    /* Phase 133: render into off-screen compose BitMap, then atomic-blit
-     * to the screen, eliminating the visible blank-then-redraw flash. */
-    compose_bm = _menu_ensure_compose_bitmap(screen, screen->Width, barHeight);
-    if (compose_bm)
+    /* AmigaOS 3.1: the screen bar shows the menu titles (BARDETAILPEN on
+     * BARBLOCKPEN, no depth gadget); the selected title is inverted over
+     * Menu.LeftEdge+1 .. LeftEdge+Width; disabled titles are ghosted */
+    _menu_pens(window, mpens);
+    pens = mpens;
+    oldpen = rp->FgPen;
+    olddm = rp->DrawMode;
+    SetAPen(rp, pens[BARBLOCKPEN]);
+    RectFill(rp, 0, 0, screen->Width - 1, screen->BarHeight - 1);
+    if (window->Flags & WFLG_NEWLOOKMENUS)
     {
-        _menu_init_compose_rp(&compose_rp, compose_bm, screen_rp);
-        rp = &compose_rp;
+        SetAPen(rp, pens[BARTRIMPEN]);
+        RectFill(rp, 0, screen->BarHeight, screen->Width - 1, screen->BarHeight);
     }
-    else
+    SetDrMd(rp, JAM1);
+
+    for (menu = window->MenuStrip; menu; menu = menu->NextMenu)
     {
-        /* Fallback: direct screen rendering (visible flicker, but
-         * correctness preserved when AllocBitMap fails). */
-        rp = screen_rp;
-    }
+        WORD tx = screen->BarHBorder + menu->LeftEdge;
+        BOOL active = (menu == g_active_menu);
 
-    /* Fill menu bar background with pen 1 (standard Amiga look) */
-    SetAPen(rp, 1);
-    RectFill(rp, 0, 0, screen->Width - 1, barHeight - 1);
-
-    /* Draw bottom border line */
-    SetAPen(rp, 0);
-    Move(rp, 0, barHeight - 1);
-    Draw(rp, screen->Width - 1, barHeight - 1);
-
-    /* Render menu titles */
-    if (window->MenuStrip)
-    {
-        SetAPen(rp, 0);    /* Text in black */
-        SetBPen(rp, 1);    /* Background */
-        SetDrMd(rp, JAM2);
-
-        for (menu = window->MenuStrip; menu; menu = menu->NextMenu)
+        if (menu->MenuName)
         {
-            if (!menu->MenuName)
-                continue;
-
-            x = barHBorder + menu->LeftEdge;
-            y = barVBorder;
-
-            /* Highlight active menu */
-            if (menu == g_active_menu)
-            {
-                /* Draw highlighted background */
-                SetAPen(rp, 0);
-                RectFill(rp, x - 2, 0, x + menu->Width + 1, barHeight - 2);
-                SetAPen(rp, 1);
-                SetBPen(rp, 0);
-            }
-            else
-            {
-                SetAPen(rp, 0);
-                SetBPen(rp, 1);
-            }
-
-            /* Draw menu title text */
-            Move(rp, x, y + rp->TxBaseline);
+            SetAPen(rp, pens[BARDETAILPEN]);
+            Move(rp, tx, screen->BarVBorder + rp->TxBaseline);
             Text(rp, (STRPTR)menu->MenuName, strlen((const char *)menu->MenuName));
         }
+        if (!(menu->Flags & MENUENABLED))
+            lxa_ghost_rect_pen(rp, tx, screen->BarVBorder, tx + menu->Width - 1,
+                               screen->BarVBorder + rp->TxHeight - 1, pens[BARBLOCKPEN], 0);
+        if (active && (menu->Flags & MENUENABLED))
+        {
+            /* the selected title is complemented */
+            SetDrMd(rp, COMPLEMENT);
+            RectFill(rp, menu->LeftEdge + 1, 0, menu->LeftEdge + menu->Width, screen->BarHeight - 2);
+            SetDrMd(rp, JAM1);
+        }
     }
-
-    /* Atomic compose -> screen blit. */
-    if (compose_bm)
-    {
-        BltBitMap(compose_bm, 0, 0,
-                  &screen->BitMap, 0, 0,
-                  screen->Width, barHeight,
-                  0xC0, 0xFF, NULL);
-    }
+    SetAPen(rp, oldpen);
+    SetDrMd(rp, olddm);
 }
 
 /*
@@ -6474,181 +6428,144 @@ static void _render_menu_bar(struct Window *window)
 static void _save_dropdown_for_menu(struct Window *window, struct Menu *menu)
 {
     struct Screen *screen;
-    struct MenuItem *item;
-    WORD barHeight, menuX, menuY, menuWidth, menuHeight;
-    WORD submenuX;
-    WORD submenuY;
-    WORD submenuWidth;
-    WORD submenuHeight;
-    WORD saveX;
-    WORD saveY;
-    WORD saveRight;
-    WORD saveBottom;
-    
+    WORD ox, oy, bx, by, bw, bh;
+    WORD sx, sy, sw, sh;
+    WORD saveRight, saveBottom;
+
     if (!window || !window->WScreen || !menu || !menu->FirstItem)
         return;
-    
+
     screen = window->WScreen;
-    barHeight = screen->BarHeight + 1;
-    
-    menuX = screen->BarHBorder + menu->LeftEdge;
-    menuY = barHeight;
-    
-    /* Calculate menu dimensions from items, matching _get_menu_item_chain_box logic */
+    _menu_item_origin(screen, menu, &ox, &oy);
+    _get_menu_item_chain_box(screen, menu->FirstItem, ox, oy, _menu_extra_right(window),
+                             &bx, &by, &bw, &bh);
+    saveRight = bx + bw;
+    saveBottom = by + bh;
+
+    if (_get_active_submenu_box(window, &sx, &sy, &sw, &sh))
     {
-        WORD chain_left = menu->FirstItem->LeftEdge;
-        menuWidth = 0;
-        menuHeight = 0;
-        for (item = menu->FirstItem; item; item = item->NextItem)
-        {
-            WORD w = (item->LeftEdge - chain_left) + _menu_item_required_width(item);
-            WORD h = item->TopEdge + item->Height;
-            if (w > menuWidth) menuWidth = w;
-            if (h > menuHeight) menuHeight = h;
-        }
-        menuWidth += 8;    /* padding, matching _get_menu_item_chain_box */
-        menuHeight += 4;
+        if (sx < bx)
+            bx = sx;
+        if (sy < by)
+            by = sy;
+        if (sx + sw > saveRight)
+            saveRight = sx + sw;
+        if (sy + sh > saveBottom)
+            saveBottom = sy + sh;
     }
 
-    saveX = menuX;
-    saveY = menuY;
-    saveRight = menuX + menuWidth;
-    saveBottom = menuY + menuHeight;
-
-    if (_get_active_submenu_box(window, &submenuX, &submenuY, &submenuWidth, &submenuHeight))
-    {
-        if (submenuX < saveX)
-            saveX = submenuX;
-        if (submenuY < saveY)
-            saveY = submenuY;
-        if (submenuX + submenuWidth > saveRight)
-            saveRight = submenuX + submenuWidth;
-        if (submenuY + submenuHeight > saveBottom)
-            saveBottom = submenuY + submenuHeight;
-    }
-
-    _save_menu_dropdown_area(screen, saveX, saveY, saveRight - saveX, saveBottom - saveY);
+    _save_menu_dropdown_area(screen, bx, by, saveRight - bx, saveBottom - by);
 }
 
-static void _render_menu_item_chain(struct RastPort *rp,
+static void _render_menu_item_chain(struct Screen *screen, struct RastPort *rp,
                                     struct MenuItem *firstItem,
                                     struct MenuItem *highlightedItem,
-                                    WORD menuX, WORD menuY)
+                                    WORD ox, WORD oy, struct Window *window, BOOL all_ghosted)
 {
     struct MenuItem *item;
-    struct IntuiText *it;
-    WORD chain_left;
-    WORD menuWidth;
-    WORD menuHeight;
-    WORD itemY;
+    UWORD pens[NUMDRIPENS + 1];
+    WORD bx, by, bw, bh, extra = _menu_extra_right(window);
+    UBYTE oldpen, olddm;
 
-    if (!rp || !firstItem)
+    if (!rp || !firstItem || !window)
         return;
 
-    _get_menu_item_chain_box(firstItem, menuX, menuY, NULL, NULL, &menuWidth, &menuHeight);
-    chain_left = firstItem->LeftEdge;
+    _menu_pens(window, pens);
+    oldpen = rp->FgPen;
+    olddm = rp->DrawMode;
+    _get_menu_item_chain_box(screen, firstItem, ox, oy, extra, &bx, &by, &bw, &bh);
 
-    SetAPen(rp, 1);
-    RectFill(rp, menuX, menuY, menuX + menuWidth - 1, menuY + menuHeight - 1);
-
-    SetAPen(rp, 2);
-    Move(rp, menuX, menuY + menuHeight - 2);
-    Draw(rp, menuX, menuY);
-    Draw(rp, menuX + menuWidth - 2, menuY);
-
-    SetAPen(rp, 0);
-    Move(rp, menuX + menuWidth - 1, menuY);
-    Draw(rp, menuX + menuWidth - 1, menuY + menuHeight - 1);
-    Draw(rp, menuX, menuY + menuHeight - 1);
+    /* box: BARBLOCKPEN inside, BARDETAILPEN frame (2 pixels left/right) */
+    SetAPen(rp, pens[BARBLOCKPEN]);
+    RectFill(rp, bx, by, bx + bw - 1, by + bh - 1);
+    SetAPen(rp, pens[BARDETAILPEN]);
+    RectFill(rp, bx, by, bx + bw - 1, by);
+    RectFill(rp, bx, by + bh - 1, bx + bw - 1, by + bh - 1);
+    RectFill(rp, bx, by, bx + 1, by + bh - 1);
+    RectFill(rp, bx + bw - 2, by, bx + bw - 1, by + bh - 1);
 
     for (item = firstItem; item; item = item->NextItem)
     {
-        WORD item_box_x = menuX + item->LeftEdge - chain_left;
-        WORD itemX = item_box_x + 4;
-        WORD item_width = _menu_item_required_width(item);
-
-        it = (struct IntuiText *)item->ItemFill;
-        itemY = menuY + item->TopEdge + 2;
-
-        if (item == highlightedItem && (item->Flags & ITEMENABLED))
-        {
-            SetAPen(rp, 0);
-            RectFill(rp, menuX + 2, itemY - 1,
-                     menuX + menuWidth - 3, itemY + item->Height - 2);
-            SetAPen(rp, 1);
-            SetBPen(rp, 0);
-        }
-        else
-        {
-            SetAPen(rp, 0);
-            SetBPen(rp, 1);
-        }
-
-        it = (struct IntuiText *)item->ItemFill;
+        WORD ix = ox + item->LeftEdge;
+        WORD iy = oy + item->TopEdge;
+        BOOL highlighted = (item == highlightedItem && (item->Flags & ITEMENABLED));
 
         if (_is_separator_menu_item(item))
         {
-            WORD separator_y = itemY + (item->Height / 2) - 1;
-            WORD separator_left = item_box_x + 6;
-            WORD separator_right = item_box_x + item_width - 7;
-
-            if (separator_right >= separator_left)
-            {
-                SetAPen(rp, 0);
-                Move(rp, separator_left, separator_y + 1);
-                Draw(rp, separator_right, separator_y + 1);
-
-                SetAPen(rp, 2);
-                Move(rp, separator_left, separator_y);
-                Draw(rp, separator_right, separator_y);
-            }
-
+            /* GadTools bar: two dotted BARDETAILPEN rows */
+            WORD r = ix + item->Width - 3 + extra;
+            SetAPen(rp, pens[BARDETAILPEN]);
+            RectFill(rp, ix + 2, iy + 2, r, iy + 3);
+            lxa_ghost_rect_pen(rp, ix + 2, iy + 2, r, iy + 3, pens[BARBLOCKPEN], screen->BarHeight);
             continue;
         }
 
-        if (it && it->IText)
+        if (highlighted && (item->Flags & HIGHFLAGS) == HIGHIMAGE && item->SelectFill)
         {
-            if (!(item->Flags & ITEMENABLED))
-            {
-                SetAPen(rp, 2);
-                SetBPen(rp, 1);
-            }
+            if (item->Flags & ITEMTEXT)
+                _intuition_PrintIText(IntuitionBase, rp, (struct IntuiText *)item->SelectFill, ix, iy);
+            else
+                _intuition_DrawImage(IntuitionBase, rp, (struct Image *)item->SelectFill, ix, iy);
+        }
+        else if (item->ItemFill)
+        {
+            if (item->Flags & ITEMTEXT)
+                _intuition_PrintIText(IntuitionBase, rp, (struct IntuiText *)item->ItemFill, ix, iy);
+            else
+                _intuition_DrawImage(IntuitionBase, rp, (struct Image *)item->ItemFill, ix, iy);
+        }
 
-            {
-                WORD text_len = (WORD)strlen((const char *)it->IText);
-                WORD text_x = itemX + it->LeftEdge;
-                WORD text_y = itemY + it->TopEdge + rp->TxBaseline;
-                Move(rp, text_x, text_y);
-                Text(rp, (STRPTR)it->IText, text_len);
-            }
+        if ((item->Flags & CHECKIT) && (item->Flags & CHECKED))
+        {
+            struct Image *cm = window ? window->CheckMark : NULL;
+            if (cm)
+                _intuition_DrawImage(IntuitionBase, rp, cm, ix, iy + 1);
+            else
+                lxa_sysi_draw(rp, MENUCHECK, SYSISIZE_MEDRES, ix, iy + 1, IDS_NORMAL, pens);
+        }
 
-            if (item->Flags & CHECKED)
-            {
-                Move(rp, menuX + 3, itemY + rp->TxBaseline);
-                Text(rp, (STRPTR)"\x9E", 1);
-            }
+        if (item->Flags & COMMSEQ)
+        {
+            UBYTE c = (UBYTE)item->Command;
+            WORD cw = TextLength(rp, (STRPTR)&c, 1);
+            UWORD aw = 23;
+            WORD cx = ix + item->Width - cw;
 
-            if (item->Flags & COMMSEQ)
-            {
-                char cmdStr[4];
-                WORD cmd_width = 24;
-                cmdStr[0] = 'A';
-                cmdStr[1] = '-';
-                cmdStr[2] = item->Command;
-                cmdStr[3] = '\0';
-                Move(rp, item_box_x + item_width - cmd_width - 4, itemY + rp->TxBaseline);
-                Text(rp, (STRPTR)cmdStr, 3);
-            }
+            lxa_sysi_dims(AMIGAKEY, SYSISIZE_MEDRES, &aw, NULL);
+            lxa_sysi_draw(rp, AMIGAKEY, SYSISIZE_MEDRES, cx - aw - 4, iy + 1, IDS_NORMAL, pens);
+            SetAPen(rp, pens[BARDETAILPEN]);
+            SetDrMd(rp, JAM1);
+            Move(rp, cx, iy + 1 + rp->TxBaseline);
+            Text(rp, (STRPTR)&c, 1);
+        }
 
-            if (item->SubItem)
+        if (!(item->Flags & ITEMENABLED) || all_ghosted)
+            lxa_ghost_rect_pen(rp, ix, iy, ix + item->Width - 1, iy + item->Height - 1, pens[BARBLOCKPEN],
+                               screen->BarHeight);
+        else if (highlighted)
+        {
+            switch (item->Flags & HIGHFLAGS)
             {
-                WORD indicator_right = item_box_x + item_width - 7;
-                WORD indicator_center_y = itemY + (item->Height / 2) - 1;
-
-                _draw_submenu_indicator(rp, indicator_right, indicator_center_y);
+                case HIGHCOMP:
+                    SetDrMd(rp, COMPLEMENT);
+                    RectFill(rp, ix, iy, ix + item->Width - 1, iy + item->Height - 1);
+                    SetDrMd(rp, JAM1);
+                    break;
+                case HIGHBOX:
+                    SetDrMd(rp, COMPLEMENT);
+                    RectFill(rp, ix - 2, iy - 1, ix + item->Width + 1, iy - 1);
+                    RectFill(rp, ix - 2, iy + item->Height, ix + item->Width + 1, iy + item->Height);
+                    RectFill(rp, ix - 2, iy, ix - 1, iy + item->Height - 1);
+                    RectFill(rp, ix + item->Width, iy, ix + item->Width + 1, iy + item->Height - 1);
+                    SetDrMd(rp, JAM1);
+                    break;
+                default:
+                    break;
             }
         }
     }
+    SetAPen(rp, oldpen);
+    SetDrMd(rp, olddm);
 }
 
 /*
@@ -6672,108 +6589,26 @@ static void _render_menu_item_chain(struct RastPort *rp,
  */
 static void _render_menu_items(struct Window *window)
 {
-    DPRINTF(LOG_DEBUG, "_intuition: _render_menu_items ENTER window=0x%08lx\n", (ULONG)window);
     struct Screen *screen;
-    struct RastPort *screen_rp;
-    struct RastPort compose_rp;
-    struct BitMap *compose_bm;
     struct Menu *menu;
-    WORD barHeight;
-    WORD menuX, menuY;
-    WORD mainW, mainH;
-    WORD submenuX;
-    WORD submenuY;
-    WORD submenuWidth;
-    WORD submenuHeight;
-    BOOL haveSubmenu;
-    WORD composeNeedW, composeNeedH;
+    WORD ox, oy, sx, sy;
 
     if (!window || !window->WScreen || !g_active_menu)
         return;
 
     screen = window->WScreen;
-    screen_rp = &screen->RastPort;
-
-    /* Validate RastPort has a valid BitMap */
-    if (!screen_rp->BitMap || !screen_rp->BitMap->Planes[0])
-    {
-        DPRINTF(LOG_ERROR, "_intuition: _render_menu_items() invalid RastPort BitMap\n");
+    if (!screen->RastPort.BitMap || !screen->RastPort.BitMap->Planes[0])
         return;
-    }
 
     menu = g_active_menu;
+    _menu_item_origin(screen, menu, &ox, &oy);
+    _render_menu_item_chain(screen, &screen->RastPort, menu->FirstItem, g_active_item, ox, oy, window,
+                            !(menu->Flags & MENUENABLED));
 
-    barHeight = screen->BarHeight + 1;
-
-    menuX = screen->BarHBorder + menu->LeftEdge;
-    menuY = barHeight;
-
-    SetDrMd(screen_rp, JAM2);
-
-    /* Compute bounding box of the main item chain (and submenu, if any)
-     * to size the compose BitMap. */
-    _get_menu_item_chain_box(menu->FirstItem, 0, 0, NULL, NULL, &mainW, &mainH);
-
-    haveSubmenu = _get_active_submenu_box(window, &submenuX, &submenuY,
-                                          &submenuWidth, &submenuHeight);
-    if (!haveSubmenu)
-    {
-        submenuWidth = 0;
-        submenuHeight = 0;
-    }
-
-    composeNeedW = mainW;
-    if (haveSubmenu && submenuWidth > composeNeedW)
-        composeNeedW = submenuWidth;
-    composeNeedH = mainH;
-    if (haveSubmenu && submenuHeight > composeNeedH)
-        composeNeedH = submenuHeight;
-
-    /* Phase 133: render each chain off-screen, then atomic-blit to screen,
-     * eliminating the visible blank-then-redraw flash. The two chains
-     * (main + submenu) share the compose BitMap because they are blitted
-     * one after the other; the second compose render overwrites the
-     * first inside the compose BM, but it has already been blitted to
-     * screen at its own destination. */
-    compose_bm = _menu_ensure_compose_bitmap(screen, composeNeedW, composeNeedH);
-    DPRINTF(LOG_DEBUG, "_intuition: _render_menu_items compose_bm=0x%08lx mainW=%d mainH=%d\n", (ULONG)compose_bm, (int)mainW, (int)mainH);
-
-    if (compose_bm)
-    {
-        _menu_init_compose_rp(&compose_rp, compose_bm, screen_rp);
-
-        /* Main chain: render at compose origin, blit to (menuX, menuY). */
-        DPRINTF(LOG_DEBUG, "_intuition: _render_menu_items calling _render_menu_item_chain\n");
-        _render_menu_item_chain(&compose_rp, menu->FirstItem, g_active_item,
-                                0, 0);
-        DPRINTF(LOG_DEBUG, "_intuition: _render_menu_items calling BltBitMap menuX=%d menuY=%d w=%d h=%d\n", (int)menuX, (int)menuY, (int)mainW, (int)mainH);
-        BltBitMap(compose_bm, 0, 0,
-                  &screen->BitMap, menuX, menuY,
-                  mainW, mainH,
-                  0xC0, 0xFF, NULL);
-        DPRINTF(LOG_DEBUG, "_intuition: _render_menu_items BltBitMap done\n");
-
-        if (haveSubmenu)
-        {
-            _render_menu_item_chain(&compose_rp, g_active_item->SubItem,
-                                    g_active_subitem, 0, 0);
-            BltBitMap(compose_bm, 0, 0,
-                      &screen->BitMap, submenuX, submenuY,
-                      submenuWidth, submenuHeight,
-                      0xC0, 0xFF, NULL);
-        }
-    }
-    else
-    {
-        /* Fallback: direct screen rendering if compose alloc failed. */
-        _render_menu_item_chain(screen_rp, menu->FirstItem, g_active_item,
-                                menuX, menuY);
-        if (haveSubmenu)
-        {
-            _render_menu_item_chain(screen_rp, g_active_item->SubItem,
-                                    g_active_subitem, submenuX, submenuY);
-        }
-    }
+    if (g_active_item && g_active_item->SubItem &&
+        _get_menu_submenu_origin(window, menu, g_active_item, &sx, &sy))
+        _render_menu_item_chain(screen, &screen->RastPort, g_active_item->SubItem,
+                                g_active_subitem, sx, sy, window, FALSE);
 }
 
 /*
@@ -6830,7 +6665,8 @@ static void _enter_menu_mode(struct Window *window, struct Screen *screen, WORD 
     if (mouseY < screen->BarHeight + 1)
     {
         struct Menu *menu = _find_menu_at_x(window, mouseX);
-        if (menu && (menu->Flags & MENUENABLED))
+        /* AmigaOS 3.1 opens disabled menus too (all items ghosted) */
+        if (menu)
         {
             g_active_menu = menu;
             _render_menu_bar(window);
@@ -7633,8 +7469,18 @@ VOID _intuition_ProcessInputEvents(struct Screen *hint_screen)
                             /* Set gadget as selected */
                             gad->Flags |= GFLG_SELECTED;
 
-                            if (_gadtools_IsCheckbox(gad) || _gadtools_IsCycle(gad))
+                            if (_gadtools_IsGadTools(gad))
+                            {
+                                if (gad->Activation & GACT_IMMEDIATE)
+                                {
+                                    LONG gbl, gbt, gbw, gbh;
+                                    _calculate_gadget_box(window, NULL, gad, &gbl, &gbt, &gbw, &gbh);
+                                    g_gt_down_code = _gadtools_HandleClick(gad, relX - gbl, relY - gbt);
+                                    if (g_gt_down_code < 0)
+                                        g_gt_down_code = 0;
+                                }
                                 _render_gadget(window, NULL, gad);
+                            }
                             
                             /* For sizing system gadget, start resize drag immediately */
                             if ((gad->GadgetType & GTYP_SYSGADGET) &&
@@ -7735,7 +7581,7 @@ VOID _intuition_ProcessInputEvents(struct Screen *hint_screen)
                             /* Post IDCMP_GADGETDOWN if it's a GADGIMMEDIATE gadget */
                             if (gad->Activation & GACT_IMMEDIATE)
                             {
-                                _post_idcmp_message(window, IDCMP_GADGETDOWN, 0,
+                                _post_idcmp_message(window, IDCMP_GADGETDOWN, (UWORD)g_gt_down_code,
                                                    qualifier, gad, relX, relY);
                             }
                             
@@ -7887,7 +7733,15 @@ VOID _intuition_ProcessInputEvents(struct Screen *hint_screen)
                                 
                                 if (inside)
                                 {
-                                    /* Handle system gadget verification */
+                                    LONG up_code = 0;
+                                    if (_gadtools_IsGadTools(gad) && !(gad->Activation & GACT_IMMEDIATE))
+                                    {
+                                        LONG gbl, gbt, gbw, gbh;
+                                        _calculate_gadget_box(activeWin, NULL, gad, &gbl, &gbt, &gbw, &gbh);
+                                        up_code = _gadtools_HandleClick(gad, activeRelX - gbl, activeRelY - gbt);
+                                        if (up_code < 0)
+                                            up_code = 0;
+                                    }
                                     if (gad->GadgetType & GTYP_SYSGADGET)
                                     {
                                         _handle_sys_gadget_verify(activeWin, gad);
@@ -7895,13 +7749,13 @@ VOID _intuition_ProcessInputEvents(struct Screen *hint_screen)
                                     /* Post IDCMP_GADGETUP for RELVERIFY gadgets */
                                     else if (gad->Activation & GACT_RELVERIFY)
                                     {
-                                        _post_idcmp_message(activeWin, IDCMP_GADGETUP, 0,
+                                        _post_idcmp_message(activeWin, IDCMP_GADGETUP, (UWORD)up_code,
                                                            qualifier, gad, activeRelX, activeRelY);
                                     }
                                 }
                                 
                                 /* Render normal state - undo GADGHCOMP highlight */
-                                if (_gadtools_IsCheckbox(gad) || _gadtools_IsCycle(gad))
+                                if (_gadtools_IsGadTools(gad))
                                 {
                                     _render_gadget(activeWin, NULL, gad);
                                 }
@@ -8115,9 +7969,12 @@ VOID _intuition_ProcessInputEvents(struct Screen *hint_screen)
                                 struct MenuItem *newSubItem;
 
                                 handledSubmenu = TRUE;
-                                newSubItem = _find_item_in_chain_at_pos(g_active_item->SubItem,
-                                                                        mouseX - submenuX,
-                                                                        mouseY - submenuY);
+                                {
+                                                                        WORD sox = 0, soy = 0;
+                                                                        _get_menu_submenu_origin(g_menu_window, g_active_menu, g_active_item, &sox, &soy);
+                                                                        newSubItem = _find_item_in_chain_at_pos(g_active_item->SubItem,
+                                                                                                                mouseX - sox, mouseY - soy);
+                                                                        }
                                 if (newSubItem != g_active_subitem)
                                 {
                                     g_active_subitem = newSubItem;
@@ -8131,10 +7988,11 @@ VOID _intuition_ProcessInputEvents(struct Screen *hint_screen)
                             /* Check if mouse is in the main drop-down menu area.
                              * This keeps lower menu items responsive after visiting
                              * a submenu instead of pinning the parent item highlight. */
-                            WORD menuTop = screen->BarHeight + 1;
-                            WORD menuLeft = screen->BarHBorder + g_active_menu->LeftEdge;
-                            WORD itemX = mouseX - menuLeft;
-                            WORD itemY = mouseY - menuTop;
+                            WORD menuTop, menuLeft;
+                            WORD itemX, itemY;
+                            _menu_item_origin(screen, g_active_menu, &menuLeft, &menuTop);
+                            itemX = mouseX - menuLeft;
+                            itemY = mouseY - menuTop;
                             struct MenuItem *newItem = _find_item_at_pos(g_active_menu, itemX, itemY);
 
                             if (newItem != g_active_item)
@@ -8232,6 +8090,11 @@ VOID _intuition_ProcessInputEvents(struct Screen *hint_screen)
                     WORD dy = mouseY - g_size_start_y;
                     WORD newW = g_size_orig_w + dx;
                     WORD newH = g_size_orig_h + dy;
+                    /* sizing with the mouse respects the window limits */
+                    if (newW < g_size_window->MinWidth) newW = g_size_window->MinWidth;
+                    if ((UWORD)newW > g_size_window->MaxWidth) newW = g_size_window->MaxWidth;
+                    if (newH < g_size_window->MinHeight) newH = g_size_window->MinHeight;
+                    if ((UWORD)newH > g_size_window->MaxHeight) newH = g_size_window->MaxHeight;
 
                     /* SizeWindow will enforce min/max limits */
                     WORD size_dx = newW - g_size_window->Width;
@@ -8874,6 +8737,19 @@ struct Screen * _intuition_OpenScreen ( register struct IntuitionBase * Intuitio
         return NULL;
     }
 
+    struct Screen * _intuition_OpenScreenTagList ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+                                                   register const struct NewScreen * newScreen __asm("a0"),
+                                                   register const struct TagItem * tagList __asm("a1"));
+
+    /* ExtNewScreen: the extension tags are processed like
+     * OpenScreenTagList(newScreen, Extension) */
+    if ((newScreen->Type & NS_EXTENDED) &&
+        ((const struct ExtNewScreen *)newScreen)->Extension)
+    {
+        return _intuition_OpenScreenTagList(IntuitionBase, newScreen,
+                                            ((const struct ExtNewScreen *)newScreen)->Extension);
+    }
+
     /* Per RKRM: apps must not call OpenScreen() with Type=WBENCHSCREEN.
      * Only Intuition itself opens the Workbench screen via OpenWorkbench().
      * Return NULL as real Intuition does when an app tries this. */
@@ -8947,7 +8823,9 @@ struct Screen * _intuition_OpenScreen ( register struct IntuitionBase * Intuitio
     screen->TopEdge = newScreen->TopEdge;
     screen->Width = width;
     screen->Height = height;
-    screen->Flags = newScreen->Type;
+    /* NS_EXTENDED only describes the NewScreen structure (AmigaOS 3.1
+     * reference: dopus-startup) */
+    screen->Flags = newScreen->Type & ~NS_EXTENDED;
     screen->Title = newScreen->DefaultTitle;
     screen->DefaultTitle = newScreen->DefaultTitle;
     screen->DetailPen = newScreen->DetailPen;
@@ -9028,38 +8906,52 @@ struct Screen * _intuition_OpenScreen ( register struct IntuitionBase * Intuitio
     screen->ViewPort.ColorMap = GetColorMap(num_colors);
     if (screen->ViewPort.ColorMap)
     {
-        /* Phase 129: Set VPModeID so GetVPModeID() returns the correct mode.
-         * Use a proper PAL display ID (PAL_MONITOR_ID | key), not just raw
-         * ViewModes bits, because apps like PPaint's CloantoScreenManager
-         * read ColorMap->VPModeID directly and check for a valid monitor ID. */
+        /* AmigaOS 3.1 reference: GetVPModeID() of a screen is the mode the
+         * application asked for, without a monitor ID unless it asked for one
+         * (Workbench and a ViewModes HIRES screen: 0x8000; SA_DisplayID
+         * overrides this in OpenScreenTagList()). */
         {
-            ULONG modeKey = (width >= 640) ? 0x00008000UL /* HIRES_KEY */
-                                           : 0x00000000UL /* LORES_KEY */;
-            screen->ViewPort.ColorMap->VPModeID = 0x00021000UL | modeKey; /* PAL_MONITOR_ID | key */
+            ULONG modeKey = screen->ViewPort.Modes &
+                            (HIRES | SUPERHIRES | LACE | HAM | EXTRA_HALFBRITE);
+            screen->ViewPort.ColorMap->VPModeID = modeKey;
         }
-        /* Initialize default Workbench colors for first 4 entries */
-        /* These are the standard Amiga 2.0+ colors */
-        SetRGB4CM(screen->ViewPort.ColorMap, 0, 0xA, 0xA, 0xA);  /* Gray background */
-        SetRGB4CM(screen->ViewPort.ColorMap, 1, 0x0, 0x0, 0x0);  /* Black */
-        SetRGB4CM(screen->ViewPort.ColorMap, 2, 0xF, 0xF, 0xF);  /* White */
-        SetRGB4CM(screen->ViewPort.ColorMap, 3, 0x0, 0x5, 0xA);  /* Blue */
-        
-        /* Propagate initial palette to host display.
-         * We do this directly via emucall because the screen isn't linked
-         * into IntuitionBase->FirstScreen yet at this point.
-         */
-        emucall3(EMU_CALL_GFX_SET_COLOR, display_handle, 0, 0x00AAAAAA);  /* Gray */
-        emucall3(EMU_CALL_GFX_SET_COLOR, display_handle, 1, 0x00000000);  /* Black */
-        emucall3(EMU_CALL_GFX_SET_COLOR, display_handle, 2, 0x00FFFFFF);  /* White */
-        emucall3(EMU_CALL_GFX_SET_COLOR, display_handle, 3, 0x000055AA);  /* Blue */
+        /* Default palette of a freshly booted AmigaOS 3.1 (reference
+         * palette.json): Workbench pens 0-3 and the default pens 4-7. */
+        {
+            static const UWORD default_rgb4[8] = {
+                0xAAA, 0x000, 0xFFF, 0x68B, 0x00F, 0xF0F, 0x0FF, 0xFFF
+            };
+            ULONG c;
+
+            for (c = 0; c < 8 && c < num_colors; c++)
+            {
+                UWORD rgb = default_rgb4[c];
+                ULONG r = (rgb >> 8) & 0xF, g = (rgb >> 4) & 0xF, b = rgb & 0xF;
+
+                SetRGB4CM(screen->ViewPort.ColorMap, c, r, g, b);
+                /* The screen is not linked into IntuitionBase yet, so the
+                 * host palette is set directly. */
+                emucall3(EMU_CALL_GFX_SET_COLOR, display_handle, c,
+                         ((r * 17) << 16) | ((g * 17) << 8) | (b * 17));
+            }
+        }
     }
 
-    /* Set bar heights (simplified) */
-    screen->BarHeight = 10;
+    /* Bar height: font height + 2 (AmigaOS 3.1 reference: 10 for topaz 8,
+     * 13 for topaz 11) */
+    screen->BarHeight = ((newScreen->Font && newScreen->Font->ta_YSize > 0)
+                         ? newScreen->Font->ta_YSize : 8) + 2;
     screen->BarVBorder = 1;
     /* AmigaOS 3.1 reference: 5 on hires screens, 2 on lores screens */
     screen->BarHBorder = ((screen->ViewPort.Modes & (HIRES | SUPERHIRES)) || width >= 640) ? 5 : 2;
-    screen->WBorTop = 11;
+    /* AmigaOS 3.1 reference: WBorTop is the border above the window title
+     * (the title bar height is WBorTop + font height + 1), MenuHBorder 4 and
+     * MenuVBorder 2 on hires, 4 on lores screens. */
+    screen->WBorTop = 2;
+    screen->MenuHBorder = 4;
+    screen->MenuVBorder = (screen->BarHBorder == 5) ? 2 : 4;
+    if (screen->BarHBorder == 5)
+        screen->Flags |= SCREENHIRES;
     screen->WBorLeft = 4;
     screen->WBorRight = 4;
     screen->WBorBottom = 2;
@@ -9163,6 +9055,9 @@ struct Screen * _intuition_OpenScreen ( register struct IntuitionBase * Intuitio
     screen->NextScreen = IntuitionBase->FirstScreen;
     IntuitionBase->FirstScreen = screen;
     _intuition_register_pubscreen(IntuitionBase, screen);
+
+    if (screen->Flags & SHOWTITLE)
+        _render_screen_title_bar(screen);
     
     DPRINTF(LOG_DEBUG, "[ROM] OpenScreen: IntuitionBase=0x%08lx, FirstScreen set to 0x%08lx\n",
             (ULONG)IntuitionBase, (ULONG)screen);
@@ -9179,151 +9074,271 @@ struct Screen * _intuition_OpenScreen ( register struct IntuitionBase * Intuitio
     return screen;
 }
 
-/*
- * System Gadget constants
- * These define the standard sizes for Amiga window gadgets
- */
-#define SYS_GADGET_WIDTH   18  /* Width of close/depth gadgets */
-#define SYS_GADGET_HEIGHT  10  /* Height of system gadgets (based on title bar) */
+APTR _intuition_NewObjectA ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+                             register struct IClass * classPtr __asm("a0"),
+                             register CONST_STRPTR classID __asm("a1"),
+                             register const struct TagItem * tagList __asm("a2"));
+VOID _intuition_DisposeObject ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+                                register APTR object __asm("a0"));
+static void _render_window_user_gadgets(struct Window *window);
 
 /*
- * Create a system gadget for a window
- * Returns the allocated gadget or NULL on failure
+ * Window chrome (Phase 223).
+ *
+ * Geometry, gadget structures and pixels follow real AmigaOS 3.1
+ * (tests/scenarios/gallery-chrome.yaml):
+ *  - the title bar is WBorTop + font height + 1 high;
+ *  - system gadgets are sysiclass images in GTYP_SYSGADGET|GTYP_CUSTOMGADGET
+ *    gadgets that come first in the gadget list, in the order depth, zoom,
+ *    sizing, close, drag bar;
+ *  - a sizeable window with a depth gadget always gets a zoom gadget;
+ *  - the sizing gadget widens the right border unless WFLG_SIZEBBOTTOM is set
+ *    alone;
+ *  - the active window fills its border with FILLPEN, the title in
+ *    FILLTEXTPEN; inactive windows use BACKGROUNDPEN/TEXTPEN.
  */
-static struct Gadget * _create_sys_gadget(struct Window *window, UWORD type,
-                                           WORD left, WORD top, WORD width, WORD height)
+
+static const UWORD *_intuition_screen_pens(struct Screen *screen)
 {
+    struct PubScreenNode *pub = _intuition_find_pubscreen_by_screen(
+        (struct LXAIntuitionBase *)IntuitionBase, screen);
+
+    if (pub)
+        return ((struct LXAPubScreenNode *)pub)->pens;
+    return lxa_default_pens();
+}
+
+static UWORD _screen_sysi_size(struct Screen *screen)
+{
+    return (screen && !(screen->Flags & SCREENHIRES)) ? SYSISIZE_LOWRES : SYSISIZE_MEDRES;
+}
+
+static WORD _screen_font_height(struct Screen *screen)
+{
+    return (screen && screen->Font && screen->Font->ta_YSize > 0) ? screen->Font->ta_YSize : 8;
+}
+
+static BOOL _window_has_title_bar(ULONG flags, const UBYTE *title)
+{
+    return title != NULL ||
+           (flags & (WFLG_DRAGBAR | WFLG_CLOSEGADGET | WFLG_DEPTHGADGET | WFLG_HASZOOM)) != 0;
+}
+
+/* AmigaOS 3.1: a sizeable window with a depth gadget always gets a zoom gadget */
+static ULONG _window_effective_flags(ULONG flags)
+{
+    if ((flags & WFLG_SIZEGADGET) && (flags & WFLG_DEPTHGADGET))
+        flags |= WFLG_HASZOOM;
+    return flags;
+}
+
+static void _window_compute_borders(struct Screen *screen, ULONG flags, const UBYTE *title,
+                                    WORD *left, WORD *top, WORD *right, WORD *bottom)
+{
+    WORD l, t, r, b;
+    BOOL titlebar = _window_has_title_bar(flags, title);
+
+    if (flags & WFLG_BORDERLESS)
+    {
+        l = r = b = 0;
+        t = titlebar ? _screen_font_height(screen) + 1 : 0;
+    }
+    else
+    {
+        l = screen->WBorLeft;
+        r = screen->WBorRight;
+        b = screen->WBorBottom;
+        t = screen->WBorTop + (titlebar ? _screen_font_height(screen) + 1 : 0);
+
+        if (flags & WFLG_SIZEGADGET)
+        {
+            UWORD sw = 18, sh = 10;
+
+            lxa_sysi_dims(SIZEIMAGE, _screen_sysi_size(screen), &sw, &sh);
+            if (flags & WFLG_SIZEBBOTTOM)
+            {
+                if (b < (WORD)sh)
+                    b = sh;
+            }
+            if ((flags & WFLG_SIZEBRIGHT) || !(flags & WFLG_SIZEBBOTTOM))
+            {
+                if (r < (WORD)sw)
+                    r = sw;
+            }
+        }
+    }
+    *left = l;
+    *top = t;
+    *right = r;
+    *bottom = b;
+}
+
+/* sysgadgets carry a BOOPSI header with o_Class == NULL, so OCLASS() is
+ * valid but never dispatched; the image is a real sysiclass object */
+static struct Gadget *_create_sys_gadget(struct Window *window, UWORD systype,
+                                         WORD left, WORD top, WORD width, WORD height,
+                                         UWORD flags, UWORD activation, LONG which)
+{
+    UBYTE *mem;
     struct Gadget *gad;
-    
-    gad = (struct Gadget *)AllocMem(sizeof(struct Gadget), MEMF_PUBLIC | MEMF_CLEAR);
-    if (!gad)
+
+    mem = (UBYTE *)AllocMem(sizeof(struct _Object) + sizeof(struct Gadget), MEMF_PUBLIC | MEMF_CLEAR);
+    if (!mem)
         return NULL;
-    
+    gad = (struct Gadget *)(mem + sizeof(struct _Object));
+
     gad->LeftEdge = left;
     gad->TopEdge = top;
     gad->Width = width;
     gad->Height = height;
-    gad->Flags = GFLG_GADGHCOMP;  /* Complement on select */
-    gad->Activation = GACT_RELVERIFY | GACT_TOPBORDER;
-    gad->GadgetType = GTYP_SYSGADGET | type | GTYP_BOOLGADGET;
-    gad->GadgetRender = NULL;
-    gad->SelectRender = NULL;
-    gad->GadgetText = NULL;
-    gad->SpecialInfo = NULL;
-    gad->GadgetID = type;
-    gad->UserData = (APTR)window;  /* Back-link to window */
-    
+    gad->Flags = flags;
+    gad->Activation = activation;
+    gad->GadgetType = GTYP_SYSGADGET | systype | GTYP_CUSTOMGADGET;
+    if (window->Flags & WFLG_GIMMEZEROZERO)
+        gad->GadgetType |= GTYP_GZZGADGET;
+    gad->UserData = (APTR)window;
+
+    if (which >= 0)
+    {
+        struct TagItem tags[] = {
+            { SYSIA_Which, (ULONG)which },
+            { SYSIA_Size, _screen_sysi_size(window->WScreen) },
+            { TAG_DONE, 0 }
+        };
+        gad->GadgetRender = _intuition_NewObjectA(IntuitionBase, NULL, (CONST_STRPTR)SYSICLASS, tags);
+    }
     return gad;
 }
 
-/*
- * Create system gadgets for a window based on its flags
- * Links them into the window's gadget list
- */
-static void _create_window_sys_gadgets(struct Window *window)
+static void _free_sys_gadget(struct Gadget *gad)
 {
-    struct Gadget *gad;
-    struct Gadget **lastPtr = &window->FirstGadget;
-    WORD gadWidth = SYS_GADGET_WIDTH;
-    WORD gadHeight = window->BorderTop > 0 ? window->BorderTop - 1 : SYS_GADGET_HEIGHT;
-    /* Title bar system gadgets (close, depth, zoom) are positioned relative to the
-     * window edges, not the border area. The depth gadget goes at the far right. */
-    WORD rightX = window->Width - gadWidth;
-    
-    /* Skip to end of existing gadget list */
-    while (*lastPtr)
-        lastPtr = &(*lastPtr)->NextGadget;
-    
-    /* Create Close gadget (top-left) if requested */
-    if (window->Flags & WFLG_CLOSEGADGET)
-    {
-        gad = _create_sys_gadget(window, GTYP_CLOSE, 
-                                  window->BorderLeft, 0, 
-                                  gadWidth, gadHeight);
-        if (gad)
-        {
-            *lastPtr = gad;
-            lastPtr = &gad->NextGadget;
-            DPRINTF(LOG_DEBUG, "_intuition: Created CLOSE gadget at (%d,%d) %dx%d\n",
-                    (int)gad->LeftEdge, (int)gad->TopEdge, (int)gad->Width, (int)gad->Height);
-        }
-    }
-    
-    /* Create Depth gadget (top-right) if requested */
-    if (window->Flags & WFLG_DEPTHGADGET)
-    {
-        gad = _create_sys_gadget(window, GTYP_WDEPTH,
-                                  rightX, 0,
-                                  gadWidth, gadHeight);
-        if (gad)
-        {
-            *lastPtr = gad;
-            lastPtr = &gad->NextGadget;
-            DPRINTF(LOG_DEBUG, "_intuition: Created DEPTH gadget at (%d,%d) %dx%d\n",
-                    (int)gad->LeftEdge, (int)gad->TopEdge, (int)gad->Width, (int)gad->Height);
-            rightX -= gadWidth;  /* Next gadget goes to the left */
-        }
-    }
-    
-    /* Create Sizing gadget (bottom-right) if requested.
-     * Per RKRM/NDK, the sizing gadget uses GFLG_RELRIGHT | GFLG_RELBOTTOM
-     * so it tracks the window's bottom-right corner as the window is resized.
-     * LeftEdge and TopEdge are negative offsets from the corner.
-     * Activation uses GACT_RIGHTBORDER | GACT_BOTTOMBORDER (not TOPBORDER). */
-    if (window->Flags & WFLG_SIZEGADGET)
-    {
-        gad = (struct Gadget *)AllocMem(sizeof(struct Gadget), MEMF_PUBLIC | MEMF_CLEAR);
-        if (gad)
-        {
-            gad->LeftEdge = -(gadWidth - 1);     /* Offset from right edge */
-            gad->TopEdge = -(SYS_GADGET_HEIGHT - 1);  /* Offset from bottom edge */
-            gad->Width = gadWidth;
-            gad->Height = SYS_GADGET_HEIGHT;
-            gad->Flags = GFLG_GADGHCOMP | GFLG_RELRIGHT | GFLG_RELBOTTOM;
-            gad->Activation = GACT_RELVERIFY | GACT_RIGHTBORDER | GACT_BOTTOMBORDER;
-            gad->GadgetType = GTYP_SYSGADGET | GTYP_SIZING | GTYP_BOOLGADGET;
-            gad->GadgetRender = NULL;
-            gad->SelectRender = NULL;
-            gad->GadgetText = NULL;
-            gad->SpecialInfo = NULL;
-            gad->GadgetID = GTYP_SIZING;
-            gad->UserData = (APTR)window;
+    if (!gad)
+        return;
+    if (gad->GadgetRender)
+        _intuition_DisposeObject(IntuitionBase, gad->GadgetRender);
+    FreeMem((UBYTE *)gad - sizeof(struct _Object), sizeof(struct _Object) + sizeof(struct Gadget));
+}
 
-            *lastPtr = gad;
-            lastPtr = &gad->NextGadget;
-            DPRINTF(LOG_DEBUG, "_intuition: Created SIZING gadget at (%d,%d) %dx%d (relative)\n",
-                    (int)gad->LeftEdge, (int)gad->TopEdge, (int)gad->Width, (int)gad->Height);
-        }
-    }
-    
-    /* Create Zoom gadget (to the left of depth gadget) if requested.
-     * Per NDK/RKRM: WFLG_HASZOOM enables a zoom gadget in the title bar.
-     * It is positioned immediately to the left of the depth gadget.
-     * At this point rightX has already been decremented by gadWidth after
-     * depth gadget creation, so rightX points to the zoom gadget slot. */
-    if (window->Flags & WFLG_HASZOOM)
-    {
-        gad = _create_sys_gadget(window, GTYP_WZOOM,
-                                  rightX, 0,
-                                  gadWidth, gadHeight);
-        if (gad)
-        {
-            *lastPtr = gad;
-            lastPtr = &gad->NextGadget;
-            DPRINTF(LOG_DEBUG, "_intuition: Created ZOOM gadget at (%d,%d) %dx%d\n",
-                    (int)gad->LeftEdge, (int)gad->TopEdge, (int)gad->Width, (int)gad->Height);
-            rightX -= gadWidth;
-        }
-    }
-
-    /* Drag bar is handled via WFLG_DRAGBAR flag, not as a separate gadget */
-    /* It uses the entire title bar area not covered by other gadgets */
+static BOOL _is_sys_gadget(const struct Gadget *gad)
+{
+    return gad && (gad->GadgetType & GTYP_SYSGADGET) &&
+           (gad->GadgetType & GTYP_GTYPEMASK) == GTYP_CUSTOMGADGET &&
+           OCLASS((Object *)gad) == NULL;
 }
 
 /*
- * Render system gadgets for a window
- * Draws the window frame, title bar, and gadget imagery
+ * Create the system gadgets and put them in front of the window's gadget
+ * list (AmigaOS 3.1 order: depth, zoom, sizing, close, drag bar).
  */
+static void _create_window_sys_gadgets(struct Window *window)
+{
+    struct Gadget *list[5];
+    WORD n = 0, i;
+    UWORD size = _screen_sysi_size(window->WScreen);
+    UWORD dw = 24, zw = 24, sw = 18, sh = 10, cw = 20, h;
+    WORD right_left = 0;
+
+    if (window->Flags & WFLG_BORDERLESS)
+        return;
+
+    lxa_sysi_dims(DEPTHIMAGE, size, &dw, NULL);
+    lxa_sysi_dims(ZOOMIMAGE, size, &zw, NULL);
+    lxa_sysi_dims(SIZEIMAGE, size, &sw, &sh);
+    lxa_sysi_dims(CLOSEIMAGE, size, &cw, NULL);
+    h = window->BorderTop;
+
+    if (window->Flags & WFLG_DEPTHGADGET)
+    {
+        right_left = -(WORD)(dw - 2);
+        list[n] = _create_sys_gadget(window, GTYP_WDEPTH, right_left, 0, dw, h,
+                                     GFLG_EXTENDED | GFLG_RELRIGHT | GFLG_GADGIMAGE,
+                                     GACT_BORDERSNIFF | GACT_RELVERIFY, DEPTHIMAGE);
+        if (list[n]) n++;
+    }
+    if (window->Flags & WFLG_HASZOOM)
+    {
+        right_left = right_left ? right_left - (WORD)(zw - 1) : -(WORD)(zw - 2);
+        list[n] = _create_sys_gadget(window, GTYP_WZOOM, right_left, 0, zw, h,
+                                     GFLG_EXTENDED | GFLG_RELRIGHT | GFLG_GADGIMAGE,
+                                     GACT_BORDERSNIFF | GACT_RELVERIFY, ZOOMIMAGE);
+        if (list[n]) n++;
+    }
+    if (window->Flags & WFLG_SIZEGADGET)
+    {
+        list[n] = _create_sys_gadget(window, GTYP_SIZING, -(WORD)(sw - 1), -(WORD)(sh - 1), sw, sh,
+                                     GFLG_EXTENDED | GFLG_RELRIGHT | GFLG_RELBOTTOM | GFLG_GADGIMAGE,
+                                     GACT_BORDERSNIFF | GACT_RELVERIFY, SIZEIMAGE);
+        if (list[n]) n++;
+    }
+    if (window->Flags & WFLG_CLOSEGADGET)
+    {
+        list[n] = _create_sys_gadget(window, GTYP_CLOSE, 0, 0, cw, h,
+                                     GFLG_EXTENDED | GFLG_GADGIMAGE,
+                                     GACT_BORDERSNIFF | GACT_RELVERIFY, CLOSEIMAGE);
+        if (list[n]) n++;
+    }
+    if (_window_has_title_bar(window->Flags, window->Title) || (window->Flags & WFLG_DRAGBAR))
+    {
+        if (window->Flags & WFLG_DRAGBAR)
+        {
+            list[n] = _create_sys_gadget(window, GTYP_WDRAGGING, 0, 0, 0, h - 1,
+                                         GFLG_EXTENDED | GFLG_RELWIDTH | GFLG_GADGIMAGE,
+                                         GACT_BORDERSNIFF, -1);
+            if (list[n]) n++;
+        }
+    }
+
+    for (i = n - 1; i >= 0; i--)
+    {
+        list[i]->NextGadget = window->FirstGadget;
+        window->FirstGadget = list[i];
+    }
+}
+
+/* free the system gadgets (they are always the first gadgets of the list) */
+static void _free_window_sys_gadgets(struct Window *window)
+{
+    struct Gadget **pp = &window->FirstGadget;
+
+    while (*pp)
+    {
+        struct Gadget *gad = *pp;
+        if (_is_sys_gadget(gad))
+        {
+            *pp = gad->NextGadget;
+            _free_sys_gadget(gad);
+        }
+        else
+            pp = &gad->NextGadget;
+    }
+}
+
+static ULONG _window_image_state(struct Window *window, struct Gadget *gad)
+{
+    BOOL active = (window->Flags & WFLG_WINDOWACTIVE) != 0;
+
+    if (gad && (gad->Flags & GFLG_SELECTED))
+        return active ? IDS_SELECTED : IDS_INACTIVESELECTED;
+    return active ? IDS_NORMAL : IDS_INACTIVENORMAL;
+}
+
+static void _render_sys_gadget(struct Window *window, struct Gadget *gad)
+{
+    struct RastPort *rp;
+    LONG x, y, w, h;
+    struct Image *im;
+
+    if (!window || !gad || !gad->GadgetRender)
+        return;
+    rp = window->BorderRPort ? window->BorderRPort : window->RPort;
+    if (!rp)
+        return;
+    im = (struct Image *)gad->GadgetRender;
+    _calculate_gadget_box(window, NULL, gad, &x, &y, &w, &h);
+    _intuition_DrawImageState(IntuitionBase, rp, im, (WORD)x, (WORD)y,
+                              _window_image_state(window, gad), NULL);
+}
+
 static void _render_window_frame_impl(struct Window *window);
 
 /*
@@ -9356,303 +9371,118 @@ static void _render_window_frame(struct Window *window)
 static void _render_window_frame_impl(struct Window *window)
 {
     struct RastPort *rp;
-    WORD x0, y0, x1, y1;
-    WORD titleBarBottom;
-    WORD right_border_left;
-    WORD right_border_top;
-    WORD right_border_bottom;
-    WORD bottom_border_top;
-    WORD bottom_border_right;
+    const UWORD *pens;
     struct Gadget *gad;
-    UBYTE detPen, blkPen, shiPen, shaPen;
-    
-    DPRINTF(LOG_DEBUG, "_intuition: _render_window_frame() window=0x%08lx RPort=0x%08lx\n", 
-            (ULONG)window, window ? (ULONG)window->RPort : 0);
-    
+    BOOL active;
+    WORD W, H, bl, bt, br, bb;
+    WORD title_left, title_right;
+    UWORD fill;
+    UBYTE oldpen, olddm;
+
     if (!window || (!window->RPort && !window->BorderRPort))
-    {
-        LPRINTF(LOG_WARNING, "_intuition: _render_window_frame() aborting - null window or RPort\n");
         return;
-    }
-    
     rp = window->BorderRPort ? window->BorderRPort : window->RPort;
-    
-    DPRINTF(LOG_DEBUG, "_intuition: _render_window_frame() rp=0x%08lx layer=0x%08lx WinSize=(%d,%d)\n",
-            (ULONG)rp, (ULONG)(rp ? rp->Layer : 0), window->Width, window->Height);
-    if (rp && rp->Layer) {
-        struct Layer *l = rp->Layer;
-        DPRINTF(LOG_DEBUG, "_intuition: _render_window_frame() layer bounds [%d,%d]-[%d,%d]\n",
-                l->bounds.MinX, l->bounds.MinY, l->bounds.MaxX, l->bounds.MaxY);
-        struct ClipRect *cr = l->ClipRect;
-        int cnt = 0;
-        while (cr) { cnt++; cr = cr->Next; }
-        DPRINTF(LOG_DEBUG, "_intuition: _render_window_frame() %d ClipRects\n", cnt);
-    }
-    
-    /* Get pens - use window pens or defaults */
-    detPen = window->DetailPen;
-    blkPen = window->BlockPen;
-    shiPen = 2;   /* Standard shine pen (white) */
-    shaPen = 1;   /* Standard shadow pen (black) */
-    
-    DPRINTF (LOG_DEBUG, "_intuition: _render_window_frame() detPen=%d blkPen=%d shiPen=%d shaPen=%d\n",
-             (int)detPen, (int)blkPen, (int)shiPen, (int)shaPen);
-    
-    /* Window interior bounds */
-    x0 = 0;
-    y0 = 0;
-    x1 = window->Width - 1;
-    y1 = window->Height - 1;
-    titleBarBottom = window->BorderTop - 1;
-    
-    /* Skip if borderless */
-    if (window->Flags & WFLG_BORDERLESS)
-        return;
-    
-    /* Draw outer border (3D effect) */
-    /* Top-left bright edge */
-    SetAPen(rp, shiPen);
-    Move(rp, x0, y1 - 1);
-    Draw(rp, x0, y0);
-    Draw(rp, x1 - 1, y0);
-    
-    /* Bottom-right dark edge */
-    SetAPen(rp, shaPen);
-    Move(rp, x1, y0 + 1);
-    Draw(rp, x1, y1);
-    Draw(rp, x0 + 1, y1);
-    
-    /* Fill title bar background if we have one */
-    if (window->BorderTop > 1)
-    {
-        /* Fill title bar with block pen */
-        SetAPen(rp, (window->Flags & WFLG_WINDOWACTIVE) ? blkPen : detPen);
-        RectFill(rp, x0 + 1, y0 + 1, x1 - 1, titleBarBottom);
-        
-        /* Draw title bar bottom line */
-        SetAPen(rp, shaPen);
-        Move(rp, x0, titleBarBottom);
-        Draw(rp, x1, titleBarBottom);
-        
-        /* Draw title text if present */
-        if (window->Title)
-        {
-            WORD textX = window->BorderLeft;
-            WORD textY = 1;  /* One pixel from top */
-            
-            /* Adjust for close gadget */
-            if (window->Flags & WFLG_CLOSEGADGET)
-                textX += SYS_GADGET_WIDTH + 2;
-            
-            /* Draw title */
-            SetAPen(rp, (window->Flags & WFLG_WINDOWACTIVE) ? detPen : blkPen);
-            SetBPen(rp, (window->Flags & WFLG_WINDOWACTIVE) ? blkPen : detPen);
-            DPRINTF(LOG_DEBUG, "_intuition: _render_window_frame() BEFORE Move/Text rp=0x%08lx Font=0x%08lx\n",
-                    (ULONG)rp, rp ? (ULONG)rp->Font : 0);
-            Move(rp, textX, textY + rp->TxBaseline);
-            DPRINTF(LOG_DEBUG, "_intuition: _render_window_frame() AFTER Move rp=0x%08lx Font=0x%08lx\n",
-                    (ULONG)rp, rp ? (ULONG)rp->Font : 0);
-            Text(rp, (STRPTR)window->Title, strlen((char *)window->Title));
-        }
-    }
+    pens = _intuition_screen_pens(window->WScreen);
+    active = (window->Flags & WFLG_WINDOWACTIVE) != 0;
+    fill = active ? pens[FILLPEN] : pens[BACKGROUNDPEN];
+    W = window->Width;
+    H = window->Height;
+    bl = window->BorderLeft;
+    bt = window->BorderTop;
+    br = window->BorderRight;
+    bb = window->BorderBottom;
+    oldpen = rp->FgPen;
+    olddm = rp->DrawMode;
 
-    if (window->BorderRight > 1)
-    {
-        right_border_left = window->Width - window->BorderRight;
-        right_border_top = window->BorderTop;
-        right_border_bottom = window->Height - window->BorderBottom - 1;
-
-        if (right_border_left <= x1 - 1 &&
-            right_border_top <= right_border_bottom)
-        {
-            SetAPen(rp, 0);
-            RectFill(rp,
-                     right_border_left,
-                     right_border_top,
-                     x1 - 1,
-                     right_border_bottom);
-        }
-    }
-
-    if (window->BorderBottom > 1)
-    {
-        bottom_border_top = window->Height - window->BorderBottom;
-        bottom_border_right = window->Width - 2;
-
-        if (x0 + 1 <= bottom_border_right &&
-            bottom_border_top <= y1 - 1)
-        {
-            SetAPen(rp, 0);
-            RectFill(rp,
-                     x0 + 1,
-                     bottom_border_top,
-                     bottom_border_right,
-                     y1 - 1);
-        }
-    }
-    
-    /* Render system gadgets */
+    /* extent of the title text area: between the close gadget and the
+     * leftmost gadget on the right */
+    title_left = 1;
+    title_right = W - 2;
     for (gad = window->FirstGadget; gad; gad = gad->NextGadget)
     {
-        UWORD sysType;
-        WORD gx0, gy0, gx1, gy1;
-        
-        /* Skip non-system gadgets */
-        if (!(gad->GadgetType & GTYP_SYSGADGET))
+        LONG gx, gy, gw, gh;
+        UWORD st;
+
+        if (!_is_sys_gadget(gad))
             continue;
-        
-        sysType = gad->GadgetType & GTYP_SYSTYPEMASK;
-        gx0 = gad->LeftEdge;
-        gy0 = gad->TopEdge;
-        
-        /* Handle GFLG_RELRIGHT / GFLG_RELBOTTOM for system gadgets
-         * (e.g. the sizing gadget uses relative positioning) */
-        if (gad->Flags & GFLG_RELRIGHT)
-            gx0 += window->Width - 1;
-        if (gad->Flags & GFLG_RELBOTTOM)
-            gy0 += window->Height - 1;
-        
-        gx1 = gx0 + gad->Width - 1;
-        gy1 = gy0 + gad->Height - 1;
-        
-        /* Draw gadget frame */
-        SetAPen(rp, shiPen);
-        Move(rp, gx0, gy1 - 1);
-        Draw(rp, gx0, gy0);
-        Draw(rp, gx1 - 1, gy0);
-        SetAPen(rp, shaPen);
-        Move(rp, gx1, gy0);
-        Draw(rp, gx1, gy1);
-        Draw(rp, gx0, gy1);
-        
-        /* Draw gadget-specific imagery */
-        switch (sysType)
+        st = gad->GadgetType & GTYP_SYSTYPEMASK;
+        _calculate_gadget_box(window, NULL, gad, &gx, &gy, &gw, &gh);
+        if (st == GTYP_CLOSE)
+            title_left = gx + gw;
+        else if (st == GTYP_WDEPTH || st == GTYP_WZOOM)
         {
-            case GTYP_CLOSE:
-            {
-                /* Draw a small filled square in center (close icon) */
-                WORD cx = (gx0 + gx1) / 2;
-                WORD cy = (gy0 + gy1) / 2;
-                SetAPen(rp, shaPen);
-                RectFill(rp, cx - 2, cy - 2, cx + 2, cy + 2);
-                SetAPen(rp, shiPen);
-                RectFill(rp, cx - 1, cy - 1, cx + 1, cy + 1);
-                break;
-            }
-            
-            case GTYP_WDEPTH:
-            {
-                /* Draw two overlapping window-outline rectangles (depth icon).
-                 * Matches AROS/AmigaOS classic look:
-                 * - Back rect (top-left) drawn in shadow pen, filled with bg pen
-                 * - Front rect (bottom-right) drawn in shadow pen, filled with shine pen
-                 * This gives the visual of two overlapping window frames. */
-                WORD il = gx0 + 1;     /* inner left (inside 3D frame) */
-                WORD it = gy0 + 1;     /* inner top */
-                WORD ir = gx1 - 1;     /* inner right */
-                WORD ib = gy1 - 1;     /* inner bottom */
-                WORD iw = ir - il + 1;
-                WORD ih = ib - it + 1;
-                WORD hs = iw / 6;      /* horizontal spacing */
-                WORD vs = ih / 6;      /* vertical spacing */
-                WORD dl, dt, dr, db, dw, dh;
-
-                /* Fill gadget interior with background */
-                SetAPen(rp, 0);  /* BACKGROUNDPEN */
-                RectFill(rp, il, it, ir, ib);
-
-                /* Apply spacing */
-                dl = il + hs;
-                dt = it + vs;
-                dw = iw - hs * 2;
-                dh = ih - vs * 2;
-                dr = dl + dw - 1;
-                db = dt + dh - 1;
-
-                /* Back rectangle (top-left): outline in shadow pen */
-                SetAPen(rp, shaPen);
-                RectFill(rp, dl, dt, dr - dw / 3, dt);             /* top edge */
-                RectFill(rp, dl, dt, dl, db - dh / 3);             /* left edge */
-                RectFill(rp, dr - dw / 3, dt, dr - dw / 3, db - dh / 3); /* right edge */
-                RectFill(rp, dl, db - dh / 3, dr - dw / 3, db - dh / 3); /* bottom edge */
-
-                /* Front rectangle (bottom-right): outline in shadow pen */
-                SetAPen(rp, shaPen);
-                RectFill(rp, dl + dw / 3, dt + dh / 3, dr, dt + dh / 3);  /* top edge */
-                RectFill(rp, dl + dw / 3, dt + dh / 3, dl + dw / 3, db);  /* left edge */
-                RectFill(rp, dr, dt + dh / 3, dr, db);                     /* right edge */
-                RectFill(rp, dl + dw / 3, db, dr, db);                     /* bottom edge */
-
-                /* Fill front rectangle interior with shine pen */
-                SetAPen(rp, shiPen);
-                if (dl + dw / 3 + 1 <= dr - 1 && dt + dh / 3 + 1 <= db - 1)
-                {
-                    RectFill(rp, dl + dw / 3 + 1, dt + dh / 3 + 1,
-                             dr - 1, db - 1);
-                }
-                break;
-            }
-            
-            case GTYP_WDRAGGING:
-                /* Drag gadget has no special imagery - just the frame */
-                break;
-            
-            case GTYP_SIZING:
-            {
-                /* Draw sizing icon: small nested L-shapes in bottom-right corner.
-                 * Classic Amiga style: two right-angle marks suggesting resize.
-                 * Use 3D lines: shine on top-left, shadow on bottom-right. */
-                WORD cx = (gx0 + gx1) / 2;
-                WORD cy = (gy0 + gy1) / 2;
-                
-                /* Draw a small 3D box in the center (like a window thumbnail) */
-                SetAPen(rp, shiPen);
-                Move(rp, cx - 2, cy + 2);
-                Draw(rp, cx - 2, cy - 2);
-                Draw(rp, cx + 2, cy - 2);
-                SetAPen(rp, shaPen);
-                Draw(rp, cx + 2, cy + 2);
-                Draw(rp, cx - 2, cy + 2);
-                
-                /* Draw a diagonal indicator */
-                SetAPen(rp, shaPen);
-                Move(rp, gx1 - 3, gy1 - 1);
-                Draw(rp, gx1 - 1, gy1 - 3);
-                break;
-            }
-
-            case GTYP_WZOOM:
-            {
-                /* Draw zoom gadget icon: a small open rectangle in the center.
-                 * Classic Amiga look: an outlined box representing a window
-                 * toggling between zoomed and normal size. */
-                WORD il = gx0 + 2;
-                WORD it = gy0 + 2;
-                WORD ir = gx1 - 2;
-                WORD ib = gy1 - 2;
-
-                /* Fill gadget interior with background */
-                SetAPen(rp, 0);
-                RectFill(rp, gx0 + 1, gy0 + 1, gx1 - 1, gy1 - 1);
-
-                /* Draw inner rectangle outline */
-                if (il <= ir && it <= ib)
-                {
-                    /* Top-left (shine) edges */
-                    SetAPen(rp, shiPen);
-                    Move(rp, il, ib);
-                    Draw(rp, il, it);
-                    Draw(rp, ir, it);
-                    /* Bottom-right (shadow) edges */
-                    SetAPen(rp, shaPen);
-                    Draw(rp, ir, ib);
-                    Draw(rp, il, ib);
-                }
-                break;
-            }
+            if (gx - 2 < title_right)
+                title_right = gx - 2;
         }
     }
-    
+
+    if (!(window->Flags & WFLG_BORDERLESS))
+    {
+        /* border fill */
+        SetAPen(rp, fill);
+        if (bt > 2)
+            RectFill(rp, title_left, 1, title_right, bt - 2);
+        if (bl > 2)
+            RectFill(rp, 1, 1, bl - 2, H - 2);
+        if (br > 2)
+            RectFill(rp, W - br + 1, bt > 0 ? bt - 1 : 1, W - 2, H - 2);
+        if (bb > 2)
+            RectFill(rp, 1, H - bb + 1, W - 2, H - 2);
+
+        /* outer edge: shine top/left, shadow right/bottom */
+        SetAPen(rp, pens[SHINEPEN]);
+        RectFill(rp, 0, 0, W - 1, 0);
+        RectFill(rp, 0, 0, 0, H - 1);
+        SetAPen(rp, pens[SHADOWPEN]);
+        RectFill(rp, W - 1, 1, W - 1, H - 1);
+        RectFill(rp, 1, H - 1, W - 1, H - 1);
+
+        /* inner edge around the contents: shadow top/left, shine right/bottom */
+        if (bt > 0 && bl > 0)
+        {
+            SetAPen(rp, pens[SHADOWPEN]);
+            RectFill(rp, bl - 1, bt - 1, W - br, bt - 1);
+            RectFill(rp, bl - 1, bt - 1, bl - 1, H - bb);
+            SetAPen(rp, pens[SHINEPEN]);
+            RectFill(rp, W - br, bt, W - br, H - bb);
+            RectFill(rp, bl, H - bb, W - br, H - bb);
+        }
+
+        /* separator left of the right title bar gadgets */
+        if (title_right < W - 2 && bt > 2)
+        {
+            SetAPen(rp, pens[SHADOWPEN]);
+            RectFill(rp, title_right + 1, 1, title_right + 1, bt - 2);
+        }
+    }
+
+    /* title */
+    if (window->Title && bt > 0)
+    {
+        WORD tx = (title_left > 1) ? title_left + 11 : 5;
+        WORD avail = title_right - tx + 1;
+        WORD len = strlen((const char *)window->Title);
+        WORD fit = (avail > 0) ? lxa_text_fit(rp, (STRPTR)window->Title, len, avail) : 0;
+
+        if (fit > 0)
+        {
+            SetAPen(rp, active ? pens[FILLTEXTPEN] : pens[TEXTPEN]);
+            SetDrMd(rp, JAM1);
+            Move(rp, tx, 1 + rp->TxBaseline);
+            Text(rp, (STRPTR)window->Title, fit);
+        }
+    }
+
+    /* system gadget imagery */
+    for (gad = window->FirstGadget; gad; gad = gad->NextGadget)
+    {
+        if (_is_sys_gadget(gad) && gad->GadgetRender)
+            _render_sys_gadget(window, gad);
+    }
+
+    SetAPen(rp, oldpen);
+    SetDrMd(rp, olddm);
+
     /* Render user gadgets after the frame/system gadgets. */
     _render_window_user_gadgets(window);
 }
@@ -9909,7 +9739,7 @@ struct Window * _intuition_OpenWindow ( register struct IntuitionBase * Intuitio
     window->Height = height;
     window->MinWidth = newWindow->MinWidth ? newWindow->MinWidth : width;
     window->MinHeight = newWindow->MinHeight ? newWindow->MinHeight : height;
-    /* 0 = the initial size, as for the minimum (AmigaOS 3.1, Phase 220) */
+    /* AmigaOS 3.1 reference: 0 means "the window's initial size" */
     window->MaxWidth = newWindow->MaxWidth ? newWindow->MaxWidth : width;
     window->MaxHeight = newWindow->MaxHeight ? newWindow->MaxHeight : height;
     window->Flags = newWindow->Flags;
@@ -9924,54 +9754,28 @@ struct Window * _intuition_OpenWindow ( register struct IntuitionBase * Intuitio
     window->FirstGadget = newWindow->FirstGadget;
     window->CheckMark = newWindow->CheckMark;
 
-    /* Set up border dimensions based on flags */
-    if (newWindow->Flags & WFLG_BORDERLESS)
+    /* Set up border dimensions based on flags (AmigaOS 3.1 rules) */
+    window->Flags = _window_effective_flags(window->Flags);
     {
-        window->BorderLeft = 0;
-        window->BorderTop = 0;
-        window->BorderRight = 0;
-        window->BorderBottom = 0;
+        struct PubScreenNode *pub = _intuition_find_pubscreen_by_screen(
+            (struct LXAIntuitionBase *)IntuitionBase, screen);
+        /* AmigaOS 3.1 reference (dopus-startup, gadtoolsgadgets): a window
+         * opened on a public screen through the public screen mechanism
+         * (WBENCHSCREEN/PUBLICSCREEN type, WA_PubScreen[Name]) is a
+         * visitor; a CUSTOMSCREEN window on the opener's own screen is not */
+        if (pub && ((struct LXAPubScreenNode *)pub)->is_public &&
+            (!newWindow->Screen ||
+             (newWindow->Type & SCREENTYPE) != CUSTOMSCREEN))
+            window->Flags |= WFLG_VISITOR;
     }
-    else
     {
-        /* Use the Screen's WBorXXX fields per NDK/AROS pattern */
-        window->BorderLeft = screen->WBorLeft;
-        window->BorderRight = screen->WBorRight;
-        window->BorderBottom = screen->WBorBottom;
-        
-        /* Top border depends on whether we have a title bar */
-        if ((newWindow->Flags & (WFLG_DRAGBAR | WFLG_CLOSEGADGET | WFLG_DEPTHGADGET)) || newWindow->Title)
-        {
-            /* Title bar: WBorTop + font height + 1 (per AROS pattern)
-             * For now, use WBorTop which already includes space for title (11 pixels)
-             * TODO: Use actual font height when fonts are supported:
-             *   window->BorderTop = screen->WBorTop + GfxBase->DefaultFont->tf_YSize + 1;
-             */
-            window->BorderTop = screen->WBorTop;
-        }
-        else
-        {
-            /* No title bar, just use basic border */
-            window->BorderTop = screen->WBorBottom;
-        }
-        
-        /* Enlarge borders for sizing gadget per RKRM/NDK.
-         * When WFLG_SIZEGADGET is set, the bottom and/or right border
-         * must be large enough to contain the sizing gadget.
-         * WFLG_SIZEBBOTTOM and WFLG_SIZEBRIGHT control which borders
-         * are enlarged; if neither is set, both are enlarged by default. */
-        if (newWindow->Flags & WFLG_SIZEGADGET)
-        {
-            BOOL sizeBBottom = (newWindow->Flags & WFLG_SIZEBBOTTOM) || 
-                               !(newWindow->Flags & WFLG_SIZEBRIGHT);
-            BOOL sizeBRight = (newWindow->Flags & WFLG_SIZEBRIGHT) ||
-                              !(newWindow->Flags & WFLG_SIZEBBOTTOM);
-            
-            if (sizeBBottom && window->BorderBottom < SYS_GADGET_HEIGHT)
-                window->BorderBottom = SYS_GADGET_HEIGHT;
-            if (sizeBRight && window->BorderRight < SYS_GADGET_WIDTH)
-                window->BorderRight = SYS_GADGET_WIDTH;
-        }
+        WORD bl, bt, br, bb;
+
+        _window_compute_borders(screen, window->Flags, window->Title, &bl, &bt, &br, &bb);
+        window->BorderLeft = bl;
+        window->BorderTop = bt;
+        window->BorderRight = br;
+        window->BorderBottom = bb;
     }
 
     if (window->Flags & WFLG_GIMMEZEROZERO)
@@ -10047,6 +9851,14 @@ struct Window * _intuition_OpenWindow ( register struct IntuitionBase * Intuitio
         {
             window->WLayer = content_layer;
             window->RPort = content_layer->rp;
+            /* windows render in the screen font (AmigaOS 3.1) */
+            if (screen->RastPort.Font)
+            {
+                SetFont(window->RPort, screen->RastPort.Font);
+                if (border_layer)
+                    SetFont(border_layer->rp, screen->RastPort.Font);
+                window->IFont = screen->RastPort.Font;
+            }
             window->BorderRPort = border_layer ? border_layer->rp : content_layer->rp;
             DPRINTF(LOG_DEBUG,
                     "_intuition: OpenWindow() created border_layer=0x%08lx content_layer=0x%08lx rp=0x%08lx bounds=[%ld,%ld]-[%ld,%ld]\n",
@@ -10140,6 +9952,7 @@ struct Window * _intuition_OpenWindow ( register struct IntuitionBase * Intuitio
         if (prevActive && prevActive != window)
         {
             prevActive->Flags &= ~WFLG_WINDOWACTIVE;
+            _render_window_frame(prevActive);
             _post_idcmp_message(prevActive, IDCMP_INACTIVEWINDOW, 0, 0,
                                 prevActive, 0, 0);
         }
@@ -10154,10 +9967,10 @@ struct Window * _intuition_OpenWindow ( register struct IntuitionBase * Intuitio
         }
     }
 
-    /* Create system gadgets based on window flags */
-    _create_window_sys_gadgets(window);
-    
     window->FirstGadget = _intuition_public_gadget_list(window->FirstGadget);
+
+    /* Create system gadgets based on window flags (in front of the list) */
+    _create_window_sys_gadgets(window);
 
     /* Initialize string gadget NumChars for user gadgets (per RKRM, Intuition does this) */
     {
@@ -10269,8 +10082,9 @@ ULONG _intuition_OpenWorkBench ( register struct IntuitionBase * IntuitionBase _
         struct LXAIntuitionBase *base = (struct LXAIntuitionBase *)IntuitionBase;
         struct PubScreenNode *stale_pub;
 
-        /* Mark as Workbench screen */
-        wbscreen->Flags = (wbscreen->Flags & ~SCREENTYPE) | WBENCHSCREEN;
+        /* Mark as Workbench screen (reference flags: WBENCHSCREEN |
+         * SHOWTITLE | SCREENHIRES | PENSHARED) */
+        wbscreen->Flags = (wbscreen->Flags & ~SCREENTYPE) | WBENCHSCREEN | SHOWTITLE | PENSHARED;
 
         /* OpenScreen registered the pubscreen entry while the screen was
          * still flagged CUSTOMSCREEN, so the entry was named after the
@@ -10282,6 +10096,7 @@ ULONG _intuition_OpenWorkBench ( register struct IntuitionBase * IntuitionBase _
         if (stale_pub)
             _intuition_unregister_pubscreen(IntuitionBase, wbscreen);
         _intuition_register_pubscreen(IntuitionBase, wbscreen);
+        _render_screen_title_bar(wbscreen);
 
         DPRINTF (LOG_DEBUG, "_intuition: OpenWorkBench() - opened at 0x%08lx, Width=%d Height=%d\n", 
                  (ULONG)wbscreen, (int)wbscreen->Width, (int)wbscreen->Height);
@@ -10732,11 +10547,11 @@ VOID _intuition_SizeWindow ( register struct IntuitionBase * IntuitionBase __asm
     new_w = window->Width + dx;
     new_h = window->Height + dy;
 
-    /* Enforce limits */
+    /* Enforce limits (AmigaOS 3.1 reference: tests/intuition/window_manipulation) */
     if (new_w < window->MinWidth) new_w = window->MinWidth;
-    if (new_w > window->MaxWidth) new_w = window->MaxWidth;
+    if ((UWORD)new_w > window->MaxWidth) new_w = window->MaxWidth;
     if (new_h < window->MinHeight) new_h = window->MinHeight;
-    if (new_h > window->MaxHeight) new_h = window->MaxHeight;
+    if ((UWORD)new_h > window->MaxHeight) new_h = window->MaxHeight;
 
     /* Recalculate deltas in case limits were hit */
     dx = new_w - window->Width;
@@ -11362,7 +11177,8 @@ struct Window * _intuition_BuildSysRequest ( register struct IntuitionBase * Int
 
     easy.es_StructSize = sizeof(easy);
     easy.es_Flags = 0;
-    easy.es_Title = (UBYTE *)"System Request";
+    /* NULL: the reference window's title, else "System Request" */
+    easy.es_Title = NULL;
     easy.es_TextFormat = (UBYTE *)body_buf;
     easy.es_GadgetFormat = (UBYTE *)gad_buf;
 
@@ -11434,7 +11250,12 @@ VOID _intuition_FreeSysRequest ( register struct IntuitionBase * IntuitionBase _
         {
             /* Clear UserData before freeing to avoid double-free */
             window->UserData = NULL;
-            window->FirstGadget = NULL;
+            /* unlink the requester's buttons, keep the system gadgets for
+             * CloseWindow() */
+            if (erd->gadget_mem)
+                _intuition_RemoveGList(IntuitionBase, window,
+                                       (struct Gadget *)erd->gadget_mem,
+                                       erd->num_gadgets);
 
             if (erd->gadget_mem)
                 FreeMem(erd->gadget_mem, erd->gadget_mem_size);
@@ -11674,7 +11495,14 @@ static void _complement_gadget_area(struct Window *window, struct Requester *req
     LONG left, top, width, height;
     
     if (!window || !gad || !window->RPort) return;
-    
+
+    /* system gadgets show their IDS_SELECTED image instead */
+    if (_is_sys_gadget(gad))
+    {
+        _render_sys_gadget(window, gad);
+        return;
+    }
+
     /* For GZZ windows, border/system gadgets use BorderRPort */
     if ((window->Flags & WFLG_GIMMEZEROZERO) && window->BorderRPort &&
         (gad->GadgetType & (GTYP_GZZGADGET | GTYP_SYSGADGET)))
@@ -11737,7 +11565,13 @@ static void _render_gadget(struct Window *window, struct Requester *req, struct 
     LONG left, top, width, height;
     
     if (!window || !gad || !window->RPort) return;
-    
+
+    if (_is_sys_gadget(gad))
+    {
+        _render_sys_gadget(window, gad);
+        return;
+    }
+
     DPRINTF(LOG_DEBUG, "_intuition: _render_gadget() gad=0x%08lx type=0x%04x flags=0x%04x GadgetRender=0x%08lx\n",
             (ULONG)gad, (unsigned)gad->GadgetType, (unsigned)gad->Flags, (ULONG)gad->GadgetRender);
 
@@ -11819,6 +11653,10 @@ static void _render_gadget(struct Window *window, struct Requester *req, struct 
     }
     
     _calculate_gadget_box(window, req, gad, &left, &top, &width, &height);
+
+    /* GadTools draws its own gadgets (frames, labels, images) */
+    if (_gadtools_IsGadTools(gad) && _gadtools_RenderGadget(window, gad, rp, left, top))
+        return;
     
     /* Add window border offset if not using a layer that handles it?
      * Standard Gfx: RPort is usually window's UserPort or similar.
@@ -12744,6 +12582,11 @@ VOID _intuition_ChangeWindowBox ( register struct IntuitionBase * IntuitionBase 
 
     if (!window) return;
 
+    /* clamp the size like SizeWindow() does */
+    /* AmigaOS 3.1 reference: ChangeWindowBox() ignores the window limits */
+    if (width < 1) width = 1;
+    if (height < 1) height = 1;
+
     /* AmigaOS 3.1 reference: one IDCMP_NEWSIZE + IDCMP_CHANGEWINDOW for a
      * box change (no separate CHANGEWINDOW for the move part) */
     if (width != window->Width || height != window->Height)
@@ -13508,86 +13351,93 @@ struct Window * _intuition_BuildEasyRequestArgs ( register struct IntuitionBase 
         }
     }
 
-    /* ---- Step 4: Calculate layout ---- */
-    /* Font is fixed 8x8 topaz */
-    WORD char_w = 8;
-    WORD char_h = 8;
-    WORD font_baseline = 6;
-
-    /* Measure body text: split on \n, find max width and line count */
-    WORD body_lines = 1;
-    WORD max_body_width = 0;
-    {
-        WORD cur_width = 0;
-        char *p = body_buf;
-        while (*p)
-        {
-            if (*p == '\n')
-            {
-                if (cur_width > max_body_width) max_body_width = cur_width;
-                cur_width = 0;
-                body_lines++;
-            }
-            else
-            {
-                cur_width++;
-            }
-            p++;
-        }
-        if (cur_width > max_body_width) max_body_width = cur_width;
-    }
-    WORD body_pixel_w = max_body_width * char_w;
-    WORD body_pixel_h = body_lines * (char_h + 2); /* 2px line spacing */
-
-    /* Measure gadget labels and calculate button sizes */
-    WORD gad_padding_x = 16;  /* horizontal padding inside button */
-    WORD gad_padding_y = 4;   /* vertical padding inside button */
-    WORD gad_spacing = 8;     /* spacing between buttons */
-    WORD gad_height = char_h + gad_padding_y * 2; /* button height */
-    WORD total_gad_width = 0;
-    WORD gad_widths[10];
-
-    for (i = 0; i < num_gadgets && i < 10; i++)
-    {
-        WORD label_len = 0;
-        char *lp = gad_labels[i];
-        while (*lp) { label_len++; lp++; }
-        gad_widths[i] = label_len * char_w + gad_padding_x;
-        if (gad_widths[i] < 60) gad_widths[i] = 60; /* minimum button width */
-        total_gad_width += gad_widths[i];
-    }
-    total_gad_width += (num_gadgets - 1) * gad_spacing;
-
-    /* Window dimensions */
-    WORD border_left = 4;
-    WORD border_right = 4;
-    WORD border_top = 11; /* title bar */
-    WORD border_bottom = 2;
-    WORD text_margin = 16;  /* margin around text area */
-    WORD gad_margin = 12;   /* margin around gadget row */
-
-    WORD content_w = body_pixel_w + text_margin * 2;
-    if (total_gad_width + gad_margin * 2 > content_w)
-        content_w = total_gad_width + gad_margin * 2;
-
-    WORD win_w = content_w + border_left + border_right;
-    WORD win_h = border_top + text_margin + body_pixel_h + text_margin
-                 + gad_height + gad_margin + border_bottom;
-
-    /* Minimum window size */
-    if (win_w < 150) win_w = 150;
-    if (win_h < 60) win_h = 60;
-
-    /* ---- Step 5: Determine screen and center window ---- */
+    /* ---- Step 4: Calculate layout ----
+     * AmigaOS 3.1 reference (tests/scenarios/gallery-easyrequest.yaml):
+     *   - the window is filled with a SHINEPEN/BACKGROUNDPEN dither
+     *   - the body text sits in a recessed one-pixel frame 4 pixels inside
+     *     the window borders and 2 below the title bar; the text block is
+     *     centred, 24 pixels from the frame sides and fontY-1 above and
+     *     below, lines fontY+1 apart, left aligned within the block
+     *   - one row below the frame follow the buttons: raised one-pixel
+     *     frames, label width + 24 wide, fontY + 6 high, label centred; the
+     *     first button is left aligned with the text frame, the last one
+     *     right aligned, the others spread evenly in between
+     *   - 2 dither rows separate the buttons from the bottom border */
     struct Screen *scr = NULL;
     if (window && window->WScreen)
         scr = window->WScreen;
-    /* If no screen, we'll use the Workbench screen (default) */
+    if (!scr)
+        scr = _intuition_find_workbench_screen(IntuitionBase);
+    if (!scr && _intuition_OpenWorkBench(IntuitionBase))
+        scr = _intuition_find_workbench_screen(IntuitionBase);
+    if (!scr)
+    {
+        FreeMem(body_buf, body_len + 1);
+        FreeMem(gad_buf, gad_len + 1);
+        return NULL;
+    }
 
-    WORD scr_w = scr ? scr->Width : 640;
-    WORD scr_h = scr ? scr->Height : 256;
-    WORD win_x = (scr_w - win_w) / 2;
-    WORD win_y = (scr_h - win_h) / 2;
+    struct RastPort *srp = &scr->RastPort;
+    WORD char_h = srp->TxHeight ? (WORD)srp->TxHeight : 8;
+    WORD line_h = char_h + 1;
+
+    /* Measure body text: split on \n, find max width and line count */
+    WORD body_lines = 1;
+    WORD body_pixel_w = 0;
+    {
+        char *p = body_buf;
+        char *ls = p;
+        for (;;)
+        {
+            if (*p == '\n' || *p == '\0')
+            {
+                WORD w = (WORD)TextLength(srp, (STRPTR)ls, (UWORD)(p - ls));
+                if (w > body_pixel_w) body_pixel_w = w;
+                if (*p == '\0')
+                    break;
+                body_lines++;
+                ls = p + 1;
+            }
+            p++;
+        }
+    }
+    WORD body_pixel_h = body_lines * line_h - 1;
+
+    WORD gad_height = char_h + 6;
+    WORD total_gad_width = 0;
+    WORD gad_widths[10];
+    WORD gad_text_w[10];
+
+    for (i = 0; i < num_gadgets && i < 10; i++)
+    {
+        gad_text_w[i] = (WORD)TextLength(srp, (STRPTR)gad_labels[i], (UWORD)strlen(gad_labels[i]));
+        gad_widths[i] = gad_text_w[i] + 24;
+        total_gad_width += gad_widths[i];
+    }
+
+    WORD border_left = scr->WBorLeft;
+    WORD border_right = scr->WBorRight;
+    WORD border_top = scr->WBorTop + char_h + 1;
+    WORD border_bottom = scr->WBorBottom;
+
+    WORD box_w = body_pixel_w + 50;
+    /* not verified on the reference: keep at least 8 pixels between buttons */
+    if (box_w < total_gad_width + (num_gadgets - 1) * 8)
+        box_w = total_gad_width + (num_gadgets - 1) * 8;
+    WORD box_h = body_pixel_h + 2 * char_h;
+    WORD box_x = border_left + 4;
+    WORD box_y = border_top + 2;
+    WORD gad_row_y = box_y + box_h + 1;
+
+    WORD win_w = border_left + 4 + box_w + 4 + border_right;
+    WORD win_h = gad_row_y + gad_height + 2 + border_bottom;
+
+    /* ---- Step 5: Position: the reference opens the requester at the
+     * mouse pointer (top-left corner, clamped to the screen) ---- */
+    WORD win_x = scr->MouseX;
+    WORD win_y = scr->MouseY;
+    if (win_x + win_w > scr->Width) win_x = scr->Width - win_w;
+    if (win_y + win_h > scr->Height) win_y = scr->Height - win_h;
     if (win_x < 0) win_x = 0;
     if (win_y < 0) win_y = 0;
 
@@ -13602,11 +13452,9 @@ struct Window * _intuition_BuildEasyRequestArgs ( register struct IntuitionBase 
     }
 
     /* ---- Step 7: Allocate gadgets, borders, and IntuiText ---- */
-    /* Each gadget needs: struct Gadget + 2 Borders (raised bevel = top+bottom lines) + IntuiText for label */
     LONG gadget_alloc = num_gadgets * sizeof(struct Gadget);
-    LONG border_alloc = num_gadgets * 2 * sizeof(struct Border); /* 2 borders per gadget (shine + shadow) */
+    LONG border_alloc = num_gadgets * 2 * sizeof(struct Border);
     LONG itext_alloc = num_gadgets * sizeof(struct IntuiText);
-    /* Border XY data: each border needs 10 SHORTs (5 points x 2 coords) */
     LONG border_xy_alloc = num_gadgets * 2 * 10 * sizeof(SHORT);
 
     struct Gadget *gadgets = (struct Gadget *)AllocMem(gadget_alloc, MEMF_PUBLIC | MEMF_CLEAR);
@@ -13625,91 +13473,72 @@ struct Window * _intuition_BuildEasyRequestArgs ( register struct IntuitionBase 
         return NULL;
     }
 
+    const UWORD *rpens = _intuition_screen_pens(scr);
+
     /* ---- Step 8: Set up gadgets ---- */
-    /* Gadget IDs: rightmost (last) = 0, others = 1,2,3... from left */
-    /* Center gadgets in the gadget row */
-    WORD gad_row_y = border_top + text_margin + body_pixel_h + text_margin;
-    WORD gad_start_x = border_left + (content_w - total_gad_width) / 2;
-    WORD gad_x = gad_start_x;
-
-    for (i = 0; i < num_gadgets; i++)
     {
-        struct Gadget *g = &gadgets[i];
-        struct Border *b_shine = &borders[i * 2];
-        struct Border *b_shadow = &borders[i * 2 + 1];
-        struct IntuiText *it = &itexts[i];
-        SHORT *xy_shine = &border_xy[i * 2 * 10];
-        SHORT *xy_shadow = &border_xy[(i * 2 + 1) * 10];
-        WORD bw = gad_widths[i];
-        WORD bh = gad_height;
+        WORD free_w = box_w - total_gad_width;
+        WORD used = 0;
 
-        /* Gadget ID: last gadget = 0, others count from 1 left-to-right */
-        if (i == num_gadgets - 1)
-            g->GadgetID = 0;
-        else
-            g->GadgetID = i + 1;
-
-        g->LeftEdge = gad_x;
-        g->TopEdge = gad_row_y;
-        g->Width = bw;
-        g->Height = bh;
-        g->Flags = GFLG_GADGHCOMP;   /* complement highlight */
-        g->Activation = GACT_RELVERIFY;
-        g->GadgetType = GTYP_BOOLGADGET;
-        g->GadgetRender = (APTR)b_shine;
-        g->GadgetText = it;
-        g->NextGadget = (i < num_gadgets - 1) ? &gadgets[i + 1] : NULL;
-
-        /* Shine border (top-left): pen 2.
-         * DrawBorder() connects every point in sequence, so keep this as a
-         * simple L shape; extra points would draw a diagonal across the label.
-         */
-        xy_shine[0] = 0;        xy_shine[1] = bh - 1;
-        xy_shine[2] = 0;        xy_shine[3] = 0;
-        xy_shine[4] = bw - 1;   xy_shine[5] = 0;
-
-        b_shine->LeftEdge = 0;
-        b_shine->TopEdge = 0;
-        b_shine->FrontPen = 2; /* SHINEPEN */
-        b_shine->DrawMode = JAM1;
-        b_shine->Count = 3;
-        b_shine->XY = xy_shine;
-        b_shine->NextBorder = b_shadow;
-
-        /* Shadow border (bottom-right): pen 1. Keep this as the matching L
-         * shape so the bevel stays on the frame edges only.
-         */
-        xy_shadow[0] = bw - 1;  xy_shadow[1] = 0;
-        xy_shadow[2] = bw - 1;  xy_shadow[3] = bh - 1;
-        xy_shadow[4] = 0;       xy_shadow[5] = bh - 1;
-
-        b_shadow->LeftEdge = 0;
-        b_shadow->TopEdge = 0;
-        b_shadow->FrontPen = 1; /* SHADOWPEN */
-        b_shadow->DrawMode = JAM1;
-        b_shadow->Count = 3;
-        b_shadow->XY = xy_shadow;
-        b_shadow->NextBorder = NULL;
-
-        /* IntuiText for label: centered in gadget */
-        WORD label_len = 0;
+        for (i = 0; i < num_gadgets; i++)
         {
-            char *lp = gad_labels[i];
-            while (*lp) { label_len++; lp++; }
+            struct Gadget *g = &gadgets[i];
+            struct Border *b_shine = &borders[i * 2];
+            struct Border *b_shadow = &borders[i * 2 + 1];
+            struct IntuiText *it = &itexts[i];
+            SHORT *xy_shine = &border_xy[i * 2 * 10];
+            SHORT *xy_shadow = &border_xy[(i * 2 + 1) * 10];
+            WORD bw = gad_widths[i];
+            WORD bh = gad_height;
+            WORD gx;
+
+            if (num_gadgets == 1)
+                gx = box_x + free_w / 2;
+            else
+                gx = box_x + used + (WORD)(((LONG)free_w * i) / (num_gadgets - 1));
+            used += bw;
+
+            /* Gadget ID: last gadget = 0, others count from 1 left-to-right */
+            g->GadgetID = (i == num_gadgets - 1) ? 0 : i + 1;
+            g->LeftEdge = gx;
+            g->TopEdge = gad_row_y;
+            g->Width = bw;
+            g->Height = bh;
+            g->Flags = GFLG_GADGHCOMP;
+            g->Activation = GACT_RELVERIFY;
+            g->GadgetType = GTYP_BOOLGADGET;
+            g->GadgetRender = (APTR)b_shine;
+            g->GadgetText = it;
+            g->NextGadget = (i < num_gadgets - 1) ? &gadgets[i + 1] : NULL;
+
+            /* raised one-pixel frame, corners left out */
+            xy_shine[0] = 0;        xy_shine[1] = bh - 2;
+            xy_shine[2] = 0;        xy_shine[3] = 0;
+            xy_shine[4] = bw - 2;   xy_shine[5] = 0;
+            b_shine->FrontPen = (UBYTE)rpens[SHINEPEN];
+            b_shine->DrawMode = JAM1;
+            b_shine->Count = 3;
+            b_shine->XY = xy_shine;
+            b_shine->NextBorder = b_shadow;
+
+            xy_shadow[0] = bw - 1;  xy_shadow[1] = 1;
+            xy_shadow[2] = bw - 1;  xy_shadow[3] = bh - 1;
+            xy_shadow[4] = 1;       xy_shadow[5] = bh - 1;
+            b_shadow->FrontPen = (UBYTE)rpens[SHADOWPEN];
+            b_shadow->DrawMode = JAM1;
+            b_shadow->Count = 3;
+            b_shadow->XY = xy_shadow;
+            b_shadow->NextBorder = NULL;
+
+            it->FrontPen = (UBYTE)rpens[TEXTPEN];
+            it->BackPen = (UBYTE)rpens[BACKGROUNDPEN];
+            it->DrawMode = JAM1;
+            it->LeftEdge = (bw - gad_text_w[i]) / 2;
+            it->TopEdge = (bh - char_h) / 2;
+            it->ITextFont = NULL;
+            it->IText = (UBYTE *)gad_labels[i];
+            it->NextText = NULL;
         }
-        WORD text_x = (bw - label_len * char_w) / 2;
-        WORD text_y = (bh - char_h) / 2 + font_baseline;
-
-        it->FrontPen = 1;
-        it->BackPen = 0;
-        it->DrawMode = JAM1;
-        it->LeftEdge = text_x;
-        it->TopEdge = text_y;
-        it->ITextFont = NULL; /* use default screen font */
-        it->IText = (UBYTE *)gad_labels[i];
-        it->NextText = NULL;
-
-        gad_x += bw + gad_spacing;
     }
 
     /* ---- Step 9: Allocate EasyReqData for cleanup ---- */
@@ -13747,19 +13576,12 @@ struct Window * _intuition_BuildEasyRequestArgs ( register struct IntuitionBase 
     nw.DetailPen = 0;
     nw.BlockPen = 1;
     nw.Title = (UBYTE *)title;
-    nw.Flags = WFLG_DRAGBAR | WFLG_DEPTHGADGET | WFLG_ACTIVATE | WFLG_RMBTRAP;
+    nw.Flags = WFLG_DRAGBAR | WFLG_DEPTHGADGET | WFLG_ACTIVATE | WFLG_RMBTRAP |
+               WFLG_SIMPLE_REFRESH | WFLG_NOCAREREFRESH;
     nw.IDCMPFlags = IDCMP_GADGETUP | idcmp;
-    nw.FirstGadget = gadgets;
-
-    if (scr)
-    {
-        nw.Type = CUSTOMSCREEN;
-        nw.Screen = scr;
-    }
-    else
-    {
-        nw.Type = WBENCHSCREEN;
-    }
+    nw.FirstGadget = NULL;
+    nw.Type = CUSTOMSCREEN;
+    nw.Screen = scr;
 
     reqWindow = _intuition_OpenWindow(IntuitionBase, &nw);
     if (!reqWindow)
@@ -13777,21 +13599,58 @@ struct Window * _intuition_BuildEasyRequestArgs ( register struct IntuitionBase 
     /* Store cleanup data in UserData */
     reqWindow->UserData = (BYTE *)erd;
 
-    /* ---- Step 11: Render body text ---- */
+    /* ---- Step 11: Render the requester body ---- */
     {
         struct RastPort *rp = reqWindow->RPort;
-        WORD text_x = border_left + text_margin;
-        WORD text_y = border_top + text_margin;
+        WORD ix0 = border_left, iy0 = border_top;
+        WORD ix1 = win_w - border_right - 1, iy1 = win_h - border_bottom - 1;
+        WORD y;
+        UWORD row_pat;
+        UWORD *old_pat = rp->AreaPtrn;
+        BYTE old_sz = rp->AreaPtSz;
+        WORD text_x = box_x + (box_w - body_pixel_w) / 2;
+        WORD text_y = box_y + char_h;
         char *p = body_buf;
         WORD line = 0;
 
-        SetAPen(rp, 1); /* TEXTPEN */
-        SetBPen(rp, 0); /* BACKGROUNDPEN */
-        SetDrMd(rp, JAM1);
+        /* SHINEPEN/BACKGROUNDPEN dither, (x + y) odd -> SHINEPEN in window
+         * coordinates; the pattern bits are aligned to bitmap columns */
+        SetAPen(rp, rpens[SHINEPEN]);
+        SetBPen(rp, rpens[BACKGROUNDPEN]);
+        SetDrMd(rp, JAM2);
+        for (y = iy0; y <= iy1; y++)
+        {
+            /* bit 15 of the pattern is bitmap column 0 (even) */
+            BOOL shine_even = (((reqWindow->LeftEdge + y + 1) & 1) == 0);
+            row_pat = shine_even ? 0xAAAA : 0x5555;
+            rp->AreaPtrn = &row_pat; rp->AreaPtSz = 0;
+            RectFill(rp, ix0, y, ix1, y);
+        }
+        rp->AreaPtrn = old_pat; rp->AreaPtSz = old_sz;
 
+        /* recessed text frame with a BACKGROUNDPEN interior */
+        SetAPen(rp, rpens[BACKGROUNDPEN]);
+        RectFill(rp, box_x + 1, box_y + 1, box_x + box_w - 2, box_y + box_h - 2);
+        SetAPen(rp, rpens[SHADOWPEN]);
+        Move(rp, box_x, box_y + box_h - 2);
+        Draw(rp, box_x, box_y);
+        Draw(rp, box_x + box_w - 2, box_y);
+        SetAPen(rp, rpens[SHINEPEN]);
+        Move(rp, box_x + box_w - 1, box_y + 1);
+        Draw(rp, box_x + box_w - 1, box_y + box_h - 1);
+        Draw(rp, box_x + 1, box_y + box_h - 1);
+
+        /* button interiors */
+        SetAPen(rp, rpens[BACKGROUNDPEN]);
+        for (i = 0; i < num_gadgets; i++)
+            RectFill(rp, gadgets[i].LeftEdge + 1, gadgets[i].TopEdge + 1,
+                     gadgets[i].LeftEdge + gadgets[i].Width - 2,
+                     gadgets[i].TopEdge + gadgets[i].Height - 2);
+
+        SetAPen(rp, rpens[TEXTPEN]);
+        SetDrMd(rp, JAM1);
         while (*p)
         {
-            /* Find end of line */
             char *line_start = p;
             WORD line_len = 0;
             while (*p && *p != '\n')
@@ -13802,8 +13661,7 @@ struct Window * _intuition_BuildEasyRequestArgs ( register struct IntuitionBase 
 
             if (line_len > 0)
             {
-                WORD y = text_y + line * (char_h + 2) + font_baseline;
-                Move(rp, text_x, y);
+                Move(rp, text_x, text_y + line * line_h + rp->TxBaseline);
                 Text(rp, (STRPTR)line_start, line_len);
             }
 
@@ -13812,8 +13670,9 @@ struct Window * _intuition_BuildEasyRequestArgs ( register struct IntuitionBase 
         }
     }
 
-    /* ---- Step 12: Render gadgets (borders + text) ---- */
-    _intuition_RefreshGList(IntuitionBase, gadgets, reqWindow, NULL, -1);
+    /* ---- Step 12: Add and render the buttons ---- */
+    _intuition_AddGList(IntuitionBase, reqWindow, gadgets, (UWORD)~0, num_gadgets, NULL);
+    _intuition_RefreshGList(IntuitionBase, gadgets, reqWindow, NULL, num_gadgets);
 
     DPRINTF(LOG_DEBUG, "_intuition: BuildEasyRequestArgs() created window 0x%08lx (%dx%d) with %d gadgets\n",
             (ULONG)reqWindow, win_w, win_h, num_gadgets);
@@ -13869,8 +13728,11 @@ LONG _intuition_SysReqHandler ( register struct IntuitionBase * IntuitionBase __
             {
                 return 0;
             }
-
-            return -1;
+            else if (class == IDCMP_DISKINSERTED)
+            {
+                return -1;
+            }
+            /* any other message leaves the requester open (-2) */
         }
         
         if (!waitInput) break;
@@ -13888,7 +13750,6 @@ struct Window * _intuition_OpenWindowTagList ( register struct IntuitionBase * I
     BOOL auto_adjust = FALSE;
     BOOL pubname_missing = FALSE;   /* WA_PubScreenName not found / private */
     BOOL pubname_fallback = FALSE;  /* WA_PubScreenFallBack */
-    BOOL left_specified = FALSE;
     BOOL top_specified = FALSE;
     UWORD mouse_queue = DEFAULT_MOUSEQUEUE;
     struct NewWindow nw;
@@ -13935,7 +13796,6 @@ struct Window * _intuition_OpenWindowTagList ( register struct IntuitionBase * I
             {
                 case WA_Left:
                     nw.LeftEdge = (WORD)tag->ti_Data;
-                    left_specified = TRUE;
                     break;
                 case WA_Top:
                     nw.TopEdge = (WORD)tag->ti_Data;
@@ -14114,7 +13974,7 @@ struct Window * _intuition_OpenWindowTagList ( register struct IntuitionBase * I
                         if (pub_screen)
                         {
                             nw.Screen = pub_screen;
-                            nw.Type = CUSTOMSCREEN;
+                            nw.Type = PUBLICSCREEN;
                             _intuition_UnlockPubScreen(IntuitionBase, NULL, pub_screen);
                         }
                     }
@@ -14128,7 +13988,7 @@ struct Window * _intuition_OpenWindowTagList ( register struct IntuitionBase * I
                         if (pub_screen)
                         {
                             nw.Screen = pub_screen;
-                            nw.Type = CUSTOMSCREEN;
+                            nw.Type = PUBLICSCREEN;
                             _intuition_UnlockPubScreen(IntuitionBase, NULL, pub_screen);
                         }
                     }
@@ -14144,7 +14004,7 @@ struct Window * _intuition_OpenWindowTagList ( register struct IntuitionBase * I
                     if (tag->ti_Data)
                     {
                         nw.Screen = (struct Screen *)tag->ti_Data;
-                        nw.Type = CUSTOMSCREEN;
+                        nw.Type = PUBLICSCREEN;
                     }
                     else
                     {
@@ -14153,7 +14013,7 @@ struct Window * _intuition_OpenWindowTagList ( register struct IntuitionBase * I
                         if (def_screen)
                         {
                             nw.Screen = def_screen;
-                            nw.Type = CUSTOMSCREEN;
+                            nw.Type = PUBLICSCREEN;
                             _intuition_UnlockPubScreen(IntuitionBase, NULL, def_screen);
                         }
                     }
@@ -14174,10 +14034,15 @@ struct Window * _intuition_OpenWindowTagList ( register struct IntuitionBase * I
                 case WA_AutoAdjust:
                     auto_adjust = (tag->ti_Data != 0);
                     break;
+                case WA_NewLookMenus:
+                    if (tag->ti_Data)
+                        nw.Flags |= WFLG_NEWLOOKMENUS;
+                    else
+                        nw.Flags &= ~WFLG_NEWLOOKMENUS;
+                    break;
                 case WA_ScreenTitle:
                 case WA_Checkmark:
                 case WA_MenuHelp:
-                case WA_NewLookMenus:
                 case WA_NotifyDepth:
                 case WA_Pointer:
                 case WA_BusyPointer:
@@ -14232,37 +14097,8 @@ struct Window * _intuition_OpenWindowTagList ( register struct IntuitionBase * I
 
         if (screen)
         {
-            if (nw.Flags & WFLG_BORDERLESS)
-            {
-                border_left = 0;
-                border_right = 0;
-                border_top = 0;
-                border_bottom = 0;
-            }
-            else
-            {
-                border_left = screen->WBorLeft;
-                border_right = screen->WBorRight;
-                border_bottom = screen->WBorBottom;
-
-                if ((nw.Flags & (WFLG_DRAGBAR | WFLG_CLOSEGADGET | WFLG_DEPTHGADGET)) || nw.Title)
-                    border_top = screen->WBorTop;
-                else
-                    border_top = screen->WBorBottom;
-
-                if (nw.Flags & WFLG_SIZEGADGET)
-                {
-                    BOOL sizeBBottom = (nw.Flags & WFLG_SIZEBBOTTOM) ||
-                                       !(nw.Flags & WFLG_SIZEBRIGHT);
-                    BOOL sizeBRight = (nw.Flags & WFLG_SIZEBRIGHT) ||
-                                      !(nw.Flags & WFLG_SIZEBBOTTOM);
-
-                    if (sizeBBottom && border_bottom < SYS_GADGET_HEIGHT)
-                        border_bottom = SYS_GADGET_HEIGHT;
-                    if (sizeBRight && border_right < SYS_GADGET_WIDTH)
-                        border_right = SYS_GADGET_WIDTH;
-                }
-            }
+            _window_compute_borders(screen, _window_effective_flags(nw.Flags), nw.Title,
+                                    &border_left, &border_top, &border_right, &border_bottom);
 
             if (inner_width >= 0)
             {
@@ -14289,6 +14125,22 @@ struct Window * _intuition_OpenWindowTagList ( register struct IntuitionBase * I
          * screen makes OpenWindowTagList() fail */
         DPRINTF(LOG_DEBUG, "_intuition: OpenWindowTagList() WA_PubScreenName screen not available\n");
         return NULL;
+    }
+
+    /* AmigaOS 3.1 reference (simplegad, gadtoolsgadgets, simplegtgadget
+     * goldens): without a NewWindow and WA_Top the window opens just below
+     * the screen title bar */
+    if (!newWindow && !top_specified)
+    {
+        struct Screen *def_screen = nw.Screen;
+
+        if (!def_screen)
+            def_screen = _intuition_find_workbench_screen(IntuitionBase);
+        if (!def_screen && _intuition_OpenWorkBench(IntuitionBase))
+            def_screen = _intuition_find_workbench_screen(IntuitionBase);
+        if (def_screen && nw.Height > 0 &&
+            def_screen->BarHeight + 1 + nw.Height <= def_screen->Height)
+            nw.TopEdge = def_screen->BarHeight + 1;
     }
 
     if (auto_adjust)
@@ -14321,12 +14173,9 @@ struct Window * _intuition_OpenWindowTagList ( register struct IntuitionBase * I
             if (adjust_height <= 0 || adjust_height > adjust_screen->Height)
                 adjust_height = adjust_screen->Height;
 
-            if (!left_specified && !top_specified)
-            {
-                nw.LeftEdge = IntuitionBase->MouseX - (adjust_width / 2);
-                nw.TopEdge = IntuitionBase->MouseY;
-            }
-
+            /* AmigaOS 3.1 reference (gadtoolsgadgets golden): WA_AutoAdjust
+             * only moves the window into the screen, it does not place it
+             * at the mouse pointer */
             if (nw.LeftEdge < 0)
                 nw.LeftEdge = 0;
             if (nw.TopEdge < 0)
@@ -14351,6 +14200,11 @@ struct Window * _intuition_OpenWindowTagList ( register struct IntuitionBase * I
     /* Call our existing OpenWindow with the assembled NewWindow */
     struct Window *win = _intuition_OpenWindow(IntuitionBase, &nw);
 
+    /* AmigaOS 3.1 reference (dopus-startup): an ExtNewWindow keeps
+     * WFLG_NW_EXTENDED in Window->Flags */
+    if (win && newWindow && (newWindow->Flags & WFLG_NW_EXTENDED))
+        win->Flags |= WFLG_NW_EXTENDED;
+
     if (win)
         _intuition_set_mouse_queue_value((struct LXAIntuitionBase *)IntuitionBase, win, mouse_queue);
 
@@ -14367,6 +14221,15 @@ struct Window * _intuition_OpenWindowTagList ( register struct IntuitionBase * I
             zd->zd_Height = zoom_coords[3];
             zd->zd_IsZoomed = FALSE;
             win->ExtData = (UBYTE *)zd;
+            /* the alternate box is always reachable, whatever the limits */
+            if (zd->zd_Width > 0 && (UWORD)zd->zd_Width > win->MaxWidth)
+                win->MaxWidth = zd->zd_Width;
+            if (zd->zd_Height > 0 && (UWORD)zd->zd_Height > win->MaxHeight)
+                win->MaxHeight = zd->zd_Height;
+            if (zd->zd_Width > 0 && zd->zd_Width < win->MinWidth)
+                win->MinWidth = zd->zd_Width;
+            if (zd->zd_Height > 0 && zd->zd_Height < win->MinHeight)
+                win->MinHeight = zd->zd_Height;
             DPRINTF(LOG_DEBUG, "_intuition: OpenWindowTagList() WA_Zoom set: alt pos=%d,%d size=%dx%d\n",
                     (int)zd->zd_Left, (int)zd->zd_Top, (int)zd->zd_Width, (int)zd->zd_Height);
         }
@@ -14389,11 +14252,26 @@ struct Screen * _intuition_OpenScreenTagList ( register struct IntuitionBase * I
     DPRINTF(LOG_DEBUG, "_intuition: OpenScreenTagList() called, newScreen=0x%08lx, tagList=0x%08lx\n",
             (ULONG)newScreen, (ULONG)tagList);
     
+    const struct TagItem *tag_lists[2];
+    int tl;
+    BOOL share_pens = FALSE;
+    BOOL pub_name = FALSE;
+
+    tag_lists[0] = NULL;
+    tag_lists[1] = tagList;
+
     /* Start with defaults from NewScreen if provided, else use sensible defaults */
     if (newScreen)
     {
-        /* Copy the NewScreen structure */
+        /* Copy the NewScreen structure; when OpenScreen() hands over an
+         * ExtNewScreen with its Extension as the tag list, the structure
+         * itself has been consumed */
         ns = *newScreen;
+        ns.Type &= ~NS_EXTENDED;
+        if ((newScreen->Type & NS_EXTENDED) &&
+            ((const struct ExtNewScreen *)newScreen)->Extension &&
+            ((const struct ExtNewScreen *)newScreen)->Extension != tagList)
+            tag_lists[0] = ((const struct ExtNewScreen *)newScreen)->Extension;
     }
     else
     {
@@ -14402,15 +14280,17 @@ struct Screen * _intuition_OpenScreenTagList ( register struct IntuitionBase * I
         ns.Width = 640;
         ns.Height = 256;
         ns.Depth = 2;
-        ns.Type = CUSTOMSCREEN;
+        ns.Type = CUSTOMSCREEN | SHOWTITLE;   /* SA_ShowTitle defaults to TRUE */
         ns.DetailPen = 0;
         ns.BlockPen = 1;
     }
     
     /* Process tags to override NewScreen fields */
-    if (tagList)
+    for (tl = 0; tl < 2; tl++)
     {
-        tstate = (struct TagItem *)tagList;
+        if (!tag_lists[tl])
+            continue;
+        tstate = (struct TagItem *)tag_lists[tl];
         while ((tag = NextTagItem(&tstate)))
         {
             switch (tag->ti_Tag)
@@ -14493,7 +14373,17 @@ struct Screen * _intuition_OpenScreenTagList ( register struct IntuitionBase * I
                     DPRINTF(LOG_DEBUG, "_intuition: OpenScreenTagList() SA_Pens=0x%08lx\n",
                             (ULONG)tag->ti_Data);
                     break;
+                case SA_SharePens:
+                    share_pens = tag->ti_Data ? TRUE : FALSE;
+                    break;
+                case SA_LikeWorkbench:
+                    /* AmigaOS 3.1 reference (gallery-menus): a screen like
+                     * the Workbench shares its pens */
+                    if (tag->ti_Data)
+                        share_pens = TRUE;
+                    break;
                 case SA_PubName:
+                    pub_name = tag->ti_Data ? TRUE : FALSE;
                     /* SA_PubName handled after screen registration */
                     DPRINTF(LOG_DEBUG, "_intuition: OpenScreenTagList() SA_PubName='%s'\n",
                             tag->ti_Data ? (const char *)tag->ti_Data : "(null)");
@@ -14530,6 +14420,13 @@ struct Screen * _intuition_OpenScreenTagList ( register struct IntuitionBase * I
     if (!screen)
         return NULL;
 
+    /* AmigaOS 3.1 reference (dopus-startup, gallery-menus): a screen opened
+     * with SA_PubName is a PUBLICSCREEN, SA_SharePens sets PENSHARED */
+    if (pub_name)
+        screen->Flags = (screen->Flags & ~SCREENTYPE) | PUBLICSCREEN;
+    if (share_pens)
+        screen->Flags |= PENSHARED;
+
     /* If SA_DisplayID was provided, override VPModeID in the ColorMap with the
      * exact requested display ID.  Apps like PPaint's CloantoScreenManager read
      * VPModeID back after OpenScreen and compare it to what they requested.
@@ -14545,7 +14442,7 @@ struct Screen * _intuition_OpenScreenTagList ( register struct IntuitionBase * I
     }
 
     /* Second pass: apply tags that require a live screen */
-    if (tagList)
+    if (tag_lists[0] || tag_lists[1])
     {
         struct LXAIntuitionBase *base = (struct LXAIntuitionBase *)IntuitionBase;
         struct LXAPubScreenNode *lxa_pub = NULL;
@@ -14560,7 +14457,11 @@ struct Screen * _intuition_OpenScreenTagList ( register struct IntuitionBase * I
         if (pub_node)
             lxa_pub = (struct LXAPubScreenNode *)pub_node;
 
-        tstate = (struct TagItem *)tagList;
+        for (tl = 0; tl < 2; tl++)
+        {
+        if (!tag_lists[tl])
+            continue;
+        tstate = (struct TagItem *)tag_lists[tl];
         while ((tag = NextTagItem(&tstate)))
         {
             switch (tag->ti_Tag)
@@ -14584,6 +14485,7 @@ struct Screen * _intuition_OpenScreenTagList ( register struct IntuitionBase * I
                     break;
             }
         }
+        }
 
         /* Apply SA_Pens: merge caller's pens with defaults.
          * Per RKRM: providing SA_Pens (even with just a ~0 terminator)
@@ -14594,10 +14496,14 @@ struct Screen * _intuition_OpenScreenTagList ( register struct IntuitionBase * I
         if (lxa_pub && sa_pens)
         {
             UWORD i;
+            const UWORD *def = lxa_default_pens();
 
+            /* SA_Pens selects the new look: the Workbench default pens,
+             * overridden by the caller's pens up to the ~0 terminator */
             lxa_pub->has_custom_pens = TRUE;
             lxa_pub->drawInfo.dri_Flags |= DRIF_NEWLOOK;
-
+            for (i = 0; i < NUMDRIPENS; i++)
+                lxa_pub->pens[i] = def[i];
             for (i = 0; i < NUMDRIPENS; i++)
             {
                 if (sa_pens[i] == (UWORD)~0)
@@ -14605,16 +14511,9 @@ struct Screen * _intuition_OpenScreenTagList ( register struct IntuitionBase * I
                 lxa_pub->pens[i] = sa_pens[i];
             }
 
-            DPRINTF(LOG_DEBUG, "_intuition: OpenScreenTagList() applied %d custom pens, NEWLOOK=%s\n",
-                    (int)i, (lxa_pub->drawInfo.dri_Flags & DRIF_NEWLOOK) ? "yes" : "no");
-        }
-        else if (lxa_pub)
-        {
-            /* No SA_Pens provided: still set DRIF_NEWLOOK for 2+ plane
-             * screens since most OS 3.x apps expect it.
-             */
-            if (screen->RastPort.BitMap && screen->RastPort.BitMap->Depth >= 2)
-                lxa_pub->drawInfo.dri_Flags |= DRIF_NEWLOOK;
+            DPRINTF(LOG_DEBUG, "_intuition: OpenScreenTagList() applied %d custom pens\n", (int)i);
+            if (screen->Flags & SHOWTITLE)
+                _render_screen_title_bar(screen);
         }
 
         /* Apply SA_PubName: re-register the screen with the requested
@@ -14990,60 +14889,6 @@ APTR _intuition_NewObjectA ( register struct IntuitionBase * IntuitionBase __asm
     DPRINTF (LOG_DEBUG, "_intuition: NewObjectA() classPtr=0x%08lx classID='%s'\n",
              (ULONG)classPtr, classID ? (const char*)classID : "(null)");
 
-    /* Handle sysiclass - system imagery class */
-    if (classID && strcmp((const char*)classID, SYSICLASS) == 0) {
-        /* We must allocate space for the _Object header BEFORE the Image
-         * so that DisposeObject's _OBJECT() macro can find o_Class.
-         * Setting o_Class = NULL signals our stub-image disposal path. */
-        ULONG total = sizeof(struct _Object) + sizeof(struct Image);
-        UBYTE *mem = AllocMem(total, MEMF_CLEAR | MEMF_PUBLIC);
-        if (!mem)
-            return NULL;
-        struct _Object *hdr = (struct _Object *)mem;
-        hdr->o_Class = NULL;  /* sentinel: stub image, not a real BOOPSI object */
-        struct Image *img = (struct Image *)(mem + sizeof(struct _Object));
-
-        /* Initialize with minimal data - a 1x1 transparent image */
-        img->LeftEdge = 0;
-        img->TopEdge = 0;
-        img->Width = 8;     /* Minimal size */
-        img->Height = 8;
-        img->Depth = 1;
-        img->ImageData = NULL;  /* No actual image data - will render as empty */
-        img->PlanePick = 0;     /* Don't pick any planes - essentially invisible */
-        img->PlaneOnOff = 0;
-        img->NextImage = NULL;
-
-        DPRINTF (LOG_DEBUG, "_intuition: NewObjectA() sysiclass -> Image at 0x%08lx (hdr=0x%08lx)\n",
-                 (ULONG)img, (ULONG)hdr);
-        return (APTR)img;
-    }
-    
-    /* Handle imageclass - generic image class */
-    if (classID && strcmp((const char*)classID, IMAGECLASS) == 0) {
-        ULONG total = sizeof(struct _Object) + sizeof(struct Image);
-        UBYTE *mem = AllocMem(total, MEMF_CLEAR | MEMF_PUBLIC);
-        if (!mem)
-            return NULL;
-        struct _Object *hdr = (struct _Object *)mem;
-        hdr->o_Class = NULL;
-        struct Image *img = (struct Image *)(mem + sizeof(struct _Object));
-
-        img->LeftEdge = 0;
-        img->TopEdge = 0;
-        img->Width = 1;
-        img->Height = 1;
-        img->Depth = 1;
-        img->ImageData = NULL;
-        img->PlanePick = 0;
-        img->PlaneOnOff = 0;
-        img->NextImage = NULL;
-
-        DPRINTF (LOG_DEBUG, "_intuition: NewObjectA() imageclass -> Image at 0x%08lx (hdr=0x%08lx)\n",
-                 (ULONG)img, (ULONG)hdr);
-        return (APTR)img;
-    }
-
     if (!use_class && classID)
         use_class = _intuition_find_class(base, classID);
 
@@ -15063,7 +14908,14 @@ APTR _intuition_NewObjectA ( register struct IntuitionBase * IntuitionBase __asm
         op.MethodID = OM_NEW;
         op.ops_AttrList = (struct TagItem *)tagList;
         op.ops_GInfo = NULL;
-        _intuition_dispatch_method(use_class, public_obj, (Msg)&op);
+        if (!_intuition_dispatch_method(use_class, public_obj, (Msg)&op))
+        {
+            /* a class refused the object (e.g. sysiclass with an unknown
+             * SYSIA_Which): NewObject() fails */
+            use_class->cl_ObjectCount--;
+            FreeMem(object_memory, size);
+            return NULL;
+        }
 
         return (APTR)public_obj;
     }
@@ -15421,7 +15273,7 @@ struct DrawInfo * _intuition_GetScreenDrawInfo ( register struct IntuitionBase *
     drawInfo->dri_Pens       = pens;
     drawInfo->dri_Font       = screen->RastPort.Font;
     drawInfo->dri_Depth      = screen->RastPort.BitMap ? screen->RastPort.BitMap->Depth : 2;
-    drawInfo->dri_Resolution.X = 44;
+    drawInfo->dri_Resolution.X = (screen->Flags & SCREENHIRES) ? 22 : 44;
     drawInfo->dri_Resolution.Y = 44;
     drawInfo->dri_CheckMark  = NULL;
     drawInfo->dri_AmigaKey   = NULL;

@@ -1,0 +1,11 @@
+# Rendering conformance gallery (Phase 223): a BuildSysRequest (AutoRequest) requester.
+name: gallery-autorequest
+app:
+  sample: Tests/Gallery/Req
+  args: "auto"
+steps:
+  - launch
+  - wait_window: "System Request"
+  - wait_idle
+  - snapshot: {name: requester, window: "System Request"}
+  - quit

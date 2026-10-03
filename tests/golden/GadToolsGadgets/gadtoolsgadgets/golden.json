@@ -1,131 +1,27 @@
 {
  "app": "GadToolsGadgets",
  "disabled": null,
- "lxa_version": "0.11.11",
- "promoted": "2026-10-02",
+ "lxa_version": "0.11.14",
+ "promoted": "2026-10-03",
  "reference": "AmigaOS 3.1 (KS 40.70), profile aga",
  "requires_apps": false,
  "scenario": "gadtoolsgadgets",
  "snapshots": {
   "startup": {
-   "known_lxa_size": [
-    400,
-    161
-   ],
    "known_tree_diffs": [
-    {
-     "field": "display_id",
-     "kind": "screen",
-     "lxa": 167936,
-     "phase": 223,
-     "ref": 32768,
-     "where": "screen[Workbench Screen]"
-    },
-    {
-     "field": "flags",
-     "kind": "screen",
-     "lxa": 1,
-     "phase": 223,
-     "ref": 1553,
-     "where": "screen[Workbench Screen]"
-    },
-    {
-     "field": "menu_vborder",
-     "kind": "screen",
-     "lxa": 0,
-     "phase": 223,
-     "ref": 2,
-     "where": "screen[Workbench Screen]"
-    },
-    {
-     "field": "menu_hborder",
-     "kind": "screen",
-     "lxa": 0,
-     "phase": 223,
-     "ref": 4,
-     "where": "screen[Workbench Screen]"
-    },
-    {
-     "field": "wbor",
-     "kind": "screen",
-     "lxa": [
-      4,
-      11,
-      4,
-      2
-     ],
-     "phase": 223,
-     "ref": [
-      4,
-      2,
-      4,
-      2
-     ],
-     "where": "screen[Workbench Screen]"
-    },
-    {
-     "field": "top",
-     "kind": "window",
-     "lxa": 0,
-     "phase": 223,
-     "ref": 11,
-     "where": "screen[Workbench Screen]/window[GadTools Gadget Demo]"
-    },
-    {
-     "field": "height",
-     "kind": "window",
-     "lxa": 161,
-     "phase": 223,
-     "ref": 153,
-     "where": "screen[Workbench Screen]/window[GadTools Gadget Demo]"
-    },
-    {
-     "field": "max_height",
-     "kind": "window",
-     "lxa": 161,
-     "phase": 222,
-     "ref": 153,
-     "where": "screen[Workbench Screen]/window[GadTools Gadget Demo]"
-    },
-    {
-     "field": "flags",
-     "kind": "window",
-     "lxa": 12367,
-     "phase": 222,
-     "ref": 671101007,
-     "where": "screen[Workbench Screen]/window[GadTools Gadget Demo]"
-    },
-    {
-     "field": "border",
-     "kind": "window",
-     "lxa": [
-      4,
-      11,
-      18,
-      10
-     ],
-     "phase": 223,
-     "ref": [
-      4,
-      11,
-      18,
-      2
-     ],
-     "where": "screen[Workbench Screen]/window[GadTools Gadget Demo]"
-    },
     {
      "field": "count",
      "kind": "gadget",
-     "lxa": 9,
-     "phase": 223,
+     "lxa": 11,
+     "phase": 222,
      "ref": 12,
      "where": "screen[Workbench Screen]/window[GadTools Gadget Demo]"
     },
     {
      "field": "flags",
      "kind": "gadget",
-     "lxa": 0,
-     "phase": 223,
+     "lxa": 3,
+     "phase": 222,
      "ref": 7,
      "where": "screen[Workbench Screen]/window[GadTools Gadget Demo]/gadget[0 id=0]"
     },
@@ -138,46 +34,13 @@
      "where": "screen[Workbench Screen]/window[GadTools Gadget Demo]/gadget[0 id=0]"
     },
     {
-     "field": "left",
-     "kind": "gadget",
-     "lxa": 140,
-     "phase": 223,
-     "ref": 144,
-     "where": "screen[Workbench Screen]/window[GadTools Gadget Demo]/gadget[0 id=0]"
-    },
-    {
-     "field": "top",
-     "kind": "gadget",
-     "lxa": 40,
-     "phase": 223,
-     "ref": 33,
-     "where": "screen[Workbench Screen]/window[GadTools Gadget Demo]/gadget[0 id=0]"
-    },
-    {
-     "field": "width",
-     "kind": "gadget",
-     "lxa": 200,
-     "phase": 223,
-     "ref": 192,
-     "where": "screen[Workbench Screen]/window[GadTools Gadget Demo]/gadget[0 id=0]"
-    },
-    {
-     "field": "height",
-     "kind": "gadget",
-     "lxa": 12,
-     "phase": 223,
-     "ref": 8,
-     "where": "screen[Workbench Screen]/window[GadTools Gadget Demo]/gadget[0 id=0]"
-    },
-    {
      "field": "text",
      "kind": "gadget",
      "lxa": [
       "Volume:   ",
-      "_",
       " 5"
      ],
-     "phase": 223,
+     "phase": 222,
      "ref": [],
      "where": "screen[Workbench Screen]/window[GadTools Gadget Demo]/gadget[0 id=0]"
     },
@@ -216,32 +79,32 @@
     {
      "field": "left",
      "kind": "gadget",
-     "lxa": 144,
-     "phase": 223,
+     "lxa": 146,
+     "phase": 222,
      "ref": 140,
      "where": "screen[Workbench Screen]/window[GadTools Gadget Demo]/gadget[1 id=0]"
     },
     {
      "field": "top",
      "kind": "gadget",
-     "lxa": 62,
-     "phase": 223,
+     "lxa": 54,
+     "phase": 222,
      "ref": 31,
      "where": "screen[Workbench Screen]/window[GadTools Gadget Demo]/gadget[1 id=0]"
     },
     {
      "field": "width",
      "kind": "gadget",
-     "lxa": 192,
-     "phase": 223,
+     "lxa": 188,
+     "phase": 222,
      "ref": 200,
      "where": "screen[Workbench Screen]/window[GadTools Gadget Demo]/gadget[1 id=0]"
     },
     {
      "field": "height",
      "kind": "gadget",
-     "lxa": 10,
-     "phase": 223,
+     "lxa": 8,
+     "phase": 222,
      "ref": 12,
      "where": "screen[Workbench Screen]/window[GadTools Gadget Demo]/gadget[1 id=0]"
     },
@@ -249,10 +112,9 @@
      "field": "text",
      "kind": "gadget",
      "lxa": [
-      "First:",
-      "_"
+      "First:"
      ],
-     "phase": 223,
+     "phase": 222,
      "ref": [
       "Volume:   ",
       "V"
@@ -284,45 +146,20 @@
      "where": "screen[Workbench Screen]/window[GadTools Gadget Demo]/gadget[2 id=1]"
     },
     {
-     "field": "left",
-     "kind": "gadget",
-     "lxa": 144,
-     "phase": 223,
-     "ref": 146,
-     "where": "screen[Workbench Screen]/window[GadTools Gadget Demo]/gadget[2 id=1]"
-    },
-    {
      "field": "top",
      "kind": "gadget",
-     "lxa": 82,
-     "phase": 223,
+     "lxa": 74,
+     "phase": 222,
      "ref": 54,
-     "where": "screen[Workbench Screen]/window[GadTools Gadget Demo]/gadget[2 id=1]"
-    },
-    {
-     "field": "width",
-     "kind": "gadget",
-     "lxa": 192,
-     "phase": 223,
-     "ref": 188,
-     "where": "screen[Workbench Screen]/window[GadTools Gadget Demo]/gadget[2 id=1]"
-    },
-    {
-     "field": "height",
-     "kind": "gadget",
-     "lxa": 10,
-     "phase": 223,
-     "ref": 8,
      "where": "screen[Workbench Screen]/window[GadTools Gadget Demo]/gadget[2 id=1]"
     },
     {
      "field": "text",
      "kind": "gadget",
      "lxa": [
-      "Second:",
-      "_"
+      "Second:"
      ],
-     "phase": 223,
+     "phase": 222,
      "ref": [
       "First:",
       "F"
@@ -354,45 +191,20 @@
      "where": "screen[Workbench Screen]/window[GadTools Gadget Demo]/gadget[3 id=2]"
     },
     {
-     "field": "left",
-     "kind": "gadget",
-     "lxa": 144,
-     "phase": 223,
-     "ref": 146,
-     "where": "screen[Workbench Screen]/window[GadTools Gadget Demo]/gadget[3 id=2]"
-    },
-    {
      "field": "top",
      "kind": "gadget",
-     "lxa": 102,
-     "phase": 223,
+     "lxa": 94,
+     "phase": 222,
      "ref": 74,
-     "where": "screen[Workbench Screen]/window[GadTools Gadget Demo]/gadget[3 id=2]"
-    },
-    {
-     "field": "width",
-     "kind": "gadget",
-     "lxa": 192,
-     "phase": 223,
-     "ref": 188,
-     "where": "screen[Workbench Screen]/window[GadTools Gadget Demo]/gadget[3 id=2]"
-    },
-    {
-     "field": "height",
-     "kind": "gadget",
-     "lxa": 10,
-     "phase": 223,
-     "ref": 8,
      "where": "screen[Workbench Screen]/window[GadTools Gadget Demo]/gadget[3 id=2]"
     },
     {
      "field": "text",
      "kind": "gadget",
      "lxa": [
-      "Third:",
-      "_"
+      "Third:"
      ],
-     "phase": 223,
+     "phase": 222,
      "ref": [
       "Second:",
       "S"
@@ -418,8 +230,8 @@
     {
      "field": "flags",
      "kind": "gadget",
-     "lxa": 0,
-     "phase": 223,
+     "lxa": 3,
+     "phase": 222,
      "ref": 33284,
      "where": "screen[Workbench Screen]/window[GadTools Gadget Demo]/gadget[4 id=3]"
     },
@@ -442,8 +254,8 @@
     {
      "field": "top",
      "kind": "gadget",
-     "lxa": 120,
-     "phase": 223,
+     "lxa": 111,
+     "phase": 222,
      "ref": 94,
      "where": "screen[Workbench Screen]/window[GadTools Gadget Demo]/gadget[4 id=3]"
     },
@@ -466,61 +278,18 @@
     {
      "field": "text",
      "kind": "gadget",
-     "lxa": [
-      "Click Here",
-      "_"
-     ],
-     "phase": 223,
+     "lxa": [],
+     "phase": 222,
      "ref": [
       "Third:",
       "T"
      ],
      "where": "screen[Workbench Screen]/window[GadTools Gadget Demo]/gadget[4 id=3]"
-    },
-    {
-     "field": "missing",
-     "kind": "gadget",
-     "lxa": null,
-     "phase": 222,
-     "ref": 32837,
-     "where": "screen[Workbench Screen]/window[GadTools Gadget Demo]/sysgadget[0x8045]"
-    },
-    {
-     "field": "missing",
-     "kind": "gadget",
-     "lxa": null,
-     "phase": 222,
-     "ref": 32869,
-     "where": "screen[Workbench Screen]/window[GadTools Gadget Demo]/sysgadget[0x8065]"
-    },
-    {
-     "field": "missing",
-     "kind": "gadget",
-     "lxa": null,
-     "phase": 222,
-     "ref": 32789,
-     "where": "screen[Workbench Screen]/window[GadTools Gadget Demo]/sysgadget[0x8015]"
-    },
-    {
-     "field": "missing",
-     "kind": "gadget",
-     "lxa": null,
-     "phase": 222,
-     "ref": 32901,
-     "where": "screen[Workbench Screen]/window[GadTools Gadget Demo]/sysgadget[0x8085]"
-    },
-    {
-     "field": "missing",
-     "kind": "gadget",
-     "lxa": null,
-     "phase": 222,
-     "ref": 32805,
-     "where": "screen[Workbench Screen]/window[GadTools Gadget Demo]/sysgadget[0x8025]"
     }
    ],
-   "pixel_budget": 15857,
+   "pixel_budget": 791,
    "pixel_phase": 223,
-   "stdout_known_diff": 223
+   "stdout_known_diff": 222
   }
  }
 }

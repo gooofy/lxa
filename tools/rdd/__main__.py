@@ -14,6 +14,7 @@
                python3 -m rdd corpus [--check] [--list]
                python3 -m rdd compat [scenario.yaml...] [--out DIR] [--no-run] [--fail-on-drop]
                python3 -m rdd dashboard [--db FILE] [--html FILE]
+               python3 -m rdd gallery [RUN_DIR] [--html FILE]
 
 (or tools/rdd.sh run ...). Each scenario runs once per backend in its own
 process; reference runs are cached (see rdd.backend_ref).  Output:
@@ -87,6 +88,15 @@ def cmd_report(a):
         print("%-28s %-12s %-9s tree=%-3d pixels=%s" % (r["scenario"], r["snapshot"], r["verdict"],
                                                          r["tree_diffs"], r["diff_pixels"]))
     print("report: %s" % (a.html or os.path.join(a.out, "report.html")))
+    return 0
+
+
+def cmd_gallery(a):
+    from rdd import gallery
+    rows, path = gallery.build(a.out, a.html)
+    for r in rows:
+        print("%-26s %-14s %s" % (r["scenario"], r["snapshot"], r["verdict"]))
+    print("gallery: %s" % path)
     return 0
 
 
@@ -258,6 +268,10 @@ def main():
     p.add_argument("out", nargs="?", default=os.path.join(ROOT, "build", "rdd"))
     p.add_argument("--html")
     p.set_defaults(fn=cmd_report)
+    p = sub.add_parser("gallery", help="render the gallery goldens with their verdicts (Phase 223)")
+    p.add_argument("out", nargs="?", default=os.path.join(ROOT, "build", "rdd-gal"))
+    p.add_argument("--html")
+    p.set_defaults(fn=cmd_gallery)
     p = sub.add_parser("promote", help="turn reference bundles of a run into goldens")
     p.add_argument("scenarios", nargs="+")
     p.add_argument("--run", default=os.path.join(ROOT, "build", "rdd"))

@@ -28,6 +28,11 @@ def run(scn, out_dir, build=None):
     tmp = tempfile.mkdtemp(prefix="rdd-lxa-")
     lxa = Lxa(build=build)
     try:
+        fonts = scn.lxa_fonts_dir()
+        if fonts:
+            if not os.path.isdir(fonts):
+                raise RuntimeError("fonts: %s missing (build the reference system)" % fonts)
+            lxa.assign("FONTS", fonts)
         for name, rel, add in scn.assigns():
             path = os.path.join(scn.app_host_dir(), rel)
             (lxa.assign_add if add else lxa.assign)(name, path)

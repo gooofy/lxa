@@ -1,0 +1,8 @@
+frame 0 recessed 0: 56x14
+frame 0 recessed 1: 56x14
+frame 1 recessed 0: 56x14
+frame 1 recessed 1: 56x14
+frame 2 recessed 0: 56x14
+frame 2 recessed 1: 56x14
+frame 3 recessed 0: 56x14
+frame 3 recessed 1: 56x14

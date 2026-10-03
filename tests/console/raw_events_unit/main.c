@@ -362,6 +362,9 @@ int main(void)
 
     print("Waiting for size-window raw event report\n");
     con_puts(console_req, CSI "12{");
+    /* AmigaOS 3.1: the maximum size defaults to the initial size and
+     * SizeWindow() honours it, so lift the limit before growing */
+    WindowLimits(window, 0, 0, (UWORD)~0, (UWORD)~0);
     SizeWindow(window, 16, 8);
     if (!expect_raw_report(console_req, read_buf, "size-window report",
                            size_prefix, sizeof(size_prefix))) {

@@ -1,0 +1,10 @@
+# Rendering conformance gallery (Phase 223): frameiclass frames and DrawBevelBox.
+name: gallery-frames
+app:
+  sample: Tests/Gallery/Frames
+steps:
+  - launch
+  - wait_window: "Frame Gallery"
+  - wait_idle
+  - snapshot: {name: page, window: "Frame Gallery"}
+  - quit

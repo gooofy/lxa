@@ -150,8 +150,9 @@ TEST_F(ZoomWindowTest, ZoomGadgetExists) {
     for (int i = 0; i < count; ++i) {
         lxa_gadget_info_t info;
         if (lxa_get_gadget_info(0, i, &info)) {
-            /* GTYP_WZOOM system gadget has GadgetID == 0x0060 */
-            if (info.gadget_id == 0x0060) {
+            /* GTYP_WZOOM system gadget: GTYP_SYSGADGET with system type
+             * 0x0060 (AmigaOS 3.1 leaves GadgetID 0) */
+            if ((info.gadget_type & 0x8000) && (info.gadget_type & 0x00F0) == 0x0060) {
                 found_wzoom = true;
                 /* Geometry sanity: must have non-zero width and height */
                 EXPECT_GT(info.width, 0) << "WZOOM gadget width should be > 0";

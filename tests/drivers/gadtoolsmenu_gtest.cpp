@@ -391,7 +391,9 @@ TEST_F(GadToolsMenuPixelTest, MenuRectsFollowIntuitionLayout) {
     EXPECT_GT(th, 8) << "title box spans the screen bar";
     EXPECT_GE(iy, th) << "items start below the screen bar";
     EXPECT_GE(ix, tx) << "the drop-down starts at the menu title";
-    EXPECT_GE(sx, ix + iw) << "sub-items open to the right of their parent";
+    /* AmigaOS 3.1: sub-items are placed relative to their parent item and
+     * GadTools lets the sub-menu overlap the parent's last quarter */
+    EXPECT_GT(sx, ix + iw / 2) << "sub-items open to the right of their parent";
     EXPECT_GT(sy, iy - 1);
     EXPECT_FALSE(lxa_get_menu_rect(0, 0, 99, -1, &ix, &iy, &iw, &ih));
 }
@@ -403,11 +405,13 @@ TEST_F(GadToolsMenuPixelTest, SelectMenuPathQuitExitsProgram) {
 }
 
 TEST_F(GadToolsMenuPixelTest, SelectSubItemKeepsProgramRunning) {
+    lxa_flush_display();
+    const int before = CountContentPixels(0, 12, 220, 75, 0);
     ASSERT_TRUE(lxa_select_menu_path(0, "Project/Print/Draft"));
     RunFrames(10);
     EXPECT_TRUE(lxa_is_running()) << "Print/Draft is not Quit";
     lxa_flush_display();
-    EXPECT_LT(CountContentPixels(0, 12, 220, 75, 0), 200)
+    EXPECT_EQ(CountContentPixels(0, 12, 220, 75, 0), before)
         << "menus are closed again after the selection";
 }
 

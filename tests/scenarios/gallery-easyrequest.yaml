@@ -1,0 +1,10 @@
+# Rendering conformance gallery (Phase 223): an EasyRequest requester.
+name: gallery-easyrequest
+app:
+  sample: Tests/Gallery/Req
+steps:
+  - launch
+  - wait_window: "Gallery Request"
+  - wait_idle
+  - snapshot: {name: requester, window: "Gallery Request"}
+  - quit

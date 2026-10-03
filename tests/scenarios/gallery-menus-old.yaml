@@ -1,0 +1,12 @@
+# Rendering conformance gallery (Phase 223): the same menus without NewLook.
+name: gallery-menus-old
+app:
+  sample: Tests/Gallery/Menus
+  args: "old"
+steps:
+  - launch
+  - wait_window: "Menu Gallery"
+  - wait_idle
+  - snapshot: screen
+  - menus
+  - quit

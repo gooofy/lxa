@@ -647,6 +647,9 @@ static void test_window_resize_updates_console(void)
         return;
     }
 
+    /* AmigaOS 3.1: the maximum size defaults to the initial size and
+     * SizeWindow() honours it, so lift the limit before growing */
+    WindowLimits(test_win, 0, 0, (UWORD)~0, (UWORD)~0);
     SizeWindow(test_win, 80, 40);
     con_update();
     WaitTOF();

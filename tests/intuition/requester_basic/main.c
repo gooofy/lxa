@@ -253,7 +253,10 @@ int main(void)
     if (!sys_window || sys_window == (struct Window *)1) {
         print("  FAIL: BuildSysRequest did not open requester window\n\n");
     } else {
+        /* system gadgets come first in the list (AmigaOS 3.1) */
         struct Gadget *first_gad = sys_window->FirstGadget;
+        while (first_gad && (first_gad->GadgetType & GTYP_SYSGADGET))
+            first_gad = first_gad->NextGadget;
         struct Gadget *neg_gad = NULL;
         if (first_gad && first_gad->NextGadget)
             neg_gad = first_gad->NextGadget;
@@ -294,7 +297,10 @@ int main(void)
     if (!sys_window || sys_window == (struct Window *)1) {
         print("  FAIL: BuildSysRequest did not open second requester window\n\n");
     } else {
+        /* system gadgets come first in the list (AmigaOS 3.1) */
         struct Gadget *gad = sys_window->FirstGadget;
+        while (gad && (gad->GadgetType & GTYP_SYSGADGET))
+            gad = gad->NextGadget;
 
         if (gad && gad->NextGadget != NULL) {
             print("  OK: BuildSysRequest created response gadgets\n");

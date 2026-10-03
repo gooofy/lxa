@@ -259,8 +259,15 @@ class Lxa:
         return any(substr in (w.get("title") or "") for s in tree.get("screens", []) for w in s.get("windows", [])
                    if w.get("title") is not None)
 
-    def wait_idle(self, iterations=50):
-        self.lib.lxa_run_until_idle(iterations, 100000)
+    def wait_idle(self, iterations=50, timeout_ms=10000):
+        """Run until every task waits (like lxaprobe WAIT_IDLE), at most
+        timeout_ms of emulated time; a program that draws for longer than
+        one batch of `iterations` slices is waited for, not cut short."""
+        start = self.lib.lxa_get_time_us()
+        while True:
+            n = self.lib.lxa_run_until_idle(iterations, 100000)
+            if n < iterations or self.lib.lxa_get_time_us() - start >= timeout_ms * 1000:
+                return
 
     def program_exited(self):
         """the launched program returned (its other tasks may still run)"""

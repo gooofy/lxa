@@ -1,8 +1,8 @@
 {
  "app": "DPaintV",
  "disabled": null,
- "lxa_version": "0.11.11",
- "promoted": "2026-10-02",
+ "lxa_version": "0.11.14",
+ "promoted": "2026-10-03",
  "reference": "AmigaOS 3.1 (KS 40.70), profile aga",
  "requires_apps": true,
  "scenario": "dpaintv-startup",
@@ -10,101 +10,11 @@
   "startup": {
    "known_tree_diffs": [
     {
-     "field": "display_id",
-     "kind": "screen",
-     "lxa": 167936,
-     "phase": 224,
-     "ref": 32768,
-     "where": "screen[Workbench Screen]"
-    },
-    {
-     "field": "flags",
-     "kind": "screen",
-     "lxa": 1,
-     "phase": 224,
-     "ref": 1553,
-     "where": "screen[Workbench Screen]"
-    },
-    {
-     "field": "menu_vborder",
-     "kind": "screen",
-     "lxa": 0,
-     "phase": 224,
-     "ref": 2,
-     "where": "screen[Workbench Screen]"
-    },
-    {
-     "field": "menu_hborder",
-     "kind": "screen",
-     "lxa": 0,
-     "phase": 224,
-     "ref": 4,
-     "where": "screen[Workbench Screen]"
-    },
-    {
-     "field": "wbor",
-     "kind": "screen",
-     "lxa": [
-      4,
-      11,
-      4,
-      2
-     ],
-     "phase": 224,
-     "ref": [
-      4,
-      2,
-      4,
-      2
-     ],
-     "where": "screen[Workbench Screen]"
-    },
-    {
-     "field": "max_width",
-     "kind": "window",
-     "lxa": 65535,
-     "phase": 222,
-     "ref": 298,
-     "where": "screen[Workbench Screen]/window[Ownership Information]"
-    },
-    {
-     "field": "max_height",
-     "kind": "window",
-     "lxa": 65535,
-     "phase": 222,
-     "ref": 197,
-     "where": "screen[Workbench Screen]/window[Ownership Information]"
-    },
-    {
-     "field": "flags",
-     "kind": "window",
-     "lxa": 12294,
-     "phase": 222,
-     "ref": 134230022,
-     "where": "screen[Workbench Screen]/window[Ownership Information]"
-    },
-    {
-     "field": "count",
-     "kind": "gadget",
-     "lxa": 9,
-     "phase": 224,
-     "ref": 10,
-     "where": "screen[Workbench Screen]/window[Ownership Information]"
-    },
-    {
      "field": "flags",
      "kind": "gadget",
      "lxa": 3,
      "phase": 224,
      "ref": 32775,
-     "where": "screen[Workbench Screen]/window[Ownership Information]/gadget[0 id=8]"
-    },
-    {
-     "field": "top",
-     "kind": "gadget",
-     "lxa": 30,
-     "phase": 224,
-     "ref": 21,
      "where": "screen[Workbench Screen]/window[Ownership Information]/gadget[0 id=8]"
     },
     {
@@ -116,27 +26,11 @@
      "where": "screen[Workbench Screen]/window[Ownership Information]/gadget[1 id=8]"
     },
     {
-     "field": "top",
-     "kind": "gadget",
-     "lxa": 40,
-     "phase": 224,
-     "ref": 31,
-     "where": "screen[Workbench Screen]/window[Ownership Information]/gadget[1 id=8]"
-    },
-    {
      "field": "flags",
      "kind": "gadget",
      "lxa": 3,
      "phase": 224,
      "ref": 32775,
-     "where": "screen[Workbench Screen]/window[Ownership Information]/gadget[2 id=4]"
-    },
-    {
-     "field": "top",
-     "kind": "gadget",
-     "lxa": 75,
-     "phase": 224,
-     "ref": 66,
      "where": "screen[Workbench Screen]/window[Ownership Information]/gadget[2 id=4]"
     },
     {
@@ -148,27 +42,11 @@
      "where": "screen[Workbench Screen]/window[Ownership Information]/gadget[3 id=5]"
     },
     {
-     "field": "top",
-     "kind": "gadget",
-     "lxa": 105,
-     "phase": 224,
-     "ref": 96,
-     "where": "screen[Workbench Screen]/window[Ownership Information]/gadget[3 id=5]"
-    },
-    {
      "field": "flags",
      "kind": "gadget",
      "lxa": 3,
      "phase": 224,
      "ref": 32775,
-     "where": "screen[Workbench Screen]/window[Ownership Information]/gadget[4 id=6]"
-    },
-    {
-     "field": "top",
-     "kind": "gadget",
-     "lxa": 135,
-     "phase": 224,
-     "ref": 126,
      "where": "screen[Workbench Screen]/window[Ownership Information]/gadget[4 id=6]"
     },
     {
@@ -180,18 +58,10 @@
      "where": "screen[Workbench Screen]/window[Ownership Information]/gadget[5 id=7]"
     },
     {
-     "field": "top",
-     "kind": "gadget",
-     "lxa": 165,
-     "phase": 224,
-     "ref": 156,
-     "where": "screen[Workbench Screen]/window[Ownership Information]/gadget[5 id=7]"
-    },
-    {
      "field": "flags",
      "kind": "gadget",
-     "lxa": 0,
-     "phase": 224,
+     "lxa": 3,
+     "phase": 222,
      "ref": 32774,
      "where": "screen[Workbench Screen]/window[Ownership Information]/gadget[6 id=1]"
     },
@@ -202,44 +72,9 @@
      "phase": 224,
      "ref": 3,
      "where": "screen[Workbench Screen]/window[Ownership Information]/gadget[6 id=1]"
-    },
-    {
-     "field": "top",
-     "kind": "gadget",
-     "lxa": 183,
-     "phase": 224,
-     "ref": 174,
-     "where": "screen[Workbench Screen]/window[Ownership Information]/gadget[6 id=1]"
-    },
-    {
-     "field": "text",
-     "kind": "gadget",
-     "lxa": [
-      "Ok",
-      "_"
-     ],
-     "phase": 224,
-     "ref": [],
-     "where": "screen[Workbench Screen]/window[Ownership Information]/gadget[6 id=1]"
-    },
-    {
-     "field": "missing",
-     "kind": "gadget",
-     "lxa": null,
-     "phase": 222,
-     "ref": 32837,
-     "where": "screen[Workbench Screen]/window[Ownership Information]/sysgadget[0x8045]"
-    },
-    {
-     "field": "missing",
-     "kind": "gadget",
-     "lxa": null,
-     "phase": 222,
-     "ref": 32805,
-     "where": "screen[Workbench Screen]/window[Ownership Information]/sysgadget[0x8025]"
     }
    ],
-   "pixel_budget": 38361,
+   "pixel_budget": 40690,
    "pixel_phase": 224,
    "stdout_known_diff": null
   }

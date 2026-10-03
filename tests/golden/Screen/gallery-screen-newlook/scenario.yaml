@@ -1,0 +1,11 @@
+# Rendering conformance gallery (Phase 223): a custom 8-colour screen with SA_Pens
+# (title bar, backdrop window, normal window); the whole screen is compared.
+name: gallery-screen-newlook
+app:
+  sample: Tests/Gallery/Screen
+steps:
+  - launch
+  - wait_window: "Screen Win"
+  - wait_idle
+  - snapshot: screen
+  - quit

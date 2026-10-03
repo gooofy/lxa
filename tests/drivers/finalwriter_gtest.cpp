@@ -187,7 +187,9 @@ TEST_F(FinalWriterTest, StartupOpensVisibleWindow)
         << "FinalWriter_D should still be running after startup\n"
         << GetOutput();
     EXPECT_GT(window_info.width, 400);
-    EXPECT_GT(window_info.height, 120);
+    /* AmigaOS 3.1 reference (app-finalwriter-d): the startup dialog is
+     * 117 pixels high (WBorTop 2 + topaz 8 title bar) */
+    EXPECT_GE(window_info.height, 117);
     EXPECT_NE(CountContentPixels(window_info.x,
                                  window_info.y,
                                  window_info.x + window_info.width - 1,
