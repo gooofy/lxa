@@ -53,9 +53,20 @@ static void lp_add(WORD x0, WORD y0, WORD x1, WORD y1)
     if (y0 < 0) y0 = 0;
     if (x1 >= LP_W) x1 = LP_W - 1;
     if (y1 >= LP_H) y1 = LP_H - 1;
-    for (y = y0; y <= y1; y++)
-        for (x = x0; x <= x1; x++)
-            lp_mask[y][x >> 3] |= (UBYTE)(0x80 >> (x & 7));
+    if (x0 > x1)
+        return;
+    for (y = y0; y <= y1; y++) {
+        WORD b0 = (WORD)(x0 >> 3), b1 = (WORD)(x1 >> 3);
+        UBYTE m0 = (UBYTE)(0xff >> (x0 & 7)), m1 = (UBYTE)(0xff << (7 - (x1 & 7)));
+        if (b0 == b1)
+            lp_mask[y][b0] |= (UBYTE)(m0 & m1);
+        else {
+            lp_mask[y][b0] |= m0;
+            for (x = (WORD)(b0 + 1); x < b1; x++)
+                lp_mask[y][x] = 0xff;
+            lp_mask[y][b1] |= m1;
+        }
+    }
 }
 
 static int lp_bit(WORD x, WORD y)
@@ -82,8 +93,8 @@ static void lp_print_region(const char *label)
     while (y < LP_H) {
         WORD y1 = y, x = 0;
         int any = 0;
-        for (x = 0; x < LP_W; x++)
-            if (lp_bit(x, y))
+        for (x = 0; x < LP_W / 8; x++)
+            if (lp_mask[y][x])
                 any = 1;
         if (!any) {
             y++;
@@ -98,6 +109,10 @@ static void lp_print_region(const char *label)
         probe_ch(':');
         any = 0;
         for (x = 0; x < LP_W; x++) {
+            if (!(x & 7) && !lp_mask[y][x >> 3]) {
+                x += 7;
+                continue;
+            }
             if (lp_bit(x, y) && (x == 0 || !lp_bit((WORD)(x - 1), y))) {
                 WORD xe = x;
                 while (xe + 1 < LP_W && lp_bit((WORD)(xe + 1), y))

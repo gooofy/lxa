@@ -751,9 +751,18 @@ TEST_F(SIGMAth2Test, DisplayFrameContainsRenderedContent)
     const auto& frame = gmap[26];
     /* Sample the top portion of the frame (title/label area) */
     const int sample_height = std::min(20, frame.height);
-    const int content_pixels = CountContentPixels(
-        frame.left + 2, frame.top + 2,
-        frame.left + frame.width - 2, frame.top + sample_height);
+    int content_pixels = 0;
+    /* wait for state rather than a fixed cycle budget (AGENTS.md §6.6):
+     * the RCT library draws the frame text after the window settles */
+    for (int i = 0; i < 100; i++) {
+        content_pixels = CountContentPixels(
+            frame.left + 2, frame.top + 2,
+            frame.left + frame.width - 2, frame.top + sample_height);
+        if (content_pixels > 10)
+            break;
+        RunCyclesWithVBlank(20, 50000);
+        FlushAndSettle();
+    }
     EXPECT_GT(content_pixels, 10)
         << "Display frame top region should contain rendered content (title text or border)";
 }

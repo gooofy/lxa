@@ -9805,7 +9805,7 @@ struct Window * _intuition_OpenWindow ( register struct IntuitionBase * Intuitio
         if (window->Flags & WFLG_GIMMEZEROZERO)
         {
             struct TagItem content_tags[] = {
-                { LA_BackfillHook, (ULONG)LAYERS_NOBACKFILL },
+                { LA_BackfillHook, (ULONG)LAYERS_BACKFILL },
                 { (layer_flags & LAYERSUPER) ? LA_SuperBitMap : TAG_IGNORE, (ULONG)newWindow->BitMap },
                 { LA_WindowPtr, (ULONG)window },
                 { TAG_DONE, 0 }
@@ -9835,7 +9835,7 @@ struct Window * _intuition_OpenWindow ( register struct IntuitionBase * Intuitio
         else
         {
             struct TagItem content_tags[] = {
-                { LA_BackfillHook, (ULONG)LAYERS_NOBACKFILL },
+                { LA_BackfillHook, (ULONG)LAYERS_BACKFILL },
                 { (layer_flags & LAYERSUPER) ? LA_SuperBitMap : TAG_IGNORE, (ULONG)newWindow->BitMap },
                 { LA_WindowPtr, (ULONG)window },
                 { TAG_DONE, 0 }

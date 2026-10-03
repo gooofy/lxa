@@ -309,15 +309,17 @@ TEST_F(DevpacSettingsTest, ZDismissSettingsWindow) {
     EXPECT_EQ(lxa_get_window_count(), 1)
         << "Only the editor window should remain after dismissing Settings";
 
-    /* After dismissal the editor should have non-background content in the
-     * area that was previously covered by the settings window.  With
-     * IDCMP_REFRESHWINDOW delivered, Devpac redraws its editor content. */
+    /* After dismissal the area the Settings window covered belongs to the
+     * (empty, "Untitled") editor again: layers backfill the uncovered part
+     * of the window (LAYERS_BACKFILL clears it, Phase 222c) and Devpac
+     * redraws its - empty - buffer, so no remnants of the Settings window
+     * may stay visible.  (This used to require non-background pixels,
+     * which only the stale Settings window imagery provided.) */
     int after_pixels = CountNonBackgroundPixels(
         editor_exposed_x1, editor_exposed_y1,
         editor_exposed_x2, editor_exposed_y2);
-    EXPECT_GT(after_pixels, 20)
-        << "Editor area covered by Settings window should have non-background "
-        << "content after dismiss (IDCMP_REFRESHWINDOW delivered and app redrawn). "
+    EXPECT_LT(after_pixels, 20)
+        << "Editor area covered by Settings window should be clean after dismiss. "
         << "Region: (" << editor_exposed_x1 << "," << editor_exposed_y1
         << ")..(" << editor_exposed_x2 << "," << editor_exposed_y2
         << "). Capture: /tmp/devpac_after_dismiss.png";

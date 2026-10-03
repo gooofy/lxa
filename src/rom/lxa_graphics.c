@@ -30,6 +30,8 @@
 
 #include <clib/utility_protos.h>
 #include <inline/utility.h>
+#include <clib/layers_protos.h>
+#include <inline/layers.h>
 
 #include <intuition/intuitionbase.h>
 
@@ -2369,8 +2371,13 @@ static WORD _graphics_TextLength ( register struct GfxBase * GfxBase __asm("a6")
  * the bitmap (no layer) or inside one visible ClipRect, it is written a
  * byte at a time per plane.  Returns FALSE when the caller has to fall
  * back to clipped runs.
+ *
+ * always_inline: compiled out of line (two callers), m68k GCC produced a
+ * version that rendered nothing for some Text() calls (AGENTS.md §6.1
+ * kind of miscompile; seen as missing labels in dpaint_gtest).
  */
-static BOOL gfx_text_row_direct(struct RastPort *rp, const UBYTE *row, WORD x0, WORD y,
+static inline __attribute__((always_inline)) BOOL gfx_text_row_direct(
+                                struct RastPort *rp, const UBYTE *row, WORD x0, WORD y,
                                 WORD tw, UBYTE fg, UBYTE bg, BOOL jam2, BOOL complement, BOOL inv)
 {
     struct BitMap *bm = rp->BitMap;
@@ -4175,48 +4182,66 @@ static void gfx_line_plot(struct gfx_line_ctx *c, WORD x, WORD y, UBYTE pen, BOO
 static void gfx_template_blit(struct RastPort *rp, const UBYTE *src, LONG xSrc, LONG srcMod,
                               LONG xDest, LONG yDest, LONG xSize, LONG ySize)
 {
-    struct gfx_line_ctx c;
     UBYTE dm = rp->DrawMode;
     BOOL complement = (dm & COMPLEMENT) != 0;
     BOOL jam2 = (dm & JAM2) && !complement;
     BOOL inv = (dm & INVERSVID) != 0;
     UBYTE fg = complement ? rp->Mask : (UBYTE)rp->FgPen;
     UBYTE bg = (UBYTE)rp->BgPen;
-    WORD offX = 0, offY = 0;
     LONG row, col;
 
     if (xSize <= 0 || ySize <= 0)
         return;
 
-    c.bm = rp->BitMap;
-    c.layer = rp->Layer;
-    c.cr = NULL;
-    c.bmw = (WORD)(c.bm->BytesPerRow * 8);
-    c.bmh = (WORD)c.bm->Rows;
-    c.mask = rp->Mask;
-    if (c.layer)
-    {
-        offX = LAYER_ORIGIN_X(c.layer);
-        offY = LAYER_ORIGIN_Y(c.layer);
-    }
 
     for (row = 0; row < ySize; row++)
     {
         const UBYTE *s = src + row * srcMod;
-        WORD y = (WORD)(yDest + row + offY);
-        for (col = 0; col < xSize; col++)
+
+
+        /* fast path: the row realigned to bit 0, written a byte at a time
+         * when it is not clipped */
+        if (xSize <= 8 * 60)
         {
-            LONG sx = xSrc + col;
-            BOOL bit = (s[sx >> 3] & (0x80 >> (sx & 7))) != 0;
-            WORD x = (WORD)(xDest + col + offX);
-            if (inv)
-                bit = !bit;
-            if (bit)
-                gfx_line_plot(&c, x, y, fg, complement);
-            else if (jam2)
-                gfx_line_plot(&c, x, y, bg, FALSE);
+            UBYTE buf[64];
+            WORD nb = (WORD)((xSize + 7) >> 3), k;
+            WORD sh = (WORD)(xSrc & 7);
+            const UBYTE *sp = s + (xSrc >> 3);
+            for (k = 0; k < nb; k++)
+                buf[k] = (UBYTE)((sp[k] << sh) | (sh ? (sp[k + 1] >> (8 - sh)) : 0));
+            buf[nb] = 0;
+            buf[nb + 1] = 0;
+            if (xSize & 7)
+                buf[nb - 1] &= (UBYTE)(0xff << (8 - (xSize & 7)));
+            if (gfx_text_row_direct(rp, buf, (WORD)xDest, (WORD)(yDest + row), (WORD)xSize,
+                                    fg, bg, jam2, complement, inv))
+                continue;
+        }
+
+        /* clipped: runs of set bits through gfx_fill_rect() (layer aware) */
+
+        if (jam2)
+            gfx_fill_rect(rp, (WORD)xDest, (WORD)(yDest + row), (WORD)(xDest + xSize - 1),
+                          (WORD)(yDest + row), (BYTE)bg, JAM2, FALSE);
+        col = 0;
+        while (col < xSize)
+        {
+            LONG cs;
+#define TBIT(cc) ((((s[(xSrc + (cc)) >> 3] >> (7 - ((xSrc + (cc)) & 7))) & 1) != 0) != inv)
+            if (!TBIT(col))
+            {
+                col++;
+                continue;
+            }
+            cs = col;
+            while (col < xSize && TBIT(col))
+                col++;
+#undef TBIT
+            gfx_fill_rect(rp, (WORD)(xDest + cs), (WORD)(yDest + row), (WORD)(xDest + col - 1),
+                          (WORD)(yDest + row), (BYTE)fg, complement ? COMPLEMENT : JAM2, FALSE);
         }
     }
+
 }
 
 /*
@@ -6139,6 +6164,94 @@ static VOID _graphics_InitBitMap ( register struct GfxBase * GfxBase __asm("a6")
      * This matches AROS behavior where planes are left untouched. */
 }
 
+static struct BitMap * _graphics_AllocBitMap ( register struct GfxBase * GfxBase __asm("a6"),
+                                                        register ULONG sizex __asm("d0"),
+                                                        register ULONG sizey __asm("d1"),
+                                                        register ULONG depth __asm("d2"),
+                                                        register ULONG flags __asm("d3"),
+                                                        register const struct BitMap * friend_bitmap __asm("a0"));
+static VOID _graphics_FreeBitMap ( register struct GfxBase * GfxBase __asm("a6"),
+                                                        register struct BitMap * bm __asm("a0"));
+
+/*
+ * Move the contents of a rectangle (RastPort coordinates) of a layered
+ * RastPort by (-dx,-dy) through the layer's ClipRects: visible parts on
+ * the screen and SMART_REFRESH backing store both scroll (AmigaOS 3.1).
+ * The vacated strips are left to the caller.
+ */
+static void gfx_scroll_layer(struct GfxBase *GfxBase, struct RastPort *rp, LONG dx, LONG dy,
+                             LONG xMin, LONG yMin, LONG xMax, LONG yMax)
+{
+    struct Layer *l = rp->Layer;
+    struct Rectangle a, lb;
+    struct BitMap *img;
+    struct ClipRect *cr;
+    WORD w, h;
+
+    a.MinX = (WORD)(xMin + LAYER_ORIGIN_X(l));
+    a.MinY = (WORD)(yMin + LAYER_ORIGIN_Y(l));
+    a.MaxX = (WORD)(xMax + LAYER_ORIGIN_X(l));
+    a.MaxY = (WORD)(yMax + LAYER_ORIGIN_Y(l));
+    lb = l->bounds;
+    if (!ClipIntersectRects(a.MinX, a.MinY, a.MaxX, a.MaxY, lb.MinX, lb.MinY, lb.MaxX, lb.MaxY,
+                            &a.MinX, &a.MinY, &a.MaxX, &a.MaxY))
+        return;
+    w = a.MaxX - a.MinX + 1;
+    h = a.MaxY - a.MinY + 1;
+    img = _graphics_AllocBitMap(GfxBase, w, h, rp->BitMap->Depth, BMF_CLEAR, NULL);
+    if (!img)
+        return;
+
+    for (cr = l->ClipRect; cr; cr = cr->Next)
+    {
+        struct Rectangle is;
+        if (!ClipIntersectRects(a.MinX, a.MinY, a.MaxX, a.MaxY, cr->bounds.MinX, cr->bounds.MinY,
+                                cr->bounds.MaxX, cr->bounds.MaxY, &is.MinX, &is.MinY, &is.MaxX, &is.MaxY))
+            continue;
+        if (!cr->obscured)
+            _graphics_BltBitMap(GfxBase, rp->BitMap, is.MinX, is.MinY, img, is.MinX - a.MinX, is.MinY - a.MinY,
+                                is.MaxX - is.MinX + 1, is.MaxY - is.MinY + 1, 0xC0, 0xFF, NULL);
+        else if (cr->BitMap)
+            _graphics_BltBitMap(GfxBase, cr->BitMap, is.MinX - cr->bounds.MinX, is.MinY - cr->bounds.MinY,
+                                img, is.MinX - a.MinX, is.MinY - a.MinY,
+                                is.MaxX - is.MinX + 1, is.MaxY - is.MinY + 1, 0xC0, 0xFF, NULL);
+    }
+
+    for (cr = l->ClipRect; cr; cr = cr->Next)
+    {
+        struct Rectangle is;
+        struct BitMap *dst;
+        WORD ox, oy;
+
+        if (!ClipIntersectRects(a.MinX, a.MinY, a.MaxX, a.MaxY, cr->bounds.MinX, cr->bounds.MinY,
+                                cr->bounds.MaxX, cr->bounds.MaxY, &is.MinX, &is.MinY, &is.MaxX, &is.MaxY))
+            continue;
+        /* the part of this ClipRect whose source lies inside the area */
+        if (!ClipIntersectRects(is.MinX, is.MinY, is.MaxX, is.MaxY,
+                                (WORD)(a.MinX - dx), (WORD)(a.MinY - dy), (WORD)(a.MaxX - dx), (WORD)(a.MaxY - dy),
+                                &is.MinX, &is.MinY, &is.MaxX, &is.MaxY))
+            continue;
+        if (!cr->obscured)
+        {
+            dst = rp->BitMap;
+            ox = 0;
+            oy = 0;
+        }
+        else if (cr->BitMap)
+        {
+            dst = cr->BitMap;
+            ox = cr->bounds.MinX;
+            oy = cr->bounds.MinY;
+        }
+        else
+            continue;
+        _graphics_BltBitMap(GfxBase, img, is.MinX + dx - a.MinX, is.MinY + dy - a.MinY,
+                            dst, is.MinX - ox, is.MinY - oy,
+                            is.MaxX - is.MinX + 1, is.MaxY - is.MinY + 1, 0xC0, 0xFF, NULL);
+    }
+    _graphics_FreeBitMap(GfxBase, img);
+}
+
 static VOID _graphics_ScrollRaster ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a1"),
                                                         register LONG dx __asm("d0"),
@@ -6173,7 +6286,23 @@ static VOID _graphics_ScrollRaster ( register struct GfxBase * GfxBase __asm("a6
     }
     
     bm = rp->BitMap;
-    
+
+    /* in a layer the rectangle is clipped to the layer first (3.1): the
+     * vacated strips lie inside the layer */
+    if (rp->Layer)
+    {
+        struct Layer *l = rp->Layer;
+        LONG lx0 = l->Scroll_X, ly0 = l->Scroll_Y;
+        LONG lx1 = lx0 + l->bounds.MaxX - l->bounds.MinX;
+        LONG ly1 = ly0 + l->bounds.MaxY - l->bounds.MinY;
+        if (xMin < lx0) xMin = lx0;
+        if (yMin < ly0) yMin = ly0;
+        if (xMax > lx1) xMax = lx1;
+        if (yMax > ly1) yMax = ly1;
+        if (xMin > xMax || yMin > yMax)
+            return;
+    }
+
     /* Calculate the source and destination regions */
     width = xMax - xMin + 1;
     height = yMax - yMin + 1;
@@ -6229,7 +6358,9 @@ static VOID _graphics_ScrollRaster ( register struct GfxBase * GfxBase __asm("a6
     }
     
     /* Perform the blit if there's any content to move */
-    if (width > 0 && height > 0) {
+    if (rp->Layer)
+        gfx_scroll_layer(GfxBase, rp, dx, dy, xMin, yMin, xMax, yMax);
+    else if (width > 0 && height > 0) {
         _graphics_BltBitMap(GfxBase, bm, srcX, srcY, bm, destX, destY, 
                            width, height, 0xC0, 0xFF, NULL);  /* 0xC0 = copy minterm */
     }
@@ -6447,96 +6578,67 @@ static VOID __attribute__((optimize("O0"))) _graphics_UnlockLayerRom ( register 
     (void)layer;
 }
 
-static VOID _graphics_SyncSBitMap ( register struct GfxBase * GfxBase __asm("a6"),
-                                                        register struct Layer * layer __asm("a0"))
+/*
+ * SuperBitMap layers keep their obscured parts in backing store ClipRects
+ * (as on AmigaOS 3.1); SyncSBitMap()/CopySBitMap() transfer the visible
+ * parts and the backing store.
+ */
+static void gfx_sync_superbitmap(struct GfxBase *GfxBase, struct Layer *layer, BOOL to_super)
 {
     struct ClipRect *cr;
 
-    DPRINTF (LOG_DEBUG, "_graphics: SyncSBitMap() layer=0x%08lx\n", (ULONG)layer);
-
     if (!layer || !layer->rp || !layer->rp->BitMap)
         return;
-
     if (!layer->SuperBitMap || ((layer->Flags & LAYERSUPER) == 0))
         return;
 
     ObtainSemaphore(&layer->Lock);
-
-    cr = layer->ClipRect;
-    while (cr)
+    for (cr = layer->ClipRect; cr; cr = cr->Next)
     {
+        WORD width = cr->bounds.MaxX - cr->bounds.MinX + 1;
+        WORD height = cr->bounds.MaxY - cr->bounds.MinY + 1;
+        WORD sx = (WORD)(cr->bounds.MinX - layer->bounds.MinX + layer->Scroll_X);
+        WORD sy = (WORD)(cr->bounds.MinY - layer->bounds.MinY + layer->Scroll_Y);
+        struct BitMap *bm;
+        WORD bx, by;
+
+        if (width <= 0 || height <= 0)
+            continue;
         if (!cr->obscured)
         {
-            WORD width = cr->bounds.MaxX - cr->bounds.MinX + 1;
-            WORD height = cr->bounds.MaxY - cr->bounds.MinY + 1;
-
-            if (width > 0 && height > 0)
-            {
-                _graphics_BltBitMap(GfxBase,
-                                    layer->rp->BitMap,
-                                    cr->bounds.MinX,
-                                    cr->bounds.MinY,
-                                    layer->SuperBitMap,
-                                    (WORD)(cr->bounds.MinX - layer->bounds.MinX + layer->Scroll_X),
-                                    (WORD)(cr->bounds.MinY - layer->bounds.MinY + layer->Scroll_Y),
-                                    width,
-                                    height,
-                                    0xC0,
-                                    0xFF,
-                                    NULL);
-            }
+            bm = layer->rp->BitMap;
+            bx = cr->bounds.MinX;
+            by = cr->bounds.MinY;
         }
+        else if (cr->BitMap)
+        {
+            bm = cr->BitMap;
+            bx = 0;
+            by = 0;
+        }
+        else
+            continue;
 
-        cr = cr->Next;
+        if (to_super)
+            _graphics_BltBitMap(GfxBase, bm, bx, by, layer->SuperBitMap, sx, sy, width, height, 0xC0, 0xFF, NULL);
+        else
+            _graphics_BltBitMap(GfxBase, layer->SuperBitMap, sx, sy, bm, bx, by, width, height, 0xC0, 0xFF, NULL);
     }
-
     ReleaseSemaphore(&layer->Lock);
+}
+
+static VOID _graphics_SyncSBitMap ( register struct GfxBase * GfxBase __asm("a6"),
+                                                        register struct Layer * layer __asm("a0"))
+{
+    DPRINTF (LOG_DEBUG, "_graphics: SyncSBitMap() layer=0x%08lx\n", (ULONG)layer);
+    gfx_sync_superbitmap(GfxBase, layer, TRUE);
 }
 
 static VOID _graphics_CopySBitMap ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct Layer * layer __asm("a0"))
 {
-    struct ClipRect *cr;
-
     DPRINTF (LOG_DEBUG, "_graphics: CopySBitMap() layer=0x%08lx\n", (ULONG)layer);
-
-    if (!layer || !layer->rp || !layer->rp->BitMap)
-        return;
-
-    if (!layer->SuperBitMap || ((layer->Flags & LAYERSUPER) == 0))
-        return;
-
-    ObtainSemaphore(&layer->Lock);
-
-    cr = layer->ClipRect;
-    while (cr)
-    {
-        if (!cr->obscured)
-        {
-            WORD width = cr->bounds.MaxX - cr->bounds.MinX + 1;
-            WORD height = cr->bounds.MaxY - cr->bounds.MinY + 1;
-
-            if (width > 0 && height > 0)
-            {
-                _graphics_BltBitMap(GfxBase,
-                                    layer->SuperBitMap,
-                                    (WORD)(cr->bounds.MinX - layer->bounds.MinX + layer->Scroll_X),
-                                    (WORD)(cr->bounds.MinY - layer->bounds.MinY + layer->Scroll_Y),
-                                    layer->rp->BitMap,
-                                    cr->bounds.MinX,
-                                    cr->bounds.MinY,
-                                    width,
-                                    height,
-                                    0xC0,
-                                    0xFF,
-                                    NULL);
-            }
-        }
-
-        cr = cr->Next;
-    }
-
-    ReleaseSemaphore(&layer->Lock);
+    gfx_sync_superbitmap(GfxBase, layer, FALSE);
 }
 
 static VOID _graphics_OwnBlitter ( register struct GfxBase * GfxBase __asm("a6"))
@@ -9574,9 +9676,32 @@ static VOID _graphics_EraseRect ( register struct GfxBase * GfxBase __asm("a6"),
     if (!rp || !rp->BitMap)
         return;
 
-    /* EraseRect fills with the background pen, independent of the draw mode */
     (void)oldDrawMode;
-    gfx_fill_rect(rp, (WORD)xMin, (WORD)yMin, (WORD)xMax, (WORD)yMax, (rp->DrawMode & INVERSVID) ? rp->FgPen : rp->BgPen, JAM2, FALSE);
+    if (xMin > xMax || yMin > yMax)
+        return;
+
+    /* With a layer, AmigaOS 3.1 calls the layer's backfill hook for the
+     * rectangle (observed: tests/probes/layers/refresh.c), through
+     * DoHookClipRects(); LAYERS_BACKFILL clears to pen 0. */
+    if (rp->Layer)
+    {
+        struct Library *LayersBase = OpenLibrary((STRPTR)"layers.library", 0);
+        if (LayersBase)
+        {
+            struct Rectangle r;
+            r.MinX = (WORD)xMin;
+            r.MinY = (WORD)yMin;
+            r.MaxX = (WORD)xMax;
+            r.MaxY = (WORD)yMax;
+            DoHookClipRects(rp->Layer->BackFill, rp, &r);
+            CloseLibrary(LayersBase);
+            return;
+        }
+    }
+
+    /* without a layer the area is cleared to pen 0 (3.1 clears an erratic
+     * part of it, see tests/probes/graphics/lines.c) */
+    gfx_fill_rect(rp, (WORD)xMin, (WORD)yMin, (WORD)xMax, (WORD)yMax, 0, JAM2, FALSE);
 }
 
 static ULONG _graphics_ExtendFont ( register struct GfxBase * GfxBase __asm("a6"),
@@ -10709,7 +10834,9 @@ static VOID _graphics_ScrollRasterBF ( register struct GfxBase * GfxBase __asm("
     }
     
     /* Perform the blit if there's any content to move */
-    if ((width - absdx) > 0 && (height - absdy) > 0) {
+    if (rp->Layer)
+        gfx_scroll_layer(GfxBase, rp, dx, dy, xMin, yMin, xMax, yMax);
+    else if ((width - absdx) > 0 && (height - absdy) > 0) {
         _graphics_BltBitMap(GfxBase, bm, srcX, srcY, bm, destX, destY, 
                            width - absdx, height - absdy, 0xC0, 0xFF, NULL);
     }
