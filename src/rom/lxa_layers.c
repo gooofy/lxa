@@ -77,10 +77,7 @@ static BOOL IntersectRectangles(const struct Rectangle *r1, const struct Rectang
                                 struct Rectangle *result);
 static void RebuildClipRects(struct Layer *layer);
 static void RebuildClipRectsFrom(struct Layer *layer);
-static void DamageExposedAreas(struct Layer_Info *li,
-                               struct Layer *moved_layer,
-                               const struct Rectangle *old_bounds,
-                               const struct Rectangle *new_bounds);
+
 static struct Layer *CreateLayerTagListInternal(struct LayersBase *LayersBase,
                                                 struct Layer_Info *li,
                                                 struct BitMap *bm,
@@ -91,6 +88,15 @@ static struct Layer *CreateLayerTagListInternal(struct LayersBase *LayersBase,
                                                 LONG flags,
                                                 struct TagItem *tagList);
 static void InvokeBackfillForNewLayer(struct Layer *layer);
+struct LayerVisSnap
+{
+    struct Layer    *layer;
+    struct Region   *vis;       /* visible area before, screen coordinates */
+    struct Rectangle bounds;    /* bounds before */
+};
+static struct LayerVisSnap *LayerVisSnapTake(struct Layer_Info *li, WORD *count);
+static void LayerVisSnapDamage(struct Layer_Info *li, struct LayerVisSnap *s, WORD n);
+static void RebuildAllWithDamage(struct Layer_Info *li);
 
 /* ========================================================================
  * Library management functions
@@ -598,8 +604,19 @@ static void RefreshLayerGeometry(struct Layer *layer,
         return;
 
     li = layer->LayerInfo;
-    if (li && old_bounds)
-        DamageExposedAreas(li, layer, old_bounds, new_bounds);
+    (void)new_bounds;
+    if (li)
+    {
+        WORD n, i;
+        struct LayerVisSnap *s = LayerVisSnapTake(li, &n);
+        /* the ClipRects still describe the old position */
+        for (i = 0; s && old_bounds && i < n; i++)
+            if (s[i].layer == layer)
+                s[i].bounds = *old_bounds;
+        RebuildClipRectsFrom(layer);
+        LayerVisSnapDamage(li, s, n);
+        return;
+    }
 
     RebuildClipRectsFrom(layer);
 }
@@ -692,7 +709,8 @@ static void SaveToBackingStore(struct Layer *layer, struct ClipRect *obscured_li
  */
 static struct ClipRect *CreateObscuredClipRect(struct Layer_Info *li,
                                                 struct BitMap *screen_bm,
-                                                const struct Rectangle *bounds)
+                                                const struct Rectangle *bounds,
+                                                struct Layer *obscurer)
 {
     struct ClipRect *cr;
     WORD w, h;
@@ -704,17 +722,24 @@ static struct ClipRect *CreateObscuredClipRect(struct Layer_Info *li,
     w = bounds->MaxX - bounds->MinX + 1;
     h = bounds->MaxY - bounds->MinY + 1;
 
+    /* as on AmigaOS 3.1, obscured ClipRects stay in the list (also for
+     * SIMPLE_REFRESH layers, without backing store) and point to the
+     * layer that obscures them */
     cr->bounds = *bounds;
-    cr->obscured = 1;
-    cr->BitMap = AllocBitMap(w, h, screen_bm->Depth, BMF_CLEAR, NULL);
+    cr->obscured = (LONG)obscurer;
+    cr->BitMap = NULL;
     cr->Next = NULL;
 
-    if (!cr->BitMap)
+    if (screen_bm)
     {
-        /* Allocation failed — fall back to no backing store */
-        cr->obscured = 0;
-        FreeClipRect(li, cr);
-        return NULL;
+        cr->BitMap = AllocBitMap(w, h, screen_bm->Depth, BMF_CLEAR, NULL);
+        if (!cr->BitMap)
+        {
+            /* Allocation failed — fall back to no backing store */
+            cr->obscured = 0;
+            FreeClipRect(li, cr);
+            return NULL;
+        }
     }
 
     return cr;
@@ -735,12 +760,14 @@ static void RebuildClipRects(struct Layer *layer)
     struct Layer_Info *li;
     struct ClipRect *old_list;
     BOOL is_smart;
+    struct BitMap *store_bm;
 
     if (!layer)
         return;
 
     li = layer->LayerInfo;
     is_smart = IS_SMARTREFRESH(layer);
+    store_bm = (is_smart && layer->rp) ? layer->rp->BitMap : NULL;
 
     /* Save old ClipRect list — we need it for backing store restore/save decisions */
     old_list = layer->ClipRect;
@@ -805,10 +832,10 @@ static void RebuildClipRects(struct Layer *layer)
                 if (RectContainsRect(&front_layer->bounds, &cr->bounds))
                 {
                     /* Fully obscured */
-                    if (is_smart && layer->rp && layer->rp->BitMap)
+                    /* SMART_REFRESH: with backing store; SIMPLE: without */
                     {
                         /* Create an obscured CR with backing store */
-                        struct ClipRect *obs = CreateObscuredClipRect(li, layer->rp->BitMap, &cr->bounds);
+                        struct ClipRect *obs = CreateObscuredClipRect(li, store_bm, &cr->bounds, front_layer);
                         if (obs)
                         {
                             if (obscured_tail)
@@ -827,12 +854,12 @@ static void RebuildClipRects(struct Layer *layer)
                     struct ClipRect *split = SplitRectAroundObscurer(li, &cr->bounds, &front_layer->bounds);
 
                     /* Create obscured CR for the intersection area */
-                    if (is_smart && layer->rp && layer->rp->BitMap)
+                    /* SMART_REFRESH: with backing store; SIMPLE: without */
                     {
                         struct Rectangle isect;
                         if (IntersectRectangles(&cr->bounds, &front_layer->bounds, &isect))
                         {
-                            struct ClipRect *obs = CreateObscuredClipRect(li, layer->rp->BitMap, &isect);
+                            struct ClipRect *obs = CreateObscuredClipRect(li, store_bm, &isect, front_layer);
                             if (obs)
                             {
                                 if (obscured_tail)
@@ -977,88 +1004,143 @@ static BOOL IntersectRectangles(const struct Rectangle *r1, const struct Rectang
 }
 
 /*
- * Add damage to a layer for the areas that were previously obscured.
- * This is called when a layer is moved/resized/deleted and exposes
- * areas of layers behind it.
- * 'old_bounds' is the previous position, 'new_bounds' is the new position.
- * For deletion, pass NULL for new_bounds.
+ * Damage after an arrangement change, as AmigaOS 3.1 computes it
+ * (observed with tests/probes/layers/cliprects.c):
+ *  - a SIMPLE_REFRESH layer that stays in place is damaged where it became
+ *    visible;
+ *  - a SIMPLE_REFRESH layer that moved keeps only what was visible before
+ *    (it is copied along); everything else of it is damaged, visible or not;
+ *  - SMART_REFRESH and SUPER_BITMAP layers keep their contents (backing
+ *    store); only area they did not have before (a size increase) is
+ *    damaged.
+ * Damaged layers get LAYERREFRESH.  The visible regions are taken before
+ * the change (LayerVisSnapTake) and compared afterwards (LayerVisSnapDamage).
  */
-static void DamageExposedAreas(struct Layer_Info *li, struct Layer *moved_layer,
-                               const struct Rectangle *old_bounds,
-                               const struct Rectangle *new_bounds)
+static struct LayerVisSnap *LayerVisSnapTake(struct Layer_Info *li, WORD *count)
 {
-    DPRINTF(LOG_DEBUG, "_layers: DamageExposedAreas() checking for exposed areas\n");
+    struct Layer *l;
+    struct LayerVisSnap *s;
+    WORD n = 0, i = 0;
 
-    if (!li || !old_bounds)
+    *count = 0;
+    if (!li)
+        return NULL;
+    for (l = li->top_layer; l; l = l->back)
+        n++;
+    if (!n)
+        return NULL;
+    s = (struct LayerVisSnap *)AllocVec(sizeof(struct LayerVisSnap) * n, MEMF_CLEAR);
+    if (!s)
+        return NULL;
+    for (l = li->top_layer; l && i < n; l = l->back, i++)
+    {
+        struct ClipRect *cr;
+        s[i].layer = l;
+        s[i].bounds = l->bounds;
+        s[i].vis = NewRegion();
+        if (!s[i].vis || (l->Flags & LAYERHIDDEN))
+            continue;
+        for (cr = l->ClipRect; cr; cr = cr->Next)
+            if (!cr->obscured)
+                OrRectRegion(s[i].vis, &cr->bounds);
+    }
+    *count = n;
+    return s;
+}
+
+static void LayerVisSnapDamage(struct Layer_Info *li, struct LayerVisSnap *s, WORD n)
+{
+    struct Layer *l;
+    WORD i;
+
+    if (!li || !s)
         return;
 
-    /* For each layer behind the moved layer, check if any of their area
-     * was previously obscured by old_bounds but is now exposed */
-    struct Layer *layer = li->top_layer;
-    while (layer)
+    for (l = li->top_layer; l; l = l->back)
     {
-        /* Skip the moved layer itself and layers in front of it */
-        if (layer == moved_layer)
-        {
-            layer = layer->back;
+        struct LayerVisSnap *e = NULL;
+        struct Region *dmg;
+        struct RegionRectangle *rr;
+        BOOL simple = !(l->Flags & (LAYERSMART | LAYERSUPER));
+        WORD dx, dy;
+
+        for (i = 0; i < n; i++)
+            if (s[i].layer == l)
+                e = &s[i];
+        if (!e || !e->vis || (l->Flags & LAYERHIDDEN))
             continue;
-        }
 
-        /*
-         * Phase 132: Backing store is fully functional for SMART_REFRESH.
-         * RebuildClipRects() restores all backing-store pixels to the
-         * screen bitmap before recalculating ClipRects, so exposed areas
-         * are already correct.  We still mark damage and emit
-         * IDCMP_REFRESHWINDOW for app-driven refresh paths (apps using
-         * SetDrMd / SuperBitMap layers depend on it), but the visible
-         * pixels are already restored from backing store at this point,
-         * so a slow / absent app refresh no longer causes garbage.
-         *
-         * The earlier Phase 111 workaround (skip damage entirely for
-         * SMART_REFRESH layers) was removed once tests/drivers/
-         * backingstore_gtest.cpp validated that backing store correctly
-         * restores pixels on uncover, and the full test suite passed
-         * without the skip.
-         */
-        /* Check if this layer's bounds intersect with the old position */
-        struct Rectangle intersection;
-        if (IntersectRectangles(&layer->bounds, old_bounds, &intersection))
+        dx = l->bounds.MinX - e->bounds.MinX;
+        dy = l->bounds.MinY - e->bounds.MinY;
+        dmg = NewRegion();
+        if (!dmg)
+            continue;
+
+        if (simple && !dx && !dy)
         {
-            /* There was an intersection with the old position.
-             * If new_bounds is NULL (layer deleted) or doesn't cover this area,
-             * add damage to the exposed layer. */
-            if (!new_bounds)
+            struct ClipRect *cr;
+            for (cr = l->ClipRect; cr; cr = cr->Next)
+                if (!cr->obscured)
+                    OrRectRegion(dmg, &cr->bounds);
+            for (rr = e->vis->RegionRectangle; rr; rr = rr->Next)
             {
-                /* Layer was deleted - entire intersection is exposed */
-                AddDamageToLayer(layer, &intersection);
-            }
-            else
-            {
-                /* Check if the new position still covers this area */
-                struct Rectangle new_intersection;
-                if (!IntersectRectangles(&layer->bounds, new_bounds, &new_intersection))
-                {
-                    /* New position doesn't intersect at all - entire old area is exposed */
-                    AddDamageToLayer(layer, &intersection);
-                }
-                else
-                {
-                    /* Partial overlap - only damage the areas not covered by new position
-                     * This is complex, so for simplicity we damage the entire old intersection
-                     * TODO: Optimize to only damage truly exposed areas */
-                    if (intersection.MinX != new_intersection.MinX ||
-                        intersection.MinY != new_intersection.MinY ||
-                        intersection.MaxX != new_intersection.MaxX ||
-                        intersection.MaxY != new_intersection.MaxY)
-                    {
-                        AddDamageToLayer(layer, &intersection);
-                    }
-                }
+                struct Rectangle r = rr->bounds;
+                r.MinX += e->vis->bounds.MinX;
+                r.MaxX += e->vis->bounds.MinX;
+                r.MinY += e->vis->bounds.MinY;
+                r.MaxY += e->vis->bounds.MinY;
+                ClearRectRegion(dmg, &r);
             }
         }
+        else if (simple)
+        {
+            OrRectRegion(dmg, &l->bounds);
+            for (rr = e->vis->RegionRectangle; rr; rr = rr->Next)
+            {
+                struct Rectangle r = rr->bounds;
+                r.MinX += e->vis->bounds.MinX + dx;
+                r.MaxX += e->vis->bounds.MinX + dx;
+                r.MinY += e->vis->bounds.MinY + dy;
+                r.MaxY += e->vis->bounds.MinY + dy;
+                ClearRectRegion(dmg, &r);
+            }
+        }
+        else
+        {
+            struct Rectangle old = e->bounds;
+            old.MinX += dx;
+            old.MaxX += dx;
+            old.MinY += dy;
+            old.MaxY += dy;
+            OrRectRegion(dmg, &l->bounds);
+            ClearRectRegion(dmg, &old);
+        }
 
-        layer = layer->back;
+        for (rr = dmg->RegionRectangle; rr; rr = rr->Next)
+        {
+            struct Rectangle r = rr->bounds;
+            r.MinX += dmg->bounds.MinX;
+            r.MaxX += dmg->bounds.MinX;
+            r.MinY += dmg->bounds.MinY;
+            r.MaxY += dmg->bounds.MinY;
+            AddDamageToLayer(l, &r);
+        }
+        DisposeRegion(dmg);
     }
+
+    for (i = 0; i < n; i++)
+        if (s[i].vis)
+            DisposeRegion(s[i].vis);
+    FreeVec(s);
+}
+
+/* rebuild every layer's ClipRects and damage what the change exposed */
+static void RebuildAllWithDamage(struct Layer_Info *li)
+{
+    WORD n;
+    struct LayerVisSnap *s = LayerVisSnapTake(li, &n);
+    RebuildAllClipRects(li);
+    LayerVisSnapDamage(li, s, n);
 }
 
 /* ========================================================================
@@ -1444,11 +1526,7 @@ static LONG _layers_DeleteLayer ( register struct LayersBase *LayersBase __asm("
 
     ObtainSemaphore(&li->Lock);
 
-    /* Save bounds for damage tracking before removing */
-    struct Rectangle old_bounds = layer->bounds;
 
-    /* Damage exposed areas on layers behind this one */
-    DamageExposedAreas(li, layer, &old_bounds, NULL);
 
     /* Remove from layer list */
     UnlinkLayerFromInfo(li, layer);
@@ -1456,7 +1534,7 @@ static LONG _layers_DeleteLayer ( register struct LayersBase *LayersBase __asm("
     /* Remove from semaphore list */
     Remove((struct Node *)&layer->Lock);
 
-    RebuildAllClipRects(li);
+    RebuildAllWithDamage(li);
 
     ReleaseSemaphore(&li->Lock);
 
@@ -1534,7 +1612,7 @@ static LONG _layers_UpfrontLayer ( register struct LayersBase *LayersBase __asm(
     }
 
     /* Rebuild ClipRects for all layers (z-order changed) */
-    RebuildAllClipRects(li);
+    RebuildAllWithDamage(li);
 
     ReleaseSemaphore(&li->Lock);
 
@@ -1572,7 +1650,7 @@ static LONG _layers_BehindLayer ( register struct LayersBase *LayersBase __asm("
     InsertLayerInFrontOf(li, layer, target);
 
     /* Rebuild ClipRects for all layers (z-order changed) */
-    RebuildAllClipRects(li);
+    RebuildAllWithDamage(li);
 
     ReleaseSemaphore(&li->Lock);
 
@@ -1653,7 +1731,7 @@ static LONG _layers_SizeLayer ( register struct LayersBase *LayersBase __asm("a6
     layer->Height = layer->bounds.MaxY - layer->bounds.MinY + 1;
 
     RefreshLayerGeometry(layer,
-                         (li && (dx < 0 || dy < 0)) ? &old_bounds : NULL,
+                         li ? &old_bounds : NULL,
                           li ? &layer->bounds : NULL);
 
     ReleaseSemaphore(&layer->Lock);
@@ -2133,17 +2211,13 @@ static LONG _layers_MoveLayerInFrontOf ( register struct LayersBase *LayersBase 
 
     ObtainSemaphore(&li->Lock);
 
-    /* Save old bounds for damage tracking */
-    struct Rectangle old_bounds = layer_to_move->bounds;
 
     UnlinkLayerFromInfo(li, layer_to_move);
     InsertLayerInFrontOf(li, layer_to_move, target);
 
-    /* Damage exposed areas */
-    DamageExposedAreas(li, layer_to_move, &old_bounds, &layer_to_move->bounds);
 
     /* Rebuild ClipRects for all layers (z-order changed) */
-    RebuildAllClipRects(li);
+    RebuildAllWithDamage(li);
 
     ReleaseSemaphore(&li->Lock);
 
@@ -2578,7 +2652,7 @@ static LONG _layers_HideLayer ( register struct LayersBase *LayersBase __asm("a6
     layer->Flags |= LAYERHIDDEN;
 
     if (li)
-        RebuildAllClipRects(li);
+        RebuildAllWithDamage(li);
 
     return TRUE;
 }
@@ -2620,7 +2694,7 @@ static LONG _layers_ShowLayer ( register struct LayersBase *LayersBase __asm("a6
     else if (li)
     {
         /* Just rebuild ClipRects since visibility changed */
-        RebuildAllClipRects(li);
+        RebuildAllWithDamage(li);
     }
 
     return TRUE;
