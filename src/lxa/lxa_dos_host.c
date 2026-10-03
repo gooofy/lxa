@@ -3890,10 +3890,22 @@ int _dos_waitforchar(uint32_t fh68k, uint32_t timeout_us)
     struct timeval tv;
     tv.tv_sec = timeout_us / 1000000;
     tv.tv_usec = timeout_us % 1000000;
-    
-    int result = select(fd + 1, &readfds, NULL, NULL, &tv);
-    
+
+    /* liblxa runs on the virtual clock: never block in real time - poll,
+     * and let the timeout pass in virtual time (Fred Fish Hextract waited
+     * on a non-console handle and stalled the emulator in wall-clock time) */
+    if (g_console_stdin_detached)
+    {
+        tv.tv_sec = 0;
+        tv.tv_usec = 0;
+    }
+
+    int result = (fd >= 0 && fd < FD_SETSIZE) ? select(fd + 1, &readfds, NULL, NULL, &tv) : -1;
+
     DPRINTF(LOG_DEBUG, "lxa: _dos_waitforchar(): select returned %d\n", result);
-    
+
+    if (result <= 0 && g_console_stdin_detached)
+        vclock_advance_us(timeout_us);
+
     return (result > 0) ? 1 : 0;
 }
