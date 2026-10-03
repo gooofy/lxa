@@ -1,0 +1,14 @@
+-- CMD_RESET
+after BeginIO (IOF_QUICK): io_Flags=0x80 io_Error=-3 ln_Type=5 CheckIO=pending
+io_Actual = 0x00001234
+io_ClipID = 0x00000777
+io_Offset = 0x00000055
+0.5 s later: io_Flags=0x80 io_Error=-3 ln_Type=5 CheckIO=pending
+reply port empty = TRUE
+ids on the same unit: readid=base+0 writeid=base+0
+write = TRUE
+update = TRUE
+  write: err=0 actual=28 offset=28 clip=base+1
+after a write: io_Flags=0x80 io_Error=-3 ln_Type=5 CheckIO=pending
+after AbortIO: io_Flags=0x80 io_Error=-3 ln_Type=5 CheckIO=pending
+reply port empty = TRUE
