@@ -1,0 +1,234 @@
+-- topaz 8
+OpenFont topaz 8 = non-NULL
+tf_YSize = 8
+tf_XSize = 8
+tf_Baseline = 6
+tf_Style = 0x00000000
+tf_Flags = 0x00000041
+tf_BoldSmear = 1
+tf_LoChar = 32
+tf_HiChar = 255
+tf_CharSpace = NULL
+tf_CharKern = NULL
+rp TxHeight = 8
+rp TxWidth = 8
+rp TxBaseline = 6
+rp TxSpacing = 0
+AskSoftStyle = 0xffffffff
+topaz "A" TextLength = 8
+  TextExtent: w 8 h 8 extent 0,-6 7,1
+topaz "Hello" TextLength = 40
+  TextExtent: w 40 h 8 extent 0,-6 39,1
+topaz "Amiga 3.1!" TextLength = 80
+  TextExtent: w 80 h 8 extent 0,-6 79,1
+topaz "WWW,,," TextLength = 48
+  TextExtent: w 48 h 8 extent 0,-6 47,1
+topaz "" TextLength = 0
+  TextExtent: w 0 h 0 extent 0,0 -1,-1
+topaz " _^\Z" TextLength = 40
+  TextExtent: w 40 h 8 extent 0,-6 39,1
+topaz "a~{}" TextLength = 40
+  TextExtent: w 40 h 8 extent 0,-6 39,1
+topaz TextFit dir 1 width 0 = 0
+  fit: w 0 h 8 extent 0,-6 -1,1
+topaz TextFit dir 1 width 1 = 0
+  fit: w 0 h 8 extent 0,-6 -1,1
+topaz TextFit dir 1 width 7 = 0
+  fit: w 0 h 8 extent 0,-6 -1,1
+topaz TextFit dir 1 width 30 = 3
+  fit: w 24 h 8 extent 0,-6 23,1
+topaz TextFit dir 1 width 61 = 7
+  fit: w 56 h 8 extent 0,-6 55,1
+topaz TextFit dir 1 width 200 = 19
+  fit: w 152 h 8 extent 0,-6 151,1
+topaz TextFit dir -1 width 0 = 0
+  fit: w 0 h 8 extent 0,-6 -1,1
+topaz TextFit dir -1 width 1 = 0
+  fit: w 0 h 8 extent 0,-6 -1,1
+topaz TextFit dir -1 width 7 = 0
+  fit: w 0 h 8 extent 0,-6 -1,1
+topaz TextFit dir -1 width 30 = 3
+  fit: w 24 h 8 extent 0,-6 23,1
+topaz TextFit dir -1 width 61 = 7
+  fit: w 56 h 8 extent 0,-6 55,1
+topaz TextFit dir -1 width 200 = 19
+  fit: w 152 h 8 extent 0,-6 151,1
+topaz TextFit constraining extent = 2
+  fit: w 16 h 8 extent 0,-6 15,1
+topaz TextFit height too small = 0
+SetSoftStyle bold|italic = 0x00000006
+bold|italic TxWidth = 8
+topaz b|i "A" TextLength = 8
+  TextExtent: w 8 h 8 extent -1,-6 11,1
+topaz b|i "Hello" TextLength = 40
+  TextExtent: w 40 h 8 extent -1,-6 43,1
+topaz b|i "Amiga 3.1!" TextLength = 80
+  TextExtent: w 80 h 8 extent -1,-6 83,1
+topaz b|i "WWW,,," TextLength = 48
+  TextExtent: w 48 h 8 extent -1,-6 51,1
+topaz b|i "" TextLength = 0
+  TextExtent: w 0 h 0 extent 0,0 -1,-1
+topaz b|i " _^\Z" TextLength = 40
+  TextExtent: w 40 h 8 extent -1,-6 43,1
+topaz b|i "a~{}" TextLength = 40
+  TextExtent: w 40 h 8 extent -1,-6 43,1
+topaz b|i TextFit dir 1 width 0 = 19
+  fit: w 152 h 8 extent -1,-6 155,1
+topaz b|i TextFit dir 1 width 1 = 19
+  fit: w 152 h 8 extent -1,-6 155,1
+topaz b|i TextFit dir 1 width 7 = 0
+  fit: w 0 h 8 extent -1,-6 3,1
+topaz b|i TextFit dir 1 width 30 = 3
+  fit: w 24 h 8 extent -1,-6 27,1
+topaz b|i TextFit dir 1 width 61 = 7
+  fit: w 56 h 8 extent -1,-6 59,1
+topaz b|i TextFit dir 1 width 200 = 19
+  fit: w 152 h 8 extent -1,-6 155,1
+topaz b|i TextFit dir -1 width 0 = 19
+  fit: w 152 h 8 extent -1,-6 155,1
+topaz b|i TextFit dir -1 width 1 = 19
+  fit: w 152 h 8 extent -1,-6 155,1
+topaz b|i TextFit dir -1 width 7 = 0
+  fit: w 0 h 8 extent -1,-6 3,1
+topaz b|i TextFit dir -1 width 30 = 3
+  fit: w 24 h 8 extent -1,-6 27,1
+topaz b|i TextFit dir -1 width 61 = 7
+  fit: w 56 h 8 extent -1,-6 59,1
+topaz b|i TextFit dir -1 width 200 = 19
+  fit: w 152 h 8 extent -1,-6 155,1
+topaz b|i TextFit constraining extent = 2
+  fit: w 16 h 8 extent -1,-6 19,1
+topaz b|i TextFit height too small = 0
+SetSoftStyle +underlined (enable underlined) = 0x00000007
+SetSoftStyle -bold (enable bold) = 0x00000005
+SetSoftStyle extended|colorfont = 0x00000048
+FontExtent topaz: w 8 h 8 extent 0,-6 7,1
+-- proportional font metrics
+AskSoftStyle = 0xffffffff
+rp TxWidth = 8
+prop "A" TextLength = 8
+  TextExtent: w 8 h 9 extent 0,-6 7,2
+prop "Hello" TextLength = 15
+  TextExtent: w 15 h 9 extent -1,-6 14,2
+prop "Amiga 3.1!" TextLength = 52
+  TextExtent: w 52 h 9 extent 0,-6 51,2
+prop "WWW,,," TextLength = 39
+  TextExtent: w 39 h 9 extent 0,-6 38,2
+prop "" TextLength = 0
+  TextExtent: w 0 h 0 extent 0,0 -1,-1
+prop " _^\Z" TextLength = 31
+  TextExtent: w 31 h 9 extent -1,-6 30,2
+prop "a~{}" TextLength = 15
+  TextExtent: w 15 h 9 extent -1,-6 14,2
+prop TextFit dir 1 width 0 = 0
+  fit: w 0 h 9 extent 0,-6 -1,2
+prop TextFit dir 1 width 1 = 0
+  fit: w 0 h 9 extent 0,-6 -1,2
+prop TextFit dir 1 width 7 = 2
+  fit: w 6 h 9 extent -1,-6 5,2
+prop TextFit dir 1 width 30 = 9
+  fit: w 28 h 9 extent -1,-6 27,2
+prop TextFit dir 1 width 61 = 19
+  fit: w 60 h 9 extent -1,-6 59,2
+prop TextFit dir 1 width 200 = 19
+  fit: w 60 h 9 extent -1,-6 59,2
+prop TextFit dir -1 width 0 = 0
+  fit: w 0 h 9 extent 0,-6 -1,2
+prop TextFit dir -1 width 1 = 0
+  fit: w 0 h 9 extent 0,-6 -1,2
+prop TextFit dir -1 width 7 = 2
+  fit: w 6 h 9 extent -1,-6 5,2
+prop TextFit dir -1 width 30 = 9
+  fit: w 28 h 9 extent -1,-6 27,2
+prop TextFit dir -1 width 61 = 19
+  fit: w 60 h 9 extent -1,-6 59,2
+prop TextFit dir -1 width 200 = 19
+  fit: w 60 h 9 extent -1,-6 59,2
+prop TextFit constraining extent = 7
+  fit: w 22 h 9 extent -1,-6 21,2
+prop TextFit height too small = 0
+prop b|i|u "A" TextLength = 8
+  TextExtent: w 8 h 9 extent -2,-6 11,2
+prop b|i|u "Hello" TextLength = 15
+  TextExtent: w 15 h 9 extent -3,-6 18,2
+prop b|i|u "Amiga 3.1!" TextLength = 52
+  TextExtent: w 52 h 9 extent -2,-6 55,2
+prop b|i|u "WWW,,," TextLength = 39
+  TextExtent: w 39 h 9 extent -2,-6 42,2
+prop b|i|u "" TextLength = 0
+  TextExtent: w 0 h 0 extent 0,0 -1,-1
+prop b|i|u " _^\Z" TextLength = 31
+  TextExtent: w 31 h 9 extent -3,-6 34,2
+prop b|i|u "a~{}" TextLength = 15
+  TextExtent: w 15 h 9 extent -3,-6 18,2
+FontExtent prop: w 10 h 9 extent -1,-6 8,2
+-- fixed font metrics
+fixed "A" TextLength = 8
+  TextExtent: w 8 h 9 extent 0,-6 7,2
+fixed "Hello" TextLength = 40
+  TextExtent: w 40 h 9 extent 0,-6 39,2
+fixed "Amiga 3.1!" TextLength = 80
+  TextExtent: w 80 h 9 extent 0,-6 79,2
+fixed "WWW,,," TextLength = 48
+  TextExtent: w 48 h 9 extent 0,-6 47,2
+fixed "" TextLength = 0
+  TextExtent: w 0 h 0 extent 0,0 -1,-1
+fixed " _^\Z" TextLength = 40
+  TextExtent: w 40 h 9 extent 0,-6 39,2
+fixed "a~{}" TextLength = 40
+  TextExtent: w 40 h 9 extent 0,-6 39,2
+fixed TextFit dir 1 width 0 = 0
+  fit: w 0 h 9 extent 0,-6 -1,2
+fixed TextFit dir 1 width 1 = 0
+  fit: w 0 h 9 extent 0,-6 -1,2
+fixed TextFit dir 1 width 7 = 0
+  fit: w 0 h 9 extent 0,-6 -1,2
+fixed TextFit dir 1 width 30 = 3
+  fit: w 24 h 9 extent 0,-6 23,2
+fixed TextFit dir 1 width 61 = 7
+  fit: w 56 h 9 extent 0,-6 55,2
+fixed TextFit dir 1 width 200 = 19
+  fit: w 152 h 9 extent 0,-6 151,2
+fixed TextFit dir -1 width 0 = 0
+  fit: w 0 h 9 extent 0,-6 -1,2
+fixed TextFit dir -1 width 1 = 0
+  fit: w 0 h 9 extent 0,-6 -1,2
+fixed TextFit dir -1 width 7 = 0
+  fit: w 0 h 9 extent 0,-6 -1,2
+fixed TextFit dir -1 width 30 = 3
+  fit: w 24 h 9 extent 0,-6 23,2
+fixed TextFit dir -1 width 61 = 7
+  fit: w 56 h 9 extent 0,-6 55,2
+fixed TextFit dir -1 width 200 = 19
+  fit: w 152 h 9 extent 0,-6 151,2
+fixed TextFit constraining extent = 2
+  fit: w 16 h 9 extent 0,-6 15,2
+fixed TextFit height too small = 0
+-- proportional rendering
+prop dm 0 cp_x 54 = p0 0xf44e7670 p1 0x66c408f8 p2 0xf44e7670
+prop dm 1 cp_x 54 = p0 0xf44e7670 p1 0x66c408f8 p2 0x77b68c5b
+prop dm 2 cp_x 54 = p0 0xf44e7670 p1 0x66c408f8 p2 0xf44e7670
+prop dm 4 cp_x 54 = p0 0x45428f12 p1 0x2f252f5e p2 0x45428f12
+prop dm 5 cp_x 54 = p0 0x45428f12 p1 0x2f252f5e p2 0x77b68c5b
+prop style 0 SetSoftStyle 0x00 rp.AlgoStyle 0x00 cp_x 22 TxWidth 8 = p0 0x1b0ccd82 p1 0x1b0ccd82 p2 0x5287da3e
+prop style 2 SetSoftStyle 0x02 rp.AlgoStyle 0x02 cp_x 22 TxWidth 8 = p0 0xf1e50f0b p1 0xf1e50f0b p2 0x7f361e0d
+prop style 4 SetSoftStyle 0x04 rp.AlgoStyle 0x04 cp_x 22 TxWidth 8 = p0 0x2b724ea2 p1 0x2b724ea2 p2 0xe52ce962
+prop style 1 SetSoftStyle 0x01 rp.AlgoStyle 0x01 cp_x 22 TxWidth 8 = p0 0x5f579fef p1 0x5f579fef p2 0xfb085153
+prop style 7 SetSoftStyle 0x07 rp.AlgoStyle 0x07 cp_x 22 TxWidth 8 = p0 0x909ee885 p1 0x909ee885 p2 0xd627eb15
+-- fixed rendering
+fixed dm 0 cp_x 108 = p0 0xf0448da4 p1 0xc2202d18 p2 0xf0448da4
+fixed dm 1 cp_x 108 = p0 0xf0448da4 p1 0xc2202d18 p2 0xebea69d6
+fixed dm 2 cp_x 108 = p0 0xf0448da4 p1 0xc2202d18 p2 0xf0448da4
+fixed dm 4 cp_x 108 = p0 0xc0889607 p1 0xc52c65eb p2 0xc0889607
+fixed dm 5 cp_x 108 = p0 0xc0889607 p1 0xc52c65eb p2 0xebea69d6
+fixed style 0 SetSoftStyle 0x00 rp.AlgoStyle 0x00 cp_x 30 TxWidth 8 = p0 0x71a38f4d p1 0x71a38f4d p2 0x8d65c2c6
+fixed style 2 SetSoftStyle 0x02 rp.AlgoStyle 0x02 cp_x 30 TxWidth 8 = p0 0xecfc07a4 p1 0xecfc07a4 p2 0xb498a86f
+fixed style 4 SetSoftStyle 0x04 rp.AlgoStyle 0x04 cp_x 30 TxWidth 8 = p0 0x719f6884 p1 0x719f6884 p2 0x5e2184cd
+fixed style 1 SetSoftStyle 0x01 rp.AlgoStyle 0x01 cp_x 30 TxWidth 8 = p0 0x99a0671b p1 0x99a0671b p2 0xe6d090dc
+fixed style 7 SetSoftStyle 0x07 rp.AlgoStyle 0x07 cp_x 30 TxWidth 8 = p0 0xf7181520 p1 0xf7181520 p2 0x720b41dd
+-- special cases
+out-of-range chars cp_x = 19
+zero length cp_x = 2
+TxSpacing 3 cp_x = 68
+TxSpacing 3 TextLength = 28
+special = p0 0xc310fd4c p1 0x2a984a90 p2 0xc310fd4c

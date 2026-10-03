@@ -12084,7 +12084,7 @@ static void _render_gadget(struct Window *window, struct Requester *req, struct 
                 {
                     SetSoftStyle(rp, FSF_UNDERLINED, 1);
                     Text(rp, (STRPTR)it->IText, strlen((char *)it->IText));
-                    SetSoftStyle(rp, 0, 0);
+                    SetSoftStyle(rp, 0, FSF_UNDERLINED);   /* enable 0 would change nothing */
                 }
                 else
                 {

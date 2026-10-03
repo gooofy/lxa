@@ -1,8 +1,9 @@
 {
  "app": "DirectoryOpus",
  "disabled": null,
- "lxa_version": "0.11.7",
- "promoted": "2026-10-02",
+ "lxa_version": "0.11.14",
+ "note": "DOpus gets further at the snapshot (faster Text): gadget types 30/31 diverge",
+ "promoted": "2026-10-03",
  "reference": "AmigaOS 3.1 (KS 40.70), profile aga",
  "requires_apps": true,
  "scenario": "dopus-startup",
@@ -188,12 +189,28 @@
      "where": "screen[DOPUS.1]/window[DOPUS.1]/gadget[23 id=17]"
     },
     {
+     "field": "type",
+     "kind": "gadget",
+     "lxa": 1,
+     "phase": 224,
+     "ref": 16,
+     "where": "screen[DOPUS.1]/window[DOPUS.1]/gadget[30 id=65000]"
+    },
+    {
      "field": "activation",
      "kind": "gadget",
      "lxa": 3,
      "phase": 224,
      "ref": 32771,
      "where": "screen[DOPUS.1]/window[DOPUS.1]/gadget[30 id=65000]"
+    },
+    {
+     "field": "type",
+     "kind": "gadget",
+     "lxa": 1,
+     "phase": 224,
+     "ref": 16,
+     "where": "screen[DOPUS.1]/window[DOPUS.1]/gadget[31 id=65000]"
     },
     {
      "field": "activation",
@@ -286,7 +303,7 @@
      "where": "screen[Workbench Screen]"
     }
    ],
-   "pixel_budget": 64157,
+   "pixel_budget": 62232,
    "pixel_phase": 224,
    "stdout_known_diff": null
   }

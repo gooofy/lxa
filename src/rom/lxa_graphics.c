@@ -2364,6 +2364,21 @@ static WORD _graphics_TextLength ( register struct GfxBase * GfxBase __asm("a6")
     return width;
 }
 
+/* line/template pixel writer (defined with Draw()) */
+struct gfx_line_ctx
+{
+    struct BitMap   *bm;
+    struct Layer    *layer;
+    struct ClipRect *cr;        /* ClipRect of the last pixel (or NULL) */
+    WORD             bmw, bmh;
+    UBYTE            mask;
+};
+
+static void gfx_line_plot(struct gfx_line_ctx *c, WORD x, WORD y, UBYTE pen, BOOL complement);
+static void gfx_text_style_extra(struct RastPort *rp, struct TextFont *tf, WORD *left, WORD *right);
+static WORD gfx_text_plain_extent(struct RastPort *rp, struct TextFont *tf,
+                                  CONST_STRPTR string, LONG count, WORD *minx, WORD *maxx);
+
 static LONG _graphics_Text ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a1"),
                                                         register CONST_STRPTR string __asm("a0"),
@@ -2417,6 +2432,168 @@ static LONG _graphics_Text ( register struct GfxBase * GfxBase __asm("a6"),
     bgpen = (UBYTE)rp->BgPen;
     drawmode = rp->DrawMode;
     colorfont = graphics_text_is_colorfont(font);
+
+    /*
+     * Plain (non-colour) fonts are rendered the way AmigaOS 3.1 does it
+     * (observed on the reference): the string is composed row by row into
+     * a one-bit template covering its TextExtent() - glyphs at their kerned
+     * positions, italic rows shifted right by floor((Baseline - row) / 2),
+     * bold ORed tf_BoldSmear pixels to the right, the underline row
+     * (Baseline + 1) filled except next to glyph pixels - and the template
+     * is drawn like BltTemplate(): JAM2 fills the whole extent with BgPen,
+     * INVERSVID inverts it, COMPLEMENT inverts the planes in Mask; layers
+     * clip and Mask is honoured.
+     */
+    if (!colorfont)
+    {
+        WORD minx, maxx, left, right, adv, ox, tw, bpr, r;
+        BOOL prop = (font->tf_Flags & FPF_PROPORTIONAL) || font->tf_CharKern || font->tf_CharSpace;
+        UBYTE stackbuf[192];
+        UBYTE *row, *orig, *mem = NULL;
+        ULONG memsize = 0;
+        UBYTE dm = rp->DrawMode;
+        BOOL complement = (dm & COMPLEMENT) != 0;
+        BOOL jam2 = (dm & JAM2) && !complement;
+        BOOL inv = (dm & INVERSVID) != 0;
+        UBYTE fg = complement ? rp->Mask : (UBYTE)rp->FgPen;
+        UBYTE bg = (UBYTE)rp->BgPen;
+        WORD ulrow = (rp->AlgoStyle & FSF_UNDERLINED) ? (WORD)(font->tf_Baseline + 1) : -1;
+
+        adv = gfx_text_plain_extent(rp, font, string, count, &minx, &maxx);
+        gfx_text_style_extra(rp, font, &left, &right);
+        ox = (WORD)(minx - left);
+        tw = (WORD)(maxx + right - ox + 1);
+
+        if (tw > 0)
+        {
+            bpr = (WORD)((((tw + 15) >> 4) << 1) + 2);
+            if (2 * bpr <= (WORD)sizeof(stackbuf))
+                row = stackbuf;
+            else
+            {
+                memsize = (ULONG)bpr * 2;
+                mem = (UBYTE *)AllocMem(memsize, MEMF_ANY);
+                row = mem;
+            }
+            if (row)
+            {
+                orig = row + bpr;
+
+                for (r = 0; r < font->tf_YSize; r++)
+                {
+                    WORD shift = 0, xx = 0, k;
+                    const UBYTE *src_row = NULL;
+
+                    lxa_memset(row, 0, (ULONG)bpr);
+                    if (rp->AlgoStyle & FSF_ITALIC)
+                    {
+                        WORD d = (WORD)(font->tf_Baseline - r);
+                        shift = (WORD)(d >= 0 ? d / 2 : -((1 - d) / 2));
+                    }
+                    if (font->tf_CharData && font->tf_CharLoc)
+                        src_row = (const UBYTE *)font->tf_CharData + (ULONG)r * (UWORD)font->tf_Modulo;
+
+                    for (k = 0; k < (WORD)count; k++)
+                    {
+                        WORD idx = graphics_text_char_index(font, (UBYTE)string[k]);
+                        WORD gx = xx, gw, col;
+                        const UBYTE *topaz_glyph = NULL;
+                        WORD gpos = 0;
+
+                        if (prop)
+                        {
+                            if (font->tf_CharKern)
+                                gx += ((WORD *)font->tf_CharKern)[idx];
+                            gw = font->tf_CharLoc ? graphics_text_glyph_width(font, idx) : font->tf_XSize;
+                            xx = (WORD)(gx + (font->tf_CharSpace ? ((WORD *)font->tf_CharSpace)[idx] : font->tf_XSize));
+                        }
+                        else
+                        {
+                            gw = font->tf_CharLoc ? graphics_text_glyph_width(font, idx) : font->tf_XSize;
+                            xx = (WORD)(xx + font->tf_XSize);
+                        }
+                        xx = (WORD)(xx + rp->TxSpacing);
+
+                        if (src_row)
+                            gpos = graphics_text_glyph_pos(font, idx);
+                        else if (font->tf_CharData)
+                            topaz_glyph = topaz8_get_glyph((UBYTE)(font->tf_LoChar + idx));
+
+                        for (col = 0; col < gw; col++)
+                        {
+                            BOOL set;
+                            WORD px;
+                            if (src_row)
+                            {
+                                WORD bx = (WORD)(gpos + col);
+                                set = (src_row[bx >> 3] & (0x80 >> (bx & 7))) != 0;
+                            }
+                            else if (topaz_glyph)
+                                set = col < 8 && (topaz_glyph[r] & (0x80 >> col)) != 0;
+                            else
+                                set = FALSE;
+                            px = (WORD)(gx + col + shift - ox);
+                            if (set && px >= 0 && px < tw)
+                                row[px >> 3] |= (UBYTE)(0x80 >> (px & 7));
+                        }
+                    }
+
+                    /* bold: the row ORed with itself shifted tf_BoldSmear
+                     * pixels to the right (one copy, not a smear run) */
+                    if ((rp->AlgoStyle & FSF_BOLD) && font->tf_BoldSmear > 0)
+                    {
+                        WORD px, s = font->tf_BoldSmear;
+                        lxa_memcpy(orig, row, (ULONG)bpr);
+                        for (px = s; px < tw; px++)
+                            if (orig[(px - s) >> 3] & (0x80 >> ((px - s) & 7)))
+                                row[px >> 3] |= (UBYTE)(0x80 >> (px & 7));
+                    }
+
+                    /* underline: the whole extent, except next to glyph pixels */
+                    if (r == ulrow)
+                    {
+                        WORD px;
+                        lxa_memcpy(orig, row, (ULONG)bpr);
+#define ORIG_BIT(p) ((p) >= 0 && (p) < tw && (orig[(p) >> 3] & (0x80 >> ((p) & 7))))
+                        for (px = 0; px < tw; px++)
+                            if (!ORIG_BIT(px - 1) && !ORIG_BIT(px) && !ORIG_BIT(px + 1))
+                                row[px >> 3] |= (UBYTE)(0x80 >> (px & 7));
+#undef ORIG_BIT
+                    }
+
+                    /* draw the template row as runs (RastPort coordinates;
+                     * gfx_fill_rect() clips through the layer) */
+                    {
+                        WORD px = 0;
+                        WORD dy = (WORD)(rp->cp_y - font->tf_Baseline + r);
+                        WORD dx0 = (WORD)(rp->cp_x + ox);
+                        if (jam2)
+                            gfx_fill_rect(rp, dx0, dy, (WORD)(dx0 + tw - 1), dy, (BYTE)bg, JAM2, FALSE);
+                        while (px < tw)
+                        {
+                            WORD xs;
+                            BOOL bit = (row[px >> 3] & (0x80 >> (px & 7))) != 0;
+                            if (bit == inv)
+                            {
+                                px++;
+                                continue;
+                            }
+                            xs = px;
+                            while (px < tw && ((row[px >> 3] & (0x80 >> (px & 7))) != 0) != inv)
+                                px++;
+                            gfx_fill_rect(rp, (WORD)(dx0 + xs), dy, (WORD)(dx0 + px - 1), dy, (BYTE)fg,
+                                          complement ? COMPLEMENT : JAM2, FALSE);
+                        }
+                    }
+                }
+                if (mem)
+                    FreeMem(mem, memsize);
+            }
+        }
+        rp->cp_x = (WORD)(rp->cp_x + adv);
+        return (LONG)count;
+    }
+
 
     /* If RastPort has a Layer, add layer offset for coordinate translation */
     if (rp->Layer)
@@ -2733,16 +2910,18 @@ static VOID _graphics_CloseFont ( register struct GfxBase * GfxBase __asm("a6"),
 static ULONG _graphics_AskSoftStyle ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a1"))
 {
-    LXA_UNIMPLEMENTED("graphics", "AskSoftStyle", "partial: reports all styles regardless of font (Phase 256)");
-
     /*
-     * AskSoftStyle() returns a mask of font styles that can be algorithmically
-     * generated for the current font. Styles include:
-     *   FSF_UNDERLINED (0x01), FSF_BOLD (0x02), FSF_ITALIC (0x04), FSF_EXTENDED (0x08)
-     * We return that all styles can be software-rendered.
+     * The styles that can still be added algorithmically: every bit the
+     * font does not have intrinsically (AmigaOS 3.1 returns 0xffffffff for
+     * a plain font, so the complement is not limited to the style bits).
      */
+    struct TextFont *tf;
+
     DPRINTF (LOG_DEBUG, "_graphics: AskSoftStyle() rp=0x%08lx\n", rp);
-    return 0x0F;  /* All basic styles available: underline, bold, italic, extended */
+    if (!rp)
+        return 0;
+    tf = rp->Font ? rp->Font : get_default_font();
+    return ~(ULONG)tf->tf_Style;
 }
 
 static ULONG _graphics_SetSoftStyle ( register struct GfxBase * GfxBase __asm("a6"),
@@ -3839,14 +4018,6 @@ static VOID _graphics_Move ( register struct GfxBase * GfxBase __asm("a6"),
  * ClipRect of the previous pixel is remembered, so a line costs one list
  * walk per ClipRect it crosses instead of one per pixel.
  */
-struct gfx_line_ctx
-{
-    struct BitMap   *bm;
-    struct Layer    *layer;
-    struct ClipRect *cr;        /* ClipRect of the last pixel (or NULL) */
-    WORD             bmw, bmh;
-    UBYTE            mask;
-};
 
 static void gfx_line_plot(struct gfx_line_ctx *c, WORD x, WORD y, UBYTE pen, BOOL complement)
 {
@@ -8297,6 +8468,68 @@ static UWORD _graphics_ScalerDiv ( register struct GfxBase * GfxBase __asm("a6")
     return (UWORD)res;
 }
 
+/*
+ * Text metrics as AmigaOS 3.1 computes them (observed on the reference):
+ *  - the unstyled extent of a string runs from the leftmost to the
+ *    rightmost pixel any character can cover (kerning, glyph width, a
+ *    fixed font's XSize cell, TxSpacing);
+ *  - bold adds tf_BoldSmear on the right; italic adds Baseline / 2 on the
+ *    right and (YSize - 1 - Baseline) / 2 + 1 on the left;
+ *  - an empty string has a null extent (height 0, MaxX/MaxY -1).
+ */
+static void gfx_text_style_extra(struct RastPort *rp, struct TextFont *tf,
+                                 WORD *left, WORD *right)
+{
+    *left = 0;
+    *right = 0;
+    if (rp->AlgoStyle & FSF_BOLD)
+        *right += tf->tf_BoldSmear;
+    if (rp->AlgoStyle & FSF_ITALIC)
+    {
+        *right += tf->tf_Baseline / 2;
+        *left += (tf->tf_YSize - 1 - tf->tf_Baseline) / 2 + 1;
+    }
+}
+
+/* unstyled extent of count characters: returns the advance width */
+static WORD gfx_text_plain_extent(struct RastPort *rp, struct TextFont *tf,
+                                  CONST_STRPTR string, LONG count, WORD *minx, WORD *maxx)
+{
+    WORD x = 0;
+
+    *minx = 0;
+    *maxx = -1;
+    while (count-- > 0)
+    {
+        WORD idx = graphics_text_char_index(tf, *string++);
+        WORD gx = x, gw;
+
+        if ((tf->tf_Flags & FPF_PROPORTIONAL) || tf->tf_CharKern || tf->tf_CharSpace)
+        {
+            if (tf->tf_CharKern)
+                gx += ((WORD *)tf->tf_CharKern)[idx];
+            gw = tf->tf_CharLoc ? (WORD)(((ULONG *)tf->tf_CharLoc)[idx] & 0xFFFF) : tf->tf_XSize;
+            x = gx + (tf->tf_CharSpace ? ((WORD *)tf->tf_CharSpace)[idx] : tf->tf_XSize);
+        }
+        else
+        {
+            gw = tf->tf_XSize;
+            x += tf->tf_XSize;
+        }
+        x += rp->TxSpacing;
+
+        if (gx < *minx)
+            *minx = gx;
+        if (gx + gw - 1 > *maxx)
+            *maxx = gx + gw - 1;
+        if (x < *minx)
+            *minx = x;
+        if (x - 1 > *maxx)
+            *maxx = x - 1;
+    }
+    return x;
+}
+
 static WORD _graphics_TextExtent ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a1"),
                                                         register CONST_STRPTR string __asm("a0"),
@@ -8304,108 +8537,37 @@ static WORD _graphics_TextExtent ( register struct GfxBase * GfxBase __asm("a6")
                                                         register struct TextExtent * textExtent __asm("a2"))
 {
     struct TextFont *tf;
-    WORD width;
+    WORD width, minx, maxx, left, right;
 
     count = (LONG)(WORD)count;  /* sign-extend: GCC m68k move.w workaround */
 
-    DPRINTF (LOG_DEBUG, "_graphics: TextExtent() rp=0x%08lx, string='%s', count=%ld\n",
-             (ULONG)rp, string ? (char *)string : "(null)", count);
+    DPRINTF (LOG_DEBUG, "_graphics: TextExtent() rp=0x%08lx, count=%ld\n", (ULONG)rp, count);
 
     if (!rp || !textExtent)
+        return 0;
+
+    tf = rp->Font ? rp->Font : get_default_font();
+
+    if (count <= 0 || !string)
     {
+        textExtent->te_Width = 0;
+        textExtent->te_Height = 0;
+        textExtent->te_Extent.MinX = 0;
+        textExtent->te_Extent.MinY = 0;
+        textExtent->te_Extent.MaxX = -1;
+        textExtent->te_Extent.MaxY = -1;
         return 0;
     }
 
-    /* Get the font from the RastPort, or use default */
-    tf = rp->Font;
-    if (!tf)
-    {
-        tf = get_default_font();
-    }
+    width = gfx_text_plain_extent(rp, tf, string, count, &minx, &maxx);
+    gfx_text_style_extra(rp, tf, &left, &right);
 
-    /* Calculate text width using TextLength */
-    width = _graphics_TextLength(GfxBase, rp, string, (UWORD)count);
-    
     textExtent->te_Width = width;
     textExtent->te_Height = tf->tf_YSize;
+    textExtent->te_Extent.MinX = minx - left;
     textExtent->te_Extent.MinY = -tf->tf_Baseline;
-    textExtent->te_Extent.MaxY = textExtent->te_Height - 1 - tf->tf_Baseline;
-
-    if ((tf->tf_Flags & FPF_PROPORTIONAL) || tf->tf_CharKern || tf->tf_CharSpace)
-    {
-        WORD x = 0;
-        WORD x2 = 0;
-
-        textExtent->te_Extent.MinX = 0;
-        textExtent->te_Extent.MaxX = 0;
-
-        while (count--)
-        {
-            WORD idx = graphics_text_char_index(tf, *string++);
-            WORD char_width = tf->tf_XSize;
-
-            if (tf->tf_CharKern)
-                x += ((WORD *)tf->tf_CharKern)[idx];
-
-            if (x < textExtent->te_Extent.MinX)
-                textExtent->te_Extent.MinX = x;
-            if (x > textExtent->te_Extent.MaxX)
-                textExtent->te_Extent.MaxX = x;
-
-            if (tf->tf_CharLoc)
-                char_width = (WORD)(((ULONG *)tf->tf_CharLoc)[idx] & 0xFFFF);
-
-            x2 = x + char_width;
-            if (x2 < textExtent->te_Extent.MinX)
-                textExtent->te_Extent.MinX = x2;
-            if (x2 > textExtent->te_Extent.MaxX)
-                textExtent->te_Extent.MaxX = x2;
-
-            if (tf->tf_CharSpace)
-                x += ((WORD *)tf->tf_CharSpace)[idx];
-            else
-                x += tf->tf_XSize;
-
-            if (x < textExtent->te_Extent.MinX)
-                textExtent->te_Extent.MinX = x;
-            if (x > textExtent->te_Extent.MaxX)
-                textExtent->te_Extent.MaxX = x;
-
-            x += rp->TxSpacing;
-            if (x < textExtent->te_Extent.MinX)
-                textExtent->te_Extent.MinX = x;
-            if (x > textExtent->te_Extent.MaxX)
-                textExtent->te_Extent.MaxX = x;
-        }
-
-        if (width > 0)
-            textExtent->te_Extent.MaxX--;
-    }
-    else
-    {
-        /* For fixed-width fonts (like Topaz-8), MinX is 0 and MaxX is width-1 */
-        textExtent->te_Extent.MinX = 0;
-        textExtent->te_Extent.MaxX = (width > 0) ? (width - 1) : 0;
-    }
-
-    /* Handle bold style - adds smear to right side */
-    if (rp->AlgoStyle & FSF_BOLD)
-    {
-        textExtent->te_Extent.MaxX += tf->tf_BoldSmear;
-    }
-
-    /* Handle italic style - shears the text */
-    if (rp->AlgoStyle & FSF_ITALIC)
-    {
-        /* Italic shifts top right and bottom left */
-        textExtent->te_Extent.MaxX += tf->tf_Baseline / 2;
-        textExtent->te_Extent.MinX -= (tf->tf_YSize - tf->tf_Baseline) / 2;
-    }
-
-    DPRINTF (LOG_DEBUG, "_graphics: TextExtent() -> width=%d height=%d extent=(%d,%d)-(%d,%d)\n",
-             textExtent->te_Width, textExtent->te_Height,
-             textExtent->te_Extent.MinX, textExtent->te_Extent.MinY,
-             textExtent->te_Extent.MaxX, textExtent->te_Extent.MaxY);
+    textExtent->te_Extent.MaxX = maxx + right;
+    textExtent->te_Extent.MaxY = tf->tf_YSize - 1 - tf->tf_Baseline;
 
     return width;
 }
@@ -8420,96 +8582,36 @@ static ULONG _graphics_TextFit ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register ULONG constrainingBitWidth __asm("d2"),
                                                         register ULONG constrainingBitHeight __asm("d3"))
 {
+    /*
+     * The style overhang is taken from the width first; on 3.1 that is an
+     * unsigned subtraction, so a width smaller than the overhang lets the
+     * whole string fit (observed).  Characters are added while the
+     * unstyled extent fits the rest and the styled one the constraining
+     * extent.
+     */
     struct TextFont *tf;
-    ULONG retval = 0;
+    ULONG n = 0, i;
+    WORD width = 0, minx = 0, maxx = -1, left, right;
+    ULONG avail;
 
     strDirection = (LONG)(WORD)strDirection; /* sign-extend: GCC m68k move.w workaround */
+    constrainingBitWidth &= 0xFFFF;
+    constrainingBitHeight &= 0xFFFF;
 
     DPRINTF (LOG_DEBUG, "_graphics: TextFit() rp=0x%08lx, strLen=%lu, dir=%ld, w=%lu, h=%lu\n",
              (ULONG)rp, strLen, strDirection, constrainingBitWidth, constrainingBitHeight);
 
     if (!rp || !textExtent)
-    {
         return 0;
-    }
 
-    /* Get the font from the RastPort, or use default */
-    tf = rp->Font;
-    if (!tf)
-    {
-        tf = get_default_font();
-    }
+    tf = rp->Font ? rp->Font : get_default_font();
+    gfx_text_style_extra(rp, tf, &left, &right);
 
-    /* Check if height constraint allows at least one line of text */
-    if (strLen && (constrainingBitHeight >= tf->tf_YSize))
-    {
-        BOOL ok = TRUE;
-
-        /* Initialize textExtent with font metrics */
-        textExtent->te_Extent.MinX = 0;
-        textExtent->te_Extent.MinY = -tf->tf_Baseline;
-        textExtent->te_Extent.MaxX = 0;
-        textExtent->te_Extent.MaxY = tf->tf_YSize - tf->tf_Baseline - 1;
-        textExtent->te_Width       = 0;
-        textExtent->te_Height      = tf->tf_YSize;
-
-        /* Check if constrainingExtent allows our font height */
-        if (constrainingExtent)
-        {
-            if (constrainingExtent->te_Extent.MinY > textExtent->te_Extent.MinY ||
-                constrainingExtent->te_Extent.MaxY < textExtent->te_Extent.MaxY ||
-                constrainingExtent->te_Height < textExtent->te_Height)
-            {
-                ok = FALSE;
-            }
-        }
-
-        if (ok)
-        {
-            /* Try to fit characters one by one */
-            while (strLen--)
-            {
-                struct TextExtent char_extent;
-                WORD newwidth, newminx, newmaxx, minx, maxx;
-
-                /* Get extent for this single character */
-                _graphics_TextExtent(GfxBase, rp, string, 1, &char_extent);
-                string += strDirection;
-
-                /* Calculate new dimensions if we include this character */
-                newwidth = textExtent->te_Width + char_extent.te_Width;
-                minx = textExtent->te_Width + char_extent.te_Extent.MinX;
-                maxx = textExtent->te_Width + char_extent.te_Extent.MaxX;
-
-                newminx = (minx < textExtent->te_Extent.MinX) ?
-                    minx : textExtent->te_Extent.MinX;
-                newmaxx = (maxx > textExtent->te_Extent.MaxX) ?
-                    maxx : textExtent->te_Extent.MaxX;
-
-                /* Check if new character exceeds width constraint */
-                if ((ULONG)(newmaxx - newminx + 1) > constrainingBitWidth)
-                    break;
-
-                /* Check constrainingExtent constraints */
-                if (constrainingExtent)
-                {
-                    if (constrainingExtent->te_Extent.MinX > newminx) break;
-                    if (constrainingExtent->te_Extent.MaxX < newmaxx) break;
-                    if (constrainingExtent->te_Width < newwidth) break;
-                }
-
-                /* Character fits, update textExtent */
-                textExtent->te_Width = newwidth;
-                textExtent->te_Extent.MinX = newminx;
-                textExtent->te_Extent.MaxX = newmaxx;
-
-                retval++;
-            }
-        }
-    }
-
-    /* If no characters fit, zero out the extent */
-    if (retval == 0)
+    if (!strLen || !string || constrainingBitHeight < tf->tf_YSize ||
+        (constrainingExtent &&
+         (constrainingExtent->te_Extent.MinY > -tf->tf_Baseline ||
+          constrainingExtent->te_Extent.MaxY < tf->tf_YSize - 1 - tf->tf_Baseline ||
+          constrainingExtent->te_Height < tf->tf_YSize)))
     {
         textExtent->te_Width = 0;
         textExtent->te_Height = 0;
@@ -8517,11 +8619,40 @@ static ULONG _graphics_TextFit ( register struct GfxBase * GfxBase __asm("a6"),
         textExtent->te_Extent.MinY = 0;
         textExtent->te_Extent.MaxX = 0;
         textExtent->te_Extent.MaxY = 0;
+        return 0;
     }
 
-    DPRINTF (LOG_DEBUG, "_graphics: TextFit() -> %lu chars fit\n", retval);
+    avail = (ULONG)((LONG)constrainingBitWidth - left - right);
 
-    return retval;
+    for (i = 1; i <= strLen; i++)
+    {
+        WORD w, mn, mx;
+        CONST_STRPTR s = (strDirection < 0) ? string - (i - 1) : string;
+
+        w = gfx_text_plain_extent(rp, tf, s, (LONG)i, &mn, &mx);
+        if ((ULONG)(LONG)(mx - mn + 1) > avail)
+            break;
+        if (constrainingExtent &&
+            (constrainingExtent->te_Extent.MinX > mn - left ||
+             constrainingExtent->te_Extent.MaxX < mx + right ||
+             constrainingExtent->te_Width < w))
+            break;
+        n = i;
+        width = w;
+        minx = mn;
+        maxx = mx;
+    }
+
+    textExtent->te_Width = width;
+    textExtent->te_Height = tf->tf_YSize;
+    textExtent->te_Extent.MinX = minx - left;
+    textExtent->te_Extent.MinY = -tf->tf_Baseline;
+    textExtent->te_Extent.MaxX = maxx + right;
+    textExtent->te_Extent.MaxY = tf->tf_YSize - 1 - tf->tf_Baseline;
+
+    DPRINTF (LOG_DEBUG, "_graphics: TextFit() -> %lu chars fit\n", n);
+
+    return n;
 }
 
 static APTR _graphics_GfxLookUp ( register struct GfxBase * GfxBase __asm("a6"),
