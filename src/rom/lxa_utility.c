@@ -23,7 +23,7 @@
 #define VERSION    40
 #define REVISION   1
 #define EXLIBNAME  "utility"
-#define EXLIBVER   " 40.1 (2022/03/02)"
+#define EXLIBVER   " 40.1 (10.2.93)\r\n"
 
 char __aligned _g_utility_ExLibName [] = EXLIBNAME ".library";
 char __aligned _g_utility_ExLibID   [] = EXLIBNAME EXLIBVER;
@@ -217,7 +217,9 @@ static VOID utility_finish_named_object_removal(struct UtilityNamedObject *objec
     {
         if (name_space->cached_object == object)
             name_space->cached_object = NULL;
-        Remove(&object->node);
+        if (object->node.ln_Succ)
+            Remove(&object->node);
+        object->node.ln_Succ = NULL;
         object->parent_space = NULL;
     }
 
@@ -1666,7 +1668,26 @@ static VOID _utility_RemNamedObject ( register struct UtilityBase * UtilityBase 
     Permit();
 
     if (finish_removal)
+    {
         utility_finish_named_object_removal(named_object);
+    }
+    else
+    {
+        /* still in use: the object leaves the name space at once (no
+         * FindNamedObject() finds it any more); the message is replied when
+         * the last user releases it (AmigaOS 3.1, Tests/Probes/utility/names) */
+        struct UtilityNameSpace *name_space = named_object->parent_space;
+
+        ObtainSemaphore(&name_space->lock);
+        if (named_object->parent_space == name_space && named_object->node.ln_Succ)
+        {
+            if (name_space->cached_object == named_object)
+                name_space->cached_object = NULL;
+            Remove(&named_object->node);
+            named_object->node.ln_Succ = NULL;
+        }
+        ReleaseSemaphore(&name_space->lock);
+    }
 }
 
 static ULONG _utility_GetUniqueID ( register struct UtilityBase * UtilityBase __asm("a6"))

@@ -541,7 +541,7 @@ static struct Resident *g_ResidentModules[37];
 /* exec's own RomTag: FindResident("exec.library") finds it on AmigaOS
  * (reference-verified, Tests/Probes/exec/libraries).  rt_Flags 0: lxa
  * initialises exec in coldstart(), never through InitCode(). */
-static const char g_exec_idstring[] = "exec 40.10 (lxa)\r\n";
+static const char g_exec_idstring[] = "exec 40.10 (15.7.93)\r\n";
 static const struct Resident g_exec_romtag = {
     RTC_MATCHWORD, (struct Resident *)&g_exec_romtag, (APTR)(&g_exec_romtag + 1),
     0, 40, NT_LIBRARY, 105, (char *)"exec.library", (char *)g_exec_idstring, NULL
@@ -4847,15 +4847,59 @@ ULONG _exec_CacheControl ( register struct ExecBase * SysBase __asm("a6"),
                                                         register ULONG ___cacheBits  __asm("d0"),
                                                         register ULONG ___cacheMask  __asm("d1"))
 {
-    LXA_UNIMPLEMENTED("exec", "CacheControl", "partial: reports all caches disabled, ignores changes");
-
     /*
-     * CacheControl() sets CPU cache control bits.
-     * On lxa, there's no hardware cache, so we just return 0 (all caches disabled).
+     * CacheControl(bits, mask): the bits selected by 'mask' are set to
+     * 'bits', the previous state is returned.  The emulated CPU has no
+     * caches to flush, so only the reported state is kept, per CPU model
+     * (AttnFlags):
+     *  - 68040 (AmigaOS 3.1 on the A4000/040 reference, Tests/Probes/exec/
+     *    cache): only EnableI and EnableD can be changed; the state reads
+     *    back EnableI|IBE and EnableD|DBE|CopyBack (the burst and copyback
+     *    bits follow the cache enables); every other bit, including
+     *    ClearI/ClearD (actions) and CopyBack itself, is ignored;
+     *  - 68030: EnableI, FreezeI, IBE, EnableD, FreezeD, DBE and
+     *    WriteAllocate are the CACR bits that stay set;
+     *  - 68020: EnableI and FreezeI;
+     *  - 68000/68010: no caches, always 0.
      */
-    DPRINTF (LOG_DEBUG, "_exec: CacheControl() bits=0x%08lx mask=0x%08lx (no-op, returning 0)\n",
-             ___cacheBits, ___cacheMask);
-    return 0;
+    /* kept inverted against the boot state: ROM .bss starts out zero */
+    static ULONG cache_flipped;
+    const ULONG boot_state = CACRF_EnableI | CACRF_IBE | CACRF_EnableD | CACRF_DBE;
+    ULONG cache_state;
+    UWORD attn = SysBase->AttnFlags;
+    ULONG stored, old, now;
+
+    if (attn & AFF_68040)
+        stored = CACRF_EnableI | CACRF_EnableD;
+    else if (attn & AFF_68030)
+        stored = CACRF_EnableI | CACRF_FreezeI | CACRF_IBE | CACRF_EnableD |
+                 CACRF_FreezeD | CACRF_DBE | CACRF_WriteAllocate;
+    else if (attn & AFF_68020)
+        stored = CACRF_EnableI | CACRF_FreezeI;
+    else
+        stored = 0;
+
+    Disable();
+    cache_state = boot_state ^ cache_flipped;
+    old = cache_state & stored;
+    now = (old & ~___cacheMask) | (___cacheBits & ___cacheMask & stored);
+    cache_state = (cache_state & ~stored) | now;
+    cache_flipped = cache_state ^ boot_state;
+    Enable();
+
+    if (attn & AFF_68040)
+    {
+        ULONG r = 0;
+        if (old & CACRF_EnableI)
+            r |= CACRF_EnableI | CACRF_IBE;
+        if (old & CACRF_EnableD)
+            r |= CACRF_EnableD | CACRF_DBE | CACRF_CopyBack;
+        old = r;
+    }
+
+    DPRINTF (LOG_DEBUG, "_exec: CacheControl() bits=0x%08lx mask=0x%08lx -> old 0x%08lx\n",
+             ___cacheBits, ___cacheMask, old);
+    return old;
 }
 
 APTR _exec_CreateIORequest ( register struct ExecBase * SysBase __asm("a6"),
@@ -5956,7 +6000,7 @@ void coldstart (void)
     SysBase->LibNode.lib_Node.ln_Name = "exec.library";
     SysBase->LibNode.lib_Version  = VERSION;
     SysBase->LibNode.lib_Revision = REVISION;
-    SysBase->LibNode.lib_IdString = "exec 1.1 (2024/01/01)";
+    SysBase->LibNode.lib_IdString = (char *)g_exec_idstring;
     /* AmigaOS 3.1 exec: 137 public vectors (lib_NegSize 822, reference-
      * verified); lxa's extra private vectors below -822 stay callable */
     SysBase->LibNode.lib_NegSize  = 822;

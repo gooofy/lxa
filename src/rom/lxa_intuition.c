@@ -1027,9 +1027,9 @@ static ULONG strgclass_dispatch(register struct IClass *cl __asm("a0"),
                                 register Msg msg __asm("a1"));
 
 #define VERSION    40
-#define REVISION   1
+#define REVISION   85
 #define EXLIBNAME  "intuition"
-#define EXLIBVER   " 40.1 (2022/03/21)"
+#define EXLIBVER   " 40.85 (5.5.93)\r\n"
 
 char __aligned _g_intuition_ExLibName [] = EXLIBNAME ".library";
 char __aligned _g_intuition_ExLibID   [] = EXLIBNAME EXLIBVER;
