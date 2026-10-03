@@ -1103,6 +1103,8 @@ static void _render_menu_items_in_place(struct Window *window);
 static void _enter_menu_mode(struct Window *window, struct Screen *screen, WORD mouseX, WORD mouseY);
 static void _exit_menu_mode(struct Window *window, WORD mouseX, WORD mouseY);
 static UWORD _find_menu_commkey(struct Menu *strip, char key);
+static void _menu_check_item(struct MenuItem *chain, struct MenuItem *item, BOOL mark_toggled);
+static void _menu_sync_drawn_flags(void);
 static void _handle_sys_gadget_verify(struct Window *window, struct Gadget *gadget);
 static void _compute_idcmp_mouse_coords(struct Window *window, ULONG class,
                                          WORD absX, WORD absY,
@@ -1124,6 +1126,11 @@ static struct Window *g_menu_window;
 static struct Menu *g_active_menu;
 static struct MenuItem *g_active_item;
 static struct MenuItem *g_active_subitem;
+/* the menu, item and sub-item whose MIDRAWN/HIGHITEM/ISDRAWN flags this
+ * session set (only valid while g_menu_mode; see _menu_sync_drawn_flags) */
+static struct Menu *g_flagged_menu;
+static struct MenuItem *g_flagged_item;
+static struct MenuItem *g_flagged_subitem;
 static BOOL g_dragging_window;
 static struct Window *g_drag_window;
 static WORD g_drag_start_x;
@@ -3992,6 +3999,132 @@ static VOID _intuition_handle_mouse_button_event(struct IntuitionBase *Intuition
     }
 }
 
+/* Menu tracking while the menu button is held: pointer at screen (mouseX, mouseY). */
+static void _menu_track_pointer(struct Screen *screen, WORD mouseX, WORD mouseY)
+{
+    BOOL needRedraw = FALSE;
+    struct Menu *oldMenu = g_active_menu;
+    struct MenuItem *oldItem = g_active_item;
+
+    DPRINTF(LOG_DEBUG, "_intuition: pointerpos in menu_mode: mouse=(%d,%d) BarH=%d g_active_menu=0x%08lx g_active_item=0x%08lx\n",
+            mouseX, mouseY, (int)screen->BarHeight, (ULONG)g_active_menu, (ULONG)g_active_item);
+
+    if (mouseY < screen->BarHeight + 1)
+    {
+        struct Menu *newMenu = _find_menu_at_x(g_menu_window, mouseX);
+        /* AmigaOS 3.1 keeps the last menu open while the pointer is
+         * over a part of the bar without a menu title */
+        if (!newMenu)
+        {
+            newMenu = g_active_menu;
+            if (g_active_item || g_active_subitem)
+            {
+                g_active_item = NULL;
+                g_active_subitem = NULL;
+                needRedraw = TRUE;
+            }
+        }
+        if (newMenu != g_active_menu)
+        {
+            g_active_menu = newMenu;
+            g_active_item = NULL;
+            g_active_subitem = NULL;
+            needRedraw = TRUE;
+        }
+    }
+    else if (g_active_menu && g_active_menu->FirstItem)
+    {
+        BOOL handledSubmenu = FALSE;
+
+        if (g_active_item && g_active_item->SubItem)
+        {
+            WORD submenuX;
+            WORD submenuY;
+            WORD submenuWidth;
+            WORD submenuHeight;
+
+            if (_get_active_submenu_box(g_menu_window, &submenuX, &submenuY,
+                                        &submenuWidth, &submenuHeight) &&
+                mouseX >= submenuX && mouseX < submenuX + submenuWidth &&
+                mouseY >= submenuY && mouseY < submenuY + submenuHeight)
+            {
+                struct MenuItem *newSubItem;
+
+                handledSubmenu = TRUE;
+                {
+                                                        WORD sox = 0, soy = 0;
+                                                        _get_menu_submenu_origin(g_menu_window, g_active_menu, g_active_item, &sox, &soy);
+                                                        newSubItem = _find_item_in_chain_at_pos(g_active_item->SubItem,
+                                                                                                mouseX - sox, mouseY - soy);
+                                                        }
+                if (newSubItem != g_active_subitem)
+                {
+                    g_active_subitem = newSubItem;
+                    needRedraw = TRUE;
+                }
+            }
+        }
+
+        if (!handledSubmenu)
+        {
+            WORD menuTop, menuLeft;
+            WORD itemX, itemY;
+            _menu_item_origin(screen, g_active_menu, &menuLeft, &menuTop);
+            itemX = mouseX - menuLeft;
+            itemY = mouseY - menuTop;
+            struct MenuItem *newItem = _find_item_at_pos(g_active_menu, itemX, itemY);
+
+            DPRINTF(LOG_DEBUG, "_intuition: menu_item_hit: menuTop=%d menuLeft=%d itemX=%d itemY=%d newItem=0x%08lx BarHBorder=%d LeftEdge=%d\n",
+                    (int)menuTop, (int)menuLeft, (int)itemX, (int)itemY, (ULONG)newItem, (int)screen->BarHBorder, (int)g_active_menu->LeftEdge);
+
+            if (newItem != g_active_item)
+            {
+                g_active_item = newItem;
+                g_active_subitem = NULL;
+                needRedraw = TRUE;
+            }
+            else if (g_active_subitem)
+            {
+                g_active_subitem = NULL;
+                needRedraw = TRUE;
+            }
+        }
+    }
+    else
+    {
+        if (g_active_item || g_active_subitem)
+        {
+            g_active_item = NULL;
+            g_active_subitem = NULL;
+            needRedraw = TRUE;
+        }
+    }
+
+    if (needRedraw)
+    {
+        _menu_sync_drawn_flags();
+        if (_menu_hover_redraw_can_repaint_in_place(g_menu_window,
+                                                    oldMenu,
+                                                    oldItem))
+        {
+            _render_menu_items_in_place(g_menu_window);
+        }
+        else
+        {
+            if (oldMenu || g_active_menu)
+                _restore_menu_dropdown_area(g_menu_window->WScreen);
+
+            _render_menu_bar(g_menu_window);
+
+            if (g_active_menu)
+            {
+                _save_dropdown_for_menu(g_menu_window, g_active_menu);
+                _render_menu_items(g_menu_window);
+            }
+        }
+    }
+}
+
 static VOID _intuition_handle_pointerpos_event(struct IntuitionBase *IntuitionBase,
                                                struct Screen *screen,
                                                struct Window *window,
@@ -4015,116 +4148,7 @@ static VOID _intuition_handle_pointerpos_event(struct IntuitionBase *IntuitionBa
         _input_device_dispatch_event(&input_event);
 
     if (g_menu_mode && g_menu_window && screen)
-    {
-        BOOL needRedraw = FALSE;
-        struct Menu *oldMenu = g_active_menu;
-        struct MenuItem *oldItem = g_active_item;
-
-        DPRINTF(LOG_DEBUG, "_intuition: pointerpos in menu_mode: mouse=(%d,%d) BarH=%d g_active_menu=0x%08lx g_active_item=0x%08lx\n",
-                mouseX, mouseY, (int)screen->BarHeight, (ULONG)g_active_menu, (ULONG)g_active_item);
-
-        if (mouseY < screen->BarHeight + 1)
-        {
-            struct Menu *newMenu = _find_menu_at_x(g_menu_window, mouseX);
-            if (newMenu != g_active_menu)
-            {
-                g_active_menu = newMenu;
-                g_active_item = NULL;
-                g_active_subitem = NULL;
-                needRedraw = TRUE;
-            }
-        }
-        else if (g_active_menu && g_active_menu->FirstItem)
-        {
-            BOOL handledSubmenu = FALSE;
-
-            if (g_active_item && g_active_item->SubItem)
-            {
-                WORD submenuX;
-                WORD submenuY;
-                WORD submenuWidth;
-                WORD submenuHeight;
-
-                if (_get_active_submenu_box(g_menu_window, &submenuX, &submenuY,
-                                            &submenuWidth, &submenuHeight) &&
-                    mouseX >= submenuX && mouseX < submenuX + submenuWidth &&
-                    mouseY >= submenuY && mouseY < submenuY + submenuHeight)
-                {
-                    struct MenuItem *newSubItem;
-
-                    handledSubmenu = TRUE;
-                    {
-                                                            WORD sox = 0, soy = 0;
-                                                            _get_menu_submenu_origin(g_menu_window, g_active_menu, g_active_item, &sox, &soy);
-                                                            newSubItem = _find_item_in_chain_at_pos(g_active_item->SubItem,
-                                                                                                    mouseX - sox, mouseY - soy);
-                                                            }
-                    if (newSubItem != g_active_subitem)
-                    {
-                        g_active_subitem = newSubItem;
-                        needRedraw = TRUE;
-                    }
-                }
-            }
-
-            if (!handledSubmenu)
-            {
-                WORD menuTop, menuLeft;
-                WORD itemX, itemY;
-                _menu_item_origin(screen, g_active_menu, &menuLeft, &menuTop);
-                itemX = mouseX - menuLeft;
-                itemY = mouseY - menuTop;
-                struct MenuItem *newItem = _find_item_at_pos(g_active_menu, itemX, itemY);
-
-                DPRINTF(LOG_DEBUG, "_intuition: menu_item_hit: menuTop=%d menuLeft=%d itemX=%d itemY=%d newItem=0x%08lx BarHBorder=%d LeftEdge=%d\n",
-                        (int)menuTop, (int)menuLeft, (int)itemX, (int)itemY, (ULONG)newItem, (int)screen->BarHBorder, (int)g_active_menu->LeftEdge);
-
-                if (newItem != g_active_item)
-                {
-                    g_active_item = newItem;
-                    g_active_subitem = NULL;
-                    needRedraw = TRUE;
-                }
-                else if (g_active_subitem)
-                {
-                    g_active_subitem = NULL;
-                    needRedraw = TRUE;
-                }
-            }
-        }
-        else
-        {
-            if (g_active_item || g_active_subitem)
-            {
-                g_active_item = NULL;
-                g_active_subitem = NULL;
-                needRedraw = TRUE;
-            }
-        }
-
-        if (needRedraw)
-        {
-            if (_menu_hover_redraw_can_repaint_in_place(g_menu_window,
-                                                        oldMenu,
-                                                        oldItem))
-            {
-                _render_menu_items_in_place(g_menu_window);
-            }
-            else
-            {
-                if (oldMenu || g_active_menu)
-                    _restore_menu_dropdown_area(g_menu_window->WScreen);
-
-                _render_menu_bar(g_menu_window);
-
-                if (g_active_menu)
-                {
-                    _save_dropdown_for_menu(g_menu_window, g_active_menu);
-                    _render_menu_items(g_menu_window);
-                }
-            }
-        }
-    }
+        _menu_track_pointer(screen, mouseX, mouseY);
 
     if (g_dragging_window && g_drag_window)
     {
@@ -5768,6 +5792,9 @@ static VOID _intuition_discard_menu_runtime_state(VOID)
     g_active_menu = NULL;
     g_active_item = NULL;
     g_active_subitem = NULL;
+    g_flagged_menu = NULL;
+    g_flagged_item = NULL;
+    g_flagged_subitem = NULL;
     g_menu_selection = MENUNULL;
     g_menu_save_x = 0;
     g_menu_save_y = 0;
@@ -6011,14 +6038,7 @@ static UWORD _find_menu_commkey(struct Menu *strip, char key)
                             cmd -= ('a' - 'A');
                         if (cmd == ukey)
                         {
-                            /* Handle CHECKIT toggle */
-                            if (sub->Flags & CHECKIT)
-                            {
-                                if (sub->Flags & MENUTOGGLE)
-                                    sub->Flags ^= CHECKED;
-                                else
-                                    sub->Flags |= CHECKED;
-                            }
+                            _menu_check_item(item->SubItem, sub, FALSE);
                             sub->NextSelect = MENUNULL;
                             return (UWORD)((menuNum & 0x1F) |
                                           ((itemNum & 0x3F) << 5) |
@@ -6036,14 +6056,7 @@ static UWORD _find_menu_commkey(struct Menu *strip, char key)
                     cmd -= ('a' - 'A');
                 if (cmd == ukey)
                 {
-                    /* Handle CHECKIT toggle */
-                    if (item->Flags & CHECKIT)
-                    {
-                        if (item->Flags & MENUTOGGLE)
-                            item->Flags ^= CHECKED;
-                        else
-                            item->Flags |= CHECKED;
-                    }
+                    _menu_check_item(menu->FirstItem, item, FALSE);
                     item->NextSelect = MENUNULL;
                     return (UWORD)((menuNum & 0x1F) |
                                   ((itemNum & 0x3F) << 5) |
@@ -6795,6 +6808,92 @@ static void _render_menu_items_in_place(struct Window *window)
 /*
  * Enter menu mode - called on MENUDOWN
  */
+/*
+ * Menu drawn-state flags, as AmigaOS 3.1 keeps them (tests/scenarios/
+ * gallery-menus-select.yaml): the menu whose items are shown has MIDRAWN,
+ * the highlighted (enabled) item or sub-item has HIGHITEM, an item whose
+ * sub-items are shown has ISDRAWN.  When the menu button is released the
+ * flags of the final state stay set; the next menu session clears them,
+ * together with MENUTOGGLED, on the whole strip.
+ */
+static void _menu_clear_session_flags(struct Menu *strip)
+{
+    struct Menu *menu;
+    struct MenuItem *item, *sub;
+
+    for (menu = strip; menu; menu = menu->NextMenu)
+    {
+        menu->Flags &= ~MIDRAWN;
+        for (item = menu->FirstItem; item; item = item->NextItem)
+        {
+            item->Flags &= ~(HIGHITEM | ISDRAWN | MENUTOGGLED);
+            for (sub = item->SubItem; sub; sub = sub->NextItem)
+                sub->Flags &= ~(HIGHITEM | ISDRAWN | MENUTOGGLED);
+        }
+    }
+    g_flagged_menu = NULL;
+    g_flagged_item = NULL;
+    g_flagged_subitem = NULL;
+}
+
+static void _menu_sync_drawn_flags(void)
+{
+    if (g_flagged_menu)
+        g_flagged_menu->Flags &= ~MIDRAWN;
+    if (g_flagged_item)
+        g_flagged_item->Flags &= ~(HIGHITEM | ISDRAWN);
+    if (g_flagged_subitem)
+        g_flagged_subitem->Flags &= ~HIGHITEM;
+
+    g_flagged_menu = g_active_menu;
+    g_flagged_item = g_active_menu ? g_active_item : NULL;
+    g_flagged_subitem = g_flagged_item && g_flagged_item->SubItem ? g_active_subitem : NULL;
+
+    if (g_flagged_menu)
+        g_flagged_menu->Flags |= MIDRAWN;
+    if (g_flagged_item)
+    {
+        if (g_flagged_item->Flags & ITEMENABLED)
+            g_flagged_item->Flags |= HIGHITEM;
+        if (g_flagged_item->SubItem)
+            g_flagged_item->Flags |= ISDRAWN;
+    }
+    if (g_flagged_subitem && (g_flagged_subitem->Flags & ITEMENABLED))
+        g_flagged_subitem->Flags |= HIGHITEM;
+}
+
+/*
+ * A selected CHECKIT item: MENUTOGGLE items toggle, others become checked;
+ * MutualExclude unchecks the checked CHECKIT items of the same chain
+ * (bit n = n-th item of the menu, or sub-item of the parent item).
+ * mark_toggled: the mouse path flags the item MENUTOGGLED (AmigaOS 3.1).
+ */
+static void _menu_check_item(struct MenuItem *chain, struct MenuItem *item, BOOL mark_toggled)
+{
+    struct MenuItem *other;
+    WORD i;
+
+    if (!(item->Flags & CHECKIT))
+        return;
+
+    if (item->Flags & MENUTOGGLE)
+        item->Flags ^= CHECKED;
+    else
+        item->Flags |= CHECKED;
+    if (mark_toggled)
+        item->Flags |= MENUTOGGLED;
+
+    if (item->MutualExclude)
+    {
+        for (other = chain, i = 0; other && i < 32; other = other->NextItem, i++)
+        {
+            if (other != item && (item->MutualExclude & (1UL << i)) &&
+                (other->Flags & (CHECKIT | CHECKED)) == (CHECKIT | CHECKED))
+                other->Flags &= ~CHECKED;
+        }
+    }
+}
+
 static void _enter_menu_mode(struct Window *window, struct Screen *screen, WORD mouseX, WORD mouseY)
 {
     if (!window || !window->MenuStrip || !screen)
@@ -6815,6 +6914,7 @@ static void _enter_menu_mode(struct Window *window, struct Screen *screen, WORD 
     g_active_item = NULL;
     g_active_subitem = NULL;
     g_menu_selection = MENUNULL;
+    _menu_clear_session_flags(window->MenuStrip);
     
     /* Render the menu bar */
     _render_menu_bar(window);
@@ -6832,6 +6932,7 @@ static void _enter_menu_mode(struct Window *window, struct Screen *screen, WORD 
             _render_menu_items(window);
         }
     }
+    _menu_sync_drawn_flags();
     DPRINTF(LOG_DEBUG, "_intuition: _enter_menu_mode completed, g_menu_mode=%d g_active_menu=0x%08lx\n",
             g_menu_mode, (ULONG)g_active_menu);
 }
@@ -6870,6 +6971,8 @@ static void _exit_menu_mode(struct Window *window, WORD mouseX, WORD mouseY)
 
         if (selected_item->Flags & ITEMENABLED)
         {
+            _menu_check_item(subNum != NOSUB ? g_active_item->SubItem : g_active_menu->FirstItem,
+                             selected_item, TRUE);
             menuCode = _encode_menu_selection(menuNum, itemNum, subNum);
             selected_item->NextSelect = MENUNULL;
 
@@ -6895,12 +6998,16 @@ static void _exit_menu_mode(struct Window *window, WORD mouseX, WORD mouseY)
                            IEQUALIFIER_RBUTTON, NULL, relX, relY);
     }
     
-    /* Clear menu mode state */
+    /* Clear menu mode state (the drawn-state flags of the final state
+     * stay set, as on AmigaOS 3.1) */
     g_menu_mode = FALSE;
     g_menu_window = NULL;
     g_active_menu = NULL;
     g_active_item = NULL;
     g_active_subitem = NULL;
+    g_flagged_menu = NULL;
+    g_flagged_item = NULL;
+    g_flagged_subitem = NULL;
     g_menu_selection = MENUNULL;
     
     /* Restore the menu drop-down area and redraw screen title bar */
@@ -8142,121 +8249,8 @@ VOID _intuition_ProcessInputEvents(struct Screen *hint_screen)
                 _input_device_dispatch_event(&input_event);
                 
                 /* Handle menu tracking when in menu mode */
-                if (g_menu_mode && g_menu_window)
-                {
-                    BOOL needRedraw = FALSE;
-                    struct Menu *oldMenu = g_active_menu;
-                    struct MenuItem *oldItem = g_active_item;
-                    
-                    DPRINTF(LOG_DEBUG, "_intuition: menu_track: mouse=(%d,%d) BarHeight=%d activeMenu=0x%08lx activeItem=0x%08lx\n",
-                            mouseX, mouseY, screen ? (int)screen->BarHeight : -1,
-                            (ULONG)g_active_menu, (ULONG)g_active_item);
-                    
-                    /* Check if mouse is in menu bar area */
-                    if (mouseY < screen->BarHeight + 1)
-                    {
-                        struct Menu *newMenu = _find_menu_at_x(g_menu_window, mouseX);
-                        if (newMenu != g_active_menu)
-                        {
-                            g_active_menu = newMenu;
-                            g_active_item = NULL;  /* Clear item when switching menus */
-                            g_active_subitem = NULL;
-                            needRedraw = TRUE;
-                        }
-                    }
-                    else if (g_active_menu && g_active_menu->FirstItem)
-                    {
-                        BOOL handledSubmenu = FALSE;
-
-                        if (g_active_item && g_active_item->SubItem)
-                        {
-                            WORD submenuX;
-                            WORD submenuY;
-                            WORD submenuWidth;
-                            WORD submenuHeight;
-
-                            if (_get_active_submenu_box(g_menu_window, &submenuX, &submenuY,
-                                                        &submenuWidth, &submenuHeight) &&
-                                mouseX >= submenuX && mouseX < submenuX + submenuWidth &&
-                                mouseY >= submenuY && mouseY < submenuY + submenuHeight)
-                            {
-                                struct MenuItem *newSubItem;
-
-                                handledSubmenu = TRUE;
-                                {
-                                                                        WORD sox = 0, soy = 0;
-                                                                        _get_menu_submenu_origin(g_menu_window, g_active_menu, g_active_item, &sox, &soy);
-                                                                        newSubItem = _find_item_in_chain_at_pos(g_active_item->SubItem,
-                                                                                                                mouseX - sox, mouseY - soy);
-                                                                        }
-                                if (newSubItem != g_active_subitem)
-                                {
-                                    g_active_subitem = newSubItem;
-                                    needRedraw = TRUE;
-                                }
-                            }
-                        }
-
-                        if (!handledSubmenu)
-                        {
-                            /* Check if mouse is in the main drop-down menu area.
-                             * This keeps lower menu items responsive after visiting
-                             * a submenu instead of pinning the parent item highlight. */
-                            WORD menuTop, menuLeft;
-                            WORD itemX, itemY;
-                            _menu_item_origin(screen, g_active_menu, &menuLeft, &menuTop);
-                            itemX = mouseX - menuLeft;
-                            itemY = mouseY - menuTop;
-                            struct MenuItem *newItem = _find_item_at_pos(g_active_menu, itemX, itemY);
-
-                            if (newItem != g_active_item)
-                            {
-                                g_active_item = newItem;
-                                g_active_subitem = NULL;
-                                needRedraw = TRUE;
-                            }
-                            else if (g_active_subitem)
-                            {
-                                g_active_subitem = NULL;
-                                needRedraw = TRUE;
-                            }
-                        }
-                    }
-                    else
-                    {
-                        /* Mouse outside menu areas */
-                        if (g_active_item || g_active_subitem)
-                        {
-                            g_active_item = NULL;
-                            g_active_subitem = NULL;
-                            needRedraw = TRUE;
-                        }
-                    }
-                    
-                    /* Redraw if selection changed */
-                    if (needRedraw)
-                    {
-                        if (_menu_hover_redraw_can_repaint_in_place(g_menu_window,
-                                                                    oldMenu,
-                                                                    oldItem))
-                        {
-                            _render_menu_items_in_place(g_menu_window);
-                        }
-                        else
-                        {
-                            if (oldMenu || g_active_menu)
-                                _restore_menu_dropdown_area(g_menu_window->WScreen);
-
-                            _render_menu_bar(g_menu_window);
-
-                            if (g_active_menu)
-                            {
-                                _save_dropdown_for_menu(g_menu_window, g_active_menu);
-                                _render_menu_items(g_menu_window);
-                            }
-                        }
-                    }
-                }
+                if (g_menu_mode && g_menu_window && screen)
+                    _menu_track_pointer(screen, mouseX, mouseY);
                 
                 /* Handle window dragging */
                 if (g_dragging_window && g_drag_window)

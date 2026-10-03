@@ -1,0 +1,47 @@
+{
+ "app": "Menus",
+ "disabled": null,
+ "lxa_version": "0.11.25",
+ "promoted": "2026-10-04",
+ "reference": "AmigaOS 3.1 (KS 40.70), profile aga",
+ "requires_apps": false,
+ "scenario": "gallery-menus-select",
+ "snapshots": {
+  "cancelbar": {
+   "known_tree_diffs": [],
+   "pixel_budget": 0,
+   "pixel_phase": null,
+   "stdout_known_diff": null
+  },
+  "cancelout": {
+   "known_tree_diffs": [],
+   "pixel_budget": 0,
+   "pixel_phase": null,
+   "stdout_known_diff": null
+  },
+  "copy": {
+   "known_tree_diffs": [],
+   "pixel_budget": 0,
+   "pixel_phase": null,
+   "stdout_known_diff": null
+  },
+  "disabled": {
+   "known_tree_diffs": [],
+   "pixel_budget": 0,
+   "pixel_phase": null,
+   "stdout_known_diff": null
+  },
+  "ghost": {
+   "known_tree_diffs": [],
+   "pixel_budget": 0,
+   "pixel_phase": null,
+   "stdout_known_diff": null
+  },
+  "sub": {
+   "known_tree_diffs": [],
+   "pixel_budget": 0,
+   "pixel_phase": null,
+   "stdout_known_diff": null
+  }
+ }
+}
