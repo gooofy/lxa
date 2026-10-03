@@ -17,14 +17,13 @@ using namespace lxa::testing;
 
 #define RAWKEY_7 0x07
 
-/* Gadget positions from the sample:
- * BASE = 20 + WBorTop + (FontYSize + 1) = 20 + 11 + (8 + 1) = 40 (for lxa defaults)
- * Confirmed via log: "Created BUTTON_KIND gadget at 20,40 size 120x14"
- * 
- * Button:   (20, 40), size 120x14
- * Checkbox: (20, 60), size 26x11
- * Integer:  (80, 80), size 80x14   (LeftEdge was increased to 80 for PLACETEXT_LEFT)
- * Cycle:    (80, 100), size 120x14 (LeftEdge was increased to 80 for PLACETEXT_LEFT)
+/* Gadget positions from the sample (AmigaOS 3.1 geometry, Phase 223):
+ * BASE = 20 + WBorTop + (FontYSize + 1) = 20 + 2 + (8 + 1) = 31
+ *
+ * Button:   (20, 31), size 120x14
+ * Checkbox: (20, 51), size 26x11
+ * Integer:  (80, 71), size 80x14; its string area is (86, 74) 68x8
+ * Cycle:    (80, 91), size 120x14
  */
 
 // ============================================================================
@@ -199,7 +198,7 @@ TEST_F(SimpleGTGadgetTest, GadgetCreation) {
 TEST_F(SimpleGTGadgetTest, ClickButton) {
     // Button is at (20, 40) in the window, size 120x14.
     int clickX = window_info.x + 20 + 60;  // center of 120px wide button
-    int clickY = window_info.y + 40 + 7;   // center of 14px tall button
+    int clickY = window_info.y + 31 + 7;   // center of 14px tall button
     
     ClearOutput();
     Click(clickX, clickY);
@@ -213,7 +212,7 @@ TEST_F(SimpleGTGadgetTest, ClickButton) {
 TEST_F(SimpleGTGadgetTest, ClickCheckbox) {
     // Checkbox is at (20, 60) in the window, size 26x11.
     int clickX = window_info.x + 20 + 13;   // center of 26px wide gadget
-    int clickY = window_info.y + 60 + 5;    // center of 11px tall gadget
+    int clickY = window_info.y + 51 + 5;    // center of 11px tall gadget
 
     ClearOutput();
     Click(clickX, clickY);
@@ -227,7 +226,7 @@ TEST_F(SimpleGTGadgetTest, ClickCheckbox) {
 TEST_F(SimpleGTGadgetTest, ClickCycle) {
     // Cycle is at (80, 100) in the window, size 120x14.
     int clickX = window_info.x + 80 + 60;  // center of 120px wide gadget
-    int clickY = window_info.y + 100 + 7;  // center of 14px tall gadget
+    int clickY = window_info.y + 91 + 7;  // center of 14px tall gadget
 
     ClearOutput();
     Click(clickX, clickY);
@@ -244,7 +243,7 @@ TEST_F(SimpleGTGadgetTest, ClickCycle) {
 
 TEST_F(SimpleGTGadgetTest, NumberGadgetAcceptsKeyboardInput) {
     int clickX = window_info.x + 80 + 40;
-    int clickY = window_info.y + 80 + 7;
+    int clickY = window_info.y + 71 + 7;
 
     Click(clickX, clickY);
     RunCyclesWithVBlank(20, 100000);
@@ -434,9 +433,9 @@ TEST_F(SimpleGTGadgetPixelTest, CheckboxBorderRendered) {
     
     int checkbox_content = CountContentPixels(
         window_info.x + 20,
-        window_info.y + 60,
+        window_info.y + 51,
         window_info.x + 20 + 25,  // 26px wide
-        window_info.y + 60 + 10,  // 11px tall
+        window_info.y + 51 + 10,  // 11px tall
         0  // background pen
     );
     EXPECT_GT(checkbox_content, 0)
@@ -445,11 +444,11 @@ TEST_F(SimpleGTGadgetPixelTest, CheckboxBorderRendered) {
 
 TEST_F(SimpleGTGadgetPixelTest, CheckboxCheckmarkRenderedAfterClick) {
     int inner_x1 = window_info.x + 20 + 3;
-    int inner_y1 = window_info.y + 60 + 2;
+    int inner_y1 = window_info.y + 51 + 2;
     int inner_x2 = window_info.x + 20 + 22;
-    int inner_y2 = window_info.y + 60 + 8;
+    int inner_y2 = window_info.y + 51 + 8;
     int clickX = window_info.x + 20 + 13;
-    int clickY = window_info.y + 60 + 5;
+    int clickY = window_info.y + 51 + 5;
 
     lxa_flush_display();
     int before_pixels = CountContentPixels(inner_x1, inner_y1, inner_x2, inner_y2, 0);
@@ -465,13 +464,13 @@ TEST_F(SimpleGTGadgetPixelTest, CheckboxCheckmarkRenderedAfterClick) {
 
 TEST_F(SimpleGTGadgetPixelTest, NumberGadgetShowsCursorAndTypedDigitImmediately) {
     int clickX = window_info.x + 80 + 40;
-    int clickY = window_info.y + 80 + 7;
-    int cursor_x1 = window_info.x + 84 + 16;
-    int cursor_y1 = window_info.y + 82 + 1;
+    int clickY = window_info.y + 71 + 7;
+    int cursor_x1 = window_info.x + 86 + 16;
+    int cursor_y1 = window_info.y + 74 + 1;
     int cursor_x2 = cursor_x1 + 4;
     int cursor_y2 = cursor_y1 + 7;
-    int typed_x1 = window_info.x + 84 + 16;
-    int typed_y1 = window_info.y + 82 + 1;
+    int typed_x1 = window_info.x + 86 + 16;
+    int typed_y1 = window_info.y + 74 + 1;
     int typed_x2 = typed_x1 + 12;
     int typed_y2 = typed_y1 + 7;
 
@@ -514,7 +513,7 @@ TEST_F(SimpleGTGadgetPixelTest, CycleGadgetIconRegionHasPixels)
     /* The glyph polygon occupies x=6..16 relative to gadget left (LeftEdge=6, glyph spans 11px).
      * We check x=left+6..left+16 has non-background pixels. */
     int gad_left = window_info.x + 80;
-    int gad_top  = window_info.y + 100;
+    int gad_top  = window_info.y + 91;
 
     int icon_x1 = gad_left + 6;
     int icon_y1 = gad_top  + 2;
@@ -532,7 +531,7 @@ TEST_F(SimpleGTGadgetPixelTest, CycleGadgetDividerIsPresent)
     /* Per spec: divider shadow at x=CYCLEGLYPHWIDTH=20, shine at x=21,
      * both from y=2 to y=gadHeight-3=11. */
     int gad_left = window_info.x + 80;
-    int gad_top  = window_info.y + 100;
+    int gad_top  = window_info.y + 91;
 
     int div_x1 = gad_left + 20;
     int div_y1 = gad_top  + 2;
@@ -551,11 +550,11 @@ TEST_F(SimpleGTGadgetPixelTest, CycleGadgetNoDropDownArrowOnRightEdge)
      * label text pixels (sparse), not a filled drop-down arrow block.
      * A drop-down arrow would fill a dense rectangle; text is sparse. */
     int gad_left = window_info.x + 80;
-    int gad_top  = window_info.y + 100;
+    int gad_top  = window_info.y + 91;
 
     int right_x1 = gad_left + 120 - 12;
     int right_y1 = gad_top  + 3;
-    int right_x2 = gad_left + 120 - 2;
+    int right_x2 = gad_left + 120 - 3;   /* the 3.1 button frame is 2 pixels wide on the right */
     int right_y2 = gad_top  + 10;
 
     lxa_flush_display();

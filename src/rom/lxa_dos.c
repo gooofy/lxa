@@ -1876,9 +1876,14 @@ BPTR _dos_Open ( register struct DosLibrary * DOSBase        __asm("a6"),
         }
     }
 
-    /* Resolve relative paths */
+    /* Resolve relative paths - "*" is the current console, not a file name
+     * (AmigaOS 3.1 opens it in every mode; it was resolved to a host file
+     * named "*", so MODE_OLDFILE failed and MODE_NEWFILE created one -
+     * old C startup code then crashed: Fred Fish mass run, Phase 232) */
     char resolved_path[256];
-    const char *path_to_use = resolve_amiga_path((const char *)___name, resolved_path);
+    const char *path_to_use = (___name[0] == '*' && ___name[1] == '\0')
+                              ? (const char *)___name
+                              : resolve_amiga_path((const char *)___name, resolved_path);
     
     struct FileHandle *fh = (struct FileHandle *) AllocDosObject (DOS_FILEHANDLE, NULL);
 

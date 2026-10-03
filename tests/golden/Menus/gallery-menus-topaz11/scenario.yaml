@@ -1,0 +1,15 @@
+# Rendering conformance gallery (Phase 223): NewLook menus with checkmarks,
+# sub-items, COMMSEQ, bars and ghosted items, on a Workbench-like screen
+# with the screen font topaz 11 (same glyphs on both systems).
+name: gallery-menus-topaz11
+fonts: wb31
+app:
+  sample: Tests/Gallery/Menus
+  args: "topaz11"
+steps:
+  - launch
+  - wait_window: "Menu Gallery"
+  - wait_idle
+  - snapshot: screen
+  - menus
+  - quit

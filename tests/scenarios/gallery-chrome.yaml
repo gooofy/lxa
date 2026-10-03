@@ -1,0 +1,21 @@
+# Rendering conformance gallery (Phase 223): window chrome per flag combination,
+# active ("CA Full") and inactive windows.
+name: gallery-chrome
+app:
+  sample: Tests/Gallery/Chrome
+steps:
+  - launch
+  - wait_window: "CA Full"
+  - wait_idle
+  - snapshot: {name: active-full, window: "CA Full"}
+  - snapshot: {name: inactive-full, window: "CB Full"}
+  - snapshot: {name: depth-only, window: "CC Depth"}
+  - snapshot: {name: close-only, window: "CD Close"}
+  - snapshot: {name: zoom, window: "CE Zoom"}
+  - snapshot: {name: gzz, window: "CF GZZ"}
+  - snapshot: {name: sizebbottom, window: "CG SizeBB"}
+  - snapshot: {name: nodrag, window: "CH NoDrag"}
+  - snapshot: {name: plain, window: "CI Plain"}
+  - snapshot: {name: size-only, window: "CJ SizeOnly"}
+  - snapshot: {name: borderless, window: "CK Borderless"}
+  - quit

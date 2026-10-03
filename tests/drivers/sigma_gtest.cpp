@@ -72,6 +72,9 @@ protected:
         auto gadgets = GetGadgets(analysis_window_index);
         for (const auto& g : gadgets)
         {
+            /* system gadgets carry GadgetID 0 on AmigaOS 3.1: skip them */
+            if (g.gadget_type & 0x8000)
+                continue;
             result[g.gadget_id] = g;
         }
         return result;
@@ -86,6 +89,7 @@ protected:
         {
             lxa_gadget_info_t info;
             if (GetGadgetInfo(i, &info, analysis_window_index)
+                && !(info.gadget_type & 0x8000)
                 && info.gadget_id == gadget_id)
             {
                 return i;

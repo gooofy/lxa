@@ -428,6 +428,34 @@ foreach(src ${PROBE_SOURCES})
     list(APPEND ALL_SAMPLES ${output})
 endforeach()
 
+# === Rendering conformance gallery (Phase 223) ===
+# tests/gallery/<name>.c -> SYS:Tests/Gallery/<Output>; pages are compared with
+# real AmigaOS 3.1 by tests/scenarios/gallery-*.yaml.
+set(GALLERY_LIST
+    "chrome|Chrome"
+    "gtkinds|GT"
+    "menus|Menus"
+    "requesters|Req"
+    "sysimages|SysI"
+    "frames|Frames"
+    "screen|Screen"
+)
+file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/Samples/Tests/Gallery")
+foreach(gallery_info ${GALLERY_LIST})
+    string(REPLACE "|" ";" args ${gallery_info})
+    list(GET args 0 filename)
+    list(GET args 1 output_name)
+    set(src "${CMAKE_CURRENT_SOURCE_DIR}/../tests/gallery/${filename}.c")
+    set(output "${CMAKE_CURRENT_BINARY_DIR}/Samples/Tests/Gallery/${output_name}")
+    add_custom_command(
+        OUTPUT ${output}
+        COMMAND ${M68K_GCC_BIN} ${SAMPLES_CFLAGS} ${SAMPLES_LDFLAGS} -o ${output} ${src}
+        DEPENDS ${src} ${CMAKE_CURRENT_SOURCE_DIR}/../tests/gallery/gallery.h
+        COMMENT "Building Gallery page: ${output_name}"
+    )
+    list(APPEND ALL_SAMPLES ${output})
+endforeach()
+
 # === Shell parity scripts (Phase 221) ===
 # tests/shell_parity/<name>.script runs as "SYS:Tests/ShellParity/Run <name>"
 # on lxa and on real AmigaOS 3.1; expected output: <name>.ref.out.

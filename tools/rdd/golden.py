@@ -93,7 +93,11 @@ def promote(scenario_path, run_dir, phase, root=GOLDEN_ROOT, reason=None):
         lpath = os.path.join(sdir, "lxa", snap)
         entry = {"known_tree_diffs": [], "pixel_budget": 0, "pixel_phase": None, "stdout_known_diff": None}
         if os.path.exists(os.path.join(lpath, "meta.json")):
-            res, _ = compare_bundles(lpath, os.path.join(gdir, "ref", snap))
+            res, mask = compare_bundles(lpath, os.path.join(gdir, "ref", snap))
+            old_entry = old.get("snapshots", {}).get(snap, {})
+            if old_entry.get("ignore_regions"):
+                entry["ignore_regions"] = old_entry["ignore_regions"]
+                apply_ignore_regions(entry, res, mask)
             prev = {_key(d): d.get("phase") for d in
                     old.get("snapshots", {}).get(snap, {}).get("known_tree_diffs", [])}
             entry["known_tree_diffs"] = [dict(d, phase=prev.get(_key(d)) or phase) for d in res["tree"]]
@@ -120,6 +124,25 @@ def promote(scenario_path, run_dir, phase, root=GOLDEN_ROOT, reason=None):
 
 
 # -- check ------------------------------------------------------------------------
+
+def apply_ignore_regions(entry, res, mask):
+    """golden.json "ignore_regions": [{x, y, w, h, phase, why}] - pixels in
+    these rectangles are not counted (environment-dependent content such as
+    host directory listings; each region is owned by a phase)."""
+    regs = entry.get("ignore_regions") or []
+    px = res.get("pixels")
+    if not regs or not px or mask is None:
+        return res
+    w = px["width"]
+    count = 0
+    for i, v in enumerate(mask):
+        if v:
+            x, y = i % w, i // w
+            if not any(r["x"] <= x < r["x"] + r["w"] and r["y"] <= y < r["y"] + r["h"] for r in regs):
+                count += 1
+    px["diff_pixels"] = count
+    return res
+
 
 def evaluate(golden, snap, res):
     """Apply one snapshot's ratchet to a compare result -> (failures, tighten)."""
@@ -159,6 +182,9 @@ def check(gdir, build=None, keep=None):
     if scn.manifest and not os.path.isdir(scn.app_host_dir()):
         print("SKIP %s: %s not installed (LXA_APPS=%s)" % (scn.name, scn.manifest["dir"], APPS_DIR))
         return 77
+    if scn.lxa_fonts_dir() and not os.path.isdir(scn.lxa_fonts_dir()):
+        print("SKIP %s: reference fonts %s not built" % (scn.name, scn.lxa_fonts_dir()))
+        return 77
     out = keep or tempfile.mkdtemp(prefix="rdd-golden-")
     env = dict(os.environ, PYTHONPATH=os.path.join(ROOT, "tools") + os.pathsep + os.environ.get("PYTHONPATH", ""))
     cmd = [sys.executable, "-m", "rdd.backend_lxa", scn.path, out]
@@ -182,7 +208,8 @@ def check(gdir, build=None, keep=None):
         if not os.path.exists(os.path.join(lpath, "meta.json")):
             fails.append("%s: no lxa snapshot" % snap)
             continue
-        res, _ = compare_bundles(lpath, os.path.join(gdir, "ref", snap))
+        res, mask = compare_bundles(lpath, os.path.join(gdir, "ref", snap))
+        apply_ignore_regions(golden["snapshots"][snap], res, mask)
         f, t = evaluate(golden, snap, res)
         fails += f
         tighten += t
@@ -223,6 +250,9 @@ def lint(root=GOLDEN_ROOT, roadmap=os.path.join(ROOT, "roadmap.md")):
         for snap, e in g["snapshots"].items():
             if not os.path.exists(os.path.join(d, "ref", snap, "meta.json")):
                 problems.append("%s: missing reference bundle %s" % (rel, snap))
+            for reg in e.get("ignore_regions", []):
+                if str(reg.get("phase")) not in phases or not reg.get("why"):
+                    problems.append("%s: ignore region %r needs a scheduled phase and a why" % (rel, reg))
             for k in e.get("known_tree_diffs", []):
                 if str(k.get("phase")) not in phases:
                     problems.append("%s: known diff %s.%s owned by unscheduled phase %s"

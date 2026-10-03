@@ -1,0 +1,77 @@
+{
+ "app": "Chrome",
+ "disabled": null,
+ "lxa_version": "0.11.14",
+ "promoted": "2026-10-03",
+ "reference": "AmigaOS 3.1 (KS 40.70), profile aga",
+ "requires_apps": false,
+ "scenario": "gallery-chrome",
+ "snapshots": {
+  "active-full": {
+   "known_tree_diffs": [],
+   "pixel_budget": 64,
+   "pixel_phase": 225,
+   "stdout_known_diff": null
+  },
+  "borderless": {
+   "known_tree_diffs": [],
+   "pixel_budget": 143,
+   "pixel_phase": 225,
+   "stdout_known_diff": null
+  },
+  "close-only": {
+   "known_tree_diffs": [],
+   "pixel_budget": 44,
+   "pixel_phase": 225,
+   "stdout_known_diff": null
+  },
+  "depth-only": {
+   "known_tree_diffs": [],
+   "pixel_budget": 83,
+   "pixel_phase": 225,
+   "stdout_known_diff": null
+  },
+  "gzz": {
+   "known_tree_diffs": [],
+   "pixel_budget": 96,
+   "pixel_phase": 225,
+   "stdout_known_diff": null
+  },
+  "inactive-full": {
+   "known_tree_diffs": [],
+   "pixel_budget": 68,
+   "pixel_phase": 225,
+   "stdout_known_diff": null
+  },
+  "nodrag": {
+   "known_tree_diffs": [],
+   "pixel_budget": 87,
+   "pixel_phase": 225,
+   "stdout_known_diff": null
+  },
+  "plain": {
+   "known_tree_diffs": [],
+   "pixel_budget": 79,
+   "pixel_phase": 225,
+   "stdout_known_diff": null
+  },
+  "size-only": {
+   "known_tree_diffs": [],
+   "pixel_budget": 81,
+   "pixel_phase": 225,
+   "stdout_known_diff": null
+  },
+  "sizebbottom": {
+   "known_tree_diffs": [],
+   "pixel_budget": 95,
+   "pixel_phase": 225,
+   "stdout_known_diff": null
+  },
+  "zoom": {
+   "known_tree_diffs": [],
+   "pixel_budget": 71,
+   "pixel_phase": 225,
+   "stdout_known_diff": null
+  }
+ }
+}

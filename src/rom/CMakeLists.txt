@@ -49,6 +49,7 @@ set(ROM_C_SOURCES
     lxa_dev_input.c
     lxa_graphics.c
     lxa_intuition.c
+    lxa_images.c
     lxa_layers.c
     lxa_expansion.c
     lxa_icon.c

@@ -1,0 +1,11 @@
+# Rendering conformance gallery (Phase 223): the custom screen without SA_Pens.
+name: gallery-screen-old
+app:
+  sample: Tests/Gallery/Screen
+  args: "old"
+steps:
+  - launch
+  - wait_window: "Screen Win"
+  - wait_idle
+  - snapshot: screen
+  - quit

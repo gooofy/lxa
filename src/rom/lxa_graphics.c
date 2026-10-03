@@ -2364,6 +2364,95 @@ static WORD _graphics_TextLength ( register struct GfxBase * GfxBase __asm("a6")
     return width;
 }
 
+/*
+ * Fast path for one Text() template row: when the whole row lies inside
+ * the bitmap (no layer) or inside one visible ClipRect, it is written a
+ * byte at a time per plane.  Returns FALSE when the caller has to fall
+ * back to clipped runs.
+ */
+static BOOL gfx_text_row_direct(struct RastPort *rp, const UBYTE *row, WORD x0, WORD y,
+                                WORD tw, UBYTE fg, UBYTE bg, BOOL jam2, BOOL complement, BOOL inv)
+{
+    struct BitMap *bm = rp->BitMap;
+    WORD x1, bx, bx0, bx1;
+    UBYTE p;
+    ULONG rowoff;
+
+    if (rp->Layer)
+    {
+        struct ClipRect *cr;
+        x0 += LAYER_ORIGIN_X(rp->Layer);
+        y += LAYER_ORIGIN_Y(rp->Layer);
+        x1 = (WORD)(x0 + tw - 1);
+        for (cr = rp->Layer->ClipRect; cr; cr = cr->Next)
+            if (y >= cr->bounds.MinY && y <= cr->bounds.MaxY &&
+                x0 <= cr->bounds.MaxX && x1 >= cr->bounds.MinX)
+                break;
+        if (!cr)
+            return TRUE;        /* row not in the layer at all */
+        if (cr->obscured || x0 < cr->bounds.MinX || x1 > cr->bounds.MaxX)
+            return FALSE;
+    }
+    else
+        x1 = (WORD)(x0 + tw - 1);
+
+    if (y < 0 || y >= (WORD)bm->Rows || x0 < 0 || x1 >= (WORD)(bm->BytesPerRow * 8))
+        return FALSE;
+
+    rowoff = (ULONG)y * bm->BytesPerRow;
+    bx0 = (WORD)(x0 >> 3);
+    bx1 = (WORD)(x1 >> 3);
+    for (bx = bx0; bx <= bx1; bx++)
+    {
+        WORD start = (WORD)(bx * 8 - x0);
+        UBYTE t, edge = 0xff;
+
+        if (start >= 0)
+        {
+            WORD i = (WORD)(start >> 3), sh = (WORD)(start & 7);
+            t = (UBYTE)((row[i] << sh) | (sh ? (row[i + 1] >> (8 - sh)) : 0));
+        }
+        else
+            t = (UBYTE)(row[0] >> (-start));
+        if (bx == bx0)
+            edge &= (UBYTE)(0xff >> (x0 & 7));
+        if (bx == bx1)
+            edge &= (UBYTE)(0xff << (7 - (x1 & 7)));
+        if (inv)
+            t = (UBYTE)~t;
+        t &= edge;
+
+        for (p = 0; p < bm->Depth && p < 8; p++)
+        {
+            UBYTE *d = bm->Planes[p];
+            if (!(rp->Mask & (1 << p)) || !d || d == (UBYTE *)-1)
+                continue;
+            d += rowoff + bx;
+            if (complement)
+            {
+                if (fg & (1 << p))
+                    *d ^= t;
+            }
+            else
+            {
+                if (fg & (1 << p))
+                    *d |= t;
+                else
+                    *d &= (UBYTE)~t;
+                if (jam2)
+                {
+                    UBYTE b = (UBYTE)(edge & ~t);
+                    if (bg & (1 << p))
+                        *d |= b;
+                    else
+                        *d &= (UBYTE)~b;
+                }
+            }
+        }
+    }
+    return TRUE;
+}
+
 /* line/template pixel writer (defined with Draw()) */
 struct gfx_line_ctx
 {
@@ -2567,6 +2656,8 @@ static LONG _graphics_Text ( register struct GfxBase * GfxBase __asm("a6"),
                         WORD px = 0;
                         WORD dy = (WORD)(rp->cp_y - font->tf_Baseline + r);
                         WORD dx0 = (WORD)(rp->cp_x + ox);
+                        if (gfx_text_row_direct(rp, row, dx0, dy, tw, fg, bg, jam2, complement, inv))
+                            continue;
                         if (jam2)
                             gfx_fill_rect(rp, dx0, dy, (WORD)(dx0 + tw - 1), dy, (BYTE)bg, JAM2, FALSE);
                         while (px < tw)

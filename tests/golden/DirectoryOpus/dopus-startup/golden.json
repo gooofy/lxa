@@ -2,150 +2,37 @@
  "app": "DirectoryOpus",
  "disabled": null,
  "lxa_version": "0.11.14",
- "note": "DOpus gets further at the snapshot (faster Text): gadget types 30/31 diverge",
  "promoted": "2026-10-03",
  "reference": "AmigaOS 3.1 (KS 40.70), profile aga",
  "requires_apps": true,
  "scenario": "dopus-startup",
  "snapshots": {
   "startup": {
-   "known_tree_diffs": [
+   "ignore_regions": [
     {
-     "field": "display_id",
-     "kind": "screen",
-     "lxa": 167936,
+     "h": 140,
      "phase": 224,
-     "ref": 32768,
-     "where": "screen[DOPUS.1]"
-    },
+     "w": 80,
+     "why": "lxa lists a host directory there (file sizes and free space change with every build); the reference shows the pane empty ('Directory not available' finding)",
+     "x": 560,
+     "y": 28
+    }
+   ],
+   "known_tree_diffs": [
     {
      "field": "flags",
      "kind": "screen",
-     "lxa": 4239,
-     "phase": 224,
+     "lxa": 18050,
+     "phase": 222,
      "ref": 18066,
      "where": "screen[DOPUS.1]"
     },
     {
-     "field": "menu_vborder",
-     "kind": "screen",
-     "lxa": 0,
-     "phase": 224,
-     "ref": 2,
-     "where": "screen[DOPUS.1]"
-    },
-    {
-     "field": "menu_hborder",
-     "kind": "screen",
-     "lxa": 0,
-     "phase": 224,
-     "ref": 4,
-     "where": "screen[DOPUS.1]"
-    },
-    {
-     "field": "wbor",
-     "kind": "screen",
-     "lxa": [
-      4,
-      11,
-      4,
-      2
-     ],
-     "phase": 224,
-     "ref": [
-      4,
-      2,
-      4,
-      2
-     ],
-     "where": "screen[DOPUS.1]"
-    },
-    {
-     "field": "top",
-     "kind": "window",
-     "lxa": 0,
-     "phase": 224,
-     "ref": 11,
-     "where": "screen[DOPUS.1]/window[DOPUS.1]"
-    },
-    {
-     "field": "min_height",
-     "kind": "window",
-     "lxa": 126,
-     "phase": 224,
-     "ref": 117,
-     "where": "screen[DOPUS.1]/window[DOPUS.1]"
-    },
-    {
-     "field": "flags",
-     "kind": "window",
-     "lxa": 539045902,
-     "phase": 222,
-     "ref": 539308046,
-     "where": "screen[DOPUS.1]/window[DOPUS.1]"
-    },
-    {
-     "field": "count",
-     "kind": "gadget",
-     "lxa": 83,
-     "phase": 224,
-     "ref": 84,
-     "where": "screen[DOPUS.1]/window[DOPUS.1]"
-    },
-    {
-     "field": "top",
-     "kind": "gadget",
-     "lxa": 52,
-     "phase": 224,
-     "ref": 43,
-     "where": "screen[DOPUS.1]/window[DOPUS.1]/gadget[2 id=30]"
-    },
-    {
-     "field": "height",
-     "kind": "gadget",
-     "lxa": 87,
-     "phase": 224,
-     "ref": 96,
-     "where": "screen[DOPUS.1]/window[DOPUS.1]/gadget[2 id=30]"
-    },
-    {
-     "field": "top",
-     "kind": "gadget",
-     "lxa": 52,
-     "phase": 224,
-     "ref": 43,
-     "where": "screen[DOPUS.1]/window[DOPUS.1]/gadget[3 id=31]"
-    },
-    {
-     "field": "height",
-     "kind": "gadget",
-     "lxa": 87,
-     "phase": 224,
-     "ref": 96,
-     "where": "screen[DOPUS.1]/window[DOPUS.1]/gadget[3 id=31]"
-    },
-    {
      "field": "activation",
      "kind": "gadget",
      "lxa": 1,
      "phase": 224,
      "ref": 32769,
-     "where": "screen[DOPUS.1]/window[DOPUS.1]/gadget[6 id=53]"
-    },
-    {
-     "field": "top",
-     "kind": "gadget",
-     "lxa": 42,
-     "phase": 224,
-     "ref": 33,
-     "where": "screen[DOPUS.1]/window[DOPUS.1]/gadget[6 id=53]"
-    },
-    {
-     "field": "height",
-     "kind": "gadget",
-     "lxa": 107,
-     "phase": 224,
-     "ref": 116,
      "where": "screen[DOPUS.1]/window[DOPUS.1]/gadget[6 id=53]"
     },
     {
@@ -157,46 +44,6 @@
      "where": "screen[DOPUS.1]/window[DOPUS.1]/gadget[7 id=54]"
     },
     {
-     "field": "top",
-     "kind": "gadget",
-     "lxa": 42,
-     "phase": 224,
-     "ref": 33,
-     "where": "screen[DOPUS.1]/window[DOPUS.1]/gadget[7 id=54]"
-    },
-    {
-     "field": "height",
-     "kind": "gadget",
-     "lxa": 107,
-     "phase": 224,
-     "ref": 116,
-     "where": "screen[DOPUS.1]/window[DOPUS.1]/gadget[7 id=54]"
-    },
-    {
-     "field": "top",
-     "kind": "gadget",
-     "lxa": 41,
-     "phase": 224,
-     "ref": 32,
-     "where": "screen[DOPUS.1]/window[DOPUS.1]/gadget[22 id=16]"
-    },
-    {
-     "field": "top",
-     "kind": "gadget",
-     "lxa": 41,
-     "phase": 224,
-     "ref": 32,
-     "where": "screen[DOPUS.1]/window[DOPUS.1]/gadget[23 id=17]"
-    },
-    {
-     "field": "type",
-     "kind": "gadget",
-     "lxa": 1,
-     "phase": 224,
-     "ref": 16,
-     "where": "screen[DOPUS.1]/window[DOPUS.1]/gadget[30 id=65000]"
-    },
-    {
      "field": "activation",
      "kind": "gadget",
      "lxa": 3,
@@ -205,105 +52,15 @@
      "where": "screen[DOPUS.1]/window[DOPUS.1]/gadget[30 id=65000]"
     },
     {
-     "field": "type",
-     "kind": "gadget",
-     "lxa": 1,
-     "phase": 224,
-     "ref": 16,
-     "where": "screen[DOPUS.1]/window[DOPUS.1]/gadget[31 id=65000]"
-    },
-    {
      "field": "activation",
      "kind": "gadget",
      "lxa": 3,
      "phase": 224,
      "ref": 32771,
      "where": "screen[DOPUS.1]/window[DOPUS.1]/gadget[31 id=65000]"
-    },
-    {
-     "field": "missing",
-     "kind": "gadget",
-     "lxa": null,
-     "phase": 222,
-     "ref": 32837,
-     "where": "screen[DOPUS.1]/window[DOPUS.1]/sysgadget[0x8045]"
-    },
-    {
-     "field": "missing",
-     "kind": "gadget",
-     "lxa": null,
-     "phase": 222,
-     "ref": 32869,
-     "where": "screen[DOPUS.1]/window[DOPUS.1]/sysgadget[0x8065]"
-    },
-    {
-     "field": "missing",
-     "kind": "gadget",
-     "lxa": null,
-     "phase": 222,
-     "ref": 32901,
-     "where": "screen[DOPUS.1]/window[DOPUS.1]/sysgadget[0x8085]"
-    },
-    {
-     "field": "missing",
-     "kind": "gadget",
-     "lxa": null,
-     "phase": 222,
-     "ref": 32805,
-     "where": "screen[DOPUS.1]/window[DOPUS.1]/sysgadget[0x8025]"
-    },
-    {
-     "field": "display_id",
-     "kind": "screen",
-     "lxa": 167936,
-     "phase": 224,
-     "ref": 32768,
-     "where": "screen[Workbench Screen]"
-    },
-    {
-     "field": "flags",
-     "kind": "screen",
-     "lxa": 1,
-     "phase": 224,
-     "ref": 1553,
-     "where": "screen[Workbench Screen]"
-    },
-    {
-     "field": "menu_vborder",
-     "kind": "screen",
-     "lxa": 0,
-     "phase": 224,
-     "ref": 2,
-     "where": "screen[Workbench Screen]"
-    },
-    {
-     "field": "menu_hborder",
-     "kind": "screen",
-     "lxa": 0,
-     "phase": 224,
-     "ref": 4,
-     "where": "screen[Workbench Screen]"
-    },
-    {
-     "field": "wbor",
-     "kind": "screen",
-     "lxa": [
-      4,
-      11,
-      4,
-      2
-     ],
-     "phase": 224,
-     "ref": [
-      4,
-      2,
-      4,
-      2
-     ],
-     "where": "screen[Workbench Screen]"
     }
    ],
-   "pixel_budget": 62232,
+   "pixel_budget": 25245,
    "pixel_phase": 224,
    "stdout_known_diff": null
   }
