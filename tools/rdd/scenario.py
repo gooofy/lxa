@@ -4,6 +4,9 @@ A scenario is one YAML file, executed unchanged on both backends:
 
     name: simplegtgadget-startup        # default: file name
     profile: aga                        # aga | rtg
+    fonts: wb31                         # optional: lxa gets the reference's
+                                        # Workbench 3.1 FONTS: (user-supplied
+                                        # media, never committed)
     app:
       sample: SimpleGTGadget            # lxa sample/test binary (SYS:<path>)
       # manifest: DPaintV               # or an app from apps/<App>.json
@@ -95,6 +98,9 @@ class Scenario:
         doc = yaml.safe_load(self.raw) or {}
         self.name = doc.get("name") or os.path.splitext(os.path.basename(path))[0]
         self.profile = doc.get("profile", "aga")
+        self.fonts = doc.get("fonts")
+        if self.fonts not in (None, "wb31"):
+            raise ScenarioError("%s: fonts must be wb31" % path)
         app = doc.get("app") or {}
         self.args = app.get("args", "")
         self.sample = app.get("sample")
@@ -134,6 +140,15 @@ class Scenario:
             return []
         return [(n, p, n.upper() in SYSTEM_ASSIGNS)
                 for n, p in (self.manifest.get("assigns") or {}).items()]
+
+    def lxa_fonts_dir(self):
+        """Host directory lxa mounts as FONTS: (None: lxa's default FONTS:).
+        `fonts: wb31` uses the Workbench 3.1 fonts of the reference system
+        (~/.cache/lxa/refsys/SYS-<profile>/Fonts, built from the user's ADFs)."""
+        if not self.fonts:
+            return None
+        refsys = os.environ.get("LXA_REFSYS_DIR", os.path.expanduser("~/.cache/lxa/refsys"))
+        return os.path.join(refsys, "SYS-%s" % self.profile, "Fonts")
 
     def app_host_dir(self):
         return os.path.join(APPS_DIR, self.manifest["dir"]) if self.manifest else None

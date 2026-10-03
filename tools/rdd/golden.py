@@ -159,6 +159,9 @@ def check(gdir, build=None, keep=None):
     if scn.manifest and not os.path.isdir(scn.app_host_dir()):
         print("SKIP %s: %s not installed (LXA_APPS=%s)" % (scn.name, scn.manifest["dir"], APPS_DIR))
         return 77
+    if scn.lxa_fonts_dir() and not os.path.isdir(scn.lxa_fonts_dir()):
+        print("SKIP %s: reference fonts %s not built" % (scn.name, scn.lxa_fonts_dir()))
+        return 77
     out = keep or tempfile.mkdtemp(prefix="rdd-golden-")
     env = dict(os.environ, PYTHONPATH=os.path.join(ROOT, "tools") + os.pathsep + os.environ.get("PYTHONPATH", ""))
     cmd = [sys.executable, "-m", "rdd.backend_lxa", scn.path, out]

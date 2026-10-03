@@ -1,0 +1,10 @@
+# Rendering conformance gallery (Phase 223): every GadTools kind x state, topaz 8.
+name: gallery-gt-topaz8
+app:
+  sample: Tests/Gallery/GT
+steps:
+  - launch
+  - wait_window: "GT Gallery"
+  - wait_idle
+  - snapshot: {name: page, window: "GT Gallery"}
+  - quit

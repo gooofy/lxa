@@ -330,7 +330,7 @@ static VOID _dispose_window_idcmp_ports(struct Window *window)
     if (owned_flags & LXA_WMF_IDCMP_WINDOWPORT_OWNED)
     {
         _flush_idcmp_port(reply_port);
-        DeleteMsgPort(reply_port);
+        FreeMem(reply_port, sizeof(struct MsgPort));
     }
 
     if (owned_flags & LXA_WMF_IDCMP_USERPORT_OWNED)
@@ -359,7 +359,17 @@ static BOOL _ensure_window_idcmp_ports(struct Window *window)
 
     if (!window->WindowPort)
     {
-        window->WindowPort = CreateMsgPort();
+        /* The reply port belongs to Intuition, not to the window's task:
+         * it must not take a signal bit from the application (AmigaOS 3.1
+         * opens 11+ IDCMP windows per task).  Replies are reaped by polling
+         * (_reap_window_idcmp_replies), so the port never signals. */
+        window->WindowPort = (struct MsgPort *)AllocMem(sizeof(struct MsgPort), MEMF_PUBLIC | MEMF_CLEAR);
+        if (window->WindowPort)
+        {
+            window->WindowPort->mp_Node.ln_Type = NT_MSGPORT;
+            window->WindowPort->mp_Flags = PA_IGNORE;
+            NewList(&window->WindowPort->mp_MsgList);
+        }
         if (!window->WindowPort)
         {
             if (window->MoreFlags & LXA_WMF_IDCMP_USERPORT_OWNED)
@@ -405,6 +415,19 @@ struct LXAPubScreenNode {
     struct MinNode all_node;      /* ScreenDataList link */
     BOOL is_public;               /* pub.psn_Node is in PubScreenList */
 };
+
+/* AmigaOS 3.1 reference: a custom screen opened without SA_Pens keeps the
+ * pre-V36 pens and has DRIF_NEWLOOK clear (dri_Pens 0 1 1 1 1 1 0 0 1 0 1 1). */
+static VOID _intuition_set_oldlook_pens(struct LXAPubScreenNode *entry)
+{
+    static const UBYTE old_pens[NUMDRIPENS] = { 0, 1, 1, 1, 1, 1, 0, 0, 1, 0, 1, 1 };
+    UWORD i;
+
+    for (i = 0; i < NUMDRIPENS; i++)
+        entry->pens[i] = (i < sizeof(old_pens)) ? old_pens[i] : 1;
+    entry->pens[NUMDRIPENS] = (UWORD)~0;
+    entry->drawInfo.dri_Flags &= ~DRIF_NEWLOOK;
+}
 
 #define LXA_PUB_FROM_ALL_NODE(n) \
     ((struct LXAPubScreenNode *)((UBYTE *)(n) - (ULONG)&((struct LXAPubScreenNode *)0)->all_node))
@@ -798,6 +821,9 @@ static struct PubScreenNode *_intuition_default_pubscreen_node(struct LXAIntuiti
     return NULL;
 }
 
+struct LXAPubScreenNode;
+static VOID _intuition_set_oldlook_pens(struct LXAPubScreenNode *entry);
+
 static VOID _intuition_register_pubscreen(struct IntuitionBase *IntuitionBase, struct Screen *screen)
 {
     struct LXAIntuitionBase *base = (struct LXAIntuitionBase *)IntuitionBase;
@@ -829,7 +855,10 @@ static VOID _intuition_register_pubscreen(struct IntuitionBase *IntuitionBase, s
     entry->pub.psn_SigTask = NULL;
     entry->pub.psn_SigBit = 0;
 
-    /* Initialize default pen array */
+    /* Initialize default pen array.  AmigaOS 3.1 reference: the Workbench
+     * and every screen opened with SA_Pens get the 3D "new look" pens; a
+     * custom screen without SA_Pens keeps the pre-V36 pens (DRIF_NEWLOOK
+     * clear, dri_Pens 0 1 1 1 1 1 0 0 1 0 1 1). */
     entry->pens[DETAILPEN]        = 0;
     entry->pens[BLOCKPEN]         = 1;
     entry->pens[TEXTPEN]          = 1;
@@ -852,13 +881,12 @@ static VOID _intuition_register_pubscreen(struct IntuitionBase *IntuitionBase, s
     entry->drawInfo.dri_Pens       = entry->pens;
     entry->drawInfo.dri_Font       = screen->RastPort.Font;
     entry->drawInfo.dri_Depth      = screen->RastPort.BitMap ? screen->RastPort.BitMap->Depth : 2;
-    entry->drawInfo.dri_Resolution.X = 44;
+    /* reference: 22:44 on hires screens, 44:44 on lores screens */
+    entry->drawInfo.dri_Resolution.X = (screen->Flags & SCREENHIRES) ? 22 : 44;
     entry->drawInfo.dri_Resolution.Y = 44;
-    /* DRIF_NEWLOOK is set for any screen with depth >= 2, matching OS 3.x
-     * behavior.  SA_Pens merely customizes the pen mapping; the 3D look
-     * is driven by having enough colours available.
-     */
-    entry->drawInfo.dri_Flags      = (entry->drawInfo.dri_Depth >= 2) ? DRIF_NEWLOOK : 0;
+    entry->drawInfo.dri_Flags      = DRIF_NEWLOOK;
+    if ((screen->Flags & SCREENTYPE) != WBENCHSCREEN)
+        _intuition_set_oldlook_pens(entry);
     entry->drawInfo.dri_CheckMark  = NULL;
     entry->drawInfo.dri_AmigaKey   = NULL;
 
