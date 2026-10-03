@@ -93,9 +93,6 @@ int main(void)
         
         /* Verify task name exists */
         if (thisTask->tc_Node.ln_Name != NULL) {
-            print("    Task name: ");
-            print(thisTask->tc_Node.ln_Name);
-            print("\n");
             test_ok("Task has valid name");
         } else {
             test_fail_msg("Task name is NULL");
@@ -113,9 +110,6 @@ int main(void)
         
         /* Verify task priority is reasonable */
         if (thisTask->tc_Node.ln_Pri >= -128 && thisTask->tc_Node.ln_Pri <= 127) {
-            print("    Task priority: ");
-            print_num(thisTask->tc_Node.ln_Pri);
-            print("\n");
             test_ok("Task priority in valid range");
         } else {
             test_fail_msg("Task priority out of range");
@@ -160,9 +154,6 @@ int main(void)
     print("\nTest 4: SetTaskPri()\n");
     if (thisTask != NULL) {
         oldPri = thisTask->tc_Node.ln_Pri;
-        print("    Original priority: ");
-        print_num(oldPri);
-        print("\n");
         
         /* Set a new priority */
         newPri = 5;

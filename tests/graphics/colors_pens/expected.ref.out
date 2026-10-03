@@ -1,0 +1,16 @@
+Testing pens/colors APIs...
+OK: SetRGB32CM()/GetRGB32() preserve 8-bit palette precision
+OK: SetRGB4() updates ViewPort colormap
+OK: SetRGB32() updates ViewPort colormap with 32-bit input
+OK: LoadRGB4() loads sequential color registers
+OK: LoadRGB32() loads packed RGB32 records
+OK: AttachPalExtra() initializes reusable palette state
+OK: ObtainPen() honors PENF_NO_SETCOLOR
+OK: ObtainPen() refuses an allocated pen
+OK: exclusive pens block later shared obtains
+OK: ObtainPen() can recolor a newly shared pen
+OK: FindColor() returns closest matching pen
+OK: ObtainBestPenA() returns an exact-match pen
+OK: SetChipRev() never turns chip features off
+OK: SetChipRev(SETCHIPREV_BEST) reports GfxBase chip revision bits
+PASS: Pens/colors tests passed

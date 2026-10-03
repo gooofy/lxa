@@ -113,13 +113,14 @@ int main(void)
     SetAPen(&rp, 1);  /* XOR with 1 */
     RectFill(&rp, 15, 15, 25, 25);  /* XOR inner area */
 
-    /* Inner area should now be 0 (1 XOR 1 = 0) */
+    /* COMPLEMENT inverts every plane enabled in rp->Mask, independent of
+     * the APen: the inner area becomes 1 XOR 3 = 2 */
     color = ReadPixel(&rp, 20, 20);
-    if (color != 0) {
-        print("FAIL: COMPLEMENT mode at (20,20) != 0\n");
+    if (color != 2) {
+        print("FAIL: COMPLEMENT mode at (20,20) != 2\n");
         errors++;
     } else {
-        print("OK: COMPLEMENT mode toggled inner area to 0\n");
+        print("OK: COMPLEMENT mode inverted all planes of the inner area\n");
     }
 
     /* Outer area of original rect should still be 1 */
@@ -185,19 +186,31 @@ int main(void)
         print("OK: RectFill at bitmap edge works\n");
     }
 
-    /* Test INVERSVID uses background pen */
+    /* JAM1|INVERSVID: the inverted solid pattern draws nothing */
     SetRast(&rp, 0);
-    SetAPen(&rp, 0);
+    SetAPen(&rp, 1);
     SetBPen(&rp, 2);
     SetDrMd(&rp, JAM1 | INVERSVID);
     RectFill(&rp, 40, 40, 45, 45);
 
     color = ReadPixel(&rp, 42, 42);
-    if (color != 2) {
-        print("FAIL: INVERSVID RectFill did not use background pen\n");
+    if (color != 0) {
+        print("FAIL: JAM1|INVERSVID RectFill drew pixels\n");
         errors++;
     } else {
-        print("OK: INVERSVID RectFill uses background pen\n");
+        print("OK: JAM1|INVERSVID RectFill draws nothing\n");
+    }
+
+    /* JAM2|INVERSVID fills with the background pen */
+    SetDrMd(&rp, JAM2 | INVERSVID);
+    RectFill(&rp, 40, 40, 45, 45);
+
+    color = ReadPixel(&rp, 42, 42);
+    if (color != 2) {
+        print("FAIL: JAM2|INVERSVID RectFill did not use background pen\n");
+        errors++;
+    } else {
+        print("OK: JAM2|INVERSVID RectFill uses background pen\n");
     }
 
     SetDrMd(&rp, JAM1);

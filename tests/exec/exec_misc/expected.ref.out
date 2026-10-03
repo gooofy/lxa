@@ -1,0 +1,73 @@
+=== Exec Miscellaneous Tests (Phase 78-A-6) ===
+
+Test 1: RawDoFmt maxwidth (string precision)
+  OK: %.3s truncates to 3 chars
+  OK: %.0s produces empty output
+  OK: %.10s with short string outputs full string
+  OK: %10.3s right-pads truncated string
+  OK: %-10.3s left-aligns truncated string
+
+Test 2: RawDoFmt %% edge cases
+  OK: %%%% at start produces %%
+  OK: a%%%%b%%%%c produces a%%b%%c
+  OK: end%%%% produces end%%
+
+Test 3: RawDoFmt %c specifier
+  OK: %%c outputs character
+  OK: %%5c right-pads character
+  OK: %%-5c left-aligns character
+
+Test 4: RawDoFmt return value
+  OK: return value points past last WORD arg
+  OK: return value after two WORD args
+  OK: return value after LONG arg
+  OK: return value after string arg
+
+Test 5: List accessors (GetHead/GetTail/GetSucc/GetPred)
+  OK: GetHead on empty list returns NULL
+  OK: GetTail on empty list returns NULL
+  OK: GetHead returns sole node
+  OK: GetTail returns sole node
+  OK: GetSucc on sole node returns NULL
+  OK: GetPred on sole node returns NULL
+  OK: GetHead returns first of three
+  OK: GetTail returns last of three
+  OK: GetSucc(A) returns B
+  OK: GetSucc(B) returns C
+  OK: GetSucc(C) returns NULL (tail)
+  OK: GetPred(C) returns B
+  OK: GetPred(B) returns A
+  OK: GetPred(A) returns NULL (head)
+  OK: GetSucc(NULL) returns NULL
+  OK: GetPred(NULL) returns NULL
+  OK: GetSucc(A) returns C after Remove(B)
+  OK: GetPred(C) returns A after Remove(B)
+
+Test 6: Alert (recovery alert)
+  OK: Recovery alert returned (did not crash)
+  OK: AG_OpenLib | AO_DOSLib alert returned
+
+Test 7: Supervisor
+  OK: Supervisor returned 0xADDR from superFunc
+
+Test 8: RawDoFmt mixed format verification
+  OK: mixed format: string + decimal + hex
+
+Test 9: CachePreDMA / CachePostDMA hosted semantics
+  OK: CachePreDMA returns original address
+  OK: CachePreDMA preserves length
+  OK: CachePostDMA returns without crashing
+
+Test 10: InitCode with no matching resident
+  OK: InitCode keeps built-in residents discoverable
+
+Test 11: RawDoFmt BSTR format
+  OK: %%b formats BSTR correctly
+  OK: %%b NULL BSTR produces empty string
+  OK: %%6b pads BSTR with spaces
+
+=============================
+Tests passed: 44
+Tests failed: 0
+
+PASS: All Exec Misc tests passed!

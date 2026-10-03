@@ -18,6 +18,7 @@
 #include "lxa_override.h"
 
 void lxa_reset_held_tasks(void);   /* lxa_dos_host.c */
+extern bool g_program_exited;      /* lxa_dispatch.c */
 #include "lxa_unimpl.h"
 
 #include <stdio.h>
@@ -489,6 +490,7 @@ int lxa_init(const lxa_config_t *config)
     /* Phase 203: stub telemetry */
     lxa_unimpl_reset();
     lxa_reset_held_tasks();
+    g_program_exited = false;
     lxa_unimpl_set_strict(config->strict_unimplemented);
     s_vblank_count = 0;
     s_cycles_since_auto_vblank = 0;
@@ -1505,6 +1507,34 @@ bool lxa_wait_windows(int count, int timeout_ms)
     }
 
     return lxa_get_window_count() >= count;
+}
+
+/* Phase 220: the program started by lxa_load_program() has returned (other
+ * tasks it created - background processes, held tasks - may still run).
+ * This is when the reference agent's WAIT_EXIT reports the exit. */
+bool lxa_program_exited(void)
+{
+    return g_program_exited || !g_running;
+}
+
+bool lxa_wait_program_exit(int timeout_ms)
+{
+    if (!g_api_initialized) return false;
+
+    api_deadline_t deadline;
+    api_deadline_start(&deadline, timeout_ms);
+    int cycles_since_vblank = 0;
+
+    while (!lxa_program_exited()) {
+        lxa_run_cycles(10000);
+        cycles_since_vblank += 10000;
+        if (cycles_since_vblank >= 50000) {
+            lxa_trigger_vblank();
+            cycles_since_vblank = 0;
+        }
+        if (api_deadline_expired(&deadline)) return false;
+    }
+    return true;
 }
 
 bool lxa_wait_exit(int timeout_ms)

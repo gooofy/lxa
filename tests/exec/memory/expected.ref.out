@@ -1,0 +1,63 @@
+Exec Memory Management Tests
+============================
+
+Test 1: Basic AllocMem/FreeMem
+  OK: AllocMem(1024, MEMF_PUBLIC) succeeded
+  OK: Memory is readable and writable
+  OK: FreeMem succeeded
+
+Test 2: MEMF_CLEAR verification
+  OK: AllocMem(512, MEMF_CLEAR) succeeded
+  OK: All 512 bytes are zero
+
+Test 3: Multiple allocations
+  OK: Three allocations succeeded
+  OK: Allocations are distinct
+  OK: All three freed
+
+Test 4: AllocVec/FreeVec
+  OK: AllocVec(1024, MEMF_PUBLIC) succeeded
+  OK: FreeVec succeeded
+
+Test 5: AllocVec with MEMF_CLEAR
+  OK: AllocVec(256, MEMF_CLEAR) succeeded
+  OK: AllocVec MEMF_CLEAR zeroed memory
+
+Test 6: Zero-size allocation
+  OK: AllocMem(0) returns NULL
+  OK: AllocVec(0) returns NULL
+
+Test 7: FreeVec(NULL) safety
+  OK: FreeVec(NULL) did not crash
+
+Test 8: FreeMem(NULL) safety
+  OK: FreeMem(NULL, 0) did not crash
+  OK: FreeMem(NULL, 100) did not crash
+
+Test 9: AvailMem consistency
+  OK: AvailMem decreased after allocation
+  OK: Memory returned after free
+
+Test 10: Multiple AllocVec allocations
+  OK: Two AllocVec succeeded
+  OK: Both FreeVec succeeded
+
+Test 11: Memory alignment
+  OK: First allocation is 4-byte aligned
+  OK: Second allocation is 4-byte aligned
+
+Test 12: CopyMem
+  OK: CopyMem copied 64 bytes correctly
+  OK: CopyMem partial copy works correctly
+
+Test 13: CopyMemQuick
+  OK: CopyMemQuick copied 64 bytes correctly
+
+Test 14: CopyMem with zero size
+  OK: CopyMem(0) did not modify destination
+
+=============================
+Tests passed: 27
+Tests failed: 0
+
+PASS: All memory tests passed!

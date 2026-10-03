@@ -115,8 +115,10 @@ set(TESTS_LIST
     "../tests/exec/signal_pingpong|main|Tests/Exec/SignalPingPong"
     "../tests/exec/signals|main|Tests/Exec/Signals"
     "../tests/exec/sync|main|Tests/Exec/Sync"
+    "../tests/exec/null_safety|main|Tests/Exec/NullSafety"
     "../tests/exec/tasks|main|Tests/Exec/Tasks"
     "../tests/exec/library|main|Tests/Exec/Library"
+    "../tests/exec/library_lxa|main|Tests/Exec/LibraryLxa"
     "../tests/exec/exec_verify|main|Tests/Exec/ExecVerify"
     "../tests/exec/interrupts|main|Tests/Exec/Interrupts"
     "../tests/exec/stub_probe|main|Tests/Exec/StubProbe"
@@ -217,7 +219,9 @@ set(TESTS_LIST
     "../tests/graphics/copper|main|Tests/Graphics/Copper"
     "../tests/graphics/draw_ellipse|main|Tests/Graphics/DrawEllipse"
     "../tests/graphics/display_viewport|main|Tests/Graphics/DisplayViewPort"
+    "../tests/graphics/display_ext|main|Tests/Graphics/DisplayExt"
     "../tests/graphics/diskfont_contents|main|Tests/Graphics/DiskfontContents"
+    "../tests/graphics/diskfont_ext|main|Tests/Graphics/DiskfontExt"
     "../tests/graphics/flood|main|Tests/Graphics/Flood"
     "../tests/graphics/hw_blitter|main|Tests/Graphics/HwBlitter"
     "../tests/graphics/init_bitmap|main|Tests/Graphics/InitBitMap"
@@ -231,6 +235,7 @@ set(TESTS_LIST
     "../tests/graphics/polydraw|main|Tests/Graphics/PolyDraw"
     "../tests/graphics/rect_fill|main|Tests/Graphics/RectFill"
     "../tests/graphics/regions|main|Tests/Graphics/Regions"
+    "../tests/graphics/regions_ext|main|Tests/Graphics/RegionsExt"
     "../tests/graphics/sprites_gels|main|Tests/Graphics/SpritesGels"
     "../tests/graphics/rpattrs|main|Tests/Graphics/RPAttrs"
     "../tests/graphics/set_rast|main|Tests/Graphics/SetRast"
@@ -316,6 +321,7 @@ set(TESTS_LIST
     "../tests/apps/kickpascal2|main|Tests/Apps/KickPascal2"
     "../tests/exec/mathffp|main|Tests/Exec/MathFFP"
     "../tests/exec/mathieeesingbas|main|Tests/Exec/MathIeeeSingBas"
+    "../tests/exec/mathieeesingbas_muldiv|main|Tests/Exec/MathIeeeSingBasMulDiv"
     "../tests/exec/mathieeedoubtrans|main|Tests/Exec/MathIeeeDoubTrans"
     "../tests/exec/locale|main|Tests/Exec/Locale"
     "../tests/exec/keymap|main|Tests/Exec/Keymap"
@@ -328,6 +334,7 @@ set(TESTS_LIST
     "../tests/utility/tagitems|main|Tests/Utility/TagItems"
     "../tests/expansion/configdev_chain|main|Tests/Expansion/ConfigDevChain"
     "../tests/expansion/mem_config|main|Tests/Expansion/MemConfig"
+    "../tests/expansion/board_config|main|Tests/Expansion/BoardConfig"
     "../tests/expansion/dos_binding|main|Tests/Expansion/DosBinding"
     "../tests/exec/disklib_stubs|main|Tests/Exec/DisklibStubs"
     "../tests/datatypes/test_basic|main|Tests/Datatypes/Basic"
@@ -351,8 +358,9 @@ foreach(sample_info ${SAMPLES_LIST})
     
     add_custom_command(
         OUTPUT ${output}
-        COMMAND ${M68K_GCC_BIN} ${SAMPLES_CFLAGS} ${SAMPLES_LDFLAGS} -o ${output} ${src}
+        COMMAND ${M68K_GCC_BIN} ${SAMPLES_CFLAGS} ${SAMPLES_LDFLAGS} -MD -MF ${output}.d -o ${output} ${src}
         DEPENDS ${src}
+        DEPFILE ${output}.d
         COMMENT "Building Sample: ${output_name}"
     )
     
@@ -380,8 +388,9 @@ foreach(test_info ${TESTS_LIST})
 
     add_custom_command(
         OUTPUT ${output}
-        COMMAND ${M68K_GCC_BIN} ${SAMPLES_CFLAGS} ${SAMPLES_LDFLAGS} -o ${output} ${src}
+        COMMAND ${M68K_GCC_BIN} ${SAMPLES_CFLAGS} ${SAMPLES_LDFLAGS} -MD -MF ${output}.d -o ${output} ${src}
         DEPENDS ${src}
+        DEPFILE ${output}.d
         COMMENT "Building Test: ${output_name}"
     )
     
@@ -408,8 +417,9 @@ foreach(src ${PROBE_SOURCES})
     add_custom_command(
         OUTPUT ${output}
         COMMAND ${M68K_GCC_BIN} ${SAMPLES_CFLAGS} -I${CMAKE_CURRENT_SOURCE_DIR}/../tests/probes
-                ${SAMPLES_LDFLAGS} -o ${output} ${src}
+                ${SAMPLES_LDFLAGS} -MD -MF ${output}.d -o ${output} ${src}
         DEPENDS ${src} ${CMAKE_CURRENT_SOURCE_DIR}/../tests/probes/probe.h
+        DEPFILE ${output}.d
         COMMENT "Building Probe: ${lib}/${name}"
     )
     list(APPEND ALL_SAMPLES ${output})

@@ -3344,14 +3344,16 @@ struct IntuitionBase * __g_lxa_intuition_InitLib    ( register struct IntuitionB
 struct IntuitionBase * __g_lxa_intuition_OpenLib ( register struct IntuitionBase  *IntuitionBase __asm("a6"))
 {
     DPRINTF (LOG_DEBUG, "_intuition: OpenLib() called\n");
-    IntuitionBase->LibNode.lib_OpenCnt++;
+    /* AmigaOS 3.1 keeps lib_OpenCnt of this never-expunged ROM library
+     * constant at 1 (reference-verified, Phase 220) */
+    IntuitionBase->LibNode.lib_OpenCnt = 1;
     IntuitionBase->LibNode.lib_Flags &= ~LIBF_DELEXP;
     return IntuitionBase;
 }
 
 BPTR __g_lxa_intuition_CloseLib ( register struct IntuitionBase  *intuitionb __asm("a6"))
 {
-    intuitionb->LibNode.lib_OpenCnt--;
+    (void)intuitionb;   /* lib_OpenCnt stays constant, see OpenLib */
     return (BPTR)0;
 }
 

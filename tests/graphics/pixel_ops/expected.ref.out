@@ -1,0 +1,13 @@
+Testing WritePixel()/ReadPixel()...
+OK: WritePixel/ReadPixel color 3 at (10,10)
+OK: WritePixel/ReadPixel color 1 at (20,20)
+OK: WritePixel/ReadPixel color 2 at (30,30)
+OK: WritePixel/ReadPixel color 0 at (40,40)
+OK: Corner pixel (0,0) works
+OK: Corner pixel (63,63) works
+OK: COMPLEMENT mode toggled pixel (1 -> 2)
+OK: COMPLEMENT mode ignores APen (2 -> 1)
+OK: COMPLEMENT mode honours the write mask (1 -> 3)
+OK: JAM1|INVERSVID WritePixel draws nothing
+OK: JAM2|INVERSVID WritePixel uses BPen
+PASS: WritePixel/ReadPixel all tests passed

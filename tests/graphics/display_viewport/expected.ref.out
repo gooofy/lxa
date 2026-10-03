@@ -1,0 +1,40 @@
+Testing Display/ViewPort APIs...
+OK: InitView() reset public fields
+OK: InitVPort() reset public fields
+OK: VideoControl() handled set tags and attached the ColorMap
+OK: VideoControl() returned stored values
+OK: VC_IntermediateCLUpdate_Query returned 0
+OK: VC_NoColorPaletteLoad_Query returned -1
+OK: VC_DUALPF_Disable_Query returned -1
+OK: VideoControl() ignores unknown tags
+OK: MakeVPort() built the copper list and kept the ColorMap attached
+OK: CalcIVG() reports the copper lines in front of a ViewPort
+OK: UCopperListInit() initialized UCopList state
+OK: CMove() encodes the copper move instruction
+OK: CBump() advances and chains copper instruction blocks
+OK: CWait() encodes instructions and leaves full blocks untouched
+OK: MrgCop() built compiled copper lists
+OK: FreeVPortCopLists() released the copper lists
+OK: FreeCopList()/FreeCprList() are safe
+OK: LoadView() updated ActiView
+OK: AllocDBufInfo() allocated DBufInfo
+OK: ChangeVPBitMap() updated RasInfo bitmap
+OK: CoerceMode() returned expected mode
+OK: WaitBOVP() returned
+OK: FindDisplayInfo() handles INVALID_ID and known IDs
+OK: NextDisplayInfo() iterates known modes
+OK: GetDisplayInfoData(DTAG_DISP) returned expected header/flags
+OK: default monitor IDs resolve to the native PAL monitor
+OK: GetDisplayInfoData(DTAG_DIMS) returned expected geometry
+OK: GetDisplayInfoData(DTAG_DIMS) LORES interlace geometry
+OK: GetDisplayInfoData(DTAG_MNTR) returned expected monitor data
+OK: GetDisplayInfoData() honors truncated size
+OK: GetDisplayInfoData() rejects unknown tag
+OK: GetDisplayInfoData() rejects INVALID_ID without handle
+OK: GetDisplayInfoData() resolves handle-based lookup
+OK: HAM mode advertises DIPF_IS_HAM and is no Workbench mode
+OK: EHB mode advertises DIPF_IS_EXTRAHALFBRITE and is no Workbench mode
+OK: HIRESLACE advertises DIPF_IS_LACE
+OK: BestModeIDA() returns PAL HIRES for 640x256
+OK: BestModeIDA() honors DIPF_IS_LACE in MustNotHave
+PASS: Display/ViewPort tests passed

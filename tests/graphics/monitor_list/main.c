@@ -1,20 +1,12 @@
 /*
- * Test: graphics/monitor_list (Phase 151)
+ * Test: graphics/monitor_list
  *
- * Verifies that GfxBase->MonitorList is populated with the standard system
- * MonitorSpec nodes (default.monitor, pal.monitor, ntsc.monitor) at
- * coldstart, and that OpenMonitor()/CloseMonitor() return real entries
- * instead of NULL stubs.
- *
- * Apps such as DPaint V's Screen Format dialog enumerate this list to
- * populate their available-mode panels.  Without populated entries those
- * panels render empty.  Per RKRM (Libraries, Graphics, "Monitors"):
- *   - default.monitor is always the head of the list.
- *   - pal.monitor and ntsc.monitor are present on every system.
- *   - OpenMonitor(NULL, 0) returns the first MonitorSpec.
- *   - OpenMonitor(name, 0) looks up by ms_Node.ln_Name.
- *   - OpenMonitor(NULL, displayID) selects by monitor compatibility bits.
- *   - CloseMonitor() returns TRUE on success.
+ * Verifies GfxBase->MonitorList and OpenMonitor()/CloseMonitor() against
+ * the behaviour of AmigaOS 3.1 (reference machine).  Which monitors are in
+ * the list depends on the machine configuration (DEVS:Monitors), so only
+ * architecturally fixed facts are asserted: the native monitor of the
+ * machine (pal.monitor on a PAL system, ntsc.monitor on NTSC) is always
+ * listed and is the default monitor.
  */
 
 #include <exec/types.h>
@@ -52,48 +44,46 @@ static int xstrcmp(const char *a, const char *b)
     return (int)((UBYTE)*a) - (int)((UBYTE)*b);
 }
 
+static int check(int ok, const char *okmsg, const char *failmsg)
+{
+    print(ok ? okmsg : failmsg);
+    return ok ? 0 : 1;
+}
+
 int main(void)
 {
     int errors = 0;
     struct Node *n;
     int count;
-    BOOL saw_default = FALSE;
-    BOOL saw_pal     = FALSE;
-    BOOL saw_ntsc    = FALSE;
+    BOOL saw_native = FALSE;
+    BOOL is_pal;
+    const char *native_name;
+    ULONG native_id;
     struct MonitorSpec *ms;
+    struct MonitorSpec *def;
 
     print("Testing GfxBase->MonitorList + OpenMonitor()/CloseMonitor()...\n");
 
-    /* 1. MonitorList must be initialised (non-NULL head/tailpred). */
     if (GfxBase == NULL)
     {
         print("FAIL: GfxBase is NULL\n");
         return 20;
     }
-    if (GfxBase->MonitorList.lh_Head == NULL ||
-        GfxBase->MonitorList.lh_TailPred == NULL)
-    {
-        print("FAIL: MonitorList is not initialised\n");
-        errors++;
-    }
-    else
-    {
-        print("OK: MonitorList is initialised\n");
-    }
 
-    /* 2. Walk the list: must contain at least default/pal/ntsc by name. */
+    is_pal = (GfxBase->DisplayFlags & PAL) ? TRUE : FALSE;
+    native_name = is_pal ? PAL_MONITOR_NAME : NTSC_MONITOR_NAME;
+    native_id = is_pal ? PAL_MONITOR_ID : NTSC_MONITOR_ID;
+
+    errors += check(GfxBase->MonitorList.lh_Head != NULL && GfxBase->MonitorList.lh_TailPred != NULL,
+                    "OK: MonitorList is initialised\n", "FAIL: MonitorList is not initialised\n");
+
+    /* Walk the list: the native monitor must be present */
     count = 0;
-    for (n = GfxBase->MonitorList.lh_Head;
-         n && n->ln_Succ;
-         n = n->ln_Succ)
+    for (n = GfxBase->MonitorList.lh_Head; n && n->ln_Succ; n = n->ln_Succ)
     {
         count++;
-        if (n->ln_Name)
-        {
-            if (xstrcmp(n->ln_Name, DEFAULT_MONITOR_NAME) == 0) saw_default = TRUE;
-            if (xstrcmp(n->ln_Name, PAL_MONITOR_NAME)     == 0) saw_pal     = TRUE;
-            if (xstrcmp(n->ln_Name, NTSC_MONITOR_NAME)    == 0) saw_ntsc    = TRUE;
-        }
+        if (n->ln_Name && xstrcmp(n->ln_Name, native_name) == 0)
+            saw_native = TRUE;
         if (count > 100)
         {
             print("FAIL: MonitorList walk exceeded 100 entries (corrupt list?)\n");
@@ -101,139 +91,86 @@ int main(void)
             break;
         }
     }
-    if (count < 3)
-    {
-        print("FAIL: MonitorList has fewer than 3 entries\n");
-        errors++;
-    }
-    else
-    {
-        print("OK: MonitorList walk completed\n");
-    }
-    if (!saw_default) { print("FAIL: default.monitor missing from MonitorList\n"); errors++; }
-    else              print("OK: default.monitor present\n");
-    if (!saw_pal)     { print("FAIL: pal.monitor missing from MonitorList\n");     errors++; }
-    else              print("OK: pal.monitor present\n");
-    if (!saw_ntsc)    { print("FAIL: ntsc.monitor missing from MonitorList\n");    errors++; }
-    else              print("OK: ntsc.monitor present\n");
+    errors += check(count >= 1, "OK: MonitorList walk completed\n", "FAIL: MonitorList is empty\n");
+    errors += check(saw_native, "OK: native monitor present\n", "FAIL: native monitor missing from MonitorList\n");
 
-    /* 3. OpenMonitor(NULL, 0) must return the head node (non-NULL). */
+    /* The default monitor is the native monitor */
+    def = (struct MonitorSpec *)GfxBase->default_monitor;
+    errors += check(def != NULL && def->ms_Node.xln_Name && xstrcmp(def->ms_Node.xln_Name, native_name) == 0,
+                    "OK: GfxBase->default_monitor is the native monitor\n",
+                    "FAIL: GfxBase->default_monitor is not the native monitor\n");
+
+    /* OpenMonitor(NULL, 0) returns the default monitor */
     ms = OpenMonitor(NULL, 0);
-    if (ms == NULL)
-    {
-        print("FAIL: OpenMonitor(NULL, 0) returned NULL\n");
-        errors++;
-    }
-    else
-    {
-        print("OK: OpenMonitor(NULL, 0) returned non-NULL\n");
-        /* The returned MonitorSpec must be the head of the list. */
-        if ((struct Node *)ms != GfxBase->MonitorList.lh_Head)
-        {
-            print("FAIL: OpenMonitor(NULL, 0) did not return list head\n");
-            errors++;
-        }
-        else
-        {
-            print("OK: OpenMonitor(NULL, 0) returned list head\n");
-        }
-        if (CloseMonitor(ms) != TRUE)
-        {
-            print("FAIL: CloseMonitor() returned FALSE\n");
-            errors++;
-        }
-        else
-        {
-            print("OK: CloseMonitor() returned TRUE\n");
-        }
-    }
+    errors += check(ms != NULL && ms == def, "OK: OpenMonitor(NULL, 0) returned the default monitor\n",
+                    "FAIL: OpenMonitor(NULL, 0) did not return the default monitor\n");
+    if (ms)
+        errors += check(CloseMonitor(ms) == FALSE, "OK: CloseMonitor() returned FALSE (no error)\n",
+                        "FAIL: CloseMonitor() reported an error\n");
 
-    /* 4. OpenMonitor(name, 0) lookup by name. */
-    ms = OpenMonitor((STRPTR)PAL_MONITOR_NAME, 0);
-    if (ms == NULL || ms->ms_Node.xln_Name == NULL ||
-        xstrcmp(ms->ms_Node.xln_Name, PAL_MONITOR_NAME) != 0)
-    {
-        print("FAIL: OpenMonitor(\"pal.monitor\", 0) lookup failed\n");
-        errors++;
-    }
-    else
-    {
-        print("OK: OpenMonitor(\"pal.monitor\", 0) returned pal node\n");
+    /* Name lookups */
+    ms = OpenMonitor((STRPTR)DEFAULT_MONITOR_NAME, 0);
+    errors += check(ms != NULL && ms == def, "OK: OpenMonitor(\"default.monitor\", 0) returned the default monitor\n",
+                    "FAIL: OpenMonitor(\"default.monitor\", 0) lookup failed\n");
+    if (ms)
         CloseMonitor(ms);
-    }
 
-    ms = OpenMonitor((STRPTR)NTSC_MONITOR_NAME, 0);
-    if (ms == NULL || ms->ms_Node.xln_Name == NULL ||
-        xstrcmp(ms->ms_Node.xln_Name, NTSC_MONITOR_NAME) != 0)
-    {
-        print("FAIL: OpenMonitor(\"ntsc.monitor\", 0) lookup failed\n");
-        errors++;
-    }
-    else
-    {
-        print("OK: OpenMonitor(\"ntsc.monitor\", 0) returned ntsc node\n");
+    ms = OpenMonitor((STRPTR)native_name, 0);
+    errors += check(ms != NULL && ms->ms_Node.xln_Name && xstrcmp(ms->ms_Node.xln_Name, native_name) == 0,
+                    "OK: OpenMonitor(native name, 0) returned the native monitor\n",
+                    "FAIL: OpenMonitor(native name, 0) lookup failed\n");
+    if (ms)
         CloseMonitor(ms);
-    }
 
-    /* 5. OpenMonitor(NULL, displayID) lookup by monitor compatibility bits.
-     *    PAL_MONITOR_ID = 0x00021000, NTSC_MONITOR_ID = 0x00011000. */
-    ms = OpenMonitor(NULL, PAL_MONITOR_ID | 0x00000001);
-    if (ms == NULL || ms->ms_Node.xln_Name == NULL ||
-        xstrcmp(ms->ms_Node.xln_Name, PAL_MONITOR_NAME) != 0)
-    {
-        print("FAIL: OpenMonitor(NULL, PAL_MONITOR_ID|...) did not select pal\n");
-        errors++;
-    }
-    else
-    {
-        print("OK: OpenMonitor(NULL, PAL_MONITOR_ID|...) selected pal\n");
+    ms = OpenMonitor((STRPTR)"bogus.monitor", 0);
+    errors += check(ms == NULL, "OK: OpenMonitor(\"bogus.monitor\", 0) returned NULL\n",
+                    "FAIL: OpenMonitor(\"bogus.monitor\", 0) returned a monitor\n");
+    if (ms)
         CloseMonitor(ms);
-    }
 
-    ms = OpenMonitor(NULL, NTSC_MONITOR_ID | 0x00000001);
-    if (ms == NULL || ms->ms_Node.xln_Name == NULL ||
-        xstrcmp(ms->ms_Node.xln_Name, NTSC_MONITOR_NAME) != 0)
-    {
-        print("FAIL: OpenMonitor(NULL, NTSC_MONITOR_ID|...) did not select ntsc\n");
-        errors++;
-    }
-    else
-    {
-        print("OK: OpenMonitor(NULL, NTSC_MONITOR_ID|...) selected ntsc\n");
+    /* Display ID lookups */
+    ms = OpenMonitor(NULL, HIRES_KEY);
+    errors += check(ms != NULL && ms == def, "OK: OpenMonitor(NULL, HIRES_KEY) returned the default monitor\n",
+                    "FAIL: OpenMonitor(NULL, HIRES_KEY) did not return the default monitor\n");
+    if (ms)
         CloseMonitor(ms);
-    }
 
-    /* 6. Each MonitorSpec must have plausible field values (not zero). */
-    ms = OpenMonitor((STRPTR)PAL_MONITOR_NAME, 0);
+    ms = OpenMonitor(NULL, native_id | HIRES_KEY);
+    errors += check(ms != NULL && ms->ms_Node.xln_Name && xstrcmp(ms->ms_Node.xln_Name, native_name) == 0,
+                    "OK: OpenMonitor(NULL, native ID|HIRES_KEY) selected the native monitor\n",
+                    "FAIL: OpenMonitor(NULL, native ID|HIRES_KEY) did not select the native monitor\n");
+    if (ms)
+        CloseMonitor(ms);
+
+    ms = OpenMonitor(NULL, native_id | 0x00000001);
+    errors += check(ms == NULL, "OK: OpenMonitor(NULL, invalid mode) returned NULL\n",
+                    "FAIL: OpenMonitor(NULL, invalid mode) returned a monitor\n");
+    if (ms)
+        CloseMonitor(ms);
+
+    ms = OpenMonitor(NULL, INVALID_ID);
+    errors += check(ms == NULL, "OK: OpenMonitor(NULL, INVALID_ID) returned NULL\n",
+                    "FAIL: OpenMonitor(NULL, INVALID_ID) returned a monitor\n");
+    if (ms)
+        CloseMonitor(ms);
+
+    errors += check(CloseMonitor(NULL) == TRUE, "OK: CloseMonitor(NULL) returned TRUE\n",
+                    "FAIL: CloseMonitor(NULL) did not return TRUE\n");
+
+    /* Native MonitorSpec fields */
+    ms = OpenMonitor((STRPTR)native_name, 0);
     if (ms != NULL)
     {
-        if (ms->total_rows != STANDARD_PAL_ROWS)
-        {
-            print("FAIL: pal.monitor total_rows != STANDARD_PAL_ROWS\n");
-            errors++;
-        }
-        else
-        {
-            print("OK: pal.monitor total_rows = STANDARD_PAL_ROWS\n");
-        }
-        if (ms->ms_Node.xln_Subsystem != SS_GRAPHICS)
-        {
-            print("FAIL: pal.monitor xln_Subsystem != SS_GRAPHICS\n");
-            errors++;
-        }
-        else
-        {
-            print("OK: pal.monitor xln_Subsystem = SS_GRAPHICS\n");
-        }
-        if (ms->ms_Node.xln_Subtype != MONITOR_SPEC_TYPE)
-        {
-            print("FAIL: pal.monitor xln_Subtype != MONITOR_SPEC_TYPE\n");
-            errors++;
-        }
-        else
-        {
-            print("OK: pal.monitor xln_Subtype = MONITOR_SPEC_TYPE\n");
-        }
+        errors += check(ms->total_rows == (is_pal ? STANDARD_PAL_ROWS : STANDARD_NTSC_ROWS),
+                        "OK: native monitor total_rows is standard\n",
+                        "FAIL: native monitor total_rows is not standard\n");
+        errors += check(ms->ms_Node.xln_Type == NT_GRAPHICS && ms->ms_Node.xln_Subsystem == SS_GRAPHICS &&
+                        ms->ms_Node.xln_Subtype == MONITOR_SPEC_TYPE,
+                        "OK: native monitor is an NT_GRAPHICS MONITOR_SPEC_TYPE node\n",
+                        "FAIL: native monitor node type is wrong\n");
+        errors += check(ms->ratioh == RATIO_UNITY && ms->ratiov == RATIO_UNITY,
+                        "OK: native monitor ratios are RATIO_UNITY\n",
+                        "FAIL: native monitor ratios are not RATIO_UNITY\n");
         CloseMonitor(ms);
     }
 
@@ -242,6 +179,7 @@ int main(void)
         print("PASS: all MonitorList / OpenMonitor checks passed\n");
         return 0;
     }
+
     print("FAIL: MonitorList tests reported errors\n");
     return 20;
 }

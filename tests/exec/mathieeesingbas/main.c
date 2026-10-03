@@ -79,6 +79,13 @@ union FloatBits {
     ULONG u;
 };
 
+static FLOAT sp_bits(ULONG bits)
+{
+    union FloatBits fb;
+    fb.u = bits;
+    return fb.f;
+}
+
 int main(void)
 {
     out = Output();
@@ -277,46 +284,17 @@ int main(void)
             test_fail_msg("IEEESPSub(3, 10)");
     }
 
-    /* Test IEEESPMul */
-    {
-        LONG result;
-
-        result = IEEESPFix(IEEESPMul(IEEESPFlt(6), IEEESPFlt(7)));
-        if (result == 42)
-            test_ok("IEEESPMul(6, 7) = 42");
-        else
-            test_fail_msg("IEEESPMul(6, 7)");
-
-        result = IEEESPFix(IEEESPMul(IEEESPFlt(-5), IEEESPFlt(3)));
-        if (result == -15)
-            test_ok("IEEESPMul(-5, 3) = -15");
-        else
-            test_fail_msg("IEEESPMul(-5, 3)");
-    }
-
-    /* Test IEEESPDiv */
-    {
-        LONG result;
-
-        result = IEEESPFix(IEEESPDiv(IEEESPFlt(42), IEEESPFlt(6)));
-        if (result == 7)
-            test_ok("IEEESPDiv(42, 6) = 7");
-        else
-            test_fail_msg("IEEESPDiv(42, 6)");
-
-        result = IEEESPFix(IEEESPDiv(IEEESPFlt(100), IEEESPFlt(4)));
-        if (result == 25)
-            test_ok("IEEESPDiv(100, 4) = 25");
-        else
-            test_fail_msg("IEEESPDiv(100, 4)");
-    }
+    /* IEEESPMul/IEEESPDiv hang the AmigaOS 3.1 reference machine (FS-UAE
+     * A4000/040): they are tested by Tests/Exec/MathIeeeSingBasMulDiv
+     * (lxa only, Phase 220).  The fractional inputs below are bit
+     * patterns instead of quotients. */
 
     /* Test IEEESPFloor */
     {
         LONG result;
 
         /* Floor of 3.7 should be 3 */
-        result = IEEESPFix(IEEESPFloor(IEEESPDiv(IEEESPFlt(37), IEEESPFlt(10))));
+        result = IEEESPFix(IEEESPFloor(sp_bits(0x406CCCCDUL)));
         if (result == 3)
             test_ok("IEEESPFloor(3.7) = 3");
         else {
@@ -325,7 +303,7 @@ int main(void)
         }
 
         /* Floor of -2.3 should be -3 */
-        result = IEEESPFix(IEEESPFloor(IEEESPDiv(IEEESPFlt(-23), IEEESPFlt(10))));
+        result = IEEESPFix(IEEESPFloor(sp_bits(0xC0133333UL)));
         if (result == -3)
             test_ok("IEEESPFloor(-2.3) = -3");
         else {
@@ -346,7 +324,7 @@ int main(void)
         LONG result;
 
         /* Ceil of 3.2 should be 4 */
-        result = IEEESPFix(IEEESPCeil(IEEESPDiv(IEEESPFlt(32), IEEESPFlt(10))));
+        result = IEEESPFix(IEEESPCeil(sp_bits(0x404CCCCDUL)));
         if (result == 4)
             test_ok("IEEESPCeil(3.2) = 4");
         else {
@@ -355,7 +333,7 @@ int main(void)
         }
 
         /* Ceil of -2.7 should be -2 */
-        result = IEEESPFix(IEEESPCeil(IEEESPDiv(IEEESPFlt(-27), IEEESPFlt(10))));
+        result = IEEESPFix(IEEESPCeil(sp_bits(0xC02CCCCDUL)));
         if (result == -2)
             test_ok("IEEESPCeil(-2.7) = -2");
         else {

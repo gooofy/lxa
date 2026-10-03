@@ -47,7 +47,7 @@ int main(void)
 {
     struct BitMap bm;
     struct RastPort rp;
-    UBYTE mask[8];  /* 8x8 mask */
+    UWORD *mask;    /* 16 rows of one word: blitter data must be in chip RAM */
     int errors = 0;
     int count;
     int i;
@@ -60,6 +60,13 @@ int main(void)
 
     if (!bm.Planes[0]) {
         print("FAIL: Could not allocate raster plane\n");
+        return 20;
+    }
+
+    mask = (UWORD *)AllocMem(16 * sizeof(UWORD), MEMF_CHIP | MEMF_CLEAR);
+    if (!mask) {
+        print("FAIL: Could not allocate chip mask\n");
+        FreeRaster(bm.Planes[0], 64, 64);
         return 20;
     }
 
@@ -76,7 +83,7 @@ int main(void)
     
     /* Check that the rectangle is filled */
     count = CountPixels(&rp, 10, 10, 30, 30, 1);
-    if (count < 400) {  /* Should be 21x21 = 441 */
+    if (count != 441) {  /* 21x21 */
         print("FAIL: Rectangle not filled properly\n");
         errors++;
     } else {
@@ -99,21 +106,21 @@ int main(void)
     
     /* Create a checkerboard mask (8x8) */
     /* Each byte is a row: 0xAA = 10101010, 0x55 = 01010101 */
-    mask[0] = 0xAA;  /* 10101010 */
-    mask[1] = 0x55;  /* 01010101 */
-    mask[2] = 0xAA;
-    mask[3] = 0x55;
-    mask[4] = 0xAA;
-    mask[5] = 0x55;
-    mask[6] = 0xAA;
-    mask[7] = 0x55;
+    mask[0] = 0xAA00;  /* 10101010 */
+    mask[1] = 0x5500;  /* 01010101 */
+    mask[2] = 0xAA00;
+    mask[3] = 0x5500;
+    mask[4] = 0xAA00;
+    mask[5] = 0x5500;
+    mask[6] = 0xAA00;
+    mask[7] = 0x5500;
     
     /* Blit 8x8 pattern */
-    BltPattern(&rp, (PLANEPTR)mask, 10, 10, 17, 17, 1);
+    BltPattern(&rp, (PLANEPTR)mask, 10, 10, 17, 17, 2);
     
     /* Check that some pixels are set (not all, due to mask) */
     count = CountPixels(&rp, 10, 10, 17, 17, 1);
-    if (count < 20 || count > 50) {  /* Should be ~32 (half of 64) */
+    if (count != 32) {  /* half of 8x8 */
         print("FAIL: Mask pattern not applied correctly\n");
         errors++;
     } else {
@@ -134,10 +141,10 @@ int main(void)
     SetAPen(&rp, 1);
     
     /* Clear mask */
-    for (i = 0; i < 8; i++)
-        mask[i] = 0x00;
+    for (i = 0; i < 16; i++)
+        mask[i] = 0x0000;
     
-    BltPattern(&rp, (PLANEPTR)mask, 10, 10, 17, 17, 1);
+    BltPattern(&rp, (PLANEPTR)mask, 10, 10, 17, 17, 2);
     
     /* Nothing should be drawn */
     count = CountPixels(&rp, 10, 10, 17, 17, 1);
@@ -154,10 +161,10 @@ int main(void)
     SetAPen(&rp, 1);
     
     /* Set all bits in mask */
-    for (i = 0; i < 8; i++)
-        mask[i] = 0xFF;
+    for (i = 0; i < 16; i++)
+        mask[i] = 0xFF00;
     
-    BltPattern(&rp, (PLANEPTR)mask, 10, 10, 17, 17, 1);
+    BltPattern(&rp, (PLANEPTR)mask, 10, 10, 17, 17, 2);
     
     /* All pixels should be drawn */
     count = CountPixels(&rp, 10, 10, 17, 17, 1);
@@ -173,22 +180,24 @@ int main(void)
     SetRast(&rp, 0);
     SetAPen(&rp, 1);
     
-    /* Use checkerboard mask */
-    mask[0] = 0xAA;
-    mask[1] = 0x55;
-    mask[2] = 0xAA;
-    mask[3] = 0x55;
-    mask[4] = 0xAA;
-    mask[5] = 0x55;
-    mask[6] = 0xAA;
-    mask[7] = 0x55;
+    /* Use a 16x16 checkerboard mask */
+    mask[0] = 0xAA00;
+    mask[1] = 0x5500;
+    mask[2] = 0xAA00;
+    mask[3] = 0x5500;
+    mask[4] = 0xAA00;
+    mask[5] = 0x5500;
+    mask[6] = 0xAA00;
+    mask[7] = 0x5500;
+    for (i = 0; i < 16; i++)
+        mask[i] = (i & 1) ? 0x5555 : 0xAAAA;
     
     /* Blit 16x16 area - BltTemplate should handle wrapping if supported */
-    BltPattern(&rp, (PLANEPTR)mask, 10, 10, 25, 25, 1);
+    BltPattern(&rp, (PLANEPTR)mask, 10, 10, 25, 25, 2);
     
     /* Check that some pixels were set */
     count = CountPixels(&rp, 10, 10, 25, 25, 1);
-    if (count < 50) {  /* At least some pixels should be set */
+    if (count != 128) {  /* half of 16x16 */
         print("FAIL: Not enough pixels drawn\n");
         errors++;
     } else {
@@ -196,6 +205,7 @@ int main(void)
     }
 
     /* Cleanup */
+    FreeMem(mask, 16 * sizeof(UWORD));
     FreeRaster(bm.Planes[0], 64, 64);
 
     /* Final result */
