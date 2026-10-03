@@ -191,6 +191,7 @@ LONG _dos_SystemTagList ( register struct DosLibrary * DOSBase __asm("a6"),
                                     register const struct TagItem * tags __asm("d2"));
 static LONG lxa_dos_system(struct DosLibrary *DOSBase, CONST_STRPTR command,
                            const struct TagItem *tags, BOOL shell);
+static CONST_STRPTR lxa_dos_shell_path(struct DosLibrary *DOSBase);
 
 struct DevProc * _dos_GetDeviceProc ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register CONST_STRPTR name __asm("d1"),
@@ -2449,6 +2450,19 @@ void _dos_Exit ( register struct DosLibrary * __libBase __asm("a6"),
     LPRINTF (LOG_INFO, "_dos: Exit() called, returnCode=%ld\n", ___returnCode);
 
     struct Process *me = U_getCurrentProcess();
+
+    /* A command started by RunCommand() returns from RunCommand() with the
+     * return code: the stack goes back to the frame pr_ReturnAddr points
+     * at (AmigaOS: sp = pr_ReturnAddr - 4; rts). */
+    if (me && IS_PROCESS(me) && me->pr_ReturnAddr)
+    {
+        register LONG rc_d0 __asm("d0") = ___returnCode;
+        register APTR frame_a0 __asm("a0") = me->pr_ReturnAddr;
+
+        __asm volatile ("lea -4(%%a0), %%sp\n\t"
+                        "rts"
+                        : : "r" (rc_d0), "r" (frame_a0) : "memory");
+    }
 
     /* Store the return code */
     me->pr_Result2 = ___returnCode;
@@ -5483,114 +5497,116 @@ struct Process * _dos_CreateNewProc ( register struct DosLibrary * DOSBase __asm
     return process;
 }
 
+/*
+ * In-process command call used by RunCommand() (AmigaOS semantics: the
+ * command runs on a new stack in the *calling* process).
+ *
+ *   lxa_dos_rc_call(entry, stack_top, stack_size, args, len, &pr_ReturnAddr)
+ *
+ * The new stack holds [caller sp][stack size][return address]; at entry
+ * the command sees the stack size at 4(sp), the arguments in a0/d0.
+ * pr_ReturnAddr points at the stack size slot, so Exit() can unwind with
+ * sp = pr_ReturnAddr - 4; rts (see _dos_Exit).
+ */
+LONG lxa_dos_rc_call(APTR entry, APTR stack_top, ULONG stack_size,
+                     CONST_STRPTR args, LONG len, APTR *return_addr);
+
+asm(
+"        .text                                                                              \n"
+"        .even                                                                              \n"
+"_lxa_dos_rc_call:                                                                          \n"
+"        movem.l    d2-d7/a2-a6, -(sp)              | 44 bytes                              \n"
+"        move.l     sp, a1                          | caller frame                          \n"
+"        move.l     52(a1), a2                      | stack_top                             \n"
+"        move.l     a1, -(a2)                       | caller sp                             \n"
+"        move.l     56(a1), -(a2)                   | stack size -> 4(sp) at entry          \n"
+"        move.l     68(a1), a3                      | &pr_ReturnAddr                        \n"
+"        move.l     a2, (a3)                        | pr_ReturnAddr                         \n"
+"        move.l     48(a1), a4                      | entry                                 \n"
+"        move.l     60(a1), a0                      | args                                  \n"
+"        move.l     64(a1), d0                      | length                                \n"
+"        move.l     a2, sp                                                                  \n"
+"        jsr        (a4)                                                                    \n"
+"        move.l     4(sp), sp                       | back to the caller stack              \n"
+"        movem.l    (sp)+, d2-d7/a2-a6                                                      \n"
+"        rts                                                                                \n"
+);
+
 LONG _dos_RunCommand ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register BPTR seg __asm("d1"),
                                                         register LONG stack __asm("d2"),
                                                         register CONST_STRPTR paramptr __asm("d3"),
                                                         register LONG paramlen __asm("d4"))
 {
-    struct Process *child;
+    /*
+     * AmigaOS semantics: the command runs in the calling process (its
+     * Input()/Output(), current directory, CLI structure and local
+     * variables) on a fresh stack of 'stack' bytes; the result is the
+     * command's return code, -1 if the stack could not be allocated.
+     * pr_Arguments holds the argument string while the command runs
+     * (lxa's ReadArgs() reads it from there).
+     */
     struct Process *me = U_getCurrentProcess();
-    BPTR curDir = 0;
-    LONG result = -1;
-    ULONG oldSig;
-    struct RootNode *root;
-    struct MsgPort *childPort;
-    LONG taskNum;
-    struct TagItem procTags[] = {
-        { NP_Seglist, 0 },
-        { NP_Name, (ULONG)"RunCommand" },
-        { NP_StackSize, 0 },
-        { NP_Cli, TRUE },
-        { NP_Input, 0 },
-        { NP_Output, 0 },
-        { NP_CloseInput, FALSE },
-        { NP_CloseOutput, FALSE },
-        { NP_Arguments, 0 },
-        { NP_CurrentDir, 0 },
-        { NP_FreeSeglist, FALSE },
-        { NP_ExitCode, 0 },
-        { NP_ExitData, 0 },
-        { TAG_DONE, 0 }
-    };
+    UBYTE *stack_mem;
+    char *args;
+    APTR old_lower, old_upper, old_return;
+    STRPTR old_args;
+    ULONG old_stacksize;
+    LONG len, result;
 
-    paramlen = (LONG)(WORD)paramlen; /* sign-extend: GCC m68k move.w workaround */
+    (void)DOSBase;
 
-    if (!me || !seg)
+    if (!me || !IS_PROCESS(me) || !seg)
     {
         SetIoErr(ERROR_REQUIRED_ARG_MISSING);
         return -1;
     }
 
+    len = paramptr ? paramlen : 0;
+    if (len < 0)
+        len = 0;
+
     if (stack < MIN_STACK_SIZE)
         stack = MIN_STACK_SIZE;
+    stack = (stack + 3) & ~3;
 
-    if (me->pr_CurrentDir)
-        curDir = DupLock(me->pr_CurrentDir);
-
-    /*
-     * Allocate the result-bearing block first so we can pass it as
-     * NP_ExitData. _dos_CreateNewProc() yields to the child after
-     * enqueuing it, so pr_ExitCode/pr_ExitData MUST be installed
-     * atomically as part of process construction — not patched in
-     * afterwards (which races with an early Exit() in the child).
-     *
-     * The block is freed by lxa_dos_process_exit_cleanup() when it runs
-     * the chained user_exit_code (i.e. our runcommand cleanup).
-     */
+    stack_mem = (UBYTE *)AllocVec(stack, MEMF_PUBLIC);
+    args = (char *)AllocVec(len + 1, MEMF_PUBLIC);
+    if (!stack_mem || !args)
     {
-        struct lxa_dos_runcommand_block *blk =
-            (struct lxa_dos_runcommand_block *)AllocVec(sizeof(*blk),
-                                                       MEMF_CLEAR | MEMF_PUBLIC);
-        if (!blk)
-        {
-            if (curDir)
-                UnLock(curDir);
-            SetIoErr(ERROR_NO_FREE_STORE);
-            return -1;
-        }
-        blk->result_ptr = &result;
-
-        procTags[0].ti_Data = seg;
-        procTags[2].ti_Data = (ULONG)stack;
-        procTags[4].ti_Data = me->pr_CIS;
-        procTags[5].ti_Data = me->pr_COS;
-        procTags[8].ti_Data = (ULONG)paramptr;
-        procTags[9].ti_Data = (ULONG)curDir;
-        procTags[11].ti_Data = (ULONG)lxa_dos_runcommand_exit_cleanup;
-        procTags[12].ti_Data = (ULONG)blk;
-
-        child = _dos_CreateNewProc(DOSBase, procTags);
-        if (!child)
-        {
-            FreeVec(blk);
-            if (curDir)
-                UnLock(curDir);
-            return -1;
-        }
+        if (stack_mem)
+            FreeVec(stack_mem);
+        if (args)
+            FreeVec(args);
+        SetIoErr(ERROR_NO_FREE_STORE);
+        return -1;
     }
+    if (len)
+        CopyMem((APTR)paramptr, args, len);
+    args[len] = '\0';
 
-    taskNum = child->pr_TaskNum;
-    root = DOSBase->dl_Root;
-    childPort = &child->pr_MsgPort;
-    oldSig = me->pr_Task.tc_SigWait;
+    old_lower = me->pr_Task.tc_SPLower;
+    old_upper = me->pr_Task.tc_SPUpper;
+    old_return = me->pr_ReturnAddr;
+    old_args = me->pr_Arguments;
+    old_stacksize = me->pr_StackSize;
 
-    while (1)
-    {
-        ULONG *taskArray = (ULONG *)BADDR(root->rn_TaskArray);
-        ULONG storedValue;
+    me->pr_Arguments = (STRPTR)args;
+    me->pr_StackSize = stack;
+    me->pr_Task.tc_SPLower = stack_mem;
+    me->pr_Task.tc_SPUpper = stack_mem + stack;
 
-        if (!taskArray)
-            break;
+    result = lxa_dos_rc_call(BADDR(seg) + sizeof(BPTR), stack_mem + stack, stack,
+                             (CONST_STRPTR)args, len, &me->pr_ReturnAddr);
 
-        storedValue = taskArray[taskNum];
-        if (storedValue == 0 || storedValue != (ULONG)childPort)
-            break;
+    me->pr_Task.tc_SPLower = old_lower;
+    me->pr_Task.tc_SPUpper = old_upper;
+    me->pr_ReturnAddr = old_return;
+    me->pr_Arguments = old_args;
+    me->pr_StackSize = old_stacksize;
 
-        emucall0(EMU_CALL_WAIT);
-    }
-
-    me->pr_Task.tc_SigWait = oldSig;
+    FreeVec(stack_mem);
+    FreeVec(args);
     return result;
 }
 
@@ -5963,6 +5979,30 @@ static LONG lxa_dos_system(struct DosLibrary *DOSBase, CONST_STRPTR command,
     /* Skip leading spaces */
     while (*command == ' ' || *command == '\t') command++;
 
+    /*
+     * AmigaOS: System() runs the command line in a shell (redirection,
+     * variables, aliases, internal commands, command files).  A synchronous
+     * System() starts SYS:System/Shell with the command line as its
+     * arguments; the shell runs it and returns its return code (it also
+     * reports "Unknown command" and "failed returncode").
+     */
+    BOOL via_shell = FALSE;
+    if (shell && !GetTagData(SYS_Asynch, FALSE, tags))
+    {
+        CONST_STRPTR sp = lxa_dos_shell_path(DOSBase);
+        if (sp)
+        {
+            while (*sp && i < 255)
+                bin_name[i++] = *sp++;
+            bin_name[i] = '\0';
+            args = (char *)command;
+            via_shell = TRUE;
+        }
+    }
+
+    if (via_shell) {
+        /* bin_name/args set above */
+    } else
     /* The command name may be quoted ("name with spaces" args) */
     if (*command == '"') {
         command++;
@@ -5976,10 +6016,12 @@ static LONG lxa_dos_system(struct DosLibrary *DOSBase, CONST_STRPTR command,
             bin_name[i++] = *command++;
         }
     }
-    bin_name[i] = '\0';
+    if (!via_shell) {
+        bin_name[i] = '\0';
 
-    /* Args start after the space/command */
-    if (*command) args = (char *)command; // Points to space or rest of string
+        /* Args start after the space/command */
+        if (*command) args = (char *)command; // Points to space or rest of string
+    }
 
     /* If no args, provide at least a newline (Amiga startup convention) */
     if (!args || !*args) {
@@ -6192,7 +6234,7 @@ static LONG lxa_dos_system(struct DosLibrary *DOSBase, CONST_STRPTR command,
 
     /* Like the shell: a return code at or above the fail level (10) is
      * reported (verified on AmigaOS 3.1). */
-    if (shell && result >= RETURN_ERROR && output) {
+    if (shell && !via_shell && result >= RETURN_ERROR && output) {
         LONG fmt_args[2];
         fmt_args[0] = (LONG)bin_name;
         fmt_args[1] = result;
@@ -7948,6 +7990,7 @@ LONG _dos_CheckSignal ( register struct DosLibrary * DOSBase __asm("a6"),
 #define TEMPLATE_NUMERIC   0x08  /* /N */
 #define TEMPLATE_MULTIPLE  0x10  /* /M */
 #define TEMPLATE_REST      0x20  /* /F */
+#define TEMPLATE_TOGGLE    0x40  /* /T */
 
 #ifndef RDAF_ALLOCATED_BY_READARGS
 #define RDAF_ALLOCATED_BY_READARGS 0x80
@@ -7968,60 +8011,61 @@ typedef struct {
 
 static LONG _parse_template(CONST_STRPTR tmpl, TemplateItem *items)
 {
+    /* "NAME=ALIAS/A/K,..." - items are separated by single commas (an
+     * empty item has an empty name), modifiers are case-insensitive. */
     LONG num_items = 0;
     CONST_STRPTR p = tmpl;
 
     while (*p && num_items < 32) {
-        /* Skip whitespace and commas */
-        while (*p == ' ' || *p == '\t' || *p == ',') p++;
-        if (!*p) break;
-
-        /* Parse item name - may contain = for alias (AS=TO) */
         LONG i = 0;
-        items[num_items].alias[0] = '\0';  /* No alias by default */
-        
-        while (*p && *p != ',' && *p != '/' && *p != ' ' && *p != '\t' && i < 31) {
-            if (*p == '=') {
-                /* Found alias separator - what we have so far is the primary name */
-                items[num_items].name[i] = '\0';
-                p++;  /* Skip the = */
-                
-                /* Now read the alias */
-                i = 0;
-                while (*p && *p != ',' && *p != '/' && *p != ' ' && *p != '\t' && i < 31) {
-                    items[num_items].alias[i++] = *p++;
-                }
-                items[num_items].alias[i] = '\0';
-                i = -1;  /* Signal that name is already terminated */
-                break;
-            }
-            items[num_items].name[i++] = *p++;
-        }
-        if (i >= 0) {
-            items[num_items].name[i] = '\0';
-        }
+        char *dst = items[num_items].name;
+
+        while (*p == ' ' || *p == '\t')
+            p++;
+        items[num_items].name[0] = '\0';
+        items[num_items].alias[0] = '\0';
         items[num_items].flags = 0;
         items[num_items].index = num_items;
 
-        /* Parse modifiers */
+        while (*p && *p != ',' && *p != '/') {
+            if (*p == '=') {
+                dst[i] = '\0';
+                if (dst == items[num_items].alias)
+                    break;      /* only one alias is kept */
+                dst = items[num_items].alias;
+                i = 0;
+                p++;
+                continue;
+            }
+            if (*p != ' ' && *p != '\t' && i < 31)
+                dst[i++] = *p;
+            p++;
+        }
+        dst[i] = '\0';
+        while (*p && *p != ',' && *p != '/')
+            p++;
+
         while (*p == '/') {
             p++;
             switch (*p) {
-                case 'A': items[num_items].flags |= TEMPLATE_REQUIRED; break;
-                case 'K': items[num_items].flags |= TEMPLATE_KEYWORD; break;
-                case 'S': items[num_items].flags |= TEMPLATE_SWITCH; break;
-                case 'N': items[num_items].flags |= TEMPLATE_NUMERIC; break;
-                case 'M': items[num_items].flags |= TEMPLATE_MULTIPLE; break;
-                case 'F': items[num_items].flags |= TEMPLATE_REST; break;
+                case 'A': case 'a': items[num_items].flags |= TEMPLATE_REQUIRED; break;
+                case 'K': case 'k': items[num_items].flags |= TEMPLATE_KEYWORD; break;
+                case 'S': case 's': items[num_items].flags |= TEMPLATE_SWITCH; break;
+                case 'N': case 'n': items[num_items].flags |= TEMPLATE_NUMERIC; break;
+                case 'M': case 'm': items[num_items].flags |= TEMPLATE_MULTIPLE; break;
+                case 'F': case 'f': items[num_items].flags |= TEMPLATE_REST; break;
+                case 'T': case 't': items[num_items].flags |= TEMPLATE_TOGGLE; break;
             }
             if (*p) p++;
+            while (*p && *p != ',' && *p != '/')
+                p++;
         }
 
         num_items++;
-
-        /* Skip to next item */
-        while (*p && *p != ',') p++;
-        if (*p == ',') p++;
+        if (*p == ',')
+            p++;
+        else
+            break;
     }
 
     return num_items;
@@ -8139,320 +8183,353 @@ struct RDArgs * _dos_ReadArgs ( register struct DosLibrary * DOSBase __asm("a6")
     if (args && args->RDA_Source.CS_Buffer)
         args->RDA_Source.CS_CurChr = args->RDA_Source.CS_Length;
 
-    /* Initialize array to 0/FALSE */
-    for (LONG i = 0; i < num_items; i++) {
-        array[i] = 0;
+    /* "?" alone: show the template and read the arguments from Input()
+     * (AmigaOS 3.1), unless prompting is disabled */
+    {
+        STRPTR q = arg_str;
+        while (*q == ' ' || *q == '\t')
+            q++;
+        if (q[0] == '?' && (q[1] == '\0' || q[1] == ' ' || q[1] == '\t') &&
+            !(args && (args->RDA_Flags & RDAF_NOPROMPT))) {
+            LONG k = 1;
+            while (q[k] == ' ' || q[k] == '\t')
+                k++;
+            if (!q[k]) {
+                BPTR out = Output(), in = Input();
+                STRPTR qline;
+                LONG n = 0, c;
+                FPuts(out, (STRPTR)arg_template);
+                FPuts(out, (STRPTR)": ");
+                Flush(out);
+                qline = (STRPTR)AllocVec(512, MEMF_ANY);
+                if (!qline) {
+                    FreeVec(arg_str);
+                    FreeVec(src_node);
+                    SetIoErr(ERROR_NO_FREE_STORE);
+                    return NULL;
+                }
+                while (in && n < 511 && (c = FGetC(in)) >= 0 && c != '\n')
+                    qline[n++] = (char)c;
+                qline[n] = '\0';
+                FreeVec(arg_str);
+                arg_str = qline;
+                src_node->memory = arg_str;
+                src_len = n;
+            }
+        }
     }
 
-    /* For /M (multiple) arguments, we need to collect all values into a NULL-terminated
-     * array of pointers. Allocate storage dynamically (can't use static in ROM code).
-     * Limit: 16 values per /M argument
+    for (LONG i = 0; i < num_items; i++)
+        array[i] = 0;
+
+    /*
+     * Parse the line (AmigaOS ReadArgs() semantics):
+     *  - items are words or quoted strings; inside quotes *" *N *E **
+     *    are escapes; "KEY=value" and "KEY value" give keyword values;
+     *  - an unquoted word matching an item name (or alias) is a keyword;
+     *    /S and /T items are switches;
+     *  - other items fill the non-keyword items in template order; /M
+     *    collects all of them; /F takes the rest of the line;
+     *  - at the end, values of a /M item are moved to required items that
+     *    follow it in the template (Copy FROM/M/A TO/A: "Copy a b c");
+     *  - errors: ERROR_BAD_NUMBER, ERROR_KEY_NEEDS_ARG, ERROR_TOO_MANY_ARGS,
+     *    ERROR_REQUIRED_ARG_MISSING, ERROR_UNMATCHED_QUOTES (IoErr()).
      */
-    #define MAX_MULTI_VALUES 16
-    
-    /* Allocate multi_values as a 2D array: num_items * (MAX_MULTI_VALUES+1) pointers */
-    STRPTR *multi_values_flat = (STRPTR *)AllocVec(num_items * (MAX_MULTI_VALUES + 1) * sizeof(STRPTR), MEMF_CLEAR);
-    LONG *multi_counts = (LONG *)AllocVec(num_items * sizeof(LONG), MEMF_CLEAR);
-    
-    /* Allocate storage for /N numeric values (one LONG per item) */
-    LONG *numeric_storage = (LONG *)AllocVec(num_items * sizeof(LONG), MEMF_CLEAR);
-    
-    if (!multi_values_flat || !multi_counts || !numeric_storage) {
-        if (multi_values_flat) FreeVec(multi_values_flat);
-        if (multi_counts) FreeVec(multi_counts);
+    #define RA_MAX_MULTI 128
+    LONG err = 0;
+    STRPTR strbuf = (STRPTR)AllocVec(2 * src_len + 2 * num_items + 16, MEMF_ANY | MEMF_CLEAR);
+    STRPTR *multi = (STRPTR *)AllocVec((RA_MAX_MULTI + 1) * sizeof(STRPTR), MEMF_ANY | MEMF_CLEAR);
+    LONG *numeric_storage = (LONG *)AllocVec((num_items + RA_MAX_MULTI) * sizeof(LONG), MEMF_CLEAR);
+    LONG nmulti = 0, multi_item = -1;
+    LONG sb = 0;
+    LONG pos = 0;
+    STRPTR line = arg_str;
+
+    if (!strbuf || !multi || !numeric_storage) {
+        if (strbuf) FreeVec(strbuf);
+        if (multi) FreeVec(multi);
         if (numeric_storage) FreeVec(numeric_storage);
         FreeVec(arg_str);
         FreeVec(src_node);
         SetIoErr(ERROR_NO_FREE_STORE);
         return NULL;
     }
-    
-    /* Helper macros to access 2D array stored as flat array */
-    #define MULTI_VALUES(item, idx) multi_values_flat[(item) * (MAX_MULTI_VALUES + 1) + (idx)]
 
-    /* Parse arguments - handle whitespace, quotes, and KEY=value syntax
-     * AmigaDOS modifies the argument string in-place, replacing delimiters with NULLs.
-     */
-    LONG current_item = -1;
-    BOOL in_token = FALSE;
-    BOOL in_quotes = FALSE;
-    STRPTR p = arg_str;  /* Non-const because we modify in place */
-    STRPTR token_start = NULL;
-
-    while (1) {
-        char c = *p;
-
-        /* Handle quoted strings */
-        if (c == '"') {
-            if (!in_quotes) {
-                /* Start of quoted string */
-                in_quotes = TRUE;
-                if (!in_token) {
-                    token_start = p + 1;  /* Skip the opening quote */
-                    in_token = TRUE;
-                }
-                p++;
-                continue;
-            } else {
-                /* End of quoted string - null-terminate here */
-                in_quotes = FALSE;
-                *p = '\0';  /* Replace closing quote with NULL */
-                /* Continue to process end of token (fall through to whitespace handling) */
-                c = ' ';  /* Treat as whitespace to end token */
-            }
+    for (LONG i = 0; i < num_items; i++)
+        if (items[i].flags & TEMPLATE_MULTIPLE) {
+            multi_item = i;
+            break;
         }
 
-        /* Inside quotes, everything except closing quote is part of token */
-        if (in_quotes) {
-            if (c == '\0') {
-                /* Unterminated quote - process as is */
-                break;
+    for (;;) {
+        LONG start, n0;
+        BOOL quoted = FALSE, equal = FALSE;
+        STRPTR tok;
+        LONG kw = -1;
+        LONG target;
+
+        while (line[pos] == ' ' || line[pos] == '\t')
+            pos++;
+        if (!line[pos] || line[pos] == '\n')
+            break;
+
+        /* read one item into strbuf */
+        start = pos;
+        tok = strbuf + sb;
+        n0 = sb;
+        if (line[pos] == '"') {
+            quoted = TRUE;
+            pos++;
+            for (;;) {
+                char c = line[pos];
+                if (!c || c == '\n') {
+                    err = ERROR_UNMATCHED_QUOTES;
+                    break;
+                }
+                pos++;
+                if (c == '"')
+                    break;
+                if (c == '*' && line[pos] && line[pos] != '\n') {
+                    c = line[pos++];
+                    if (c == 'N' || c == 'n')
+                        c = '\n';
+                    else if (c == 'E' || c == 'e')
+                        c = 0x1b;
+                }
+                strbuf[sb++] = c;
             }
-            in_token = TRUE;
-            if (!token_start) token_start = p;
-            p++;
-            continue;
-        }
-
-        if (c == ' ' || c == '\t' || c == '\n' || c == '\0') {
-            if (in_token) {
-                /* End of token - null-terminate in place */
-                if (c != '\0') {
-                    *p = '\0';  /* Modify the string in place */
-                }
-                in_token = FALSE;
-
-                /* Check for KEY=value syntax */
-                STRPTR eq_pos = NULL;
-                STRPTR tp;
-                for (tp = token_start; *tp; tp++) {
-                    if (*tp == '=') {
-                        eq_pos = tp;
-                        break;
-                    }
-                }
-
-                STRPTR key_name = token_start;
-                STRPTR key_value = NULL;
-                
-                if (eq_pos) {
-                    /* Split at = sign */
-                    *eq_pos = '\0';
-                    key_value = eq_pos + 1;
-                }
-
-                /* Process the token */
-                BOOL found_keyword = FALSE;
-
-                /* Check if this is a keyword (check both name and alias) */
-                for (LONG i = 0; i < num_items; i++) {
-                    if (items[i].flags & TEMPLATE_KEYWORD || items[i].flags & TEMPLATE_SWITCH) {
-                        /* Check primary name OR alias */
-                        if (_stricmp((const char *)key_name, items[i].name) == 0 ||
-                            (items[i].alias[0] && _stricmp((const char *)key_name, items[i].alias) == 0)) {
-                            if (items[i].flags & TEMPLATE_SWITCH) {
-                                /* Switch - just set to TRUE */
-                                array[items[i].index] = (LONG)TRUE;
-                            } else if (key_value) {
-                                /* KEY=value syntax - process value immediately */
-                                LONG idx = items[i].index;
-                                if (items[i].flags & TEMPLATE_NUMERIC) {
-                                    LONG val;
-                                    if (_str_to_long((CONST_STRPTR)key_value, &val) == 0) {
-                                        numeric_storage[idx] = val;
-                                        array[idx] = (LONG)&numeric_storage[idx];
-                                    }
-                                } else if (items[i].flags & TEMPLATE_MULTIPLE) {
-                                    if (multi_counts[idx] < MAX_MULTI_VALUES) {
-                                        MULTI_VALUES(idx, multi_counts[idx]++) = key_value;
-                                        MULTI_VALUES(idx, multi_counts[idx]) = NULL;
-                                    }
-                                } else {
-                                    array[idx] = (LONG)key_value;
-                                }
-                            } else {
-                                /* Keyword without = - next token is the value */
-                                current_item = i;
-                            }
-                            found_keyword = TRUE;
-                            break;
-                        }
-                    }
-                }
-
-                if (!found_keyword && current_item >= 0) {
-                    /* This is a value for the current keyword item */
-                    LONG idx = items[current_item].index;
-                    if (items[current_item].flags & TEMPLATE_NUMERIC) {
-                        LONG val;
-                        if (_str_to_long((CONST_STRPTR)token_start, &val) == 0) {
-                            numeric_storage[idx] = val;
-                            array[idx] = (LONG)&numeric_storage[idx];
-                        }
-                    } else if (items[current_item].flags & TEMPLATE_MULTIPLE) {
-                        /* /M argument - collect into multi_values array */
-                        if (multi_counts[idx] < MAX_MULTI_VALUES) {
-                            MULTI_VALUES(idx, multi_counts[idx]++) = token_start;
-                            MULTI_VALUES(idx, multi_counts[idx]) = NULL;
-                        }
-                    } else {
-                        /* Store pointer to the null-terminated token in arg_str */
-                        array[idx] = (LONG)token_start;
-                    }
-                    current_item = -1;
-                } else if (!found_keyword) {
-                    /* Not a keyword, try to match with non-keyword items */
-                    for (LONG i = 0; i < num_items; i++) {
-                        LONG idx = items[i].index;
-                        if (!(items[i].flags & TEMPLATE_KEYWORD) &&
-                            !(items[i].flags & TEMPLATE_SWITCH)) {
-                            /* For /M items, always add to array; for others, only if empty */
-                            if (items[i].flags & TEMPLATE_MULTIPLE) {
-                                if (multi_counts[idx] < MAX_MULTI_VALUES) {
-                                    MULTI_VALUES(idx, multi_counts[idx]++) = token_start;
-                                    MULTI_VALUES(idx, multi_counts[idx]) = NULL;
-                                }
-                                break;
-                            } else if (array[idx] == 0) {
-                                if (items[i].flags & TEMPLATE_NUMERIC) {
-                                    LONG val;
-                                    if (_str_to_long((CONST_STRPTR)token_start, &val) == 0) {
-                                        numeric_storage[idx] = val;
-                                        array[idx] = (LONG)&numeric_storage[idx];
-                                    }
-                                } else {
-                                    array[idx] = (LONG)token_start;
-                                }
-                                break;
-                            }
-                        }
-                    }
-                }
-
-                token_start = NULL;
-            }
-
-            if (c == '\0')
+            if (err)
                 break;
         } else {
-            if (!in_token) {
-                token_start = p;  /* Remember start of this token */
+            while (line[pos] && line[pos] != ' ' && line[pos] != '\t' &&
+                   line[pos] != '\n' && line[pos] != '=')
+                strbuf[sb++] = line[pos++];
+            if (line[pos] == '=') {
+                equal = TRUE;
+                pos++;
             }
-            in_token = TRUE;
         }
+        strbuf[sb++] = '\0';
 
-        p++;
-    }
-
-    /* Now allocate arrays for /M items and copy the collected pointers */
-    /* Store them in a temporary list that will be added to RDA_DAList after result is created */
-    DANode *multi_alloc_list = src_node;   /* the parse buffer */
-    
-    for (LONG i = 0; i < num_items; i++) {
-        if (items[i].flags & TEMPLATE_MULTIPLE) {
-            LONG idx = items[i].index;
-            LONG count = multi_counts[idx];
-            if (count > 0) {
-                /* Allocate array of (count+1) pointers (NULL-terminated) */
-                STRPTR *arr = (STRPTR *)AllocVec((count + 1) * sizeof(STRPTR), MEMF_ANY);
-                if (arr) {
-                    for (LONG j = 0; j < count; j++) {
-                        arr[j] = MULTI_VALUES(idx, j);
-                    }
-                    arr[count] = NULL;
-                    array[idx] = (LONG)arr;
-                    
-                    /* Track this allocation for FreeArgs */
-                    DANode *node = (DANode *)AllocVec(sizeof(DANode), MEMF_ANY);
-                    if (node) {
-                        node->memory = arr;
-                        node->next = multi_alloc_list;
-                        multi_alloc_list = node;
-                    }
+        if (!quoted) {
+            for (LONG i = 0; i < num_items; i++) {
+                if ((items[i].name[0] && _stricmp((const char *)tok, items[i].name) == 0) ||
+                    (items[i].alias[0] && _stricmp((const char *)tok, items[i].alias) == 0)) {
+                    kw = i;
+                    break;
                 }
             }
         }
-    }
 
-    /* Check required items - for /M items, check if count > 0 */
-    for (LONG i = 0; i < num_items; i++) {
-        if (items[i].flags & TEMPLATE_REQUIRED) {
-            LONG idx = items[i].index;
-            if (items[i].flags & TEMPLATE_MULTIPLE) {
-                if (multi_counts[idx] == 0) {
-                    /* Clean up and return error */
-                    while (multi_alloc_list) {
-                        DANode *next = multi_alloc_list->next;
-                        if (multi_alloc_list->memory) FreeVec(multi_alloc_list->memory);
-                        FreeVec(multi_alloc_list);
-                        multi_alloc_list = next;
+        if (kw >= 0) {
+            ULONG f = items[kw].flags;
+            sb = n0;        /* the keyword itself is not kept */
+            if (f & (TEMPLATE_SWITCH | TEMPLATE_TOGGLE)) {
+                if (equal) {
+                    err = ERROR_TOO_MANY_ARGS;
+                    break;
+                }
+                if (f & TEMPLATE_TOGGLE)
+                    array[kw] = array[kw] ? 0 : (LONG)TRUE;
+                else
+                    array[kw] = (LONG)TRUE;
+                continue;
+            }
+            if (f & TEMPLATE_REST) {
+                LONG e;
+                while (line[pos] == ' ' || line[pos] == '\t')
+                    pos++;
+                tok = strbuf + sb;
+                for (e = pos; line[e] && line[e] != '\n'; e++)
+                    strbuf[sb++] = line[e];
+                while (sb > (tok - strbuf) && (strbuf[sb - 1] == ' ' || strbuf[sb - 1] == '\t'))
+                    sb--;
+                strbuf[sb++] = '\0';
+                array[kw] = (LONG)tok;
+                pos = e;
+                continue;
+            }
+            /* the value */
+            while (line[pos] == ' ' || line[pos] == '\t')
+                pos++;
+            if (!line[pos] || line[pos] == '\n') {
+                err = ERROR_KEY_NEEDS_ARG;
+                break;
+            }
+            tok = strbuf + sb;
+            if (line[pos] == '"') {
+                pos++;
+                for (;;) {
+                    char c = line[pos];
+                    if (!c || c == '\n') {
+                        err = ERROR_UNMATCHED_QUOTES;
+                        break;
                     }
-                    FreeVec(multi_values_flat);
-                    FreeVec(multi_counts);
-                    FreeVec(numeric_storage);
-                    SetIoErr(ERROR_REQUIRED_ARG_MISSING);
-                    return NULL;
+                    pos++;
+                    if (c == '"')
+                        break;
+                    if (c == '*' && line[pos] && line[pos] != '\n') {
+                        c = line[pos++];
+                        if (c == 'N' || c == 'n')
+                            c = '\n';
+                        else if (c == 'E' || c == 'e')
+                            c = 0x1b;
+                    }
+                    strbuf[sb++] = c;
                 }
-            } else if (array[idx] == 0) {
-                /* Clean up and return error */
-                while (multi_alloc_list) {
-                    DANode *next = multi_alloc_list->next;
-                    if (multi_alloc_list->memory) FreeVec(multi_alloc_list->memory);
-                    FreeVec(multi_alloc_list);
-                    multi_alloc_list = next;
+                if (err)
+                    break;
+            } else {
+                while (line[pos] && line[pos] != ' ' && line[pos] != '\t' && line[pos] != '\n')
+                    strbuf[sb++] = line[pos++];
+            }
+            strbuf[sb++] = '\0';
+            target = kw;
+        } else {
+            /* positional: the first free non-keyword item */
+            target = -1;
+            for (LONG i = 0; i < num_items; i++) {
+                ULONG f = items[i].flags;
+                if (f & (TEMPLATE_KEYWORD | TEMPLATE_SWITCH | TEMPLATE_TOGGLE))
+                    continue;
+                if ((f & TEMPLATE_MULTIPLE) || !array[i]) {
+                    target = i;
+                    break;
                 }
-                FreeVec(multi_values_flat);
-                FreeVec(multi_counts);
-                FreeVec(numeric_storage);
-                SetIoErr(ERROR_REQUIRED_ARG_MISSING);
-                return NULL;
+            }
+            if (target < 0) {
+                err = ERROR_TOO_MANY_ARGS;
+                break;
+            }
+            if (items[target].flags & TEMPLATE_REST) {
+                LONG e;
+                sb = n0;
+                tok = strbuf + sb;
+                for (e = start; line[e] && line[e] != '\n'; e++)
+                    strbuf[sb++] = line[e];
+                while (sb > (tok - strbuf) && (strbuf[sb - 1] == ' ' || strbuf[sb - 1] == '\t'))
+                    sb--;
+                strbuf[sb++] = '\0';
+                array[target] = (LONG)tok;
+                pos = e;
+                continue;
+            }
+        }
+
+        /* store tok in item 'target' */
+        {
+            ULONG f = items[target].flags;
+            if (f & TEMPLATE_MULTIPLE) {
+                if (target != multi_item || nmulti >= RA_MAX_MULTI) {
+                    err = ERROR_LINE_TOO_LONG;
+                    break;
+                }
+                multi[nmulti++] = tok;
+                array[target] = (LONG)TRUE;     /* marks "has values" for now */
+            } else if (f & TEMPLATE_NUMERIC) {
+                LONG v;
+                if (_str_to_long((CONST_STRPTR)tok, &v) != 0) {
+                    err = ERROR_BAD_NUMBER;
+                    break;
+                }
+                numeric_storage[target] = v;
+                array[target] = (LONG)&numeric_storage[target];
+            } else {
+                array[target] = (LONG)tok;
             }
         }
     }
 
-    /* Free temporary arrays (but NOT numeric_storage - that's needed for /N results) */
-    FreeVec(multi_values_flat);
-    FreeVec(multi_counts);
-    
-    #undef MULTI_VALUES
-    #undef MAX_MULTI_VALUES
+    /* /M values go to the required items that follow the /M item */
+    if (!err && multi_item >= 0) {
+        for (LONG i = num_items - 1; i > multi_item; i--) {
+            ULONG f = items[i].flags;
+            if ((f & TEMPLATE_REQUIRED) && !array[i] &&
+                !(f & (TEMPLATE_KEYWORD | TEMPLATE_SWITCH | TEMPLATE_TOGGLE | TEMPLATE_MULTIPLE)) &&
+                nmulti > 0) {
+                STRPTR v = multi[--nmulti];
+                if (f & TEMPLATE_NUMERIC) {
+                    LONG n;
+                    if (_str_to_long((CONST_STRPTR)v, &n) != 0) {
+                        err = ERROR_BAD_NUMBER;
+                        break;
+                    }
+                    numeric_storage[i] = n;
+                    array[i] = (LONG)&numeric_storage[i];
+                } else {
+                    array[i] = (LONG)v;
+                }
+            }
+        }
+        if (!err) {
+            if (nmulti) {
+                if (items[multi_item].flags & TEMPLATE_NUMERIC) {
+                    LONG **arr = (LONG **)multi;
+                    for (LONG k = 0; k < nmulti && !err; k++) {
+                        LONG v = 0;
+                        if (_str_to_long((CONST_STRPTR)multi[k], &v) != 0)
+                            err = ERROR_BAD_NUMBER;
+                        numeric_storage[num_items + k] = v;
+                        arr[k] = &numeric_storage[num_items + k];
+                    }
+                }
+                multi[nmulti] = NULL;
+                array[multi_item] = (LONG)multi;
+            } else {
+                array[multi_item] = 0;
+            }
+        }
+    }
 
-    /* Allocate or return RDArgs structure */
+    if (!err) {
+        for (LONG i = 0; i < num_items; i++)
+            if ((items[i].flags & TEMPLATE_REQUIRED) && !array[i]) {
+                err = ERROR_REQUIRED_ARG_MISSING;
+                break;
+            }
+    }
+
+    if (err) {
+        FreeVec(strbuf);
+        FreeVec(multi);
+        FreeVec(numeric_storage);
+        FreeVec(arg_str);
+        FreeVec(src_node);
+        for (LONG i = 0; i < num_items; i++)
+            array[i] = 0;
+        SetIoErr(err);
+        return NULL;
+    }
+    #undef RA_MAX_MULTI
+
+    /* the RDArgs owns the buffers (freed by FreeArgs()) */
     struct RDArgs *result = args;
     if (!result) {
         result = (struct RDArgs *)AllocVec(sizeof(struct RDArgs), MEMF_ANY | MEMF_CLEAR);
-        if (result) {
+        if (result)
             result->RDA_Flags |= RDAF_ALLOCATED_BY_READARGS;
-        }
     }
-    
-    /* Store allocations in RDA_DAList so FreeArgs can free them */
-    if (result) {
-        /* Create a node for the numeric storage */
-        DANode *node = (DANode *)AllocVec(sizeof(DANode), MEMF_ANY);
-        if (node) {
-            node->memory = numeric_storage;
-            node->next = (DANode *)result->RDA_DAList;
-            result->RDA_DAList = (LONG)node;
+    {
+        APTR mem[4];
+        mem[0] = strbuf;
+        mem[1] = multi;
+        mem[2] = numeric_storage;
+        mem[3] = arg_str;
+        FreeVec(src_node);
+        if (!result) {
+            for (LONG k = 0; k < 4; k++)
+                FreeVec(mem[k]);
+            SetIoErr(ERROR_NO_FREE_STORE);
+            return NULL;
         }
-        /* Also add any /M array allocations */
-        while (multi_alloc_list) {
-            DANode *next = multi_alloc_list->next;
-            multi_alloc_list->next = (DANode *)result->RDA_DAList;
-            result->RDA_DAList = (LONG)multi_alloc_list;
-            multi_alloc_list = next;
-        }
-    } else {
-        /* Allocation failed - clean up multi_alloc_list */
-        while (multi_alloc_list) {
-            DANode *next = multi_alloc_list->next;
-            if (multi_alloc_list->memory) {
-                FreeVec(multi_alloc_list->memory);
+        for (LONG k = 0; k < 4; k++) {
+            DANode *node = (DANode *)AllocVec(sizeof(DANode), MEMF_ANY);
+            if (node) {
+                node->memory = mem[k];
+                node->next = (DANode *)result->RDA_DAList;
+                result->RDA_DAList = (LONG)node;
             }
-            FreeVec(multi_alloc_list);
-            multi_alloc_list = next;
         }
-        FreeVec(numeric_storage);
     }
 
     return result;
