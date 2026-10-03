@@ -5665,6 +5665,18 @@ struct Process * _dos_CreateNewProc ( register struct DosLibrary * DOSBase __asm
      */
     {
         struct Task *me = FindTask(NULL);
+
+        /* Never switch while the caller holds Forbid()/Disable(): the
+         * caller relies on finishing the child's setup first (the
+         * AmigaOberon runtime creates its processes at priority 127 inside
+         * Forbid() and only then fills in the child's tc_TrapData).  A
+         * higher-priority child runs at the caller's Permit(). */
+        if (me && (SysBase->TDNestCnt >= 0 || SysBase->IDNestCnt >= 0))
+        {
+            if (process->pr_Task.tc_Node.ln_Pri > me->tc_Node.ln_Pri)
+                SysBase->SysFlags |= (1 << 15);     /* LXA_SFF_SAR: reschedule at Permit() */
+            me = NULL;
+        }
         if (me)
         {
             Disable();

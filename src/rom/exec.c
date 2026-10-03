@@ -2348,7 +2348,7 @@ struct Task * _exec_FindTask ( register struct ExecBase *SysBase __asm("a6"),
     return ret;
 }
 
-BYTE _exec_SetTaskPri ( register struct ExecBase * SysBase __asm("a6"),
+ULONG _exec_SetTaskPri ( register struct ExecBase * SysBase __asm("a6"),
                                                         register struct Task * ___task  __asm("a1"),
                                                         register LONG ___priority  __asm("d0"))
 {
@@ -2396,7 +2396,9 @@ BYTE _exec_SetTaskPri ( register struct ExecBase * SysBase __asm("a6"),
     exec_preempt(SysBase);
 
     DPRINTF (LOG_DEBUG, "_exec: SetTaskPri() returning old priority %d\n", oldPri);
-    return oldPri;
+    /* AmigaOS 3.1 reference (probe exec/byteret): the old priority comes
+     * back zero-extended (-5 -> 0x000000fb) */
+    return (ULONG)(UBYTE)oldPri;
 }
 
 ULONG _exec_SetSignal ( register struct ExecBase *SysBase     __asm("a6"),
@@ -2785,7 +2787,7 @@ void _exec_Signal ( register struct ExecBase * SysBase __asm("a6"),
     DPRINTF (LOG_DEBUG, "_exec: Signal() done\n");
 }
 
-BYTE _exec_AllocSignal ( register struct ExecBase * SysBase    __asm("a6"),
+LONG _exec_AllocSignal ( register struct ExecBase * SysBase    __asm("a6"),
                                          register BYTE              signalNum  __asm("d0"))
 {
     DPRINTF (LOG_DEBUG, "_exec: AllocSignal called, signalNum=%d\n", signalNum);
@@ -3352,7 +3354,7 @@ void _exec_RemDevice ( register struct ExecBase * SysBase __asm("a6"),
     DPRINTF (LOG_DEBUG, "_exec: RemDevice complete\n");
 }
 
-BYTE _exec_OpenDevice ( register struct ExecBase  *SysBase    __asm("a6"),
+LONG _exec_OpenDevice ( register struct ExecBase  *SysBase    __asm("a6"),
                                         register CONST_STRPTR      devName    __asm("a0"),
                                         register ULONG             unit       __asm("d0"),
                                         register struct IORequest *ioRequest  __asm("a1"),
@@ -3385,7 +3387,9 @@ BYTE _exec_OpenDevice ( register struct ExecBase  *SysBase    __asm("a6"),
 
     Permit();
 
-    return ioRequest->io_Error;
+    /* sign-extended to 32 bits as on AmigaOS 3.1 (probe exec/byteret):
+     * callers test the whole of D0 */
+    return (LONG)ioRequest->io_Error;
 }
 
 void _exec_CloseDevice ( register struct ExecBase  *SysBase   __asm("a6"),
@@ -3416,7 +3420,7 @@ void _exec_CloseDevice ( register struct ExecBase  *SysBase   __asm("a6"),
     Permit();
 }
 
-BYTE _exec_DoIO ( register struct ExecBase  *SysBase    __asm("a6"),
+LONG _exec_DoIO ( register struct ExecBase  *SysBase    __asm("a6"),
                                   register struct IORequest *ioRequest  __asm("a1"))
 {
     DPRINTF (LOG_DEBUG, "_exec: DoIO() called, ioRequest=0x%08lx, command: %d\n", ioRequest, ioRequest->io_Command);
@@ -3441,7 +3445,7 @@ BYTE _exec_DoIO ( register struct ExecBase  *SysBase    __asm("a6"),
     if (! (ioRequest->io_Flags & IOF_QUICK))
         WaitIO(ioRequest);
 
-    return ioRequest->io_Error;
+    return (LONG)ioRequest->io_Error;
 }
 
 /*
@@ -3517,7 +3521,7 @@ struct IORequest * _exec_CheckIO ( register struct ExecBase * SysBase __asm("a6"
  * Waits for the I/O to complete and removes it from the reply port.
  * Returns the io_Error field.
  */
-BYTE _exec_WaitIO ( register struct ExecBase * SysBase __asm("a6"),
+LONG _exec_WaitIO ( register struct ExecBase * SysBase __asm("a6"),
                                                         register struct IORequest * ___ioRequest  __asm("a1"))
 {
     DPRINTF (LOG_DEBUG, "_exec: WaitIO called, ioRequest=0x%08lx\n", ___ioRequest);
@@ -3551,7 +3555,7 @@ BYTE _exec_WaitIO ( register struct ExecBase * SysBase __asm("a6"),
     }
 
     DPRINTF (LOG_DEBUG, "_exec: WaitIO returning error=%d\n", ___ioRequest->io_Error);
-    return ___ioRequest->io_Error;
+    return (LONG)___ioRequest->io_Error;
 }
 
 /*

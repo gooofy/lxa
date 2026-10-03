@@ -12776,9 +12776,14 @@ VOID _intuition_ActivateWindow ( register struct IntuitionBase * IntuitionBase _
 
     struct Window *prevActive = IntuitionBase->ActiveWindow;
 
-    /* Nothing to do if already active */
+    /* AmigaOS 3.1 reference (probe intuition/activate): activating the
+     * already active window still sends it IDCMP_ACTIVEWINDOW (AmigaOberon's
+     * OEd sets its IDCMP after OpenWindow and waits for that message) */
     if (prevActive == window)
+    {
+        _post_idcmp_message(window, IDCMP_ACTIVEWINDOW, 0, 0, window, 0, 0);
         return;
+    }
 
     /* Deactivate the previously active window */
     if (prevActive)
