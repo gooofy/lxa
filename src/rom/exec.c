@@ -5616,7 +5616,15 @@ void _bootstrap(void)
          * from it (without it, Fred Fish YachtC & co. hit a false "stack
          * overflow" at once: Phase 232). */
         struct Task *me = SysBase->ThisTask;
+        /* the program runs on lxa's large bootstrap stack but is told the
+         * AmigaOS 3.1 shell default (cli_DefaultStack, 4096 bytes), as a
+         * command started from a 3.1 shell would be */
         ULONG stacksize = (ULONG)me->tc_SPUpper - (ULONG)me->tc_SPLower;
+        if (((struct Process *)me)->pr_CLI) {
+            struct CommandLineInterface *mycli = (struct CommandLineInterface *)BADDR(((struct Process *)me)->pr_CLI);
+            if (mycli->cli_DefaultStack && mycli->cli_DefaultStack * 4 < stacksize)
+                stacksize = mycli->cli_DefaultStack * 4;
+        }
         register ULONG d0 __asm("d0") = args_len;
         register ULONG d1 __asm("d1") = stacksize;
         register STRPTR a0 __asm("a0") = (STRPTR)args_buf;
@@ -6193,7 +6201,7 @@ void coldstart (void)
      * most 78/102/58 characters).  A longer host program path is kept.
      * (Allocated here: utility.library tags are not available this early.) */
     struct CommandLineInterface *cli = (struct CommandLineInterface *) AllocDosObject (DOS_CLI, (struct TagItem *)NULL);
-    cli->cli_DefaultStack = (rootProc->pr_StackSize + 3) / 4;
+    cli->cli_DefaultStack = 4096 / 4;   /* the AmigaOS 3.1 shell default */
 
     {
         LONG name_cap = binlen > 102 ? binlen : 102;
