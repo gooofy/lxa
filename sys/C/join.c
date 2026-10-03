@@ -1,13 +1,10 @@
 /*
- * JOIN command - Concatenate files
- * Phase 9.1 implementation for lxa
- * 
- * Template: FROM/A/M,AS=TO/A
- * 
- * Features:
- *   - Concatenate multiple files into one output file
- *   - Binary-safe (copies all bytes)
- *   - Ctrl+C break handling
+ * JOIN - concatenate files
+ *
+ * Template: FROM/A/M,AS=TO/K/A
+ *
+ * Silent on success; "Can't open <file>" (RC 20, the partial destination
+ * stays) - AmigaOS 3.1 behaviour, verified on the reference (Phase 221).
  */
 
 #include <exec/types.h>
@@ -21,240 +18,73 @@
 
 #include <string.h>
 
-#define VERSION "1.0"
-
-/* External reference to library bases */
 extern struct DosLibrary *DOSBase;
 extern struct ExecBase *SysBase;
 
-/* Command template */
-#define TEMPLATE "FROM/A/M,AS=TO/A"
+#define TEMPLATE "FROM/A/M,AS=TO/K/A"
 
-/* Argument array indices */
-#define ARG_FROM    0
-#define ARG_TO      1
-#define ARG_COUNT   2
-
-/* Buffer size for copying */
-#define COPY_BUFFER_SIZE 4096
-
-/* Global state for break checking */
-static BOOL g_user_break = FALSE;
-
-/* Helper: check for Ctrl+C break */
-static BOOL check_break(void)
+int main(void)
 {
-    if (SetSignal(0L, SIGBREAKF_CTRL_C) & SIGBREAKF_CTRL_C) {
-        g_user_break = TRUE;
-        return TRUE;
-    }
-    return g_user_break;
-}
-
-/* Helper: output a string */
-static void out_str(const char *str)
-{
-    Write(Output(), (STRPTR)str, strlen(str));
-}
-
-/* Helper: output newline */
-static void out_nl(void)
-{
-    Write(Output(), (STRPTR)"\n", 1);
-}
-
-/* Helper: output a number */
-static void out_num(LONG num)
-{
-    char buf[16];
-    char *p = buf + sizeof(buf) - 1;
-    *p = '\0';
-    unsigned long n = (num < 0) ? -num : num;
-    
-    do {
-        *--p = '0' + (n % 10);
-        n /= 10;
-    } while (n);
-    
-    if (num < 0) *--p = '-';
-    out_str(p);
-}
-
-/* Copy contents of source file to destination handle */
-static BOOL copy_file_contents(CONST_STRPTR src, BPTR dest_fh, UBYTE *buffer, LONG *total_bytes)
-{
-    BPTR src_fh;
-    LONG bytes_read;
-    
-    src_fh = Open((STRPTR)src, MODE_OLDFILE);
-    if (!src_fh) {
-        out_str("JOIN: Can't open '");
-        out_str((char *)src);
-        out_str("' - ");
-        out_num(IoErr());
-        out_nl();
-        return FALSE;
-    }
-    
-    while ((bytes_read = Read(src_fh, buffer, COPY_BUFFER_SIZE)) > 0) {
-        if (check_break()) {
-            out_str("***BREAK\n");
-            Close(src_fh);
-            return FALSE;
-        }
-        
-        LONG bytes_written = Write(dest_fh, buffer, bytes_read);
-        if (bytes_written != bytes_read) {
-            out_str("JOIN: Write error for '");
-            out_str((char *)src);
-            out_str("'\n");
-            Close(src_fh);
-            return FALSE;
-        }
-        
-        *total_bytes += bytes_read;
-    }
-    
-    if (bytes_read < 0) {
-        out_str("JOIN: Read error from '");
-        out_str((char *)src);
-        out_str("'\n");
-        Close(src_fh);
-        return FALSE;
-    }
-    
-    Close(src_fh);
-    return TRUE;
-}
-
-int main(int argc, char **argv)
-{
-    LONG args[ARG_COUNT] = {0};
+    LONG args[2] = { 0, 0 };
     struct RDArgs *rda;
-    BPTR dest_fh = 0;
-    UBYTE *buffer = NULL;
-    int result = 0;
-    int files_joined = 0;
-    LONG total_bytes = 0;
-    
-    (void)argc;
-    (void)argv;
-    
-    /* Clear break flag */
-    g_user_break = FALSE;
-    SetSignal(0L, SIGBREAKF_CTRL_C);
-    
-    /* Parse arguments using AmigaDOS template */
+    STRPTR *from;
+    BPTR out;
+    UBYTE *buf;
+    LONG rc = 0;
+
     rda = ReadArgs((STRPTR)TEMPLATE, args, NULL);
     if (!rda) {
-        LONG err = IoErr();
-        if (err == ERROR_REQUIRED_ARG_MISSING) {
-            out_str("JOIN: FROM and AS (TO) arguments are required\n");
-        } else {
-            out_str("JOIN: Error parsing arguments - ");
-            out_num(err);
-            out_nl();
-        }
-        out_str("Usage: JOIN FROM/A/M AS=TO/A\n");
-        out_str("Template: ");
-        out_str(TEMPLATE);
-        out_nl();
-        return 1;
+        PrintFault(IoErr(), NULL);
+        return RETURN_FAIL;
     }
-    
-    /* Extract arguments */
-    STRPTR *from_array = (STRPTR *)args[ARG_FROM];
-    CONST_STRPTR to_path = (CONST_STRPTR)args[ARG_TO];
-    
-    /* Count source files */
-    int source_count = 0;
-    if (from_array) {
-        while (from_array[source_count]) source_count++;
-    }
-    
-    if (source_count == 0) {
-        out_str("JOIN: No source files specified\n");
+    buf = AllocVec(8192, MEMF_PUBLIC);
+    out = Open((STRPTR)args[1], MODE_NEWFILE);
+    if (!buf || !out) {
+        LONG err = buf ? IoErr() : ERROR_NO_FREE_STORE;
+        Printf((STRPTR)"Can't open %s\n", args[1]);
+        if (out)
+            Close(out);
+        if (buf)
+            FreeVec(buf);
         FreeArgs(rda);
-        return 1;
+        SetIoErr(err);
+        return RETURN_FAIL;
     }
-    
-    /* Allocate copy buffer */
-    buffer = AllocMem(COPY_BUFFER_SIZE, MEMF_ANY);
-    if (!buffer) {
-        out_str("JOIN: Out of memory\n");
-        FreeArgs(rda);
-        return 1;
-    }
-    
-    /* Create destination file */
-    dest_fh = Open((STRPTR)to_path, MODE_NEWFILE);
-    if (!dest_fh) {
-        out_str("JOIN: Can't create '");
-        out_str((char *)to_path);
-        out_str("' - ");
-        out_num(IoErr());
-        out_nl();
-        FreeMem(buffer, COPY_BUFFER_SIZE);
-        FreeArgs(rda);
-        return 1;
-    }
-    
-    /* Process each source file */
-    out_str("Joining ");
-    out_num(source_count);
-    out_str(" file(s) to '");
-    out_str((char *)to_path);
-    out_str("'\n");
-    
-    for (int i = 0; from_array[i] != NULL; i++) {
-        if (check_break()) {
-            out_str("***BREAK\n");
-            result = 1;
+    for (from = (STRPTR *)args[0]; *from; from++) {
+        BPTR in = Open(*from, MODE_OLDFILE);
+        LONG n;
+        if (!in) {
+            LONG err = IoErr();
+            Printf((STRPTR)"Can't open %s\n", (LONG)*from);
+            SetIoErr(err);
+            rc = RETURN_FAIL;
             break;
         }
-        
-        out_str("  ");
-        out_str((char *)from_array[i]);
-        
-        LONG file_bytes = 0;
-        LONG bytes_before = total_bytes;
-        
-        if (copy_file_contents(from_array[i], dest_fh, buffer, &total_bytes)) {
-            file_bytes = total_bytes - bytes_before;
-            out_str(" (");
-            out_num(file_bytes);
-            out_str(" bytes)\n");
-            files_joined++;
-        } else {
-            out_nl();
-            result = 1;
-            /* Continue with remaining files */
+        while ((n = Read(in, buf, 8192)) > 0) {
+            if (SetSignal(0, SIGBREAKF_CTRL_C) & SIGBREAKF_CTRL_C) {
+                PutStr((STRPTR)"***Break\n");
+                rc = RETURN_WARN;
+                break;
+            }
+            if (Write(out, buf, n) != n) {
+                LONG err = IoErr();
+                PrintFault(err, (STRPTR)args[1]);
+                SetIoErr(err);
+                rc = RETURN_FAIL;
+                break;
+            }
         }
+        Close(in);
+        if (rc)
+            break;
     }
-    
-    /* Close destination file */
-    Close(dest_fh);
-    
-    /* Clean up buffer */
-    FreeMem(buffer, COPY_BUFFER_SIZE);
-    
-    /* Print summary */
-    if (result == 0 || files_joined > 0) {
-        out_str("Joined ");
-        out_num(files_joined);
-        out_str(" file(s), ");
-        out_num(total_bytes);
-        out_str(" bytes total\n");
+    /* AmigaOS 3.1 keeps the (partial) destination on errors */
+    {
+        LONG err = IoErr();
+        Close(out);
+        SetIoErr(err);
     }
-    
-    /* If we had errors, delete the partial output file */
-    if (result != 0 && files_joined == 0) {
-        DeleteFile((STRPTR)to_path);
-    }
-    
-    /* Ensure output is flushed */
-    Flush(Output());
-    
+    FreeVec(buf);
     FreeArgs(rda);
-    return result;
+    return rc;
 }

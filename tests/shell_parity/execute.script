@@ -1,0 +1,22 @@
+; Execute: command files, .key/.def/.bra/.ket, nesting (Phase 221)
+FailAt 21
+Execute SYS:Tests/ShellParity/fixtures/sub.script alpha
+Echo "subvar=$subvar"
+Execute SYS:Tests/ShellParity/fixtures/sub.script beta 7 FLAG
+Execute SYS:Tests/ShellParity/fixtures/sub.script name=gamma
+Execute SYS:Tests/ShellParity/fixtures/sub.script
+Echo "rc=$RC"
+Execute SYS:Tests/ShellParity/fixtures/sub.script a b c d
+Echo "rc=$RC"
+Execute SYS:Tests/ShellParity/fixtures/brackets.script one two three
+Execute SYS:Tests/ShellParity/fixtures/plain.script
+Echo "after plain rc=$RC"
+Execute nosuchscript
+Echo "rc=$RC"
+Execute
+Echo "rc=$RC"
+Execute SYS:Tests/ShellParity/fixtures/fails.script
+Echo "after fails rc=$RC"
+FailAt 10
+Execute SYS:Tests/ShellParity/fixtures/fails.script
+Echo "not reached"

@@ -868,6 +868,22 @@ static int update_directory_files(const char *src_dir, const char *dst_dir)
         
         struct stat st;
         if (stat(src_file, &st) == 0 && S_ISREG(st.st_mode)) {
+            /* a file renamed only in case (C:list -> C:List) replaces the
+             * old copy: lxa resolves names case-insensitively */
+            DIR *ddir = opendir(dst_dir);
+            if (ddir) {
+                struct dirent *de;
+                while ((de = readdir(ddir)) != NULL) {
+                    if (strcasecmp(de->d_name, entry->d_name) == 0 &&
+                        strcmp(de->d_name, entry->d_name) != 0) {
+                        char old_file[PATH_MAX];
+                        n = snprintf(old_file, sizeof(old_file), "%s/%s", dst_dir, de->d_name);
+                        if (n > 0 && (size_t)n < sizeof(old_file))
+                            unlink(old_file);
+                    }
+                }
+                closedir(ddir);
+            }
             if (needs_update(src_file, dst_file)) {
                 if (update_file_if_changed(src_file, dst_file)) {
                     chmod(dst_file, 0755);
@@ -1374,48 +1390,54 @@ bool vfs_path_to_amiga(const char *linux_path, char *amiga_path, size_t maxlen)
 
     path_to_match = normalized_input;
 
-    for (assign_entry_t *a = g_assigns; a; a = a->next) {
-        for (assign_path_t *p = a->paths; p; p = p->next) {
-            size_t plen;
-
-            if (!p->linux_path) {
+    /*
+     * AmigaOS names an object by its volume - NameFromLock() never returns
+     * an assign name.  lxa's volumes are the drives and SYS: (the boot
+     * volume, possibly an assign to several host directories); other
+     * assigns name only paths outside every volume (e.g. C: on a build
+     * directory).
+     */
+    for (int pass = 0; pass < 2 && !best_name; pass++) {
+        for (assign_entry_t *a = g_assigns; a; a = a->next) {
+            if ((pass == 0) != (strcasecmp(a->name, "SYS") == 0)) {
                 continue;
             }
+            for (assign_path_t *p = a->paths; p; p = p->next) {
+                size_t plen;
 
-            plen = strlen(p->linux_path);
-            if (strncmp(path_to_match, p->linux_path, plen) != 0) {
-                continue;
-            }
-
-            if (path_to_match[plen] != '\0' && path_to_match[plen] != '/') {
-                continue;
-            }
-
-            if (plen > best_len) {
-                best_len = plen;
-                best_name = a->name;
-                best_remainder = path_to_match + plen;
+                if (!p->linux_path) {
+                    continue;
+                }
+                plen = strlen(p->linux_path);
+                if (strncmp(path_to_match, p->linux_path, plen) != 0) {
+                    continue;
+                }
+                if (path_to_match[plen] != '\0' && path_to_match[plen] != '/') {
+                    continue;
+                }
+                if (plen > best_len) {
+                    best_len = plen;
+                    best_name = a->name;
+                    best_remainder = path_to_match + plen;
+                }
             }
         }
-    }
-
-    if (!best_name) {
+        if (pass != 0) {
+            continue;
+        }
         for (drive_map_t *drive = g_drive_maps; drive; drive = drive->next) {
             size_t plen;
 
             if (!drive->linux_path || !drive->amiga_name) {
                 continue;
             }
-
             plen = strlen(drive->linux_path);
             if (strncmp(path_to_match, drive->linux_path, plen) != 0) {
                 continue;
             }
-
             if (path_to_match[plen] != '\0' && path_to_match[plen] != '/') {
                 continue;
             }
-
             if (plen > best_len) {
                 best_len = plen;
                 best_name = drive->amiga_name;

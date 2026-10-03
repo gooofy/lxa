@@ -1,0 +1,100 @@
+-- CreateDir/Lock
+CreateDir(T:lxaprobe_locks) = ok
+CreateDir again = FAIL IoErr 203
+Lock(missing) = FAIL IoErr 205
+Lock(missing dir/missing) = FAIL IoErr 205
+Lock(unknown volume) = FAIL IoErr 218
+Lock(file/x) = FAIL IoErr 212
+CreateDir(existing file) = FAIL IoErr 203
+CreateDir(missing parent) = FAIL IoErr 205
+-- Examine
+Examine(dir) = ok
+fib_FileName = "lxaprobe_locks"
+fib_DirEntryType = 2
+fib_EntryType = 2
+fib_Protection = 0x00000000
+fib_Comment = ""
+ExNext end IoErr = 232
+entry file1 type -3 size 12
+entry file2 type -3 size 0
+Examine(file) = ok
+fib_FileName = "file1"
+fib_DirEntryType = -3
+fib_Size = 12
+fib_Protection = 0x00000000
+-- SameLock/DupLock/ParentDir/NameFromLock
+SameLock(file, DupLock) = 0
+SameLock(file, dir) = 1
+SameLock(ParentDir(file), dir) = 0
+DupLock(0) == 0 = TRUE
+NameFromLock(file) = ok
+NameFromLock(file) tail = "lxaprobe_locks/file1"
+NameFromLock(dir) tail = "lxaprobe_locks"
+NameFromLock(file, 6 bytes) = FAIL IoErr 120
+NameFromLock(SYS:) ends with ':' = TRUE
+ParentDir(volume root) == 0 = TRUE
+ParentDir(root) IoErr = 0
+-- CurrentDir-relative
+Lock("file1") relative = ok
+Lock("/lxaprobe_locks/file2") = ok
+SameLock(Lock(""), current dir) = 0
+-- Open modes and conflicts
+Open(missing, OLDFILE) = FAIL IoErr 205
+Open(dir, OLDFILE) = FAIL IoErr 212
+Open(missing dir/x, NEWFILE) = FAIL IoErr 205
+Lock(file1, EXCLUSIVE) = ok
+Lock(file1, SHARED) while exclusive = FAIL IoErr 202
+Open(file1, OLDFILE) while exclusive = FAIL IoErr 202
+two OLDFILE opens = ok
+NEWFILE while open OLDFILE = FAIL IoErr 202
+EXCLUSIVE lock while open = FAIL IoErr 202
+DeleteFile while open = FAIL IoErr 202
+Open(file1, READWRITE) = ok
+Open(new file, READWRITE) creates = ok
+-- Read/Write/Seek/SetFileSize
+Write 256 = 256
+Write 0 = 0
+Seek(0, CURRENT) old pos = 256
+Seek(10, BEGINNING) old pos = 256
+Seek(-6, END) old pos = 10
+Read 100 at 250 = 6
+data = fa fb fc fd fe ff
+Read at EOF = 0
+Seek(1000, BEGINNING) past EOF = -1
+  IoErr = 0
+Seek(-1, BEGINNING) = -1
+  IoErr = 0
+Seek(0, CURRENT) after failures = 256
+Seek(0, 5) bad mode = -1
+  IoErr = 0
+SetFileSize(100, BEGINNING) = 100
+Seek(0, END) old pos = 100
+Seek(0, CURRENT) = 100
+SetFileSize(-10, END) = 90
+SetFileSize(400, BEGINNING) grows = 400
+fib_Size after = 400
+Read empty file = 0
+Write to OLDFILE handle = 3
+Seek(0, BEGINNING) after write = 3
+Read back = 3
+-- Rename/Delete/Protection/Comment
+Rename(file2 -> renamed) = ok
+Rename onto existing = FAIL IoErr 203
+Rename(missing) = FAIL IoErr 205
+Rename into subdir = ok
+Rename dir into itself = FAIL IoErr 202
+Rename case only = ok
+DeleteFile(non-empty dir) = FAIL IoErr 216
+DeleteFile(missing) = FAIL IoErr 205
+SetProtection(no delete, no write) = ok
+fib_Protection = 0x00000005
+fib_FileName (after case rename) = "FILE1"
+DeleteFile(protected) = FAIL IoErr 222
+Open NEWFILE (write-protected) = FAIL IoErr 222
+Open OLDFILE (write-protected) = ok
+SetComment = ok
+fib_Comment = "a comment"
+SetComment(80+ chars) = FAIL IoErr 220
+SetComment(missing) = FAIL IoErr 205
+SetProtection(missing) = FAIL IoErr 205
+cleaned up (Lock fails) = FAIL IoErr 205

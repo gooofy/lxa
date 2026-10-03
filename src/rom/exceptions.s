@@ -481,9 +481,27 @@ __exec_DefaultTrapCode:
     movem.l     (a7)+, d0/d1
     move.l      a0, -(a7)
     move.l      4, a0
-    tst.l       ThisTask(a0)                        | no task (boot/interrupt): just return
+    tst.l       ThisTask(a0)                        | no task (boot): just return
     move.l      (a7)+, a0
     beq.s       1f
+    btst        #5, 4(a7)                           | supervisor mode ...
+    beq.s       2f
+    btst        #0, 4(a7)                           | ... with an interrupt level set: an
+    bne.s       1f                                  | interrupt handler faulted - a dead
+    btst        #1, 4(a7)                           | end (Guru) on AmigaOS; the host
+    bne.s       1f                                  | stops the run
+    btst        #2, 4(a7)
+    bne.s       1f
+2:
+    move.l      a0, -(a7)                           | the task's SP may be garbage: hold it
+    move.l      4, a0                               | on the top of its own allocated stack
+    move.l      ThisTask(a0), a0
+    move.l      62(a0), a0                          | tc_SPUpper
+    cmp.w       #0, a0
+    beq.s       4f
+    lea         -64(a0), a0
+    move.l      a0, usp
+4:  move.l      (a7)+, a0
     move.l      #__exec_TaskHeld, 6(a7)              | resume the task in _exec_TaskHeld
     andi.w      #0x1fff, 4(a7)                      | ... in user mode, without trace bits
                                                     | (a supervisor-mode fault is a dead end

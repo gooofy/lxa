@@ -1,0 +1,349 @@
+-- Fault
+Fault(0) = 0 ""
+Fault(1) = 9 "Error 1"
+Fault(103) = 28 "not enough memory available"
+Fault(104) = 11 "Error 104"
+Fault(105) = 19 "process table full"
+Fault(114) = 13 "bad template"
+Fault(115) = 11 "bad number"
+Fault(116) = 26 "required argument missing"
+Fault(117) = 28 "value after keyword missing"
+Fault(118) = 26 "wrong number of arguments"
+Fault(119) = 17 "unmatched quotes"
+Fault(120) = 34 "argument line invalid or too long"
+Fault(121) = 23 "file is not executable"
+Fault(122) = 25 "invalid resident library"
+Fault(202) = 17 "object is in use"
+Fault(203) = 22 "object already exists"
+Fault(204) = 20 "directory not found"
+Fault(205) = 17 "object not found"
+Fault(206) = 27 "invalid window description"
+Fault(209) = 28 "packet request type unknown"
+Fault(210) = 20 "object name invalid"
+Fault(211) = 20 "invalid object lock"
+Fault(212) = 31 "object is not of required type"
+Fault(213) = 19 "disk not validated"
+Fault(214) = 24 "disk is write-protected"
+Fault(215) = 32 "rename across devices attempted"
+Fault(216) = 20 "directory not empty"
+Fault(217) = 16 "too many levels"
+Fault(218) = 34 "device (or volume) is not mounted"
+Fault(219) = 13 "seek failure"
+Fault(220) = 20 "comment is too long"
+Fault(221) = 13 "disk is full"
+Fault(222) = 34 "object is protected from deletion"
+Fault(223) = 24 "file is write protected"
+Fault(224) = 23 "file is read protected"
+Fault(225) = 21 "not a valid DOS disk"
+Fault(226) = 17 "no disk in drive"
+Fault(232) = 29 "no more entries in directory"
+Fault(233) = 20 "object is soft link"
+Fault(234) = 17 "object is linked"
+Fault(235) = 18 "bad loadfile hunk"
+Fault(236) = 25 "function not implemented"
+Fault(237) = 11 "Error 237"
+Fault(238) = 11 "Error 238"
+Fault(239) = 11 "Error 239"
+Fault(240) = 18 "record not locked"
+Fault(241) = 22 "record lock collision"
+Fault(242) = 20 "record lock timeout"
+Fault(243) = 20 "record unlock error"
+Fault(300) = 11 "Error 300"
+Fault(303) = 16 "buffer overflow"
+Fault(304) = 9 "***Break"
+Fault(305) = 20 "file not executable"
+Fault(999) = 11 "Error 999"
+Fault(-1) = 10 "Error -1"
+Fault(205, "hdr") length = 24
+  IoErr after Fault = 0
+  text = "hdr: object not found"
+Fault(205, "") length = 21
+  text = ": object not found"
+Fault(205, "hdr", 10 bytes) length = 10
+  text = "hdr: ob"
+Fault(0, "hdr") length = 0
+  text = "hdr: ob"
+Fault(999, "hdr") length = 18
+  text = "hdr: Error 999"
+Fault(205, NULL, 1 byte) length = 1
+  first byte = 0
+-- Fault sweep (codes with a message)
+Fault(103) = "not enough memory available"
+Fault(105) = "process table full"
+Fault(114) = "bad template"
+Fault(115) = "bad number"
+Fault(116) = "required argument missing"
+Fault(117) = "value after keyword missing"
+Fault(118) = "wrong number of arguments"
+Fault(119) = "unmatched quotes"
+Fault(120) = "argument line invalid or too long"
+Fault(121) = "file is not executable"
+Fault(122) = "invalid resident library"
+Fault(202) = "object is in use"
+Fault(203) = "object already exists"
+Fault(204) = "directory not found"
+Fault(205) = "object not found"
+Fault(206) = "invalid window description"
+Fault(207) = "object too large"
+Fault(209) = "packet request type unknown"
+Fault(210) = "object name invalid"
+Fault(211) = "invalid object lock"
+Fault(212) = "object is not of required type"
+Fault(213) = "disk not validated"
+Fault(214) = "disk is write-protected"
+Fault(215) = "rename across devices attempted"
+Fault(216) = "directory not empty"
+Fault(217) = "too many levels"
+Fault(218) = "device (or volume) is not mounted"
+Fault(219) = "seek failure"
+Fault(220) = "comment is too long"
+Fault(221) = "disk is full"
+Fault(222) = "object is protected from deletion"
+Fault(223) = "file is write protected"
+Fault(224) = "file is read protected"
+Fault(225) = "not a valid DOS disk"
+Fault(226) = "no disk in drive"
+Fault(232) = "no more entries in directory"
+Fault(233) = "object is soft link"
+Fault(234) = "object is linked"
+Fault(235) = "bad loadfile hunk"
+Fault(236) = "function not implemented"
+Fault(240) = "record not locked"
+Fault(241) = "record lock collision"
+Fault(242) = "record lock timeout"
+Fault(243) = "record unlock error"
+Fault(303) = "buffer overflow"
+Fault(304) = "***Break"
+Fault(305) = "file not executable"
+-- Fault truncation
+Fault(205, "hdr", 1) = 1 "" IoErr 0
+Fault(205, "hdr", 2) = 2 "h" IoErr 0
+Fault(205, "hdr", 3) = 3 "hd" IoErr 0
+Fault(205, "hdr", 4) = 4 "hdr" IoErr 0
+Fault(205, "hdr", 5) = 5 "hdr" IoErr 0
+Fault(205, "hdr", 6) = 6 "hdr:" IoErr 0
+Fault(205, "hdr", 7) = 7 "hdr: " IoErr 0
+Fault(205, "hdr", 8) = 8 "hdr: " IoErr 0
+Fault(205, "hdr", 9) = 9 "hdr: o" IoErr 0
+Fault(205, "hdr", 10) = 10 "hdr: ob" IoErr 0
+Fault(205, "hdr", 11) = 11 "hdr: obj" IoErr 0
+Fault(205, "hdr", 12) = 12 "hdr: obje" IoErr 0
+Fault(205, "hdr", 13) = 13 "hdr: objec" IoErr 0
+Fault(205, "hdr", 14) = 14 "hdr: object" IoErr 0
+Fault(205, "hdr", 15) = 15 "hdr: object " IoErr 0
+Fault(205, "hdr", 16) = 16 "hdr: object n" IoErr 0
+Fault(205, "hdr", 17) = 17 "hdr: object no" IoErr 0
+Fault(205, "hdr", 18) = 18 "hdr: object not" IoErr 0
+Fault(205, "hdr", 19) = 19 "hdr: object not " IoErr 0
+Fault(205, "hdr", 20) = 20 "hdr: object not f" IoErr 0
+Fault(205, "hdr", 21) = 21 "hdr: object not fo" IoErr 0
+Fault(205, "hdr", 22) = 22 "hdr: object not fou" IoErr 0
+Fault(205, "hdr", 23) = 23 "hdr: object not foun" IoErr 0
+Fault(205, "hdr", 24) = 24 "hdr: object not found" IoErr 0
+Fault(205, NULL, 1) = 1 ""
+Fault(205, NULL, 2) = 2 "o"
+Fault(205, NULL, 3) = 3 "ob"
+Fault(205, NULL, 4) = 4 "obj"
+Fault(205, NULL, 5) = 5 "obje"
+Fault(205, NULL, 6) = 6 "objec"
+Fault(205, NULL, 7) = 7 "object"
+Fault(205, NULL, 8) = 8 "object "
+Fault(205, NULL, 9) = 9 "object n"
+Fault(205, NULL, 10) = 10 "object no"
+Fault(205, NULL, 11) = 11 "object not"
+Fault(205, NULL, 12) = 12 "object not "
+Fault(205, NULL, 13) = 13 "object not f"
+Fault(205, NULL, 14) = 14 "object not fo"
+Fault(205, NULL, 15) = 15 "object not fou"
+Fault(205, NULL, 16) = 16 "object not foun"
+Fault(205, NULL, 17) = 17 "object not found"
+Fault(205, NULL, 18) = 17 "object not found"
+Fault(205, NULL, 19) = 17 "object not found"
+Fault(205, NULL, 20) = 17 "object not found"
+Fault(777, NULL, 1) = 1 ""
+Fault(777, NULL, 2) = 2 "E"
+Fault(777, NULL, 3) = 3 "Er"
+Fault(777, NULL, 4) = 4 "Err"
+Fault(777, NULL, 5) = 5 "Erro"
+Fault(777, NULL, 6) = 6 "Error"
+Fault(777, NULL, 7) = 7 "Error "
+Fault(777, NULL, 8) = 8 "Error "
+Fault(777, NULL, 9) = 9 "Error 7"
+Fault(777, NULL, 10) = 10 "Error 77"
+Fault(777, NULL, 11) = 11 "Error 777"
+Fault(777, NULL, 12) = 11 "Error 777"
+-- PrintFault/SetIoErr
+pf: object not found
+PrintFault(205, "pf") = TRUE
+IoErr after PrintFault(205) = 0
+PrintFault(0, "pf0") = TRUE
+IoErr after PrintFault = 0
+SetIoErr(123) old = 0
+SetIoErr(-5) old = 0
+IoErr = 0
+pr_Result2 = 0
+-- variables
+SetVar local = TRUE
+GetVar local = 6
+  value = "value1"
+GetVar local (other case) = 6
+GetVar local, 4-byte buffer = 3
+  value = "val"
+  IoErr = 0
+SetVar local with NUL, size 5 = TRUE
+GetVar binary = 5
+  bytes = 61 62 00 63 64 00 78
+GetVar multi-line (text mode) = 5
+  value = "line1"
+FindVar = non-NULL
+  lv_Node.ln_Type = 0
+  lv_Len = 11
+  lv_Flags = 0x00000000
+FindVar(LV_ALIAS) = NULL
+DeleteVar local = TRUE
+DeleteVar local again = FALSE
+  IoErr = 0
+GetVar deleted = -1
+  IoErr = 0
+SetVar global = TRUE
+GetVar global = 6
+  value = "global"
+GetVar (any) finds global = 6
+GetVar local-only misses global = -1
+GetVar (any) prefers local = 5
+  value = "local"
+DeleteVar global = TRUE
+GetVar deleted global = -1
+  IoErr = 0
+-- DateToStr
+s0 DOS: ok day="Sunday" date="01-Jan-78" time="00:00:00"
+s0 INT: ok day="Sunday" date="78-Jan-01" time="00:00:00"
+s0 USA: ok day="Sunday" date="01-01-78" time="00:00:00"
+s0 CDN: ok day="Sunday" date="01-01-78" time="00:00:00"
+s1 DOS: ok day="Monday" date="02-Jan-78" time="00:01:00"
+s1 INT: ok day="Monday" date="78-Jan-02" time="00:01:00"
+s1 USA: ok day="Monday" date="01-02-78" time="00:01:00"
+s1 CDN: ok day="Monday" date="02-01-78" time="00:01:00"
+s2 DOS: ok day="Monday" date="01-Jan-79" time="00:59:00"
+s2 INT: ok day="Monday" date="79-Jan-01" time="00:59:00"
+s2 USA: ok day="Monday" date="01-01-79" time="00:59:00"
+s2 CDN: ok day="Monday" date="01-01-79" time="00:59:00"
+s3 DOS: ok day="Wednesday" date="01-Jan-86" time="12:00:30"
+s3 INT: ok day="Wednesday" date="86-Jan-01" time="12:00:30"
+s3 USA: ok day="Wednesday" date="01-01-86" time="12:00:30"
+s3 CDN: ok day="Wednesday" date="01-01-86" time="12:00:30"
+s4 DOS: ok day="Thursday" date="01-Jan-98" time="23:59:59"
+s4 INT: ok day="Thursday" date="98-Jan-01" time="23:59:59"
+s4 USA: ok day="Thursday" date="01-01-98" time="23:59:59"
+s4 CDN: ok day="Thursday" date="01-01-98" time="23:59:59"
+s5 DOS: ok day="Sunday" date="01-Jan-23" time="12:34:01"
+s5 INT: ok day="Sunday" date="23-Jan-01" time="12:34:01"
+s5 USA: ok day="Sunday" date="01-01-23" time="12:34:01"
+s5 CDN: ok day="Sunday" date="01-01-23" time="12:34:01"
+s6 DOS: ok day="Tuesday" date="06-Feb-14" time="06:28:16"
+s6 INT: ok day="Tuesday" date="14-Feb-06" time="06:28:16"
+s6 USA: ok day="Tuesday" date="02-06-14" time="06:28:16"
+s6 CDN: ok day="Tuesday" date="06-02-14" time="06:28:16"
+s7 DOS: ok day="Tuesday" date="17-Oct-78" time="17:31:44"
+s7 INT: ok day="Tuesday" date="78-Oct-17" time="17:31:44"
+s7 USA: ok day="Tuesday" date="10-17-78" time="17:31:44"
+s7 CDN: ok day="Tuesday" date="17-10-78" time="17:31:44"
+DTF_SUBST (today): ok day="Monday" date="Today"
+DTF_SUBST (yesterday): ok day="Sunday" date="Yesterday"
+DTF_SUBST (tomorrow): ok day="Tuesday" date="Tomorrow"
+DTF_SUBST (3 days ago): ok day="Friday" date="Friday"
+DTF_SUBST (13 days ago): ok day="Tuesday" date="19-Dec-23"
+DTF_SUBST +2: ok day="Wednesday" date="Future"
+DTF_SUBST +3: ok day="Thursday" date="Future"
+DTF_SUBST +6: ok day="Sunday" date="Future"
+DTF_SUBST +7: ok day="Monday" date="Future"
+DTF_SUBST -2: ok day="Saturday" date="Saturday"
+DTF_SUBST -5: ok day="Wednesday" date="Wednesday"
+DTF_SUBST -6: ok day="Tuesday" date="Tuesday"
+DTF_SUBST -7: ok day="Monday" date="Monday"
+DTF_SUBST -8: ok day="Sunday" date="24-Dec-23"
+DTF_SUBST yesterday, FORMAT_USA: ok day="Sunday" date="Yesterday"
+DTF_FUTURE yesterday: ok day="Sunday" date="31-Dec-23"
+DTF_FUTURE +2: ok day="Wednesday" date="Future"
+-- StrToDate
+StrToDate("01-Jan-78", "00:00:00", fmt 0) = ok days 0 min 0 tick 0
+StrToDate("31-Dec-99", "23:59:59", fmt 0) = ok days 8034 min 1439 tick 2950
+StrToDate("29-Feb-00", "12:34:56", fmt 0) = ok days 8094 min 754 tick 2800
+StrToDate("01-jan-78", "1:2:3", fmt 0) = ok days 0 min 62 tick 150
+StrToDate("32-Jan-78", "00:00:00", fmt 0) = FAIL days 77 min 0 tick 0
+StrToDate("01-Foo-78", "00:00:00", fmt 0) = FAIL days 77 min 0 tick 0
+StrToDate("01-Jan-78", "25:00:00", fmt 0) = FAIL days 77 min 77 tick 77
+StrToDate("01-Jan-78", "12:00", fmt 0) = ok days 0 min 720 tick 0
+StrToDate("78-01-02", "10:00:00", fmt 1) = ok days 1 min 600 tick 0
+StrToDate("01-02-78", "10:00:00", fmt 2) = ok days 1 min 600 tick 0
+StrToDate("02-01-78", "10:00:00", fmt 3) = ok days 1 min 600 tick 0
+StrToDate("01-Jan-78", "NULL", fmt 0) = ok days 0 min 77 tick 77
+StrToDate("NULL", "01:00:00", fmt 0) = ok days 77 min 60 tick 0
+StrToDate("", "", fmt 0) = FAIL days 77 min 77 tick 77
+StrToDate("01-Jan-2005", "00:00:00", fmt 0) = FAIL days 77 min 0 tick 0
+StrToDate("01-Jan-77", "00:00:00", fmt 0) = ok days 36160 min 0 tick 0
+StrToDate("1-Jan-78", "00:00:00", fmt 0) = ok days 0 min 0 tick 0
+StrToDate("01-January-78", "00:00:00", fmt 0) = ok days 0 min 0 tick 0
+StrToDate("01-Jan-78 ", " 12:00:00", fmt 0) = FAIL days 77 min 720 tick 0
+StrToDate("01/Jan/78", "12.00.00", fmt 0) = FAIL days 77 min 77 tick 77
+StrToDate("30-Feb-80", "00:00:00", fmt 0) = FAIL days 77 min 0 tick 0
+StrToDate("01-Jan-78", "23:60:00", fmt 0) = FAIL days 77 min 77 tick 77
+StrToDate("01-Jan-78", "23:59:60", fmt 0) = ok days 0 min 1439 tick 0
+StrToDate("01-Jan-78", "7", fmt 0) = FAIL days 77 min 77 tick 77
+StrToDate("01-Jan-78", "123:00:00", fmt 0) = FAIL days 77 min 77 tick 77
+StrToDate("Today", "00:00:00", fmt 0) = ok days 16801 min 0 tick 0
+StrToDate("Yesterday", "00:00:00", fmt 0) = ok days 16800 min 0 tick 0
+StrToDate("Monday", "00:00:00", fmt 0) = ok days 16795 min 0 tick 0
+StrToDate("Sunday", "00:00:00", fmt 0) = ok days 16794 min 0 tick 0
+StrToDate("Tuesday", "00:00:00", fmt 0) = ok days 16796 min 0 tick 0
+StrToDate("Wednesday", "00:00:00", fmt 0) = ok days 16797 min 0 tick 0
+StrToDate("Thursday", "00:00:00", fmt 0) = ok days 16798 min 0 tick 0
+StrToDate("Friday", "00:00:00", fmt 0) = ok days 16799 min 0 tick 0
+StrToDate("Saturday", "00:00:00", fmt 0) = ok days 16800 min 0 tick 0
+StrToDate("Tomorrow", "00:00:00", fmt 0) = ok days 16802 min 0 tick 0
+StrToDate("Future", "00:00:00", fmt 0) = ok days 16803 min 0 tick 0
+StrToDate("tue", "00:00:00", fmt 0) = ok days 16796 min 0 tick 0
+StrToDate("Tuesday", "00:00:00", fmt 0) = ok days 16803 min 0 tick 0
+StrToDate("Monday", "00:00:00", fmt 0) = ok days 16802 min 0 tick 0
+StrToDate("Sunday", "00:00:00", fmt 0) = ok days 16808 min 0 tick 0
+(stamp preset to day 78)
+StrToDate("Monday", "00:00:00", fmt 0) = ok days 16794 min 0 tick 0
+StrToDate("Sunday", "00:00:00", fmt 0) = ok days 16800 min 0 tick 0
+StrToDate("Monday", "00:00:00", fmt 0) = ok days 16808 min 0 tick 0
+(stamp preset to day 80)
+StrToDate("Monday", "00:00:00", fmt 0) = ok days 16799 min 0 tick 0
+StrToDate("Today", "00:00:00", fmt 0) = ok days 16801 min 0 tick 0
+StrToDate("Monday", "00:00:00", fmt 0) = ok days 16806 min 0 tick 0
+StrToDate("01-01-78", "00:00:00", fmt 0) = ok days 0 min 0 tick 0
+StrToDate("02-Jan-78", "00:00:00", fmt 3) = ok days 1 min 0 tick 0
+StrToDate("Jan-02-78", "00:00:00", fmt 2) = ok days 1 min 0 tick 0
+StrToDate("13-01-78", "00:00:00", fmt 2) = FAIL days 77 min 0 tick 0
+StrToDate("78-13-01", "00:00:00", fmt 1) = FAIL days 77 min 0 tick 0
+StrToDate("78-Jan-02", "00:00:00", fmt 1) = ok days 1 min 0 tick 0
+-- CompareDates
+CompareDates(equal) = 0
+CompareDates(a, b later tick) sign = 1
+CompareDates(a, b later minute) sign = 1
+CompareDates(a, b earlier day) sign = -1
+-- AllocDosObject
+DOS_FIB = non-NULL
+  FIB byte sum (cleared) = 0
+DOS_RDARGS = non-NULL
+  RDA_Source.CS_Length = 0
+  RDA_Flags = 0
+  RDA_Buffer = NULL
+DOS_EXALLCONTROL = non-NULL
+  eac_Entries = 0
+  eac_LastKey = 0
+DOS_FILEHANDLE = non-NULL
+  fh_Pos = -1
+  fh_End = -1
+  fh_Arg1 = 0
+DOS_STDPKT = non-NULL
+  sp_Msg.mn_Node.ln_Name == &sp_Pkt = FALSE
+  sp_Pkt.dp_Link == &sp_Msg = FALSE
+type 99 = NULL
+-- CheckSignal
+CheckSignal(C|D) none = 0x00000000
+CheckSignal(C|D) after D = 0x00002000
+CheckSignal(C|D) cleared = 0x00000000

@@ -1,0 +1,3 @@
+; a command file without directives
+Echo "plain <not substituted>"
+Set plainvar 1

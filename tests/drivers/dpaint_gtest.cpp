@@ -969,6 +969,9 @@ TEST_F(DPaintEditorTest, ScreenFormatCancelTerminatesDPaintCleanly) {
         if (!lxa_is_running()) { exited = true; break; }
         RunCyclesWithVBlank(2, 50000);
     }
+    /* the last run of the loop may be the one in which DPaint exits */
+    if (!lxa_is_running())
+        exited = true;
 
     /* DPaint may either exit (typical) or fall through to its main editor
      * after Cancel; both are acceptable as long as no crash occurred. */

@@ -1,0 +1,58 @@
+-- InitSemaphore
+init: nest 0 queue -1 owner none waiters 0
+ln_Type = 15
+ln_Pri = 85
+ss_MultipleLink zeroed = FALSE
+wait queue empty = TRUE
+-- single task
+Obtain: nest 1 queue 0 owner main waiters 0
+Obtain nested: nest 2 queue 1 owner main waiters 0
+AttemptSemaphore (owner) = TRUE
+after Attempt: nest 3 queue 2 owner main waiters 0
+AttemptSemaphoreShared (exclusive owner) = TRUE
+after AttemptShared: nest 4 queue 3 owner main waiters 0
+3 releases: nest 1 queue 0 owner main waiters 0
+4 releases: nest 0 queue -1 owner none waiters 0
+ObtainShared: nest 1 queue 0 owner none waiters 0
+ObtainShared nested: nest 2 queue 1 owner none waiters 0
+AttemptSemaphore (shared owner) = FALSE
+after Attempt on shared: nest 2 queue 1 owner none waiters 0
+release: nest 1 queue 0 owner none waiters 0
+release: nest 0 queue -1 owner none waiters 0
+-- contended
+sub AttemptSemaphore while main exclusive = FALSE
+sub AttemptSemaphoreShared while main exclusive = FALSE
+sub AttemptSemaphore while main shared = FALSE
+sub AttemptSemaphoreShared while main shared = TRUE
+sub step (blocked) = 1
+main exclusive, sub waiting: nest 1 queue 1 owner main waiters 1
+sub step after release = 2
+sub saw nest = 1
+after sub: nest 0 queue -1 owner none waiters 0
+sub step (shared+shared) = 2
+two shared holders: nest 2 queue 1 owner none waiters 0
+sub saw nest = 2
+main AttemptSemaphore with two sharers = FALSE
+all released: nest 0 queue -1 owner none waiters 0
+sub exclusive vs main shared: step = 1
+main shared, sub waiting exclusive: nest 1 queue 1 owner none waiters 1
+after: nest 0 queue -1 owner none waiters 0
+-- public semaphores
+FindSemaphore = TRUE
+FindSemaphore(lowercase variant) = NULL
+ln_Type after AddSemaphore = 15
+FindSemaphore after RemSemaphore = NULL
+sem2 after add/rem: nest 0 queue -1 owner none waiters 0
+-- ObtainSemaphoreList
+list sem: nest 1 queue 0 owner main waiters 0
+list sem2: nest 1 queue 0 owner main waiters 0
+released sem: nest 0 queue -1 owner none waiters 0
+released sem2: nest 0 queue -1 owner none waiters 0
+-- Procure/Vacate
+Procure exclusive replied at once = TRUE
+ssm_Semaphore set = TRUE
+procured: nest 1 queue 0 owner main waiters 0
+Procure shared by owner replied at once = FALSE
+procured twice: nest 1 queue 1 owner main waiters 1
+vacated: nest 1 queue 0 owner none waiters 0
+no stray messages = non-NULL

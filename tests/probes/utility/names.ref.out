@@ -1,0 +1,52 @@
+-- allocation
+namespace = non-NULL
+namespace NODUPS = non-NULL
+namespace CASE = non-NULL
+object alpha = non-NULL
+alpha no_Object (UserSpace 16) = non-NULL
+beta no_Object (no UserSpace) = NULL
+NamedObjectName(alpha) = "alpha"
+NamedObjectName(NULL) = NULL
+-- add/find
+AddNamedObject alpha = TRUE
+AddNamedObject beta = TRUE
+AddNamedObject Alpha = TRUE
+AddNamedObject gamma = TRUE
+namespace order = beta gamma alpha Alpha
+Find ALPHA (caseless) == alpha = TRUE
+Find ALPHA next == Alpha = TRUE
+Find ALPHA next next = NULL
+Find delta = NULL
+AddNamedObject(NULL ns) = TRUE
+FindNamedObject(NULL ns) = TRUE
+AttemptRemNamedObject sys = TRUE
+-- NODUPS / CASE
+nodups add dup = TRUE
+nodups add DUP = FALSE
+nodups add dup again = FALSE
+nodups order = dup
+nodups AttemptRem dup = 1
+freed x1 = 1
+freed x2 = 1
+freed x3 = 1
+case-sensitive find 'case' = NULL
+case-sensitive find 'Case' = TRUE
+AttemptRemNamedObject Case = TRUE
+-- removal
+AttemptRem beta while found = 0
+AttemptRem beta after release = 1
+namespace after beta = gamma alpha Alpha
+AttemptRem gamma = 1
+namespace after gamma = alpha Alpha
+namespace emptied =
+freed alpha = 1
+freed beta = 1
+freed Alpha = 1
+freed gamma = 1
+-- GetUniqueID
+GetUniqueID delta = 1
+GetUniqueID nonzero = TRUE
+-- freeing the namespaces
+freed namespace = 1
+freed namespace NODUPS = 1
+freed namespace CASE = 1

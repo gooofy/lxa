@@ -1,15 +1,15 @@
 /*
- * AVAIL command - Display available memory
- * Phase 7.2 implementation for lxa
- * 
+ * AVAIL - show free memory
+ *
  * Template: CHIP/S,FAST/S,TOTAL/S,FLUSH/S
- * 
- * Usage:
- *   AVAIL        - Show memory summary
- *   AVAIL CHIP   - Show chip memory only
- *   AVAIL FAST   - Show fast memory only
- *   AVAIL TOTAL  - Show total only (no largest)
- *   AVAIL FLUSH  - Flush unused memory (stub)
+ *
+ * Layout of AmigaOS 3.1 (verified on the reference, Phase 221):
+ *   Type  Available    In-Use   Maximum   Largest
+ *   chip    2011960     81096   2093056   2011832
+ *   fast   24583824    582000  25165824  16777184
+ *   total  26595784    663096  27258880  16777184
+ * CHIP/FAST/TOTAL print only the available bytes of that kind; FLUSH
+ * first expunges unused libraries, devices and fonts.
  */
 
 #include <exec/types.h>
@@ -23,164 +23,51 @@
 
 #include <string.h>
 
-#define VERSION "1.0"
-
-/* External reference to library bases */
 extern struct DosLibrary *DOSBase;
 extern struct ExecBase *SysBase;
 
-/* Command template - AmigaOS compatible */
 #define TEMPLATE "CHIP/S,FAST/S,TOTAL/S,FLUSH/S"
 
-/* Argument array indices */
-#define ARG_CHIP    0
-#define ARG_FAST    1
-#define ARG_TOTAL   2
-#define ARG_FLUSH   3
-#define ARG_COUNT   4
+enum { A_CHIP, A_FAST, A_TOTAL, A_FLUSH, A_COUNT };
 
-/* Helper: output a string */
-static void out_str(const char *str)
+static void row(const char *name, ULONG flags)
 {
-    Write(Output(), (STRPTR)str, strlen(str));
+    ULONG avail = AvailMem(flags);
+    ULONG max = AvailMem(flags | MEMF_TOTAL);
+    ULONG largest = AvailMem(flags | MEMF_LARGEST);
+
+    Printf((STRPTR)"%-6s%9ld%10ld%10ld%10ld\n", (LONG)name, avail, max - avail, max, largest);
 }
 
-/* Helper: output newline */
-static void out_nl(void)
+int main(void)
 {
-    Write(Output(), (STRPTR)"\n", 1);
-}
+    LONG args[A_COUNT];
+    struct RDArgs *rda;
 
-/* Format number with thousand separators */
-static void out_num_fmt(ULONG num, int width)
-{
-    char buf[24];
-    char *p = buf + sizeof(buf) - 1;
-    *p = '\0';
-    int digits = 0;
-    
-    do {
-        if (digits > 0 && (digits % 3) == 0) {
-            *--p = ',';
-        }
-        *--p = '0' + (num % 10);
-        num /= 10;
-        digits++;
-    } while (num);
-    
-    /* Pad to width */
-    int len = (buf + sizeof(buf) - 1) - p;
-    while (len < width) {
-        out_str(" ");
-        len++;
+    memset(args, 0, sizeof(args));
+    rda = ReadArgs((STRPTR)TEMPLATE, args, NULL);
+    if (!rda) {
+        PrintFault(IoErr(), NULL);
+        return RETURN_FAIL;
     }
-    out_str(p);
-}
-
-int main(int argc, char **argv)
-{
-    struct RDArgs *rdargs;
-    LONG args[ARG_COUNT] = {0, 0, 0, 0};
-    int rc = RETURN_OK;
-    
-    /* Parse arguments using AmigaDOS template */
-    rdargs = ReadArgs((STRPTR)TEMPLATE, args, NULL);
-    if (!rdargs) {
-        PrintFault(IoErr(), (STRPTR)"AVAIL");
-        return RETURN_ERROR;
+    if (args[A_FLUSH]) {
+        /* an impossible allocation makes exec expunge what it can */
+        APTR p = AllocMem(0x7FFFFFF0, MEMF_PUBLIC);
+        if (p)
+            FreeMem(p, 0x7FFFFFF0);
     }
-    
-    BOOL showChip = (BOOL)args[ARG_CHIP];
-    BOOL showFast = (BOOL)args[ARG_FAST];
-    BOOL totalOnly = (BOOL)args[ARG_TOTAL];
-    BOOL flush = (BOOL)args[ARG_FLUSH];
-    
-    /* If FLUSH specified, just print message (we don't have flushing) */
-    if (flush) {
-        out_str("Memory flushed.\n");
+    if (args[A_CHIP])
+        Printf((STRPTR)"%ld\n", AvailMem(MEMF_CHIP));
+    else if (args[A_FAST])
+        Printf((STRPTR)"%ld\n", AvailMem(MEMF_FAST));
+    else if (args[A_TOTAL])
+        Printf((STRPTR)"%ld\n", AvailMem(MEMF_ANY));
+    else {
+        PutStr((STRPTR)"Type  Available    In-Use   Maximum   Largest\n");
+        row("chip", MEMF_CHIP);
+        row("fast", MEMF_FAST);
+        row("total", MEMF_ANY);
     }
-    
-    /* If neither CHIP nor FAST specified, show all */
-    if (!showChip && !showFast) {
-        showChip = TRUE;
-        showFast = TRUE;
-    }
-    
-    /* Get memory statistics */
-    ULONG chipFree = 0, chipLargest = 0, chipTotal = 0;
-    ULONG fastFree = 0, fastLargest = 0, fastTotal = 0;
-    
-    if (showChip) {
-        chipFree = AvailMem(MEMF_CHIP);
-        chipLargest = AvailMem(MEMF_CHIP | MEMF_LARGEST);
-        /* Calculate total from MemHeader - for now use free as approximation */
-        chipTotal = chipFree + (chipFree / 4);  /* Rough estimate */
-    }
-    
-    if (showFast) {
-        fastFree = AvailMem(MEMF_FAST);
-        fastLargest = AvailMem(MEMF_FAST | MEMF_LARGEST);
-        fastTotal = fastFree + (fastFree / 4);  /* Rough estimate */
-    }
-    
-    /* Total any memory */
-    ULONG anyFree = AvailMem(0);
-    ULONG anyLargest = AvailMem(MEMF_LARGEST);
-    
-    if (totalOnly) {
-        /* Just print totals */
-        if (showChip && !showFast) {
-            out_num_fmt(chipFree, 0);
-            out_nl();
-        } else if (showFast && !showChip) {
-            out_num_fmt(fastFree, 0);
-            out_nl();
-        } else {
-            out_num_fmt(anyFree, 0);
-            out_nl();
-        }
-    } else {
-        /* Print header */
-        out_str("Type   Available    In-Use   Maximum   Largest\n");
-        
-        if (showChip) {
-            out_str("chip  ");
-            out_num_fmt(chipFree, 10);
-            out_str("  ");
-            out_num_fmt(chipTotal > chipFree ? chipTotal - chipFree : 0, 8);
-            out_str("  ");
-            out_num_fmt(chipTotal, 8);
-            out_str("  ");
-            out_num_fmt(chipLargest, 8);
-            out_nl();
-        }
-        
-        if (showFast) {
-            out_str("fast  ");
-            out_num_fmt(fastFree, 10);
-            out_str("  ");
-            out_num_fmt(fastTotal > fastFree ? fastTotal - fastFree : 0, 8);
-            out_str("  ");
-            out_num_fmt(fastTotal, 8);
-            out_str("  ");
-            out_num_fmt(fastLargest, 8);
-            out_nl();
-        }
-        
-        if (showChip && showFast) {
-            out_str("total ");
-            out_num_fmt(anyFree, 10);
-            out_str("  ");
-            ULONG anyTotal = chipTotal + fastTotal;
-            out_num_fmt(anyTotal > anyFree ? anyTotal - anyFree : 0, 8);
-            out_str("  ");
-            out_num_fmt(anyTotal, 8);
-            out_str("  ");
-            out_num_fmt(anyLargest, 8);
-            out_nl();
-        }
-    }
-    
-    FreeArgs(rdargs);
-    return rc;
+    FreeArgs(rda);
+    return 0;
 }

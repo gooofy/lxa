@@ -1,19 +1,16 @@
 /*
- * WAIT command - Wait for specified time or until file exists
- * Step 9.5 implementation for lxa
- * 
- * Template: TIME,SEC=SECS/S,MIN=MINS/S,UNTIL/K
- * 
- * Usage:
- *   WAIT 5              - Wait for 5 seconds
- *   WAIT 5 SECS         - Wait for 5 seconds
- *   WAIT 2 MINS         - Wait for 2 minutes
- *   WAIT UNTIL 14:30    - Wait until time (not implemented yet)
+ * WAIT - wait for a time or until a time of day
+ *
+ * Template: TIME/N,SEC=SECS/S,MIN=MINS/S,UNTIL/K
+ *
+ * Waits TIME seconds (default 1; MINS: minutes) or UNTIL hh:mm (the next
+ * time the clock shows it).  CTRL-C ends the wait (RC 5, "***Break").
+ * As AmigaOS 3.1 (verified on the reference, Phase 221): a bad number is
+ * reported as "bad number" (RC 20), a bad UNTIL as "Time should be HH:MM"
+ * (RC 20).
  */
 
 #include <exec/types.h>
-#include <exec/tasks.h>
-#include <devices/timer.h>
 #include <dos/dos.h>
 #include <dos/dosextens.h>
 #include <clib/exec_protos.h>
@@ -23,104 +20,86 @@
 
 #include <string.h>
 
-/* External reference to library bases */
 extern struct DosLibrary *DOSBase;
 extern struct ExecBase *SysBase;
 
-/* Command template */
 #define TEMPLATE "TIME/N,SEC=SECS/S,MIN=MINS/S,UNTIL/K"
 
-/* Argument array indices */
-#define ARG_TIME   0
-#define ARG_SECS   1
-#define ARG_MINS   2
-#define ARG_UNTIL  3
-#define ARG_COUNT  4
+enum { A_TIME, A_SECS, A_MINS, A_UNTIL, A_COUNT };
 
-/* Helper: output a string */
-static void out_str(const char *str)
+/* wait 'ticks' (1/50 s) in steps, watching CTRL-C */
+static BOOL wait_ticks(LONG ticks)
 {
-    Write(Output(), (STRPTR)str, strlen(str));
-}
-
-/* Check for Ctrl+C break */
-static BOOL check_break(void)
-{
-    if (SetSignal(0, 0) & SIGBREAKF_CTRL_C) {
-        SetSignal(0, SIGBREAKF_CTRL_C);  /* Clear the signal */
-        return TRUE;
+    while (ticks > 0) {
+        LONG step = ticks > 50 ? 50 : ticks;
+        Delay(step);
+        ticks -= step;
+        if (SetSignal(0, SIGBREAKF_CTRL_C) & SIGBREAKF_CTRL_C)
+            return FALSE;
     }
-    return FALSE;
+    return TRUE;
 }
 
-int main(int argc, char **argv)
+static BOOL parse_hhmm(const char *s, LONG *minutes)
 {
-    struct RDArgs *rdargs;
-    LONG args[ARG_COUNT] = {0};
-    
-    /* Parse arguments */
-    rdargs = ReadArgs((STRPTR)TEMPLATE, args, NULL);
-    if (!rdargs) {
-        PrintFault(IoErr(), (STRPTR)"WAIT");
+    LONG h = 0, m = 0;
+    int digits = 0;
+
+    while (*s >= '0' && *s <= '9') {
+        h = h * 10 + (*s++ - '0');
+        digits++;
+    }
+    if (!digits || *s != ':')
+        return FALSE;
+    s++;
+    digits = 0;
+    while (*s >= '0' && *s <= '9') {
+        m = m * 10 + (*s++ - '0');
+        digits++;
+    }
+    if (!digits || *s || h > 23 || m > 59)
+        return FALSE;
+    *minutes = h * 60 + m;
+    return TRUE;
+}
+
+int main(void)
+{
+    LONG args[A_COUNT];
+    struct RDArgs *rda;
+    LONG ticks;
+
+    memset(args, 0, sizeof(args));
+    rda = ReadArgs((STRPTR)TEMPLATE, args, NULL);
+    if (!rda) {
+        PrintFault(IoErr(), NULL);
         return RETURN_FAIL;
     }
-    
-    LONG time_val = args[ARG_TIME];
-    /* BOOL secs = args[ARG_SECS] != 0; */  /* Unused - seconds is default */
-    BOOL mins = args[ARG_MINS] != 0;
-    STRPTR until = (STRPTR)args[ARG_UNTIL];
-    
-    /* Handle UNTIL (time string like HH:MM:SS) - not fully implemented */
-    if (until) {
-        out_str("WAIT: UNTIL not implemented yet\n");
-        FreeArgs(rdargs);
+
+    if (args[A_UNTIL]) {
+        LONG target;
+        struct DateStamp now;
+        if (!parse_hhmm((char *)args[A_UNTIL], &target)) {
+            PutStr((STRPTR)"Time should be HH:MM\n");
+            FreeArgs(rda);
+            SetIoErr(0);
+            return RETURN_FAIL;
+        }
+        DateStamp(&now);
+        if (target <= now.ds_Minute)
+            target += 24 * 60;
+        ticks = (target - now.ds_Minute) * 60 * TICKS_PER_SECOND - now.ds_Tick;
+    } else {
+        LONG t = args[A_TIME] ? *(LONG *)args[A_TIME] : 1;
+        if (t < 0)
+            t = 0;
+        ticks = t * TICKS_PER_SECOND * (args[A_MINS] ? 60 : 1);
+    }
+    FreeArgs(rda);
+
+    if (!wait_ticks(ticks)) {
+        PutStr((STRPTR)"***Break\n");
         return RETURN_WARN;
     }
-    
-    /* If no time specified, wait for 1 second by default */
-    if (time_val == 0) {
-        time_val = 1;
-    }
-    
-    /* Convert to seconds */
-    LONG seconds;
-    if (mins) {
-        seconds = time_val * 60;
-    } else {
-        /* Default is seconds */
-        seconds = time_val;
-    }
-    
-    /* Validate */
-    if (seconds < 0) {
-        out_str("WAIT: Invalid time value\n");
-        FreeArgs(rdargs);
-        return RETURN_ERROR;
-    }
-    
-    if (seconds > 3600) {
-        out_str("WAIT: Maximum wait time is 3600 seconds (1 hour)\n");
-        FreeArgs(rdargs);
-        return RETURN_ERROR;
-    }
-    
-    /* Wait using Delay() - 50 ticks per second */
-    /* Check for break every second */
-    int rc = RETURN_OK;
-    
-    while (seconds > 0) {
-        /* Wait for 1 second (50 ticks) */
-        Delay(50);
-        seconds--;
-        
-        /* Check for Ctrl+C */
-        if (check_break()) {
-            out_str("***Break\n");
-            rc = RETURN_WARN;
-            break;
-        }
-    }
-    
-    FreeArgs(rdargs);
-    return rc;
+    return 0;
 }

@@ -1,0 +1,34 @@
+-- allocation
+tc_SigAlloc low 16 bits (system) = 0x0000ffff
+SysBase->TaskSigAlloc low 16 bits = 0x0000ffff
+AllocSignal(-1) #1 = 31
+AllocSignal(-1) #2 = 30
+AllocSignal(-1) #3 = 29
+tc_SigAlloc gained = 0xe0000000
+AllocSignal(same) again = -1
+AllocSignal(4) (system bit) = -1
+AllocSignal(SIGBREAKB_CTRL_C) = -1
+after FreeSignal #2, gained = 0xa0000000
+AllocSignal(-1) reuses = 30
+AllocSignal(20) specific = 20
+AllocSignal(20) twice = -1
+FreeSignal(-1) survived = 1
+allocations until exhausted (incl. 3 above) = 17
+tc_SigAlloc when full, gained = 0xffff0000
+all freed, gained = 0x00000000
+-- SetSignal/Signal/Wait
+SetSignal(0,0) after clear (user bits) = 0x00000000
+SetSignal(set bit #1) old = 0x00000000
+SetSignal(0,0) now = 0x80000000
+tc_SigRecvd = 0x80000000
+after Signal(self, #2) = 0xc0000000
+Wait(#1|#2) result = 0xc0000000
+after Wait = 0x00000000
+Wait(#1) result with both pending = 0x80000000
+still pending = 0x40000000
+SetSignal(0, #2) old = 0x40000000
+cleared = 0x00000000
+Signal CTRL_D -> SetSignal(0,0) & 0xf000 = 0x00002000
+Wait(CTRL_D) = 0x00002000
+Signal(unallocated bit 27) recorded = 0x08000000
+final gained = 0x00000000

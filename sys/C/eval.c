@@ -1,17 +1,19 @@
 /*
- * EVAL command - Evaluate arithmetic expressions
- * Step 9.3 implementation for lxa
- * 
+ * EVAL - evaluate an integer expression
+ *
  * Template: VALUE1/A,OP,VALUE2/M,TO/K,LFORMAT/K
- * 
- * Features:
- *   - Basic arithmetic: + - * / mod
- *   - Comparison operators: EQ NE LT LE GT GE (return 1 or 0)
- *   - Bitwise operators: AND OR XOR NOT LAND LOR LNOT
- *   - TO: Output to file instead of stdout
- *   - LFORMAT: Custom output format (printf-like)
- *   - Supports negative numbers
- *   - Supports hex input (0x prefix or $ prefix)
+ *
+ * Behaviour of AmigaOS 3.1's Eval (verified on the reference, Phase 221):
+ *  - the expression is evaluated strictly from left to right (no operator
+ *    precedence); parentheses group;
+ *  - operators: + - * / MOD (M, %) & | LSH (L) RSH (R) XOR (X) EQV (E),
+ *    unary - and ~;
+ *  - numbers: decimal, 0x/#x hexadecimal, 0/# octal, 'c character codes;
+ *    anything else counts as 0; division by zero gives 0;
+ *  - LFORMAT: %N decimal, %C character, %X hexadecimal and %O octal; %X
+ *    and %O take the next character as their digit count (a non-digit
+ *    counts as 1 and is used up);
+ *  - "Mismatched parenthesis" is reported, the value is still printed.
  */
 
 #include <exec/types.h>
@@ -24,347 +26,255 @@
 
 #include <string.h>
 
-#define VERSION "1.0"
-
-/* External reference to library bases */
 extern struct DosLibrary *DOSBase;
 extern struct ExecBase *SysBase;
 
-/* Command template */
 #define TEMPLATE "VALUE1/A,OP,VALUE2/M,TO/K,LFORMAT/K"
 
-/* Argument array indices */
-#define ARG_VALUE1  0
-#define ARG_OP      1
-#define ARG_VALUE2  2
-#define ARG_TO      3
-#define ARG_LFORMAT 4
-#define ARG_COUNT   5
+enum { A_VALUE1, A_OP, A_VALUE2, A_TO, A_LFORMAT, A_COUNT };
 
-/* Helper: output a string */
-static void out_str(BPTR fh, const char *str)
+static const char *pos;
+static BOOL paren_error = FALSE;
+
+static void skip(void)
 {
-    Write(fh, (STRPTR)str, strlen(str));
+    while (*pos == ' ' || *pos == '\t')
+        pos++;
 }
 
-/* Helper: output newline */
-static void out_nl(BPTR fh)
+static int digit(char c, int base)
 {
-    Write(fh, (STRPTR)"\n", 1);
+    int v;
+    if (c >= '0' && c <= '9')
+        v = c - '0';
+    else if (c >= 'a' && c <= 'f')
+        v = c - 'a' + 10;
+    else if (c >= 'A' && c <= 'F')
+        v = c - 'A' + 10;
+    else
+        return -1;
+    return v < base ? v : -1;
 }
 
-/* Helper: output a number (signed) */
-static void out_num(BPTR fh, LONG num)
+static LONG number(void)
 {
-    char buf[16];
-    char *p = buf + sizeof(buf) - 1;
-    BOOL neg = num < 0;
-    ULONG n;
-    
-    *p = '\0';
-    n = neg ? -num : num;
-    
-    do {
-        *--p = '0' + (n % 10);
-        n /= 10;
-    } while (n);
-    
-    if (neg) *--p = '-';
-    out_str(fh, p);
-}
+    LONG v = 0;
+    int base = 10, d;
 
-/* Helper: output hex number */
-static void out_hex(BPTR fh, ULONG num)
-{
-    const char *hex = "0123456789ABCDEF";
-    char buf[12];
-    char *p = buf + sizeof(buf) - 1;
-    
-    *p = '\0';
-    
-    do {
-        *--p = hex[num & 0xF];
-        num >>= 4;
-    } while (num);
-    
-    out_str(fh, "0x");
-    out_str(fh, p);
-}
-
-/* Case-insensitive string compare */
-static BOOL str_eq_nocase(const char *a, const char *b)
-{
-    while (*a && *b) {
-        char ca = *a;
-        char cb = *b;
-        if (ca >= 'A' && ca <= 'Z') ca += 32;
-        if (cb >= 'A' && cb <= 'Z') cb += 32;
-        if (ca != cb) return FALSE;
-        a++;
-        b++;
+    if (*pos == '\'') {
+        pos++;
+        if (*pos)
+            v = (UBYTE)*pos++;
+        if (*pos == '\'')
+            pos++;
+        return v;
     }
-    return *a == '\0' && *b == '\0';
+    if (pos[0] == '0' && (pos[1] == 'x' || pos[1] == 'X')) {
+        base = 16;
+        pos += 2;
+    } else if (pos[0] == '#' && (pos[1] == 'x' || pos[1] == 'X')) {
+        base = 16;
+        pos += 2;
+    } else if (pos[0] == '#') {
+        base = 8;
+        pos++;
+    } else if (pos[0] == '0') {
+        base = 8;
+    }
+    while ((d = digit(*pos, base)) >= 0) {
+        v = v * base + d;
+        pos++;
+    }
+    /* an unknown word counts as 0 */
+    while (*pos && *pos != ' ' && *pos != '\t' && *pos != ')' && *pos != '(' &&
+           !strchr("+-*/%&|~", *pos))
+        pos++;
+    return v;
 }
 
-/* Parse a number (decimal or hex) */
-static BOOL parse_number(const char *s, LONG *result)
+static LONG expression(void);
+
+static LONG operand(void)
 {
-    BOOL neg = FALSE;
-    LONG n = 0;
-    
-    /* Skip whitespace */
-    while (*s == ' ' || *s == '\t') s++;
-    
-    /* Check for sign */
-    if (*s == '-') {
-        neg = TRUE;
-        s++;
-    } else if (*s == '+') {
-        s++;
+    skip();
+    if (*pos == '-') {
+        pos++;
+        return -operand();
     }
-    
-    /* Check for hex prefix */
-    if (*s == '$' || (s[0] == '0' && (s[1] == 'x' || s[1] == 'X'))) {
-        if (*s == '$') {
-            s++;
-        } else {
-            s += 2;
+    if (*pos == '~') {
+        pos++;
+        return ~operand();
+    }
+    if (*pos == '(') {
+        LONG v;
+        pos++;
+        v = expression();
+        skip();
+        if (*pos == ')')
+            pos++;
+        else
+            paren_error = TRUE;
+        return v;
+    }
+    return number();
+}
+
+/* the operator at pos (advanced past it), 0 if none */
+static int op(void)
+{
+    static const struct { const char *word; int op; } words[] = {
+        { "MOD", '%' }, { "LSH", 'L' }, { "RSH", 'R' }, { "XOR", 'X' }, { "EQV", 'E' },
+        { "M", '%' }, { "L", 'L' }, { "R", 'R' }, { "X", 'X' }, { "E", 'E' },
+        { NULL, 0 }
+    };
+    int i;
+
+    skip();
+    if (!*pos || *pos == ')')
+        return 0;
+    if (strchr("+-*/%&|", *pos))
+        return *pos++;
+    if (pos[0] == '<' && pos[1] == '<') {
+        pos += 2;
+        return 'L';
+    }
+    if (pos[0] == '>' && pos[1] == '>') {
+        pos += 2;
+        return 'R';
+    }
+    for (i = 0; words[i].word; i++) {
+        int n = strlen(words[i].word);
+        if (!strnicmp(pos, words[i].word, n) && (pos[n] == ' ' || pos[n] == '\t' || !pos[n] ||
+                                                  pos[n] == '(' || digit(pos[n], 10) >= 0)) {
+            pos += n;
+            return words[i].op;
         }
-        
-        /* Parse hex digits */
-        while (*s) {
-            char c = *s;
-            if (c >= '0' && c <= '9') {
-                n = n * 16 + (c - '0');
-            } else if (c >= 'a' && c <= 'f') {
-                n = n * 16 + (c - 'a' + 10);
-            } else if (c >= 'A' && c <= 'F') {
-                n = n * 16 + (c - 'A' + 10);
-            } else {
-                break;
+    }
+    /* unknown: skip the word */
+    while (*pos && *pos != ' ' && *pos != '\t')
+        pos++;
+    return 0;
+}
+
+static LONG expression(void)
+{
+    LONG v = operand();
+    int o;
+
+    while ((o = op())) {
+        LONG r = operand();
+        switch (o) {
+        case '+': v += r; break;
+        case '-': v -= r; break;
+        case '*': v *= r; break;
+        case '/': v = r ? v / r : 0; break;
+        case '%': v = r ? v % r : 0; break;
+        case '&': v &= r; break;
+        case '|': v |= r; break;
+        case 'L': v = (LONG)((ULONG)v << r); break;
+        case 'R': v = (LONG)((ULONG)v >> r); break;
+        case 'X': v ^= r; break;
+        case 'E': v = ~(v ^ r); break;
+        }
+    }
+    return v;
+}
+
+static void lformat(BPTR out, const char *f, LONG v)
+{
+    static const char hexd[] = "0123456789ABCDEF";
+    char buf[40];
+
+    for (; *f; f++) {
+        if (*f != '%' || !f[1]) {
+            FPutC(out, *f);
+            continue;
+        }
+        f++;
+        switch (*f) {
+        case 'n': case 'N': {
+            LONG a[1];
+            a[0] = v;
+            VFPrintf(out, (STRPTR)"%ld", a);
+            break;
+        }
+        case 'c': case 'C':
+            FPutC(out, (UBYTE)v);
+            break;
+        case 'x': case 'X':
+        case 'o': case 'O': {
+            int shift = (*f == 'x' || *f == 'X') ? 4 : 3;
+            int width = 1, i;
+            if (f[1]) {
+                f++;
+                if (*f >= '1' && *f <= '9')
+                    width = *f - '0';
             }
-            s++;
+            for (i = 0; i < width; i++)
+                buf[width - 1 - i] = hexd[((ULONG)v >> (shift * i)) & ((1 << shift) - 1)];
+            buf[width] = '\0';
+            FPuts(out, (STRPTR)buf);
+            break;
         }
-    } else {
-        /* Parse decimal digits */
-        while (*s >= '0' && *s <= '9') {
-            n = n * 10 + (*s - '0');
-            s++;
-        }
-    }
-    
-    *result = neg ? -n : n;
-    return TRUE;
-}
-
-/* Output using format string */
-static void format_output(BPTR fh, const char *fmt, LONG value)
-{
-    while (*fmt) {
-        if (*fmt == '%') {
-            fmt++;
-            switch (*fmt) {
-                case 'd':
-                case 'D':
-                    out_num(fh, value);
-                    break;
-                case 'x':
-                case 'X':
-                    out_hex(fh, (ULONG)value);
-                    break;
-                case 'c':
-                case 'C':
-                    if (value >= 32 && value < 127) {
-                        char c = (char)value;
-                        Write(fh, &c, 1);
-                    }
-                    break;
-                case 'n':
-                case 'N':
-                    out_num(fh, value);
-                    break;
-                case '%':
-                    Write(fh, (STRPTR)"%", 1);
-                    break;
-                default:
-                    /* Unknown format - output literal */
-                    Write(fh, (STRPTR)"%", 1);
-                    if (*fmt) {
-                        Write(fh, (STRPTR)fmt, 1);
-                    }
-                    break;
-            }
-            if (*fmt) fmt++;
-        } else if (*fmt == '\\') {
-            fmt++;
-            switch (*fmt) {
-                case 'n':
-                    Write(fh, (STRPTR)"\n", 1);
-                    break;
-                case 't':
-                    Write(fh, (STRPTR)"\t", 1);
-                    break;
-                case '\\':
-                    Write(fh, (STRPTR)"\\", 1);
-                    break;
-                default:
-                    Write(fh, (STRPTR)"\\", 1);
-                    if (*fmt) {
-                        Write(fh, (STRPTR)fmt, 1);
-                    }
-                    break;
-            }
-            if (*fmt) fmt++;
-        } else {
-            Write(fh, (STRPTR)fmt, 1);
-            fmt++;
+        default:
+            FPutC(out, '%');
+            FPutC(out, *f);
+            break;
         }
     }
 }
 
-/* Main entry point */
-int main(int argc, char **argv)
+int main(void)
 {
-    struct RDArgs *rdargs;
-    LONG args[ARG_COUNT] = {0};
-    STRPTR value1_str;
-    STRPTR op_str;
-    STRPTR *value2_array;
-    STRPTR to_file;
-    STRPTR lformat;
-    LONG value1, value2 = 0;
-    LONG result;
-    BPTR fh_out = 0;
-    BOOL opened_output = FALSE;
-    int rc = RETURN_OK;
-    
-    /* Parse arguments */
-    rdargs = ReadArgs((STRPTR)TEMPLATE, args, NULL);
-    if (!rdargs) {
-        PrintFault(IoErr(), (STRPTR)"EVAL");
+    LONG args[A_COUNT];
+    struct RDArgs *rda;
+    static char expr[512];
+    BPTR out;
+    LONG v;
+    STRPTR *m;
+
+    memset(args, 0, sizeof(args));
+    rda = ReadArgs((STRPTR)TEMPLATE, args, NULL);
+    if (!rda) {
+        PrintFault(IoErr(), NULL);
         return RETURN_FAIL;
     }
-    
-    value1_str = (STRPTR)args[ARG_VALUE1];
-    op_str = (STRPTR)args[ARG_OP];
-    value2_array = (STRPTR *)args[ARG_VALUE2];
-    to_file = (STRPTR)args[ARG_TO];
-    lformat = (STRPTR)args[ARG_LFORMAT];
-    
-    /* Parse first value */
-    if (!parse_number((char *)value1_str, &value1)) {
-        out_str(Output(), "Bad number: ");
-        out_str(Output(), (char *)value1_str);
-        out_nl(Output());
-        FreeArgs(rdargs);
-        return RETURN_ERROR;
+    strcpy(expr, (char *)args[A_VALUE1]);
+    if (args[A_OP]) {
+        strcat(expr, " ");
+        strncat(expr, (char *)args[A_OP], sizeof(expr) - strlen(expr) - 1);
     }
-    
-    /* If no operator, just output the value */
-    if (!op_str) {
-        result = value1;
-    } else {
-        /* Parse second value (first element of VALUE2 array) */
-        if (!value2_array || !value2_array[0]) {
-            out_str(Output(), "Missing second value\n");
-            FreeArgs(rdargs);
-            return RETURN_ERROR;
-        }
-        
-        if (!parse_number((char *)value2_array[0], &value2)) {
-            out_str(Output(), "Bad number: ");
-            out_str(Output(), (char *)value2_array[0]);
-            out_nl(Output());
-            FreeArgs(rdargs);
-            return RETURN_ERROR;
-        }
-        
-        /* Perform operation */
-        if (str_eq_nocase((char *)op_str, "+") || str_eq_nocase((char *)op_str, "ADD")) {
-            result = value1 + value2;
-        } else if (str_eq_nocase((char *)op_str, "-") || str_eq_nocase((char *)op_str, "SUB")) {
-            result = value1 - value2;
-        } else if (str_eq_nocase((char *)op_str, "*") || str_eq_nocase((char *)op_str, "MUL")) {
-            result = value1 * value2;
-        } else if (str_eq_nocase((char *)op_str, "/") || str_eq_nocase((char *)op_str, "DIV")) {
-            if (value2 == 0) {
-                out_str(Output(), "Division by zero\n");
-                FreeArgs(rdargs);
-                return RETURN_ERROR;
-            }
-            result = value1 / value2;
-        } else if (str_eq_nocase((char *)op_str, "MOD") || str_eq_nocase((char *)op_str, "%")) {
-            if (value2 == 0) {
-                out_str(Output(), "Division by zero\n");
-                FreeArgs(rdargs);
-                return RETURN_ERROR;
-            }
-            result = value1 % value2;
-        } else if (str_eq_nocase((char *)op_str, "AND")) {
-            result = value1 & value2;
-        } else if (str_eq_nocase((char *)op_str, "OR")) {
-            result = value1 | value2;
-        } else if (str_eq_nocase((char *)op_str, "XOR")) {
-            result = value1 ^ value2;
-        } else if (str_eq_nocase((char *)op_str, "NOT")) {
-            result = ~value1;  /* Unary, ignore value2 */
-        } else if (str_eq_nocase((char *)op_str, "LAND")) {
-            result = (value1 && value2) ? 1 : 0;
-        } else if (str_eq_nocase((char *)op_str, "LOR")) {
-            result = (value1 || value2) ? 1 : 0;
-        } else if (str_eq_nocase((char *)op_str, "LNOT")) {
-            result = (!value1) ? 1 : 0;  /* Unary, ignore value2 */
-        } else if (str_eq_nocase((char *)op_str, "EQ") || str_eq_nocase((char *)op_str, "=")) {
-            result = (value1 == value2) ? 1 : 0;
-        } else if (str_eq_nocase((char *)op_str, "NE") || str_eq_nocase((char *)op_str, "<>")) {
-            result = (value1 != value2) ? 1 : 0;
-        } else if (str_eq_nocase((char *)op_str, "LT") || str_eq_nocase((char *)op_str, "<")) {
-            result = (value1 < value2) ? 1 : 0;
-        } else if (str_eq_nocase((char *)op_str, "LE") || str_eq_nocase((char *)op_str, "<=")) {
-            result = (value1 <= value2) ? 1 : 0;
-        } else if (str_eq_nocase((char *)op_str, "GT") || str_eq_nocase((char *)op_str, ">")) {
-            result = (value1 > value2) ? 1 : 0;
-        } else if (str_eq_nocase((char *)op_str, "GE") || str_eq_nocase((char *)op_str, ">=")) {
-            result = (value1 >= value2) ? 1 : 0;
-        } else if (str_eq_nocase((char *)op_str, "LSHIFT") || str_eq_nocase((char *)op_str, "<<")) {
-            result = value1 << value2;
-        } else if (str_eq_nocase((char *)op_str, "RSHIFT") || str_eq_nocase((char *)op_str, ">>")) {
-            result = value1 >> value2;
-        } else {
-            out_str(Output(), "Unknown operator: ");
-            out_str(Output(), (char *)op_str);
-            out_nl(Output());
-            FreeArgs(rdargs);
-            return RETURN_ERROR;
-        }
+    for (m = (STRPTR *)args[A_VALUE2]; m && *m; m++) {
+        strncat(expr, " ", sizeof(expr) - strlen(expr) - 1);
+        strncat(expr, (char *)*m, sizeof(expr) - strlen(expr) - 1);
     }
-    
-    /* Open output file if specified */
-    if (to_file) {
-        fh_out = Open(to_file, MODE_NEWFILE);
-        if (!fh_out) {
-            PrintFault(IoErr(), to_file);
-            FreeArgs(rdargs);
+    pos = expr;
+    v = expression();
+    skip();
+    if (*pos == ')')
+        paren_error = TRUE;
+    if (paren_error)
+        PutStr((STRPTR)"Mismatched parenthesis\n");
+
+    out = Output();
+    if (args[A_TO]) {
+        out = Open((STRPTR)args[A_TO], MODE_NEWFILE);
+        if (!out) {
+            LONG err = IoErr();
+            PrintFault(err, (STRPTR)args[A_TO]);
+            FreeArgs(rda);
             return RETURN_FAIL;
         }
-        opened_output = TRUE;
+    }
+    if (args[A_LFORMAT]) {
+        lformat(out, (char *)args[A_LFORMAT], v);
     } else {
-        fh_out = Output();
+        LONG a[1];
+        a[0] = v;
+        VFPrintf(out, (STRPTR)"%ld\n", a);
     }
-    
-    /* Output result */
-    if (lformat) {
-        format_output(fh_out, (char *)lformat, result);
-    } else {
-        out_num(fh_out, result);
-        out_nl(fh_out);
-    }
-    
-    /* Cleanup */
-    if (opened_output) {
-        Close(fh_out);
-    }
-    FreeArgs(rdargs);
-    
-    return rc;
+    if (args[A_TO])
+        Close(out);
+    FreeArgs(rda);
+    return 0;
 }

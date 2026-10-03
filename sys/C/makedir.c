@@ -1,94 +1,66 @@
 /*
- * MAKEDIR command - Create directories
- * Phase 4 implementation for lxa
- * 
- * Template: NAME/M/A
+ * MAKEDIR - create directories
+ *
+ * Template: NAME/M
+ *
+ * Silent on success.  Messages and return codes of AmigaOS 3.1 (verified
+ * on the reference, Phase 221):
+ *   No name given                          (RC 20)
+ *   <name> already exists                  (RC 10)
+ *   Can't create directory <name>
+ *   <fault text>                           (RC 10)
  */
 
 #include <exec/types.h>
 #include <dos/dos.h>
 #include <dos/dosextens.h>
+#include <clib/exec_protos.h>
 #include <clib/dos_protos.h>
+#include <inline/exec.h>
 #include <inline/dos.h>
 
-#include <string.h>
-#include <stdio.h>
-
-#define VERSION "1.0"
-
-/* External reference to DOS library base */
 extern struct DosLibrary *DOSBase;
+extern struct ExecBase *SysBase;
 
-/* Command template */
-#define TEMPLATE "NAME/M/A"
-
-/* Argument array indices */
-#define ARG_NAME    0
-#define ARG_COUNT   1
-
-/* Create a single directory */
-static BOOL make_single_directory(CONST_STRPTR path)
+int main(void)
 {
-    BPTR lock;
-    
-    /* Attempt to create the directory */
-    lock = CreateDir((STRPTR)path);
-    if (!lock) {
-        LONG err = IoErr();
-        if (err == ERROR_OBJECT_EXISTS) {
-            printf("MAKEDIR: '%s' already exists\n", path);
-        } else if (err == ERROR_OBJECT_NOT_FOUND) {
-            printf("MAKEDIR: Cannot create '%s' - parent directory does not exist\n", path);
-        } else {
-            printf("MAKEDIR: Failed to create '%s' - %d\n", path, (int)err);
-        }
-        return FALSE;
-    }
-    
-    UnLock(lock);
-    printf("MAKEDIR: Created directory '%s'\n", path);
-    return TRUE;
-}
-
-int main(int argc, char **argv)
-{
-    LONG args[ARG_COUNT] = {0};
+    LONG args[1] = { 0 };
     struct RDArgs *rda;
-    int errors = 0;
-    
-    (void)argc;
-    (void)argv;
-    
-    /* Parse arguments using AmigaDOS template */
-    rda = ReadArgs((STRPTR)TEMPLATE, args, NULL);
+    STRPTR *names;
+    LONG rc = 0;
+
+    rda = ReadArgs((STRPTR)"NAME/M", args, NULL);
     if (!rda) {
-        LONG err = IoErr();
-        if (err == ERROR_REQUIRED_ARG_MISSING) {
-            printf("MAKEDIR: NAME argument is required\n");
-        } else {
-            printf("MAKEDIR: Error parsing arguments - %d\n", (int)err);
-        }
-        printf("Usage: MAKEDIR NAME/M/A\n");
-        printf("Template: %s\n", TEMPLATE);
-        return 1;
+        PrintFault(IoErr(), NULL);
+        return RETURN_FAIL;
     }
-    
-    /* Extract arguments */
-    STRPTR *name_array = (STRPTR *)args[ARG_NAME];
-    
-    /* Process each directory name */
-    if (name_array) {
-        for (int i = 0; name_array[i] != NULL; i++) {
-            if (!make_single_directory(name_array[i])) {
-                errors++;
-            }
-        }
-    } else {
-        printf("MAKEDIR: No directory name specified\n");
+    names = (STRPTR *)args[0];
+    if (!names || !*names) {
+        PutStr((STRPTR)"No name given\n");
         FreeArgs(rda);
-        return 1;
+        SetIoErr(0);
+        return RETURN_FAIL;
     }
-    
+    for (; *names; names++) {
+        BPTR lock = CreateDir(*names);
+        if (lock) {
+            UnLock(lock);
+            continue;
+        }
+        {
+            LONG err = IoErr();
+            if (err == ERROR_OBJECT_EXISTS) {
+                Printf((STRPTR)"%s already exists\n", (LONG)*names);
+                SetIoErr(0);
+            } else {
+                Printf((STRPTR)"Can't create directory %s\n", (LONG)*names);
+                PrintFault(err, NULL);
+                SetIoErr(err);
+            }
+            rc = RETURN_ERROR;
+            break;
+        }
+    }
     FreeArgs(rda);
-    return errors > 0 ? 1 : 0;
+    return rc;
 }

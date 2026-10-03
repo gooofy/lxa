@@ -1,0 +1,3 @@
+Echo "fails: start"
+Wait BAD
+Echo "fails: after error rc=$RC"

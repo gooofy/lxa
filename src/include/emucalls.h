@@ -14,6 +14,7 @@
 #define EMU_CALL_GETSYSTIME   11
 #define EMU_CALL_GETARGS      12
 #define EMU_CALL_DELAY        13   /* Delay with interrupt processing: d1=milliseconds */
+#define EMU_CALL_SUPERVISOR   14   /* () -> 1 if the caller runs in supervisor mode (interrupt) */
 #define EMU_CALL_EXIT        127
 
 /*
@@ -56,6 +57,7 @@
 #define EMU_CALL_DOS_NOTIFY_START  1035  /* StartNotify(notify, fullname, flags) -> success */
 #define EMU_CALL_DOS_NOTIFY_END    1036  /* EndNotify(notify) */
 #define EMU_CALL_DOS_NOTIFY_POLL   1037  /* Poll next changed notify -> notify ptr or 0 */
+#define EMU_CALL_DOS_ASSIGN_INFO   1038  /* AssignInfo(name, buf, buflen) -> type+1 (0: none); buf = paths, NUL-separated */
 
 /* Phase 10: File Handle Utilities */
 #define EMU_CALL_DOS_DUPLOCKFROMFH 1040  /* DupLockFromFH(fh) -> lock_id */

@@ -1,0 +1,41 @@
+-- CreateMsgPort
+ln_Type = 4
+ln_Pri = 0
+ln_Name = NULL
+mp_Flags = 0
+mp_SigTask == me = TRUE
+mp_SigBit allocated = TRUE
+mp_SigBit is a user bit (>= 16) = TRUE
+msg list empty count = 0
+mp_MsgList.lh_Type = 0
+-- PutMsg/GetMsg
+ln_Type after PutMsg = 5
+port signal set = TRUE
+count = 4
+WaitPort returns head = 0
+count after WaitPort = 4
+GetMsg = 0
+GetMsg = 1
+GetMsg = 2
+GetMsg = 3
+GetMsg empty = -1
+ln_Type after GetMsg = 5
+signal still set (GetMsg does not clear) = TRUE
+-- ReplyMsg
+ln_Type after ReplyMsg = 7
+reply port signal = TRUE
+reply port GetMsg = 0
+ln_Type after ReplyMsg(no reply port) = 6
+reply port empty = -1
+-- PA_IGNORE
+PA_IGNORE: no signal = TRUE
+PA_IGNORE: queued = 1
+GetMsg = 2
+-- public ports
+ln_Type after AddPort = 4
+FindPort = TRUE
+FindPort (case differs) = NULL
+FindPort (missing) = NULL
+FindPort after RemPort = NULL
+-- DeleteMsgPort frees the signal
+signal bit free after DeleteMsgPort = TRUE
