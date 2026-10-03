@@ -220,10 +220,11 @@ static ULONG graphics_vsprite_shadow_size(CONST struct VSprite *vSprite)
     return (ULONG)vSprite->Height * (ULONG)words_per_line * sizeof(WORD);
 }
 
-static ULONG graphics_vsprite_savebuffer_size(CONST struct VSprite *vSprite)
+/* RKRM: the SaveBuffer holds every plane of the RastPort's BitMap */
+static ULONG graphics_vsprite_savebuffer_size(CONST struct VSprite *vSprite, CONST struct RastPort *rp)
 {
     ULONG shadow_size = graphics_vsprite_shadow_size(vSprite);
-    WORD depth = graphics_vsprite_mask_depth(vSprite);
+    WORD depth = (rp && rp->BitMap) ? rp->BitMap->Depth : graphics_vsprite_mask_depth(vSprite);
 
     if (shadow_size == 0 || depth <= 0)
         return 0;
@@ -1163,6 +1164,69 @@ static BOOL graphics_vsprites_old_bounds_overlap(CONST struct VSprite *left_vspr
              left_bottom < right_top || right_bottom < left_top);
 }
 
+/*
+ * Bob background save/restore (AmigaOS 3.1, measured on the reference):
+ * a SAVEBACK Bob's SaveBuffer holds the Width*16 x Height pixels at its
+ * position, every plane of the RastPort's BitMap one after the other
+ * (Width*Height words each, unaligned pixels shifted to bit 15).
+ */
+static BOOL graphics_bob_save_bitmap(struct RastPort *rp, struct VSprite *vSprite,
+                                     struct BitMap *save_bm)
+{
+    struct Bob *bob = vSprite->VSBob;
+    ULONG plane_size;
+    WORD depth;
+    WORD i;
+
+    if (!rp || !rp->BitMap || !bob || !bob->SaveBuffer || vSprite->Width <= 0 ||
+        vSprite->Height <= 0)
+        return FALSE;
+
+    depth = rp->BitMap->Depth > 8 ? 8 : rp->BitMap->Depth;
+    lxa_memset(save_bm, 0, sizeof(*save_bm));
+    save_bm->BytesPerRow = (UWORD)(vSprite->Width * 2);
+    save_bm->Rows = (UWORD)vSprite->Height;
+    save_bm->Depth = (UBYTE)depth;
+    plane_size = (ULONG)save_bm->BytesPerRow * save_bm->Rows;
+    for (i = 0; i < depth; i++)
+        save_bm->Planes[i] = (PLANEPTR)((UBYTE *)bob->SaveBuffer + i * plane_size);
+    return TRUE;
+}
+
+static VOID graphics_save_bob_background(struct RastPort *rp, struct VSprite *vSprite)
+{
+    struct BitMap save_bm;
+
+    if (!graphics_bob_save_bitmap(rp, vSprite, &save_bm))
+        return;
+
+    BltBitMapCore(rp->BitMap, vSprite->X, vSprite->Y, &save_bm, 0, 0,
+                  (WORD)(vSprite->Width << 4), vSprite->Height, 0xC0, 0xFF, NULL, 0);
+}
+
+/* put back the background a SAVEBACK Bob covered at OldX/OldY */
+static VOID graphics_restore_bob_background(struct RastPort *rp, struct VSprite *vSprite)
+{
+    struct BitMap save_bm;
+    struct Bob *bob = vSprite->VSBob;
+
+    if (!bob || (vSprite->Flags & VSPRITE))
+        return;
+
+    if ((vSprite->Flags & (SAVEBACK | BACKSAVED)) == (SAVEBACK | BACKSAVED) &&
+        (bob->Flags & SAVEBOB) == 0 && graphics_bob_save_bitmap(rp, vSprite, &save_bm))
+    {
+        BltBitMapCore(&save_bm, 0, 0, rp->BitMap, vSprite->OldX, vSprite->OldY,
+                      (WORD)(vSprite->Width << 4), vSprite->Height, 0xC0, 0xFF, NULL, 0);
+    }
+    vSprite->Flags &= ~BACKSAVED;
+}
+
+/*
+ * RemIBob(): the Bob and every Bob drawn after it that overlaps it get
+ * their backgrounds back (last drawn first) and lose BACKSAVED; Bobs
+ * without SAVEBACK are not erased at all (AmigaOS 3.1, reference).
+ */
 static VOID graphics_clear_bob_immediately(struct GfxBase *GfxBase,
                                            struct RastPort *rp,
                                            struct VSprite *vSprite,
@@ -1171,6 +1235,8 @@ static VOID graphics_clear_bob_immediately(struct GfxBase *GfxBase,
 {
     struct Bob *bob;
     struct VSprite *other;
+
+    (void)GfxBase;
 
     if (!vSprite || !vSprite->VSBob)
         return;
@@ -1182,26 +1248,16 @@ static VOID graphics_clear_bob_immediately(struct GfxBase *GfxBase,
         return;
     }
 
-    other = vSprite->NextVSprite;
-    while (other && other != tail)
+    if (tail)
     {
-        if (other->VSBob && graphics_vsprites_old_bounds_overlap(vSprite, other))
-            graphics_clear_bob_immediately(GfxBase, rp, other, tail, FALSE);
-        other = other->NextVSprite;
+        for (other = tail->PrevVSprite; other && other != vSprite; other = other->PrevVSprite)
+        {
+            if (other->VSBob && graphics_vsprites_old_bounds_overlap(vSprite, other))
+                graphics_restore_bob_background(rp, other);
+        }
     }
+    graphics_restore_bob_background(rp, vSprite);
 
-    if (rp && (bob->Flags & SAVEBOB) == 0 && vSprite->Width > 0 && vSprite->Height > 0)
-    {
-        _graphics_EraseRect(GfxBase,
-                            rp,
-                            vSprite->OldX,
-                            vSprite->OldY,
-                            (LONG)(vSprite->OldX + (vSprite->Width << 4) - 1),
-                            (LONG)(vSprite->OldY + vSprite->Height - 1));
-    }
-
-    /* only the removed Bob is retired; overlapping Bobs are just erased
-     * and redrawn by the next DrawGList() (AmigaOS 3.1, reference) */
     if (retire)
     {
         bob->Flags &= ~(BWAITING | BDRAWN);
@@ -1286,6 +1342,45 @@ static VOID graphics_draw_vsprite(struct GfxBase *GfxBase,
 
     if (!graphics_build_vsprite_bitmap(vSprite, &src_bm))
         return;
+
+    /*
+     * A Bob (AmigaOS 3.1, reference): the image planes go to the planes
+     * selected by PlanePick - through the ImageShadow with OVERLAY, as a
+     * whole rectangle without - and the other planes get their PlaneOnOff
+     * bit wherever the ImageShadow is set.
+     */
+    if (!(vSprite->Flags & VSPRITE) && vSprite->VSBob)
+    {
+        struct BitMap pick_bm;
+        PLANEPTR shadow = (PLANEPTR)vSprite->VSBob->ImageShadow;
+        UBYTE pick = vSprite->PlanePick;
+        WORD depth = rp->BitMap->Depth > 8 ? 8 : rp->BitMap->Depth;
+        WORD plane;
+        WORD image_plane = 0;
+
+        lxa_memset(&pick_bm, 0, sizeof(pick_bm));
+        pick_bm.BytesPerRow = src_bm.BytesPerRow;
+        pick_bm.Rows = src_bm.Rows;
+        pick_bm.Depth = (UBYTE)depth;
+        for (plane = 0; plane < depth; plane++)
+        {
+            if (pick & (1 << plane))
+                pick_bm.Planes[plane] = image_plane < src_bm.Depth ?
+                                        src_bm.Planes[image_plane++] : NULL;
+            else
+                pick_bm.Planes[plane] = (vSprite->PlaneOnOff & (1 << plane)) ?
+                                        (PLANEPTR)0xFFFFFFFF : NULL;
+        }
+
+        BltBitMapCore(&pick_bm, 0, 0, rp->BitMap, vSprite->X, vSprite->Y,
+                      (WORD)(vSprite->Width << 4), vSprite->Height, 0xC0, pick,
+                      (vSprite->Flags & OVERLAY) ? shadow : NULL, src_bm.BytesPerRow);
+        if (shadow)
+            BltBitMapCore(&pick_bm, 0, 0, rp->BitMap, vSprite->X, vSprite->Y,
+                          (WORD)(vSprite->Width << 4), vSprite->Height, 0xC0,
+                          (UBYTE)~pick, shadow, src_bm.BytesPerRow);
+        return;
+    }
 
     BltBitMapCore(&src_bm,
                   0,
@@ -3159,14 +3254,26 @@ static VOID _graphics_DrawGList ( register struct GfxBase * GfxBase __asm("a6"),
     current = rp->GelsInfo->gelHead->NextVSprite;
     tail = rp->GelsInfo->gelTail;
 
+    /* AmigaOS 3.1 (reference): first every saved background goes back,
+     * last drawn first, then each Bob saves its new background and is
+     * drawn; a Bob marked BOBSAWAY is removed from the list */
+    {
+        struct VSprite *head = rp->GelsInfo->gelHead;
+        struct VSprite *prev;
+
+        for (prev = tail->PrevVSprite; prev && prev != head; prev = prev->PrevVSprite)
+        {
+            if (prev->VSBob)
+                graphics_restore_bob_background(rp, prev);
+        }
+    }
+
     while (current && current != tail)
     {
         struct VSprite *next = current->NextVSprite;
 
         if (current->VSBob && (current->VSBob->Flags & BOBSAWAY))
         {
-            /* erase the retired Bob (restore its background) first */
-            graphics_clear_bob_immediately(GfxBase, rp, current, tail, TRUE);
             _graphics_RemVSprite(GfxBase, current);
             current->VSBob->Flags |= BOBNIX;
             current->VSBob->Flags &= ~BDRAWN;
@@ -3175,7 +3282,11 @@ static VOID _graphics_DrawGList ( register struct GfxBase * GfxBase __asm("a6"),
         }
 
         if ((current->Flags & GELGONE) == 0)
+        {
+            if (current->VSBob && (current->Flags & SAVEBACK))
+                graphics_save_bob_background(rp, current);
             graphics_draw_vsprite(GfxBase, rp, current);
+        }
 
         current->OldX = current->X;
         current->OldY = current->Y;
@@ -3586,7 +3697,7 @@ static BOOL _graphics_GetGBuffers ( register struct GfxBase * GfxBase __asm("a6"
                 return FALSE;
 
             shadow_size = graphics_vsprite_shadow_size(vSprite);
-            savebuffer_size = graphics_vsprite_savebuffer_size(vSprite);
+            savebuffer_size = graphics_vsprite_savebuffer_size(vSprite, rp);
 
             if (shadow_size == 0 || savebuffer_size == 0)
                 return FALSE;
@@ -6032,7 +6143,8 @@ static VOID _graphics_CBump ( register struct GfxBase * GfxBase __asm("a6"),
             if (!next)
                 return;
 
-            next->CopIns = (struct CopIns *)AllocMem(10 * sizeof(struct CopIns), MEMF_PUBLIC | MEMF_CLEAR);
+            /* AmigaOS 3.1 continues in blocks of 16 instructions (reference) */
+            next->CopIns = (struct CopIns *)AllocMem(16 * sizeof(struct CopIns), MEMF_PUBLIC | MEMF_CLEAR);
             if (!next->CopIns)
             {
                 FreeMem(next, sizeof(struct CopList));
@@ -6040,7 +6152,7 @@ static VOID _graphics_CBump ( register struct GfxBase * GfxBase __asm("a6"),
             }
 
             next->CopPtr = next->CopIns;
-            next->MaxCount = 10;
+            next->MaxCount = 16;
             current->Next = next;
         }
 
@@ -6078,8 +6190,10 @@ static LONG _graphics_CMove ( register struct GfxBase * GfxBase __asm("a6"),
     if (!copList || !copList->CopList)
         return FALSE;
 
+    /* AmigaOS 3.1 writes at CopPtr without checking Count: CBump() is
+     * what keeps a block from overflowing (reference) */
     current = copList->CopList;
-    if (!current->CopIns || !current->CopPtr || current->Count >= current->MaxCount)
+    if (!current->CopPtr)
         return FALSE;
 
     cop_ins = current->CopPtr;
@@ -6109,8 +6223,9 @@ static VOID _graphics_CWait ( register struct GfxBase * GfxBase __asm("a6"),
     if (!copList || !copList->CopList)
         return;
 
+    /* no Count check, as CMove() (AmigaOS 3.1, reference) */
     current = copList->CopList;
-    if (!current->CopIns || !current->CopPtr || current->Count >= current->MaxCount)
+    if (!current->CopPtr)
         return;
 
     cop_ins = current->CopPtr;
@@ -7267,7 +7382,17 @@ static VOID _graphics_FreeCopList ( register struct GfxBase * GfxBase __asm("a6"
                                                         register struct CopList * copList __asm("a0"))
 {
     DPRINTF(LOG_DEBUG, "_graphics: FreeCopList(copList=0x%08lx)\n", (ULONG)copList);
-    graphics_free_placeholder_coplist(copList);
+
+    /* the whole chain of blocks with their instruction buffers */
+    while (copList)
+    {
+        struct CopList *next = copList->Next;
+
+        if (copList->CopIns && copList->MaxCount > 0)
+            FreeMem(copList->CopIns, (ULONG)copList->MaxCount * sizeof(struct CopIns));
+        FreeMem(copList, sizeof(struct CopList));
+        copList = next;
+    }
 }
 
 static VOID _graphics_ClipBlit ( register struct GfxBase * GfxBase __asm("a6"),
@@ -7676,11 +7801,17 @@ static struct CopList * _graphics_UCopperListInit ( register struct GfxBase * Gf
     if (!uCopList || n < 0)
         return NULL;
 
+    /* re-initialisation (AmigaOS 3.1, reference): the first block and its
+     * instruction buffer are reused, MaxCount takes the new size and the
+     * list continues at the first block; following blocks stay linked */
     if (uCopList->FirstCopList && uCopList->FirstCopList->MaxCount != 0 && uCopList->FirstCopList->CopIns)
     {
-        uCopList->FirstCopList->Count = 0;
-        uCopList->FirstCopList->CopPtr = uCopList->FirstCopList->CopIns;
-        return uCopList->FirstCopList;
+        copList = uCopList->FirstCopList;
+        copList->Count = 0;
+        copList->MaxCount = (WORD)n;
+        copList->CopPtr = copList->CopIns;
+        uCopList->CopList = copList;
+        return copList;
     }
 
     copList = (struct CopList *)AllocMem(sizeof(struct CopList), MEMF_PUBLIC | MEMF_CLEAR);
@@ -7740,25 +7871,22 @@ static VOID _graphics_FreeGBuffers ( register struct GfxBase * GfxBase __asm("a6
             }
 
             shadow_size = graphics_vsprite_shadow_size(vSprite);
-            savebuffer_size = graphics_vsprite_savebuffer_size(vSprite);
+            savebuffer_size = graphics_vsprite_savebuffer_size(vSprite, rp);
             borderline_size = (ULONG)graphics_vsprite_words_per_line(vSprite) * sizeof(WORD);
 
+            /* AmigaOS 3.1 frees the buffers but leaves the pointers in the
+             * Bob and VSprite unchanged (reference) */
             if (bob->ImageShadow && shadow_size > 0)
                 FreeMem(bob->ImageShadow, shadow_size);
 
             if (vSprite->CollMask && vSprite->CollMask != bob->ImageShadow && shadow_size > 0)
                 FreeMem(vSprite->CollMask, shadow_size);
 
-            bob->ImageShadow = NULL;
-            vSprite->CollMask = NULL;
-
             if (bob->SaveBuffer && savebuffer_size > 0)
                 FreeMem(bob->SaveBuffer, savebuffer_size);
-            bob->SaveBuffer = NULL;
 
             if (vSprite->BorderLine && borderline_size > 0)
                 FreeMem(vSprite->BorderLine, borderline_size);
-            vSprite->BorderLine = NULL;
 
             if (double_buffer && bob->DBuffer)
             {
@@ -7766,7 +7894,6 @@ static VOID _graphics_FreeGBuffers ( register struct GfxBase * GfxBase __asm("a6
                     FreeMem(bob->DBuffer->BufBuffer, savebuffer_size);
 
                 FreeMem(bob->DBuffer, sizeof(struct DBufPacket));
-                bob->DBuffer = NULL;
             }
 
             sequence_comp = sequence_comp->NextSeq;

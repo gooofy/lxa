@@ -2305,71 +2305,59 @@ static int test_graphics_remibob_stub_closed(void)
     struct VSprite cover_vs;
     struct GelsInfo gels_info;
     struct RastPort rp;
+    struct ViewPort vp;
     struct Bob base_bob;
     struct Bob cover_bob;
     struct BitMap *bm;
-    WORD image_data[1] = { 0x8000 };
+    WORD *chip;
+    WORD next_line[8];
+    WORD *last_color[8];
 
     print("--- Test: graphics RemIBob entry point ---\n");
 
+    /* The RKRM setup: AmigaOS 3.1 hangs in DrawGList(rp, NULL) with Bobs,
+     * and only SAVEBACK Bobs are ever erased (reference, Phase 222b) */
     bm = AllocBitMap(32, 16, 1, BMF_CLEAR, NULL);
-    if (!bm)
+    chip = (WORD *)AllocMem(16 * sizeof(WORD), MEMF_CHIP | MEMF_CLEAR);
+    if (!bm || !chip)
     {
-        print("FAIL: AllocBitMap() returned NULL\n");
+        print("FAIL: AllocBitMap()/AllocMem() failed\n");
+        if (bm)
+            FreeBitMap(bm);
+        if (chip)
+            FreeMem(chip, 16 * sizeof(WORD));
         return 1;
     }
+    chip[0] = (WORD)0x8000;     /* image */
 
+    InitVPort(&vp);
     InitGels(&head, &tail, &gels_info);
+    memset(next_line, 0, sizeof(next_line));
+    memset(last_color, 0, sizeof(last_color));
+    gels_info.nextLine = next_line;
+    gels_info.lastColor = last_color;
     InitRastPort(&rp);
     rp.BitMap = bm;
     rp.GelsInfo = &gels_info;
-    SetAPen(&rp, 1);
 
-    base_vs.NextVSprite = NULL;
-    base_vs.PrevVSprite = NULL;
-    base_vs.DrawPath = NULL;
-    base_vs.ClearPath = NULL;
-    base_vs.OldY = 0;
-    base_vs.OldX = 0;
-    base_vs.Flags = 0;
-    base_vs.Y = 4;
-    base_vs.X = 4;
-    base_vs.Height = 1;
-    base_vs.Width = 1;
-    base_vs.Depth = 1;
-    base_vs.MeMask = 0;
-    base_vs.HitMask = 0;
-    base_vs.ImageData = image_data;
-    base_vs.BorderLine = NULL;
-    base_vs.CollMask = NULL;
-    base_vs.SprColors = NULL;
-    base_vs.VSBob = NULL;
-    base_vs.PlanePick = 1;
-    base_vs.PlaneOnOff = 0;
-    base_vs.VUserExt = 0;
-
+    init_exec_test_vsprite(&base_vs, 4, 4, 1, 1, 1, chip, SAVEBACK | OVERLAY);
     cover_vs = base_vs;
     cover_vs.X = 5;
+    base_vs.CollMask = chip + 1;
+    base_vs.BorderLine = chip + 2;
+    cover_vs.CollMask = chip + 3;
+    cover_vs.BorderLine = chip + 4;
+    InitMasks(&base_vs);
+    InitMasks(&cover_vs);
 
-    base_bob.Flags = 0;
-    base_bob.SaveBuffer = NULL;
-    base_bob.ImageShadow = NULL;
-    base_bob.Before = NULL;
-    base_bob.After = NULL;
+    memset(&base_bob, 0, sizeof(base_bob));
     base_bob.BobVSprite = &base_vs;
-    base_bob.BobComp = NULL;
-    base_bob.DBuffer = NULL;
-    base_bob.BUserExt = 0;
-
-    cover_bob.Flags = 0;
-    cover_bob.SaveBuffer = NULL;
-    cover_bob.ImageShadow = NULL;
-    cover_bob.Before = NULL;
-    cover_bob.After = NULL;
+    base_bob.ImageShadow = base_vs.CollMask;
+    base_bob.SaveBuffer = chip + 8;
+    cover_bob = base_bob;
     cover_bob.BobVSprite = &cover_vs;
-    cover_bob.BobComp = NULL;
-    cover_bob.DBuffer = NULL;
-    cover_bob.BUserExt = 0;
+    cover_bob.ImageShadow = cover_vs.CollMask;
+    cover_bob.SaveBuffer = chip + 12;
 
     /* the application links VSprite->VSBob (AddBob() does not) */
     base_vs.VSBob = &base_bob;
@@ -2377,12 +2365,15 @@ static int test_graphics_remibob_stub_closed(void)
 
     AddBob(&base_bob, &rp);
     AddBob(&cover_bob, &rp);
-    DrawGList(&rp, NULL);
-    RemIBob(&base_bob, &rp, NULL);
+    DrawGList(&rp, &vp);
+    WaitBlit();
+    RemIBob(&base_bob, &rp, &vp);
+    WaitBlit();
 
     /* only the removed Bob is retired; the overlapping one is just erased */
     if ((base_bob.Flags & BOBNIX) == 0 || (cover_bob.Flags & BOBNIX) != 0 ||
-        head.NextVSprite != &cover_vs || ReadPixel(&rp, 4, 4) != 0 || ReadPixel(&rp, 5, 4) != 0)
+        head.NextVSprite != &cover_vs || (cover_vs.Flags & BACKSAVED) != 0 ||
+        ReadPixel(&rp, 4, 4) != 0 || ReadPixel(&rp, 5, 4) != 0)
     {
         print("FAIL: RemIBob() did not immediately remove and clear the Bob\n");
         errors++;
@@ -2392,6 +2383,7 @@ static int test_graphics_remibob_stub_closed(void)
         print("OK: RemIBob() no longer behaves like a stub\n");
     }
 
+    FreeMem(chip, 16 * sizeof(WORD));
     FreeBitMap(bm);
 
     print("\n");
@@ -2678,6 +2670,7 @@ static int test_graphics_getgbuffers_stub_closed(void)
     struct AnimComp buf_comp_c;
     struct AnimComp buf_seq_a;
     struct AnimOb buf_anim;
+    struct BitMap *bm;
     WORD image_data[4] = { 0x8000, 0x2000, 0x4000, 0x1000 };
     WORD image_data_alt[2] = { 0x1111, 0x2222 };
     WORD image_data_third[4] = { 0x0f00, 0x00f0, 0x3000, 0x0003 };
@@ -2690,7 +2683,16 @@ static int test_graphics_getgbuffers_stub_closed(void)
 
     print("--- Test: graphics GetGBuffers/FreeGBuffers entry points ---\n");
 
+    /* GetGBuffers() sizes the SaveBuffers from rp->BitMap->Depth (RKRM);
+     * AmigaOS 3.1 hangs on a RastPort without BitMap */
     InitRastPort(&rp);
+    bm = AllocBitMap(32, 16, 2, BMF_CLEAR, NULL);
+    if (!bm)
+    {
+        print("FAIL: AllocBitMap() returned NULL\n\n");
+        return 1;
+    }
+    rp.BitMap = bm;
     init_exec_test_vsprite(&buf_vs_a, 0, 0, 1, 2, 2, image_data, 0);
     init_exec_test_vsprite(&buf_vs_b, 0, 0, 1, 2, 2, image_data, 0);
     init_exec_test_vsprite(&buf_vs_c, 0, 0, 1, 2, 2, image_data_third, 0);
@@ -2769,6 +2771,11 @@ static int test_graphics_getgbuffers_stub_closed(void)
     buf_vs_c.BorderLine = borderline_c;
 
     buf_bob_c.BobComp = &buf_comp_c;
+    /* AmigaOS 3.1 GetGBuffers() needs VSprite->VSBob set: without it
+     * it hangs the machine (reference, Phase 222b) */
+    buf_vs_a.VSBob = &buf_bob_a;
+    buf_vs_b.VSBob = &buf_bob_b;
+    buf_vs_c.VSBob = &buf_bob_c;
     buf_comp_c.AnimBob = &buf_bob_c;
 
     InitGMasks(&buf_anim);
@@ -2807,33 +2814,24 @@ static int test_graphics_getgbuffers_stub_closed(void)
 
     if (buf_bob_a.ImageShadow)
     {
-        WORD *separate_mask = (WORD *)AllocMem(4, MEMF_CHIP | MEMF_CLEAR);
+        WORD *shadow_a = buf_bob_a.ImageShadow;
+        WORD *save_c = buf_bob_c.SaveBuffer;
 
-        if (!separate_mask)
+        /* AmigaOS 3.1 frees the buffers but leaves the pointers (reference) */
+        FreeGBuffers(&buf_anim, &rp, TRUE);
+        if (buf_bob_a.ImageShadow != shadow_a || buf_vs_a.CollMask != shadow_a ||
+            buf_bob_c.SaveBuffer != save_c)
         {
-            print("FAIL: Could not allocate separate CollMask for FreeGBuffers() test\n");
+            print("FAIL: FreeGBuffers() changed the buffer pointers\n");
             errors++;
-            FreeGBuffers(&buf_anim, &rp, TRUE);
         }
         else
         {
-            buf_vs_b.CollMask = separate_mask;
-            FreeGBuffers(&buf_anim, &rp, TRUE);
-
-            if (buf_bob_a.ImageShadow || buf_bob_a.SaveBuffer || buf_vs_a.CollMask || buf_vs_a.BorderLine ||
-                buf_bob_a.DBuffer || buf_bob_b.ImageShadow || buf_bob_b.SaveBuffer || buf_vs_b.CollMask ||
-                buf_vs_b.BorderLine || buf_bob_b.DBuffer || buf_bob_c.ImageShadow || buf_bob_c.SaveBuffer ||
-                buf_vs_c.CollMask || buf_vs_c.BorderLine || buf_bob_c.DBuffer)
-            {
-                print("FAIL: FreeGBuffers() did not release all allocated buffers\n");
-                errors++;
-            }
-            else
-            {
-                print("OK: FreeGBuffers() no longer behaves like a stub\n");
-            }
+            print("OK: FreeGBuffers() no longer behaves like a stub\n");
         }
     }
+
+    FreeBitMap(bm);
 
     print("\n");
     return errors;
@@ -2903,8 +2901,8 @@ static int test_graphics_cmove_stub_closed(void)
         return 1;
     }
 
-    if (!CMove(&ucl, (APTR)0x0180, 0x55aa) ||
-        first->CopIns[0].OpCode != COPPER_MOVE ||
+    CMove(&ucl, (APTR)0x0180, 0x55aa);
+    if (first->CopIns[0].OpCode != COPPER_MOVE ||
         first->CopIns[0].u3.u4.u1.DestAddr != 0x0180 ||
         first->CopIns[0].u3.u4.u2.DestData != (WORD)0x55aa ||
         first->Count != 0 || first->CopPtr != first->CopIns)
@@ -2914,12 +2912,25 @@ static int test_graphics_cmove_stub_closed(void)
     }
     else
     {
-        first->Count = first->MaxCount;
-        first->CopPtr = first->CopIns + first->MaxCount;
+        /* AmigaOS 3.1 writes at CopPtr without checking Count (CBump()
+         * keeps the block from overflowing): point CopPtr at our own
+         * array to watch it (reference, Phase 222b) */
+        struct CopIns spare[2];
+        struct CopIns *saved_ins = first->CopIns;
 
-        if (CMove(&ucl, (APTR)0x0182, 0x1234) != FALSE)
+        memset(spare, 0, sizeof(spare));
+        first->CopIns = spare;
+        first->Count = first->MaxCount;
+        first->CopPtr = spare + 1;
+        CMove(&ucl, (APTR)0x0182, 0x1234);
+        first->CopIns = saved_ins;
+        first->CopPtr = saved_ins;
+        first->Count = 0;
+
+        if (spare[1].OpCode != COPPER_MOVE || spare[1].u3.u4.u1.DestAddr != 0x0182 ||
+            spare[1].u3.u4.u2.DestData != 0x1234)
         {
-            print("FAIL: CMove() did not report a full copper block\n");
+            print("FAIL: CMove() did not write at CopPtr of a full block\n");
             errors++;
         }
         else
@@ -2965,14 +2976,23 @@ static int test_graphics_cwait_stub_closed(void)
     }
     else
     {
-        first->CopIns[0].OpCode = COPPER_MOVE;
-        first->Count = first->MaxCount;
-        first->CopPtr = first->CopIns + first->MaxCount;
-        CWait(&ucl, 0x0011, 0x0022);
+        /* no Count check either (AmigaOS 3.1, reference) */
+        struct CopIns spare[2];
+        struct CopIns *saved_ins = first->CopIns;
 
-        if (first->CopIns[0].OpCode != COPPER_MOVE)
+        memset(spare, 0, sizeof(spare));
+        first->CopIns = spare;
+        first->Count = first->MaxCount;
+        first->CopPtr = spare + 1;
+        CWait(&ucl, 0x0011, 0x0022);
+        first->CopIns = saved_ins;
+        first->CopPtr = saved_ins;
+        first->Count = 0;
+
+        if (spare[1].OpCode != COPPER_WAIT || spare[1].u3.u4.u1.VWaitPos != 0x0011 ||
+            spare[1].u3.u4.u2.HWaitPos != 0x0022 || spare[0].OpCode != 0)
         {
-            print("FAIL: CWait() overwrote a full copper block\n");
+            print("FAIL: CWait() did not write at CopPtr of a full block\n");
             errors++;
         }
         else
@@ -3299,7 +3319,9 @@ cleanup:
 static int test_graphics_getextsprite_stub_closed(void)
 {
     int errors = 0;
-    struct ExtSprite single_sprite;
+    struct ExtSprite *single;
+    struct BitMap source_bm;
+    PLANEPTR plane;
     struct ExtSprite attached_primary;
     struct ExtSprite attached_secondary;
     struct ExtSprite specific_primary;
@@ -3323,13 +3345,33 @@ static int test_graphics_getextsprite_stub_closed(void)
     print("--- Test: graphics GetExtSpriteA entry point ---\n");
 
     /* AmigaOS 3.1 (reference): sprite 0 is the Intuition pointer, every
-     * GSTAG_ATTACHED request is rejected and leaves num unchanged */
+     * GSTAG_ATTACHED request is rejected and leaves num unchanged.  The
+     * ExtSprite must come from AllocSpriteDataA(): 3.1 rejects one with
+     * uninitialised fields */
     (void)specific_tags;
     (void)odd_tags;
     (void)specific_primary;
     (void)odd_secondary;
-    single_sprite.es_SimpleSprite.num = 99;
-    if (GetExtSpriteA(&single_sprite, NULL) != 1 || single_sprite.es_SimpleSprite.num != 1)
+    plane = AllocRaster(16, 1);
+    if (!plane)
+    {
+        print("FAIL: AllocRaster() failed\n\n");
+        return 1;
+    }
+    BltClear(plane, RASSIZE(16, 1), 1);
+    ((UWORD *)plane)[0] = 0x8000;
+    InitBitMap(&source_bm, 2, 16, 1);
+    source_bm.Planes[0] = plane;
+    source_bm.Planes[1] = plane;
+    single = AllocSpriteDataA(&source_bm, NULL);
+    if (!single)
+    {
+        print("FAIL: AllocSpriteDataA() failed\n\n");
+        FreeRaster(plane, 16, 1);
+        return 1;
+    }
+    single->es_SimpleSprite.num = 99;
+    if (GetExtSpriteA(single, NULL) != 1 || single->es_SimpleSprite.num != 1)
     {
         print("FAIL: GetExtSpriteA() did not allocate the first free single sprite\n");
         errors++;
@@ -3354,6 +3396,8 @@ static int test_graphics_getextsprite_stub_closed(void)
     }
 
     FreeSprite(1);
+    FreeSpriteData(single);
+    FreeRaster(plane, 16, 1);
 
     print("\n");
     return errors;
@@ -5582,10 +5626,11 @@ static int test_open_failures(void)
  * (tests/exec/library_lxa, LIBRARY_LXA_ONLY) and do not run on AmigaOS 3.1:
  * CliInitNewcli/CliInitRun re-initialise the calling CLI, Relabel/SetOwner/
  * AddSegment depend on lxa's filesystems and resident list, and the
- * graphics/intuition/icon/diskfont/workbench/device sections (Phases 80-97)
- * use lxa fixtures or hardware (sprites, copper, floppy, SCSI, parallel,
- * gameport).  Phase 220 ran every section on the reference one by one; the
- * divergences found there are tracked as follow-up work, not hidden here.
+ * intuition/icon/diskfont/workbench/device sections (Phases 80-97) use lxa
+ * fixtures or hardware (floppy, SCSI, parallel, gameport).  Phase 220 ran
+ * every section on the reference one by one; the divergences found there
+ * are tracked as follow-up work, not hidden here.  The graphics sections
+ * (GELs, user copper lists, sprites) are reference-valid since Phase 222b.
  * "Library <n>" runs section n only (used to probe the reference).
  */
 struct LibrarySection
@@ -5631,21 +5676,21 @@ static const struct LibrarySection g_sections[] = {
     { test_utility_packbooltags_stub_closed, FALSE },
     { test_utility_filtertagchanges_stub_closed, FALSE },
     { test_utility_applytagchanges_stub_closed, FALSE },
-    { test_graphics_addanimob_stub_closed, TRUE },
-    { test_graphics_remibob_stub_closed, TRUE },
-    { test_graphics_docollision_stub_closed, TRUE },
-    { test_graphics_animate_stub_closed, TRUE },
-    { test_graphics_getgbuffers_stub_closed, TRUE },
-    { test_graphics_cbump_stub_closed, TRUE },
-    { test_graphics_cmove_stub_closed, TRUE },
-    { test_graphics_cwait_stub_closed, TRUE },
-    { test_graphics_calcivg_stub_closed, TRUE },
-    { test_graphics_setchiprev_stub_closed, TRUE },
-    { test_graphics_syncsbitmap_stub_closed, TRUE },
-    { test_graphics_copysbitmap_stub_closed, TRUE },
-    { test_graphics_getextsprite_stub_closed, TRUE },
-    { test_graphics_allocspritedata_stub_closed, TRUE },
-    { test_graphics_freespritedata_stub_closed, TRUE },
+    { test_graphics_addanimob_stub_closed, FALSE },
+    { test_graphics_remibob_stub_closed, FALSE },
+    { test_graphics_docollision_stub_closed, FALSE },
+    { test_graphics_animate_stub_closed, FALSE },
+    { test_graphics_getgbuffers_stub_closed, FALSE },
+    { test_graphics_cbump_stub_closed, FALSE },
+    { test_graphics_cmove_stub_closed, FALSE },
+    { test_graphics_cwait_stub_closed, FALSE },
+    { test_graphics_calcivg_stub_closed, FALSE },
+    { test_graphics_setchiprev_stub_closed, FALSE },
+    { test_graphics_syncsbitmap_stub_closed, FALSE },
+    { test_graphics_copysbitmap_stub_closed, FALSE },
+    { test_graphics_getextsprite_stub_closed, FALSE },
+    { test_graphics_allocspritedata_stub_closed, FALSE },
+    { test_graphics_freespritedata_stub_closed, FALSE },
     { test_intuition_openintuition_stub_closed, TRUE },
     { test_intuition_entry_point_dispatch, TRUE },
     { test_icon_phase87_stub_closed, TRUE },
