@@ -665,14 +665,6 @@
  },
  {
   "lib": "gadtools",
-  "function": "DrawBevelBoxA",
-  "kind": "partial",
-  "detail": "partial: BBFT_ICONDROPBOX drawn as a plain recessed box (Phase 256)",
-  "file": "src/rom/lxa_gadtools.c",
-  "symbol": "_gadtools_DrawBevelBoxA"
- },
- {
-  "lib": "gadtools",
   "function": "Private1",
   "kind": "private",
   "detail": "private/reserved slot",

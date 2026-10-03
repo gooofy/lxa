@@ -1,64 +1,14 @@
 {
  "app": "SimpleGad",
  "disabled": null,
- "lxa_version": "0.11.7",
- "promoted": "2026-10-02",
+ "lxa_version": "0.11.12",
+ "promoted": "2026-10-03",
  "reference": "AmigaOS 3.1 (KS 40.70), profile aga",
  "requires_apps": false,
  "scenario": "simplegad",
  "snapshots": {
   "startup": {
    "known_tree_diffs": [
-    {
-     "field": "display_id",
-     "kind": "screen",
-     "lxa": 167936,
-     "phase": 223,
-     "ref": 32768,
-     "where": "screen[Workbench Screen]"
-    },
-    {
-     "field": "flags",
-     "kind": "screen",
-     "lxa": 1,
-     "phase": 223,
-     "ref": 1553,
-     "where": "screen[Workbench Screen]"
-    },
-    {
-     "field": "menu_vborder",
-     "kind": "screen",
-     "lxa": 0,
-     "phase": 223,
-     "ref": 2,
-     "where": "screen[Workbench Screen]"
-    },
-    {
-     "field": "menu_hborder",
-     "kind": "screen",
-     "lxa": 0,
-     "phase": 223,
-     "ref": 4,
-     "where": "screen[Workbench Screen]"
-    },
-    {
-     "field": "wbor",
-     "kind": "screen",
-     "lxa": [
-      4,
-      11,
-      4,
-      2
-     ],
-     "phase": 223,
-     "ref": [
-      4,
-      2,
-      4,
-      2
-     ],
-     "where": "screen[Workbench Screen]"
-    },
     {
      "field": "title",
      "kind": "window",
@@ -74,41 +24,9 @@
      "phase": 223,
      "ref": 11,
      "where": "screen[Workbench Screen]/window[0]"
-    },
-    {
-     "field": "max_width",
-     "kind": "window",
-     "lxa": 65535,
-     "phase": 222,
-     "ref": 400,
-     "where": "screen[Workbench Screen]/window[0]"
-    },
-    {
-     "field": "max_height",
-     "kind": "window",
-     "lxa": 65535,
-     "phase": 222,
-     "ref": 100,
-     "where": "screen[Workbench Screen]/window[0]"
-    },
-    {
-     "field": "flags",
-     "kind": "window",
-     "lxa": 12296,
-     "phase": 222,
-     "ref": 134230024,
-     "where": "screen[Workbench Screen]/window[0]"
-    },
-    {
-     "field": "missing",
-     "kind": "gadget",
-     "lxa": null,
-     "phase": 222,
-     "ref": 32901,
-     "where": "screen[Workbench Screen]/window[0]/sysgadget[0x8085]"
     }
    ],
-   "pixel_budget": 13174,
+   "pixel_budget": 10843,
    "pixel_phase": 223,
    "stdout_known_diff": null
   }

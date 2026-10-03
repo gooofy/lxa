@@ -197,7 +197,7 @@ TEST_F(TypefaceTest, WindowGeometryIsPlausible)
     EXPECT_LE(wi.height, 800) << "Window too tall: " << wi.height;
 }
 
-/* Phase 147b: Typeface first-run window geometry target is 194×138.
+/* Phase 147b: Typeface first-run window geometry target is 194×129.
  *
  * This is the correct BGUI minimum size computed from:
  *   - CharGadget: 8 columns × (topaz8 XSize=8 + 2×CG_XOFFSET=12) = 8×20 = 160px wide
@@ -206,8 +206,8 @@ TEST_F(TypefaceTest, WindowGeometryIsPlausible)
  *   Total width = 160 + 16 + 22 = ~194px (exact depends on BGUI frame borders)
  *
  *   - CharGadget: 8 rows × (topaz8 YSize=8 + 2×CG_YOFFSET=6) = 8×14 = 112px tall
- *   - Box.Height from Typeface: 112 + 4 + WBorTop(11) + 1 + Font->ta_YSize(8) + WBorBottom(2) = 138
- *   Total height = max(BGUI_min, Box.Height=138) = 138px
+ *   - Box.Height from Typeface: 112 + 4 + WBorTop(2) + 1 + Font->ta_YSize(8) + WBorBottom(2) = 129
+ *   Total height = max(BGUI_min, Box.Height=129) = 129px (AmigaOS 3.1 reference)
  *
  * ±4px tolerance accommodates minor BGUI frame/border rounding differences.
  */
@@ -220,9 +220,10 @@ TEST_F(TypefaceTest, WindowGeometryMatchesTarget)
     lxa_window_info_t wi;
     ASSERT_TRUE(lxa_get_window_info(0, &wi));
 
-    /* Expected: 194×138 for first-run with topaz.font/8 on PAL 640×256 Workbench */
+    /* AmigaOS 3.1 reference (app-typeface): 194x129 for first-run with
+     * topaz.font/8 on the PAL 640x256 Workbench (WBorTop 2) */
     const int target_w = 194;
-    const int target_h = 138;
+    const int target_h = 129;
     const int tolerance = 4;
 
     EXPECT_GE(wi.width,  target_w - tolerance)
@@ -356,13 +357,13 @@ TEST_F(TypefaceTest, WindowChromeIsRendered)
 
     int r, g, b;
 
-    /* Title bar row should be dark (black on this palette).
-     * Sample mid-bar to avoid the close gadget on the left and depth
-     * gadget on the right. */
+    /* AmigaOS 3.1 reference (app-typeface): the active title bar is filled
+     * with FILLPEN (pen 3, rgb 102,136,187). Sample mid-bar to avoid the
+     * close gadget on the left and depth gadget on the right. */
     int title_x = wi.width / 2;
     ASSERT_TRUE(sample(title_x, 4, &r, &g, &b));
-    EXPECT_LT(r + g + b, 150)
-        << "Title bar at (" << title_x << ",4) is not dark: "
+    EXPECT_TRUE(r == 102 && g == 136 && b == 187)
+        << "Title bar at (" << title_x << ",4) is not FILLPEN: "
         << "rgb=(" << r << "," << g << "," << b << ") — chrome missing?";
 
     /* Left border outer column should be the white highlight. */

@@ -4122,6 +4122,11 @@ static VOID _intuition_handle_pointerpos_event(struct IntuitionBase *IntuitionBa
         WORD dy = mouseY - g_size_start_y;
         WORD newW = g_size_orig_w + dx;
         WORD newH = g_size_orig_h + dy;
+        /* sizing with the mouse respects the window limits */
+        if (newW < g_size_window->MinWidth) newW = g_size_window->MinWidth;
+        if ((UWORD)newW > g_size_window->MaxWidth) newW = g_size_window->MaxWidth;
+        if (newH < g_size_window->MinHeight) newH = g_size_window->MinHeight;
+        if ((UWORD)newH > g_size_window->MaxHeight) newH = g_size_window->MaxHeight;
         WORD size_dx = newW - g_size_window->Width;
         WORD size_dy = newH - g_size_window->Height;
 
@@ -8082,6 +8087,11 @@ VOID _intuition_ProcessInputEvents(struct Screen *hint_screen)
                     WORD dy = mouseY - g_size_start_y;
                     WORD newW = g_size_orig_w + dx;
                     WORD newH = g_size_orig_h + dy;
+                    /* sizing with the mouse respects the window limits */
+                    if (newW < g_size_window->MinWidth) newW = g_size_window->MinWidth;
+                    if ((UWORD)newW > g_size_window->MaxWidth) newW = g_size_window->MaxWidth;
+                    if (newH < g_size_window->MinHeight) newH = g_size_window->MinHeight;
+                    if ((UWORD)newH > g_size_window->MaxHeight) newH = g_size_window->MaxHeight;
 
                     /* SizeWindow will enforce min/max limits */
                     WORD size_dx = newW - g_size_window->Width;
@@ -8724,6 +8734,19 @@ struct Screen * _intuition_OpenScreen ( register struct IntuitionBase * Intuitio
         return NULL;
     }
 
+    struct Screen * _intuition_OpenScreenTagList ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+                                                   register const struct NewScreen * newScreen __asm("a0"),
+                                                   register const struct TagItem * tagList __asm("a1"));
+
+    /* ExtNewScreen: the extension tags are processed like
+     * OpenScreenTagList(newScreen, Extension) */
+    if ((newScreen->Type & NS_EXTENDED) &&
+        ((const struct ExtNewScreen *)newScreen)->Extension)
+    {
+        return _intuition_OpenScreenTagList(IntuitionBase, newScreen,
+                                            ((const struct ExtNewScreen *)newScreen)->Extension);
+    }
+
     /* Per RKRM: apps must not call OpenScreen() with Type=WBENCHSCREEN.
      * Only Intuition itself opens the Workbench screen via OpenWorkbench().
      * Return NULL as real Intuition does when an app tries this. */
@@ -8797,7 +8820,9 @@ struct Screen * _intuition_OpenScreen ( register struct IntuitionBase * Intuitio
     screen->TopEdge = newScreen->TopEdge;
     screen->Width = width;
     screen->Height = height;
-    screen->Flags = newScreen->Type;
+    /* NS_EXTENDED only describes the NewScreen structure (AmigaOS 3.1
+     * reference: dopus-startup) */
+    screen->Flags = newScreen->Type & ~NS_EXTENDED;
     screen->Title = newScreen->DefaultTitle;
     screen->DefaultTitle = newScreen->DefaultTitle;
     screen->DetailPen = newScreen->DetailPen;
@@ -9702,7 +9727,13 @@ struct Window * _intuition_OpenWindow ( register struct IntuitionBase * Intuitio
     {
         struct PubScreenNode *pub = _intuition_find_pubscreen_by_screen(
             (struct LXAIntuitionBase *)IntuitionBase, screen);
-        if (pub && ((struct LXAPubScreenNode *)pub)->is_public)
+        /* AmigaOS 3.1 reference (dopus-startup, gadtoolsgadgets): a window
+         * opened on a public screen through the public screen mechanism
+         * (WBENCHSCREEN/PUBLICSCREEN type, WA_PubScreen[Name]) is a
+         * visitor; a CUSTOMSCREEN window on the opener's own screen is not */
+        if (pub && ((struct LXAPubScreenNode *)pub)->is_public &&
+            (!newWindow->Screen ||
+             (newWindow->Type & SCREENTYPE) != CUSTOMSCREEN))
             window->Flags |= WFLG_VISITOR;
     }
     {
@@ -10481,11 +10512,11 @@ VOID _intuition_SizeWindow ( register struct IntuitionBase * IntuitionBase __asm
     new_w = window->Width + dx;
     new_h = window->Height + dy;
 
-    /* Enforce limits */
+    /* Enforce limits (AmigaOS 3.1 reference: tests/intuition/window_manipulation) */
     if (new_w < window->MinWidth) new_w = window->MinWidth;
-    if (new_w > window->MaxWidth) new_w = window->MaxWidth;
+    if ((UWORD)new_w > window->MaxWidth) new_w = window->MaxWidth;
     if (new_h < window->MinHeight) new_h = window->MinHeight;
-    if (new_h > window->MaxHeight) new_h = window->MaxHeight;
+    if ((UWORD)new_h > window->MaxHeight) new_h = window->MaxHeight;
 
     /* Recalculate deltas in case limits were hit */
     dx = new_w - window->Width;
@@ -12511,10 +12542,9 @@ VOID _intuition_ChangeWindowBox ( register struct IntuitionBase * IntuitionBase 
     if (!window) return;
 
     /* clamp the size like SizeWindow() does */
-    if (width < window->MinWidth) width = window->MinWidth;
-    if (width > window->MaxWidth) width = window->MaxWidth;
-    if (height < window->MinHeight) height = window->MinHeight;
-    if (height > window->MaxHeight) height = window->MaxHeight;
+    /* AmigaOS 3.1 reference: ChangeWindowBox() ignores the window limits */
+    if (width < 1) width = 1;
+    if (height < 1) height = 1;
 
     /* AmigaOS 3.1 reference: one IDCMP_NEWSIZE + IDCMP_CHANGEWINDOW for a
      * box change (no separate CHANGEWINDOW for the move part) */
@@ -13628,8 +13658,11 @@ LONG _intuition_SysReqHandler ( register struct IntuitionBase * IntuitionBase __
             {
                 return 0;
             }
-
-            return -1;
+            else if (class == IDCMP_DISKINSERTED)
+            {
+                return -1;
+            }
+            /* any other message leaves the requester open (-2) */
         }
         
         if (!waitInput) break;
@@ -13647,7 +13680,6 @@ struct Window * _intuition_OpenWindowTagList ( register struct IntuitionBase * I
     BOOL auto_adjust = FALSE;
     BOOL pubname_missing = FALSE;   /* WA_PubScreenName not found / private */
     BOOL pubname_fallback = FALSE;  /* WA_PubScreenFallBack */
-    BOOL left_specified = FALSE;
     BOOL top_specified = FALSE;
     UWORD mouse_queue = DEFAULT_MOUSEQUEUE;
     struct NewWindow nw;
@@ -13694,7 +13726,6 @@ struct Window * _intuition_OpenWindowTagList ( register struct IntuitionBase * I
             {
                 case WA_Left:
                     nw.LeftEdge = (WORD)tag->ti_Data;
-                    left_specified = TRUE;
                     break;
                 case WA_Top:
                     nw.TopEdge = (WORD)tag->ti_Data;
@@ -13873,7 +13904,7 @@ struct Window * _intuition_OpenWindowTagList ( register struct IntuitionBase * I
                         if (pub_screen)
                         {
                             nw.Screen = pub_screen;
-                            nw.Type = CUSTOMSCREEN;
+                            nw.Type = PUBLICSCREEN;
                             _intuition_UnlockPubScreen(IntuitionBase, NULL, pub_screen);
                         }
                     }
@@ -13887,7 +13918,7 @@ struct Window * _intuition_OpenWindowTagList ( register struct IntuitionBase * I
                         if (pub_screen)
                         {
                             nw.Screen = pub_screen;
-                            nw.Type = CUSTOMSCREEN;
+                            nw.Type = PUBLICSCREEN;
                             _intuition_UnlockPubScreen(IntuitionBase, NULL, pub_screen);
                         }
                     }
@@ -13903,7 +13934,7 @@ struct Window * _intuition_OpenWindowTagList ( register struct IntuitionBase * I
                     if (tag->ti_Data)
                     {
                         nw.Screen = (struct Screen *)tag->ti_Data;
-                        nw.Type = CUSTOMSCREEN;
+                        nw.Type = PUBLICSCREEN;
                     }
                     else
                     {
@@ -13912,7 +13943,7 @@ struct Window * _intuition_OpenWindowTagList ( register struct IntuitionBase * I
                         if (def_screen)
                         {
                             nw.Screen = def_screen;
-                            nw.Type = CUSTOMSCREEN;
+                            nw.Type = PUBLICSCREEN;
                             _intuition_UnlockPubScreen(IntuitionBase, NULL, def_screen);
                         }
                     }
@@ -14026,6 +14057,20 @@ struct Window * _intuition_OpenWindowTagList ( register struct IntuitionBase * I
         return NULL;
     }
 
+    /* AmigaOS 3.1 reference (simplegad, gadtoolsgadgets, simplegtgadget
+     * goldens): without a NewWindow and WA_Top the window opens just below
+     * the screen title bar */
+    if (!newWindow && !top_specified)
+    {
+        struct Screen *def_screen = nw.Screen;
+
+        if (!def_screen)
+            def_screen = _intuition_find_workbench_screen(IntuitionBase);
+        if (def_screen && nw.Height > 0 &&
+            def_screen->BarHeight + 1 + nw.Height <= def_screen->Height)
+            nw.TopEdge = def_screen->BarHeight + 1;
+    }
+
     if (auto_adjust)
     {
         struct Screen *adjust_screen = nw.Screen;
@@ -14056,12 +14101,9 @@ struct Window * _intuition_OpenWindowTagList ( register struct IntuitionBase * I
             if (adjust_height <= 0 || adjust_height > adjust_screen->Height)
                 adjust_height = adjust_screen->Height;
 
-            if (!left_specified && !top_specified)
-            {
-                nw.LeftEdge = IntuitionBase->MouseX - (adjust_width / 2);
-                nw.TopEdge = IntuitionBase->MouseY;
-            }
-
+            /* AmigaOS 3.1 reference (gadtoolsgadgets golden): WA_AutoAdjust
+             * only moves the window into the screen, it does not place it
+             * at the mouse pointer */
             if (nw.LeftEdge < 0)
                 nw.LeftEdge = 0;
             if (nw.TopEdge < 0)
@@ -14085,6 +14127,11 @@ struct Window * _intuition_OpenWindowTagList ( register struct IntuitionBase * I
 
     /* Call our existing OpenWindow with the assembled NewWindow */
     struct Window *win = _intuition_OpenWindow(IntuitionBase, &nw);
+
+    /* AmigaOS 3.1 reference (dopus-startup): an ExtNewWindow keeps
+     * WFLG_NW_EXTENDED in Window->Flags */
+    if (win && newWindow && (newWindow->Flags & WFLG_NW_EXTENDED))
+        win->Flags |= WFLG_NW_EXTENDED;
 
     if (win)
         _intuition_set_mouse_queue_value((struct LXAIntuitionBase *)IntuitionBase, win, mouse_queue);
@@ -14133,11 +14180,26 @@ struct Screen * _intuition_OpenScreenTagList ( register struct IntuitionBase * I
     DPRINTF(LOG_DEBUG, "_intuition: OpenScreenTagList() called, newScreen=0x%08lx, tagList=0x%08lx\n",
             (ULONG)newScreen, (ULONG)tagList);
     
+    const struct TagItem *tag_lists[2];
+    int tl;
+    BOOL share_pens = FALSE;
+    BOOL pub_name = FALSE;
+
+    tag_lists[0] = NULL;
+    tag_lists[1] = tagList;
+
     /* Start with defaults from NewScreen if provided, else use sensible defaults */
     if (newScreen)
     {
-        /* Copy the NewScreen structure */
+        /* Copy the NewScreen structure; when OpenScreen() hands over an
+         * ExtNewScreen with its Extension as the tag list, the structure
+         * itself has been consumed */
         ns = *newScreen;
+        ns.Type &= ~NS_EXTENDED;
+        if ((newScreen->Type & NS_EXTENDED) &&
+            ((const struct ExtNewScreen *)newScreen)->Extension &&
+            ((const struct ExtNewScreen *)newScreen)->Extension != tagList)
+            tag_lists[0] = ((const struct ExtNewScreen *)newScreen)->Extension;
     }
     else
     {
@@ -14152,9 +14214,11 @@ struct Screen * _intuition_OpenScreenTagList ( register struct IntuitionBase * I
     }
     
     /* Process tags to override NewScreen fields */
-    if (tagList)
+    for (tl = 0; tl < 2; tl++)
     {
-        tstate = (struct TagItem *)tagList;
+        if (!tag_lists[tl])
+            continue;
+        tstate = (struct TagItem *)tag_lists[tl];
         while ((tag = NextTagItem(&tstate)))
         {
             switch (tag->ti_Tag)
@@ -14237,7 +14301,17 @@ struct Screen * _intuition_OpenScreenTagList ( register struct IntuitionBase * I
                     DPRINTF(LOG_DEBUG, "_intuition: OpenScreenTagList() SA_Pens=0x%08lx\n",
                             (ULONG)tag->ti_Data);
                     break;
+                case SA_SharePens:
+                    share_pens = tag->ti_Data ? TRUE : FALSE;
+                    break;
+                case SA_LikeWorkbench:
+                    /* AmigaOS 3.1 reference (gallery-menus): a screen like
+                     * the Workbench shares its pens */
+                    if (tag->ti_Data)
+                        share_pens = TRUE;
+                    break;
                 case SA_PubName:
+                    pub_name = tag->ti_Data ? TRUE : FALSE;
                     /* SA_PubName handled after screen registration */
                     DPRINTF(LOG_DEBUG, "_intuition: OpenScreenTagList() SA_PubName='%s'\n",
                             tag->ti_Data ? (const char *)tag->ti_Data : "(null)");
@@ -14274,6 +14348,13 @@ struct Screen * _intuition_OpenScreenTagList ( register struct IntuitionBase * I
     if (!screen)
         return NULL;
 
+    /* AmigaOS 3.1 reference (dopus-startup, gallery-menus): a screen opened
+     * with SA_PubName is a PUBLICSCREEN, SA_SharePens sets PENSHARED */
+    if (pub_name)
+        screen->Flags = (screen->Flags & ~SCREENTYPE) | PUBLICSCREEN;
+    if (share_pens)
+        screen->Flags |= PENSHARED;
+
     /* If SA_DisplayID was provided, override VPModeID in the ColorMap with the
      * exact requested display ID.  Apps like PPaint's CloantoScreenManager read
      * VPModeID back after OpenScreen and compare it to what they requested.
@@ -14289,7 +14370,7 @@ struct Screen * _intuition_OpenScreenTagList ( register struct IntuitionBase * I
     }
 
     /* Second pass: apply tags that require a live screen */
-    if (tagList)
+    if (tag_lists[0] || tag_lists[1])
     {
         struct LXAIntuitionBase *base = (struct LXAIntuitionBase *)IntuitionBase;
         struct LXAPubScreenNode *lxa_pub = NULL;
@@ -14304,7 +14385,11 @@ struct Screen * _intuition_OpenScreenTagList ( register struct IntuitionBase * I
         if (pub_node)
             lxa_pub = (struct LXAPubScreenNode *)pub_node;
 
-        tstate = (struct TagItem *)tagList;
+        for (tl = 0; tl < 2; tl++)
+        {
+        if (!tag_lists[tl])
+            continue;
+        tstate = (struct TagItem *)tag_lists[tl];
         while ((tag = NextTagItem(&tstate)))
         {
             switch (tag->ti_Tag)
@@ -14327,6 +14412,7 @@ struct Screen * _intuition_OpenScreenTagList ( register struct IntuitionBase * I
                 default:
                     break;
             }
+        }
         }
 
         /* Apply SA_Pens: merge caller's pens with defaults.

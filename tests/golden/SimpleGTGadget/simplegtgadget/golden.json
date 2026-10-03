@@ -1,64 +1,14 @@
 {
  "app": "SimpleGTGadget",
  "disabled": null,
- "lxa_version": "0.11.11",
- "promoted": "2026-10-02",
+ "lxa_version": "0.11.12",
+ "promoted": "2026-10-03",
  "reference": "AmigaOS 3.1 (KS 40.70), profile aga",
  "requires_apps": false,
  "scenario": "simplegtgadget",
  "snapshots": {
   "startup": {
    "known_tree_diffs": [
-    {
-     "field": "display_id",
-     "kind": "screen",
-     "lxa": 167936,
-     "phase": 223,
-     "ref": 32768,
-     "where": "screen[Workbench Screen]"
-    },
-    {
-     "field": "flags",
-     "kind": "screen",
-     "lxa": 1,
-     "phase": 223,
-     "ref": 1553,
-     "where": "screen[Workbench Screen]"
-    },
-    {
-     "field": "menu_vborder",
-     "kind": "screen",
-     "lxa": 0,
-     "phase": 223,
-     "ref": 2,
-     "where": "screen[Workbench Screen]"
-    },
-    {
-     "field": "menu_hborder",
-     "kind": "screen",
-     "lxa": 0,
-     "phase": 223,
-     "ref": 4,
-     "where": "screen[Workbench Screen]"
-    },
-    {
-     "field": "wbor",
-     "kind": "screen",
-     "lxa": [
-      4,
-      11,
-      4,
-      2
-     ],
-     "phase": 223,
-     "ref": [
-      4,
-      2,
-      4,
-      2
-     ],
-     "where": "screen[Workbench Screen]"
-    },
     {
      "field": "top",
      "kind": "window",
@@ -68,77 +18,19 @@
      "where": "screen[Workbench Screen]/window[GadTools Gadget Demo]"
     },
     {
-     "field": "max_width",
-     "kind": "window",
-     "lxa": 65535,
-     "phase": 222,
-     "ref": 300,
-     "where": "screen[Workbench Screen]/window[GadTools Gadget Demo]"
-    },
-    {
-     "field": "max_height",
-     "kind": "window",
-     "lxa": 65535,
-     "phase": 222,
-     "ref": 133,
-     "where": "screen[Workbench Screen]/window[GadTools Gadget Demo]"
-    },
-    {
-     "field": "flags",
-     "kind": "window",
-     "lxa": 12302,
-     "phase": 222,
-     "ref": 134230030,
-     "where": "screen[Workbench Screen]/window[GadTools Gadget Demo]"
-    },
-    {
-     "field": "count",
-     "kind": "gadget",
-     "lxa": 7,
-     "phase": 223,
-     "ref": 8,
-     "where": "screen[Workbench Screen]/window[GadTools Gadget Demo]"
-    },
-    {
      "field": "flags",
      "kind": "gadget",
-     "lxa": 0,
-     "phase": 223,
+     "lxa": 3,
+     "phase": 222,
      "ref": 32774,
      "where": "screen[Workbench Screen]/window[GadTools Gadget Demo]/gadget[0 id=1]"
     },
     {
-     "field": "top",
-     "kind": "gadget",
-     "lxa": 40,
-     "phase": 223,
-     "ref": 31,
-     "where": "screen[Workbench Screen]/window[GadTools Gadget Demo]/gadget[0 id=1]"
-    },
-    {
-     "field": "text",
-     "kind": "gadget",
-     "lxa": [
-      "Click Me"
-     ],
-     "phase": 223,
-     "ref": [],
-     "where": "screen[Workbench Screen]/window[GadTools Gadget Demo]/gadget[0 id=1]"
-    },
-    {
      "field": "flags",
      "kind": "gadget",
-     "lxa": 0,
-     "phase": 223,
+     "lxa": 3,
+     "phase": 222,
      "ref": 32774,
-     "where": "screen[Workbench Screen]/window[GadTools Gadget Demo]/gadget[1 id=2]"
-    },
-    {
-     "field": "top",
-     "kind": "gadget",
-     "lxa": 60,
-     "phase": 223,
-     "ref": 51,
      "where": "screen[Workbench Screen]/window[GadTools Gadget Demo]/gadget[1 id=2]"
     },
     {
@@ -152,57 +44,17 @@
     {
      "field": "activation",
      "kind": "gadget",
-     "lxa": 1,
-     "phase": 223,
+     "lxa": 2049,
+     "phase": 222,
      "ref": 10241,
-     "where": "screen[Workbench Screen]/window[GadTools Gadget Demo]/gadget[2 id=3]"
-    },
-    {
-     "field": "left",
-     "kind": "gadget",
-     "lxa": 84,
-     "phase": 223,
-     "ref": 86,
-     "where": "screen[Workbench Screen]/window[GadTools Gadget Demo]/gadget[2 id=3]"
-    },
-    {
-     "field": "top",
-     "kind": "gadget",
-     "lxa": 82,
-     "phase": 223,
-     "ref": 74,
-     "where": "screen[Workbench Screen]/window[GadTools Gadget Demo]/gadget[2 id=3]"
-    },
-    {
-     "field": "width",
-     "kind": "gadget",
-     "lxa": 72,
-     "phase": 223,
-     "ref": 68,
-     "where": "screen[Workbench Screen]/window[GadTools Gadget Demo]/gadget[2 id=3]"
-    },
-    {
-     "field": "height",
-     "kind": "gadget",
-     "lxa": 10,
-     "phase": 223,
-     "ref": 8,
      "where": "screen[Workbench Screen]/window[GadTools Gadget Demo]/gadget[2 id=3]"
     },
     {
      "field": "flags",
      "kind": "gadget",
-     "lxa": 0,
-     "phase": 223,
+     "lxa": 3,
+     "phase": 222,
      "ref": 32774,
-     "where": "screen[Workbench Screen]/window[GadTools Gadget Demo]/gadget[3 id=4]"
-    },
-    {
-     "field": "top",
-     "kind": "gadget",
-     "lxa": 100,
-     "phase": 223,
-     "ref": 91,
      "where": "screen[Workbench Screen]/window[GadTools Gadget Demo]/gadget[3 id=4]"
     },
     {
@@ -217,35 +69,11 @@
       "Cycle:"
      ],
      "where": "screen[Workbench Screen]/window[GadTools Gadget Demo]/gadget[3 id=4]"
-    },
-    {
-     "field": "missing",
-     "kind": "gadget",
-     "lxa": null,
-     "phase": 222,
-     "ref": 32837,
-     "where": "screen[Workbench Screen]/window[GadTools Gadget Demo]/sysgadget[0x8045]"
-    },
-    {
-     "field": "missing",
-     "kind": "gadget",
-     "lxa": null,
-     "phase": 222,
-     "ref": 32901,
-     "where": "screen[Workbench Screen]/window[GadTools Gadget Demo]/sysgadget[0x8085]"
-    },
-    {
-     "field": "missing",
-     "kind": "gadget",
-     "lxa": null,
-     "phase": 222,
-     "ref": 32805,
-     "where": "screen[Workbench Screen]/window[GadTools Gadget Demo]/sysgadget[0x8025]"
     }
    ],
-   "pixel_budget": 6778,
+   "pixel_budget": 492,
    "pixel_phase": 223,
-   "stdout_known_diff": 223
+   "stdout_known_diff": 222
   }
  }
 }

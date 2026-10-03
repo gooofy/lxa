@@ -392,12 +392,27 @@ TEST_F(DPaintPixelTest, ScreenFormatDialogSectionsContainVisibleContent) {
      * pixels that match the old Ownership glyph positions.  We verify by
      * counting pixels in a narrow strip of the title bar body — the count
      * must not exceed the expected maximum for a freshly-cleared layer. */
-    int title_ghost_pixels = CountContentPixels(
-        dialog_info.x + 4,
-        dialog_info.y + 2,
-        dialog_info.x + 200,
-        dialog_info.y + 12,
-        /* bg_color= */ 0 /* count all non-pen-0 pixels */);
+    /* The AmigaOS 3.1 title bar is filled with FILLPEN (active) or
+     * BACKGROUNDPEN (inactive): count every pixel that differs from the
+     * dominant pen of the strip */
+    int title_ghost_pixels = 0;
+    {
+        int hist[256] = {0};
+        int total = 0;
+        for (int y = dialog_info.y + 2; y <= dialog_info.y + 9; y++) {
+            for (int x = dialog_info.x + 4; x <= dialog_info.x + 200; x++) {
+                int pen = -1;
+                if (lxa_read_pixel(x, y, &pen) && pen >= 0 && pen < 256) {
+                    hist[pen]++;
+                    total++;
+                }
+            }
+        }
+        int dominant = 0;
+        for (int i = 1; i < 256; i++)
+            if (hist[i] > hist[dominant]) dominant = i;
+        title_ghost_pixels = total - hist[dominant];
+    }
     /* A fully backfilled title bar has exactly the window-chrome pixels
      * (title text, border gadgets).  Ownership's title "Ownership Information"
      * at ~16 chars × ~8px = ~128 non-bg pixels.  Screen Format's title at the
@@ -568,43 +583,52 @@ TEST_F(DPaintPixelTest, ScreenFormatStringGadgetRecessed3DFrame) {
 
     lxa_flush_display();
 
-    /* String gadget id=6 (Screen Size width): this is gadget index 4, screen
-     * position (213,166) wh=(44,10).  These are the HITBOX coordinates; the
-     * GadTools bevel border sits outside the hitbox at offsets (-GT_BEVEL_LEFT,
-     * -GT_BEVEL_TOP) = (-4,-2), covering the full ng_Width x ng_Height area.
-     *
-     * Bevel outer top edge:  screen y = 166 - 2 = 164
-     * Bevel outer left:      screen x = 213 - 4 = 209
-     * Bevel full width:      44 + 2*4 = 52
-     * Bevel full height:     10 + 2*2 = 14
-     *
-     * Outer bevel top edge should have shadow (pen 1) — recessed outer bevel.
-     * Outer bevel bottom edge (y=164+14-1=177) should have shine (pen 2).
-     */
-    const int bevel_left = 209;    /* hitbox_left - GT_BEVEL_LEFT */
-    const int bevel_top  = 164;    /* hitbox_top  - GT_BEVEL_TOP  */
-    const int bevel_w    = 52;     /* ng_Width  = hitbox_w + 2*GT_BEVEL_LEFT */
-    const int bevel_h    = 14;     /* ng_Height = hitbox_h + 2*GT_BEVEL_TOP  */
+    /* String gadget id=6 (Screen Size width). AmigaOS 3.1 GadTools puts the
+     * string area at (ng.Left + 6, ng.Top + 3, ng.Width - 12, ng.Height - 6)
+     * inside a FRAME_RIDGE drawn over the NewGadget box: a raised outer
+     * frame (shine top, shadow bottom) and a recessed inner one. Positions
+     * come from the live gadget (screen coordinates). */
+    auto gadgets = GetGadgets(dialog_index);
+    int str_idx = -1;
+    for (int i = 0; i < (int)gadgets.size(); i++) {
+        if (gadgets[i].gadget_id == 6) { str_idx = i; break; }
+    }
+    ASSERT_GE(str_idx, 0) << "Could not find Screen Size string gadget (id=6)";
+    const lxa_gadget_info_t &g = gadgets[str_idx];
+    const int bevel_left = g.left - 6;
+    const int bevel_top  = g.top - 3;
+    const int bevel_w    = g.width + 12;
+    const int bevel_h    = g.height + 6;
 
-    int shadow_top = 0;
+    int shine_top = 0;
     for (int x = bevel_left; x < bevel_left + bevel_w; x++) {
         int pen = -1;
-        lxa_read_pixel(dialog_info.x + x, dialog_info.y + bevel_top, &pen);
-        if (pen == 1) shadow_top++;
+        lxa_read_pixel(x, bevel_top, &pen);
+        if (pen == 2) shine_top++;
     }
-    EXPECT_GT(shadow_top, bevel_w / 2)
-        << "Phase 153b: Screen Format string gadget id=6 top edge should have "
-           "shadow (pen 1) pixels for recessed outer bevel, got " << shadow_top;
+    EXPECT_GT(shine_top, bevel_w / 2)
+        << "Screen Format string gadget id=6 outer ridge top edge should be "
+           "shine (pen 2), got " << shine_top;
 
-    int shine_bottom = 0;
+    int shadow_bottom = 0;
     for (int x = bevel_left; x < bevel_left + bevel_w; x++) {
         int pen = -1;
-        lxa_read_pixel(dialog_info.x + x, dialog_info.y + bevel_top + bevel_h - 1, &pen);
-        if (pen == 2) shine_bottom++;
+        lxa_read_pixel(x, bevel_top + bevel_h - 1, &pen);
+        if (pen == 1) shadow_bottom++;
     }
-    EXPECT_GT(shine_bottom, bevel_w / 2)
-        << "Phase 153b: Screen Format string gadget id=6 bottom edge should have "
-           "shine (pen 2) pixels for recessed outer bevel, got " << shine_bottom;
+    EXPECT_GT(shadow_bottom, bevel_w / 2)
+        << "Screen Format string gadget id=6 outer ridge bottom edge should be "
+           "shadow (pen 1), got " << shadow_bottom;
+
+    int inner_shadow_top = 0;
+    for (int x = bevel_left + 3; x < bevel_left + bevel_w - 4; x++) {
+        int pen = -1;
+        lxa_read_pixel(x, bevel_top + 1, &pen);
+        if (pen == 1) inner_shadow_top++;
+    }
+    EXPECT_GT(inner_shadow_top, (bevel_w - 8) / 2)
+        << "Screen Format string gadget id=6 inner ridge top should be "
+           "shadow (pen 1, recessed), got " << inner_shadow_top;
 }
 
 TEST_F(DPaintPixelTest, ScreenFormatCheckboxGadgetIsFixedWidth) {
