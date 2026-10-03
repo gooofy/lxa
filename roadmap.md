@@ -153,7 +153,7 @@ Complete (Phases 210–216, v0.11.9); see the summary table.
 - [x] Fixed so far (v0.11.21-v0.11.24, verified with probes on 3.1): command entry registers (`dos/entryregs`: Lattice 3.03's false stack overflow, the PC = -348 class), dos.library with any a6 (`dos/a6base`), `OpenLibrary()` signed-word version compare (`exec/openlibver`), the bootstrap's `pr_ReturnAddr` and saved a5, the 3.1 default stack (4096) reported to bootstrapped programs, harness calibration (300 frames = 6 s on both, non-interactive stdio like `RUN >file`). Re-run of the 299 former lxa-only crashes with reference results: 147 still crash on lxa only (was 299).
 - [ ] Bus error to a data/garbage address (33; DD, FHSpread, flist, JukeBox; SKsh jumps to "bert" after opening the real arp.library).
 - [ ] Line-F (25; MoonTool .030/.040 need an FPU - see Phase 240 - and libraries/keymaps executed as programs).
-- [ ] CHK (12; Wangle Stack, DeliTracker c/EndCLI|Echo|Copy run without a shell), TheWeb modules (-252, 9), privilege violation (8; ILBM_Killer, GadToolsBox), divide by zero (8), PC = -1 (6; EnvTool, ISAM, Csh), line-A (5), NULL base -198 (7; DRAFU, IntuiSup examples) and -30 (5; BootJob, SerLib).
+- [ ] CHK (12; BCPL programs: Wangle Stack, DeliTracker c/EndCLI|Echo|Copy - Phase 239), TheWeb modules (-252, 9), privilege violation (8; ILBM_Killer, GadToolsBox), divide by zero (8), PC = -1 (6; EnvTool, ISAM, Csh), line-A (5), NULL base -198 (7; DRAFU, IntuiSup examples) and -30 (5; BootJob, SerLib).
 - [ ] Classify non-programs (libraries, devices, keymaps, modules, fonts executed as commands) separately in `massrun report`: their outcome depends on memory contents and is not a compatibility signal.
 - [ ] AddPower exits on lxa where 3.1 opens its window (no crash any more).
 - [ ] 8 programs time out the emulator wall-clock guard where the reference opens a window; triage the remaining hangs (176 in the original run) with the calibrated harness.
@@ -169,6 +169,13 @@ Complete (Phases 210–216, v0.11.9); see the summary table.
 - [ ] Re-run `python3 -m rdd sweep run` after each fix; the rating in `apps/compat.yaml` must not drop (`rdd loop`).
 
 **Test gate**: no corpus app rated `garbage` or `untested` for a reason inside lxa or the scenarios.
+
+### Phase 239 — BCPL programs
+**Class**: Compatibility. AmigaOS 3.1 still runs BCPL programs (1.x C: commands such as the copies in DeliTracker's `c/`, Wangle `Stack`): they start with `movea.l n(a2),a4; moveq #k,d0; jsr (a5)` - a2 the BCPL global vector, a5/a6 the BCPL call/return routines. lxa provides none of them, so these programs take a CHK exception at once (11 programs of the Phase 237 crash list; `Stack` prints "current stack size is 32768 bytes" on 3.1).
+- [ ] Port the m68k BCPL support from AROS (global vector with the dos entries BCPL code calls, BCPL call/return/stack-frame routines, BSTR/BPTR argument conventions; keep the licence header, record it in the third-party code notes) and set a2/a5/a6 at command entry for BCPL segments (verify with `tests/probes/dos/entryregs.c` which registers 3.1 sets).
+- [ ] Probe on the reference: run a 1.3 BCPL command (from the Fish disks) through RunCommand and System(), compare output and return code.
+
+**Test gate**: the BCPL programs of the Phase 237 crash list exit like on 3.1 (`python3 -m rdd massrun lxa --ids-file`), and a probe or shell parity script runs one BCPL command.
 
 ### Phase 234 — Legacy app items, re-validated
 **Class**: Compatibility. Carried over from the legacy roadmap; each one must now end with a reference golden.
@@ -194,7 +201,7 @@ Complete (Phases 210–216, v0.11.9); see the summary table.
 **Reclassified from "new feature" to "compatibility"**: PPaint and FinalWriter fail without it, and so does DPaint's "Choose Display Mode" list. The reference profile `rtg` provides the ground truth.
 
 ### Phase 240 — Machine identity: 68040 + AGA + RTG mode database
-- [ ] Present a 68040 with FPU. Switch the Musashi CPU type, set `AttnFlags` (`exec.c:5898`), and ship a `68040.library`-compatible `SYS:Libs` entry, since apps probe for it.
+- [ ] Present a 68040 with FPU (Fred Fish MoonTool .030/.040 and other FPU programs take a line-F exception on lxa's 68030 without FPU, Phase 237). Switch the Musashi CPU type, set `AttnFlags` (`exec.c:5898`), and ship a `68040.library`-compatible `SYS:Libs` entry, since apps probe for it.
 - [ ] Report AGA everywhere (`ChipRevBits0`, `GetChipRev`-style code at `lxa_graphics.c:9314`, `exec.c:5765`). Add AGA display modes, 256-colour planar screens and `LoadRGB32`/`SetRGB32` 24-bit palettes.
 - [ ] Cross-check GfxBase, ExecBase and display-info fields one by one against a reference `aga` dump.
 - [ ] Memory layout of the reference: 2 MB chip RAM plus fast RAM (lxa has one 10 MB `MEMF_CHIP` region). Directory Opus shows `MEMORY:` instead of `CHIP: FAST: TOTAL:` (dopus-startup golden pixel budget).
