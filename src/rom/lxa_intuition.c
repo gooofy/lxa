@@ -3448,6 +3448,15 @@ static VOID _intuition_update_input_snapshot(struct IntuitionBase *IntuitionBase
     U_getSysTime(&tv);
     IntuitionBase->MouseX = mouseX;
     IntuitionBase->MouseY = mouseY;
+    {
+        /* every screen tracks the pointer in its own coordinates */
+        struct Screen *scr;
+        for (scr = IntuitionBase->FirstScreen; scr; scr = scr->NextScreen)
+        {
+            scr->MouseX = mouseX - scr->LeftEdge;
+            scr->MouseY = mouseY - scr->TopEdge;
+        }
+    }
     IntuitionBase->Seconds = tv.tv_secs;
     IntuitionBase->Micros = tv.tv_micro;
 }
@@ -4373,6 +4382,18 @@ static VOID _intuition_process_input_events(struct IntuitionBase *IntuitionBase,
             mouseX = current_event.ie_X;
             mouseY = current_event.ie_Y;
         }
+        else if (current_event.ie_Class == IECLASS_NEWPOINTERPOS)
+        {
+            /* V36 pointer positioning: IESUBCLASS_PIXEL gives a position on
+             * a screen (ie_EventAddress -> IEPointerPixel) */
+            struct IEPointerPixel *pp = (struct IEPointerPixel *)current_event.ie_EventAddress;
+            if (current_event.ie_SubClass == IESUBCLASS_PIXEL && pp)
+            {
+                mouseX = pp->iepp_Position.X + (pp->iepp_Screen ? pp->iepp_Screen->LeftEdge : 0);
+                mouseY = pp->iepp_Position.Y + (pp->iepp_Screen ? pp->iepp_Screen->TopEdge : 0);
+            }
+            current_event.ie_Class = IECLASS_POINTERPOS;
+        }
         else if (current_event.ie_X != 0 || current_event.ie_Y != 0)
         {
             mouseX = current_event.ie_X;
@@ -4689,6 +4710,17 @@ VOID _intuition_CloseWindow ( register struct IntuitionBase * IntuitionBase __as
     /* Dispose any pending and replied IDCMP messages, then remove both ports. */
     _dispose_window_idcmp_ports(window);
 
+    /* requesters still up: their layers go with the window */
+    {
+        struct Requester *rq;
+        for (rq = window->FirstRequest; rq; rq = rq->OlderRequest)
+            if (rq->ReqLayer && rq->ReqLayer != window->WLayer)
+            {
+                DeleteLayer(0, rq->ReqLayer);
+                rq->ReqLayer = NULL;
+            }
+    }
+
     if (window->BorderRPort)
         border_layer = window->BorderRPort->Layer;
     content_layer = window->WLayer;
@@ -4986,10 +5018,20 @@ VOID _intuition_EndRequest ( register struct IntuitionBase * IntuitionBase __asm
     
     requester->Flags &= ~REQACTIVE;
     requester->OlderRequest = NULL;
-    requester->ReqLayer = NULL;
-    requester->RWindow = NULL;
-    
-    if (window->RPort)
+    if (window->ReqCount > 0)
+        window->ReqCount--;
+    if (!window->ReqCount)
+        window->Flags &= ~WFLG_INREQUEST;
+
+    if (requester->ReqLayer && requester->ReqLayer != window->WLayer)
+    {
+        /* deleting the layer uncovers the window: its backing store (smart
+         * refresh) or a refresh message (simple refresh) restores it */
+        DeleteLayer(0, requester->ReqLayer);
+        requester->ReqLayer = NULL;
+        _rerender_requester_stack(window);
+    }
+    else if (window->RPort)
     {
         _calculate_requester_box(window, requester, &left, &top, &width, &height);
         UBYTE save_fg = window->RPort->FgPen;
@@ -4999,6 +5041,8 @@ VOID _intuition_EndRequest ( register struct IntuitionBase * IntuitionBase __asm
         SetAPen(window->RPort, save_fg);
         _rerender_requester_stack(window);
     }
+    /* AmigaOS 3.1 clears ReqLayer but keeps RWindow */
+    requester->ReqLayer = NULL;
 
     /* Post IDCMP_REQCLEAR to notify the window that a requester was removed.
      * Per RKRM: one REQCLEAR is sent for each requester closed in the window. */
@@ -7088,9 +7132,13 @@ static void _compute_idcmp_mouse_coords(struct Window *window, ULONG class,
     if ((class == IDCMP_MOUSEMOVE || class == IDCMP_MOUSEBUTTONS) &&
         (window->IDCMPFlags & IDCMP_DELTAMOVE))
     {
-        /* Delta mode: report change from previous absolute position */
-        *outX = absX - g_prev_abs_mouse_x;
-        *outY = absY - g_prev_abs_mouse_y;
+        /* Delta mode: report change from previous absolute position, in
+         * Intuition's internal (hires interlace) resolution - AmigaOS 3.1
+         * reports 20/10 for a 10/5 pixel move on a lores screen
+         * (tests/scenarios/interactive/IDCMPDeltaMove.yaml) */
+        UWORD modes = window->WScreen ? window->WScreen->ViewPort.Modes : HIRES;
+        *outX = (WORD)((absX - g_prev_abs_mouse_x) * ((modes & (HIRES | SUPERHIRES)) ? 1 : 2));
+        *outY = (WORD)((absY - g_prev_abs_mouse_y) * ((modes & LACE) ? 1 : 2));
     }
     else
     {
@@ -8900,12 +8948,10 @@ struct Screen * _intuition_OpenScreen ( register struct IntuitionBase * Intuitio
          * and then read screen->ViewPort.Modes to determine the display class.
          * Apply the same auto-correction that real Intuition performs: if the
          * physical width is >= 640, set the HIRES bit. */
+        /* AmigaOS 3.1 keeps the requested mode: a 640 pixel wide screen
+         * with ViewModes 0 is a (wide) lores screen
+         * (tests/probes/intuition/screens) */
         UWORD adjModes = newScreen->ViewModes;
-        if (width >= 640 && !(adjModes & HIRES))
-        {
-            adjModes |= HIRES;
-            DPRINTF (LOG_DEBUG, "_intuition: OpenScreen() auto-setting HIRES for width=%d\n", (int)width);
-        }
         /* AmigaOS 3.1 screens always have SPRITES set */
         screen->ViewPort.Modes = adjModes | SPRITES;
         /* a screen opened behind the others is hidden */
@@ -8973,7 +9019,7 @@ struct Screen * _intuition_OpenScreen ( register struct IntuitionBase * Intuitio
                          ? newScreen->Font->ta_YSize : 8) + 2;
     screen->BarVBorder = 1;
     /* AmigaOS 3.1 reference: 5 on hires screens, 2 on lores screens */
-    screen->BarHBorder = ((screen->ViewPort.Modes & (HIRES | SUPERHIRES)) || width >= 640) ? 5 : 2;
+    screen->BarHBorder = (screen->ViewPort.Modes & (HIRES | SUPERHIRES)) ? 5 : 2;
     /* AmigaOS 3.1 reference: WBorTop is the border above the window title
      * (the title bar height is WBorTop + font height + 1), MenuHBorder 4 and
      * MenuVBorder 2 on hires, 4 on lores screens. */
@@ -10357,7 +10403,14 @@ static void _render_requester(struct Window *window, struct Requester *req)
     rp = window->RPort;
     
     _calculate_requester_box(window, req, &left, &top, &width, &height);
-    
+    /* the requester renders into its own layer (AmigaOS 3.1) */
+    if (req->ReqLayer && req->ReqLayer != window->WLayer && req->ReqLayer->rp)
+    {
+        rp = req->ReqLayer->rp;
+        left = 0;
+        top = 0;
+    }
+
     /* Draw background */
     if (!(req->Flags & NOREQBACKFILL))
     {
@@ -10395,7 +10448,31 @@ BOOL _intuition_Request ( register struct IntuitionBase * IntuitionBase __asm("a
     
     requester->Flags |= REQACTIVE;
     requester->RWindow = window;
-    requester->ReqLayer = window->WLayer;
+    /* AmigaOS 3.1: a requester is a layer of its own in front of the
+     * window, inside the window's bounds */
+    requester->ReqLayer = NULL;
+    if (window->WScreen && LayersBase)
+    {
+        LONG l, t, w, h;
+        _calculate_requester_box(window, requester, &l, &t, &w, &h);
+        if (w > window->Width - l)
+            w = window->Width - l;
+        if (h > window->Height - t)
+            h = window->Height - t;
+        if (w > 0 && h > 0)
+            requester->ReqLayer = CreateUpfrontLayer(&window->WScreen->LayerInfo,
+                                                     &window->WScreen->BitMap,
+                                                     window->LeftEdge + l, window->TopEdge + t,
+                                                     window->LeftEdge + l + w - 1,
+                                                     window->TopEdge + t + h - 1,
+                                                     LAYERSMART, NULL);
+        if (requester->ReqLayer && window->RPort && window->RPort->Font)
+            SetFont(requester->ReqLayer->rp, window->RPort->Font);
+    }
+    if (!requester->ReqLayer)
+        requester->ReqLayer = window->WLayer;
+    window->ReqCount++;
+    window->Flags |= WFLG_INREQUEST;
     
     /* Render */
     _render_requester(window, requester);
@@ -11787,6 +11864,16 @@ static void _render_gadget(struct Window *window, struct Requester *req, struct 
     }
     
     _calculate_gadget_box(window, req, gad, &left, &top, &width, &height);
+
+    /* a requester's gadgets live in the requester's own layer */
+    if (req && req->ReqLayer && req->ReqLayer != window->WLayer && req->ReqLayer->rp)
+    {
+        LONG rl, rt;
+        _calculate_requester_box(window, req, &rl, &rt, NULL, NULL);
+        rp = req->ReqLayer->rp;
+        left -= rl;
+        top -= rt;
+    }
 
     /* GadTools draws its own gadgets (frames, labels, images) */
     if (_gadtools_IsGadTools(gad) && _gadtools_RenderGadget(window, gad, rp, left, top))

@@ -129,6 +129,9 @@ int main(void)
     ns.Width = 640; ns.Height = 512; ns.Depth = 1;
     show("NewScreen interlace depth1", OpenScreen(&ns));
 
+    ns.Width = 640; ns.Height = 480; ns.ViewModes = 0; ns.Depth = 2;
+    show("NewScreen 640x480 viewmodes 0", OpenScreen(&ns));
+
     ns.Width = STDSCREENWIDTH; ns.Height = STDSCREENHEIGHT; ns.ViewModes = HIRES; ns.Depth = 2;
     ns.Type = CUSTOMSCREEN | SCREENQUIET;
     show("NewScreen std quiet", OpenScreen(&ns));

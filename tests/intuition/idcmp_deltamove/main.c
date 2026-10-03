@@ -200,16 +200,18 @@ int main(void)
             print("  FAIL: Expected at least 2 MOUSEMOVE messages\n");
             errors++;
         }
-        else if (delta_x != 10 || delta_y != 5)
+        /* AmigaOS 3.1 reports deltas in Intuition's internal resolution:
+         * a 10/5 pixel move on this lores screen is 20/10 */
+        else if (delta_x != 20 || delta_y != 10)
         {
-            print("  FAIL: Expected delta (10,5)\n");
+            print("  FAIL: Expected delta (20,10)\n");
             print_num("  Got deltaX=", delta_x);
             print_num("  Got deltaY=", delta_y);
             errors++;
         }
         else
         {
-            print("  OK: MOUSEMOVE delta (10,5) correct\n");
+            print("  OK: MOUSEMOVE delta (20,10) correct\n");
         }
     }
 
