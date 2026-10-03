@@ -4106,7 +4106,11 @@ struct Library * _exec_OpenLibrary ( register struct ExecBase *SysBase __asm("a6
 
     if (lib)
     {
-        if (lib->lib_Version < version)
+        /* AmigaOS 3.1 compares the versions as signed words: the high word
+         * of the requested version is ignored and 0x8000.. 0xffff mean
+         * "any" (tests/probes/exec/openlibver.c; Fred Fish AddPower asks
+         * for version -1) */
+        if ((WORD)lib->lib_Version < (WORD)version)
         {
             DPRINTF (LOG_DEBUG, "_exec: OpenLibrary version is too old: lib->lib_Version=%ld, version=%ld\n", lib->lib_Version, version);
             return NULL;
@@ -4247,7 +4251,7 @@ struct Library * _exec_OpenLibrary ( register struct ExecBase *SysBase __asm("a6
                 /* Initialize the library using InitResident */
                 lib = (struct Library *)InitResident(res, segList);
 
-                if (lib && lib->lib_Version >= version)
+                if (lib && (WORD)lib->lib_Version >= (WORD)version)
                 {
                     /* Call the library's Open function */
                     struct JumpVec *jv = &(((struct JumpVec *)(lib))[-1]);
@@ -4256,7 +4260,7 @@ struct Library * _exec_OpenLibrary ( register struct ExecBase *SysBase __asm("a6
 
                     DPRINTF (LOG_DEBUG, "_exec: OpenLibrary: successfully loaded %s from disk, lib=0x%08lx\n", libName, lib);
                 }
-                else if (lib && lib->lib_Version < version)
+                else if (lib && (WORD)lib->lib_Version < (WORD)version)
                 {
                     DPRINTF (LOG_DEBUG, "_exec: OpenLibrary: loaded library version %ld < requested %ld\n",
                              lib->lib_Version, version);
@@ -5666,7 +5670,15 @@ void _bootstrap(void)
          * from it (without it, Fred Fish YachtC & co. hit a false "stack
          * overflow" at once: Phase 232). */
         struct Task *me = SysBase->ThisTask;
+        /* the program runs on lxa's large bootstrap stack but is told the
+         * AmigaOS 3.1 shell default (cli_DefaultStack, 4096 bytes), as a
+         * command started from a 3.1 shell would be */
         ULONG stacksize = (ULONG)me->tc_SPUpper - (ULONG)me->tc_SPLower;
+        if (((struct Process *)me)->pr_CLI) {
+            struct CommandLineInterface *mycli = (struct CommandLineInterface *)BADDR(((struct Process *)me)->pr_CLI);
+            if (mycli->cli_DefaultStack && mycli->cli_DefaultStack * 4 < stacksize)
+                stacksize = mycli->cli_DefaultStack * 4;
+        }
         register ULONG d0 __asm("d0") = args_len;
         register ULONG d1 __asm("d1") = stacksize;
         register STRPTR a0 __asm("a0") = (STRPTR)args_buf;
@@ -5675,17 +5687,27 @@ void _bootstrap(void)
         /* and as on AmigaOS 3.1 (tests/probes/dos/entryregs.c): d2 = stack
          * size, d3 = arguments, d4 = argument length, a4 near sp - Lattice
          * 3.03 c.o takes its stack bound from the saved d2 */
+        /* a5 is gcc's frame pointer and cannot be named as clobbered:
+         * programs that return with a5 changed (Fred Fish LaceTogl & co.,
+         * Phase 237) would corrupt this frame - save it around the call */
+        /* pr_ReturnAddr points at the stack size slot, as RunCommand's
+         * does: exit code unwinds with sp = pr_ReturnAddr - 4; rts (Fred
+         * Fish IconX, StartScript, Arq - Phase 237) */
+        register APTR *a3 __asm("a3") = &((struct Process *)me)->pr_ReturnAddr;
         __asm__ __volatile__ (
+            "move.l  %%a5, -(%%sp)\n\t"
             "move.l  %1, -(%%sp)\n\t"
+            "move.l  %%sp, (%4)\n\t"
             "move.l  %1, %%d2\n\t"
             "move.l  %2, %%d3\n\t"
             "move.l  %0, %%d4\n\t"
             "move.l  %%sp, %%a4\n\t"
             "jsr     (%3)\n\t"
-            "addq.l  #4, %%sp"
-            : "+r" (d0), "+r" (d1), "+r" (a0), "+r" (a1)
+            "addq.l  #4, %%sp\n\t"
+            "move.l  (%%sp)+, %%a5"
+            : "+r" (d0), "+r" (d1), "+r" (a0), "+r" (a1), "+r" (a3)
             :
-            : "d2", "d3", "d4", "d5", "d6", "d7", "a2", "a3", "a4", "a6", "cc", "memory");
+            : "d2", "d3", "d4", "d5", "d6", "d7", "a2", "a4", "a6", "cc", "memory");
         rv = d0;
         
         /* Clobber all callee-saved registers to force gcc to reload them */
@@ -6236,7 +6258,7 @@ void coldstart (void)
      * most 78/102/58 characters).  A longer host program path is kept.
      * (Allocated here: utility.library tags are not available this early.) */
     struct CommandLineInterface *cli = (struct CommandLineInterface *) AllocDosObject (DOS_CLI, (struct TagItem *)NULL);
-    cli->cli_DefaultStack = (rootProc->pr_StackSize + 3) / 4;
+    cli->cli_DefaultStack = 4096 / 4;   /* the AmigaOS 3.1 shell default */
 
     {
         LONG name_cap = binlen > 102 ? binlen : 102;

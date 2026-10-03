@@ -120,6 +120,8 @@ set(C_COMMANDS
     Lock
     MakeDir
     MakeLink
+    NewCLI
+    NewShell
     Protect
     Relabel
     Rename

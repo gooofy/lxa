@@ -1,7 +1,7 @@
 {
  "app": "Typeface",
  "disabled": null,
- "lxa_version": "0.11.20",
+ "lxa_version": "0.11.23",
  "promoted": "2026-10-03",
  "reference": "AmigaOS 3.1 (KS 40.70), profile aga",
  "requires_apps": true,
@@ -58,7 +58,7 @@
      "where": "screen[Typeface]/window[topaz/8]/menu[Project]/Preview..."
     }
    ],
-   "pixel_budget": 14126,
+   "pixel_budget": 13622,
    "pixel_phase": 222,
    "stdout_known_diff": null
   },
@@ -81,7 +81,7 @@
      "where": "screen[Typeface]/window[topaz/8]/gadget[0 id=0]"
     }
    ],
-   "pixel_budget": 2122,
+   "pixel_budget": 922,
    "pixel_phase": 222,
    "stdout_known_diff": null
   }

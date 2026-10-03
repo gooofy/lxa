@@ -87,23 +87,23 @@ extern struct DosLibrary    *DOSBase;
 
 static struct MsgPort *g_lxa_host_console_port;
 
-LONG _dos_Flush ( register struct DosLibrary * DOSBase __asm("a6"),
+LONG _dos_Flush ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                         register BPTR fh __asm("d1"));
-LONG _dos_Read ( register struct DosLibrary * DOSBase __asm("a6"),
+LONG _dos_Read ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                  register BPTR file __asm("d1"),
                                  register APTR buffer __asm("d2"),
                                  register LONG length __asm("d3"));
-LONG _dos_Write ( register struct DosLibrary * DOSBase __asm("a6"),
+LONG _dos_Write ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                    register BPTR file __asm("d1"),
                                    register CONST APTR buffer __asm("d2"),
                                    register LONG length __asm("d3"));
-LONG _dos_WaitForChar ( register struct DosLibrary * DOSBase __asm("a6"),
+LONG _dos_WaitForChar ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                         register BPTR file __asm("d1"),
                                         register LONG timeout __asm("d2"));
-LONG _dos_FPutC ( register struct DosLibrary * DOSBase __asm("a6"),
+LONG _dos_FPutC ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                  register BPTR fh __asm("d1"),
                                  register LONG ch __asm("d2"));
-LONG _dos_VFPrintf ( register struct DosLibrary * DOSBase __asm("a6"),
+LONG _dos_VFPrintf ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                     register BPTR fh __asm("d1"),
                                     register CONST_STRPTR format __asm("d2"),
                                     register const APTR argarray __asm("d3"));
@@ -210,35 +210,35 @@ static void lxa_dos_runcommand_exit_cleanup(LONG return_code, LONG exit_data)
 
 #define GSLI_68KHUNK_TAG (TAG_USER + 4005)
 
-LONG _dos_SystemTagList ( register struct DosLibrary * DOSBase __asm("a6"),
+LONG _dos_SystemTagList ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                     register CONST_STRPTR command  __asm("d1"),
                                     register const struct TagItem * tags __asm("d2"));
 static LONG lxa_dos_system(struct DosLibrary *DOSBase, CONST_STRPTR command,
                            const struct TagItem *tags, BOOL shell);
 static CONST_STRPTR lxa_dos_shell_path(struct DosLibrary *DOSBase);
 
-struct DevProc * _dos_GetDeviceProc ( register struct DosLibrary * DOSBase __asm("a6"),
+struct DevProc * _dos_GetDeviceProc ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                         register CONST_STRPTR name __asm("d1"),
                                                         register struct DevProc * dp __asm("d2"));
-LONG _dos_NameFromLock ( register struct DosLibrary * DOSBase __asm("a6"),
+LONG _dos_NameFromLock ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                         register BPTR lock __asm("d1"),
                                                         register STRPTR buffer __asm("d2"),
                                                         register LONG len __asm("d3"));
-LONG _dos_NameFromFH ( register struct DosLibrary * DOSBase __asm("a6"),
+LONG _dos_NameFromFH ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                       register BPTR fh __asm("d1"),
                                                       register STRPTR buffer __asm("d2"),
                                                       register LONG len __asm("d3"));
-VOID _dos_FreeDeviceProc ( register struct DosLibrary * DOSBase __asm("a6"),
+VOID _dos_FreeDeviceProc ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                         register struct DevProc * dp __asm("d1"));
-VOID _dos_SendPkt ( register struct DosLibrary * DOSBase __asm("a6"),
+VOID _dos_SendPkt ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                         register struct DosPacket * dp __asm("d1"),
                                                         register struct MsgPort * port __asm("d2"),
                                                         register struct MsgPort * replyport __asm("d3"));
-VOID _dos_ReplyPkt ( register struct DosLibrary * DOSBase __asm("a6"),
+VOID _dos_ReplyPkt ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                          register struct DosPacket * dp __asm("d1"),
                                                          register LONG res1 __asm("d2"),
                                                          register LONG res2 __asm("d3"));
-struct DosPacket * _dos_WaitPkt ( register struct DosLibrary * DOSBase __asm("a6"));
+struct DosPacket * _dos_WaitPkt ( register struct DosLibrary * __dos_a6 __asm("a6"));
 
 static BOOL lxa_dos_is_process(const struct Process *process)
 {
@@ -433,7 +433,7 @@ BOOL lxa_dos_try_handle_special_port(struct MsgPort *port, struct Message *messa
 }
 
 /* Forward declaration for variable functions */
-struct LocalVar * _dos_FindVar ( register struct DosLibrary * DOSBase __asm("a6"),
+struct LocalVar * _dos_FindVar ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                  register CONST_STRPTR name __asm("d1"),
                                  register ULONG type __asm("d2"));
 
@@ -1413,9 +1413,17 @@ static struct lxa_dos_buffer_state *lxa_dos_buffer_state_ensure(struct FileHandl
     return state;
 }
 
+/* as IsInteractive(): CON:/RAW: windows, and the host console when it is
+ * a terminal (liblxa's runner output behaves like RUN >file) */
 static BOOL lxa_dos_fh_interactive(struct FileHandle *fh)
 {
-    return fh && (fh->fh_Func3 == FILE_KIND_CONSOLE || fh->fh_Func3 == FILE_KIND_CON);
+    if (!fh)
+        return FALSE;
+    if (fh->fh_Func3 == FILE_KIND_CON)
+        return TRUE;
+    if (fh->fh_Func3 != FILE_KIND_CONSOLE)
+        return FALSE;
+    return emucall1(EMU_CALL_DOS_ISINTERACTIVE, fh->fh_Args) ? TRUE : FALSE;
 }
 
 /* the buffer, allocated when first needed */
@@ -2159,7 +2167,7 @@ static BOOL lxa_dos_errorreport_context(struct DosLibrary *DOSBase,
     return TRUE;
 }
 
-BPTR _dos_Open ( register struct DosLibrary * DOSBase        __asm("a6"),
+BPTR _dos_Open ( register struct DosLibrary * __dos_a6        __asm("a6"),
                                  register CONST_STRPTR        ___name        __asm("d1"),
                                  register LONG                ___accessMode  __asm("d2"))
 {
@@ -2173,7 +2181,10 @@ BPTR _dos_Open ( register struct DosLibrary * DOSBase        __asm("a6"),
      * 3.1: object not found, or wrong type for an existing directory) */
     {
         LONG n = strlen((const char *)___name);
-        if (n > 1 && ___name[n - 1] == '/' && ___name[n - 2] != '/' && ___name[n - 2] != ':')
+        /* not for handler specifications: "con:0/0/640/200/" is a CON:
+         * window with an empty title (vim's NewCLI re-launch) */
+        BOOL handler = !_strnicmp_prefix((const char *)___name, "CON:", 4) || !_strnicmp_prefix((const char *)___name, "RAW:", 4);
+        if (!handler && n > 1 && ___name[n - 1] == '/' && ___name[n - 2] != '/' && ___name[n - 2] != ':')
         {
             BPTR l = Lock(___name, SHARED_LOCK);
             if (l)
@@ -2260,7 +2271,7 @@ BPTR _dos_Open ( register struct DosLibrary * DOSBase        __asm("a6"),
 LONG _dos_Close ( register struct DosLibrary * __libBase __asm("a6"),
                                   register BPTR file  __asm("d1"))
 {
-    struct DosLibrary *DOSBase = __libBase;
+    (void)__libBase;   /* dos works with any a6 (AmigaOS 3.1, tests/probes/dos/a6base.c) */
     (void)DOSBase; /* used by FreeDosObject macro */
     
     DPRINTF (LOG_DEBUG, "_dos: Close called, file=0x%08lx\n", file);
@@ -2310,7 +2321,7 @@ LONG _dos_Close ( register struct DosLibrary * __libBase __asm("a6"),
     return l >= 0 ? DOSTRUE : DOSFALSE;
 }
 
-LONG _dos_Read ( register struct DosLibrary * DOSBase __asm("a6"),
+LONG _dos_Read ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                  register BPTR                file    __asm("d1"),
                                  register APTR                buffer  __asm("d2"),
                                  register LONG                length  __asm("d3"))
@@ -2364,7 +2375,7 @@ LONG _dos_Read ( register struct DosLibrary * DOSBase __asm("a6"),
     return l;
 }
 
-LONG _dos_Write ( register struct DosLibrary * DOSBase __asm("a6"),
+LONG _dos_Write ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                   register BPTR                file    __asm("d1"),
                                   register CONST APTR          buffer  __asm("d2"),
                                   register LONG                length  __asm("d3"))
@@ -2736,7 +2747,7 @@ BPTR _dos_CurrentDir ( register struct DosLibrary * __libBase __asm("a6"),
     return old_lock;
 }
 
-LONG _dos_IoErr ( register struct DosLibrary * DOSBase __asm("a6"))
+LONG _dos_IoErr ( register struct DosLibrary * __dos_a6 __asm("a6"))
 {
     DPRINTF (LOG_DEBUG, "_dos: IoErr() called.\n");
 
@@ -2754,7 +2765,7 @@ struct MsgPort * _dos_CreateProc ( register struct DosLibrary * __libBase __asm(
                                                    register BPTR ___segList  __asm("d3"),
                                                    register LONG ___stackSize  __asm("d4"))
 {
-    struct DosLibrary *DOSBase = __libBase;
+    (void)__libBase;   /* dos works with any a6 (AmigaOS 3.1, tests/probes/dos/a6base.c) */
     (void)DOSBase;
 
     ___pri = (LONG)(WORD)___pri; /* sign-extend: GCC m68k move.w workaround */
@@ -2809,7 +2820,7 @@ struct MsgPort * _dos_CreateProc ( register struct DosLibrary * __libBase __asm(
 void _dos_Exit ( register struct DosLibrary * __libBase __asm("a6"),
                  register LONG ___returnCode  __asm("d1"))
 {
-    struct DosLibrary *DOSBase = __libBase;
+    (void)__libBase;   /* dos works with any a6 (AmigaOS 3.1, tests/probes/dos/a6base.c) */
     (void)DOSBase; /* used by FreeDosObject macro */
 
     ___returnCode = (LONG)(WORD)___returnCode; /* sign-extend: GCC m68k move.w workaround */
@@ -3261,7 +3272,7 @@ finish:
     return hunk_first;
 }
 
-BPTR _dos_LoadSeg ( register struct DosLibrary * DOSBase __asm("a6"),
+BPTR _dos_LoadSeg ( register struct DosLibrary * __dos_a6 __asm("a6"),
                     register CONST_STRPTR        ___name   __asm("d1"))
 {
     BPTR f;
@@ -3314,12 +3325,12 @@ void _dos_UnLoadSeg ( register struct DosLibrary * __libBase __asm("a6"),
 }
 
 
-VOID _dos_private0 ( register struct DosLibrary * DOSBase __asm("a6"))
+VOID _dos_private0 ( register struct DosLibrary * __dos_a6 __asm("a6"))
 {
     PRIVATE_FUNCTION_ERROR("_dos", "private0");
 }
 
-VOID _dos_private1 ( register struct DosLibrary * DOSBase __asm("a6"))
+VOID _dos_private1 ( register struct DosLibrary * __dos_a6 __asm("a6"))
 {
     PRIVATE_FUNCTION_ERROR("_dos", "private1");
 }
@@ -3430,7 +3441,7 @@ LONG _dos_SetProtection ( register struct DosLibrary * __libBase __asm("a6"),
     return DOSTRUE;
 }
 
-struct DateStamp * _dos_DateStamp ( register struct DosLibrary *DOSBase __asm("a6"),
+struct DateStamp * _dos_DateStamp ( register struct DosLibrary *__dos_a6 __asm("a6"),
                                     register struct DateStamp  *ds      __asm("d1"))
 {
     struct timeval tv;
@@ -3515,13 +3526,17 @@ BPTR _dos_ParentDir ( register struct DosLibrary * __libBase __asm("a6"),
     return (BPTR)lock_id;
 }
 
-LONG _dos_IsInteractive ( register struct DosLibrary *DOSBase __asm("a6"),
+LONG _dos_IsInteractive ( register struct DosLibrary *__dos_a6 __asm("a6"),
                                    register BPTR               file    __asm("d1"))
 {
     DPRINTF (LOG_DEBUG, "_dos: IsInteractive() called, file=0x%08lx\n", file);
     struct FileHandle *fh = (struct FileHandle *) BADDR(file);
-    /* the host console and CON:/RAW: windows */
-    return lxa_dos_fh_interactive(fh) ? DOSTRUE : DOSFALSE;
+    ULONG kind = fh->fh_Func3;
+    if (kind == FILE_KIND_CON)
+        return 1;           /* CON:/RAW: windows */
+    if (kind != FILE_KIND_CONSOLE)
+        return 0;
+    return emucall1(EMU_CALL_DOS_ISINTERACTIVE, fh->fh_Args) ? 1 : 0;
 }
 
 void _dos_Delay ( register struct DosLibrary * __libBase __asm("a6"),
@@ -3602,7 +3617,7 @@ static CONST_STRPTR lxa_dos_shell_path(struct DosLibrary *DOSBase)
     return NULL;
 }
 
-LONG _dos_Execute ( register struct DosLibrary * DOSBase __asm("a6"),
+LONG _dos_Execute ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                     register CONST_STRPTR ___string  __asm("d1"),
                                     register BPTR ___file  __asm("d2"),
                                     register BPTR ___file2  __asm("d3"))
@@ -3653,7 +3668,7 @@ LONG _dos_Execute ( register struct DosLibrary * DOSBase __asm("a6"),
     return DOSTRUE;
 }
 
-void *_dos_AllocDosObject (register struct DosLibrary *DOSBase __asm("a6"),
+void *_dos_AllocDosObject (register struct DosLibrary *__dos_a6 __asm("a6"),
                                     register ULONG              type    __asm("d1"),
                                     register struct TagItem    *tags    __asm("d2"))
 {
@@ -3804,7 +3819,7 @@ OOM:
     return NULL;
 }
 
-void _dos_FreeDosObject (register struct DosLibrary *DOSBase __asm("a6"),
+void _dos_FreeDosObject (register struct DosLibrary *__dos_a6 __asm("a6"),
                                   register ULONG              type    __asm("d1"),
                                   register void              *ptr     __asm("d2"))
 {
@@ -3885,7 +3900,7 @@ void _dos_FreeDosObject (register struct DosLibrary *DOSBase __asm("a6"),
 	}
 }
 
-LONG _dos_DoPkt ( register struct DosLibrary * DOSBase __asm("a6"),
+LONG _dos_DoPkt ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                         register struct MsgPort * port __asm("d1"),
                                                         register LONG action __asm("d2"),
                                                         register LONG arg1 __asm("d3"),
@@ -3967,7 +3982,7 @@ LONG _dos_DoPkt ( register struct DosLibrary * DOSBase __asm("a6"),
     return res;
 }
 
-VOID _dos_SendPkt ( register struct DosLibrary * DOSBase __asm("a6"),
+VOID _dos_SendPkt ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                         register struct DosPacket * dp __asm("d1"),
                                                         register struct MsgPort * port __asm("d2"),
                                                         register struct MsgPort * replyport __asm("d3"))
@@ -3986,7 +4001,7 @@ VOID _dos_SendPkt ( register struct DosLibrary * DOSBase __asm("a6"),
     PutMsg(port, dp->dp_Link);
 }
 
-struct DosPacket * _dos_WaitPkt ( register struct DosLibrary * DOSBase __asm("a6"))
+struct DosPacket * _dos_WaitPkt ( register struct DosLibrary * __dos_a6 __asm("a6"))
 {
     struct Process *me = U_getCurrentProcess();
 
@@ -3996,7 +4011,7 @@ struct DosPacket * _dos_WaitPkt ( register struct DosLibrary * DOSBase __asm("a6
     return lxa_dos_wait_packet_on_port(me, &me->pr_MsgPort);
 }
 
-VOID _dos_ReplyPkt ( register struct DosLibrary * DOSBase __asm("a6"),
+VOID _dos_ReplyPkt ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                         register struct DosPacket * dp __asm("d1"),
                                                         register LONG res1 __asm("d2"),
                                                         register LONG res2 __asm("d3"))
@@ -4020,7 +4035,7 @@ VOID _dos_ReplyPkt ( register struct DosLibrary * DOSBase __asm("a6"),
     PutMsg(replyport, msg);
 }
 
-VOID _dos_AbortPkt ( register struct DosLibrary * DOSBase __asm("a6"),
+VOID _dos_AbortPkt ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                         register struct MsgPort * port __asm("d1"),
                                                         register struct DosPacket * pkt __asm("d2"))
 {
@@ -4031,7 +4046,7 @@ VOID _dos_AbortPkt ( register struct DosLibrary * DOSBase __asm("a6"),
     (void)pkt;
 }
 
-BOOL _dos_LockRecord ( register struct DosLibrary * DOSBase __asm("a6"),
+BOOL _dos_LockRecord ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                         register BPTR fh __asm("d1"),
                                                         register ULONG offset __asm("d2"),
                                                         register ULONG length __asm("d3"),
@@ -4077,7 +4092,7 @@ static BOOL dos_unlockrecord_internal(BPTR fh, ULONG offset, ULONG length)
     return emucall3(EMU_CALL_DOS_UNLOCKRECORD, (ULONG)fhp, offset, length) ? DOSTRUE : DOSFALSE;
 }
 
-BOOL _dos_LockRecords ( register struct DosLibrary * DOSBase __asm("a6"),
+BOOL _dos_LockRecords ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                         register struct RecordLock * recArray __asm("d1"),
                                                         register ULONG timeout __asm("d2"))
 {
@@ -4129,7 +4144,7 @@ BOOL _dos_LockRecords ( register struct DosLibrary * DOSBase __asm("a6"),
     return DOSTRUE;
 }
 
-BOOL _dos_UnLockRecord ( register struct DosLibrary * DOSBase __asm("a6"),
+BOOL _dos_UnLockRecord ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                         register BPTR fh __asm("d1"),
                                                         register ULONG offset __asm("d2"),
                                                         register ULONG length __asm("d3"))
@@ -4160,7 +4175,7 @@ BOOL _dos_UnLockRecord ( register struct DosLibrary * DOSBase __asm("a6"),
     return DOSTRUE;
 }
 
-BOOL _dos_UnLockRecords ( register struct DosLibrary * DOSBase __asm("a6"),
+BOOL _dos_UnLockRecords ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                         register struct RecordLock * recArray __asm("d1"))
 {
     (void)DOSBase;
@@ -4191,7 +4206,7 @@ BOOL _dos_UnLockRecords ( register struct DosLibrary * DOSBase __asm("a6"),
     return DOSTRUE;
 }
 
-BPTR _dos_SelectInput ( register struct DosLibrary * DOSBase __asm("a6"),
+BPTR _dos_SelectInput ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                         register BPTR fh __asm("d1"))
 {
     DPRINTF (LOG_DEBUG, "_dos: SelectInput(fh=%08lx) called.\n", fh);
@@ -4213,7 +4228,7 @@ BPTR _dos_SelectInput ( register struct DosLibrary * DOSBase __asm("a6"),
     return old_input;
 }
 
-BPTR _dos_SelectOutput ( register struct DosLibrary * DOSBase __asm("a6"),
+BPTR _dos_SelectOutput ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                         register BPTR fh __asm("d1"))
 {
     DPRINTF (LOG_DEBUG, "_dos: SelectOutput(fh=%08lx) called.\n", fh);
@@ -4235,7 +4250,7 @@ BPTR _dos_SelectOutput ( register struct DosLibrary * DOSBase __asm("a6"),
     return old_output;
 }
 
-LONG _dos_FGetC ( register struct DosLibrary * DOSBase __asm("a6"),
+LONG _dos_FGetC ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                         register BPTR fh __asm("d1"))
 {
     DPRINTF (LOG_DEBUG, "_dos: FGetC(fh=%08lx) called.\n", fh);
@@ -4257,7 +4272,7 @@ LONG _dos_FGetC ( register struct DosLibrary * DOSBase __asm("a6"),
     return (LONG)ch;
 }
 
-LONG _dos_FPutC ( register struct DosLibrary * DOSBase __asm("a6"),
+LONG _dos_FPutC ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                         register BPTR fh __asm("d1"),
                                                         register LONG ch __asm("d2"))
 {
@@ -4281,7 +4296,7 @@ LONG _dos_FPutC ( register struct DosLibrary * DOSBase __asm("a6"),
     return ch;
 }
 
-LONG _dos_UnGetC ( register struct DosLibrary * DOSBase __asm("a6"),
+LONG _dos_UnGetC ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                         register BPTR fh __asm("d1"),
                                                         register LONG character __asm("d2"))
 {
@@ -4332,7 +4347,7 @@ LONG _dos_UnGetC ( register struct DosLibrary * DOSBase __asm("a6"),
     return character;
 }
 
-LONG _dos_FRead ( register struct DosLibrary * DOSBase __asm("a6"),
+LONG _dos_FRead ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                         register BPTR fh __asm("d1"),
                                                         register APTR block __asm("d2"),
                                                         register ULONG blocklen __asm("d3"),
@@ -4393,7 +4408,7 @@ LONG _dos_FRead ( register struct DosLibrary * DOSBase __asm("a6"),
     return (LONG)(bytes_read / blocklen);
 }
 
-LONG _dos_FWrite ( register struct DosLibrary * DOSBase __asm("a6"),
+LONG _dos_FWrite ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                         register BPTR fh __asm("d1"),
                                                         register const APTR block __asm("d2"),
                                                         register ULONG blocklen __asm("d3"),
@@ -4433,7 +4448,7 @@ LONG _dos_FWrite ( register struct DosLibrary * DOSBase __asm("a6"),
     return (LONG)(written / blocklen);
 }
 
-STRPTR _dos_FGets ( register struct DosLibrary * DOSBase __asm("a6"),
+STRPTR _dos_FGets ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                         register BPTR fh __asm("d1"),
                                                         register STRPTR buf __asm("d2"),
                                                         register ULONG buflen __asm("d3"))
@@ -4485,7 +4500,7 @@ STRPTR _dos_FGets ( register struct DosLibrary * DOSBase __asm("a6"),
     return buf;
 }
 
-LONG _dos_FPuts ( register struct DosLibrary * DOSBase __asm("a6"),
+LONG _dos_FPuts ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                         register BPTR fh __asm("d1"),
                                                         register CONST_STRPTR str __asm("d2"))
 {
@@ -4520,7 +4535,7 @@ static LONG lxa_dos_writef_width(UBYTE c)
     return 0;
 }
 
-VOID _dos_VFWritef ( register struct DosLibrary * DOSBase __asm("a6"),
+VOID _dos_VFWritef ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                         register BPTR fh __asm("d1"),
                                                         register CONST_STRPTR format __asm("d2"),
                                                         register const LONG * argarray __asm("d3"))
@@ -4615,7 +4630,7 @@ VOID _dos_VFWritef ( register struct DosLibrary * DOSBase __asm("a6"),
     }
 }
 
-LONG _dos_VFPrintf ( register struct DosLibrary * DOSBase __asm("a6"),
+LONG _dos_VFPrintf ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                         register BPTR fh __asm("d1"),
                                                         register CONST_STRPTR format __asm("d2"),
                                                         register const APTR argarray __asm("d3"))
@@ -4659,7 +4674,7 @@ LONG _dos_VFPrintf ( register struct DosLibrary * DOSBase __asm("a6"),
     return result;
 }
 
-LONG _dos_Flush ( register struct DosLibrary * DOSBase __asm("a6"),
+LONG _dos_Flush ( register struct DosLibrary * __dos_a6 __asm("a6"),
 													register BPTR fh __asm("d1"))
 {
     DPRINTF (LOG_DEBUG, "_dos: Flush() called fh=%08lx\n", fh);
@@ -4682,7 +4697,7 @@ LONG _dos_Flush ( register struct DosLibrary * DOSBase __asm("a6"),
     return emucall1(EMU_CALL_DOS_FLUSH, (ULONG)fhp) ? DOSTRUE : DOSFALSE;
 }
 
-LONG _dos_SetVBuf ( register struct DosLibrary * DOSBase __asm("a6"),
+LONG _dos_SetVBuf ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                         register BPTR fh __asm("d1"),
                                                         register STRPTR buff __asm("d2"),
                                                         register LONG type __asm("d3"),
@@ -4701,7 +4716,7 @@ LONG _dos_SetVBuf ( register struct DosLibrary * DOSBase __asm("a6"),
     return lxa_dos_buffer_state_setvbuf(DOSBase, fhp, buff, type, size);
 }
 
-BPTR _dos_DupLockFromFH ( register struct DosLibrary * DOSBase __asm("a6"),
+BPTR _dos_DupLockFromFH ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                         register BPTR fh __asm("d1"))
 {
     DPRINTF (LOG_DEBUG, "_dos: DupLockFromFH() called, fh=0x%08lx\n", fh);
@@ -4724,7 +4739,7 @@ BPTR _dos_DupLockFromFH ( register struct DosLibrary * DOSBase __asm("a6"),
     return (BPTR)lock_id;
 }
 
-BPTR _dos_OpenFromLock ( register struct DosLibrary * DOSBase __asm("a6"),
+BPTR _dos_OpenFromLock ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                         register BPTR lock __asm("d1"))
 {
     DPRINTF (LOG_DEBUG, "_dos: OpenFromLock() called, lock=0x%08lx\n", lock);
@@ -4755,7 +4770,7 @@ BPTR _dos_OpenFromLock ( register struct DosLibrary * DOSBase __asm("a6"),
     return MKBADDR(fh);
 }
 
-BPTR _dos_ParentOfFH ( register struct DosLibrary * DOSBase __asm("a6"),
+BPTR _dos_ParentOfFH ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                         register BPTR fh __asm("d1"))
 {
     DPRINTF (LOG_DEBUG, "_dos: ParentOfFH() called, fh=0x%08lx\n", fh);
@@ -4778,7 +4793,7 @@ BPTR _dos_ParentOfFH ( register struct DosLibrary * DOSBase __asm("a6"),
     return (BPTR)lock_id;
 }
 
-BOOL _dos_ExamineFH ( register struct DosLibrary * DOSBase __asm("a6"),
+BOOL _dos_ExamineFH ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                         register BPTR fh __asm("d1"),
                                                         register struct FileInfoBlock * fib __asm("d2"))
 {
@@ -4802,7 +4817,7 @@ BOOL _dos_ExamineFH ( register struct DosLibrary * DOSBase __asm("a6"),
     return TRUE;
 }
 
-LONG _dos_SetFileDate ( register struct DosLibrary * DOSBase __asm("a6"),
+LONG _dos_SetFileDate ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                         register CONST_STRPTR name __asm("d1"),
                                                         register const struct DateStamp * date __asm("d2"))
 {
@@ -4832,7 +4847,7 @@ LONG _dos_SetFileDate ( register struct DosLibrary * DOSBase __asm("a6"),
     return DOSTRUE;
 }
 
-LONG _dos_NameFromLock ( register struct DosLibrary * DOSBase __asm("a6"),
+LONG _dos_NameFromLock ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                         register BPTR lock __asm("d1"),
                                                         register STRPTR buffer __asm("d2"),
                                                         register LONG len __asm("d3"))
@@ -4859,7 +4874,7 @@ LONG _dos_NameFromLock ( register struct DosLibrary * DOSBase __asm("a6"),
     return DOSTRUE;
 }
 
-LONG _dos_NameFromFH ( register struct DosLibrary * DOSBase __asm("a6"),
+LONG _dos_NameFromFH ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                         register BPTR fh __asm("d1"),
                                                         register STRPTR buffer __asm("d2"),
                                                         register LONG len __asm("d3"))
@@ -4886,7 +4901,7 @@ LONG _dos_NameFromFH ( register struct DosLibrary * DOSBase __asm("a6"),
     return DOSTRUE;
 }
 
-WORD _dos_SplitName ( register struct DosLibrary * DOSBase __asm("a6"),
+WORD _dos_SplitName ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                         register CONST_STRPTR name __asm("d1"),
                                                         register UBYTE separator __asm("d2"),
                                                         register STRPTR buf __asm("d3"),
@@ -4951,7 +4966,7 @@ WORD _dos_SplitName ( register struct DosLibrary * DOSBase __asm("a6"),
     return -1;
 }
 
-LONG _dos_SameLock ( register struct DosLibrary * DOSBase __asm("a6"),
+LONG _dos_SameLock ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                         register BPTR lock1 __asm("d1"),
                                                         register BPTR lock2 __asm("d2"))
 {
@@ -4965,7 +4980,7 @@ LONG _dos_SameLock ( register struct DosLibrary * DOSBase __asm("a6"),
     return result;
 }
 
-LONG _dos_SetMode ( register struct DosLibrary * DOSBase __asm("a6"),
+LONG _dos_SetMode ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                         register BPTR fh __asm("d1"),
                                                         register LONG mode __asm("d2"))
 {
@@ -5015,7 +5030,7 @@ LONG _dos_SetMode ( register struct DosLibrary * DOSBase __asm("a6"),
     return DOSFALSE;
 }
 
-LONG _dos_ExAll ( register struct DosLibrary * DOSBase __asm("a6"),
+LONG _dos_ExAll ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                         register BPTR lock __asm("d1"),
                                                         register struct ExAllData * buffer __asm("d2"),
                                                         register LONG size __asm("d3"),
@@ -5191,7 +5206,7 @@ LONG _dos_ExAll ( register struct DosLibrary * DOSBase __asm("a6"),
     return (err == 0) ? DOSTRUE : DOSFALSE;
 }
 
-LONG _dos_ReadLink ( register struct DosLibrary * DOSBase __asm("a6"),
+LONG _dos_ReadLink ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                         register struct MsgPort * port __asm("d1"),
                                                         register BPTR lock __asm("d2"),
                                                         register CONST_STRPTR path __asm("d3"),
@@ -5224,7 +5239,7 @@ LONG _dos_ReadLink ( register struct DosLibrary * DOSBase __asm("a6"),
     return result;
 }
 
-LONG _dos_MakeLink ( register struct DosLibrary * DOSBase __asm("a6"),
+LONG _dos_MakeLink ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                         register CONST_STRPTR name __asm("d1"),
                                                         register LONG dest __asm("d2"),
                                                         register LONG soft __asm("d3"))
@@ -5274,7 +5289,7 @@ LONG _dos_MakeLink ( register struct DosLibrary * DOSBase __asm("a6"),
     return DOSTRUE;
 }
 
-LONG _dos_ChangeMode ( register struct DosLibrary * DOSBase __asm("a6"),
+LONG _dos_ChangeMode ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                         register LONG type __asm("d1"),
                                                         register BPTR fh __asm("d2"),
                                                         register LONG newmode __asm("d3"))
@@ -5299,7 +5314,7 @@ LONG _dos_ChangeMode ( register struct DosLibrary * DOSBase __asm("a6"),
     return DOSTRUE;
 }
 
-LONG _dos_SetFileSize ( register struct DosLibrary * DOSBase __asm("a6"),
+LONG _dos_SetFileSize ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                         register BPTR fh __asm("d1"),
                                                         register LONG pos __asm("d2"),
                                                         register LONG mode __asm("d3"))
@@ -5330,7 +5345,7 @@ LONG _dos_SetFileSize ( register struct DosLibrary * DOSBase __asm("a6"),
     return result;
 }
 
-LONG _dos_SetIoErr ( register struct DosLibrary * DOSBase __asm("a6"),
+LONG _dos_SetIoErr ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                      register LONG result __asm("d1"))
 {
     DPRINTF (LOG_DEBUG, "_dos: SetIoErr() called, result=%ld\n", result);
@@ -5425,7 +5440,7 @@ static void lxa_dos_fault_piece(char **d, LONG *avail, LONG *used, const char *s
     *used += n + 1;
 }
 
-LONG _dos_Fault ( register struct DosLibrary * DOSBase __asm("a6"),
+LONG _dos_Fault ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                         register LONG code __asm("d1"),
                                                         register STRPTR header __asm("d2"),
                                                         register STRPTR buffer __asm("d3"),
@@ -5493,7 +5508,7 @@ LONG _dos_Fault ( register struct DosLibrary * DOSBase __asm("a6"),
     return used;
 }
 
-BOOL _dos_PrintFault ( register struct DosLibrary * DOSBase __asm("a6"),
+BOOL _dos_PrintFault ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                         register LONG code __asm("d1"),
                                                         register CONST_STRPTR header __asm("d2"))
 {
@@ -5520,7 +5535,7 @@ BOOL _dos_PrintFault ( register struct DosLibrary * DOSBase __asm("a6"),
     return DOSTRUE;
 }
 
-LONG _dos_ErrorReport ( register struct DosLibrary * DOSBase __asm("a6"),
+LONG _dos_ErrorReport ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                         register LONG code __asm("d1"),
                                                         register LONG type __asm("d2"),
                                                         register ULONG arg1 __asm("d3"),
@@ -5771,12 +5786,12 @@ LONG _dos_ErrorReport ( register struct DosLibrary * DOSBase __asm("a6"),
     return result;
 }
 
-VOID _dos_private2 ( register struct DosLibrary * DOSBase __asm("a6"))
+VOID _dos_private2 ( register struct DosLibrary * __dos_a6 __asm("a6"))
 {
     PRIVATE_FUNCTION_ERROR("_dos", "private2");
 }
 
-struct CommandLineInterface * _dos_Cli ( register struct DosLibrary * DOSBase __asm("a6"))
+struct CommandLineInterface * _dos_Cli ( register struct DosLibrary * __dos_a6 __asm("a6"))
 {
     DPRINTF (LOG_DEBUG, "_dos: Cli() called.\n");
 
@@ -5792,7 +5807,7 @@ struct CommandLineInterface * _dos_Cli ( register struct DosLibrary * DOSBase __
 // Minimum stack for RunCommand() and for the shell System() starts
 #define LXA_MIN_COMMAND_STACK 16384
 
-struct Process * _dos_CreateNewProc ( register struct DosLibrary * DOSBase __asm("a6"),
+struct Process * _dos_CreateNewProc ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                       register const struct TagItem * tags __asm("d1"))
 {
     DPRINTF (LOG_INFO, "_dos: CreateNewProc() called.\n");
@@ -6072,7 +6087,7 @@ asm(
 "        rts                                                                                \n"
 );
 
-LONG _dos_RunCommand ( register struct DosLibrary * DOSBase __asm("a6"),
+LONG _dos_RunCommand ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                         register BPTR seg __asm("d1"),
                                                         register LONG stack __asm("d2"),
                                                         register CONST_STRPTR paramptr __asm("d3"),
@@ -6164,7 +6179,7 @@ LONG _dos_RunCommand ( register struct DosLibrary * DOSBase __asm("a6"),
     return result;
 }
 
-struct MsgPort * _dos_GetConsoleTask ( register struct DosLibrary * DOSBase __asm("a6"))
+struct MsgPort * _dos_GetConsoleTask ( register struct DosLibrary * __dos_a6 __asm("a6"))
 {
     struct Task *me = FindTask(NULL);
 
@@ -6176,7 +6191,7 @@ struct MsgPort * _dos_GetConsoleTask ( register struct DosLibrary * DOSBase __as
     return ((struct Process *)me)->pr_ConsoleTask;
 }
 
-struct MsgPort * _dos_SetConsoleTask ( register struct DosLibrary * DOSBase __asm("a6"),
+struct MsgPort * _dos_SetConsoleTask ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                         register const struct MsgPort * task __asm("d1"))
 {
     struct Task *me = FindTask(NULL);
@@ -6195,7 +6210,7 @@ struct MsgPort * _dos_SetConsoleTask ( register struct DosLibrary * DOSBase __as
     return old_task;
 }
 
-struct MsgPort * _dos_GetFileSysTask ( register struct DosLibrary * DOSBase __asm("a6"))
+struct MsgPort * _dos_GetFileSysTask ( register struct DosLibrary * __dos_a6 __asm("a6"))
 {
     struct Task *me = FindTask(NULL);
 
@@ -6207,7 +6222,7 @@ struct MsgPort * _dos_GetFileSysTask ( register struct DosLibrary * DOSBase __as
     return ((struct Process *)me)->pr_FileSystemTask;
 }
 
-struct MsgPort * _dos_SetFileSysTask ( register struct DosLibrary * DOSBase __asm("a6"),
+struct MsgPort * _dos_SetFileSysTask ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                         register const struct MsgPort * task __asm("d1"))
 {
     struct Task *me = FindTask(NULL);
@@ -6226,7 +6241,7 @@ struct MsgPort * _dos_SetFileSysTask ( register struct DosLibrary * DOSBase __as
     return old_task;
 }
 
-STRPTR _dos_GetArgStr ( register struct DosLibrary * DOSBase __asm("a6"))
+STRPTR _dos_GetArgStr ( register struct DosLibrary * __dos_a6 __asm("a6"))
 {
     struct Task *me = FindTask(NULL);
 
@@ -6238,7 +6253,7 @@ STRPTR _dos_GetArgStr ( register struct DosLibrary * DOSBase __asm("a6"))
     return ((struct Process *)me)->pr_Arguments;
 }
 
-STRPTR _dos_SetArgStr ( register struct DosLibrary * DOSBase __asm("a6"),
+STRPTR _dos_SetArgStr ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                         register CONST_STRPTR string __asm("d1"))
 {
     struct Task *me = FindTask(NULL);
@@ -6257,7 +6272,7 @@ STRPTR _dos_SetArgStr ( register struct DosLibrary * DOSBase __asm("a6"),
     return old_string;
 }
 
-struct Process * _dos_FindCliProc ( register struct DosLibrary * DOSBase __asm("a6"),
+struct Process * _dos_FindCliProc ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                         register ULONG num __asm("d1"))
 {
     struct RootNode *root;
@@ -6287,7 +6302,7 @@ struct Process * _dos_FindCliProc ( register struct DosLibrary * DOSBase __asm("
     return (struct Process *)((UBYTE *)port - offsetof(struct Process, pr_MsgPort));
 }
 
-ULONG _dos_MaxCli ( register struct DosLibrary * DOSBase __asm("a6"))
+ULONG _dos_MaxCli ( register struct DosLibrary * __dos_a6 __asm("a6"))
 {
     struct RootNode *root;
     ULONG *taskArray;
@@ -6318,7 +6333,7 @@ ULONG _dos_MaxCli ( register struct DosLibrary * DOSBase __asm("a6"))
     return retval;
 }
 
-BOOL _dos_SetCurrentDirName ( register struct DosLibrary * DOSBase __asm("a6"),
+BOOL _dos_SetCurrentDirName ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                         register CONST_STRPTR name __asm("d1"))
 {
     struct Process *pr;
@@ -6343,7 +6358,7 @@ BOOL _dos_SetCurrentDirName ( register struct DosLibrary * DOSBase __asm("a6"),
     return bstr_set_from_cstr(cli->cli_SetName, name);
 }
 
-BOOL _dos_GetCurrentDirName ( register struct DosLibrary * DOSBase __asm("a6"),
+BOOL _dos_GetCurrentDirName ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                         register STRPTR buf __asm("d1"),
                                                         register LONG len __asm("d2"))
 {
@@ -6375,7 +6390,7 @@ BOOL _dos_GetCurrentDirName ( register struct DosLibrary * DOSBase __asm("a6"),
     return bstr_copy_to_cstr(cli->cli_SetName, buf, len);
 }
 
-BOOL _dos_SetProgramName ( register struct DosLibrary * DOSBase __asm("a6"),
+BOOL _dos_SetProgramName ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                         register CONST_STRPTR name __asm("d1"))
 {
     struct Process *pr;
@@ -6400,7 +6415,7 @@ BOOL _dos_SetProgramName ( register struct DosLibrary * DOSBase __asm("a6"),
     return bstr_set_from_cstr(cli->cli_CommandName, name);
 }
 
-BOOL _dos_GetProgramName ( register struct DosLibrary * DOSBase __asm("a6"),
+BOOL _dos_GetProgramName ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                         register STRPTR buf __asm("d1"),
                                                         register LONG len __asm("d2"))
 {
@@ -6435,7 +6450,7 @@ BOOL _dos_GetProgramName ( register struct DosLibrary * DOSBase __asm("a6"),
 
 }
 
-BOOL _dos_SetPrompt ( register struct DosLibrary * DOSBase __asm("a6"),
+BOOL _dos_SetPrompt ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                         register CONST_STRPTR name __asm("d1"))
 {
     struct Process *pr;
@@ -6460,7 +6475,7 @@ BOOL _dos_SetPrompt ( register struct DosLibrary * DOSBase __asm("a6"),
     return bstr_set_from_cstr(cli->cli_Prompt, name);
 }
 
-BOOL _dos_GetPrompt ( register struct DosLibrary * DOSBase __asm("a6"),
+BOOL _dos_GetPrompt ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                         register STRPTR buf __asm("d1"),
                                                         register LONG len __asm("d2"))
 {
@@ -6493,7 +6508,7 @@ BOOL _dos_GetPrompt ( register struct DosLibrary * DOSBase __asm("a6"),
     return bstr_copy_to_cstr(cli->cli_Prompt, buf, len);
 }
 
-BPTR _dos_SetProgramDir ( register struct DosLibrary * DOSBase __asm("a6"),
+BPTR _dos_SetProgramDir ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                         register BPTR lock __asm("d1"))
 {
     struct Process *pr = (struct Process *)FindTask(NULL);
@@ -6507,7 +6522,7 @@ BPTR _dos_SetProgramDir ( register struct DosLibrary * DOSBase __asm("a6"),
     return old_lock;
 }
 
-BPTR _dos_GetProgramDir ( register struct DosLibrary * DOSBase __asm("a6"))
+BPTR _dos_GetProgramDir ( register struct DosLibrary * __dos_a6 __asm("a6"))
 {
     struct Process *pr = (struct Process *)FindTask(NULL);
     
@@ -6811,7 +6826,7 @@ static LONG lxa_dos_system(struct DosLibrary *DOSBase, CONST_STRPTR command,
     return result;
 }
 
-LONG _dos_SystemTagList ( register struct DosLibrary * DOSBase __asm("a6"),
+LONG _dos_SystemTagList ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                         register CONST_STRPTR command __asm("d1"),
                                                         register const struct TagItem * tags __asm("d2"))
 {
@@ -6831,7 +6846,7 @@ LONG _dos_SystemTagList ( register struct DosLibrary * DOSBase __asm("a6"),
 #define ASSIGN_TYPE_PATH 2   /* Non-binding path (like AssignPath) */
 #define ASSIGN_TYPE_ADD  3   /* Append path to multi-assign */
 
-LONG _dos_AssignLock ( register struct DosLibrary * DOSBase __asm("a6"),
+LONG _dos_AssignLock ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                         register CONST_STRPTR name __asm("d1"),
                                                         register BPTR lock __asm("d2"))
 {
@@ -6876,7 +6891,7 @@ LONG _dos_AssignLock ( register struct DosLibrary * DOSBase __asm("a6"),
     return DOSFALSE;
 }
 
-BOOL _dos_AssignLate ( register struct DosLibrary * DOSBase __asm("a6"),
+BOOL _dos_AssignLate ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                         register CONST_STRPTR name __asm("d1"),
                                                         register CONST_STRPTR path __asm("d2"))
 {
@@ -6905,7 +6920,7 @@ BOOL _dos_AssignLate ( register struct DosLibrary * DOSBase __asm("a6"),
     return FALSE;
 }
 
-BOOL _dos_AssignPath ( register struct DosLibrary * DOSBase __asm("a6"),
+BOOL _dos_AssignPath ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                         register CONST_STRPTR name __asm("d1"),
                                                         register CONST_STRPTR path __asm("d2"))
 {
@@ -6934,7 +6949,7 @@ BOOL _dos_AssignPath ( register struct DosLibrary * DOSBase __asm("a6"),
     return FALSE;
 }
 
-BOOL _dos_AssignAdd ( register struct DosLibrary * DOSBase __asm("a6"),
+BOOL _dos_AssignAdd ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                         register CONST_STRPTR name __asm("d1"),
                                                         register BPTR lock __asm("d2"))
 {
@@ -6970,7 +6985,7 @@ BOOL _dos_AssignAdd ( register struct DosLibrary * DOSBase __asm("a6"),
     return FALSE;
 }
 
-LONG _dos_RemAssignList ( register struct DosLibrary * DOSBase __asm("a6"),
+LONG _dos_RemAssignList ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                         register CONST_STRPTR name __asm("d1"),
                                                         register BPTR lock __asm("d2"))
 {
@@ -7003,7 +7018,7 @@ LONG _dos_RemAssignList ( register struct DosLibrary * DOSBase __asm("a6"),
     return result ? DOSTRUE : DOSFALSE;
 }
 
-struct DevProc * _dos_GetDeviceProc ( register struct DosLibrary * DOSBase __asm("a6"),
+struct DevProc * _dos_GetDeviceProc ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                         register CONST_STRPTR name __asm("d1"),
                                                         register struct DevProc * dp __asm("d2"))
 {
@@ -7046,7 +7061,7 @@ struct DevProc * _dos_GetDeviceProc ( register struct DosLibrary * DOSBase __asm
     return result;
 }
 
-VOID _dos_FreeDeviceProc ( register struct DosLibrary * DOSBase __asm("a6"),
+VOID _dos_FreeDeviceProc ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                         register struct DevProc * dp __asm("d1"))
 {
     if (!dp)
@@ -7058,7 +7073,7 @@ VOID _dos_FreeDeviceProc ( register struct DosLibrary * DOSBase __asm("a6"),
     FreeMem(dp, sizeof(struct DevProc));
 }
 
-struct DosList * _dos_LockDosList ( register struct DosLibrary * DOSBase __asm("a6"),
+struct DosList * _dos_LockDosList ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                         register ULONG flags __asm("d1"))
 {
     LXA_UNIMPLEMENTED("dos", "LockDosList", "stub: returns a dummy marker, no real DosList or locking (Phase 255)");
@@ -7092,7 +7107,7 @@ struct DosList * _dos_LockDosList ( register struct DosLibrary * DOSBase __asm("
     return (struct DosList *)0xFFFFFFFF;
 }
 
-VOID _dos_UnLockDosList ( register struct DosLibrary * DOSBase __asm("a6"),
+VOID _dos_UnLockDosList ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                         register ULONG flags __asm("d1"))
 {
     LXA_UNIMPLEMENTED("dos", "UnLockDosList", "partial: DosList locking is simulated (Phase 255)");
@@ -7107,7 +7122,7 @@ VOID _dos_UnLockDosList ( register struct DosLibrary * DOSBase __asm("a6"),
     /* Nothing to do */
 }
 
-struct DosList * _dos_AttemptLockDosList ( register struct DosLibrary * DOSBase __asm("a6"),
+struct DosList * _dos_AttemptLockDosList ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                         register ULONG flags __asm("d1"))
 {
     LXA_UNIMPLEMENTED("dos", "AttemptLockDosList", "stub: returns a dummy marker, no real DosList or locking (Phase 255)");
@@ -7121,7 +7136,7 @@ struct DosList * _dos_AttemptLockDosList ( register struct DosLibrary * DOSBase 
     return _dos_LockDosList(DOSBase, flags);
 }
 
-LONG _dos_RemDosEntry ( register struct DosLibrary * DOSBase __asm("a6"),
+LONG _dos_RemDosEntry ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                         register struct DosList * dlist __asm("d1"))
 {
     struct RootNode *root;
@@ -7169,7 +7184,7 @@ LONG _dos_RemDosEntry ( register struct DosLibrary * DOSBase __asm("a6"),
     return FALSE;
 }
 
-LONG _dos_AddDosEntry ( register struct DosLibrary * DOSBase __asm("a6"),
+LONG _dos_AddDosEntry ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                         register struct DosList * dlist __asm("d1"))
 {
     struct RootNode *root;
@@ -7223,7 +7238,7 @@ LONG _dos_AddDosEntry ( register struct DosLibrary * DOSBase __asm("a6"),
     return DOSTRUE;
 }
 
-struct DosList * _dos_FindDosEntry ( register struct DosLibrary * DOSBase __asm("a6"),
+struct DosList * _dos_FindDosEntry ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                         register const struct DosList * dlist __asm("d1"),
                                                         register CONST_STRPTR name __asm("d2"),
                                                         register ULONG flags __asm("d3"))
@@ -7293,7 +7308,7 @@ struct DosList * _dos_FindDosEntry ( register struct DosLibrary * DOSBase __asm(
     return NULL;
 }
 
-struct DosList * _dos_NextDosEntry ( register struct DosLibrary * DOSBase __asm("a6"),
+struct DosList * _dos_NextDosEntry ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                         register const struct DosList * dlist __asm("d1"),
                                                         register ULONG flags __asm("d2"))
 {
@@ -7321,7 +7336,7 @@ struct DosList * _dos_NextDosEntry ( register struct DosLibrary * DOSBase __asm(
     return NULL;
 }
 
-struct DosList * _dos_MakeDosEntry ( register struct DosLibrary * DOSBase __asm("a6"),
+struct DosList * _dos_MakeDosEntry ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                         register CONST_STRPTR name __asm("d1"),
                                                         register LONG type __asm("d2"))
 {
@@ -7364,7 +7379,7 @@ struct DosList * _dos_MakeDosEntry ( register struct DosLibrary * DOSBase __asm(
     return dlist;
 }
 
-VOID _dos_FreeDosEntry ( register struct DosLibrary * DOSBase __asm("a6"),
+VOID _dos_FreeDosEntry ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                         register struct DosList * dlist __asm("d1"))
 {
     (void)DOSBase;
@@ -7378,7 +7393,7 @@ VOID _dos_FreeDosEntry ( register struct DosLibrary * DOSBase __asm("a6"),
     FreeVec(dlist);
 }
 
-BOOL _dos_IsFileSystem ( register struct DosLibrary * DOSBase __asm("a6"),
+BOOL _dos_IsFileSystem ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                         register CONST_STRPTR name __asm("d1"))
 {
     /*
@@ -7458,7 +7473,7 @@ BOOL _dos_IsFileSystem ( register struct DosLibrary * DOSBase __asm("a6"),
     return TRUE;
 }
 
-BOOL _dos_Format ( register struct DosLibrary * DOSBase __asm("a6"),
+BOOL _dos_Format ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                         register CONST_STRPTR filesystem __asm("d1"),
                                                         register CONST_STRPTR volumename __asm("d2"),
                                                         register ULONG dostype __asm("d3"))
@@ -7539,7 +7554,7 @@ BOOL _dos_Format ( register struct DosLibrary * DOSBase __asm("a6"),
     return status;
 }
 
-LONG _dos_Relabel ( register struct DosLibrary * DOSBase __asm("a6"),
+LONG _dos_Relabel ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                         register CONST_STRPTR drive __asm("d1"),
                                                         register CONST_STRPTR newname __asm("d2"))
 {
@@ -7619,7 +7634,7 @@ LONG _dos_Relabel ( register struct DosLibrary * DOSBase __asm("a6"),
     return status;
 }
 
-LONG _dos_Inhibit ( register struct DosLibrary * DOSBase __asm("a6"),
+LONG _dos_Inhibit ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                         register CONST_STRPTR name __asm("d1"),
                                                         register LONG onoff __asm("d2"))
 {
@@ -7679,7 +7694,7 @@ LONG _dos_Inhibit ( register struct DosLibrary * DOSBase __asm("a6"),
     return status;
 }
 
-LONG _dos_AddBuffers ( register struct DosLibrary * DOSBase __asm("a6"),
+LONG _dos_AddBuffers ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                         register CONST_STRPTR name __asm("d1"),
                                                         register LONG number __asm("d2"))
 {
@@ -7745,7 +7760,7 @@ LONG _dos_AddBuffers ( register struct DosLibrary * DOSBase __asm("a6"),
     return status;
 }
 
-LONG _dos_CompareDates ( register struct DosLibrary * DOSBase __asm("a6"),
+LONG _dos_CompareDates ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                         register const struct DateStamp * date1 __asm("d1"),
                                                         register const struct DateStamp * date2 __asm("d2"))
 {
@@ -7818,7 +7833,7 @@ static void lxa_dos_strcpy(char *d, const char *s)
         ;
 }
 
-LONG _dos_DateToStr ( register struct DosLibrary * DOSBase __asm("a6"),
+LONG _dos_DateToStr ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                         register struct DateTime * datetime __asm("d1"))
 {
     /*
@@ -7990,7 +8005,7 @@ static BOOL lxa_dos_word(const UBYTE *s, const char *word)
     return !s[n] && (n >= 3 || !word[n]) && n > 0;
 }
 
-LONG _dos_StrToDate ( register struct DosLibrary * DOSBase __asm("a6"),
+LONG _dos_StrToDate ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                         register struct DateTime * datetime __asm("d1"))
 {
     /*
@@ -8111,7 +8126,7 @@ LONG _dos_StrToDate ( register struct DosLibrary * DOSBase __asm("a6"),
     return DOSTRUE;
 }
 
-BPTR _dos_InternalLoadSeg ( register struct DosLibrary * DOSBase __asm("a6"),
+BPTR _dos_InternalLoadSeg ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                         register BPTR fh __asm("d0"),
                                                         register BPTR table __asm("a0"),
                                                         register const LONG * funcarray __asm("a1"),
@@ -8129,7 +8144,7 @@ BPTR _dos_InternalLoadSeg ( register struct DosLibrary * DOSBase __asm("a6"),
     return lxa_dos_loadseg_handle(DOSBase, fh, (CONST_STRPTR)"<InternalLoadSeg>", FALSE, funcarray);
 }
 
-BOOL _dos_InternalUnLoadSeg ( register struct DosLibrary * DOSBase __asm("a6"),
+BOOL _dos_InternalUnLoadSeg ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                         register BPTR seglist __asm("d1"),
                                                         register VOID (*freefunc)() __asm("a1"))
 {
@@ -8172,7 +8187,7 @@ BOOL _dos_InternalUnLoadSeg ( register struct DosLibrary * DOSBase __asm("a6"),
     return TRUE;
 }
 
-BPTR _dos_NewLoadSeg ( register struct DosLibrary * DOSBase __asm("a6"),
+BPTR _dos_NewLoadSeg ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                         register CONST_STRPTR file __asm("d1"),
                                                         register const struct TagItem * tags __asm("d2"))
 {
@@ -8181,7 +8196,7 @@ BPTR _dos_NewLoadSeg ( register struct DosLibrary * DOSBase __asm("a6"),
     return _dos_LoadSeg(DOSBase, file);
 }
 
-ULONG _dos_GetSegListInfo ( register struct DosLibrary * DOSBase __asm("a6"),
+ULONG _dos_GetSegListInfo ( register struct DosLibrary * __dos_a6 __asm("a6"),
                             register BPTR seglist __asm("d0"),
                             register const struct TagItem * taglist __asm("a0"))
 {
@@ -8251,7 +8266,7 @@ static void lxa_dos_process_exit_cleanup(LONG return_code, LONG exit_data)
     }
 }
 
-LONG _dos_AddSegment ( register struct DosLibrary * DOSBase __asm("a6"),
+LONG _dos_AddSegment ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                         register CONST_STRPTR name __asm("d1"),
                                                         register BPTR seg __asm("d2"),
                                                         register LONG system __asm("d3"))
@@ -8325,7 +8340,7 @@ static struct DosInfo *lxa_dos_info(void)
     return root ? (struct DosInfo *)BADDR(root->rn_Info) : NULL;
 }
 
-struct Segment * _dos_FindSegment ( register struct DosLibrary * DOSBase __asm("a6"),
+struct Segment * _dos_FindSegment ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                         register CONST_STRPTR name __asm("d1"),
                                                         register const struct Segment * seg __asm("d2"),
                                                         register LONG system __asm("d3"))
@@ -8369,7 +8384,7 @@ struct Segment * _dos_FindSegment ( register struct DosLibrary * DOSBase __asm("
     return current;
 }
 
-LONG _dos_RemSegment ( register struct DosLibrary * DOSBase __asm("a6"),
+LONG _dos_RemSegment ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                         register struct Segment * seg __asm("d1"))
 {
     /*
@@ -8419,7 +8434,7 @@ LONG _dos_RemSegment ( register struct DosLibrary * DOSBase __asm("a6"),
     return DOSTRUE;
 }
 
-LONG _dos_CheckSignal ( register struct DosLibrary * DOSBase __asm("a6"),
+LONG _dos_CheckSignal ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                         register LONG mask __asm("d1"))
 {
     DPRINTF (LOG_DEBUG, "_dos: CheckSignal() called, mask=0x%08lx\n", mask);
@@ -8774,7 +8789,7 @@ static void _ra_prompt(struct DosLibrary *DOSBase, CONST_STRPTR text)
     Flush(out);
 }
 
-struct RDArgs * _dos_ReadArgs ( register struct DosLibrary * DOSBase __asm("a6"),
+struct RDArgs * _dos_ReadArgs ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                          register CONST_STRPTR arg_template __asm("d1"),
                                                          register LONG * array __asm("d2"),
                                                          register struct RDArgs * args __asm("d3"))
@@ -9081,7 +9096,7 @@ restart:
     }
 }
 
-LONG _dos_FindArg ( register struct DosLibrary * DOSBase __asm("a6"),
+LONG _dos_FindArg ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                          register CONST_STRPTR arg_template __asm("d1"),
                                                          register CONST_STRPTR keyword __asm("d2"))
 {
@@ -9120,7 +9135,7 @@ LONG _dos_FindArg ( register struct DosLibrary * DOSBase __asm("a6"),
     return -1;
 }
 
-LONG _dos_ReadItem ( register struct DosLibrary * DOSBase __asm("a6"),
+LONG _dos_ReadItem ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                          register CONST_STRPTR name __asm("d1"),
                                                          register LONG maxchars __asm("d2"),
                                                          register struct CSource * cSource __asm("d3"))
@@ -9146,7 +9161,7 @@ LONG _dos_ReadItem ( register struct DosLibrary * DOSBase __asm("a6"),
     return _ra_read_item(&src, (STRPTR)name, maxchars, NULL);
 }
 
-LONG _dos_StrToLong ( register struct DosLibrary * DOSBase __asm("a6"),
+LONG _dos_StrToLong ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                          register CONST_STRPTR string __asm("d1"),
                                                          register LONG * value __asm("d2"))
 {
@@ -9288,7 +9303,7 @@ static struct lxa_match_level *match_push(struct DosLibrary *DOSBase, struct Anc
     return lv;
 }
 
-LONG _dos_MatchFirst ( register struct DosLibrary * DOSBase __asm("a6"),
+LONG _dos_MatchFirst ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                         register CONST_STRPTR pat __asm("d1"),
                                                         register struct AnchorPath * anchor __asm("d2"))
 {
@@ -9435,7 +9450,7 @@ LONG _dos_MatchFirst ( register struct DosLibrary * DOSBase __asm("a6"),
     return MatchNext(anchor);
 }
 
-LONG _dos_MatchNext ( register struct DosLibrary * DOSBase __asm("a6"),
+LONG _dos_MatchNext ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                         register struct AnchorPath * anchor __asm("d1"))
 {
     struct lxa_match_root *root;
@@ -9531,7 +9546,7 @@ LONG _dos_MatchNext ( register struct DosLibrary * DOSBase __asm("a6"),
     }
 }
 
-VOID _dos_MatchEnd ( register struct DosLibrary * DOSBase __asm("a6"),
+VOID _dos_MatchEnd ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                         register struct AnchorPath * anchor __asm("d1"))
 {
     struct AChain *ac, *next;
@@ -9920,7 +9935,7 @@ static LONG lxa_dos_parse_pattern(struct DosLibrary *DOSBase, CONST_STRPTR pat,
     return wild ? 1 : 0;
 }
 
-LONG _dos_ParsePattern ( register struct DosLibrary * DOSBase __asm("a6"),
+LONG _dos_ParsePattern ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                          register CONST_STRPTR pat __asm("d1"),
                                                          register STRPTR buf __asm("d2"),
                                                          register LONG buflen __asm("d3"))
@@ -9930,7 +9945,7 @@ LONG _dos_ParsePattern ( register struct DosLibrary * DOSBase __asm("a6"),
     return lxa_dos_parse_pattern(DOSBase, pat, (UBYTE *)buf, buflen);
 }
 
-BOOL _dos_MatchPattern ( register struct DosLibrary * DOSBase __asm("a6"),
+BOOL _dos_MatchPattern ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                          register CONST_STRPTR pat __asm("d1"),
                                                          register STRPTR str __asm("d2"))
 {
@@ -9947,12 +9962,12 @@ BOOL _dos_MatchPattern ( register struct DosLibrary * DOSBase __asm("a6"),
     return _match_pattern_internal((const UBYTE *)pat, (const UBYTE *)str);
 }
 
-VOID _dos_private3 ( register struct DosLibrary * DOSBase __asm("a6"))
+VOID _dos_private3 ( register struct DosLibrary * __dos_a6 __asm("a6"))
 {
     PRIVATE_FUNCTION_ERROR("_dos", "private3");
 }
 
-VOID _dos_FreeArgs ( register struct DosLibrary * DOSBase __asm("a6"),
+VOID _dos_FreeArgs ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                          register struct RDArgs * args __asm("d1"))
 {
     DPRINTF (LOG_DEBUG, "_dos: FreeArgs() called, args=0x%08lx\n", args);
@@ -9978,12 +9993,12 @@ VOID _dos_FreeArgs ( register struct DosLibrary * DOSBase __asm("a6"),
     }
 }
 
-VOID _dos_private4 ( register struct DosLibrary * DOSBase __asm("a6"))
+VOID _dos_private4 ( register struct DosLibrary * __dos_a6 __asm("a6"))
 {
     PRIVATE_FUNCTION_ERROR("_dos", "private4");
 }
 
-STRPTR _dos_FilePart ( register struct DosLibrary * DOSBase __asm("a6"),
+STRPTR _dos_FilePart ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                         register CONST_STRPTR path __asm("d1"))
 {
     DPRINTF (LOG_DEBUG, "_dos: FilePart() called, path='%s'\n", STRORNULL(path));
@@ -10011,7 +10026,7 @@ STRPTR _dos_FilePart ( register struct DosLibrary * DOSBase __asm("a6"),
     return (STRPTR)path;
 }
 
-STRPTR _dos_PathPart ( register struct DosLibrary * DOSBase __asm("a6"),
+STRPTR _dos_PathPart ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                         register CONST_STRPTR path __asm("d1"))
 {
     DPRINTF (LOG_DEBUG, "_dos: PathPart() called, path='%s'\n", STRORNULL(path));
@@ -10035,7 +10050,7 @@ STRPTR _dos_PathPart ( register struct DosLibrary * DOSBase __asm("a6"),
     return fp;
 }
 
-BOOL _dos_AddPart ( register struct DosLibrary * DOSBase __asm("a6"),
+BOOL _dos_AddPart ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                         register STRPTR dirname __asm("d1"),
                                                         register CONST_STRPTR filename __asm("d2"),
                                                         register ULONG size __asm("d3"))
@@ -10121,7 +10136,7 @@ BOOL _dos_AddPart ( register struct DosLibrary * DOSBase __asm("a6"),
     return TRUE;
 }
 
-BOOL _dos_StartNotify ( register struct DosLibrary * DOSBase __asm("a6"),
+BOOL _dos_StartNotify ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                         register struct NotifyRequest * notify __asm("d1"))
 {
     char resolved_name[256];
@@ -10182,7 +10197,7 @@ BOOL _dos_StartNotify ( register struct DosLibrary * DOSBase __asm("a6"),
     return TRUE;
 }
 
-VOID _dos_EndNotify ( register struct DosLibrary * DOSBase __asm("a6"),
+VOID _dos_EndNotify ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                         register struct NotifyRequest * notify __asm("d1"))
 {
     if (!notify)
@@ -10229,7 +10244,7 @@ VOID _dos_NotifyVBlankHook(void)
     }
 }
 
-BOOL _dos_SetVar ( register struct DosLibrary * DOSBase __asm("a6"),
+BOOL _dos_SetVar ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                         register CONST_STRPTR name __asm("d1"),
                                                         register CONST_STRPTR buffer __asm("d2"),
                                                         register LONG size __asm("d3"),
@@ -10432,7 +10447,7 @@ BOOL _dos_SetVar ( register struct DosLibrary * DOSBase __asm("a6"),
     return TRUE;
 }
 
-LONG _dos_GetVar ( register struct DosLibrary * DOSBase __asm("a6"),
+LONG _dos_GetVar ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                         register CONST_STRPTR name __asm("d1"),
                                                         register STRPTR buffer __asm("d2"),
                                                         register LONG size __asm("d3"),
@@ -10543,7 +10558,7 @@ LONG _dos_GetVar ( register struct DosLibrary * DOSBase __asm("a6"),
     return -1;
 }
 
-LONG _dos_DeleteVar ( register struct DosLibrary * DOSBase __asm("a6"),
+LONG _dos_DeleteVar ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                         register CONST_STRPTR name __asm("d1"),
                                                         register ULONG flags __asm("d2"))
 {
@@ -10629,7 +10644,7 @@ LONG _dos_DeleteVar ( register struct DosLibrary * DOSBase __asm("a6"),
     return deleted ? DOSTRUE : DOSFALSE;
 }
 
-struct LocalVar * _dos_FindVar ( register struct DosLibrary * DOSBase __asm("a6"),
+struct LocalVar * _dos_FindVar ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                         register CONST_STRPTR name __asm("d1"),
                                                         register ULONG type __asm("d2"))
 {
@@ -10690,12 +10705,12 @@ struct LocalVar * _dos_FindVar ( register struct DosLibrary * DOSBase __asm("a6"
     return NULL;
 }
 
-VOID _dos_private5 ( register struct DosLibrary * DOSBase __asm("a6"))
+VOID _dos_private5 ( register struct DosLibrary * __dos_a6 __asm("a6"))
 {
     PRIVATE_FUNCTION_ERROR("_dos", "private5");
 }
 
-LONG _dos_CliInitNewcli ( register struct DosLibrary * DOSBase __asm("a6"),
+LONG _dos_CliInitNewcli ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                         register struct DosPacket * dp __asm("a0"))
 {
     struct Process *me;
@@ -10795,7 +10810,7 @@ LONG _dos_CliInitNewcli ( register struct DosLibrary * DOSBase __asm("a6"),
     return 0;
 }
 
-LONG _dos_CliInitRun ( register struct DosLibrary * DOSBase __asm("a6"),
+LONG _dos_CliInitRun ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                         register struct DosPacket * dp __asm("a0"))
 {
     struct Process *me;
@@ -10924,7 +10939,7 @@ LONG _dos_CliInitRun ( register struct DosLibrary * DOSBase __asm("a6"),
     return flags;
 }
 
-LONG _dos_WriteChars ( register struct DosLibrary * DOSBase __asm("a6"),
+LONG _dos_WriteChars ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                         register CONST_STRPTR buf __asm("d1"),
                                                         register ULONG buflen __asm("d2"))
 {
@@ -10952,7 +10967,7 @@ LONG _dos_WriteChars ( register struct DosLibrary * DOSBase __asm("a6"),
     return result;
 }
 
-LONG _dos_PutStr ( register struct DosLibrary * DOSBase __asm("a6"),
+LONG _dos_PutStr ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                         register CONST_STRPTR str __asm("d1"))
 {
     DPRINTF (LOG_DEBUG, "_dos: PutStr(str=%08lx) called.\n", str);
@@ -10972,7 +10987,7 @@ LONG _dos_PutStr ( register struct DosLibrary * DOSBase __asm("a6"),
     return _dos_FPuts(DOSBase, out, str);
 }
 
-LONG _dos_VPrintf ( register struct DosLibrary * DOSBase __asm("a6"),
+LONG _dos_VPrintf ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                         register CONST_STRPTR format __asm("d1"),
                                                         register const APTR argarray __asm("d2"))
 {
@@ -10989,12 +11004,12 @@ LONG _dos_VPrintf ( register struct DosLibrary * DOSBase __asm("a6"),
     return _dos_VFPrintf(DOSBase, out, format, argarray);
 }
 
-VOID _dos_private6 ( register struct DosLibrary * DOSBase __asm("a6"))
+VOID _dos_private6 ( register struct DosLibrary * __dos_a6 __asm("a6"))
 {
     PRIVATE_FUNCTION_ERROR("_dos", "private6");
 }
 
-LONG _dos_ParsePatternNoCase ( register struct DosLibrary * DOSBase __asm("a6"),
+LONG _dos_ParsePatternNoCase ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                         register CONST_STRPTR pat __asm("d1"),
                                                         register UBYTE * buf __asm("d2"),
                                                         register LONG buflen __asm("d3"))
@@ -11005,7 +11020,7 @@ LONG _dos_ParsePatternNoCase ( register struct DosLibrary * DOSBase __asm("a6"),
     return lxa_dos_parse_pattern(DOSBase, pat, buf, buflen);
 }
 
-BOOL _dos_MatchPatternNoCase ( register struct DosLibrary * DOSBase __asm("a6"),
+BOOL _dos_MatchPatternNoCase ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                         register CONST_STRPTR pat __asm("d1"),
                                                         register STRPTR str __asm("d2"))
 {
@@ -11022,12 +11037,12 @@ BOOL _dos_MatchPatternNoCase ( register struct DosLibrary * DOSBase __asm("a6"),
     return _match_pattern_internal_nocase((const UBYTE *)pat, (const UBYTE *)str);
 }
 
-VOID _dos_private7 ( register struct DosLibrary * DOSBase __asm("a6"))
+VOID _dos_private7 ( register struct DosLibrary * __dos_a6 __asm("a6"))
 {
     PRIVATE_FUNCTION_ERROR("_dos", "private7");
 }
 
-BOOL _dos_SameDevice ( register struct DosLibrary * DOSBase __asm("a6"),
+BOOL _dos_SameDevice ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                         register BPTR lock1 __asm("d1"),
                                                         register BPTR lock2 __asm("d2"))
 {
@@ -11043,7 +11058,7 @@ BOOL _dos_SameDevice ( register struct DosLibrary * DOSBase __asm("a6"),
     return (result != LOCK_DIFFERENT) ? DOSTRUE : DOSFALSE;
 }
 
-VOID _dos_ExAllEnd ( register struct DosLibrary * DOSBase __asm("a6"),
+VOID _dos_ExAllEnd ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                         register BPTR lock __asm("d1"),
                                                         register struct ExAllData * buffer __asm("d2"),
                                                         register LONG size __asm("d3"),
@@ -11074,7 +11089,7 @@ VOID _dos_ExAllEnd ( register struct DosLibrary * DOSBase __asm("a6"),
     control->eac_Entries = 0;
 }
 
-BOOL _dos_SetOwner ( register struct DosLibrary * DOSBase __asm("a6"),
+BOOL _dos_SetOwner ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                         register CONST_STRPTR name __asm("d1"),
                                                         register LONG owner_info __asm("d2"))
 {

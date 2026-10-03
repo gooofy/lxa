@@ -141,6 +141,8 @@ TEST_F(SetWindowTitlesTest, WindowTitleBarRepaintsImmediately) {
         << "SetWindowTitles should change visible title-bar pixels immediately";
     EXPECT_TRUE(SawText("After"))
         << "SetWindowTitles should cause the new window title text to render";
+    EXPECT_STREQ(window_info.title, "After")
+        << "liblxa's tracked window title should follow SetWindowTitles";
 }
 
 TEST_F(SetWindowTitlesTest, ScreenTitleRepaintsImmediately) {

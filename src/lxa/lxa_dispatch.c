@@ -904,6 +904,21 @@ int op_illg(int level)
             break;
         }
 
+        case EMU_CALL_DOS_ISINTERACTIVE:
+        {
+            /* LXA_STDIO_FILE=1: the program's stdin/stdout behave like the
+             * redirected file and the NIL: input of the reference runner's
+             * `RUN >file prog`, so IsInteractive() is FALSE for them there too */
+            static int stdio_file = -1;
+            uint32_t fd = m68k_get_reg(NULL, M68K_REG_D1);
+            if (stdio_file < 0) {
+                const char *e = getenv("LXA_STDIO_FILE");
+                stdio_file = e && *e && strcmp(e, "0") != 0;
+            }
+            m68k_set_reg(M68K_REG_D0, (stdio_file && (fd == STDOUT_FILENO || fd == STDIN_FILENO)) ? 0 : 1);
+            break;
+        }
+
         case EMU_CALL_DOS_LASTERROR:
         {
             m68k_set_reg(M68K_REG_D0, _dos_last_error());

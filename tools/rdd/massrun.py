@@ -88,6 +88,8 @@ def load_programs(out, filt=None, limit=None, ids_file=None):
 
 def run_lxa_one(rel, root, frames, build=None):
     from rdd.pylxa import Lxa
+    # the reference starts programs with RUN >file (stdin NIL:)
+    os.environ["LXA_STDIO_FILE"] = "1"
     lxa = Lxa(build=build)
     res = {"backend": "lxa"}
     try:
@@ -356,7 +358,8 @@ def main(argv=None):
     ap.add_argument("--out", default=OUT)
     ap.add_argument("--build")
     ap.add_argument("-j", "--jobs", type=int, default=16)
-    ap.add_argument("--frames", type=int, default=150)
+    # 300 frames = 6 s, the reference's --seconds (equal run time on both)
+    ap.add_argument("--frames", type=int, default=300)
     ap.add_argument("--seconds", type=int, default=6)
     ap.add_argument("--filter")
     ap.add_argument("--limit", type=int)

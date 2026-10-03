@@ -1759,9 +1759,22 @@ static void show_prompt(void)
 
 /* -- main -------------------------------------------------------------- */
 
+static BOOL strnicmp_ascii(const char *a, const char *b, int n)
+{
+    while (n-- > 0) {
+        char x = *a++, y = *b++;
+        if (x >= 'a' && x <= 'z') x -= 32;
+        if (y >= 'a' && y <= 'z') y -= 32;
+        if (x != y)
+            return FALSE;
+    }
+    return TRUE;
+}
+
 int main(void)
 {
     static char line[LINE_MAX_LEN];
+    static char from_script[256];
     char *argstr;
     BOOL command_mode;
 
@@ -1800,6 +1813,25 @@ int main(void)
     } else {
         line[0] = '\0';
     }
+    /* NewShell/NewCLI start the shell with "FROM <script>": an
+     * interactive shell that runs the script first */
+    from_script[0] = '\0';
+    {
+        char *a = skip_ws(line);
+        if (strnicmp_ascii(a, "FROM", 4) && (a[4] == ' ' || a[4] == '\t')) {
+            char *f = skip_ws(a + 4), *e;
+            if (*f == '"') {
+                f++;
+                e = strchr(f, '"');
+            } else
+                e = f + strcspn(f, " \t\n");
+            if (e && e - f < (int)sizeof(from_script)) {
+                memcpy(from_script, f, e - f);
+                from_script[e - f] = '\0';
+            }
+            line[0] = '\0';
+        }
+    }
     command_mode = (*skip_ws(line) != '\0');
 
     if (command_mode) {
@@ -1824,9 +1856,16 @@ int main(void)
                 if (!prompt[0])
                     SetPrompt((STRPTR)"%N.%S> ");
             }
-            startup = Open((STRPTR)"S:Startup-Sequence", MODE_OLDFILE);
-            if (startup)
-                push_input(startup, TRUE, TRUE);
+            if (!from_script[0]) {
+                startup = Open((STRPTR)"S:Startup-Sequence", MODE_OLDFILE);
+                if (startup)
+                    push_input(startup, TRUE, TRUE);
+            }
+        }
+        if (from_script[0]) {
+            BPTR script = Open((STRPTR)from_script, MODE_OLDFILE);
+            if (script)
+                push_input(script, TRUE, TRUE);
         }
     }
 

@@ -1,0 +1,11 @@
+Output() = Output() = TRUE
+written with a6 = SysBase
+Write = 26
+Open = non-NULL
+Write file = 3
+Seek = 3
+Read = 3
+Close = -1
+Lock = non-NULL
+DeleteFile = -1
+IoErr = 205
