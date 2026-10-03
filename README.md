@@ -231,6 +231,8 @@ Built-in C: commands with full AmigaDOS template support:
 
 ## Current Status
 
+**Version 0.11.15** - Rendering matches AmigaOS 3.1 (Phase 223): Workbench screen and window chrome, system gadgets, menus, requesters, BOOPSI images and GadTools gadgets are checked pixel-by-pixel against the reference in 15 gallery goldens - the remaining differences are the ROM font's glyphs (Phase 225). API conformance probes for utility/exec/dos (Phase 222a) and fixes for Fred Fish programs (`Open("*")`, CLI stack-size convention).
+
 **Version 0.11.14** - Shell and C: commands match Workbench 3.1 (Phase 221): 11 parity scripts produce identical output on lxa and AmigaOS 3.1; 13 missing commands added (Which, SetDate, Lock, Relabel, IconX, ...). CPU faults now behave like AmigaOS (held tasks, Guru for faulting interrupt code), and several more emulator stalls found by the Fred Fish mass run are fixed.
 
 **Version 0.11.13** - Phase 220 complete: all 236 lxa test programs were run on a real AmigaOS 3.1 system; 197 now produce identical output on both, the rest are justified lxa-only or interactive tests. Hundreds of compatibility fixes across dos, exec, graphics, intuition, gadtools, layers, console and the devices came out of it. Several emulator crashes and stalls found by the Fred Fish mass run are fixed.

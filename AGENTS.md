@@ -544,6 +544,13 @@ The built-in library stays private to lxa's ROM and `OpenLibrary()` loads `LIBS:
 - `NameFromLock()` returns volume-based names (never assign names); protection bits live in a host extended attribute.
 - Output parity is checked by `tests/shell_parity/*.script` against WB 3.1's own commands; add a script line rather than a hand-written expectation when you change a command.
 
+### 6.28 Window Chrome Facts (Phase 223, reference-verified)
+
+- System gadgets come **first** in a window's gadget list and have GadgetID 0: identify them by `GadgetType & GTYP_SYSTYPEMASK`, never by position or ID.
+- A window opened by tags without `WA_MaxWidth/Height` gets its initial size as maximum; without `WA_Top` it opens just below the screen title bar.
+- The Workbench screen: `WBorTop` 2, `MenuHBorder`/`MenuVBorder` 4/2, pen 3 = 102,136,187, display ID = the requested mode.
+- `python3 -m rdd gallery` renders every gallery golden next to the reference; text differences there are the ROM font (Phase 225), not layout.
+
 ## 7. Quick Start
 1. Check `roadmap.md`.
 2. Load `lxa-workflow` to understand the process.

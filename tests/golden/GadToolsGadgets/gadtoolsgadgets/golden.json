@@ -29,7 +29,7 @@
      "field": "activation",
      "kind": "gadget",
      "lxa": 3,
-     "phase": 223,
+     "phase": 222,
      "ref": 11,
      "where": "screen[Workbench Screen]/window[GadTools Gadget Demo]/gadget[0 id=0]"
     },
@@ -48,7 +48,7 @@
      "field": "id",
      "kind": "gadget",
      "lxa": 1,
-     "phase": 223,
+     "phase": 222,
      "ref": 0,
      "where": "screen[Workbench Screen]/window[GadTools Gadget Demo]/gadget[1 id=0]"
     },
@@ -56,7 +56,7 @@
      "field": "type",
      "kind": "gadget",
      "lxa": 260,
-     "phase": 223,
+     "phase": 222,
      "ref": 256,
      "where": "screen[Workbench Screen]/window[GadTools Gadget Demo]/gadget[1 id=0]"
     },
@@ -64,7 +64,7 @@
      "field": "flags",
      "kind": "gadget",
      "lxa": 0,
-     "phase": 223,
+     "phase": 222,
      "ref": 32775,
      "where": "screen[Workbench Screen]/window[GadTools Gadget Demo]/gadget[1 id=0]"
     },
@@ -72,7 +72,7 @@
      "field": "activation",
      "kind": "gadget",
      "lxa": 1,
-     "phase": 223,
+     "phase": 222,
      "ref": 0,
      "where": "screen[Workbench Screen]/window[GadTools Gadget Demo]/gadget[1 id=0]"
     },
@@ -125,7 +125,7 @@
      "field": "id",
      "kind": "gadget",
      "lxa": 2,
-     "phase": 223,
+     "phase": 222,
      "ref": 1,
      "where": "screen[Workbench Screen]/window[GadTools Gadget Demo]/gadget[2 id=1]"
     },
@@ -133,7 +133,7 @@
      "field": "flags",
      "kind": "gadget",
      "lxa": 0,
-     "phase": 223,
+     "phase": 222,
      "ref": 33284,
      "where": "screen[Workbench Screen]/window[GadTools Gadget Demo]/gadget[2 id=1]"
     },
@@ -141,7 +141,7 @@
      "field": "activation",
      "kind": "gadget",
      "lxa": 1,
-     "phase": 223,
+     "phase": 222,
      "ref": 8193,
      "where": "screen[Workbench Screen]/window[GadTools Gadget Demo]/gadget[2 id=1]"
     },
@@ -170,7 +170,7 @@
      "field": "id",
      "kind": "gadget",
      "lxa": 3,
-     "phase": 223,
+     "phase": 222,
      "ref": 2,
      "where": "screen[Workbench Screen]/window[GadTools Gadget Demo]/gadget[3 id=2]"
     },
@@ -178,7 +178,7 @@
      "field": "flags",
      "kind": "gadget",
      "lxa": 0,
-     "phase": 223,
+     "phase": 222,
      "ref": 33284,
      "where": "screen[Workbench Screen]/window[GadTools Gadget Demo]/gadget[3 id=2]"
     },
@@ -186,7 +186,7 @@
      "field": "activation",
      "kind": "gadget",
      "lxa": 1,
-     "phase": 223,
+     "phase": 222,
      "ref": 8193,
      "where": "screen[Workbench Screen]/window[GadTools Gadget Demo]/gadget[3 id=2]"
     },
@@ -215,7 +215,7 @@
      "field": "id",
      "kind": "gadget",
      "lxa": 4,
-     "phase": 223,
+     "phase": 222,
      "ref": 3,
      "where": "screen[Workbench Screen]/window[GadTools Gadget Demo]/gadget[4 id=3]"
     },
@@ -223,7 +223,7 @@
      "field": "type",
      "kind": "gadget",
      "lxa": 257,
-     "phase": 223,
+     "phase": 222,
      "ref": 260,
      "where": "screen[Workbench Screen]/window[GadTools Gadget Demo]/gadget[4 id=3]"
     },
@@ -239,7 +239,7 @@
      "field": "activation",
      "kind": "gadget",
      "lxa": 1,
-     "phase": 223,
+     "phase": 222,
      "ref": 8193,
      "where": "screen[Workbench Screen]/window[GadTools Gadget Demo]/gadget[4 id=3]"
     },
@@ -247,7 +247,7 @@
      "field": "left",
      "kind": "gadget",
      "lxa": 190,
-     "phase": 223,
+     "phase": 222,
      "ref": 146,
      "where": "screen[Workbench Screen]/window[GadTools Gadget Demo]/gadget[4 id=3]"
     },
@@ -263,7 +263,7 @@
      "field": "width",
      "kind": "gadget",
      "lxa": 100,
-     "phase": 223,
+     "phase": 222,
      "ref": 188,
      "where": "screen[Workbench Screen]/window[GadTools Gadget Demo]/gadget[4 id=3]"
     },
@@ -271,7 +271,7 @@
      "field": "height",
      "kind": "gadget",
      "lxa": 12,
-     "phase": 223,
+     "phase": 222,
      "ref": 8,
      "where": "screen[Workbench Screen]/window[GadTools Gadget Demo]/gadget[4 id=3]"
     },
@@ -288,7 +288,7 @@
     }
    ],
    "pixel_budget": 791,
-   "pixel_phase": 223,
+   "pixel_phase": 225,
    "stdout_known_diff": 222
   }
  }

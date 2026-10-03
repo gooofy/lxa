@@ -4,10 +4,10 @@
 # `golden_lint`-style rule: every phase named here must exist in roadmap.md.
 # Keep entries specific - a cluster that no rule matches is reported as
 # unowned and gets a phase stub.
-- {match: '^screen\.(display_id|wbor|menu_hborder|menu_vborder|bar_)', phase: 223, why: "screen chrome / Workbench geometry"}
-- {match: '^screen\.flags', phase: 223, why: "Workbench screen flags"}
-- {match: '^palette pen', phase: 223, why: "Workbench default palette"}
-- {match: '^sysgadget ', phase: 223, why: "system gadget set, types and geometry"}
+- {match: '^screen\.(display_id|wbor|menu_hborder|menu_vborder|bar_)', phase: 222, why: "222d: screen chrome / Workbench geometry (cluster fixed in Phase 223; residue)"}
+- {match: '^screen\.flags', phase: 222, why: "222d: Workbench screen flags"}
+- {match: '^palette pen', phase: 236, why: "Workbench palette from prefs (default fixed in Phase 223)"}
+- {match: '^sysgadget ', phase: 222, why: "222d: system gadget set (fixed in Phase 223; residue)"}
 - {match: '^window\.(border|count|flags|min_|max_|title)', phase: 222, why: "222d: OpenWindowTags defaults and border geometry"}
 - {match: '^(menu|item)[ .]', phase: 222, why: "222e/222d: menu and item layout (LayoutMenusA, SetMenuStrip)"}
 - {match: '^gadget[ .]', phase: 222, why: "222e: GadTools gadget creation and geometry"}

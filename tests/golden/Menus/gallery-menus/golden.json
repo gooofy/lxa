@@ -10,31 +10,31 @@
   "menu0": {
    "known_tree_diffs": [],
    "pixel_budget": 699,
-   "pixel_phase": 223,
+   "pixel_phase": 225,
    "stdout_known_diff": null
   },
   "menu1": {
    "known_tree_diffs": [],
    "pixel_budget": 704,
-   "pixel_phase": 223,
+   "pixel_phase": 225,
    "stdout_known_diff": null
   },
   "menu2": {
    "known_tree_diffs": [],
    "pixel_budget": 480,
-   "pixel_phase": 223,
+   "pixel_phase": 225,
    "stdout_known_diff": null
   },
   "menu3": {
    "known_tree_diffs": [],
    "pixel_budget": 611,
-   "pixel_phase": 223,
+   "pixel_phase": 225,
    "stdout_known_diff": null
   },
   "screen": {
    "known_tree_diffs": [],
    "pixel_budget": 270,
-   "pixel_phase": 223,
+   "pixel_phase": 225,
    "stdout_known_diff": null
   }
  }

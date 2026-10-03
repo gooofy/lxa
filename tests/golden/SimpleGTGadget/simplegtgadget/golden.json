@@ -29,7 +29,7 @@
      "field": "flags",
      "kind": "gadget",
      "lxa": 0,
-     "phase": 223,
+     "phase": 222,
      "ref": 33284,
      "where": "screen[Workbench Screen]/window[GadTools Gadget Demo]/gadget[2 id=3]"
     },
@@ -56,7 +56,7 @@
       "Cycle:",
       "Option 1"
      ],
-     "phase": 223,
+     "phase": 222,
      "ref": [
       "Cycle:"
      ],
@@ -64,7 +64,7 @@
     }
    ],
    "pixel_budget": 492,
-   "pixel_phase": 223,
+   "pixel_phase": 225,
    "stdout_known_diff": 222
   }
  }
