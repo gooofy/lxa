@@ -1,7 +1,7 @@
 {
  "app": "SimpleGTGadget",
  "disabled": null,
- "lxa_version": "0.11.17",
+ "lxa_version": "0.11.23",
  "promoted": "2026-10-03",
  "reference": "AmigaOS 3.1 (KS 40.70), profile aga",
  "requires_apps": false,
@@ -9,9 +9,9 @@
  "snapshots": {
   "startup": {
    "known_tree_diffs": [],
-   "pixel_budget": 492,
-   "pixel_phase": 225,
-   "stdout_known_diff": 222
+   "pixel_budget": 0,
+   "pixel_phase": null,
+   "stdout_known_diff": null
   }
  }
 }

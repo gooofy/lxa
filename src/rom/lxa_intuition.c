@@ -6558,7 +6558,8 @@ static void _render_menu_bar(struct Window *window)
         }
         if (!(menu->Flags & MENUENABLED))
             lxa_ghost_rect_pen(rp, tx, screen->BarVBorder, tx + menu->Width - 1,
-                               screen->BarVBorder + rp->TxHeight - 1, pens[BARBLOCKPEN], 0);
+                               screen->BarVBorder + rp->TxHeight - 1, pens[BARBLOCKPEN],
+                               screen->BarVBorder);   /* pattern phase: 3.1 reference */
         if (active && (menu->Flags & MENUENABLED))
         {
             /* the selected title is complemented */
@@ -6685,7 +6686,9 @@ static void _render_menu_item_chain(struct Screen *screen, struct RastPort *rp,
             lxa_sysi_draw(rp, AMIGAKEY, SYSISIZE_MEDRES, cx - aw - 4, iy + 1, IDS_NORMAL, pens);
             SetAPen(rp, pens[BARDETAILPEN]);
             SetDrMd(rp, JAM1);
-            Move(rp, cx, iy + 1 + rp->TxBaseline);
+            /* 3.1 reference: the key ends 2 px inside the item, 2 px
+             * right of the Amiga key image */
+            Move(rp, cx - 2, iy + 1 + rp->TxBaseline);
             Text(rp, (STRPTR)&c, 1);
         }
 
@@ -9746,8 +9749,10 @@ static void _render_window_frame_impl(struct Window *window)
     /* title */
     if (window->Title && bt > 0)
     {
-        WORD tx = (title_left > 1) ? title_left + 11 : 5;
-        WORD avail = title_right - tx + 1;
+        /* 3.1 reference: the title starts 10 px right of the close
+         * gadget and keeps 2 px clear of the separator (gallery-chrome) */
+        WORD tx = (title_left > 1) ? title_left + 10 : 4;
+        WORD avail = title_right - tx - 1;
         WORD len = strlen((const char *)window->Title);
         WORD fit = (avail > 0) ? lxa_text_fit(rp, (STRPTR)window->Title, len, avail) : 0;
 

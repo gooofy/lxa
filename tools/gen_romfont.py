@@ -1,0 +1,181 @@
+#!/usr/bin/env python3
+"""Generate lxa's ROM font tables (src/rom/romfont_data.h) - Phase 225.
+
+Input: tests/probes/graphics/romfont.ref.out, the output of the romfont
+probe captured on real AmigaOS 3.1 (`python3 -m rdd suite-ref --filter
+Probes/graphics/romfont --capture-ref`).  The probe prints, for the ROM
+fonts topaz 8 and topaz 9, every TextFont field, the CharLoc table and
+every glyph as Text() draws it.  The glyph strike (tf_CharData) is
+rebuilt from those renderings: glyph i occupies the strike columns
+CharLoc[i] (offset, width), which may overlap between glyphs.  The result
+is checked against the strike hash the probe printed.
+
+Clean-room: the data comes only from black-box observation of the
+reference (rendering through the public graphics.library API, see
+doc/rom-fonts.md), never
+from a Kickstart image.
+
+    python3 tools/gen_romfont.py [--check]
+"""
+
+import argparse
+import os
+import re
+import sys
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+REF = os.path.join(ROOT, "tests", "probes", "graphics", "romfont.ref.out")
+OUT = os.path.join(ROOT, "src", "rom", "romfont_data.h")
+GLYPH_X = 8     # the probe draws every glyph at x = 8
+
+
+def fnv(data):
+    h = 2166136261
+    for b in data:
+        h ^= b
+        h = (h * 16777619) & 0xFFFFFFFF
+    return h
+
+
+def parse(path):
+    fonts = {}
+    cur = None
+    with open(path) as f:
+        for line in f:
+            line = line.rstrip("\n")
+            m = re.match(r"-- topaz (\d+)$", line)
+            if m:
+                cur = {"loc": [], "glyphs": {}, "fields": {}}
+                fonts[int(m.group(1))] = cur
+                continue
+            if line.startswith("-- "):
+                cur = None
+                continue
+            if cur is None:
+                continue
+            m = re.match(r"(tf_\w+|ln_\w+|strike hash) = (.*)$", line)
+            if m:
+                cur["fields"][m.group(1)] = m.group(2)
+                continue
+            m = re.match(r"loc \d+:((?: 0x[0-9a-f]{8})+)$", line)
+            if m:
+                cur["loc"] += [int(v, 16) for v in m.group(1).split()]
+                continue
+            m = re.match(r"(space|kern) = NULL$", line)
+            if m:
+                cur["fields"][m.group(1)] = "NULL"
+                continue
+            m = re.match(r"glyph (\d+) cp_x (-?\d+):((?: [0-9a-f]+)+)$", line)
+            if m:
+                cur["glyphs"][int(m.group(1))] = (int(m.group(2)), [int(v, 16) for v in m.group(3).split()])
+    return fonts
+
+
+def num(v):
+    return int(v, 0)
+
+
+def build(size, font):
+    fl = font["fields"]
+    ysize, lo, hi, modulo = num(fl["tf_YSize"]), num(fl["tf_LoChar"]), num(fl["tf_HiChar"]), num(fl["tf_Modulo"])
+    if fl.get("space") != "NULL" or fl.get("kern") != "NULL":
+        sys.exit("topaz %d: CharSpace/CharKern tables are not supported by this generator" % size)
+    nchars = hi - lo + 2
+    loc = font["loc"]
+    if len(loc) != nchars:
+        sys.exit("topaz %d: %d CharLoc entries, expected %d" % (size, len(loc), nchars))
+    strike = [[None] * (modulo * 8) for _ in range(ysize)]
+    for i in range(nchars):
+        c = lo + i if i < nchars - 1 else (lo - 1 if lo > 0 else hi + 1)
+        if c not in font["glyphs"]:
+            sys.exit("topaz %d: glyph %d missing" % (size, c))
+        _, rows = font["glyphs"][c]
+        off, w = loc[i] >> 16, loc[i] & 0xFFFF
+        for y in range(ysize):
+            bits = rows[y]
+            for x in range(32):
+                if bits & (1 << (31 - x)) and not GLYPH_X <= x < GLYPH_X + w:
+                    sys.exit("topaz %d: glyph %d draws outside its CharLoc width" % (size, c))
+            for x in range(w):
+                v = (bits >> (31 - (GLYPH_X + x))) & 1
+                col = off + x
+                if strike[y][col] is not None and strike[y][col] != v:
+                    sys.exit("topaz %d: overlapping glyphs disagree at column %d" % (size, col))
+                strike[y][col] = v
+    data = bytearray()
+    for y in range(ysize):
+        for bx in range(modulo):
+            b = 0
+            for k in range(8):
+                if strike[y][bx * 8 + k]:
+                    b |= 0x80 >> k
+            data.append(b)
+    want = num(fl["strike hash"])
+    if fnv(data) != want:
+        print("topaz %d: strike hash 0x%08x != reference 0x%08x (columns no glyph uses differ)"
+              % (size, fnv(data), want), file=sys.stderr)
+    return {"size": size, "ysize": ysize, "xsize": num(fl["tf_XSize"]), "baseline": num(fl["tf_Baseline"]),
+            "style": num(fl["tf_Style"]), "flags": num(fl["tf_Flags"]), "boldsmear": num(fl["tf_BoldSmear"]),
+            "lo": lo, "hi": hi, "modulo": modulo, "pri": num(fl["ln_Pri"]), "loc": loc, "data": data,
+            "hash_ok": fnv(data) == want}
+
+
+def emit(fonts):
+    out = ["/*",
+           " * romfont_data.h - lxa's ROM fonts topaz 8 and topaz 9 (Phase 225).",
+           " *",
+           " * GENERATED by tools/gen_romfont.py from tests/probes/graphics/romfont.ref.out,",
+           " * the romfont probe's output on real AmigaOS 3.1: TextFont fields, CharLoc",
+           " * tables and the glyphs as Text() draws them (black-box observation, see",
+           " * doc/rom-fonts.md).  Do not edit by hand.",
+           " */",
+           "#ifndef HAVE_ROMFONT_DATA_H",
+           "#define HAVE_ROMFONT_DATA_H",
+           "",
+           "#include <exec/types.h>",
+           ""]
+    for f in fonts:
+        n = f["size"]
+        for k in ("ysize", "xsize", "baseline", "style", "flags", "boldsmear", "lo", "hi", "modulo", "pri"):
+            out.append("#define TOPAZ%d_%s %d" % (n, k.upper(), f[k]))
+        out.append("")
+        out.append("static const ULONG g_topaz%d_charloc[%d] = {" % (n, len(f["loc"])))
+        for i in range(0, len(f["loc"]), 8):
+            out.append("    " + ", ".join("0x%08x" % v for v in f["loc"][i:i + 8]) + ",")
+        out.append("};")
+        out.append("")
+        out.append("/* %d rows of %d bytes; aligned like a blitter source */" % (f["ysize"], f["modulo"]))
+        out.append("static const UBYTE g_topaz%d_chardata[%d] __attribute__((aligned(2))) = {"
+                   % (n, len(f["data"])))
+        d = f["data"]
+        for i in range(0, len(d), 16):
+            out.append("    " + ", ".join("0x%02x" % v for v in d[i:i + 16]) + ",")
+        out.append("};")
+        out.append("")
+    out.append("#endif /* HAVE_ROMFONT_DATA_H */")
+    return "\n".join(out) + "\n"
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    ap.add_argument("--ref", default=REF)
+    ap.add_argument("--out", default=OUT)
+    ap.add_argument("--check", action="store_true", help="fail if --out is not up to date")
+    a = ap.parse_args()
+    parsed = parse(a.ref)
+    fonts = [build(n, parsed[n]) for n in (8, 9)]
+    text = emit(fonts)
+    if a.check:
+        with open(a.out) as f:
+            if f.read() != text:
+                sys.exit("%s is out of date: run tools/gen_romfont.py" % a.out)
+        return
+    with open(a.out, "w") as f:
+        f.write(text)
+    for f in fonts:
+        print("topaz %d: %d glyphs, strike %d bytes, hash %s" %
+              (f["size"], len(f["loc"]), len(f["data"]), "matches" if f["hash_ok"] else "DIFFERS"))
+
+
+if __name__ == "__main__":
+    main()

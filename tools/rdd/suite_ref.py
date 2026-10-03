@@ -48,6 +48,22 @@ CACHE = os.path.join(os.path.dirname(REF_CACHE), "suite-ref")
 CONFIG = os.path.join(ROOT, "tests", "ref_suite.yaml")
 
 
+FONTS_MARKER = "rdd: fonts wb31"
+
+
+def wb31_fonts_dir(profile="aga"):
+    refsys = os.environ.get("LXA_REFSYS_DIR", os.path.expanduser("~/.cache/lxa/refsys"))
+    return os.path.join(refsys, "SYS-%s" % profile, "Fonts")
+
+
+def probe_fonts(src):
+    """A probe whose source contains "rdd: fonts wb31" runs on lxa with the
+    reference system's Workbench 3.1 fonts as FONTS: (the reference has
+    them in SYS:Fonts)."""
+    with open(src, encoding="latin-1") as f:
+        return wb31_fonts_dir() if FONTS_MARKER in f.read() else None
+
+
 def programs(build):
     out = []
     with open(os.path.join(ROOT, "samples", "CMakeLists.txt")) as f:
@@ -69,7 +85,8 @@ def programs(build):
                 host = os.path.join(build, "target", "samples", "Samples", rel)
                 if os.path.exists(host):
                     out.append({"name": rel, "src": "tests/probes/%s" % lib, "host": host, "probe": True,
-                                "expected": os.path.join(pdir, lib, name + ".ref.out")})
+                                "expected": os.path.join(pdir, lib, name + ".ref.out"),
+                                "fonts": probe_fonts(os.path.join(pdir, lib, fn))})
     # Shell parity scripts (Phase 221): tests/shell_parity/<name>.script runs
     # as "SYS:Tests/ShellParity/Run <name>" on both backends (the reference
     # uses its own WB 3.1 C: commands, lxa its sys/C commands and shell).
@@ -253,10 +270,12 @@ def run_ref(progs, jobs, timeout_ms, use_cache=True, chunk=12):
 
 # -- lxa --------------------------------------------------------------------------
 
-def run_lxa_one(name, build, timeout_ms, prog=None, args=""):
+def run_lxa_one(name, build, timeout_ms, prog=None, args="", fonts=None):
     from rdd.pylxa import Lxa
     lxa = Lxa(build=build)
     try:
+        if fonts:
+            lxa.assign("FONTS", fonts)
         lxa.run("SYS:" + (prog or name), args or "")
         # like the reference agent's WAIT_EXIT: the launched program has
         # returned, even if tasks it started (an app window...) still run
@@ -276,6 +295,8 @@ def run_lxa(progs, build, jobs, timeout_ms):
         os.close(fd_)
         try:
             extra = ["--prog", p["prog"], "--args", p["args"]] if p.get("prog") else []
+            if p.get("fonts"):
+                extra += ["--fonts", p["fonts"]]
             r = subprocess.run([sys.executable, "-m", "rdd.suite_ref", "--lxa-one", p["name"], "--build", build,
                                 "--timeout", str(timeout_ms), "--result", tmp] + extra, capture_output=True,
                                encoding="latin-1", env=env, cwd=ROOT, timeout=timeout_ms / 1000 * 10 + 60)
@@ -357,6 +378,9 @@ def lxa_check(a):
     if a.shard:
         i, n = (int(v) for v in a.shard.split("/"))
         progs = progs[i::n]
+    for p in [p for p in progs if p.get("fonts") and not os.path.isdir(p["fonts"])]:
+        print("SKIP %s: Workbench 3.1 fonts missing (%s; build the reference system)" % (p["name"], p["fonts"]))
+        progs.remove(p)
     res = run_lxa(progs, a.build, a.jobs, a.timeout)
     bad = 0
     for p in progs:
@@ -391,6 +415,7 @@ def main(argv=None):
     ap.add_argument("--result", help="--lxa-one: write the result JSON here")
     ap.add_argument("--prog", help="--lxa-one: program to run (default: the name)")
     ap.add_argument("--args", default="", help="--lxa-one: its arguments")
+    ap.add_argument("--fonts", help="--lxa-one: host directory to assign as FONTS:")
     ap.add_argument("--lint", action="store_true", help="check tests/ref_suite.yaml")
     ap.add_argument("--ref-only", action="store_true", help="skip the lxa runs")
     ap.add_argument("--lxa-check", action="store_true",
@@ -407,7 +432,7 @@ def main(argv=None):
     if a.lxa_check:
         return lxa_check(a)
     if a.lxa_one:
-        res = run_lxa_one(a.lxa_one, a.build, a.timeout, a.prog, a.args)
+        res = run_lxa_one(a.lxa_one, a.build, a.timeout, a.prog, a.args, a.fonts)
         if a.result:                 # not stdout: the program writes there too
             with open(a.result, "w") as f:
                 json.dump(res, f)
