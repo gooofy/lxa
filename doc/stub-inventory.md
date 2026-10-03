@@ -13,7 +13,6 @@ implementing the function, never by deleting the macro.
 | Library | stub | partial | private slot |
 |---|---|---|---|
 | amigaguide | 18 | 0 | 0 |
-| clipboard | 0 | 1 | 0 |
 | commodities | 26 | 0 | 4 |
 | console | 1 | 0 | 0 |
 | datatypes | 5 | 0 | 0 |
@@ -28,7 +27,7 @@ implementing the function, never by deleting the macro.
 | translator | 1 | 0 | 0 |
 | utility | 0 | 0 | 7 |
 | workbench | 0 | 0 | 3 |
-| **total** | **83** | **34** | **49** |
+| **total** | **83** | **33** | **49** |
 
 ## amigaguide
 
@@ -50,10 +49,6 @@ implementing the function, never by deleting the macro.
 - `SetAmigaGuideAttrsA` — stub: amigaguide.library not implemented (Phase 254) (`src/rom/lxa_amigaguide.c`)
 - `SetAmigaGuideContextA` — stub: amigaguide.library not implemented (Phase 254) (`src/rom/lxa_amigaguide.c`)
 - `UnlockAmigaGuideBase` — stub: amigaguide.library not implemented (Phase 254) (`src/rom/lxa_amigaguide.c`)
-
-## clipboard
-
-- `Open` — partial: only unit 0 (PRIMARY_CLIP) can be opened (Phase 255) (`src/rom/lxa_dev_clipboard.c`)
 
 ## commodities
 

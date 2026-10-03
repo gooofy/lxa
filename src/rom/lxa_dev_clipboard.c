@@ -2,7 +2,31 @@
  * lxa clipboard.device implementation
  *
  * Provides clipboard (copy/paste) services for AmigaOS applications.
- * Implements a simple in-memory clipboard with support for multiple units.
+ * Clips are kept in memory, one clipboard per unit; any unit number can
+ * be opened (as on AmigaOS 3.1, where unit N is stored in CLIPS:N).
+ *
+ * The clip ID and hold-off rules follow AmigaOS 3.1 as observed on the
+ * reference machine (tests/probes/clipboard/clipboard.c, Phase 222f):
+ *
+ *  - Every unit has a read ID (the last ID handed out) and a write ID
+ *    (the ID of the last clip written or posted), both 1 for a new unit.
+ *    CMD_WRITE or CBD_POST with io_ClipID 0, and CMD_UPDATE without a
+ *    write, take the next ID (read ID + 1) at once, even when they then
+ *    have to wait.
+ *  - A request whose io_ClipID is below the write ID is obsolete
+ *    (CBERR_OBSOLETEID).
+ *  - A read that starts with io_ClipID 0 counts as an unfinished read;
+ *    any read that reaches the end of the clip (io_ClipID becomes -1)
+ *    ends one.  While the count is not zero, the first CMD_WRITE of a new
+ *    clip, a CMD_UPDATE without a write and CBD_POST are held off.
+ *  - While a clip is being written (first CMD_WRITE until CMD_UPDATE),
+ *    reads that are not obsolete are held off.  A read of a pending post
+ *    sends the SatisfyMsg and waits for the clip.
+ *  - A clip is 8 + the big-endian long at offset 4 bytes long (the IFF
+ *    chunk size, no padding); bytes beyond the stored data read as zeros.
+ *
+ * On AmigaOS 3.1 a held request blocks inside BeginIO(); here it is
+ * queued (not replied) until it can be served, and AbortIO() ends it.
  */
 
 #include <exec/execbase.h>
@@ -38,29 +62,32 @@ char __aligned _g_clipboard_VERSTRING [] = "\0$VER: " EXDEVNAME EXDEVVER;
 extern struct ExecBase *SysBase;
 extern struct UtilityBase *UtilityBase;
 
-/* Maximum clipboard size (256KB should be enough for text) */
-#define MAX_CLIP_SIZE 262144
+/* Maximum stored clip size */
+#define MAX_CLIP_SIZE (1024UL * 1024UL)
+
+/* private io_Flags bit: the read started with io_ClipID 0 (counts as a reader) */
+#define CLIPF_COUNTED 0x40
 
 /* Clipboard unit structure - one clipboard per unit */
 struct ClipboardUnit {
-    struct ClipboardUnitPartial cu_Partial;
-    ULONG   cu_OpenCnt;
-    UBYTE  *cu_Data;
+    struct ClipboardUnitPartial cu_Partial;   /* cu_Node links the unit list */
+    UBYTE  *cu_Data;                /* committed clip */
     ULONG   cu_DataSize;
     ULONG   cu_DataAllocated;
-    LONG    cu_DataClipID;
-    UBYTE  *cu_WriteData;
+    UBYTE  *cu_WriteData;           /* clip being written */
     ULONG   cu_WriteSize;
     ULONG   cu_WriteAllocated;
-    LONG    cu_WriteClipID;
-    LONG    cu_CurrentClipID;
-    LONG    cu_NextClipID;
+    LONG    cu_ReadID;              /* last ID handed out */
+    LONG    cu_WriteID;             /* ID of the last write / post */
+    LONG    cu_Readers;             /* unfinished reads (may go negative, as on 3.1) */
+    BOOL    cu_Writing;             /* a write is in progress */
     struct List cu_ChangeHooks;
     BOOL    cu_PostActive;
+    LONG    cu_PostID;
     struct MsgPort *cu_SatisfyPort;
     struct SatisfyMsg cu_SatisfyMsg;
     BOOL    cu_SatisfySent;
-    struct IOClipReq *cu_PendingRead;
+    struct List cu_Held;            /* requests waiting (not yet replied) */
 };
 
 struct ClipboardHookNode {
@@ -72,23 +99,12 @@ struct ClipboardHookNode {
 struct ClipboardBase {
     struct Device  cb_Device;
     BPTR           cb_SegList;
-    struct ClipboardUnit *cb_PrimaryUnit;
+    struct List    cb_Units;
 };
 
-#define CLIPBOARD_READ_PENDING ((LONG)1)
-
-static void clipboard_reset_staged_write(struct ClipboardUnit *clip_unit)
-{
-    if (clip_unit->cu_WriteData)
-    {
-        FreeMem(clip_unit->cu_WriteData, clip_unit->cu_WriteAllocated);
-        clip_unit->cu_WriteData = NULL;
-    }
-
-    clip_unit->cu_WriteSize = 0;
-    clip_unit->cu_WriteAllocated = 0;
-    clip_unit->cu_WriteClipID = 0;
-}
+/* result of serving a request */
+#define CLIP_DONE 0
+#define CLIP_HOLD 1
 
 static void clipboard_free_hooks(struct ClipboardUnit *clip_unit)
 {
@@ -107,60 +123,41 @@ static void clipboard_free_hooks(struct ClipboardUnit *clip_unit)
 
 static void clipboard_free_unit(struct ClipboardUnit *clip_unit)
 {
-    if (!clip_unit)
-    {
-        return;
-    }
-
     if (clip_unit->cu_Data)
-    {
         FreeMem(clip_unit->cu_Data, clip_unit->cu_DataAllocated);
-        clip_unit->cu_Data = NULL;
-    }
-
-    clipboard_reset_staged_write(clip_unit);
+    if (clip_unit->cu_WriteData)
+        FreeMem(clip_unit->cu_WriteData, clip_unit->cu_WriteAllocated);
     clipboard_free_hooks(clip_unit);
     FreeMem(clip_unit, sizeof(*clip_unit));
 }
 
-static struct ClipboardUnit *clipboard_alloc_unit(ULONG unit)
+static struct ClipboardUnit *clipboard_get_unit(struct ClipboardBase *clipbase, ULONG unit)
 {
     struct ClipboardUnit *clip_unit;
 
+    for (clip_unit = (struct ClipboardUnit *)clipbase->cb_Units.lh_Head;
+         clip_unit->cu_Partial.cu_Node.ln_Succ;
+         clip_unit = (struct ClipboardUnit *)clip_unit->cu_Partial.cu_Node.ln_Succ)
+    {
+        if (clip_unit->cu_Partial.cu_UnitNum == unit)
+            return clip_unit;
+    }
+
     clip_unit = (struct ClipboardUnit *)AllocMem(sizeof(*clip_unit), MEMF_CLEAR | MEMF_PUBLIC);
     if (!clip_unit)
-    {
         return NULL;
-    }
 
     clip_unit->cu_Partial.cu_Node.ln_Type = NT_UNKNOWN;
     clip_unit->cu_Partial.cu_UnitNum = unit;
-    /* AmigaOS 3.1 reports clip ID 1 for an empty clipboard; the first
-     * write gets ID 2 (verified on the reference, Phase 220). */
-    clip_unit->cu_CurrentClipID = 1;
-    clip_unit->cu_DataClipID = 0;
-    clip_unit->cu_WriteClipID = 0;
-    clip_unit->cu_NextClipID = 2;
+    /* a new unit reports clip ID 1 for reading and writing; the first
+     * write gets ID 2 (AmigaOS 3.1) */
+    clip_unit->cu_ReadID = 1;
+    clip_unit->cu_WriteID = 1;
     NEWLIST(&clip_unit->cu_ChangeHooks);
+    NEWLIST(&clip_unit->cu_Held);
+    AddTail(&clipbase->cb_Units, &clip_unit->cu_Partial.cu_Node);
 
     return clip_unit;
-}
-
-static struct ClipboardUnit *clipboard_get_unit(struct ClipboardBase *clipbase,
-                                                ULONG unit,
-                                                BOOL create)
-{
-    if (unit != PRIMARY_CLIP)
-    {
-        return NULL;
-    }
-
-    if (!clipbase->cb_PrimaryUnit && create)
-    {
-        clipbase->cb_PrimaryUnit = clipboard_alloc_unit(unit);
-    }
-
-    return clipbase->cb_PrimaryUnit;
 }
 
 static LONG clipboard_reserve_buffer(UBYTE **buffer,
@@ -171,16 +168,12 @@ static LONG clipboard_reserve_buffer(UBYTE **buffer,
     ULONG newsize;
 
     if (required <= *allocated)
-    {
         return 0;
-    }
 
     newsize = (required + 4095UL) & ~4095UL;
     newbuf = (UBYTE *)AllocMem(newsize, MEMF_PUBLIC | MEMF_CLEAR);
     if (!newbuf)
-    {
         return IOERR_NOCMD;
-    }
 
     if (*buffer && *allocated)
     {
@@ -202,9 +195,7 @@ static struct ClipboardHookNode *clipboard_find_hook(struct ClipboardUnit *clip_
     while (node && node->chn_Node.ln_Succ)
     {
         if (node->chn_Hook == hook)
-        {
             return node;
-        }
         node = (struct ClipboardHookNode *)node->chn_Node.ln_Succ;
     }
 
@@ -228,126 +219,138 @@ static void clipboard_notify_changehooks(struct ClipboardUnit *clip_unit,
     {
         next = (struct ClipboardHookNode *)node->chn_Node.ln_Succ;
         if (node->chn_Hook)
-        {
             CallHookPkt(node->chn_Hook, &clip_unit->cu_Partial, &msg);
-        }
         node = next;
     }
 }
 
-static LONG clipboard_send_satisfy(struct ClipboardUnit *clip_unit)
+static void clipboard_send_satisfy(struct ClipboardUnit *clip_unit)
 {
-    if (!clip_unit->cu_PostActive || !clip_unit->cu_SatisfyPort)
-    {
-        return IOERR_BADADDRESS;
-    }
+    if (clip_unit->cu_SatisfySent || !clip_unit->cu_SatisfyPort)
+        return;
 
-    if (!clip_unit->cu_SatisfySent)
-    {
-        clip_unit->cu_SatisfyMsg.sm_Msg.mn_ReplyPort = NULL;
-        clip_unit->cu_SatisfyMsg.sm_Msg.mn_Length = sizeof(struct SatisfyMsg);
-        clip_unit->cu_SatisfyMsg.sm_Unit = (UWORD)clip_unit->cu_Partial.cu_UnitNum;
-        clip_unit->cu_SatisfyMsg.sm_ClipID = clip_unit->cu_CurrentClipID;
-        PutMsg(clip_unit->cu_SatisfyPort, &clip_unit->cu_SatisfyMsg.sm_Msg);
-        clip_unit->cu_SatisfySent = TRUE;
-        /* 3.1 calls the change hooks (CBD_POST) when it asks for the data */
-        clipboard_notify_changehooks(clip_unit, CBD_POST, clip_unit->cu_CurrentClipID);
-    }
-
-    return 0;
+    /* 3.1 sends the message with mn_Length 0 and no reply port */
+    clip_unit->cu_SatisfyMsg.sm_Msg.mn_ReplyPort = NULL;
+    clip_unit->cu_SatisfyMsg.sm_Msg.mn_Length = 0;
+    clip_unit->cu_SatisfyMsg.sm_Unit = (UWORD)clip_unit->cu_Partial.cu_UnitNum;
+    clip_unit->cu_SatisfyMsg.sm_ClipID = clip_unit->cu_PostID;
+    PutMsg(clip_unit->cu_SatisfyPort, &clip_unit->cu_SatisfyMsg.sm_Msg);
+    clip_unit->cu_SatisfySent = TRUE;
+    /* 3.1 calls the change hooks (CBD_POST) when it asks for the data */
+    clipboard_notify_changehooks(clip_unit, CBD_POST, clip_unit->cu_PostID);
 }
 
 static void clipboard_reply_request(struct IORequest *ioreq)
 {
+    ioreq->io_Flags &= ~CLIPF_COUNTED;
     if (!(ioreq->io_Flags & IOF_QUICK))
-    {
         ReplyMsg(&ioreq->io_Message);
-    }
 }
 
-/*
- * The readable size of a clip.  Like AmigaOS 3.1, an IFF clip is as long as
- * its FORM header says (8 + ckSize, padded to even); bytes beyond the stored
- * data read as zeros.  Non-IFF data is read as stored.
- */
+/* The readable size of the committed clip: 8 + the long at offset 4. */
 static ULONG clipboard_clip_size(struct ClipboardUnit *clip_unit)
 {
-    const UBYTE *d = clip_unit->cu_Data;
+    UBYTE h[8];
     ULONG len;
+    ULONG i;
 
-    if (!d || clip_unit->cu_DataSize < 8 ||
-        d[0] != 'F' || d[1] != 'O' || d[2] != 'R' || d[3] != 'M')
-    {
-        return clip_unit->cu_DataSize;
-    }
+    if (clip_unit->cu_DataSize == 0)
+        return 0;
 
-    len = ((ULONG)d[4] << 24) | ((ULONG)d[5] << 16) | ((ULONG)d[6] << 8) | (ULONG)d[7];
-    len = (len + 1) & ~1UL;
-    if (len > MAX_CLIP_SIZE)
-    {
-        len = MAX_CLIP_SIZE;
-    }
+    for (i = 0; i < 8; i++)
+        h[i] = i < clip_unit->cu_DataSize ? clip_unit->cu_Data[i] : 0;
+
+    len = ((ULONG)h[4] << 24) | ((ULONG)h[5] << 16) | ((ULONG)h[6] << 8) | (ULONG)h[7];
+    if (len > 0x7ffffff0UL)
+        len = 0x7ffffff0UL;
     return len + 8;
 }
 
-static LONG clipboard_service_read(struct ClipboardUnit *clip_unit,
-                                   struct IOClipReq *clipreq)
+/* start a new clip (the first write) - or tell that it must wait */
+static LONG clipboard_begin_write(struct ClipboardUnit *clip_unit, struct IOClipReq *clipreq)
+{
+    if (clipreq->io_ClipID < clip_unit->cu_WriteID)
+    {
+        clipreq->io_Actual = 0;
+        clipreq->io_Error = CBERR_OBSOLETEID;
+        return CLIP_DONE;
+    }
+
+    if (clip_unit->cu_Readers != 0)
+        return CLIP_HOLD;
+
+    clip_unit->cu_Writing = TRUE;
+    clip_unit->cu_WriteID = clipreq->io_ClipID;
+    clip_unit->cu_WriteSize = 0;
+    return -1;      /* go ahead */
+}
+
+static void clipboard_commit(struct ClipboardUnit *clip_unit)
+{
+    UBYTE *old = clip_unit->cu_Data;
+    ULONG old_alloc = clip_unit->cu_DataAllocated;
+
+    clip_unit->cu_Data = clip_unit->cu_WriteData;
+    clip_unit->cu_DataSize = clip_unit->cu_WriteSize;
+    clip_unit->cu_DataAllocated = clip_unit->cu_WriteAllocated;
+    clip_unit->cu_WriteData = old;
+    clip_unit->cu_WriteAllocated = old_alloc;
+    clip_unit->cu_WriteSize = 0;
+    clip_unit->cu_Writing = FALSE;
+
+    /* the post is satisfied (or superseded) */
+    if (clip_unit->cu_PostActive && clip_unit->cu_WriteID >= clip_unit->cu_PostID)
+    {
+        clip_unit->cu_PostActive = FALSE;
+        clip_unit->cu_SatisfyPort = NULL;
+        clip_unit->cu_SatisfySent = FALSE;
+    }
+
+    clipboard_notify_changehooks(clip_unit, CMD_UPDATE, clip_unit->cu_WriteID);
+}
+
+static LONG clipboard_read(struct ClipboardUnit *clip_unit, struct IOClipReq *clipreq)
 {
     ULONG offset;
-    ULONG available;
-    ULONG toread;
     ULONG size;
-    LONG requested_id;
+    ULONG toread;
 
-    clipreq->io_Actual = 0;
-
-    requested_id = clipreq->io_ClipID;
-    if (requested_id == 0)
+    if (clipreq->io_ClipID < clip_unit->cu_WriteID)
     {
-        requested_id = clip_unit->cu_CurrentClipID;
-        clipreq->io_ClipID = requested_id;
-
-        /* nothing on the clipboard: the read ends at once (ClipID -1) */
-        if (clip_unit->cu_DataClipID != requested_id && !clip_unit->cu_PostActive)
-        {
-            clipreq->io_ClipID = -1;
-            return 0;
-        }
+        clipreq->io_Actual = 0;
+        clipreq->io_Error = CBERR_OBSOLETEID;
+        return CLIP_DONE;
     }
 
-    if (requested_id != clip_unit->cu_CurrentClipID)
+    if (clip_unit->cu_Writing)
+        return CLIP_HOLD;
+
+    if (clip_unit->cu_PostActive && clipreq->io_ClipID >= clip_unit->cu_PostID)
     {
-        return CBERR_OBSOLETEID;
+        clipboard_send_satisfy(clip_unit);
+        return CLIP_HOLD;
     }
 
-    if (clip_unit->cu_DataClipID != requested_id)
+    if (clipreq->io_Flags & CLIPF_COUNTED)
     {
-        LONG error = clipboard_send_satisfy(clip_unit);
-        if (error != 0)
-        {
-            return error;
-        }
-
-        clip_unit->cu_PendingRead = clipreq;
-        clipreq->io_Message.mn_Node.ln_Type = NT_MESSAGE;
-        clipreq->io_Message.mn_Node.ln_Succ = NULL;
-        clipreq->io_Message.mn_Node.ln_Pred = NULL;
-        clipreq->io_Flags &= ~IOF_QUICK;
-        return CLIPBOARD_READ_PENDING;
+        clipreq->io_Flags &= ~CLIPF_COUNTED;
+        clip_unit->cu_Readers++;
     }
 
-    /* A read at or past the end of the clip ends the read: nothing is
-     * transferred and io_ClipID becomes -1 (AmigaOS 3.1). */
     size = clipboard_clip_size(clip_unit);
     offset = clipreq->io_Offset;
     if (offset >= size)
     {
+        /* past the end: this read is finished */
+        clipreq->io_Actual = 0;
         clipreq->io_ClipID = -1;
-        return 0;
+        clip_unit->cu_Readers--;
+        return CLIP_DONE;
     }
 
-    available = size - offset;
-    toread = (clipreq->io_Length < available) ? clipreq->io_Length : available;
+    toread = size - offset;
+    if (clipreq->io_Length < toread)
+        toread = clipreq->io_Length;
 
     if (toread > 0 && clipreq->io_Data)
     {
@@ -361,38 +364,127 @@ static LONG clipboard_service_read(struct ClipboardUnit *clip_unit,
             CopyMem(clip_unit->cu_Data + offset, clipreq->io_Data, stored);
         }
         if (stored < toread)
-        {
             memset((UBYTE *)clipreq->io_Data + stored, 0, toread - stored);
-        }
     }
 
     clipreq->io_Actual = toread;
     clipreq->io_Offset = offset + toread;
-
-    return 0;
+    return CLIP_DONE;
 }
 
-static void clipboard_complete_pending_read(struct ClipboardUnit *clip_unit)
+static LONG clipboard_write(struct ClipboardUnit *clip_unit, struct IOClipReq *clipreq)
 {
-    struct IOClipReq *pending;
+    ULONG offset = clipreq->io_Offset;
+    ULONG length = clipreq->io_Length;
+    ULONG required;
     LONG error;
 
-    pending = clip_unit->cu_PendingRead;
-    if (!pending)
+    if (!clip_unit->cu_Writing)
     {
-        return;
+        LONG r = clipboard_begin_write(clip_unit, clipreq);
+        if (r != -1)
+            return r;
     }
 
-    clip_unit->cu_PendingRead = NULL;
-    error = clipboard_service_read(clip_unit, pending);
-    if (error == CLIPBOARD_READ_PENDING)
+    clipreq->io_Actual = 0;
+    required = offset + length;
+    if (required > MAX_CLIP_SIZE || required < offset)
     {
-        clip_unit->cu_PendingRead = pending;
-        return;
+        clipreq->io_Error = IOERR_BADLENGTH;
+        return CLIP_DONE;
     }
 
-    pending->io_Error = error;
-    ReplyMsg(&pending->io_Message);
+    error = clipboard_reserve_buffer(&clip_unit->cu_WriteData,
+                                     &clip_unit->cu_WriteAllocated,
+                                     required);
+    if (error != 0)
+    {
+        clipreq->io_Error = error;
+        return CLIP_DONE;
+    }
+
+    /* a gap beyond the current end reads as zeros */
+    if (offset > clip_unit->cu_WriteSize)
+        memset(clip_unit->cu_WriteData + clip_unit->cu_WriteSize, 0,
+               offset - clip_unit->cu_WriteSize);
+
+    if (length > 0 && clipreq->io_Data)
+        CopyMem(clipreq->io_Data, clip_unit->cu_WriteData + offset, length);
+    else if (length > 0)
+        memset(clip_unit->cu_WriteData + offset, 0, length);
+
+    if (required > clip_unit->cu_WriteSize)
+        clip_unit->cu_WriteSize = required;
+
+    clipreq->io_Actual = length;
+    clipreq->io_Offset = offset + length;
+    return CLIP_DONE;
+}
+
+static LONG clipboard_update(struct ClipboardUnit *clip_unit, struct IOClipReq *clipreq)
+{
+    if (!clip_unit->cu_Writing)
+    {
+        /* CMD_UPDATE without a write: an empty clip */
+        LONG r = clipboard_begin_write(clip_unit, clipreq);
+        if (r != -1)
+            return r;
+    }
+
+    clipboard_commit(clip_unit);
+    return CLIP_DONE;
+}
+
+static LONG clipboard_post(struct ClipboardUnit *clip_unit, struct IOClipReq *clipreq)
+{
+    if (clip_unit->cu_Readers != 0)
+        return CLIP_HOLD;
+
+    clip_unit->cu_PostActive = TRUE;
+    clip_unit->cu_PostID = clipreq->io_ClipID;
+    clip_unit->cu_WriteID = clipreq->io_ClipID;
+    clip_unit->cu_SatisfyPort = (struct MsgPort *)clipreq->io_Data;
+    clip_unit->cu_SatisfySent = FALSE;
+
+    clipboard_notify_changehooks(clip_unit, CBD_POST, clipreq->io_ClipID);
+    return CLIP_DONE;
+}
+
+static LONG clipboard_serve(struct ClipboardUnit *clip_unit, struct IOClipReq *clipreq)
+{
+    switch (clipreq->io_Command)
+    {
+        case CMD_READ:   return clipboard_read(clip_unit, clipreq);
+        case CMD_WRITE:  return clipboard_write(clip_unit, clipreq);
+        case CMD_UPDATE: return clipboard_update(clip_unit, clipreq);
+        case CBD_POST:   return clipboard_post(clip_unit, clipreq);
+    }
+    return CLIP_DONE;
+}
+
+/* serve held requests until none can make progress */
+static void clipboard_run_held(struct ClipboardUnit *clip_unit)
+{
+    BOOL progress = TRUE;
+
+    while (progress)
+    {
+        struct IOClipReq *req;
+
+        progress = FALSE;
+        for (req = (struct IOClipReq *)clip_unit->cu_Held.lh_Head;
+             req->io_Message.mn_Node.ln_Succ;
+             req = (struct IOClipReq *)req->io_Message.mn_Node.ln_Succ)
+        {
+            if (clipboard_serve(clip_unit, req) == CLIP_DONE)
+            {
+                Remove(&req->io_Message.mn_Node);
+                clipboard_reply_request((struct IORequest *)req);
+                progress = TRUE;
+                break;
+            }
+        }
+    }
 }
 
 /*
@@ -404,6 +496,8 @@ static void clipboard_complete_pending_read(struct ClipboardUnit *clip_unit)
  */
 static BPTR clipboard_expunge_if_possible(struct ClipboardBase *clipbase)
 {
+    struct ClipboardUnit *clip_unit;
+
     if (clipbase->cb_Device.dd_Library.lib_OpenCnt != 0)
     {
         clipbase->cb_Device.dd_Library.lib_Flags |= LIBF_DELEXP;
@@ -421,8 +515,8 @@ static BPTR clipboard_expunge_if_possible(struct ClipboardBase *clipbase)
     }
 
     clipbase->cb_Device.dd_Library.lib_Flags &= ~LIBF_DELEXP;
-    clipboard_free_unit(clipbase->cb_PrimaryUnit);
-    clipbase->cb_PrimaryUnit = NULL;
+    while ((clip_unit = (struct ClipboardUnit *)RemHead(&clipbase->cb_Units)) != NULL)
+        clipboard_free_unit(clip_unit);
 
     DPRINTF(LOG_DEBUG, "_clipboard: Expunge() finalizing removal\n");
     return clipbase->cb_SegList;
@@ -436,55 +530,42 @@ static struct Library * __g_lxa_clipboard_InitDev  ( register struct Library    
                                                       register struct ExecBase  *sysb    __asm("a6"))
 {
     struct ClipboardBase *clipbase = (struct ClipboardBase *)dev;
-    
+
     DPRINTF (LOG_DEBUG, "_clipboard: InitDev() called\n");
-    
+
     clipbase->cb_SegList = seglist;
-    clipbase->cb_PrimaryUnit = NULL;
-    
+    NEWLIST(&clipbase->cb_Units);
+
     return dev;
 }
 
 /*
- * Device Open
+ * Device Open - every unit number opens its own clipboard (AmigaOS 3.1)
  */
 static void __g_lxa_clipboard_Open ( register struct Library   *dev   __asm("a6"),
                                       register struct IORequest *ioreq __asm("a1"),
                                       register ULONG             unit  __asm("d0"),
                                       register ULONG             flags __asm("d1"))
 {
-    LXA_UNIMPLEMENTED("clipboard", "Open", "partial: only unit 0 (PRIMARY_CLIP) can be opened (Phase 255)");
-
     struct ClipboardBase *clipbase = (struct ClipboardBase *)dev;
     struct ClipboardUnit *clip_unit;
-    
+
     DPRINTF (LOG_DEBUG, "_clipboard: Open() called, unit=%lu flags=0x%08lx\n", unit, flags);
-    
+
     ioreq->io_Error = 0;
-    
-    /* For now, only support PRIMARY_CLIP (unit 0) */
-    if (unit != PRIMARY_CLIP) {
-        DPRINTF (LOG_ERROR, "_clipboard: Open() invalid unit %lu\n", unit);
-        ioreq->io_Error = IOERR_OPENFAIL;
-        return;
-    }
-    
-    clip_unit = clipboard_get_unit(clipbase, unit, TRUE);
+
+    clip_unit = clipboard_get_unit(clipbase, unit);
     if (!clip_unit) {
         DPRINTF (LOG_ERROR, "_clipboard: Open() out of memory for unit\n");
         ioreq->io_Error = IOERR_OPENFAIL;
         return;
     }
-    clip_unit->cu_OpenCnt++;
-    
+
     ioreq->io_Unit = (struct Unit *)&clip_unit->cu_Partial;
     ioreq->io_Device = (struct Device *)clipbase;
-    
-    /* Update device open count */
+
     clipbase->cb_Device.dd_Library.lib_OpenCnt++;
     clipbase->cb_Device.dd_Library.lib_Flags &= ~LIBF_DELEXP;
-    
-    DPRINTF (LOG_DEBUG, "_clipboard: Open() successful, unit=0x%08lx\n", (ULONG)clip_unit);
 }
 
 /*
@@ -494,20 +575,13 @@ static BPTR __g_lxa_clipboard_Close( register struct Library   *dev   __asm("a6"
                                       register struct IORequest *ioreq __asm("a1"))
 {
     struct ClipboardBase *clipbase = (struct ClipboardBase *)dev;
-    struct ClipboardUnit *clip_unit = (struct ClipboardUnit *)ioreq->io_Unit;
-    
-    DPRINTF (LOG_DEBUG, "_clipboard: Close() called\n");
-    
-    if (clip_unit) {
-        if (clip_unit->cu_OpenCnt > 0) {
-            clip_unit->cu_OpenCnt--;
-        }
-        ioreq->io_Unit = NULL;
-    }
 
-    if (clipbase->cb_Device.dd_Library.lib_OpenCnt > 0) {
+    DPRINTF (LOG_DEBUG, "_clipboard: Close() called\n");
+
+    ioreq->io_Unit = NULL;
+
+    if (clipbase->cb_Device.dd_Library.lib_OpenCnt > 0)
         clipbase->cb_Device.dd_Library.lib_OpenCnt--;
-    }
 
     /* the last Close() does not expunge, even with LIBF_DELEXP (3.1) */
     return 0;
@@ -531,180 +605,61 @@ static BPTR __g_lxa_clipboard_BeginIO ( register struct Library   *dev   __asm("
     struct IOClipReq *clipreq = (struct IOClipReq *)ioreq;
     struct ClipboardUnit *clip_unit = (struct ClipboardUnit *)ioreq->io_Unit;
     UWORD command = ioreq->io_Command;
-    LONG error = 0;
-    
-    DPRINTF (LOG_DEBUG, "_clipboard: BeginIO() called, command=%u\n", command);
-    
-    ioreq->io_Error = 0;
-    /* only CMD_READ and CMD_WRITE set io_Actual (AmigaOS 3.1) */
-    
-    if (!clip_unit) {
-        DPRINTF (LOG_ERROR, "_clipboard: BeginIO() NULL unit\n");
-        ioreq->io_Error = IOERR_OPENFAIL;
-        goto done;
-    }
-    
-    switch (command) {
-        case CMD_READ: {
-            DPRINTF (LOG_DEBUG, "_clipboard: CMD_READ offset=%lu length=%lu clipID=%ld\n",
-                     clipreq->io_Offset, clipreq->io_Length, clipreq->io_ClipID);
 
-            error = clipboard_service_read(clip_unit, clipreq);
-            if (error == CLIPBOARD_READ_PENDING)
+    DPRINTF (LOG_DEBUG, "_clipboard: BeginIO() called, command=%u\n", command);
+
+    ioreq->io_Error = 0;
+    ioreq->io_Flags &= ~CLIPF_COUNTED;
+    /* only CMD_READ and CMD_WRITE set io_Actual (AmigaOS 3.1) */
+
+    if (!clip_unit) {
+        ioreq->io_Error = IOERR_OPENFAIL;
+        clipboard_reply_request(ioreq);
+        return 0;
+    }
+
+    switch (command) {
+        case CMD_READ:
+        case CMD_WRITE:
+        case CMD_UPDATE:
+        case CBD_POST:
+            if (clipreq->io_ClipID == 0)
             {
-                DPRINTF(LOG_DEBUG, "_clipboard: CMD_READ waiting for posted clip %ld\n",
-                        clipreq->io_ClipID);
+                if (command == CMD_READ)
+                {
+                    clipreq->io_ClipID = clip_unit->cu_ReadID;
+                    ioreq->io_Flags |= CLIPF_COUNTED;
+                }
+                else if (command != CMD_UPDATE || !clip_unit->cu_Writing)
+                {
+                    clipreq->io_ClipID = ++clip_unit->cu_ReadID;
+                }
+            }
+
+            Forbid();
+            if (clipboard_serve(clip_unit, clipreq) == CLIP_HOLD)
+            {
+                /* held off: completes later */
+                DPRINTF(LOG_DEBUG, "_clipboard: command %u held, clip %ld\n",
+                        command, clipreq->io_ClipID);
+                ioreq->io_Flags &= ~IOF_QUICK;
+                ioreq->io_Message.mn_Node.ln_Type = NT_MESSAGE;
+                AddTail(&clip_unit->cu_Held, &ioreq->io_Message.mn_Node);
+                Permit();
                 return 0;
             }
+            clipboard_reply_request(ioreq);
+            clipboard_run_held(clip_unit);
+            Permit();
+            return 0;
 
-            ioreq->io_Error = error;
-
-            DPRINTF (LOG_DEBUG, "_clipboard: CMD_READ returned %lu bytes error=%ld\n",
-                     clipreq->io_Actual, error);
+        case CBD_CURRENTREADID:
+            clipreq->io_ClipID = clip_unit->cu_ReadID;
             break;
-        }
-        
-        case CMD_WRITE: {
-            ULONG offset = clipreq->io_Offset;
-            ULONG length = clipreq->io_Length;
-            STRPTR buffer = clipreq->io_Data;
-            LONG write_id = clipreq->io_ClipID;
-            ULONG required;
 
-            clipreq->io_Actual = 0;
-
-            DPRINTF (LOG_DEBUG, "_clipboard: CMD_WRITE offset=%lu length=%lu clipID=%ld\n",
-                     offset, length, write_id);
-
-            if (write_id == 0) {
-                if (clip_unit->cu_WriteClipID == 0) {
-                    clipboard_reset_staged_write(clip_unit);
-                    clip_unit->cu_WriteClipID = clip_unit->cu_NextClipID++;
-                    clipreq->io_ClipID = clip_unit->cu_WriteClipID;
-                } else {
-                    clipreq->io_ClipID = write_id = clip_unit->cu_WriteClipID;
-                }
-            } else if (clip_unit->cu_WriteClipID == 0) {
-                clip_unit->cu_WriteClipID = write_id;
-            } else if (clip_unit->cu_WriteClipID != write_id) {
-                ioreq->io_Error = CBERR_OBSOLETEID;
-                break;
-            }
-
-            required = offset + length;
-            
-            if (required > MAX_CLIP_SIZE) {
-                DPRINTF (LOG_ERROR, "_clipboard: CMD_WRITE size %lu exceeds max %lu\n",
-                         required, (ULONG)MAX_CLIP_SIZE);
-                ioreq->io_Error = IOERR_BADLENGTH;
-                break;
-            }
-
-            error = clipboard_reserve_buffer(&clip_unit->cu_WriteData,
-                                             &clip_unit->cu_WriteAllocated,
-                                             required);
-            if (error != 0) {
-                DPRINTF (LOG_ERROR, "_clipboard: CMD_WRITE out of memory\n");
-                ioreq->io_Error = error;
-                break;
-            }
-
-            if (offset > clip_unit->cu_WriteSize) {
-                memset(clip_unit->cu_WriteData + clip_unit->cu_WriteSize,
-                       0,
-                       offset - clip_unit->cu_WriteSize);
-            }
-
-            if (length > 0 && buffer) {
-                CopyMem(buffer, clip_unit->cu_WriteData + offset, length);
-            }
-
-            if (required > clip_unit->cu_WriteSize) {
-                clip_unit->cu_WriteSize = required;
-            }
-
-            clipreq->io_Actual = length;
-            clipreq->io_Offset = offset + length;
-            
-            DPRINTF (LOG_DEBUG, "_clipboard: CMD_WRITE wrote %lu bytes, staged size now %lu clipID=%ld\n",
-                     length, clip_unit->cu_WriteSize, clipreq->io_ClipID);
+        case CBD_CURRENTWRITEID:
+            clipreq->io_ClipID = clip_unit->cu_WriteID;
             break;
-        }
-        
-        case CMD_UPDATE: {
-            DPRINTF (LOG_DEBUG, "_clipboard: CMD_UPDATE clipID=%ld\n", clipreq->io_ClipID);
-
-            if (clip_unit->cu_WriteClipID == 0 ||
-                (clipreq->io_ClipID != 0 && clipreq->io_ClipID != clip_unit->cu_WriteClipID)) {
-                ioreq->io_Error = CBERR_OBSOLETEID;
-                break;
-            }
-
-            if (clip_unit->cu_Data) {
-                FreeMem(clip_unit->cu_Data, clip_unit->cu_DataAllocated);
-            }
-
-            clip_unit->cu_Data = clip_unit->cu_WriteData;
-            clip_unit->cu_DataSize = clip_unit->cu_WriteSize;
-            clip_unit->cu_DataAllocated = clip_unit->cu_WriteAllocated;
-            clip_unit->cu_DataClipID = clip_unit->cu_WriteClipID;
-            clip_unit->cu_CurrentClipID = clip_unit->cu_WriteClipID;
-
-            clip_unit->cu_WriteData = NULL;
-            clip_unit->cu_WriteSize = 0;
-            clip_unit->cu_WriteAllocated = 0;
-            clipreq->io_ClipID = clip_unit->cu_WriteClipID;
-            clip_unit->cu_WriteClipID = 0;
-            clip_unit->cu_PostActive = FALSE;
-            clip_unit->cu_SatisfyPort = NULL;
-            clip_unit->cu_SatisfySent = FALSE;
-
-            clipboard_notify_changehooks(clip_unit, CMD_UPDATE, clipreq->io_ClipID);
-            clipboard_complete_pending_read(clip_unit);
-
-            DPRINTF (LOG_DEBUG, "_clipboard: CMD_UPDATE committed ClipID=%ld size=%lu\n",
-                     clipreq->io_ClipID, clip_unit->cu_DataSize);
-            break;
-        }
-        
-        case CBD_CURRENTREADID: {
-            clipreq->io_ClipID = clip_unit->cu_CurrentClipID;
-            
-            DPRINTF (LOG_DEBUG, "_clipboard: CBD_CURRENTREADID -> %ld\n", clip_unit->cu_CurrentClipID);
-            break;
-        }
-        
-        case CBD_CURRENTWRITEID: {
-            clipreq->io_ClipID = clip_unit->cu_CurrentClipID;
-            
-            DPRINTF (LOG_DEBUG, "_clipboard: CBD_CURRENTWRITEID -> %ld\n", clip_unit->cu_CurrentClipID);
-            break;
-        }
-        
-        case CBD_POST: {
-            struct MsgPort *port = (struct MsgPort *)clipreq->io_Data;
-
-            if (!port) {
-                ioreq->io_Error = IOERR_BADADDRESS;
-                break;
-            }
-
-            clip_unit->cu_PostActive = TRUE;
-            clip_unit->cu_SatisfyPort = port;
-            clip_unit->cu_SatisfySent = FALSE;
-            clip_unit->cu_CurrentClipID = clip_unit->cu_NextClipID++;
-            clipreq->io_ClipID = clip_unit->cu_CurrentClipID;
-
-            if (clip_unit->cu_PendingRead) {
-                clip_unit->cu_PendingRead->io_Error = CBERR_OBSOLETEID;
-                ReplyMsg(&clip_unit->cu_PendingRead->io_Message);
-                clip_unit->cu_PendingRead = NULL;
-            }
-
-            clipboard_notify_changehooks(clip_unit, CBD_POST, clipreq->io_ClipID);
-            DPRINTF(LOG_DEBUG, "_clipboard: CBD_POST registered ClipID=%ld\n", clipreq->io_ClipID);
-            break;
-        }
 
         case CBD_CHANGEHOOK: {
             struct Hook *hook = (struct Hook *)clipreq->io_Data;
@@ -721,67 +676,61 @@ static BPTR __g_lxa_clipboard_BeginIO ( register struct Library   *dev   __asm("
                     Remove(&node->chn_Node);
                     FreeMem(node, sizeof(*node));
                 }
-            } else {
+            } else if (!node) {
+                node = (struct ClipboardHookNode *)AllocMem(sizeof(*node), MEMF_PUBLIC | MEMF_CLEAR);
                 if (!node) {
-                    node = (struct ClipboardHookNode *)AllocMem(sizeof(*node), MEMF_PUBLIC | MEMF_CLEAR);
-                    if (!node) {
-                        ioreq->io_Error = IOERR_NOCMD;
-                        break;
-                    }
-                    node->chn_Hook = hook;
-                    AddTail(&clip_unit->cu_ChangeHooks, &node->chn_Node);
+                    ioreq->io_Error = IOERR_NOCMD;
+                    break;
                 }
+                node->chn_Hook = hook;
+                AddTail(&clip_unit->cu_ChangeHooks, &node->chn_Node);
             }
-
-            DPRINTF(LOG_DEBUG, "_clipboard: CBD_CHANGEHOOK %s hook=0x%08lx\n",
-                    clipreq->io_Length == 0 ? "removed" : "installed",
-                    (ULONG)hook);
             break;
         }
 
         case CMD_RESET:
-        case CMD_CLEAR:
-        case CMD_STOP:
-        case CMD_START:
-        case CMD_FLUSH:
-            /* Standard device commands - no-op for clipboard */
-            DPRINTF (LOG_DEBUG, "_clipboard: BeginIO() standard command %u (no-op)\n", command);
+            /* AmigaOS 3.1 never replies to CMD_RESET; lxa completes it as a no-op */
             break;
-        
+
         default:
-            DPRINTF (LOG_ERROR, "_clipboard: BeginIO() unknown command %u\n", command);
+            /* CMD_INVALID, CMD_CLEAR, CMD_STOP, CMD_START, CMD_FLUSH, ... (3.1) */
             ioreq->io_Error = IOERR_NOCMD;
             break;
     }
-    
-done:
+
     clipboard_reply_request(ioreq);
-    
     return 0;
 }
 
 /*
- * Device AbortIO - Abort a clipboard request
+ * Device AbortIO - abort a held request
  */
 static ULONG __g_lxa_clipboard_AbortIO ( register struct Library   *dev   __asm("a6"),
                                            register struct IORequest *ioreq __asm("a1"))
 {
     struct ClipboardUnit *clip_unit = (struct ClipboardUnit *)ioreq->io_Unit;
+    struct Node *n;
 
     (void)dev;
 
-    DPRINTF(LOG_DEBUG, "_clipboard: AbortIO() called, ioreq=0x%08lx unit=0x%08lx\n",
-            (ULONG)ioreq,
-            (ULONG)clip_unit);
+    if (!clip_unit)
+        return (ULONG)-1;
 
-    if (clip_unit && clip_unit->cu_PendingRead == (struct IOClipReq *)ioreq)
+    Forbid();
+    for (n = clip_unit->cu_Held.lh_Head; n->ln_Succ; n = n->ln_Succ)
     {
-        clip_unit->cu_PendingRead = NULL;
-        ioreq->io_Error = IOERR_ABORTED;
-        ((struct IOClipReq *)ioreq)->io_Actual = 0;
-        ReplyMsg(&ioreq->io_Message);
-        return 0;
+        if (n == &ioreq->io_Message.mn_Node)
+        {
+            Remove(n);
+            ioreq->io_Error = IOERR_ABORTED;
+            ((struct IOClipReq *)ioreq)->io_Actual = 0;
+            clipboard_reply_request(ioreq);
+            clipboard_run_held(clip_unit);
+            Permit();
+            return 0;
+        }
     }
+    Permit();
 
     return (ULONG)-1;
 }

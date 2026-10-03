@@ -1,0 +1,175 @@
+-- FindToolType
+FindToolType("FILETYPE") = "text|ascii" entry 0 offset 9
+FindToolType("filetype") = "text|ascii" entry 0 offset 9
+FindToolType("FileType") = "text|ascii" entry 0 offset 9
+FindToolType("FILE") = NULL
+FindToolType("FILETYPE=") = NULL
+FindToolType("HIDDEN") = NULL
+FindToolType("(HIDDEN") = "yes)" entry 1 offset 8
+FindToolType("(HIDDEN=yes)") = "" entry 1 offset 12
+FindToolType("DONOTWAIT") = "" entry 2 offset 9
+FindToolType("donotwait") = "" entry 2 offset 9
+FindToolType("DONOT") = NULL
+FindToolType("SPACED") = NULL
+FindToolType(" SPACED") = "1" entry 3 offset 8
+FindToolType("TAB") = NULL
+FindToolType("TAB	") = "2" entry 4 offset 5
+FindToolType("EMPTY") = "" entry 5 offset 6
+FindToolType("") = "" entry 7 offset 0
+FindToolType("=") = NULL
+FindToolType("DUP") = "first" entry 8 offset 4
+FindToolType("PUBSCREEN") = NULL
+FindToolType("PUBSCREEN ") = " Workbench" entry 10 offset 11
+FindToolType("LONGNAME") = NULL
+FindToolType("LONGNAMEWITHSUFFIX") = "x" entry 11 offset 19
+FindToolType("A") = "B=C" entry 12 offset 2
+FindToolType("A=B") = "C" entry 12 offset 4
+FindToolType("äUML") = "1" entry 13 offset 5
+FindToolType("ÄUML") = NULL
+FindToolType("DONOTWAIT2") = NULL
+FindToolType("(DONOTWAIT2") = "" entry 14 offset 11
+FindToolType("STARTPRI") = "5" entry 16 offset 9
+FindToolType("MISSING") = NULL
+FindToolType("X") = NULL
+FindToolType("=novalue") = "" entry 6 offset 8
+FindToolType("=NOVALUE") = "" entry 6 offset 8
+FindToolType("=nov") = NULL
+FindToolType("DONOTWAIT2)") = "" entry 15 offset 11
+FindToolType("TAB	=") = NULL
+FindToolType("EMPTY=") = "" entry 5 offset 6
+FindToolType(empty array, "X") = NULL
+FindToolType(empty array, "") = NULL
+FindToolType({"=x","Y"}, "") = NULL
+FindToolType({"=x","Y"}, "=x") = ""
+FindToolType(ONE TWO=3, "ONE") = NULL
+FindToolType(ONE TWO=3, "ONE TWO") = "3"
+FindToolType(FOO|BAR=4, "FOO") = NULL
+FindToolType(FOO|BAR=4, "BAR") = NULL
+-- MatchToolValue
+MatchToolValue("text|ascii", "text") = TRUE
+MatchToolValue("text|ascii", "ASCII") = TRUE
+MatchToolValue("text|ascii", "tex") = FALSE
+MatchToolValue("text|ascii", "text|ascii") = FALSE
+MatchToolValue("text|ascii", "ascii|") = FALSE
+MatchToolValue("text|ascii", "") = FALSE
+MatchToolValue("text", "text") = TRUE
+MatchToolValue("TEXT", "text") = TRUE
+MatchToolValue("text", "texts") = FALSE
+MatchToolValue("", "") = TRUE
+MatchToolValue("", "x") = FALSE
+MatchToolValue("|", "") = TRUE
+MatchToolValue("a||b", "") = FALSE
+MatchToolValue("a|b|", "") = TRUE
+MatchToolValue("|a", "a") = TRUE
+MatchToolValue("a |b", "a") = FALSE
+MatchToolValue("a |b", "a ") = TRUE
+MatchToolValue("a| b", "b") = FALSE
+MatchToolValue("a| b", " b") = TRUE
+MatchToolValue("a=b", "a") = FALSE
+MatchToolValue("a=b", "a=b") = TRUE
+MatchToolValue("a=b|c", "c") = TRUE
+MatchToolValue("yes", "YES") = TRUE
+MatchToolValue("äpfel", "ÄPFEL") = FALSE
+MatchToolValue("x|y|z", "z") = TRUE
+MatchToolValue("x|y|z", "y") = TRUE
+MatchToolValue("x|y|z", "w") = FALSE
+MatchToolValue("long value here", "long value here") = TRUE
+MatchToolValue("long|value", "long|value") = FALSE
+MatchToolValue("ab", "a") = FALSE
+MatchToolValue("a", "ab") = FALSE
+MatchToolValue("a	b", "a	b") = TRUE
+MatchToolValue("text|", "text") = TRUE
+MatchToolValue("a||b", "b") = TRUE
+MatchToolValue("||", "") = TRUE
+MatchToolValue("a|||", "") = TRUE
+MatchToolValue("a|", "") = TRUE
+MatchToolValue("x||", "") = TRUE
+MatchToolValue("|x", "") = FALSE
+MatchToolValue("||x", "x") = TRUE
+MatchToolValue("a||b", "a") = TRUE
+MatchToolValue("text|ascii", "text|") = FALSE
+-- BumpRevision
+BumpRevision("foo") = "Copy_of_foo" len 11
+BumpRevision("copy_of_foo") = "Copy_2_of_foo" len 13
+BumpRevision("Copy_of_foo") = "Copy_2_of_foo" len 13
+BumpRevision("COPY_OF_FOO") = "Copy_2_of_FOO" len 13
+BumpRevision("copy_2_of_foo") = "Copy_3_of_foo" len 13
+BumpRevision("copy_9_of_foo") = "Copy_10_of_foo" len 14
+BumpRevision("copy_10_of_foo") = "Copy_11_of_foo" len 14
+BumpRevision("copy_99_of_foo") = "Copy_100_of_foo" len 15
+BumpRevision("copy_123456_of_foo") = "Copy_123457_of_foo" len 18
+BumpRevision("copy_0_of_foo") = "Copy_1_of_foo" len 13
+BumpRevision("copy_1_of_foo") = "Copy_2_of_foo" len 13
+BumpRevision("copy_of_") = "Copy_2_of_" len 10
+BumpRevision("copy_of") = "Copy_of_copy_of" len 15
+BumpRevision("copy_") = "Copy_of_copy_" len 13
+BumpRevision("copy_x_of_foo") = "Copy_of_copy_x_of_foo" len 21
+BumpRevision("copy_2_foo") = "Copy_of_copy_2_foo" len 18
+BumpRevision("copy_2_of_") = "Copy_3_of_" len 10
+BumpRevision("copy of foo") = "Copy_2_of_foo" len 13
+BumpRevision("Copy of foo") = "Copy_2_of_foo" len 13
+BumpRevision("copy 2 of foo") = "Copy_3_of_foo" len 13
+BumpRevision("copy_of_copy_of_foo") = "Copy_2_of_copy_of_foo" len 21
+BumpRevision("") = "Copy_of_" len 8
+BumpRevision("a") = "Copy_of_a" len 9
+BumpRevision("abcdefghijklmnopqrstuvwxyz") = "Copy_of_abcdefghijklmnopqrstuv" len 30
+BumpRevision("abcdefghijklmnopqrstuvwxyz0123") = "Copy_of_abcdefghijklmnopqrstuv" len 30
+BumpRevision("abcdefghijklmnopqrstuvwxyz0123456789") = "Copy_of_abcdefghijklmnopqrstuv" len 30
+BumpRevision("copy_of_abcdefghijklmnopqrstuvwxyz") = "Copy_2_of_abcdefghijklmnopqrst" len 30
+BumpRevision("copy_9_of_abcdefghijklmnopqrstuv") = "Copy_10_of_abcdefghijklmnopqrs" len 30
+BumpRevision("copy_99_of_abcdefghijklmnopqrstu") = "Copy_100_of_abcdefghijklmnopqr" len 30
+BumpRevision("copy__of_foo") = "Copy_of_copy__of_foo" len 20
+BumpRevision("copy_02_of_foo") = "Copy_3_of_foo" len 13
+BumpRevision("copy_-1_of_foo") = "Copy_of_copy_-1_of_foo" len 22
+BumpRevision("copy_2_Of_foo") = "Copy_3_of_foo" len 13
+BumpRevision("Copy_3_OF_Foo") = "Copy_4_of_Foo" len 13
+BumpRevision("copy_4294967295_of_x") = "Copy_0_of_x" len 11
+BumpRevision("copy_2147483647_of_x") = "Copy_-2147483648_of_x" len 21
+BumpRevision("foo.info") = "Copy_of_foo.info" len 16
+BumpRevision("dir/name") = "Copy_of_dir/name" len 16
+BumpRevision("copy-of-foo") = "Copy_of_copy-of-foo" len 19
+BumpRevision("copy.of.foo") = "Copy_of_copy.of.foo" len 19
+BumpRevision("copy	of	foo") = "Copy_of_copy	of	foo" len 19
+BumpRevision("copy_of foo") = "Copy_2_of_foo" len 13
+BumpRevision("copy of_foo") = "Copy_2_of_foo" len 13
+BumpRevision("copyof_foo") = "Copy_of_copyof_foo" len 18
+BumpRevision("copy  of foo") = "Copy_of_copy  of foo" len 20
+BumpRevision("copy_3 of_foo") = "Copy_4_of_foo" len 13
+BumpRevision("copy_3x_of_foo") = "Copy_of_copy_3x_of_foo" len 22
+BumpRevision(" copy_of_foo") = "Copy_of_ copy_of_foo" len 20
+BumpRevision("Copy_Of_x") = "Copy_2_of_x" len 11
+BumpRevision("copy_of_copy_2_of_x") = "Copy_2_of_copy_2_of_x" len 21
+BumpRevision("copy_2_of_copy_of_x") = "Copy_3_of_copy_of_x" len 19
+BumpRevision("copy_99999999999_of_x") = "Copy_1215752192_of_x" len 20
+BumpRevision("c") = "Copy_of_c" len 9
+BumpRevision("copy") = "Copy_of_copy" len 12
+BumpRevision("copy_3_of") = "Copy_of_copy_3_of" len 17
+-- FreeList
+AddFreeList(size 16) = TRUE NumFree 9
+AddFreeList(size 100) = TRUE NumFree 8
+AddFreeList(size 8) = TRUE NumFree 7
+AddFreeList(size 1) = TRUE NumFree 6
+AddFreeList(size 4096) = TRUE NumFree 5
+AddFreeList(size 24) = TRUE NumFree 4
+AddFreeList(size 32) = TRUE NumFree 3
+AddFreeList(size 48) = TRUE NumFree 2
+AddFreeList(size 64) = TRUE NumFree 1
+AddFreeList(size 80) = TRUE NumFree 9
+AddFreeList(size 96) = TRUE NumFree 8
+AddFreeList(size 112) = TRUE NumFree 7
+memlist 0: type 0 entries 10 lengths 0 64 48 32 24 4096 1 8 100 16
+memlist 1: type 0 entries 10 lengths 0 0 0 0 0 0 0 112 96 80
+FreeAlloc(10) = ptr cleared NumFree 6
+FreeAlloc(11) = ptr cleared NumFree 5
+FreeAlloc(12) = ptr cleared NumFree 4
+FreeAlloc(13) = ptr cleared NumFree 3
+FreeAlloc(14) = ptr cleared NumFree 2
+FreeAlloc(15) = ptr cleared NumFree 1
+FreeAlloc(16) = ptr cleared NumFree 9
+FreeAlloc(17) = ptr cleared NumFree 8
+FreeAlloc(18) = ptr cleared NumFree 7
+memlist 0: entries 10
+memlist 1: entries 10
+memlist 2: entries 10
+FreeFreeList done
+memory delta (FreeList itself stays allocated) = -16

@@ -1,0 +1,662 @@
+lib_Version >= 38 = 1
+OpenLocale(NULL) = non-NULL
+-- default locale
+loc_LocaleName = "united_states.country"
+loc_LanguageName = "english.language"
+loc_PrefLanguages[0] = "english"
+loc_PrefLanguages[1] = NULL
+loc_Flags = 0x00000000
+loc_CodeSet = 0x00000000
+loc_CountryCode = 0x55534100
+loc_TelephoneCode = 1
+loc_GMTOffset = -300
+loc_MeasuringSystem = 1
+loc_CalendarType = 0
+loc_DateTimeFormat = "%A %B %e %Y %Q:%M %p"
+loc_DateFormat = "%A %B %e %Y"
+loc_TimeFormat = "%Q:%M %p"
+loc_ShortDateTimeFormat = "%m/%d/%y %Q:%M %p"
+loc_ShortDateFormat = "%m/%d/%y"
+loc_ShortTimeFormat = "%Q:%M %p"
+loc_DecimalPoint = "."
+loc_GroupSeparator = ","
+loc_FracGroupSeparator = ","
+loc_Grouping = 3 0
+loc_FracGrouping = 3 0
+loc_MonDecimalPoint = "."
+loc_MonGroupSeparator = ","
+loc_MonFracGroupSeparator = ","
+loc_MonGrouping = 3 0
+loc_MonFracGrouping = 3 0
+loc_MonFracDigits = 2
+loc_MonIntFracDigits = 2
+loc_MonCS = "$"
+loc_MonSmallCS = "\xa2"
+loc_MonIntCS = "USD"
+loc_MonPositiveSign = ""
+loc_MonPositiveSpaceSep = 0
+loc_MonPositiveSignPos = 1
+loc_MonPositiveCSPos = 0
+loc_MonNegativeSign = "-"
+loc_MonNegativeSpaceSep = 0
+loc_MonNegativeSignPos = 1
+loc_MonNegativeCSPos = 0
+-- OpenLocale variants
+OpenLocale(NULL) again = non-NULL
+  name = "united_states.country"
+OpenLocale(missing file) = NULL
+CloseLocale(NULL) survived = 1
+-- GetLocaleStr
+GetLocaleStr(0) = ""
+GetLocaleStr(1) = "Sunday"
+GetLocaleStr(2) = "Monday"
+GetLocaleStr(3) = "Tuesday"
+GetLocaleStr(4) = "Wednesday"
+GetLocaleStr(5) = "Thursday"
+GetLocaleStr(6) = "Friday"
+GetLocaleStr(7) = "Saturday"
+GetLocaleStr(8) = "Sun"
+GetLocaleStr(9) = "Mon"
+GetLocaleStr(10) = "Tue"
+GetLocaleStr(11) = "Wed"
+GetLocaleStr(12) = "Thu"
+GetLocaleStr(13) = "Fri"
+GetLocaleStr(14) = "Sat"
+GetLocaleStr(15) = "January"
+GetLocaleStr(16) = "February"
+GetLocaleStr(17) = "March"
+GetLocaleStr(18) = "April"
+GetLocaleStr(19) = "May"
+GetLocaleStr(20) = "June"
+GetLocaleStr(21) = "July"
+GetLocaleStr(22) = "August"
+GetLocaleStr(23) = "September"
+GetLocaleStr(24) = "October"
+GetLocaleStr(25) = "November"
+GetLocaleStr(26) = "December"
+GetLocaleStr(27) = "Jan"
+GetLocaleStr(28) = "Feb"
+GetLocaleStr(29) = "Mar"
+GetLocaleStr(30) = "Apr"
+GetLocaleStr(31) = "May"
+GetLocaleStr(32) = "Jun"
+GetLocaleStr(33) = "Jul"
+GetLocaleStr(34) = "Aug"
+GetLocaleStr(35) = "Sep"
+GetLocaleStr(36) = "Oct"
+GetLocaleStr(37) = "Nov"
+GetLocaleStr(38) = "Dec"
+GetLocaleStr(39) = "Yes"
+GetLocaleStr(40) = "No"
+GetLocaleStr(41) = "AM"
+GetLocaleStr(42) = "PM"
+GetLocaleStr(43) = "-"
+GetLocaleStr(44) = "-"
+GetLocaleStr(45) = "\x22"
+GetLocaleStr(46) = "\x22"
+GetLocaleStr(47) = "Yesterday"
+GetLocaleStr(48) = "Today"
+GetLocaleStr(49) = "Tomorrow"
+GetLocaleStr(50) = "Future"
+-- character classes
+IsAlNum = 00 00 00 00 00 00 ff 03 fe ff ff 07 fe ff ff 07 00 00 00 00 00 00 00 00 ff ff ff ff ff ff 7f ff
+IsAlpha = 00 00 00 00 00 00 00 00 fe ff ff 07 fe ff ff 07 00 00 00 00 00 00 00 00 ff ff ff ff ff ff 7f ff
+IsCntrl = ff ff ff ff 00 00 00 00 00 00 00 00 00 00 00 80 ff ff ff ff 00 00 00 00 00 00 00 00 00 00 00 00
+IsDigit = 00 00 00 00 00 00 ff 03 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+IsGraph = 00 00 00 00 fe ff ff ff ff ff ff ff ff ff ff 7f 00 00 00 00 fe ff ff ff ff ff ff ff ff ff ff ff
+IsLower = 00 00 00 00 00 00 00 00 00 00 00 00 fe ff ff 07 00 00 00 00 00 00 00 00 00 00 00 80 ff ff 7f ff
+IsPrint = 00 3e 00 00 ff ff ff ff ff ff ff ff ff ff ff 7f 00 00 00 00 ff ff ff ff ff ff ff ff ff ff ff ff
+IsPunct = 00 00 00 00 fe ff 00 fc 01 00 00 f8 01 00 00 78 00 00 00 00 fe ff ff ff 00 00 00 00 00 00 80 00
+IsSpace = 00 3e 00 00 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 01 00 00 00 00 00 00 00 00 00 00 00
+IsUpper = 00 00 00 00 00 00 00 00 fe ff ff 07 00 00 00 00 00 00 00 00 00 00 00 00 ff ff ff ff 00 00 00 00
+IsXDigit = 00 00 00 00 00 00 ff 03 7e 00 00 00 7e 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+-- ConvToLower/ConvToUpper
+ConvToUpper 0x00 = 00 01 02 03 04 05 06 07 08 09 0a 0b 0c 0d 0e 0f 10 11 12 13 14 15 16 17 18 19 1a 1b 1c 1d 1e 1f 20 21 22 23 24 25 26 27 28 29 2a 2b 2c 2d 2e 2f 30 31 32 33 34 35 36 37 38 39 3a 3b 3c 3d 3e 3f
+ConvToUpper 0x40 = 40 41 42 43 44 45 46 47 48 49 4a 4b 4c 4d 4e 4f 50 51 52 53 54 55 56 57 58 59 5a 5b 5c 5d 5e 5f 60 41 42 43 44 45 46 47 48 49 4a 4b 4c 4d 4e 4f 50 51 52 53 54 55 56 57 58 59 5a 7b 7c 7d 7e 7f
+ConvToUpper 0x80 = 80 81 82 83 84 85 86 87 88 89 8a 8b 8c 8d 8e 8f 90 91 92 93 94 95 96 97 98 99 9a 9b 9c 9d 9e 9f a0 a1 a2 a3 a4 a5 a6 a7 a8 a9 aa ab ac ad ae af b0 b1 b2 b3 b4 b5 b6 b7 b8 b9 ba bb bc bd be bf
+ConvToUpper 0xc0 = c0 c1 c2 c3 c4 c5 c6 c7 c8 c9 ca cb cc cd ce cf d0 d1 d2 d3 d4 d5 d6 d7 d8 d9 da db dc dd de df c0 c1 c2 c3 c4 c5 c6 c7 c8 c9 ca cb cc cd ce cf d0 d1 d2 d3 d4 d5 d6 d7 d8 d9 da db dc dd de ff
+ConvToLower 0x00 = 00 01 02 03 04 05 06 07 08 09 0a 0b 0c 0d 0e 0f 10 11 12 13 14 15 16 17 18 19 1a 1b 1c 1d 1e 1f 20 21 22 23 24 25 26 27 28 29 2a 2b 2c 2d 2e 2f 30 31 32 33 34 35 36 37 38 39 3a 3b 3c 3d 3e 3f
+ConvToLower 0x40 = 40 61 62 63 64 65 66 67 68 69 6a 6b 6c 6d 6e 6f 70 71 72 73 74 75 76 77 78 79 7a 5b 5c 5d 5e 5f 60 61 62 63 64 65 66 67 68 69 6a 6b 6c 6d 6e 6f 70 71 72 73 74 75 76 77 78 79 7a 7b 7c 7d 7e 7f
+ConvToLower 0x80 = 80 81 82 83 84 85 86 87 88 89 8a 8b 8c 8d 8e 8f 90 91 92 93 94 95 96 97 98 99 9a 9b 9c 9d 9e 9f a0 a1 a2 a3 a4 a5 a6 a7 a8 a9 aa ab ac ad ae af b0 b1 b2 b3 b4 b5 b6 b7 b8 b9 ba bb bc bd be bf
+ConvToLower 0xc0 = e0 e1 e2 e3 e4 e5 e6 e7 e8 e9 ea eb ec ed ee ef f0 f1 f2 f3 f4 f5 f6 f7 f8 f9 fa fb fc fd fe df e0 e1 e2 e3 e4 e5 e6 e7 e8 e9 ea eb ec ed ee ef f0 f1 f2 f3 f4 f5 f6 f7 f8 f9 fa fb fc fd fe ff
+-- StrnCmp
+StrnCmp type 0 "abc" "abc": -1 0 0 0 1 0 3 0
+StrnCmp type 0 "abc" "ABC": -1 0 0 0 1 0 3 0
+StrnCmp type 0 "ABC" "abc": -1 0 0 0 1 0 3 0
+StrnCmp type 0 "abc" "abd": -1 -1 0 0 1 0 3 -1
+StrnCmp type 0 "abd" "abc": -1 1 0 0 1 0 3 1
+StrnCmp type 0 "" "": -1 0 0 0 1 0 3 0
+StrnCmp type 0 "a" "": -1 1 0 0 1 1 3 1
+StrnCmp type 0 "" "a": -1 -1 0 0 1 -1 3 -1
+StrnCmp type 0 "abc" "abcd": -1 -1 0 0 1 0 3 0
+StrnCmp type 0 "abcd" "abc": -1 1 0 0 1 0 3 0
+StrnCmp type 0 "a" "B": -1 -1 0 0 1 -1 3 -1
+StrnCmp type 0 "B" "a": -1 1 0 0 1 1 3 1
+StrnCmp type 0 "Z" "a": -1 1 0 0 1 1 3 1
+StrnCmp type 0 "[" "a": -1 1 0 0 1 1 3 1
+StrnCmp type 0 "_" "A": -1 1 0 0 1 1 3 1
+StrnCmp type 0 "1" "a": -1 -1 0 0 1 -1 3 -1
+StrnCmp type 0 " " "!": -1 -1 0 0 1 -1 3 -1
+StrnCmp type 0 "\xe4" "a": -1 1 0 0 1 1 3 1
+StrnCmp type 0 "\xe4" "b": -1 1 0 0 1 1 3 1
+StrnCmp type 0 "\xc4" "\xe4": -1 0 0 0 1 0 3 0
+StrnCmp type 0 "\xe9" "e": -1 1 0 0 1 1 3 1
+StrnCmp type 0 "\xe9" "f": -1 1 0 0 1 1 3 1
+StrnCmp type 0 "\xdf" "ss": -1 1 0 0 1 1 3 1
+StrnCmp type 0 "\xdf" "st": -1 1 0 0 1 1 3 1
+StrnCmp type 0 "\xf8" "o": -1 1 0 0 1 1 3 1
+StrnCmp type 0 "\xf8" "p": -1 1 0 0 1 1 3 1
+StrnCmp type 0 "\xe6" "ae": -1 1 0 0 1 1 3 1
+StrnCmp type 0 "\xff" "y": -1 1 0 0 1 1 3 1
+StrnCmp type 0 "\xd0" "d": -1 1 0 0 1 1 3 1
+StrnCmp type 0 "\xfe" "t": -1 1 0 0 1 1 3 1
+StrnCmp type 0 "cote" "c\xf4te": -1 -1 0 0 1 0 3 -1
+StrnCmp type 0 "c\xf4te" "cot\xe9": -1 1 0 0 1 0 3 1
+StrnCmp type 0 "Amiga" "amiga": -1 0 0 0 1 0 3 0
+StrnCmp type 0 "amiga" "Amiga": -1 0 0 0 1 0 3 0
+StrnCmp type 0 "a-b" "ab": -1 -1 0 0 1 0 3 -1
+StrnCmp type 0 "a b" "ab": -1 -1 0 0 1 0 3 -1
+StrnCmp type 0 "\x80" "\xa0": -1 -1 0 0 1 -1 3 -1
+StrnCmp type 0 "\x01" "\x02": -1 -1 0 0 1 -1 3 -1
+StrnCmp type 0 "x\x01" "x": -1 1 0 0 1 0 3 1
+StrnCmp type 0 "MUELLER" "M\xdcLLER": -1 -1 0 0 1 0 3 -1
+StrnCmp type 0 "Mueller" "M\xfcller": -1 -1 0 0 1 0 3 -1
+StrnCmp type 1 "abc" "abc": -1 0 0 0 1 0 3 0
+StrnCmp type 1 "abc" "ABC": -1 0 0 0 1 0 3 0
+StrnCmp type 1 "ABC" "abc": -1 0 0 0 1 0 3 0
+StrnCmp type 1 "abc" "abd": -1 -1 0 0 1 0 3 -1
+StrnCmp type 1 "abd" "abc": -1 1 0 0 1 0 3 1
+StrnCmp type 1 "" "": -1 0 0 0 1 0 3 0
+StrnCmp type 1 "a" "": -1 1 0 0 1 1 3 1
+StrnCmp type 1 "" "a": -1 -1 0 0 1 -1 3 -1
+StrnCmp type 1 "abc" "abcd": -1 -1 0 0 1 0 3 0
+StrnCmp type 1 "abcd" "abc": -1 1 0 0 1 0 3 0
+StrnCmp type 1 "a" "B": -1 -1 0 0 1 -1 3 -1
+StrnCmp type 1 "B" "a": -1 1 0 0 1 1 3 1
+StrnCmp type 1 "Z" "a": -1 1 0 0 1 1 3 1
+StrnCmp type 1 "[" "a": -1 1 0 0 1 1 3 1
+StrnCmp type 1 "_" "A": -1 1 0 0 1 1 3 1
+StrnCmp type 1 "1" "a": -1 -1 0 0 1 -1 3 -1
+StrnCmp type 1 " " "!": -1 -1 0 0 1 -1 3 -1
+StrnCmp type 1 "\xe4" "a": -1 0 0 0 1 0 3 0
+StrnCmp type 1 "\xe4" "b": -1 -1 0 0 1 -1 3 -1
+StrnCmp type 1 "\xc4" "\xe4": -1 0 0 0 1 0 3 0
+StrnCmp type 1 "\xe9" "e": -1 0 0 0 1 0 3 0
+StrnCmp type 1 "\xe9" "f": -1 -1 0 0 1 -1 3 -1
+StrnCmp type 1 "\xdf" "ss": -1 1 0 0 1 1 3 1
+StrnCmp type 1 "\xdf" "st": -1 1 0 0 1 1 3 1
+StrnCmp type 1 "\xf8" "o": -1 0 0 0 1 0 3 0
+StrnCmp type 1 "\xf8" "p": -1 -1 0 0 1 -1 3 -1
+StrnCmp type 1 "\xe6" "ae": -1 -1 0 0 1 0 3 -1
+StrnCmp type 1 "\xff" "y": -1 0 0 0 1 0 3 0
+StrnCmp type 1 "\xd0" "d": -1 0 0 0 1 0 3 0
+StrnCmp type 1 "\xfe" "t": -1 -1 0 0 1 -1 3 -1
+StrnCmp type 1 "cote" "c\xf4te": -1 0 0 0 1 0 3 0
+StrnCmp type 1 "c\xf4te" "cot\xe9": -1 0 0 0 1 0 3 0
+StrnCmp type 1 "Amiga" "amiga": -1 0 0 0 1 0 3 0
+StrnCmp type 1 "amiga" "Amiga": -1 0 0 0 1 0 3 0
+StrnCmp type 1 "a-b" "ab": -1 -1 0 0 1 0 3 -1
+StrnCmp type 1 "a b" "ab": -1 -1 0 0 1 0 3 -1
+StrnCmp type 1 "\x80" "\xa0": -1 1 0 0 1 1 3 1
+StrnCmp type 1 "\x01" "\x02": -1 -1 0 0 1 -1 3 -1
+StrnCmp type 1 "x\x01" "x": -1 1 0 0 1 0 3 1
+StrnCmp type 1 "MUELLER" "M\xdcLLER": -1 -1 0 0 1 0 3 -1
+StrnCmp type 1 "Mueller" "M\xfcller": -1 -1 0 0 1 0 3 -1
+StrnCmp type 2 "abc" "abc": -1 0 0 0 1 0 3 0
+StrnCmp type 2 "abc" "ABC": -1 1 0 0 1 1 3 1
+StrnCmp type 2 "ABC" "abc": -1 -1 0 0 1 -1 3 -1
+StrnCmp type 2 "abc" "abd": -1 -1 0 0 1 0 3 -1
+StrnCmp type 2 "abd" "abc": -1 1 0 0 1 0 3 1
+StrnCmp type 2 "" "": -1 0 0 0 1 0 3 0
+StrnCmp type 2 "a" "": -1 1 0 0 1 1 3 1
+StrnCmp type 2 "" "a": -1 -1 0 0 1 -1 3 -1
+StrnCmp type 2 "abc" "abcd": -1 -1 0 0 1 0 3 0
+StrnCmp type 2 "abcd" "abc": -1 1 0 0 1 0 3 0
+StrnCmp type 2 "a" "B": -1 -1 0 0 1 -1 3 -1
+StrnCmp type 2 "B" "a": -1 1 0 0 1 1 3 1
+StrnCmp type 2 "Z" "a": -1 1 0 0 1 1 3 1
+StrnCmp type 2 "[" "a": -1 1 0 0 1 1 3 1
+StrnCmp type 2 "_" "A": -1 1 0 0 1 1 3 1
+StrnCmp type 2 "1" "a": -1 -1 0 0 1 -1 3 -1
+StrnCmp type 2 " " "!": -1 -1 0 0 1 -1 3 -1
+StrnCmp type 2 "\xe4" "a": -1 1 0 0 1 1 3 1
+StrnCmp type 2 "\xe4" "b": -1 -1 0 0 1 -1 3 -1
+StrnCmp type 2 "\xc4" "\xe4": -1 -1 0 0 1 -1 3 -1
+StrnCmp type 2 "\xe9" "e": -1 1 0 0 1 1 3 1
+StrnCmp type 2 "\xe9" "f": -1 -1 0 0 1 -1 3 -1
+StrnCmp type 2 "\xdf" "ss": -1 1 0 0 1 1 3 1
+StrnCmp type 2 "\xdf" "st": -1 1 0 0 1 1 3 1
+StrnCmp type 2 "\xf8" "o": -1 1 0 0 1 1 3 1
+StrnCmp type 2 "\xf8" "p": -1 -1 0 0 1 -1 3 -1
+StrnCmp type 2 "\xe6" "ae": -1 -1 0 0 1 1 3 -1
+StrnCmp type 2 "\xff" "y": -1 1 0 0 1 1 3 1
+StrnCmp type 2 "\xd0" "d": -1 1 0 0 1 1 3 1
+StrnCmp type 2 "\xfe" "t": -1 -1 0 0 1 -1 3 -1
+StrnCmp type 2 "cote" "c\xf4te": -1 -1 0 0 1 0 3 -1
+StrnCmp type 2 "c\xf4te" "cot\xe9": -1 1 0 0 1 0 3 1
+StrnCmp type 2 "Amiga" "amiga": -1 -1 0 0 1 -1 3 -1
+StrnCmp type 2 "amiga" "Amiga": -1 1 0 0 1 1 3 1
+StrnCmp type 2 "a-b" "ab": -1 -1 0 0 1 0 3 -1
+StrnCmp type 2 "a b" "ab": -1 -1 0 0 1 0 3 -1
+StrnCmp type 2 "\x80" "\xa0": -1 1 0 0 1 1 3 1
+StrnCmp type 2 "\x01" "\x02": -1 -1 0 0 1 -1 3 -1
+StrnCmp type 2 "x\x01" "x": -1 1 0 0 1 0 3 1
+StrnCmp type 2 "MUELLER" "M\xdcLLER": -1 -1 0 0 1 0 3 -1
+StrnCmp type 2 "Mueller" "M\xfcller": -1 -1 0 0 1 0 3 -1
+-- StrConvert
+StrConvert type 0 "abc" size 0 -> 0 buf = aa
+StrConvert type 0 "abc" size 1 -> 1 buf = 00 aa
+StrConvert type 0 "abc" size 2 -> 2 buf = 41 00 aa
+StrConvert type 0 "abc" size 4 -> 4 buf = 41 42 43 00 aa
+StrConvert type 0 "abc" size 64 -> 4 buf = 41 42 43 00 aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa
+StrConvert type 0 "ABC" size 0 -> 0 buf = aa
+StrConvert type 0 "ABC" size 1 -> 1 buf = 00 aa
+StrConvert type 0 "ABC" size 2 -> 2 buf = 41 00 aa
+StrConvert type 0 "ABC" size 4 -> 4 buf = 41 42 43 00 aa
+StrConvert type 0 "ABC" size 64 -> 4 buf = 41 42 43 00 aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa
+StrConvert type 0 "Hello World" size 0 -> 0 buf = aa
+StrConvert type 0 "Hello World" size 1 -> 1 buf = 00 aa
+StrConvert type 0 "Hello World" size 2 -> 2 buf = 48 00 aa
+StrConvert type 0 "Hello World" size 4 -> 4 buf = 48 45 4c 00 aa
+StrConvert type 0 "Hello World" size 64 -> 12 buf = 48 45 4c 4c 4f 20 57 4f 52 4c 44 00 aa aa aa aa aa aa aa aa aa aa aa aa
+StrConvert type 0 "" size 0 -> 0 buf = aa
+StrConvert type 0 "" size 1 -> 1 buf = 00 aa
+StrConvert type 0 "" size 2 -> 1 buf = 00 aa aa
+StrConvert type 0 "" size 4 -> 1 buf = 00 aa aa aa aa
+StrConvert type 0 "" size 64 -> 1 buf = 00 aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa
+StrConvert type 0 "\xe4\xf6\xfc\xdf" size 0 -> 0 buf = aa
+StrConvert type 0 "\xe4\xf6\xfc\xdf" size 1 -> 1 buf = 00 aa
+StrConvert type 0 "\xe4\xf6\xfc\xdf" size 2 -> 2 buf = c4 00 aa
+StrConvert type 0 "\xe4\xf6\xfc\xdf" size 4 -> 4 buf = c4 d6 dc 00 aa
+StrConvert type 0 "\xe4\xf6\xfc\xdf" size 64 -> 5 buf = c4 d6 dc df 00 aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa
+StrConvert type 0 "\xc4\xd6\xdc" size 0 -> 0 buf = aa
+StrConvert type 0 "\xc4\xd6\xdc" size 1 -> 1 buf = 00 aa
+StrConvert type 0 "\xc4\xd6\xdc" size 2 -> 2 buf = c4 00 aa
+StrConvert type 0 "\xc4\xd6\xdc" size 4 -> 4 buf = c4 d6 dc 00 aa
+StrConvert type 0 "\xc4\xd6\xdc" size 64 -> 4 buf = c4 d6 dc 00 aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa
+StrConvert type 0 "a1_B2-c3" size 0 -> 0 buf = aa
+StrConvert type 0 "a1_B2-c3" size 1 -> 1 buf = 00 aa
+StrConvert type 0 "a1_B2-c3" size 2 -> 2 buf = 41 00 aa
+StrConvert type 0 "a1_B2-c3" size 4 -> 4 buf = 41 31 5f 00 aa
+StrConvert type 0 "a1_B2-c3" size 64 -> 9 buf = 41 31 5f 42 32 2d 43 33 00 aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa
+StrConvert type 0 "\xe9t\xe9" size 0 -> 0 buf = aa
+StrConvert type 0 "\xe9t\xe9" size 1 -> 1 buf = 00 aa
+StrConvert type 0 "\xe9t\xe9" size 2 -> 2 buf = c9 00 aa
+StrConvert type 0 "\xe9t\xe9" size 4 -> 4 buf = c9 54 c9 00 aa
+StrConvert type 0 "\xe9t\xe9" size 64 -> 4 buf = c9 54 c9 00 aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa
+StrConvert type 0 "zZ09" size 0 -> 0 buf = aa
+StrConvert type 0 "zZ09" size 1 -> 1 buf = 00 aa
+StrConvert type 0 "zZ09" size 2 -> 2 buf = 5a 00 aa
+StrConvert type 0 "zZ09" size 4 -> 4 buf = 5a 5a 30 00 aa
+StrConvert type 0 "zZ09" size 64 -> 5 buf = 5a 5a 30 39 00 aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa
+StrConvert type 0 "\x01\x7f\x80\xff" size 0 -> 0 buf = aa
+StrConvert type 0 "\x01\x7f\x80\xff" size 1 -> 1 buf = 00 aa
+StrConvert type 0 "\x01\x7f\x80\xff" size 2 -> 2 buf = 01 00 aa
+StrConvert type 0 "\x01\x7f\x80\xff" size 4 -> 4 buf = 01 7f 80 00 aa
+StrConvert type 0 "\x01\x7f\x80\xff" size 64 -> 5 buf = 01 7f 80 ff 00 aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa
+StrConvert type 1 "abc" size 0 -> 0 buf = aa
+StrConvert type 1 "abc" size 1 -> 1 buf = 00 aa
+StrConvert type 1 "abc" size 2 -> 2 buf = 41 00 aa
+StrConvert type 1 "abc" size 4 -> 4 buf = 41 42 43 00 aa
+StrConvert type 1 "abc" size 64 -> 4 buf = 41 42 43 00 aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa
+StrConvert type 1 "ABC" size 0 -> 0 buf = aa
+StrConvert type 1 "ABC" size 1 -> 1 buf = 00 aa
+StrConvert type 1 "ABC" size 2 -> 2 buf = 41 00 aa
+StrConvert type 1 "ABC" size 4 -> 4 buf = 41 42 43 00 aa
+StrConvert type 1 "ABC" size 64 -> 4 buf = 41 42 43 00 aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa
+StrConvert type 1 "Hello World" size 0 -> 0 buf = aa
+StrConvert type 1 "Hello World" size 1 -> 1 buf = 00 aa
+StrConvert type 1 "Hello World" size 2 -> 2 buf = 48 00 aa
+StrConvert type 1 "Hello World" size 4 -> 4 buf = 48 45 4c 00 aa
+StrConvert type 1 "Hello World" size 64 -> 12 buf = 48 45 4c 4c 4f 20 57 4f 52 4c 44 00 aa aa aa aa aa aa aa aa aa aa aa aa
+StrConvert type 1 "" size 0 -> 0 buf = aa
+StrConvert type 1 "" size 1 -> 1 buf = 00 aa
+StrConvert type 1 "" size 2 -> 1 buf = 00 aa aa
+StrConvert type 1 "" size 4 -> 1 buf = 00 aa aa aa aa
+StrConvert type 1 "" size 64 -> 1 buf = 00 aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa
+StrConvert type 1 "\xe4\xf6\xfc\xdf" size 0 -> 0 buf = aa
+StrConvert type 1 "\xe4\xf6\xfc\xdf" size 1 -> 1 buf = 00 aa
+StrConvert type 1 "\xe4\xf6\xfc\xdf" size 2 -> 2 buf = 41 00 aa
+StrConvert type 1 "\xe4\xf6\xfc\xdf" size 4 -> 4 buf = 41 4f 55 00 aa
+StrConvert type 1 "\xe4\xf6\xfc\xdf" size 64 -> 5 buf = 41 4f 55 59 00 aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa
+StrConvert type 1 "\xc4\xd6\xdc" size 0 -> 0 buf = aa
+StrConvert type 1 "\xc4\xd6\xdc" size 1 -> 1 buf = 00 aa
+StrConvert type 1 "\xc4\xd6\xdc" size 2 -> 2 buf = 41 00 aa
+StrConvert type 1 "\xc4\xd6\xdc" size 4 -> 4 buf = 41 4f 55 00 aa
+StrConvert type 1 "\xc4\xd6\xdc" size 64 -> 4 buf = 41 4f 55 00 aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa
+StrConvert type 1 "a1_B2-c3" size 0 -> 0 buf = aa
+StrConvert type 1 "a1_B2-c3" size 1 -> 1 buf = 00 aa
+StrConvert type 1 "a1_B2-c3" size 2 -> 2 buf = 41 00 aa
+StrConvert type 1 "a1_B2-c3" size 4 -> 4 buf = 41 31 5f 00 aa
+StrConvert type 1 "a1_B2-c3" size 64 -> 9 buf = 41 31 5f 42 32 2d 43 33 00 aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa
+StrConvert type 1 "\xe9t\xe9" size 0 -> 0 buf = aa
+StrConvert type 1 "\xe9t\xe9" size 1 -> 1 buf = 00 aa
+StrConvert type 1 "\xe9t\xe9" size 2 -> 2 buf = 45 00 aa
+StrConvert type 1 "\xe9t\xe9" size 4 -> 4 buf = 45 54 45 00 aa
+StrConvert type 1 "\xe9t\xe9" size 64 -> 4 buf = 45 54 45 00 aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa
+StrConvert type 1 "zZ09" size 0 -> 0 buf = aa
+StrConvert type 1 "zZ09" size 1 -> 1 buf = 00 aa
+StrConvert type 1 "zZ09" size 2 -> 2 buf = 5a 00 aa
+StrConvert type 1 "zZ09" size 4 -> 4 buf = 5a 5a 30 00 aa
+StrConvert type 1 "zZ09" size 64 -> 5 buf = 5a 5a 30 39 00 aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa
+StrConvert type 1 "\x01\x7f\x80\xff" size 0 -> 0 buf = aa
+StrConvert type 1 "\x01\x7f\x80\xff" size 1 -> 1 buf = 00 aa
+StrConvert type 1 "\x01\x7f\x80\xff" size 2 -> 2 buf = 01 00 aa
+StrConvert type 1 "\x01\x7f\x80\xff" size 4 -> 4 buf = 01 65 e0 00 aa
+StrConvert type 1 "\x01\x7f\x80\xff" size 64 -> 5 buf = 01 65 e0 59 00 aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa
+StrConvert type 2 "abc" size 0 -> 0 buf = aa
+StrConvert type 2 "abc" size 1 -> 1 buf = aa aa
+StrConvert type 2 "abc" size 2 -> 2 buf = 41 aa aa
+StrConvert type 2 "abc" size 4 -> 4 buf = 41 42 aa 61 62
+StrConvert type 2 "abc" size 64 -> 7 buf = 41 42 43 61 62 63 00 aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa
+StrConvert type 2 "ABC" size 0 -> 0 buf = aa
+StrConvert type 2 "ABC" size 1 -> 1 buf = aa aa
+StrConvert type 2 "ABC" size 2 -> 2 buf = 41 aa aa
+StrConvert type 2 "ABC" size 4 -> 4 buf = 41 42 43 00 aa
+StrConvert type 2 "ABC" size 64 -> 4 buf = 41 42 43 00 aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa
+StrConvert type 2 "Hello World" size 0 -> 0 buf = aa
+StrConvert type 2 "Hello World" size 1 -> 1 buf = aa aa
+StrConvert type 2 "Hello World" size 2 -> 2 buf = 48 aa aa
+StrConvert type 2 "Hello World" size 4 -> 4 buf = 48 45 aa aa aa
+StrConvert type 2 "Hello World" size 64 -> 20 buf = 48 45 4c 4c 4f 20 57 4f 52 4c 44 65 6c 6c 6f 6f 72 6c 64 00 aa aa aa aa
+StrConvert type 2 "" size 0 -> 0 buf = aa
+StrConvert type 2 "" size 1 -> 1 buf = 00 aa
+StrConvert type 2 "" size 2 -> 1 buf = 00 aa aa
+StrConvert type 2 "" size 4 -> 1 buf = 00 aa aa aa aa
+StrConvert type 2 "" size 64 -> 1 buf = 00 aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa
+StrConvert type 2 "\xe4\xf6\xfc\xdf" size 0 -> 0 buf = aa
+StrConvert type 2 "\xe4\xf6\xfc\xdf" size 1 -> 1 buf = aa aa
+StrConvert type 2 "\xe4\xf6\xfc\xdf" size 2 -> 2 buf = 41 aa aa
+StrConvert type 2 "\xe4\xf6\xfc\xdf" size 4 -> 4 buf = 41 4f aa aa e4
+StrConvert type 2 "\xe4\xf6\xfc\xdf" size 64 -> 9 buf = 41 4f 55 59 e4 f6 fc df 00 aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa
+StrConvert type 2 "\xc4\xd6\xdc" size 0 -> 0 buf = aa
+StrConvert type 2 "\xc4\xd6\xdc" size 1 -> 1 buf = aa aa
+StrConvert type 2 "\xc4\xd6\xdc" size 2 -> 2 buf = 41 aa aa
+StrConvert type 2 "\xc4\xd6\xdc" size 4 -> 4 buf = 41 4f aa c4 d6
+StrConvert type 2 "\xc4\xd6\xdc" size 64 -> 7 buf = 41 4f 55 c4 d6 dc 00 aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa
+StrConvert type 2 "a1_B2-c3" size 0 -> 0 buf = aa
+StrConvert type 2 "a1_B2-c3" size 1 -> 1 buf = aa aa
+StrConvert type 2 "a1_B2-c3" size 2 -> 2 buf = 41 aa aa
+StrConvert type 2 "a1_B2-c3" size 4 -> 4 buf = 41 31 aa aa aa
+StrConvert type 2 "a1_B2-c3" size 64 -> 11 buf = 41 31 5f 42 32 2d 43 33 61 63 00 aa aa aa aa aa aa aa aa aa aa aa aa aa
+StrConvert type 2 "\xe9t\xe9" size 0 -> 0 buf = aa
+StrConvert type 2 "\xe9t\xe9" size 1 -> 1 buf = aa aa
+StrConvert type 2 "\xe9t\xe9" size 2 -> 2 buf = 45 aa aa
+StrConvert type 2 "\xe9t\xe9" size 4 -> 4 buf = 45 54 aa e9 74
+StrConvert type 2 "\xe9t\xe9" size 64 -> 7 buf = 45 54 45 e9 74 e9 00 aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa
+StrConvert type 2 "zZ09" size 0 -> 0 buf = aa
+StrConvert type 2 "zZ09" size 1 -> 1 buf = aa aa
+StrConvert type 2 "zZ09" size 2 -> 2 buf = 5a aa aa
+StrConvert type 2 "zZ09" size 4 -> 4 buf = 5a 5a aa aa 7a
+StrConvert type 2 "zZ09" size 64 -> 6 buf = 5a 5a 30 39 7a 00 aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa
+StrConvert type 2 "\x01\x7f\x80\xff" size 0 -> 0 buf = aa
+StrConvert type 2 "\x01\x7f\x80\xff" size 1 -> 1 buf = aa aa
+StrConvert type 2 "\x01\x7f\x80\xff" size 2 -> 2 buf = 01 aa aa
+StrConvert type 2 "\x01\x7f\x80\xff" size 4 -> 4 buf = 01 65 aa aa 7f
+StrConvert type 2 "\x01\x7f\x80\xff" size 64 -> 8 buf = 01 65 e0 59 7f 80 ff 00 aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa
+-- StrConvert per character
+StrConvert type 0 key 0x00 = 00 01 02 03 04 05 06 07 08 09 0a 0b 0c 0d 0e 0f 10 11 12 13 14 15 16 17 18 19 1a 1b 1c 1d 1e 1f 20 21 22 23 24 25 26 27 28 29 2a 2b 2c 2d 2e 2f 30 31 32 33 34 35 36 37 38 39 3a 3b 3c 3d 3e 3f
+StrConvert type 0 key 0x40 = 40 41 42 43 44 45 46 47 48 49 4a 4b 4c 4d 4e 4f 50 51 52 53 54 55 56 57 58 59 5a 5b 5c 5d 5e 5f 60 41 42 43 44 45 46 47 48 49 4a 4b 4c 4d 4e 4f 50 51 52 53 54 55 56 57 58 59 5a 7b 7c 7d 7e 7f
+StrConvert type 0 key 0x80 = 80 81 82 83 84 85 86 87 88 89 8a 8b 8c 8d 8e 8f 90 91 92 93 94 95 96 97 98 99 9a 9b 9c 9d 9e 9f a0 a1 a2 a3 a4 a5 a6 a7 a8 a9 aa ab ac ad ae af b0 b1 b2 b3 b4 b5 b6 b7 b8 b9 ba bb bc bd be bf
+StrConvert type 0 key 0xc0 = c0 c1 c2 c3 c4 c5 c6 c7 c8 c9 ca cb cc cd ce cf d0 d1 d2 d3 d4 d5 d6 d7 d8 d9 da db dc dd de df c0 c1 c2 c3 c4 c5 c6 c7 c8 c9 ca cb cc cd ce cf d0 d1 d2 d3 d4 d5 d6 d7 d8 d9 da db dc dd de ff
+StrConvert type 0 len 0x00 = 00 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20
+StrConvert type 0 len 0x40 = 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20
+StrConvert type 0 len 0x80 = 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20
+StrConvert type 0 len 0xc0 = 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20
+StrConvert type 1 key 0x00 = 00 01 02 03 04 05 06 07 08 09 0a 0b 0c 0d 0e 0f 10 11 12 13 14 15 16 17 18 19 1a 1b 1c 1d 1e 1f 20 21 22 23 24 25 26 27 28 29 2a 2b 2c 2d 2e 2f 30 31 32 33 34 35 36 37 38 39 3a 3b 3c 3d 3e 3f
+StrConvert type 1 key 0x40 = 40 41 42 43 44 45 46 47 48 49 4a 4b 4c 4d 4e 4f 50 51 52 53 54 55 56 57 58 59 5a 5b 5c 5d 5e 5f 60 41 42 43 44 45 46 47 48 49 4a 4b 4c 4d 4e 4f 50 51 52 53 54 55 56 57 58 59 5a 61 62 63 64 65
+StrConvert type 1 key 0x80 = e0 e1 e2 e3 e4 e5 e6 e7 e8 e9 ea eb ec ed ee ef f0 f1 f2 f3 f4 f5 f6 f7 f8 f9 fa fb fc fd fe ff 20 21 24 24 67 68 69 53 6a 6b 6c 22 6d 6e 6f 70 71 72 73 74 75 76 77 78 79 7a 7b 22 7c 7d 7e 3f
+StrConvert type 1 key 0xc0 = 41 41 41 41 41 41 41 43 45 45 45 45 49 49 49 49 44 4e 4f 4f 4f 4f 4f 2a 4f 55 55 55 55 59 50 59 41 41 41 41 41 41 41 43 45 45 45 45 49 49 49 49 44 4e 4f 4f 4f 4f 4f 2f 4f 55 55 55 55 59 50 59
+StrConvert type 1 len 0x00 = 00 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20
+StrConvert type 1 len 0x40 = 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20
+StrConvert type 1 len 0x80 = 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20
+StrConvert type 1 len 0xc0 = 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20
+StrConvert type 2 key 0x00 = 00 01 02 03 04 05 06 07 08 09 0a 0b 0c 0d 0e 0f 10 11 12 13 14 15 16 17 18 19 1a 1b 1c 1d 1e 1f 20 21 22 23 24 25 26 27 28 29 2a 2b 2c 2d 2e 2f 30 31 32 33 34 35 36 37 38 39 3a 3b 3c 3d 3e 3f
+StrConvert type 2 key 0x40 = 40 41 42 43 44 45 46 47 48 49 4a 4b 4c 4d 4e 4f 50 51 52 53 54 55 56 57 58 59 5a 5b 5c 5d 5e 5f 60 41 42 43 44 45 46 47 48 49 4a 4b 4c 4d 4e 4f 50 51 52 53 54 55 56 57 58 59 5a 61 62 63 64 65
+StrConvert type 2 key 0x80 = e0 e1 e2 e3 e4 e5 e6 e7 e8 e9 ea eb ec ed ee ef f0 f1 f2 f3 f4 f5 f6 f7 f8 f9 fa fb fc fd fe ff 20 21 24 24 67 68 69 53 6a 6b 6c 22 6d 6e 6f 70 71 72 73 74 75 76 77 78 79 7a 7b 22 7c 7d 7e 3f
+StrConvert type 2 key 0xc0 = 41 41 41 41 41 41 41 43 45 45 45 45 49 49 49 49 44 4e 4f 4f 4f 4f 4f 2a 4f 55 55 55 55 59 50 59 41 41 41 41 41 41 41 43 45 45 45 45 49 49 49 49 44 4e 4f 4f 4f 4f 4f 2f 4f 55 55 55 55 59 50 59
+StrConvert type 2 len 0x00 = 00 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20
+StrConvert type 2 len 0x40 = 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 31 31 31 31 31 31 31 31 31 31 31 31 31 31 31 31 31 31 31 31 31 31 31 31 31 31 31 31 31 31 31
+StrConvert type 2 len 0x80 = 31 31 31 31 31 31 31 31 31 31 31 31 31 31 31 31 31 31 31 31 31 31 31 31 31 31 31 31 31 31 31 31 31 31 31 31 31 31 31 31 31 31 31 31 31 31 31 31 31 31 31 31 31 31 31 31 31 31 31 31 31 31 31 31
+StrConvert type 2 len 0xc0 = 31 31 31 31 31 31 31 31 31 31 31 31 31 31 31 31 31 31 31 31 31 31 31 31 31 31 31 31 31 31 31 31 31 31 31 31 31 31 31 31 31 31 31 31 31 31 31 31 31 31 31 31 31 31 31 31 31 31 31 31 31 31 31 31
+-- StrConvert sizes
+StrConvert type 0 "abc" size 0 -> 0 buf = aa aa aa aa aa aa aa aa aa aa
+StrConvert type 0 "abc" size 1 -> 1 buf = 00 aa aa aa aa aa aa aa aa aa
+StrConvert type 0 "abc" size 2 -> 2 buf = 41 00 aa aa aa aa aa aa aa aa
+StrConvert type 0 "abc" size 3 -> 3 buf = 41 42 00 aa aa aa aa aa aa aa
+StrConvert type 0 "abc" size 4 -> 4 buf = 41 42 43 00 aa aa aa aa aa aa
+StrConvert type 0 "abc" size 5 -> 4 buf = 41 42 43 00 aa aa aa aa aa aa
+StrConvert type 0 "abc" size 6 -> 4 buf = 41 42 43 00 aa aa aa aa aa aa
+StrConvert type 0 "abc" size 7 -> 4 buf = 41 42 43 00 aa aa aa aa aa aa
+StrConvert type 0 "abc" size 8 -> 4 buf = 41 42 43 00 aa aa aa aa aa aa
+StrConvert type 0 "aBc" size 0 -> 0 buf = aa aa aa aa aa aa aa aa aa aa
+StrConvert type 0 "aBc" size 1 -> 1 buf = 00 aa aa aa aa aa aa aa aa aa
+StrConvert type 0 "aBc" size 2 -> 2 buf = 41 00 aa aa aa aa aa aa aa aa
+StrConvert type 0 "aBc" size 3 -> 3 buf = 41 42 00 aa aa aa aa aa aa aa
+StrConvert type 0 "aBc" size 4 -> 4 buf = 41 42 43 00 aa aa aa aa aa aa
+StrConvert type 0 "aBc" size 5 -> 4 buf = 41 42 43 00 aa aa aa aa aa aa
+StrConvert type 0 "aBc" size 6 -> 4 buf = 41 42 43 00 aa aa aa aa aa aa
+StrConvert type 0 "aBc" size 7 -> 4 buf = 41 42 43 00 aa aa aa aa aa aa
+StrConvert type 0 "aBc" size 8 -> 4 buf = 41 42 43 00 aa aa aa aa aa aa
+StrConvert type 0 "ABC" size 0 -> 0 buf = aa aa aa aa aa aa aa aa aa aa
+StrConvert type 0 "ABC" size 1 -> 1 buf = 00 aa aa aa aa aa aa aa aa aa
+StrConvert type 0 "ABC" size 2 -> 2 buf = 41 00 aa aa aa aa aa aa aa aa
+StrConvert type 0 "ABC" size 3 -> 3 buf = 41 42 00 aa aa aa aa aa aa aa
+StrConvert type 0 "ABC" size 4 -> 4 buf = 41 42 43 00 aa aa aa aa aa aa
+StrConvert type 0 "ABC" size 5 -> 4 buf = 41 42 43 00 aa aa aa aa aa aa
+StrConvert type 0 "ABC" size 6 -> 4 buf = 41 42 43 00 aa aa aa aa aa aa
+StrConvert type 0 "ABC" size 7 -> 4 buf = 41 42 43 00 aa aa aa aa aa aa
+StrConvert type 0 "ABC" size 8 -> 4 buf = 41 42 43 00 aa aa aa aa aa aa
+StrConvert type 0 "a" size 0 -> 0 buf = aa aa aa aa aa aa aa aa aa aa
+StrConvert type 0 "a" size 1 -> 1 buf = 00 aa aa aa aa aa aa aa aa aa
+StrConvert type 0 "a" size 2 -> 2 buf = 41 00 aa aa aa aa aa aa aa aa
+StrConvert type 0 "a" size 3 -> 2 buf = 41 00 aa aa aa aa aa aa aa aa
+StrConvert type 0 "a" size 4 -> 2 buf = 41 00 aa aa aa aa aa aa aa aa
+StrConvert type 0 "a" size 5 -> 2 buf = 41 00 aa aa aa aa aa aa aa aa
+StrConvert type 0 "a" size 6 -> 2 buf = 41 00 aa aa aa aa aa aa aa aa
+StrConvert type 0 "a" size 7 -> 2 buf = 41 00 aa aa aa aa aa aa aa aa
+StrConvert type 0 "a" size 8 -> 2 buf = 41 00 aa aa aa aa aa aa aa aa
+StrConvert type 0 "A" size 0 -> 0 buf = aa aa aa aa aa aa aa aa aa aa
+StrConvert type 0 "A" size 1 -> 1 buf = 00 aa aa aa aa aa aa aa aa aa
+StrConvert type 0 "A" size 2 -> 2 buf = 41 00 aa aa aa aa aa aa aa aa
+StrConvert type 0 "A" size 3 -> 2 buf = 41 00 aa aa aa aa aa aa aa aa
+StrConvert type 0 "A" size 4 -> 2 buf = 41 00 aa aa aa aa aa aa aa aa
+StrConvert type 0 "A" size 5 -> 2 buf = 41 00 aa aa aa aa aa aa aa aa
+StrConvert type 0 "A" size 6 -> 2 buf = 41 00 aa aa aa aa aa aa aa aa
+StrConvert type 0 "A" size 7 -> 2 buf = 41 00 aa aa aa aa aa aa aa aa
+StrConvert type 0 "A" size 8 -> 2 buf = 41 00 aa aa aa aa aa aa aa aa
+StrConvert type 0 "Ab" size 0 -> 0 buf = aa aa aa aa aa aa aa aa aa aa
+StrConvert type 0 "Ab" size 1 -> 1 buf = 00 aa aa aa aa aa aa aa aa aa
+StrConvert type 0 "Ab" size 2 -> 2 buf = 41 00 aa aa aa aa aa aa aa aa
+StrConvert type 0 "Ab" size 3 -> 3 buf = 41 42 00 aa aa aa aa aa aa aa
+StrConvert type 0 "Ab" size 4 -> 3 buf = 41 42 00 aa aa aa aa aa aa aa
+StrConvert type 0 "Ab" size 5 -> 3 buf = 41 42 00 aa aa aa aa aa aa aa
+StrConvert type 0 "Ab" size 6 -> 3 buf = 41 42 00 aa aa aa aa aa aa aa
+StrConvert type 0 "Ab" size 7 -> 3 buf = 41 42 00 aa aa aa aa aa aa aa
+StrConvert type 0 "Ab" size 8 -> 3 buf = 41 42 00 aa aa aa aa aa aa aa
+StrConvert type 0 "aB" size 0 -> 0 buf = aa aa aa aa aa aa aa aa aa aa
+StrConvert type 0 "aB" size 1 -> 1 buf = 00 aa aa aa aa aa aa aa aa aa
+StrConvert type 0 "aB" size 2 -> 2 buf = 41 00 aa aa aa aa aa aa aa aa
+StrConvert type 0 "aB" size 3 -> 3 buf = 41 42 00 aa aa aa aa aa aa aa
+StrConvert type 0 "aB" size 4 -> 3 buf = 41 42 00 aa aa aa aa aa aa aa
+StrConvert type 0 "aB" size 5 -> 3 buf = 41 42 00 aa aa aa aa aa aa aa
+StrConvert type 0 "aB" size 6 -> 3 buf = 41 42 00 aa aa aa aa aa aa aa
+StrConvert type 0 "aB" size 7 -> 3 buf = 41 42 00 aa aa aa aa aa aa aa
+StrConvert type 0 "aB" size 8 -> 3 buf = 41 42 00 aa aa aa aa aa aa aa
+StrConvert type 0 "\xe4X" size 0 -> 0 buf = aa aa aa aa aa aa aa aa aa aa
+StrConvert type 0 "\xe4X" size 1 -> 1 buf = 00 aa aa aa aa aa aa aa aa aa
+StrConvert type 0 "\xe4X" size 2 -> 2 buf = c4 00 aa aa aa aa aa aa aa aa
+StrConvert type 0 "\xe4X" size 3 -> 3 buf = c4 58 00 aa aa aa aa aa aa aa
+StrConvert type 0 "\xe4X" size 4 -> 3 buf = c4 58 00 aa aa aa aa aa aa aa
+StrConvert type 0 "\xe4X" size 5 -> 3 buf = c4 58 00 aa aa aa aa aa aa aa
+StrConvert type 0 "\xe4X" size 6 -> 3 buf = c4 58 00 aa aa aa aa aa aa aa
+StrConvert type 0 "\xe4X" size 7 -> 3 buf = c4 58 00 aa aa aa aa aa aa aa
+StrConvert type 0 "\xe4X" size 8 -> 3 buf = c4 58 00 aa aa aa aa aa aa aa
+StrConvert type 1 "abc" size 0 -> 0 buf = aa aa aa aa aa aa aa aa aa aa
+StrConvert type 1 "abc" size 1 -> 1 buf = 00 aa aa aa aa aa aa aa aa aa
+StrConvert type 1 "abc" size 2 -> 2 buf = 41 00 aa aa aa aa aa aa aa aa
+StrConvert type 1 "abc" size 3 -> 3 buf = 41 42 00 aa aa aa aa aa aa aa
+StrConvert type 1 "abc" size 4 -> 4 buf = 41 42 43 00 aa aa aa aa aa aa
+StrConvert type 1 "abc" size 5 -> 4 buf = 41 42 43 00 aa aa aa aa aa aa
+StrConvert type 1 "abc" size 6 -> 4 buf = 41 42 43 00 aa aa aa aa aa aa
+StrConvert type 1 "abc" size 7 -> 4 buf = 41 42 43 00 aa aa aa aa aa aa
+StrConvert type 1 "abc" size 8 -> 4 buf = 41 42 43 00 aa aa aa aa aa aa
+StrConvert type 1 "aBc" size 0 -> 0 buf = aa aa aa aa aa aa aa aa aa aa
+StrConvert type 1 "aBc" size 1 -> 1 buf = 00 aa aa aa aa aa aa aa aa aa
+StrConvert type 1 "aBc" size 2 -> 2 buf = 41 00 aa aa aa aa aa aa aa aa
+StrConvert type 1 "aBc" size 3 -> 3 buf = 41 42 00 aa aa aa aa aa aa aa
+StrConvert type 1 "aBc" size 4 -> 4 buf = 41 42 43 00 aa aa aa aa aa aa
+StrConvert type 1 "aBc" size 5 -> 4 buf = 41 42 43 00 aa aa aa aa aa aa
+StrConvert type 1 "aBc" size 6 -> 4 buf = 41 42 43 00 aa aa aa aa aa aa
+StrConvert type 1 "aBc" size 7 -> 4 buf = 41 42 43 00 aa aa aa aa aa aa
+StrConvert type 1 "aBc" size 8 -> 4 buf = 41 42 43 00 aa aa aa aa aa aa
+StrConvert type 1 "ABC" size 0 -> 0 buf = aa aa aa aa aa aa aa aa aa aa
+StrConvert type 1 "ABC" size 1 -> 1 buf = 00 aa aa aa aa aa aa aa aa aa
+StrConvert type 1 "ABC" size 2 -> 2 buf = 41 00 aa aa aa aa aa aa aa aa
+StrConvert type 1 "ABC" size 3 -> 3 buf = 41 42 00 aa aa aa aa aa aa aa
+StrConvert type 1 "ABC" size 4 -> 4 buf = 41 42 43 00 aa aa aa aa aa aa
+StrConvert type 1 "ABC" size 5 -> 4 buf = 41 42 43 00 aa aa aa aa aa aa
+StrConvert type 1 "ABC" size 6 -> 4 buf = 41 42 43 00 aa aa aa aa aa aa
+StrConvert type 1 "ABC" size 7 -> 4 buf = 41 42 43 00 aa aa aa aa aa aa
+StrConvert type 1 "ABC" size 8 -> 4 buf = 41 42 43 00 aa aa aa aa aa aa
+StrConvert type 1 "a" size 0 -> 0 buf = aa aa aa aa aa aa aa aa aa aa
+StrConvert type 1 "a" size 1 -> 1 buf = 00 aa aa aa aa aa aa aa aa aa
+StrConvert type 1 "a" size 2 -> 2 buf = 41 00 aa aa aa aa aa aa aa aa
+StrConvert type 1 "a" size 3 -> 2 buf = 41 00 aa aa aa aa aa aa aa aa
+StrConvert type 1 "a" size 4 -> 2 buf = 41 00 aa aa aa aa aa aa aa aa
+StrConvert type 1 "a" size 5 -> 2 buf = 41 00 aa aa aa aa aa aa aa aa
+StrConvert type 1 "a" size 6 -> 2 buf = 41 00 aa aa aa aa aa aa aa aa
+StrConvert type 1 "a" size 7 -> 2 buf = 41 00 aa aa aa aa aa aa aa aa
+StrConvert type 1 "a" size 8 -> 2 buf = 41 00 aa aa aa aa aa aa aa aa
+StrConvert type 1 "A" size 0 -> 0 buf = aa aa aa aa aa aa aa aa aa aa
+StrConvert type 1 "A" size 1 -> 1 buf = 00 aa aa aa aa aa aa aa aa aa
+StrConvert type 1 "A" size 2 -> 2 buf = 41 00 aa aa aa aa aa aa aa aa
+StrConvert type 1 "A" size 3 -> 2 buf = 41 00 aa aa aa aa aa aa aa aa
+StrConvert type 1 "A" size 4 -> 2 buf = 41 00 aa aa aa aa aa aa aa aa
+StrConvert type 1 "A" size 5 -> 2 buf = 41 00 aa aa aa aa aa aa aa aa
+StrConvert type 1 "A" size 6 -> 2 buf = 41 00 aa aa aa aa aa aa aa aa
+StrConvert type 1 "A" size 7 -> 2 buf = 41 00 aa aa aa aa aa aa aa aa
+StrConvert type 1 "A" size 8 -> 2 buf = 41 00 aa aa aa aa aa aa aa aa
+StrConvert type 1 "Ab" size 0 -> 0 buf = aa aa aa aa aa aa aa aa aa aa
+StrConvert type 1 "Ab" size 1 -> 1 buf = 00 aa aa aa aa aa aa aa aa aa
+StrConvert type 1 "Ab" size 2 -> 2 buf = 41 00 aa aa aa aa aa aa aa aa
+StrConvert type 1 "Ab" size 3 -> 3 buf = 41 42 00 aa aa aa aa aa aa aa
+StrConvert type 1 "Ab" size 4 -> 3 buf = 41 42 00 aa aa aa aa aa aa aa
+StrConvert type 1 "Ab" size 5 -> 3 buf = 41 42 00 aa aa aa aa aa aa aa
+StrConvert type 1 "Ab" size 6 -> 3 buf = 41 42 00 aa aa aa aa aa aa aa
+StrConvert type 1 "Ab" size 7 -> 3 buf = 41 42 00 aa aa aa aa aa aa aa
+StrConvert type 1 "Ab" size 8 -> 3 buf = 41 42 00 aa aa aa aa aa aa aa
+StrConvert type 1 "aB" size 0 -> 0 buf = aa aa aa aa aa aa aa aa aa aa
+StrConvert type 1 "aB" size 1 -> 1 buf = 00 aa aa aa aa aa aa aa aa aa
+StrConvert type 1 "aB" size 2 -> 2 buf = 41 00 aa aa aa aa aa aa aa aa
+StrConvert type 1 "aB" size 3 -> 3 buf = 41 42 00 aa aa aa aa aa aa aa
+StrConvert type 1 "aB" size 4 -> 3 buf = 41 42 00 aa aa aa aa aa aa aa
+StrConvert type 1 "aB" size 5 -> 3 buf = 41 42 00 aa aa aa aa aa aa aa
+StrConvert type 1 "aB" size 6 -> 3 buf = 41 42 00 aa aa aa aa aa aa aa
+StrConvert type 1 "aB" size 7 -> 3 buf = 41 42 00 aa aa aa aa aa aa aa
+StrConvert type 1 "aB" size 8 -> 3 buf = 41 42 00 aa aa aa aa aa aa aa
+StrConvert type 1 "\xe4X" size 0 -> 0 buf = aa aa aa aa aa aa aa aa aa aa
+StrConvert type 1 "\xe4X" size 1 -> 1 buf = 00 aa aa aa aa aa aa aa aa aa
+StrConvert type 1 "\xe4X" size 2 -> 2 buf = 41 00 aa aa aa aa aa aa aa aa
+StrConvert type 1 "\xe4X" size 3 -> 3 buf = 41 58 00 aa aa aa aa aa aa aa
+StrConvert type 1 "\xe4X" size 4 -> 3 buf = 41 58 00 aa aa aa aa aa aa aa
+StrConvert type 1 "\xe4X" size 5 -> 3 buf = 41 58 00 aa aa aa aa aa aa aa
+StrConvert type 1 "\xe4X" size 6 -> 3 buf = 41 58 00 aa aa aa aa aa aa aa
+StrConvert type 1 "\xe4X" size 7 -> 3 buf = 41 58 00 aa aa aa aa aa aa aa
+StrConvert type 1 "\xe4X" size 8 -> 3 buf = 41 58 00 aa aa aa aa aa aa aa
+StrConvert type 2 "abc" size 0 -> 0 buf = aa aa aa aa aa aa aa aa aa aa
+StrConvert type 2 "abc" size 1 -> 1 buf = aa aa aa 00 aa aa aa aa aa aa
+StrConvert type 2 "abc" size 2 -> 2 buf = 41 aa aa 61 00 aa aa aa aa aa
+StrConvert type 2 "abc" size 3 -> 3 buf = 41 aa aa 61 00 aa aa aa aa aa
+StrConvert type 2 "abc" size 4 -> 4 buf = 41 42 aa 61 62 00 aa aa aa aa
+StrConvert type 2 "abc" size 5 -> 5 buf = 41 42 aa 61 62 00 aa aa aa aa
+StrConvert type 2 "abc" size 6 -> 6 buf = 41 42 43 61 62 63 00 aa aa aa
+StrConvert type 2 "abc" size 7 -> 7 buf = 41 42 43 61 62 63 00 aa aa aa
+StrConvert type 2 "abc" size 8 -> 7 buf = 41 42 43 61 62 63 00 aa aa aa
+StrConvert type 2 "aBc" size 0 -> 0 buf = aa aa aa aa aa aa aa aa aa aa
+StrConvert type 2 "aBc" size 1 -> 1 buf = aa aa aa 00 aa aa aa aa aa aa
+StrConvert type 2 "aBc" size 2 -> 2 buf = 41 aa aa 61 00 aa aa aa aa aa
+StrConvert type 2 "aBc" size 3 -> 3 buf = 41 aa aa 61 00 aa aa aa aa aa
+StrConvert type 2 "aBc" size 4 -> 4 buf = 41 42 aa 61 00 aa aa aa aa aa
+StrConvert type 2 "aBc" size 5 -> 5 buf = 41 42 43 61 63 00 aa aa aa aa
+StrConvert type 2 "aBc" size 6 -> 6 buf = 41 42 43 61 63 00 aa aa aa aa
+StrConvert type 2 "aBc" size 7 -> 6 buf = 41 42 43 61 63 00 aa aa aa aa
+StrConvert type 2 "aBc" size 8 -> 6 buf = 41 42 43 61 63 00 aa aa aa aa
+StrConvert type 2 "ABC" size 0 -> 0 buf = aa aa aa aa aa aa aa aa aa aa
+StrConvert type 2 "ABC" size 1 -> 1 buf = aa aa aa 00 aa aa aa aa aa aa
+StrConvert type 2 "ABC" size 2 -> 2 buf = 41 aa aa 00 aa aa aa aa aa aa
+StrConvert type 2 "ABC" size 3 -> 3 buf = 41 42 aa 00 aa aa aa aa aa aa
+StrConvert type 2 "ABC" size 4 -> 4 buf = 41 42 43 00 aa aa aa aa aa aa
+StrConvert type 2 "ABC" size 5 -> 4 buf = 41 42 43 00 aa aa aa aa aa aa
+StrConvert type 2 "ABC" size 6 -> 4 buf = 41 42 43 00 aa aa aa aa aa aa
+StrConvert type 2 "ABC" size 7 -> 4 buf = 41 42 43 00 aa aa aa aa aa aa
+StrConvert type 2 "ABC" size 8 -> 4 buf = 41 42 43 00 aa aa aa aa aa aa
+StrConvert type 2 "a" size 0 -> 0 buf = aa aa aa aa aa aa aa aa aa aa
+StrConvert type 2 "a" size 1 -> 1 buf = aa 00 aa aa aa aa aa aa aa aa
+StrConvert type 2 "a" size 2 -> 2 buf = 41 61 00 aa aa aa aa aa aa aa
+StrConvert type 2 "a" size 3 -> 3 buf = 41 61 00 aa aa aa aa aa aa aa
+StrConvert type 2 "a" size 4 -> 3 buf = 41 61 00 aa aa aa aa aa aa aa
+StrConvert type 2 "a" size 5 -> 3 buf = 41 61 00 aa aa aa aa aa aa aa
+StrConvert type 2 "a" size 6 -> 3 buf = 41 61 00 aa aa aa aa aa aa aa
+StrConvert type 2 "a" size 7 -> 3 buf = 41 61 00 aa aa aa aa aa aa aa
+StrConvert type 2 "a" size 8 -> 3 buf = 41 61 00 aa aa aa aa aa aa aa
+StrConvert type 2 "A" size 0 -> 0 buf = aa aa aa aa aa aa aa aa aa aa
+StrConvert type 2 "A" size 1 -> 1 buf = aa 00 aa aa aa aa aa aa aa aa
+StrConvert type 2 "A" size 2 -> 2 buf = 41 00 aa aa aa aa aa aa aa aa
+StrConvert type 2 "A" size 3 -> 2 buf = 41 00 aa aa aa aa aa aa aa aa
+StrConvert type 2 "A" size 4 -> 2 buf = 41 00 aa aa aa aa aa aa aa aa
+StrConvert type 2 "A" size 5 -> 2 buf = 41 00 aa aa aa aa aa aa aa aa
+StrConvert type 2 "A" size 6 -> 2 buf = 41 00 aa aa aa aa aa aa aa aa
+StrConvert type 2 "A" size 7 -> 2 buf = 41 00 aa aa aa aa aa aa aa aa
+StrConvert type 2 "A" size 8 -> 2 buf = 41 00 aa aa aa aa aa aa aa aa
+StrConvert type 2 "Ab" size 0 -> 0 buf = aa aa aa aa aa aa aa aa aa aa
+StrConvert type 2 "Ab" size 1 -> 1 buf = aa aa 00 aa aa aa aa aa aa aa
+StrConvert type 2 "Ab" size 2 -> 2 buf = 41 aa 00 aa aa aa aa aa aa aa
+StrConvert type 2 "Ab" size 3 -> 3 buf = 41 42 62 00 aa aa aa aa aa aa
+StrConvert type 2 "Ab" size 4 -> 4 buf = 41 42 62 00 aa aa aa aa aa aa
+StrConvert type 2 "Ab" size 5 -> 4 buf = 41 42 62 00 aa aa aa aa aa aa
+StrConvert type 2 "Ab" size 6 -> 4 buf = 41 42 62 00 aa aa aa aa aa aa
+StrConvert type 2 "Ab" size 7 -> 4 buf = 41 42 62 00 aa aa aa aa aa aa
+StrConvert type 2 "Ab" size 8 -> 4 buf = 41 42 62 00 aa aa aa aa aa aa
+StrConvert type 2 "aB" size 0 -> 0 buf = aa aa aa aa aa aa aa aa aa aa
+StrConvert type 2 "aB" size 1 -> 1 buf = aa aa 00 aa aa aa aa aa aa aa
+StrConvert type 2 "aB" size 2 -> 2 buf = 41 aa 61 00 aa aa aa aa aa aa
+StrConvert type 2 "aB" size 3 -> 3 buf = 41 aa 61 00 aa aa aa aa aa aa
+StrConvert type 2 "aB" size 4 -> 4 buf = 41 42 61 00 aa aa aa aa aa aa
+StrConvert type 2 "aB" size 5 -> 4 buf = 41 42 61 00 aa aa aa aa aa aa
+StrConvert type 2 "aB" size 6 -> 4 buf = 41 42 61 00 aa aa aa aa aa aa
+StrConvert type 2 "aB" size 7 -> 4 buf = 41 42 61 00 aa aa aa aa aa aa
+StrConvert type 2 "aB" size 8 -> 4 buf = 41 42 61 00 aa aa aa aa aa aa
+StrConvert type 2 "\xe4X" size 0 -> 0 buf = aa aa aa aa aa aa aa aa aa aa
+StrConvert type 2 "\xe4X" size 1 -> 1 buf = aa aa 00 aa aa aa aa aa aa aa
+StrConvert type 2 "\xe4X" size 2 -> 2 buf = 41 aa e4 00 aa aa aa aa aa aa
+StrConvert type 2 "\xe4X" size 3 -> 3 buf = 41 aa e4 00 aa aa aa aa aa aa
+StrConvert type 2 "\xe4X" size 4 -> 4 buf = 41 58 e4 00 aa aa aa aa aa aa
+StrConvert type 2 "\xe4X" size 5 -> 4 buf = 41 58 e4 00 aa aa aa aa aa aa
+StrConvert type 2 "\xe4X" size 6 -> 4 buf = 41 58 e4 00 aa aa aa aa aa aa
+StrConvert type 2 "\xe4X" size 7 -> 4 buf = 41 58 e4 00 aa aa aa aa aa aa
+StrConvert type 2 "\xe4X" size 8 -> 4 buf = 41 58 e4 00 aa aa aa aa aa aa
+-- StrnCmp per character
+StrnCmp type 0 vs a/A 0x00 = 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+StrnCmp type 0 vs a/A 0x40 = 00 04 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 04 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08
+StrnCmp type 0 vs a/A 0x80 = 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08
+StrnCmp type 0 vs a/A 0xc0 = 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08
+StrnCmp type 1 vs a/A 0x00 = 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+StrnCmp type 1 vs a/A 0x40 = 00 04 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 04 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08
+StrnCmp type 1 vs a/A 0x80 = 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 00 00 00 00 08 08 08 08 08 08 08 00 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 00 08 08 08 00
+StrnCmp type 1 vs a/A 0xc0 = 04 04 04 04 04 04 04 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 00 08 08 08 08 08 08 08 08 04 04 04 04 04 04 04 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 00 08 08 08 08 08 08 08 08
+StrnCmp type 2 vs a/A 0x00 = 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+StrnCmp type 2 vs a/A 0x40 = 00 01 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 05 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08
+StrnCmp type 2 vs a/A 0x80 = 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 00 00 00 00 08 08 08 08 08 08 08 00 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 00 08 08 08 00
+StrnCmp type 2 vs a/A 0xc0 = 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 00 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 00 08 08 08 08 08 08 08 08
+-- catalogs
+OpenCatalogA(NULL, missing) = NULL
+OpenCatalogA(loc, missing) = NULL
+OpenCatalogA(builtin english, missing) = NULL
+OpenCatalogA(builtin deutsch, missing) = NULL
+OpenCatalogA(language missing, missing) = NULL
+GetCatalogStr(NULL, 1, dflt) = "built-in default"
+  returns the default pointer = 1
+GetCatalogStr(NULL, -1, dflt) is default = 1
+GetCatalogStr(NULL, 0, "") = ""
+CloseCatalog(NULL) survived = 1

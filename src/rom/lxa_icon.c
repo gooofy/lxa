@@ -37,6 +37,7 @@
 #include <datatypes/pictureclass.h>
 
 #include "util.h"
+#include "lxa_icon_defaults.h"
 
 /* Helper: convert char to lowercase */
 static char tolower_simple(char c)
@@ -124,36 +125,42 @@ struct IconLayoutInfo
     BOOL borderless;
 };
 
-static BOOL icon_is_valid_type(LONG type)
+/*
+ * Default icon names (ENV:Sys/def_<name>.info), indexed by do_Type.
+ * AmigaOS 3.1 (reference-verified): WBGARBAGE uses "def_trashcan", WBDEVICE
+ * has an empty name ("def_.info") and no built-in image, WBAPPICON has no
+ * default icon at all.
+ */
+static BOOL icon_has_default(LONG type)
 {
-    return (type >= WBDISK && type <= WBAPPICON);
+    return (type >= WBDISK && type <= WBKICK);
 }
 
 static CONST_STRPTR icon_default_type_name(LONG type)
 {
     switch (type)
     {
-        case WBDISK:    return (CONST_STRPTR)"def_disk";
-        case WBDRAWER:  return (CONST_STRPTR)"def_drawer";
-        case WBTOOL:    return (CONST_STRPTR)"def_tool";
-        case WBPROJECT: return (CONST_STRPTR)"def_project";
-        case WBGARBAGE: return (CONST_STRPTR)"def_garbage";
-        case WBDEVICE:  return (CONST_STRPTR)"def_device";
-        case WBKICK:    return (CONST_STRPTR)"def_kick";
-        case WBAPPICON: return (CONST_STRPTR)"def_appicon";
+        case WBDISK:    return (CONST_STRPTR)"disk";
+        case WBDRAWER:  return (CONST_STRPTR)"drawer";
+        case WBTOOL:    return (CONST_STRPTR)"tool";
+        case WBPROJECT: return (CONST_STRPTR)"project";
+        case WBGARBAGE: return (CONST_STRPTR)"trashcan";
+        case WBDEVICE:  return (CONST_STRPTR)"";
+        case WBKICK:    return (CONST_STRPTR)"kick";
     }
 
     return NULL;
 }
 
+/* "ENV:Sys/def_<name>" (without the .info suffix) */
 static BOOL icon_build_default_path(LONG type, UBYTE *buffer, ULONG size)
 {
     CONST_STRPTR type_name = icon_default_type_name(type);
 
-    if (!type_name || !buffer || size < 16)
+    if (!type_name || !buffer || size < 32)
         return FALSE;
 
-    strcpy((char *)buffer, "ENV:Sys/");
+    strcpy((char *)buffer, "ENV:Sys/def_");
     strcat((char *)buffer, (const char *)type_name);
     return TRUE;
 }
@@ -408,20 +415,6 @@ static void icon_draw_frame(struct RastPort *rp,
     SetAPen(rp, saved_pen);
 }
 
-struct DiskObject * _icon_GetDefDiskObject ( register struct IconBase *IconBase __asm("a6"),
-                                             register LONG              type    __asm("d0"));
-
-/* 
- * .info file format (simplified):
- * - DiskObject header (do_Magic, do_Version)
- * - Gadget structure
- * - Type byte
- * - Optional DrawerData
- * - Optional Image data
- * - DefaultTool string (if any)
- * - ToolTypes array (if any)
- */
-
 /****************************************************************************/
 /* Library management functions                                              */
 /****************************************************************************/
@@ -478,25 +471,66 @@ ULONG __g_lxa_icon_ExtFuncLib(void)
 /* FreeList functions                                                        */
 /****************************************************************************/
 
+/*
+ * A FreeList is a list of MemLists with ICON_FREELIST_ENTRIES entries each.
+ * fl_NumFree counts the free entries of the last MemList; entries are
+ * filled from the top down and entry 0 stays unused, so a new MemList is
+ * appended once fl_NumFree drops to 1 (AmigaOS 3.1, reference-verified).
+ * FreeFreeList() frees every recorded block and the MemLists, but not the
+ * FreeList itself.
+ */
+#define ICON_FREELIST_ENTRIES 10
+#define ICON_MEMLIST_SIZE (sizeof(struct MemList) + (ICON_FREELIST_ENTRIES - 1) * sizeof(struct MemEntry))
+
+static BOOL icon_add_free_list(struct FreeList *freelist, APTR mem, ULONG size)
+{
+    struct MemList *ml;
+
+    if (freelist->fl_NumFree <= 1)
+    {
+        ml = AllocMem(ICON_MEMLIST_SIZE, MEMF_CLEAR | MEMF_PUBLIC);
+        if (!ml)
+            return FALSE;
+        ml->ml_NumEntries = ICON_FREELIST_ENTRIES;
+        AddTail(&freelist->fl_MemList, &ml->ml_Node);
+        freelist->fl_NumFree = ICON_FREELIST_ENTRIES;
+    }
+
+    ml = (struct MemList *)freelist->fl_MemList.lh_TailPred;
+    freelist->fl_NumFree--;
+    ml->ml_ME[freelist->fl_NumFree].me_Addr = mem;
+    ml->ml_ME[freelist->fl_NumFree].me_Length = size;
+    return TRUE;
+}
+
+static void icon_free_free_list(struct FreeList *freelist)
+{
+    struct MemList *ml;
+
+    while ((ml = (struct MemList *)RemHead(&freelist->fl_MemList)) != NULL)
+    {
+        UWORD n = ml->ml_NumEntries;
+        UWORD i;
+
+        for (i = 0; i < n; i++)
+        {
+            if (ml->ml_ME[i].me_Addr && ml->ml_ME[i].me_Length)
+                FreeMem(ml->ml_ME[i].me_Addr, ml->ml_ME[i].me_Length);
+        }
+        FreeMem(ml, sizeof(struct MemList) + (n ? n - 1 : 0) * sizeof(struct MemEntry));
+    }
+    freelist->fl_NumFree = 0;
+}
+
 VOID _icon_FreeFreeList ( register struct IconBase *IconBase __asm("a6"),
                           register struct FreeList *freelist __asm("a0"))
 {
     DPRINTF (LOG_DEBUG, "_icon: FreeFreeList() called freelist=0x%08lx\n", freelist);
-    
+
     if (!freelist)
         return;
-    
-    /* Free all memory chunks in the list */
-    struct Node *node, *next;
-    for (node = freelist->fl_MemList.lh_Head; node->ln_Succ; node = next)
-    {
-        next = node->ln_Succ;
-        /* The node itself is part of the allocated memory */
-        FreeMem(node, sizeof(struct Node) + (ULONG)node->ln_Name);
-    }
-    
-    freelist->fl_NumFree = 0;
-    NEWLIST(&freelist->fl_MemList);
+
+    icon_free_free_list(freelist);
 }
 
 BOOL _icon_AddFreeList ( register struct IconBase *IconBase __asm("a6"),
@@ -504,390 +538,711 @@ BOOL _icon_AddFreeList ( register struct IconBase *IconBase __asm("a6"),
                          register CONST_APTR       mem      __asm("a1"),
                          register ULONG            size     __asm("a2"))
 {
-    DPRINTF (LOG_DEBUG, "_icon: AddFreeList() called freelist=0x%08lx mem=0x%08lx size=%ld\n", 
+    DPRINTF (LOG_DEBUG, "_icon: AddFreeList() called freelist=0x%08lx mem=0x%08lx size=%ld\n",
              freelist, mem, size);
-    
-    if (!freelist || !mem)
+
+    if (!freelist)
         return FALSE;
-    
-    /* We track the memory for later freeing */
-    /* Store size in ln_Name field (abuse, but common practice) */
-    struct Node *node = (struct Node *)mem;
-    node->ln_Name = (char *)(size - sizeof(struct Node));
-    
-    AddTail(&freelist->fl_MemList, node);
-    freelist->fl_NumFree++;
-    
-    return TRUE;
+
+    return icon_add_free_list(freelist, (APTR)mem, size);
 }
 
 APTR _icon_FreeAlloc ( register struct IconBase *IconBase __asm("a6"),
                        register struct FreeList *freelist __asm("a0"),
-                       register ULONG            len      __asm("d0"),
-                       register ULONG            type     __asm("d1"))
+                       register ULONG            len      __asm("a1"),
+                       register ULONG            type     __asm("a2"))
 {
+    APTR mem;
+
     DPRINTF (LOG_DEBUG, "_icon: FreeAlloc() called len=%ld type=0x%08lx\n", len, type);
-    
-    if (!freelist)
+
+    if (!freelist || !len)
         return NULL;
-    
-    /* Allocate memory and add to freelist */
-    ULONG allocSize = len + sizeof(struct Node);
-    APTR mem = AllocMem(allocSize, type);
-    
-    if (mem)
+
+    mem = AllocMem(len, type);
+    if (!mem)
+        return NULL;
+
+    if (!icon_add_free_list(freelist, mem, len))
     {
-        struct Node *node = (struct Node *)mem;
-        node->ln_Name = (char *)len;
-        AddTail(&freelist->fl_MemList, node);
-        freelist->fl_NumFree++;
-        return (APTR)((UBYTE *)mem + sizeof(struct Node));
+        FreeMem(mem, len);
+        return NULL;
     }
-    
-    return NULL;
+
+    return mem;
 }
 
 VOID _icon_FreeFree ( register struct IconBase *IconBase __asm("a6"),
                       register struct FreeList *fl       __asm("a0"),
                       register APTR             address  __asm("a1"))
 {
+    struct Node *node;
+
     DPRINTF (LOG_DEBUG, "_icon: FreeFree() called\n");
-    
+
     if (!fl || !address)
         return;
-    
-    /* Find and remove the node from the freelist, then free it */
-    struct Node *node = (struct Node *)((UBYTE *)address - sizeof(struct Node));
-    Remove(node);
-    fl->fl_NumFree--;
-    FreeMem(node, sizeof(struct Node) + (ULONG)node->ln_Name);
+
+    for (node = fl->fl_MemList.lh_Head; node->ln_Succ; node = node->ln_Succ)
+    {
+        struct MemList *ml = (struct MemList *)node;
+        UWORD i;
+
+        for (i = 0; i < ml->ml_NumEntries; i++)
+        {
+            if (ml->ml_ME[i].me_Addr == address)
+            {
+                if (ml->ml_ME[i].me_Length)
+                    FreeMem(address, ml->ml_ME[i].me_Length);
+                ml->ml_ME[i].me_Addr = NULL;
+                ml->ml_ME[i].me_Length = 0;
+                return;
+            }
+        }
+    }
+}
+
+/****************************************************************************/
+/* DiskObject allocation                                                     */
+/****************************************************************************/
+
+/*
+ * Every DiskObject icon.library hands out carries a FreeList that records
+ * all of its memory, so FreeDiskObject() releases exactly what was
+ * allocated even if the application replaced pointers (e.g. do_ToolTypes)
+ * in the meantime.
+ */
+struct IconDiskObject
+{
+    struct DiskObject dobj;
+    struct FreeList   fl;
+};
+
+static struct IconDiskObject *icon_new_diskobject(void)
+{
+    struct IconDiskObject *ido = AllocMem(sizeof(*ido), MEMF_CLEAR | MEMF_PUBLIC);
+
+    if (!ido)
+        return NULL;
+
+    NEWLIST(&ido->fl.fl_MemList);
+    return ido;
+}
+
+static APTR icon_alloc(struct IconDiskObject *ido, ULONG size, ULONG flags)
+{
+    APTR mem;
+
+    if (!size)
+        size = 1;
+
+    mem = AllocMem(size, flags);
+    if (!mem)
+    {
+        SetIoErr(ERROR_NO_FREE_STORE);
+        return NULL;
+    }
+
+    if (!icon_add_free_list(&ido->fl, mem, size))
+    {
+        FreeMem(mem, size);
+        SetIoErr(ERROR_NO_FREE_STORE);
+        return NULL;
+    }
+
+    return mem;
+}
+
+static void icon_dispose_diskobject(struct IconDiskObject *ido)
+{
+    icon_free_free_list(&ido->fl);
+    FreeMem(ido, sizeof(*ido));
+}
+
+static LONG icon_image_bytes(CONST struct Image *img)
+{
+    if (img->Width <= 0 || img->Height <= 0 || img->Depth <= 0)
+        return 0;
+
+    return ((LONG)(img->Width + 15) >> 4) * 2 * img->Height * img->Depth;
+}
+
+static STRPTR icon_dup_string(struct IconDiskObject *ido, CONST_STRPTR s)
+{
+    ULONG len = strlen((const char *)s) + 1;
+    STRPTR copy = icon_alloc(ido, len, MEMF_PUBLIC);
+
+    if (copy)
+        CopyMem((APTR)s, copy, len);
+    return copy;
+}
+
+static struct Image *icon_dup_image(struct IconDiskObject *ido, CONST struct Image *src,
+                                    CONST UWORD *data)
+{
+    struct Image *img = icon_alloc(ido, sizeof(struct Image), MEMF_PUBLIC);
+    LONG bytes;
+
+    if (!img)
+        return NULL;
+
+    *img = *src;
+    img->ImageData = NULL;
+    bytes = icon_image_bytes(src);
+    if (bytes > 0)
+    {
+        img->ImageData = icon_alloc(ido, bytes, MEMF_CHIP | MEMF_CLEAR);
+        if (!img->ImageData)
+            return NULL;
+        if (data)
+            CopyMem((APTR)data, img->ImageData, bytes);
+    }
+
+    return img;
 }
 
 /****************************************************************************/
 /* Icon reading functions                                                    */
 /****************************************************************************/
 
-/* Helper to read a BCPL string from file */
-static STRPTR ReadBCPLString(BPTR fh)
+/*
+ * .info file layout (all big-endian, pointer fields only flag presence):
+ *   struct DiskObject (78 bytes)
+ *   struct OldDrawerData (56 bytes)           if do_DrawerData
+ *   struct Image (20 bytes) + plane data      if do_Gadget.GadgetRender
+ *   struct Image (20 bytes) + plane data      if do_Gadget.SelectRender
+ *   ULONG len + len bytes (incl. NUL)         if do_DefaultTool
+ *   ULONG (n+1)*4, then n strings as above    if do_ToolTypes
+ *   string                                    if do_ToolWindow
+ *   ULONG dd_Flags, UWORD dd_ViewModes        if do_DrawerData (read only
+ *                                             for gadget revision >= 1)
+ */
+
+/* a short read is reported with IoErr() 0, like a successful DOS Read() */
+static BOOL icon_read(BPTR fh, APTR buf, LONG len)
+{
+    LONG got = Read(fh, buf, len);
+
+    if (got == len)
+        return TRUE;
+    if (got >= 0)
+        SetIoErr(0);
+    return FALSE;
+}
+
+static STRPTR icon_read_string(struct IconDiskObject *ido, BPTR fh)
 {
     ULONG len;
-    if (Read(fh, &len, 4) != 4)
+    STRPTR str;
+
+    if (!icon_read(fh, &len, 4))
         return NULL;
-    
-    if (len == 0)
-        return NULL;
-    
-    /* BCPL strings store length in first longword, actual string follows */
-    STRPTR str = AllocMem(len + 1, MEMF_CLEAR);
+
+    str = icon_alloc(ido, len + 1, MEMF_PUBLIC | MEMF_CLEAR);
     if (!str)
         return NULL;
-    
-    if (Read(fh, str, len) != (LONG)len)
-    {
-        FreeMem(str, len + 1);
+
+    if (len && !icon_read(fh, str, len))
         return NULL;
-    }
-    
+
     str[len] = '\0';
     return str;
 }
 
-static LONG GuessDiskObjectType(CONST_STRPTR name)
+static struct Image *icon_read_image(struct IconDiskObject *ido, BPTR fh)
 {
-    struct FileInfoBlock fib;
-    BPTR lock;
+    struct Image *img = icon_alloc(ido, sizeof(struct Image), MEMF_PUBLIC);
+    LONG bytes;
 
-    if (!name)
-        return WBPROJECT;
+    if (!img)
+        return NULL;
 
-    lock = Lock(name, ACCESS_READ);
-    if (!lock)
-        return WBPROJECT;
+    if (!icon_read(fh, img, sizeof(struct Image)))
+        return NULL;
 
-    if (!Examine(lock, &fib))
+    /* AmigaOS 3.1 (reference-verified): position and plane mapping are reset */
+    img->LeftEdge = 0;
+    img->TopEdge = 0;
+    img->PlanePick = (UBYTE)((1 << img->Depth) - 1);
+    img->PlaneOnOff = 0;
+    img->ImageData = NULL;
+    bytes = icon_image_bytes(img);
+    if (bytes > 0)
     {
-        UnLock(lock);
-        return WBPROJECT;
+        img->ImageData = icon_alloc(ido, bytes, MEMF_CHIP);
+        if (!img->ImageData)
+            return NULL;
+        if (!icon_read(fh, img->ImageData, bytes))
+            return NULL;
     }
 
-    UnLock(lock);
+    return img;
+}
 
-    if (fib.fib_DirEntryType > 0)
-        return WBDRAWER;
+static BOOL icon_read_body(struct IconDiskObject *ido, BPTR fh)
+{
+    struct DiskObject *dobj = &ido->dobj;
+    BOOL has_dd = dobj->do_DrawerData != NULL;
+    BOOL has_img1 = dobj->do_Gadget.GadgetRender != NULL;
+    BOOL has_img2 = dobj->do_Gadget.SelectRender != NULL;
+    BOOL has_tool = dobj->do_DefaultTool != NULL;
+    BOOL has_tt = dobj->do_ToolTypes != NULL;
+    BOOL has_tw = dobj->do_ToolWindow != NULL;
 
-    if ((fib.fib_Protection & FIBF_EXECUTE) == 0)
-        return WBTOOL;
+    dobj->do_Gadget.NextGadget = NULL;
+    dobj->do_Gadget.GadgetText = NULL;
+    dobj->do_Gadget.GadgetRender = NULL;
+    dobj->do_Gadget.SelectRender = NULL;
+    dobj->do_DrawerData = NULL;
+    dobj->do_DefaultTool = NULL;
+    dobj->do_ToolTypes = NULL;
+    dobj->do_ToolWindow = NULL;
 
-    return WBPROJECT;
+    if (has_dd)
+    {
+        dobj->do_DrawerData = icon_alloc(ido, sizeof(struct DrawerData), MEMF_PUBLIC | MEMF_CLEAR);
+        if (!dobj->do_DrawerData)
+            return FALSE;
+        if (!icon_read(fh, dobj->do_DrawerData, OLDDRAWERDATAFILESIZE))
+            return FALSE;
+    }
+
+    if (has_img1)
+    {
+        dobj->do_Gadget.GadgetRender = icon_read_image(ido, fh);
+        if (!dobj->do_Gadget.GadgetRender)
+            return FALSE;
+    }
+
+    if (has_img2)
+    {
+        dobj->do_Gadget.SelectRender = icon_read_image(ido, fh);
+        if (!dobj->do_Gadget.SelectRender)
+            return FALSE;
+    }
+
+    if (has_tool)
+    {
+        dobj->do_DefaultTool = icon_read_string(ido, fh);
+        if (!dobj->do_DefaultTool)
+            return FALSE;
+    }
+
+    if (has_tt)
+    {
+        ULONG size, count, i;
+        STRPTR *tt;
+
+        if (!icon_read(fh, &size, 4))
+            return FALSE;
+
+        count = size / sizeof(STRPTR);
+        if (count == 0)
+            count = 1;
+
+        tt = icon_alloc(ido, count * sizeof(STRPTR), MEMF_PUBLIC | MEMF_CLEAR);
+        if (!tt)
+            return FALSE;
+
+        for (i = 0; i + 1 < count; i++)
+        {
+            tt[i] = icon_read_string(ido, fh);
+            if (!tt[i])
+                return FALSE;
+        }
+        tt[count - 1] = NULL;
+        dobj->do_ToolTypes = tt;
+    }
+
+    if (has_tw)
+    {
+        dobj->do_ToolWindow = icon_read_string(ido, fh);
+        if (!dobj->do_ToolWindow)
+            return FALSE;
+    }
+
+    if (has_dd && ((ULONG)dobj->do_Gadget.UserData & WB_DISKREVISIONMASK) >= 1)
+    {
+        UBYTE ext[6];
+
+        /* optional: files written before V36 end here */
+        if (Read(fh, ext, sizeof(ext)) == sizeof(ext))
+        {
+            dobj->do_DrawerData->dd_Flags = ((ULONG)ext[0] << 24) | ((ULONG)ext[1] << 16) |
+                                            ((ULONG)ext[2] << 8) | ext[3];
+            dobj->do_DrawerData->dd_ViewModes = (UWORD)((ext[4] << 8) | ext[5]);
+        }
+    }
+
+    return TRUE;
+}
+
+static STRPTR icon_info_name(CONST_STRPTR name, ULONG *size)
+{
+    ULONG len = strlen((const char *)name) + 6;
+    STRPTR info = AllocMem(len, MEMF_PUBLIC);
+
+    if (!info)
+    {
+        SetIoErr(ERROR_NO_FREE_STORE);
+        return NULL;
+    }
+
+    strcpy((char *)info, (const char *)name);
+    strcat((char *)info, ".info");
+    *size = len;
+    return info;
 }
 
 struct DiskObject * _icon_GetDiskObject ( register struct IconBase *IconBase __asm("a6"),
                                           register CONST_STRPTR     name     __asm("a0"))
 {
-    DPRINTF (LOG_DEBUG, "_icon: GetDiskObject() called name='%s'\n", name ? (char*)name : "(null)");
-    
+    struct IconDiskObject *ido;
+    STRPTR info;
+    ULONG info_size;
+    BPTR fh;
+    BOOL ok;
+
+    DPRINTF (LOG_DEBUG, "_icon: GetDiskObject() called name='%s'\n", STRORNULL(name));
+
+    /* AmigaOS 3.1 (reference-verified): NULL yields an empty DiskObject */
     if (!name)
-        return AllocMem(sizeof(struct DiskObject), MEMF_CLEAR | MEMF_PUBLIC);
-    
-    /* Build .info filename */
-    LONG nameLen = strlen((const char *)name);
-    STRPTR infoName = AllocMem(nameLen + 6, MEMF_CLEAR);
-    if (!infoName)
+    {
+        ido = icon_new_diskobject();
+        if (!ido)
+        {
+            SetIoErr(ERROR_NO_FREE_STORE);
+            return NULL;
+        }
+        return &ido->dobj;
+    }
+
+    info = icon_info_name(name, &info_size);
+    if (!info)
         return NULL;
-    
-    strcpy((char *)infoName, (const char *)name);
-    strcat((char *)infoName, ".info");
-    
-    /* Open the .info file */
-    BPTR fh = Open(infoName, MODE_OLDFILE);
-    FreeMem(infoName, nameLen + 6);
-    
+
+    fh = Open(info, MODE_OLDFILE);
+    FreeMem(info, info_size);
     if (!fh)
-    {
-        DPRINTF (LOG_DEBUG, "_icon: GetDiskObject() - file not found\n");
         return NULL;
-    }
-    
-    /* Allocate DiskObject */
-    struct DiskObject *dobj = AllocMem(sizeof(struct DiskObject), MEMF_CLEAR | MEMF_PUBLIC);
-    if (!dobj)
+
+    ido = icon_new_diskobject();
+    if (!ido)
     {
         Close(fh);
+        SetIoErr(ERROR_NO_FREE_STORE);
         return NULL;
     }
-    
-    /* Read DiskObject header */
-    if (Read(fh, dobj, sizeof(struct DiskObject)) != sizeof(struct DiskObject))
+
+    ok = icon_read(fh, &ido->dobj, sizeof(struct DiskObject));
+    if (ok && (ido->dobj.do_Magic != WB_DISKMAGIC || ido->dobj.do_Version != WB_DISKVERSION))
     {
-        FreeMem(dobj, sizeof(struct DiskObject));
-        Close(fh);
-        return NULL;
+        SetIoErr(0);
+        ok = FALSE;
     }
-    
-    /* Verify magic number */
-    if (dobj->do_Magic != WB_DISKMAGIC)
+    if (ok && !(ido->dobj.do_Gadget.Flags & GFLG_GADGIMAGE))
     {
-        DPRINTF (LOG_DEBUG, "_icon: GetDiskObject() - bad magic 0x%04x\n", dobj->do_Magic);
-        FreeMem(dobj, sizeof(struct DiskObject));
-        Close(fh);
-        return NULL;
+        SetIoErr(ERROR_OBJECT_WRONG_TYPE);
+        ok = FALSE;
     }
-    
-    DPRINTF (LOG_DEBUG, "_icon: GetDiskObject() - type=%d, magic=0x%04x, version=%d\n",
-             dobj->do_Type, dobj->do_Magic, dobj->do_Version);
-    
-    /* Read DrawerData if present */
-    if (dobj->do_DrawerData)
-    {
-        struct DrawerData *dd = AllocMem(sizeof(struct DrawerData), MEMF_CLEAR | MEMF_PUBLIC);
-        if (dd)
-        {
-            if (Read(fh, dd, sizeof(struct OldDrawerData)) != sizeof(struct OldDrawerData))
-            {
-                FreeMem(dd, sizeof(struct DrawerData));
-                dd = NULL;
-            }
-        }
-        dobj->do_DrawerData = dd;
-    }
-    
-    /* Read first image if present */
-    struct Image *img1 = NULL;
-    if (dobj->do_Gadget.GadgetRender)
-    {
-        img1 = AllocMem(sizeof(struct Image), MEMF_CLEAR | MEMF_PUBLIC);
-        if (img1)
-        {
-            if (Read(fh, img1, sizeof(struct Image)) == sizeof(struct Image))
-            {
-                /* Read image data */
-                LONG words = ((img1->Width + 15) / 16) * img1->Height * img1->Depth;
-                LONG bytes = words * 2;
-                if (bytes > 0)
-                {
-                    img1->ImageData = AllocMem(bytes, MEMF_CHIP | MEMF_CLEAR);
-                    if (img1->ImageData)
-                    {
-                        Read(fh, img1->ImageData, bytes);
-                    }
-                }
-                dobj->do_Gadget.GadgetRender = img1;
-            }
-            else
-            {
-                FreeMem(img1, sizeof(struct Image));
-                img1 = NULL;
-                dobj->do_Gadget.GadgetRender = NULL;
-            }
-        }
-    }
-    
-    /* Read second image (select) if present */
-    struct Image *img2 = NULL;
-    if (dobj->do_Gadget.SelectRender)
-    {
-        img2 = AllocMem(sizeof(struct Image), MEMF_CLEAR | MEMF_PUBLIC);
-        if (img2)
-        {
-            if (Read(fh, img2, sizeof(struct Image)) == sizeof(struct Image))
-            {
-                /* Read image data */
-                LONG words = ((img2->Width + 15) / 16) * img2->Height * img2->Depth;
-                LONG bytes = words * 2;
-                if (bytes > 0)
-                {
-                    img2->ImageData = AllocMem(bytes, MEMF_CHIP | MEMF_CLEAR);
-                    if (img2->ImageData)
-                    {
-                        Read(fh, img2->ImageData, bytes);
-                    }
-                }
-                dobj->do_Gadget.SelectRender = img2;
-            }
-            else
-            {
-                FreeMem(img2, sizeof(struct Image));
-                img2 = NULL;
-                dobj->do_Gadget.SelectRender = NULL;
-            }
-        }
-    }
-    
-    /* Read DefaultTool if present */
-    if (dobj->do_DefaultTool)
-    {
-        dobj->do_DefaultTool = ReadBCPLString(fh);
-    }
-    
-    /* Read ToolTypes if present */
-    if (dobj->do_ToolTypes)
-    {
-        ULONG numTools;
-        if (Read(fh, &numTools, 4) == 4 && numTools > 0)
-        {
-            /* Allocate array + NULL terminator */
-            STRPTR *toolTypes = AllocMem((numTools + 1) * sizeof(STRPTR), MEMF_CLEAR | MEMF_PUBLIC);
-            if (toolTypes)
-            {
-                ULONG i;
-                for (i = 0; i < numTools; i++)
-                {
-                    toolTypes[i] = ReadBCPLString(fh);
-                }
-                toolTypes[numTools] = NULL;
-                dobj->do_ToolTypes = toolTypes;
-            }
-            else
-            {
-                dobj->do_ToolTypes = NULL;
-            }
-        }
-        else
-        {
-            dobj->do_ToolTypes = NULL;
-        }
-    }
-    
-    /* Read ToolWindow if present */
-    if (dobj->do_ToolWindow)
-    {
-        dobj->do_ToolWindow = ReadBCPLString(fh);
-    }
-    
+    if (ok)
+        ok = icon_read_body(ido, fh);
+
     Close(fh);
-    
-    DPRINTF (LOG_DEBUG, "_icon: GetDiskObject() - success, dobj=0x%08lx\n", dobj);
-    return dobj;
+
+    if (!ok)
+    {
+        /* the header pointers are file garbage until icon_read_body() replaced them */
+        icon_dispose_diskobject(ido);
+        return NULL;
+    }
+
+    return &ido->dobj;
 }
 
-struct DiskObject * _icon_GetDiskObjectNew ( register struct IconBase *IconBase __asm("a6"),
-                                             register CONST_STRPTR     name     __asm("a0"))
+/*
+ * Built-in default icons (AmigaOS 3.1, reference-verified).  WBKICK shows
+ * the disk image; WBDEVICE and WBAPPICON have none.
+ */
+struct IconDefault
 {
-    DPRINTF (LOG_DEBUG, "_icon: GetDiskObjectNew() called name='%s'\n", STRORNULL(name));
-    
-    /* First try to get the actual icon */
-    struct DiskObject *dobj = _icon_GetDiskObject(IconBase, name);
-    
-    if (!dobj)
-    {
-        LONG type = GuessDiskObjectType(name);
+    UBYTE        type;
+    WORD         gad_width, gad_height;
+    UWORD        flags, activation;
+    WORD         img_width, img_height;
+    CONST UWORD *render;
+    CONST UWORD *select;
+    BOOL         drawer;
+    CONST char  *default_tool;
+};
 
-        DPRINTF (LOG_DEBUG, "_icon: GetDiskObjectNew() - using default type=%ld\n", type);
-        dobj = _icon_GetDefDiskObject(IconBase, type);
+static const struct IconDefault g_icon_defaults[] =
+{
+    { WBDISK,    35, 18, GFLG_GADGIMAGE,                  GACT_RELVERIFY | GACT_IMMEDIATE, 35, 17,
+      g_icon_img_disk,     NULL,                   TRUE,  "SYS:System/DiskCopy" },
+    { WBDRAWER,  57, 14, GFLG_GADGIMAGE | GFLG_GADGHIMAGE, GACT_RELVERIFY | GACT_IMMEDIATE, 57, 14,
+      g_icon_img_drawer,   g_icon_img_drawer_sel,   TRUE,  NULL },
+    { WBTOOL,    54, 23, GFLG_GADGIMAGE,                  GACT_RELVERIFY,                  54, 22,
+      g_icon_img_tool,     NULL,                   FALSE, NULL },
+    { WBPROJECT, 54, 23, GFLG_GADGIMAGE | GFLG_GADGHBOX,  GACT_RELVERIFY,                  54, 22,
+      g_icon_img_project,  NULL,                   FALSE, NULL },
+    { WBGARBAGE, 51, 31, GFLG_GADGIMAGE | GFLG_GADGHIMAGE, GACT_RELVERIFY | GACT_IMMEDIATE, 51, 31,
+      g_icon_img_trashcan, g_icon_img_trashcan_sel, TRUE,  NULL },
+    { WBKICK,    35, 18, GFLG_GADGIMAGE,                  GACT_RELVERIFY | GACT_IMMEDIATE, 35, 17,
+      g_icon_img_disk,     NULL,                   FALSE, NULL },
+};
+
+static struct DiskObject *icon_builtin_default(LONG type)
+{
+    const struct IconDefault *def = NULL;
+    struct IconDiskObject *ido;
+    struct DiskObject *dobj;
+    struct Image img;
+    ULONG i;
+
+    for (i = 0; i < sizeof(g_icon_defaults) / sizeof(g_icon_defaults[0]); i++)
+    {
+        if (g_icon_defaults[i].type == type)
+        {
+            def = &g_icon_defaults[i];
+            break;
+        }
     }
-    
+    if (!def)
+        return NULL;
+
+    ido = icon_new_diskobject();
+    if (!ido)
+    {
+        SetIoErr(ERROR_NO_FREE_STORE);
+        return NULL;
+    }
+    dobj = &ido->dobj;
+
+    dobj->do_Magic = WB_DISKMAGIC;
+    dobj->do_Version = WB_DISKVERSION;
+    dobj->do_Type = def->type;
+    dobj->do_CurrentX = NO_ICON_POSITION;
+    dobj->do_CurrentY = NO_ICON_POSITION;
+    dobj->do_Gadget.Width = def->gad_width;
+    dobj->do_Gadget.Height = def->gad_height;
+    dobj->do_Gadget.Flags = def->flags;
+    dobj->do_Gadget.Activation = def->activation;
+    dobj->do_Gadget.GadgetType = GTYP_BOOLGADGET;
+
+    memset(&img, 0, sizeof(img));
+    img.Width = def->img_width;
+    img.Height = def->img_height;
+    img.Depth = 2;
+    img.PlanePick = 3;
+
+    dobj->do_Gadget.GadgetRender = icon_dup_image(ido, &img, def->render);
+    if (!dobj->do_Gadget.GadgetRender)
+        goto fail;
+
+    if (def->select)
+    {
+        dobj->do_Gadget.SelectRender = icon_dup_image(ido, &img, def->select);
+        if (!dobj->do_Gadget.SelectRender)
+            goto fail;
+    }
+
+    if (def->drawer)
+    {
+        struct DrawerData *dd = icon_alloc(ido, sizeof(struct DrawerData), MEMF_PUBLIC | MEMF_CLEAR);
+
+        if (!dd)
+            goto fail;
+        dd->dd_NewWindow.LeftEdge = 50;
+        dd->dd_NewWindow.TopEdge = 50;
+        dd->dd_NewWindow.Width = 400;
+        dd->dd_NewWindow.Height = 100;
+        dd->dd_NewWindow.DetailPen = 255;
+        dd->dd_NewWindow.BlockPen = 255;
+        dd->dd_NewWindow.Flags = 0x0240027f;    /* as AmigaOS 3.1 */
+        dd->dd_NewWindow.MinWidth = 90;
+        dd->dd_NewWindow.MinHeight = 40;
+        dd->dd_NewWindow.MaxWidth = 0xffff;
+        dd->dd_NewWindow.MaxHeight = 0xffff;
+        dd->dd_NewWindow.Type = WBENCHSCREEN;
+        dobj->do_DrawerData = dd;
+    }
+
+    if (def->default_tool)
+    {
+        dobj->do_DefaultTool = icon_dup_string(ido, (CONST_STRPTR)def->default_tool);
+        if (!dobj->do_DefaultTool)
+            goto fail;
+    }
+
     return dobj;
+
+fail:
+    icon_dispose_diskobject(ido);
+    return NULL;
 }
 
 struct DiskObject * _icon_GetDefDiskObject ( register struct IconBase *IconBase __asm("a6"),
                                              register LONG              type    __asm("d0"))
 {
-    UBYTE default_name[64];
-    struct DiskObject *saved;
-
-    type = (LONG)(WORD)type; /* sign-extend: GCC m68k move.w workaround */
+    UBYTE default_name[32];
+    struct DiskObject *dobj;
 
     DPRINTF (LOG_DEBUG, "_icon: GetDefDiskObject() called type=%ld\n", type);
 
-    if (!icon_is_valid_type(type))
-    {
-        SetIoErr(ERROR_BAD_NUMBER);
+    /* invalid types (and WBAPPICON) fail without touching IoErr() */
+    if (!icon_has_default(type) || !icon_build_default_path(type, default_name, sizeof(default_name)))
         return NULL;
-    }
 
-    if (icon_build_default_path(type, default_name, sizeof(default_name)))
+    dobj = _icon_GetDiskObject(IconBase, (CONST_STRPTR)default_name);
+    if (dobj)
+        return dobj;
+
+    return icon_builtin_default(type);
+}
+
+struct DiskObject * _icon_GetDiskObjectNew ( register struct IconBase *IconBase __asm("a6"),
+                                             register CONST_STRPTR     name     __asm("a0"))
+{
+    struct FileInfoBlock *fib;
+    struct DiskObject *dobj;
+    BPTR lock;
+    LONG type;
+
+    DPRINTF (LOG_DEBUG, "_icon: GetDiskObjectNew() called name='%s'\n", STRORNULL(name));
+
+    dobj = _icon_GetDiskObject(IconBase, name);   /* NULL name: an empty DiskObject */
+    if (dobj || !name)
+        return dobj;
+
+    /* no icon: a default one for what the object is; nothing if it does not exist */
+    lock = Lock(name, ACCESS_READ);
+    if (!lock)
+        return NULL;
+
+    fib = AllocDosObject(DOS_FIB, NULL);
+    if (!fib)
     {
-        saved = _icon_GetDiskObject(IconBase, (CONST_STRPTR)default_name);
-        if (saved)
-        {
-            SetIoErr(0);
-            return saved;
-        }
-    }
-    
-    /* Allocate a default DiskObject */
-    struct DiskObject *dobj = AllocMem(sizeof(struct DiskObject), MEMF_CLEAR | MEMF_PUBLIC);
-    if (!dobj)
-    {
+        UnLock(lock);
         SetIoErr(ERROR_NO_FREE_STORE);
         return NULL;
     }
-    
-    /* Set up basic defaults */
-    dobj->do_Magic = WB_DISKMAGIC;
-    dobj->do_Version = WB_DISKVERSION;
-    dobj->do_Type = type;
-    dobj->do_CurrentX = NO_ICON_POSITION;
-    dobj->do_CurrentY = NO_ICON_POSITION;
-    dobj->do_StackSize = 4096;
-    
-    /* Set gadget defaults */
-    dobj->do_Gadget.Width = 40;
-    dobj->do_Gadget.Height = 40;
 
-    SetIoErr(0);
-    
-    return dobj;
+    if (!Examine(lock, fib))
+    {
+        FreeDosObject(DOS_FIB, fib);
+        UnLock(lock);
+        return NULL;
+    }
+    UnLock(lock);
+
+    if (fib->fib_DirEntryType == ST_ROOT)
+        type = WBDISK;
+    else if (fib->fib_DirEntryType > 0)
+        type = WBDRAWER;
+    else if (fib->fib_Protection & FIBF_EXECUTE)
+        type = WBPROJECT;
+    else
+        type = WBTOOL;
+    FreeDosObject(DOS_FIB, fib);
+
+    return _icon_GetDefDiskObject(IconBase, type);
 }
 
 /****************************************************************************/
 /* Icon writing functions                                                    */
 /****************************************************************************/
 
-/* Helper to write a BCPL string to file */
-static BOOL WriteBCPLString(BPTR fh, STRPTR str)
+static BOOL icon_write(BPTR fh, CONST_APTR buf, LONG len)
 {
-    ULONG len = str ? strlen((const char *)str) : 0;
-    
-    if (Write(fh, &len, 4) != 4)
+    return Write(fh, (APTR)buf, len) == len;
+}
+
+static BOOL icon_write_string(BPTR fh, CONST_STRPTR str)
+{
+    ULONG len = strlen((const char *)str) + 1;
+
+    return icon_write(fh, &len, 4) && icon_write(fh, str, len);
+}
+
+static BOOL icon_write_image(BPTR fh, struct Image *img)
+{
+    LONG bytes = icon_image_bytes(img);
+
+    /* AmigaOS 3.1 (reference-verified): every plane is stored; the caller's
+     * image is updated to match what was written */
+    img->PlanePick = (UBYTE)((1 << img->Depth) - 1);
+    img->PlaneOnOff = 0;
+
+    if (!icon_write(fh, img, sizeof(struct Image)))
         return FALSE;
-    
-    if (len > 0)
+
+    if (bytes <= 0)
+        return TRUE;
+
+    if (img->ImageData)
+        return icon_write(fh, img->ImageData, bytes);
+
+    /* no plane data in memory: keep the file consistent with zeros */
+    while (bytes > 0)
     {
-        if (Write(fh, str, len) != (LONG)len)
+        static const UBYTE zero[64];
+        LONG n = bytes > (LONG)sizeof(zero) ? (LONG)sizeof(zero) : bytes;
+
+        if (!icon_write(fh, zero, n))
+            return FALSE;
+        bytes -= n;
+    }
+    return TRUE;
+}
+
+static BOOL icon_write_diskobject(BPTR fh, CONST struct DiskObject *dobj)
+{
+    if (!icon_write(fh, dobj, sizeof(struct DiskObject)))
+        return FALSE;
+
+    if (dobj->do_DrawerData && !icon_write(fh, dobj->do_DrawerData, OLDDRAWERDATAFILESIZE))
+        return FALSE;
+
+    if (dobj->do_Gadget.GadgetRender &&
+        !icon_write_image(fh, (struct Image *)dobj->do_Gadget.GadgetRender))
+        return FALSE;
+
+    if (dobj->do_Gadget.SelectRender &&
+        !icon_write_image(fh, (struct Image *)dobj->do_Gadget.SelectRender))
+        return FALSE;
+
+    if (dobj->do_DefaultTool && !icon_write_string(fh, dobj->do_DefaultTool))
+        return FALSE;
+
+    if (dobj->do_ToolTypes)
+    {
+        STRPTR *tt = dobj->do_ToolTypes;
+        ULONG size = sizeof(STRPTR);
+
+        while (*tt++)
+            size += sizeof(STRPTR);
+
+        if (!icon_write(fh, &size, 4))
+            return FALSE;
+
+        for (tt = dobj->do_ToolTypes; *tt; tt++)
+        {
+            if (!icon_write_string(fh, *tt))
+                return FALSE;
+        }
+    }
+
+    if (dobj->do_ToolWindow && !icon_write_string(fh, dobj->do_ToolWindow))
+        return FALSE;
+
+    if (dobj->do_DrawerData)
+    {
+        if (!icon_write(fh, &dobj->do_DrawerData->dd_Flags, 4) ||
+            !icon_write(fh, &dobj->do_DrawerData->dd_ViewModes, 2))
             return FALSE;
     }
-    
+
     return TRUE;
 }
 
@@ -895,199 +1250,98 @@ BOOL _icon_PutDiskObject ( register struct IconBase       *IconBase __asm("a6"),
                            register CONST_STRPTR           name     __asm("a0"),
                            register CONST struct DiskObject *dobj   __asm("a1"))
 {
-    DPRINTF (LOG_DEBUG, "_icon: PutDiskObject() called name='%s' dobj=0x%08lx\n", 
+    STRPTR info;
+    ULONG info_size;
+    BPTR fh;
+    BOOL ok;
+    LONG err;
+
+    DPRINTF (LOG_DEBUG, "_icon: PutDiskObject() called name='%s' dobj=0x%08lx\n",
              STRORNULL(name), dobj);
-    
+
     if (!name || !dobj)
         return FALSE;
-    
-    /* Build .info filename */
-    LONG nameLen = strlen((const char *)name);
-    STRPTR infoName = AllocMem(nameLen + 6, MEMF_CLEAR);
-    if (!infoName)
+
+    info = icon_info_name(name, &info_size);
+    if (!info)
         return FALSE;
-    
-    strcpy((char *)infoName, (const char *)name);
-    strcat((char *)infoName, ".info");
-    
-    /* Create the .info file */
-    BPTR fh = Open(infoName, MODE_NEWFILE);
-    FreeMem(infoName, nameLen + 6);
-    
+
+    fh = Open(info, MODE_NEWFILE);
     if (!fh)
+    {
+        FreeMem(info, info_size);
         return FALSE;
-    
-    BOOL success = TRUE;
-    
-    /* Write DiskObject header */
-    /* Need to write a modified version with pointers converted to flags */
-    struct DiskObject tempDO = *dobj;
-    tempDO.do_DrawerData = dobj->do_DrawerData ? (struct DrawerData *)1 : NULL;
-    tempDO.do_Gadget.GadgetRender = dobj->do_Gadget.GadgetRender ? (APTR)1 : NULL;
-    tempDO.do_Gadget.SelectRender = dobj->do_Gadget.SelectRender ? (APTR)1 : NULL;
-    tempDO.do_DefaultTool = dobj->do_DefaultTool ? (STRPTR)1 : NULL;
-    tempDO.do_ToolTypes = dobj->do_ToolTypes ? (STRPTR *)1 : NULL;
-    tempDO.do_ToolWindow = dobj->do_ToolWindow ? (STRPTR)1 : NULL;
-    
-    if (Write(fh, &tempDO, sizeof(struct DiskObject)) != sizeof(struct DiskObject))
-        success = FALSE;
-    
-    /* Write DrawerData if present */
-    if (success && dobj->do_DrawerData)
-    {
-        if (Write(fh, dobj->do_DrawerData, sizeof(struct OldDrawerData)) != sizeof(struct OldDrawerData))
-            success = FALSE;
     }
-    
-    /* Write first image if present */
-    if (success && dobj->do_Gadget.GadgetRender)
+
+    ok = icon_write_diskobject(fh, dobj);
+    err = IoErr();
+    if (!Close(fh))
     {
-        struct Image *img = (struct Image *)dobj->do_Gadget.GadgetRender;
-        /* Write image structure with data pointer as flag */
-        struct Image tempImg = *img;
-        tempImg.ImageData = img->ImageData ? (UWORD *)1 : NULL;
-        
-        if (Write(fh, &tempImg, sizeof(struct Image)) != sizeof(struct Image))
-            success = FALSE;
-        
-        /* Write image data */
-        if (success && img->ImageData)
-        {
-            LONG words = ((img->Width + 15) / 16) * img->Height * img->Depth;
-            LONG bytes = words * 2;
-            if (bytes > 0)
-            {
-                if (Write(fh, img->ImageData, bytes) != bytes)
-                    success = FALSE;
-            }
-        }
+        if (ok)
+            err = IoErr();
+        ok = FALSE;
     }
-    
-    /* Write second image if present */
-    if (success && dobj->do_Gadget.SelectRender)
+
+    if (!ok)
     {
-        struct Image *img = (struct Image *)dobj->do_Gadget.SelectRender;
-        struct Image tempImg = *img;
-        tempImg.ImageData = img->ImageData ? (UWORD *)1 : NULL;
-        
-        if (Write(fh, &tempImg, sizeof(struct Image)) != sizeof(struct Image))
-            success = FALSE;
-        
-        if (success && img->ImageData)
-        {
-            LONG words = ((img->Width + 15) / 16) * img->Height * img->Depth;
-            LONG bytes = words * 2;
-            if (bytes > 0)
-            {
-                if (Write(fh, img->ImageData, bytes) != bytes)
-                    success = FALSE;
-            }
-        }
+        DeleteFile(info);   /* never leave a truncated icon behind */
+        FreeMem(info, info_size);
+        SetIoErr(err);
+        return FALSE;
     }
-    
-    /* Write DefaultTool */
-    if (success && !WriteBCPLString(fh, dobj->do_DefaultTool))
-        success = FALSE;
-    
-    /* Write ToolTypes */
-    if (success && dobj->do_ToolTypes)
-    {
-        /* Count tool types */
-        ULONG numTools = 0;
-        STRPTR *tt = dobj->do_ToolTypes;
-        while (*tt)
-        {
-            numTools++;
-            tt++;
-        }
-        
-        if (Write(fh, &numTools, 4) != 4)
-            success = FALSE;
-        
-        if (success)
-        {
-            tt = dobj->do_ToolTypes;
-            while (*tt && success)
-            {
-                if (!WriteBCPLString(fh, *tt))
-                    success = FALSE;
-                tt++;
-            }
-        }
-    }
-    else if (success)
-    {
-        ULONG zero = 0;
-        if (Write(fh, &zero, 4) != 4)
-            success = FALSE;
-    }
-    
-    /* Write ToolWindow */
-    if (success)
-        WriteBCPLString(fh, dobj->do_ToolWindow);
-    
-    Close(fh);
-    return success;
+
+    FreeMem(info, info_size);
+    SetIoErr(0);
+    return TRUE;
 }
 
 BOOL _icon_PutDefDiskObject ( register struct IconBase       *IconBase  __asm("a6"),
                               register CONST struct DiskObject *dobj    __asm("a0"))
 {
-    UBYTE default_name[64];
+    UBYTE default_name[32];
 
     DPRINTF (LOG_DEBUG, "_icon: PutDefDiskObject() called dobj=0x%08lx\n", dobj);
 
     if (!dobj)
-    {
-        SetIoErr(ERROR_REQUIRED_ARG_MISSING);
         return FALSE;
-    }
 
-    if (!icon_is_valid_type(dobj->do_Type))
-    {
-        SetIoErr(ERROR_BAD_NUMBER);
+    /* AmigaOS 3.1: WBAPPICON fails silently, other unknown types clear IoErr() */
+    if (dobj->do_Type == WBAPPICON)
         return FALSE;
-    }
 
-    if (!icon_build_default_path(dobj->do_Type, default_name, sizeof(default_name)))
+    if (!icon_has_default(dobj->do_Type) ||
+        !icon_build_default_path(dobj->do_Type, default_name, sizeof(default_name)))
     {
-        SetIoErr(ERROR_BAD_NUMBER);
+        SetIoErr(0);
         return FALSE;
     }
 
     icon_ensure_default_directory();
 
-    if (!_icon_PutDiskObject(IconBase, (CONST_STRPTR)default_name, dobj))
-    {
-        if (IoErr() == 0)
-            SetIoErr(ERROR_OBJECT_NOT_FOUND);
-        return FALSE;
-    }
-
-    SetIoErr(0);
-    return TRUE;
+    return _icon_PutDiskObject(IconBase, (CONST_STRPTR)default_name, dobj);
 }
 
 BOOL _icon_DeleteDiskObject ( register struct IconBase *IconBase __asm("a6"),
                               register CONST_STRPTR     name     __asm("a0"))
 {
+    STRPTR info;
+    ULONG info_size;
+    BOOL result;
+
     DPRINTF (LOG_DEBUG, "_icon: DeleteDiskObject() called name='%s'\n", STRORNULL(name));
-    
+
     if (!name)
         return FALSE;
-    
-    /* Build .info filename */
-    LONG nameLen = strlen((const char *)name);
-    STRPTR infoName = AllocMem(nameLen + 6, MEMF_CLEAR);
-    if (!infoName)
+
+    info = icon_info_name(name, &info_size);
+    if (!info)
         return FALSE;
-    
-    strcpy((char *)infoName, (const char *)name);
-    strcat((char *)infoName, ".info");
-    
-    BOOL result = DeleteFile(infoName);
-    FreeMem(infoName, nameLen + 6);
-    
+
+    result = DeleteFile(info);
+    FreeMem(info, info_size);
+
+    /* AmigaOS 3.1 (reference-verified): IoErr() is 0 afterwards, also on failure */
+    SetIoErr(0);
     return result;
 }
 
@@ -1099,169 +1353,113 @@ VOID _icon_FreeDiskObject ( register struct IconBase   *IconBase __asm("a6"),
                             register struct DiskObject *dobj     __asm("a0"))
 {
     DPRINTF (LOG_DEBUG, "_icon: FreeDiskObject() called dobj=0x%08lx\n", dobj);
-    
+
     if (!dobj)
         return;
-    
-    /* Free DrawerData */
-    if (dobj->do_DrawerData)
-    {
-        FreeMem(dobj->do_DrawerData, sizeof(struct DrawerData));
-    }
-    
-    /* Free first image */
-    if (dobj->do_Gadget.GadgetRender)
-    {
-        struct Image *img = (struct Image *)dobj->do_Gadget.GadgetRender;
-        if (img->ImageData)
-        {
-            LONG words = ((img->Width + 15) / 16) * img->Height * img->Depth;
-            LONG bytes = words * 2;
-            if (bytes > 0)
-                FreeMem(img->ImageData, bytes);
-        }
-        FreeMem(img, sizeof(struct Image));
-    }
-    
-    /* Free second image */
-    if (dobj->do_Gadget.SelectRender)
-    {
-        struct Image *img = (struct Image *)dobj->do_Gadget.SelectRender;
-        if (img->ImageData)
-        {
-            LONG words = ((img->Width + 15) / 16) * img->Height * img->Depth;
-            LONG bytes = words * 2;
-            if (bytes > 0)
-                FreeMem(img->ImageData, bytes);
-        }
-        FreeMem(img, sizeof(struct Image));
-    }
-    
-    /* Free DefaultTool */
-    if (dobj->do_DefaultTool)
-    {
-        FreeMem(dobj->do_DefaultTool, strlen((const char *)dobj->do_DefaultTool) + 1);
-    }
-    
-    /* Free ToolTypes */
-    if (dobj->do_ToolTypes)
-    {
-        STRPTR *tt = dobj->do_ToolTypes;
-        ULONG count = 0;
-        while (*tt)
-        {
-            FreeMem(*tt, strlen((const char *)*tt) + 1);
-            count++;
-            tt++;
-        }
-        FreeMem(dobj->do_ToolTypes, (count + 1) * sizeof(STRPTR));
-    }
-    
-    /* Free ToolWindow */
-    if (dobj->do_ToolWindow)
-    {
-        FreeMem(dobj->do_ToolWindow, strlen((const char *)dobj->do_ToolWindow) + 1);
-    }
-    
-    /* Free the DiskObject itself */
+
     icon_remove_private_state(IconBase, dobj);
-    FreeMem(dobj, sizeof(struct DiskObject));
+    icon_dispose_diskobject((struct IconDiskObject *)dobj);
 }
 
 /****************************************************************************/
 /* ToolType functions                                                        */
 /****************************************************************************/
 
+/*
+ * AmigaOS 3.1 (reference-verified): the name must match the start of an
+ * entry exactly (ASCII case-insensitive, no blank skipping, comments in
+ * parentheses are ordinary entries) and be followed by '=' (result: the
+ * value) or the end of the entry (result: the empty string at its end).
+ * An empty name only matches an empty entry.
+ */
 UBYTE * _icon_FindToolType ( register struct IconBase *IconBase      __asm("a6"),
                              register CONST_STRPTR    *toolTypeArray __asm("a0"),
                              register CONST_STRPTR     typeName      __asm("a1"))
 {
-    DPRINTF (LOG_DEBUG, "_icon: FindToolType() called toolTypeArray=0x%08lx typeName='%s'\n", toolTypeArray, typeName ? (char*)typeName : "(null)");
-    
+    ULONG typeLen;
+
+    DPRINTF (LOG_DEBUG, "_icon: FindToolType() called typeName='%s'\n", STRORNULL(typeName));
+
     if (!toolTypeArray || !typeName)
         return NULL;
-    
-    ULONG typeLen = strlen((const char *)typeName);
-    
-    while (*toolTypeArray)
+
+    typeLen = strlen((const char *)typeName);
+
+    for (; *toolTypeArray; toolTypeArray++)
     {
         const char *tt = (const char *)*toolTypeArray;
-        
-        /* No leading-space skipping: AmigaOS 3.1 matches from the first
-         * character (reference-verified, Phase 220). */
 
-        /* Skip comments (lines starting with parentheses) */
-        if (*tt == '(')
-        {
-            toolTypeArray++;
+        if (strncasecmp_simple(tt, (const char *)typeName, typeLen) != 0)
             continue;
-        }
-        
-        /* Check for exact match or match with '=' */
-        if (strncasecmp_simple(tt, (const char *)typeName, typeLen) == 0)
-        {
-            char nextChar = tt[typeLen];
-            if (nextChar == '\0')
-            {
-                /* Exact match - return empty string (boolean TRUE) */
-                return (UBYTE *)"";
-            }
-            else if (nextChar == '=')
-            {
-                /* Match with value */
-                return (UBYTE *)&tt[typeLen + 1];
-            }
-        }
-        
-        toolTypeArray++;
+
+        if (tt[typeLen] == '\0')
+            return (UBYTE *)&tt[typeLen];
+        if (tt[typeLen] == '=' && typeLen > 0)
+            return (UBYTE *)&tt[typeLen + 1];
     }
-    
+
     return NULL;
 }
 
+/*
+ * AmigaOS 3.1 (reference-verified): typeString is a '|'-separated list;
+ * value must equal one element (ASCII case-insensitive, blanks are
+ * significant).  An empty value only matches an empty last element.
+ */
 BOOL _icon_MatchToolValue ( register struct IconBase *IconBase   __asm("a6"),
                             register CONST_STRPTR     typeString __asm("a0"),
                             register CONST_STRPTR     value      __asm("a1"))
 {
+    const char *ts;
+    ULONG valueLen;
+
     DPRINTF (LOG_DEBUG, "_icon: MatchToolValue() called typeString='%s' value='%s'\n",
              STRORNULL(typeString), STRORNULL(value));
-    
+
     if (!typeString || !value)
         return FALSE;
-    
-    /* typeString can contain multiple values separated by '|' */
-    ULONG valueLen = strlen((const char *)value);
-    const char *ts = (const char *)typeString;
-    
-    while (*ts)
+
+    ts = (const char *)typeString;
+    valueLen = strlen((const char *)value);
+
+    if (valueLen == 0)
     {
-        /* Skip spaces */
-        while (*ts == ' ' || *ts == '\t')
-            ts++;
-        
-        /* Compare up to next '|' or end */
+        const char *last = ts;
+
+        for (; *ts; ts++)
+        {
+            if (*ts == '|')
+                last = ts + 1;
+        }
+        return *last == '\0';
+    }
+
+    for (;;)
+    {
         const char *start = ts;
+
         while (*ts && *ts != '|')
             ts++;
-        
-        /* Trim trailing spaces */
-        const char *end = ts;
-        while (end > start && (end[-1] == ' ' || end[-1] == '\t'))
-            end--;
-        
-        /* Compare */
-        if ((ULONG)(end - start) == valueLen && 
+
+        if ((ULONG)(ts - start) == valueLen &&
             strncasecmp_simple(start, (const char *)value, valueLen) == 0)
-        {
             return TRUE;
-        }
-        
-        /* Skip the '|' */
-        if (*ts == '|')
-            ts++;
+
+        if (!*ts)
+            return FALSE;
+        ts++;
     }
-    
-    return FALSE;
+}
+
+static BOOL bump_is_sep(char c)
+{
+    return c == '_' || c == ' ';
+}
+
+/* "of" followed by a separator */
+static BOOL bump_is_of(const char *p)
+{
+    return tolower_simple(p[0]) == 'o' && tolower_simple(p[1]) == 'f' && bump_is_sep(p[2]);
 }
 
 STRPTR _icon_BumpRevision ( register struct IconBase *IconBase __asm("a6"),
@@ -1271,16 +1469,16 @@ STRPTR _icon_BumpRevision ( register struct IconBase *IconBase __asm("a6"),
     /*
      * AmigaOS 3.1 (reference-verified): "foo" -> "Copy_of_foo",
      * "copy_of_foo" -> "Copy_2_of_foo", "copy_<n>_of_foo" -> "Copy_<n+1>_of_foo".
-     * The prefix match is case-insensitive; the result is truncated to the
-     * DOS name size of 30 characters.
+     * "copy", "of" match case-insensitively, each separator is one '_' or
+     * ' ', <n> is accumulated as a 32-bit value and printed signed.  The
+     * result is truncated to 30 characters.
      */
     const char *old;
-    const char *rest;
-    char digits[12];
+    const char *rest = NULL;
+    char tmp[64];
     char *dst;
     ULONG num = 0;
-    int nd = 0;
-    int i;
+    int len = 0;
 
     DPRINTF (LOG_DEBUG, "_icon: BumpRevision() called oldname='%s'\n", STRORNULL(oldname));
 
@@ -1288,51 +1486,63 @@ STRPTR _icon_BumpRevision ( register struct IconBase *IconBase __asm("a6"),
         return NULL;
 
     old = (const char *)oldname;
-    rest = old;
 
-    if (strncasecmp_simple(old, "copy_of_", 8) == 0)
-    {
-        num = 2;
-        rest = old + 8;
-    }
-    else if (strncasecmp_simple(old, "copy_", 5) == 0 && old[5] >= '0' && old[5] <= '9')
+    if (strncasecmp_simple(old, "copy", 4) == 0 && bump_is_sep(old[4]))
     {
         const char *p = old + 5;
-        ULONG n = 0;
-        while (*p >= '0' && *p <= '9')
+
+        if (bump_is_of(p))
         {
-            n = n * 10 + (ULONG)(*p - '0');
-            p++;
+            num = 2;
+            rest = p + 3;
         }
-        if (strncasecmp_simple(p, "_of_", 4) == 0)
+        else if (*p >= '0' && *p <= '9')
         {
-            num = n + 1;
-            rest = p + 4;
+            ULONG n = 0;
+
+            while (*p >= '0' && *p <= '9')
+                n = n * 10 + (ULONG)(*p++ - '0');
+
+            if (bump_is_sep(*p) && bump_is_of(p + 1))
+            {
+                num = n + 1;
+                rest = p + 4;
+            }
         }
     }
 
-    dst = (char *)newname;
+    dst = tmp;
     strcpy(dst, "Copy_");
     dst += 5;
-    if (num)
+    if (rest)
     {
+        char digits[12];
+        LONG v = (LONG)num;
+        ULONG u = v < 0 ? (ULONG)(-(v + 1)) + 1 : (ULONG)v;
+        int nd = 0;
+
+        if (v < 0)
+            *dst++ = '-';
         do
         {
-            digits[nd++] = (char)('0' + (num % 10));
-            num /= 10;
-        } while (num && nd < 10);
-        for (i = nd - 1; i >= 0; i--)
-            *dst++ = digits[i];
+            digits[nd++] = (char)('0' + u % 10);
+            u /= 10;
+        } while (u);
+        while (nd)
+            *dst++ = digits[--nd];
         *dst++ = '_';
     }
+    else
+        rest = old;
     strcpy(dst, "of_");
     dst += 3;
+    len = dst - tmp;
 
-    /* copy the remainder, truncating the whole name to 30 characters */
-    while (*rest && (dst - (char *)newname) < 30)
-        *dst++ = *rest++;
-    *dst = '\0';
+    while (len < 30 && *rest)
+        tmp[len++] = *rest++;
+    tmp[len] = '\0';
 
+    CopyMem(tmp, newname, len + 1);
     return newname;
 }
 
@@ -1342,15 +1552,15 @@ STRPTR _icon_BumpRevisionLength ( register struct IconBase *IconBase  __asm("a6"
                                   register ULONG            maxLength __asm("d0"))
 {
     DPRINTF (LOG_DEBUG, "_icon: BumpRevisionLength() called\n");
-    
+
     /* Call BumpRevision then truncate if needed */
     STRPTR result = _icon_BumpRevision(IconBase, newname, oldname);
-    
-    if (result && strlen((const char *)result) >= maxLength)
+
+    if (result && maxLength > 0 && strlen((const char *)result) >= maxLength)
     {
         result[maxLength - 1] = '\0';
     }
-    
+
     return result;
 }
 
@@ -1362,71 +1572,92 @@ struct DiskObject * _icon_DupDiskObjectA ( register struct IconBase       *IconB
                                            register CONST struct DiskObject *dobj   __asm("a0"),
                                            register CONST struct TagItem  *tags     __asm("a1"))
 {
+    struct IconDiskObject *ido;
+    struct DiskObject *copy;
+
     DPRINTF (LOG_DEBUG, "_icon: DupDiskObjectA() called\n");
-    
+
     if (!dobj)
         return NULL;
-    
-    /* Simple duplication - allocate and copy */
-    struct DiskObject *newDobj = AllocMem(sizeof(struct DiskObject), MEMF_CLEAR | MEMF_PUBLIC);
-    if (!newDobj)
+
+    ido = icon_new_diskobject();
+    if (!ido)
+    {
+        SetIoErr(ERROR_NO_FREE_STORE);
         return NULL;
-    
-    /* Copy basic structure */
-    *newDobj = *dobj;
-    
-    /* Clear pointers - we need to duplicate these separately */
-    newDobj->do_DrawerData = NULL;
-    newDobj->do_Gadget.GadgetRender = NULL;
-    newDobj->do_Gadget.SelectRender = NULL;
-    newDobj->do_DefaultTool = NULL;
-    newDobj->do_ToolTypes = NULL;
-    newDobj->do_ToolWindow = NULL;
-    
-    /* Duplicate strings */
+    }
+    copy = &ido->dobj;
+    *copy = *dobj;
+    copy->do_Gadget.GadgetRender = NULL;
+    copy->do_Gadget.SelectRender = NULL;
+    copy->do_DrawerData = NULL;
+    copy->do_DefaultTool = NULL;
+    copy->do_ToolTypes = NULL;
+    copy->do_ToolWindow = NULL;
+
+    if (dobj->do_Gadget.GadgetRender)
+    {
+        CONST struct Image *src = (CONST struct Image *)dobj->do_Gadget.GadgetRender;
+        copy->do_Gadget.GadgetRender = icon_dup_image(ido, src, src->ImageData);
+        if (!copy->do_Gadget.GadgetRender)
+            goto fail;
+    }
+
+    if (dobj->do_Gadget.SelectRender)
+    {
+        CONST struct Image *src = (CONST struct Image *)dobj->do_Gadget.SelectRender;
+        copy->do_Gadget.SelectRender = icon_dup_image(ido, src, src->ImageData);
+        if (!copy->do_Gadget.SelectRender)
+            goto fail;
+    }
+
+    if (dobj->do_DrawerData)
+    {
+        copy->do_DrawerData = icon_alloc(ido, sizeof(struct DrawerData), MEMF_PUBLIC);
+        if (!copy->do_DrawerData)
+            goto fail;
+        *copy->do_DrawerData = *dobj->do_DrawerData;
+    }
+
     if (dobj->do_DefaultTool)
     {
-        ULONG len = strlen((const char *)dobj->do_DefaultTool) + 1;
-        newDobj->do_DefaultTool = AllocMem(len, MEMF_PUBLIC);
-        if (newDobj->do_DefaultTool)
-            strcpy((char *)newDobj->do_DefaultTool, (const char *)dobj->do_DefaultTool);
+        copy->do_DefaultTool = icon_dup_string(ido, dobj->do_DefaultTool);
+        if (!copy->do_DefaultTool)
+            goto fail;
     }
-    
+
     if (dobj->do_ToolWindow)
     {
-        ULONG len = strlen((const char *)dobj->do_ToolWindow) + 1;
-        newDobj->do_ToolWindow = AllocMem(len, MEMF_PUBLIC);
-        if (newDobj->do_ToolWindow)
-            strcpy((char *)newDobj->do_ToolWindow, (const char *)dobj->do_ToolWindow);
+        copy->do_ToolWindow = icon_dup_string(ido, dobj->do_ToolWindow);
+        if (!copy->do_ToolWindow)
+            goto fail;
     }
-    
-    /* Duplicate ToolTypes */
+
     if (dobj->do_ToolTypes)
     {
         ULONG count = 0;
-        STRPTR *tt = dobj->do_ToolTypes;
-        while (*tt)
-        {
+        ULONG i;
+
+        while (dobj->do_ToolTypes[count])
             count++;
-            tt++;
-        }
-        
-        newDobj->do_ToolTypes = AllocMem((count + 1) * sizeof(STRPTR), MEMF_CLEAR | MEMF_PUBLIC);
-        if (newDobj->do_ToolTypes)
+
+        copy->do_ToolTypes = icon_alloc(ido, (count + 1) * sizeof(STRPTR), MEMF_PUBLIC | MEMF_CLEAR);
+        if (!copy->do_ToolTypes)
+            goto fail;
+
+        for (i = 0; i < count; i++)
         {
-            ULONG i;
-            for (i = 0; i < count; i++)
-            {
-                ULONG len = strlen((const char *)dobj->do_ToolTypes[i]) + 1;
-                newDobj->do_ToolTypes[i] = AllocMem(len, MEMF_PUBLIC);
-                if (newDobj->do_ToolTypes[i])
-                    strcpy((char *)newDobj->do_ToolTypes[i], (const char *)dobj->do_ToolTypes[i]);
-            }
-            newDobj->do_ToolTypes[count] = NULL;
+            copy->do_ToolTypes[i] = icon_dup_string(ido, dobj->do_ToolTypes[i]);
+            if (!copy->do_ToolTypes[i])
+                goto fail;
         }
     }
-    
-    return newDobj;
+
+    return copy;
+
+fail:
+    icon_dispose_diskobject(ido);
+    return NULL;
 }
 
 ULONG _icon_IconControlA ( register struct IconBase      *IconBase __asm("a6"),
@@ -1783,7 +2014,6 @@ BOOL _icon_GetIconRectangleA ( register struct IconBase       *IconBase __asm("a
 struct DiskObject * _icon_NewDiskObject ( register struct IconBase *IconBase __asm("a6"),
                                           register LONG             type     __asm("d0"))
 {
-    type = (LONG)(WORD)type; /* sign-extend: GCC m68k move.w workaround */
 
     DPRINTF (LOG_DEBUG, "_icon: NewDiskObject() called type=%ld\n", type);
     return _icon_GetDefDiskObject(IconBase, type);

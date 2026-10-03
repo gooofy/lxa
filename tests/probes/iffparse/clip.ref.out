@@ -1,0 +1,35 @@
+OpenClipboard = non-NULL
+cbh_Req.io_Error = 0
+flags after InitIFFasClip = 0x00000006
+-- write
+OpenIFF = 0
+Push FORM = 0
+Push CHRS = 0
+Write = 10
+Write = 1
+Pop CHRS = 0
+Push ANNO = 0
+Write = 3
+Pop ANNO = 0
+Pop FORM = 0
+-- read
+OpenIFF = 0
+StopChunk = 0
+PropChunk = 0
+StopOnExit = 0
+ParseIFF = 0 top=CHRS/FTXT sz=11 sc=0
+  ReadChunkBytes = 11
+  data = 48 65 6c 6c 6f 20 63 6c 69 70 21
+ParseIFF = -2(EOC) top=FORM/FTXT sz=36 sc=36
+  FindProp ANNO size = 3
+ParseIFF = -1(EOF) top=NULL
+-- read again
+OpenIFF = 0
+raw = 0 top=FORM/FTXT sz=36 sc=4
+raw = 0 top=CHRS/FTXT sz=11 sc=0
+raw = -2(EOC) top=CHRS/FTXT sz=11 sc=0
+raw = 0 top=ANNO/FTXT sz=3 sc=0
+raw = -2(EOC) top=ANNO/FTXT sz=3 sc=0
+raw = -2(EOC) top=FORM/FTXT sz=36 sc=36
+raw = -1(EOF) top=NULL
+CloseClipboard = "done"

@@ -229,6 +229,9 @@ int main(void)
     CopyMem(original_map.km_HiCapsable, custom_hi_caps, sizeof(custom_hi_caps));
     CopyMem(original_map.km_HiRepeatable, custom_hi_repeat, sizeof(custom_hi_repeat));
 
+    /* 3.1's usa keymap has KCF_DEAD on 'a' (the entry points to a dead-key
+     * table): make it a plain vanilla key before storing characters */
+    custom_lo_types[RAWKEY_A_CODE] = KC_VANILLA;
     custom_lo_map[RAWKEY_A_CODE] = 'z' | ('Z' << 8) | ('z' << 16) | ('Z' << 24);
 
     custom_map.km_LoKeyMapTypes = custom_lo_types;

@@ -1,0 +1,964 @@
+-- rseek
+rseek: OpenIFF = 0 flags=0x00010005
+  io: I
+Push FORM/ILBM -1: rc=0 d=1 top=FORM/ILBM sz=-1 sc=4
+  io: W8 W4
+Push BMHD/.... 4: rc=0 d=2 top=BMHD/ILBM sz=4 sc=0 < FORM/ILBM sz=-1 sc=12
+  io: W8
+WriteBytes 4: rc=4 d=2 top=BMHD/ILBM sz=4 sc=4 < FORM/ILBM sz=-1 sc=12
+  io: W4
+Pop: rc=0 d=1 top=FORM/ILBM sz=-1 sc=16
+Push CMAP/ILBM -1: rc=0 d=2 top=CMAP/ILBM sz=-1 sc=0 < FORM/ILBM sz=-1 sc=24
+  io: W8
+WriteBytes 3: rc=3 d=2 top=CMAP/ILBM sz=-1 sc=3 < FORM/ILBM sz=-1 sc=24
+  io: W3
+Pop: rc=0 d=1 top=FORM/ILBM sz=-1 sc=28
+  io: W1 S-8 W4 S4
+Push BODY/.... -1: rc=0 d=2 top=BODY/ILBM sz=-1 sc=0 < FORM/ILBM sz=-1 sc=36
+  io: W8
+WriteBytes 7: rc=7 d=2 top=BODY/ILBM sz=-1 sc=7 < FORM/ILBM sz=-1 sc=36
+  io: W7
+WriteRecs 2x3: rc=3 d=2 top=BODY/ILBM sz=-1 sc=13 < FORM/ILBM sz=-1 sc=36
+  io: W6
+Pop: rc=0 d=1 top=FORM/ILBM sz=-1 sc=50
+  io: W1 S-18 W4 S14
+Pop: rc=0 d=0 top=NULL
+  io: S-54 W4 S50
+Pop: rc=-1(EOF) d=0 top=NULL
+rseek: closed d=0
+  io: C
+  out (58) = 46 4f 52 4d 00 00 00 32 49 4c 42 4d 42 4d 48 44 00 00 00 04 61 62 63 64 43 4d 41 50 00 00 00 03
+    78 79 7a 00 42 4f 44 59 00 00 00 0d 30 31 32 33 34 35 36 41 42 43 44 45 46 00
+-- fseek
+fseek: OpenIFF = 0 flags=0x00010003
+  io: I
+Push FORM/ILBM -1: rc=0 d=1 top=FORM/ILBM sz=-1 sc=4
+Push BMHD/.... 4: rc=0 d=2 top=BMHD/ILBM sz=4 sc=0 < FORM/ILBM sz=-1 sc=12
+WriteBytes 4: rc=4 d=2 top=BMHD/ILBM sz=4 sc=4 < FORM/ILBM sz=-1 sc=12
+Pop: rc=0 d=1 top=FORM/ILBM sz=-1 sc=16
+Push CMAP/ILBM -1: rc=0 d=2 top=CMAP/ILBM sz=-1 sc=0 < FORM/ILBM sz=-1 sc=24
+WriteBytes 3: rc=3 d=2 top=CMAP/ILBM sz=-1 sc=3 < FORM/ILBM sz=-1 sc=24
+Pop: rc=0 d=1 top=FORM/ILBM sz=-1 sc=28
+Push BODY/.... -1: rc=0 d=2 top=BODY/ILBM sz=-1 sc=0 < FORM/ILBM sz=-1 sc=36
+WriteBytes 7: rc=7 d=2 top=BODY/ILBM sz=-1 sc=7 < FORM/ILBM sz=-1 sc=36
+WriteRecs 2x3: rc=3 d=2 top=BODY/ILBM sz=-1 sc=13 < FORM/ILBM sz=-1 sc=36
+Pop: rc=0 d=1 top=FORM/ILBM sz=-1 sc=50
+Pop: rc=0 d=0 top=NULL
+  io: W8 W4 W8 W4 W8 W3 W1 W8 W7 W6 W1
+Pop: rc=-1(EOF) d=0 top=NULL
+fseek: closed d=0
+  io: C
+  out (58) = 46 4f 52 4d 00 00 00 32 49 4c 42 4d 42 4d 48 44 00 00 00 04 61 62 63 64 43 4d 41 50 00 00 00 03
+    78 79 7a 00 42 4f 44 59 00 00 00 0d 30 31 32 33 34 35 36 41 42 43 44 45 46 00
+-- noseek
+noseek: OpenIFF = 0 flags=0x00010001
+  io: I
+Push FORM/ILBM -1: rc=0 d=1 top=FORM/ILBM sz=-1 sc=4
+Push BMHD/.... 4: rc=0 d=2 top=BMHD/ILBM sz=4 sc=0 < FORM/ILBM sz=-1 sc=12
+WriteBytes 4: rc=4 d=2 top=BMHD/ILBM sz=4 sc=4 < FORM/ILBM sz=-1 sc=12
+Pop: rc=0 d=1 top=FORM/ILBM sz=-1 sc=16
+Push CMAP/ILBM -1: rc=0 d=2 top=CMAP/ILBM sz=-1 sc=0 < FORM/ILBM sz=-1 sc=24
+WriteBytes 3: rc=3 d=2 top=CMAP/ILBM sz=-1 sc=3 < FORM/ILBM sz=-1 sc=24
+Pop: rc=0 d=1 top=FORM/ILBM sz=-1 sc=28
+Push BODY/.... -1: rc=0 d=2 top=BODY/ILBM sz=-1 sc=0 < FORM/ILBM sz=-1 sc=36
+WriteBytes 7: rc=7 d=2 top=BODY/ILBM sz=-1 sc=7 < FORM/ILBM sz=-1 sc=36
+WriteRecs 2x3: rc=3 d=2 top=BODY/ILBM sz=-1 sc=13 < FORM/ILBM sz=-1 sc=36
+Pop: rc=0 d=1 top=FORM/ILBM sz=-1 sc=50
+Pop: rc=0 d=0 top=NULL
+  io: W8 W4 W8 W4 W8 W3 W1 W8 W7 W6 W1
+Pop: rc=-1(EOF) d=0 top=NULL
+noseek: closed d=0
+  io: C
+  out (58) = 46 4f 52 4d 00 00 00 32 49 4c 42 4d 42 4d 48 44 00 00 00 04 61 62 63 64 43 4d 41 50 00 00 00 03
+    78 79 7a 00 42 4f 44 59 00 00 00 0d 30 31 32 33 34 35 36 41 42 43 44 45 46 00
+-- noseek-known
+noseek-known: OpenIFF = 0 flags=0x00010001
+  io: I
+Push FORM/ILBM 50: rc=0 d=1 top=FORM/ILBM sz=50 sc=4
+Push BMHD/.... 4: rc=0 d=2 top=BMHD/ILBM sz=4 sc=0 < FORM/ILBM sz=50 sc=12
+WriteBytes 4: rc=4 d=2 top=BMHD/ILBM sz=4 sc=4 < FORM/ILBM sz=50 sc=12
+Pop: rc=0 d=1 top=FORM/ILBM sz=50 sc=16
+Push CMAP/ILBM -1: rc=0 d=2 top=CMAP/ILBM sz=-1 sc=0 < FORM/ILBM sz=50 sc=24
+WriteBytes 3: rc=3 d=2 top=CMAP/ILBM sz=-1 sc=3 < FORM/ILBM sz=50 sc=24
+Pop: rc=0 d=1 top=FORM/ILBM sz=50 sc=28
+Push BODY/.... 13: rc=0 d=2 top=BODY/ILBM sz=13 sc=0 < FORM/ILBM sz=50 sc=36
+WriteBytes 7: rc=7 d=2 top=BODY/ILBM sz=13 sc=7 < FORM/ILBM sz=50 sc=36
+WriteRecs 2x3: rc=3 d=2 top=BODY/ILBM sz=13 sc=13 < FORM/ILBM sz=50 sc=36
+Pop: rc=0 d=1 top=FORM/ILBM sz=50 sc=50
+Pop: rc=0 d=0 top=NULL
+  io: W8 W4 W8 W4 W8 W3 W1 W8 W7 W6 W1
+Pop: rc=-1(EOF) d=0 top=NULL
+noseek-known: closed d=0
+  io: C
+  out (58) = 46 4f 52 4d 00 00 00 32 49 4c 42 4d 42 4d 48 44 00 00 00 04 61 62 63 64 43 4d 41 50 00 00 00 03
+    78 79 7a 00 42 4f 44 59 00 00 00 0d 30 31 32 33 34 35 36 41 42 43 44 45 46 00
+-- rseek-known
+rseek-known: OpenIFF = 0 flags=0x00010005
+  io: I
+Push FORM/ILBM 50: rc=0 d=1 top=FORM/ILBM sz=50 sc=4
+  io: W8 W4
+Push BMHD/.... 4: rc=0 d=2 top=BMHD/ILBM sz=4 sc=0 < FORM/ILBM sz=50 sc=12
+  io: W8
+WriteBytes 4: rc=4 d=2 top=BMHD/ILBM sz=4 sc=4 < FORM/ILBM sz=50 sc=12
+  io: W4
+Pop: rc=0 d=1 top=FORM/ILBM sz=50 sc=16
+Push CMAP/ILBM -1: rc=0 d=2 top=CMAP/ILBM sz=-1 sc=0 < FORM/ILBM sz=50 sc=24
+  io: W8
+WriteBytes 3: rc=3 d=2 top=CMAP/ILBM sz=-1 sc=3 < FORM/ILBM sz=50 sc=24
+  io: W3
+Pop: rc=0 d=1 top=FORM/ILBM sz=50 sc=28
+  io: W1 S-8 W4 S4
+Push BODY/.... 13: rc=0 d=2 top=BODY/ILBM sz=13 sc=0 < FORM/ILBM sz=50 sc=36
+  io: W8
+WriteBytes 7: rc=7 d=2 top=BODY/ILBM sz=13 sc=7 < FORM/ILBM sz=50 sc=36
+  io: W7
+WriteRecs 2x3: rc=3 d=2 top=BODY/ILBM sz=13 sc=13 < FORM/ILBM sz=50 sc=36
+  io: W6
+Pop: rc=0 d=1 top=FORM/ILBM sz=50 sc=50
+  io: W1
+Pop: rc=0 d=0 top=NULL
+Pop: rc=-1(EOF) d=0 top=NULL
+rseek-known: closed d=0
+  io: C
+  out (58) = 46 4f 52 4d 00 00 00 32 49 4c 42 4d 42 4d 48 44 00 00 00 04 61 62 63 64 43 4d 41 50 00 00 00 03
+    78 79 7a 00 42 4f 44 59 00 00 00 0d 30 31 32 33 34 35 36 41 42 43 44 45 46 00
+-- rseek-small-body
+rseek-small-body: OpenIFF = 0 flags=0x00010005
+  io: I
+Push FORM/ILBM -1: rc=0 d=1 top=FORM/ILBM sz=-1 sc=4
+  io: W8 W4
+Push BMHD/.... 4: rc=0 d=2 top=BMHD/ILBM sz=4 sc=0 < FORM/ILBM sz=-1 sc=12
+  io: W8
+WriteBytes 4: rc=4 d=2 top=BMHD/ILBM sz=4 sc=4 < FORM/ILBM sz=-1 sc=12
+  io: W4
+Pop: rc=0 d=1 top=FORM/ILBM sz=-1 sc=16
+Push CMAP/ILBM -1: rc=0 d=2 top=CMAP/ILBM sz=-1 sc=0 < FORM/ILBM sz=-1 sc=24
+  io: W8
+WriteBytes 3: rc=3 d=2 top=CMAP/ILBM sz=-1 sc=3 < FORM/ILBM sz=-1 sc=24
+  io: W3
+Pop: rc=0 d=1 top=FORM/ILBM sz=-1 sc=28
+  io: W1 S-8 W4 S4
+Push BODY/.... 9: rc=0 d=2 top=BODY/ILBM sz=9 sc=0 < FORM/ILBM sz=-1 sc=36
+  io: W8
+WriteBytes 7: rc=7 d=2 top=BODY/ILBM sz=9 sc=7 < FORM/ILBM sz=-1 sc=36
+  io: W7
+WriteRecs 2x3: rc=1 d=2 top=BODY/ILBM sz=9 sc=9 < FORM/ILBM sz=-1 sc=36
+  io: W2
+Pop: rc=0 d=1 top=FORM/ILBM sz=-1 sc=46
+  io: W1
+Pop: rc=0 d=0 top=NULL
+  io: S-50 W4 S46
+Pop: rc=-1(EOF) d=0 top=NULL
+rseek-small-body: closed d=0
+  io: C
+  out (54) = 46 4f 52 4d 00 00 00 2e 49 4c 42 4d 42 4d 48 44 00 00 00 04 61 62 63 64 43 4d 41 50 00 00 00 03
+    78 79 7a 00 42 4f 44 59 00 00 00 09 30 31 32 33 34 35 36 41 42 00
+-- rseek-wrong-form
+rseek-wrong-form: OpenIFF = 0 flags=0x00010005
+  io: I
+Push FORM/ILBM 20: rc=0 d=1 top=FORM/ILBM sz=20 sc=4
+  io: W8 W4
+Push BMHD/.... 4: rc=0 d=2 top=BMHD/ILBM sz=4 sc=0 < FORM/ILBM sz=20 sc=12
+  io: W8
+WriteBytes 4: rc=4 d=2 top=BMHD/ILBM sz=4 sc=4 < FORM/ILBM sz=20 sc=12
+  io: W4
+Pop: rc=0 d=1 top=FORM/ILBM sz=20 sc=16
+Push CMAP/ILBM -1: rc=-6(WRITE) d=1 top=FORM/ILBM sz=20 sc=20
+  io: W4
+WriteBytes 3: rc=0 d=1 top=FORM/ILBM sz=20 sc=20
+Pop: rc=0 d=0 top=NULL
+Push BODY/.... 13: rc=-1(EOF) d=0 top=NULL
+WriteBytes 7: rc=-1(EOF) d=0 top=NULL
+WriteRecs 2x3: rc=-1(EOF) d=0 top=NULL
+Pop: rc=-1(EOF) d=0 top=NULL
+Pop: rc=-1(EOF) d=0 top=NULL
+Pop: rc=-1(EOF) d=0 top=NULL
+rseek-wrong-form: closed d=0
+  io: C
+  out (28) = 46 4f 52 4d 00 00 00 14 49 4c 42 4d 42 4d 48 44 00 00 00 04 61 62 63 64 43 4d 41 50
+-- fseek-known
+fseek-known: OpenIFF = 0 flags=0x00010003
+  io: I
+Push FORM/ILBM 50: rc=0 d=1 top=FORM/ILBM sz=50 sc=4
+Push BMHD/.... 4: rc=0 d=2 top=BMHD/ILBM sz=4 sc=0 < FORM/ILBM sz=50 sc=12
+WriteBytes 4: rc=4 d=2 top=BMHD/ILBM sz=4 sc=4 < FORM/ILBM sz=50 sc=12
+Pop: rc=0 d=1 top=FORM/ILBM sz=50 sc=16
+Push CMAP/ILBM -1: rc=0 d=2 top=CMAP/ILBM sz=-1 sc=0 < FORM/ILBM sz=50 sc=24
+WriteBytes 3: rc=3 d=2 top=CMAP/ILBM sz=-1 sc=3 < FORM/ILBM sz=50 sc=24
+Pop: rc=0 d=1 top=FORM/ILBM sz=50 sc=28
+Push BODY/.... 13: rc=0 d=2 top=BODY/ILBM sz=13 sc=0 < FORM/ILBM sz=50 sc=36
+WriteBytes 7: rc=7 d=2 top=BODY/ILBM sz=13 sc=7 < FORM/ILBM sz=50 sc=36
+WriteRecs 2x3: rc=3 d=2 top=BODY/ILBM sz=13 sc=13 < FORM/ILBM sz=50 sc=36
+Pop: rc=0 d=1 top=FORM/ILBM sz=50 sc=50
+Pop: rc=0 d=0 top=NULL
+  io: W8 W4 W8 W4 W8 W3 W1 W8 W7 W6 W1
+Pop: rc=-1(EOF) d=0 top=NULL
+fseek-known: closed d=0
+  io: C
+  out (58) = 46 4f 52 4d 00 00 00 32 49 4c 42 4d 42 4d 48 44 00 00 00 04 61 62 63 64 43 4d 41 50 00 00 00 03
+    78 79 7a 00 42 4f 44 59 00 00 00 0d 30 31 32 33 34 35 36 41 42 43 44 45 46 00
+-- both
+both: OpenIFF = 0 flags=0x00010007
+  io: I
+Push FORM/ILBM -1: rc=0 d=1 top=FORM/ILBM sz=-1 sc=4
+  io: W8 W4
+Push BMHD/.... 4: rc=0 d=2 top=BMHD/ILBM sz=4 sc=0 < FORM/ILBM sz=-1 sc=12
+  io: W8
+WriteBytes 4: rc=4 d=2 top=BMHD/ILBM sz=4 sc=4 < FORM/ILBM sz=-1 sc=12
+  io: W4
+Pop: rc=0 d=1 top=FORM/ILBM sz=-1 sc=16
+Push CMAP/ILBM -1: rc=0 d=2 top=CMAP/ILBM sz=-1 sc=0 < FORM/ILBM sz=-1 sc=24
+  io: W8
+WriteBytes 3: rc=3 d=2 top=CMAP/ILBM sz=-1 sc=3 < FORM/ILBM sz=-1 sc=24
+  io: W3
+Pop: rc=0 d=1 top=FORM/ILBM sz=-1 sc=28
+  io: W1 S-8 W4 S4
+Push BODY/.... -1: rc=0 d=2 top=BODY/ILBM sz=-1 sc=0 < FORM/ILBM sz=-1 sc=36
+  io: W8
+WriteBytes 7: rc=7 d=2 top=BODY/ILBM sz=-1 sc=7 < FORM/ILBM sz=-1 sc=36
+  io: W7
+WriteRecs 2x3: rc=3 d=2 top=BODY/ILBM sz=-1 sc=13 < FORM/ILBM sz=-1 sc=36
+  io: W6
+Pop: rc=0 d=1 top=FORM/ILBM sz=-1 sc=50
+  io: W1 S-18 W4 S14
+Pop: rc=0 d=0 top=NULL
+  io: S-54 W4 S50
+Pop: rc=-1(EOF) d=0 top=NULL
+both: closed d=0
+  io: C
+  out (58) = 46 4f 52 4d 00 00 00 32 49 4c 42 4d 42 4d 48 44 00 00 00 04 61 62 63 64 43 4d 41 50 00 00 00 03
+    78 79 7a 00 42 4f 44 59 00 00 00 0d 30 31 32 33 34 35 36 41 42 43 44 45 46 00
+-- rseek-big-form
+rseek-big-form: OpenIFF = 0 flags=0x00010005
+  io: I
+Push FORM/ILBM 60: rc=0 d=1 top=FORM/ILBM sz=60 sc=4
+  io: W8 W4
+Push BMHD/.... 4: rc=0 d=2 top=BMHD/ILBM sz=4 sc=0 < FORM/ILBM sz=60 sc=12
+  io: W8
+WriteBytes 4: rc=4 d=2 top=BMHD/ILBM sz=4 sc=4 < FORM/ILBM sz=60 sc=12
+  io: W4
+Pop: rc=0 d=1 top=FORM/ILBM sz=60 sc=16
+Push CMAP/ILBM -1: rc=0 d=2 top=CMAP/ILBM sz=-1 sc=0 < FORM/ILBM sz=60 sc=24
+  io: W8
+WriteBytes 3: rc=3 d=2 top=CMAP/ILBM sz=-1 sc=3 < FORM/ILBM sz=60 sc=24
+  io: W3
+Pop: rc=0 d=1 top=FORM/ILBM sz=60 sc=28
+  io: W1 S-8 W4 S4
+Push BODY/.... 13: rc=0 d=2 top=BODY/ILBM sz=13 sc=0 < FORM/ILBM sz=60 sc=36
+  io: W8
+WriteBytes 7: rc=7 d=2 top=BODY/ILBM sz=13 sc=7 < FORM/ILBM sz=60 sc=36
+  io: W7
+WriteRecs 2x3: rc=3 d=2 top=BODY/ILBM sz=13 sc=13 < FORM/ILBM sz=60 sc=36
+  io: W6
+Pop: rc=0 d=1 top=FORM/ILBM sz=60 sc=50
+  io: W1
+Pop: rc=-8(MANGLED) d=1 top=FORM/ILBM sz=60 sc=50
+Pop: rc=-8(MANGLED) d=1 top=FORM/ILBM sz=60 sc=50
+rseek-big-form: closed d=0
+  io: C
+  out (58) = 46 4f 52 4d 00 00 00 3c 49 4c 42 4d 42 4d 48 44 00 00 00 04 61 62 63 64 43 4d 41 50 00 00 00 03
+    78 79 7a 00 42 4f 44 59 00 00 00 0d 30 31 32 33 34 35 36 41 42 43 44 45 46 00
+-- odd
+odd: OpenIFF = 0 flags=0x00010005
+  io: I
+Push FORM/FTXT -1: rc=0 d=1 top=FORM/FTXT sz=-1 sc=4
+  io: W8 W4
+Push CHRS/.... -1: rc=0 d=2 top=CHRS/FTXT sz=-1 sc=0 < FORM/FTXT sz=-1 sc=12
+  io: W8
+WriteBytes 1: rc=1 d=2 top=CHRS/FTXT sz=-1 sc=1 < FORM/FTXT sz=-1 sc=12
+  io: W1
+WriteBytes 2: rc=2 d=2 top=CHRS/FTXT sz=-1 sc=3 < FORM/FTXT sz=-1 sc=12
+  io: W2
+WriteBytes 0: rc=0 d=2 top=CHRS/FTXT sz=-1 sc=3 < FORM/FTXT sz=-1 sc=12
+WriteBytes -1: rc=-6(WRITE) d=2 top=CHRS/FTXT sz=-1 sc=3 < FORM/FTXT sz=-1 sc=12
+  io: W-1=2
+Pop: rc=0 d=1 top=FORM/FTXT sz=-1 sc=16
+  io: W1 S-8 W4 S4
+Push CHRS/.... 1: rc=0 d=2 top=CHRS/FTXT sz=1 sc=0 < FORM/FTXT sz=-1 sc=24
+  io: W8
+WriteBytes 1: rc=1 d=2 top=CHRS/FTXT sz=1 sc=1 < FORM/FTXT sz=-1 sc=24
+  io: W1
+Pop: rc=0 d=1 top=FORM/FTXT sz=-1 sc=26
+  io: W1
+Push ANNO/.... 0: rc=0 d=2 top=ANNO/FTXT sz=0 sc=0 < FORM/FTXT sz=-1 sc=34
+  io: W8
+Pop: rc=0 d=1 top=FORM/FTXT sz=-1 sc=34
+Push ANNO/.... -1: rc=0 d=2 top=ANNO/FTXT sz=-1 sc=0 < FORM/FTXT sz=-1 sc=42
+  io: W8
+Pop: rc=0 d=1 top=FORM/FTXT sz=-1 sc=42
+  io: S-4 W4 S0
+Pop: rc=0 d=0 top=NULL
+  io: S-46 W4 S42
+odd: closed d=0
+  io: C
+  out (50) = 46 4f 52 4d 00 00 00 2a 46 54 58 54 43 48 52 53 00 00 00 03 61 62 63 00 43 48 52 53 00 00 00 01
+    71 00 41 4e 4e 4f 00 00 00 00 41 4e 4e 4f 00 00 00 00
+-- records
+records: OpenIFF = 0 flags=0x00010005
+  io: I
+Push FORM/TEST -1: rc=0 d=1 top=FORM/TEST sz=-1 sc=4
+  io: W8 W4
+Push DATA/.... 10: rc=0 d=2 top=DATA/TEST sz=10 sc=0 < FORM/TEST sz=-1 sc=12
+  io: W8
+WriteRecs 3x4: rc=3 d=2 top=DATA/TEST sz=10 sc=9 < FORM/TEST sz=-1 sc=12
+  io: W9
+WriteRecs 3x1: rc=0 d=2 top=DATA/TEST sz=10 sc=9 < FORM/TEST sz=-1 sc=12
+WriteRecs 1x0: rc=0 d=2 top=DATA/TEST sz=10 sc=9 < FORM/TEST sz=-1 sc=12
+WriteBytes 4: rc=1 d=2 top=DATA/TEST sz=10 sc=10 < FORM/TEST sz=-1 sc=12
+  io: W1
+Pop: rc=0 d=1 top=FORM/TEST sz=-1 sc=22
+Push NAME/.... 4: rc=0 d=2 top=NAME/TEST sz=4 sc=0 < FORM/TEST sz=-1 sc=30
+  io: W8
+WriteBytes 7: rc=4 d=2 top=NAME/TEST sz=4 sc=4 < FORM/TEST sz=-1 sc=30
+  io: W4
+WriteBytes 4: rc=0 d=2 top=NAME/TEST sz=4 sc=4 < FORM/TEST sz=-1 sc=30
+Pop: rc=0 d=1 top=FORM/TEST sz=-1 sc=34
+Pop: rc=0 d=0 top=NULL
+  io: S-38 W4 S34
+records: closed d=0
+  io: C
+  out (42) = 46 4f 52 4d 00 00 00 22 54 45 53 54 44 41 54 41 00 00 00 0a 41 41 41 42 42 42 43 43 43 7a 4e 41
+    4d 45 00 00 00 04 74 6f 6f 6c
+-- nested
+nested: OpenIFF = 0 flags=0x00010005
+  io: I
+Push LIST/ILBM -1: rc=0 d=1 top=LIST/ILBM sz=-1 sc=4
+  io: W8 W4
+Push PROP/ILBM -1: rc=0 d=2 top=PROP/ILBM sz=-1 sc=4 < LIST/ILBM sz=-1 sc=12
+  io: W8 W4
+Push BMHD/.... 2: rc=0 d=3 top=BMHD/ILBM sz=2 sc=0 < PROP/ILBM sz=-1 sc=12 < LIST/ILBM sz=-1 sc=12
+  io: W8
+WriteBytes 2: rc=2 d=3 top=BMHD/ILBM sz=2 sc=2 < PROP/ILBM sz=-1 sc=12 < LIST/ILBM sz=-1 sc=12
+  io: W2
+Pop: rc=0 d=2 top=PROP/ILBM sz=-1 sc=14 < LIST/ILBM sz=-1 sc=12
+Pop: rc=0 d=1 top=LIST/ILBM sz=-1 sc=26
+  io: S-18 W4 S14
+Push FORM/ILBM -1: rc=0 d=2 top=FORM/ILBM sz=-1 sc=4 < LIST/ILBM sz=-1 sc=34
+  io: W8 W4
+Push BODY/.... -1: rc=0 d=3 top=BODY/ILBM sz=-1 sc=0 < FORM/ILBM sz=-1 sc=12 < LIST/ILBM sz=-1 sc=34
+  io: W8
+WriteBytes 2: rc=2 d=3 top=BODY/ILBM sz=-1 sc=2 < FORM/ILBM sz=-1 sc=12 < LIST/ILBM sz=-1 sc=34
+  io: W2
+Pop: rc=0 d=2 top=FORM/ILBM sz=-1 sc=14 < LIST/ILBM sz=-1 sc=34
+  io: S-6 W4 S2
+Pop: rc=0 d=1 top=LIST/ILBM sz=-1 sc=48
+  io: S-18 W4 S14
+Push CAT /ILBM -1: rc=0 d=2 top=CAT /ILBM sz=-1 sc=4 < LIST/ILBM sz=-1 sc=56
+  io: W8 W4
+Push FORM/ILBM -1: rc=0 d=3 top=FORM/ILBM sz=-1 sc=4 < CAT /ILBM sz=-1 sc=12 < LIST/ILBM sz=-1 sc=56
+  io: W8 W4
+Push BODY/.... -1: rc=0 d=4 top=BODY/ILBM sz=-1 sc=0 < FORM/ILBM sz=-1 sc=12 < CAT /ILBM sz=-1 sc=12 < LIST/ILBM sz=-1 sc=56
+  io: W8
+WriteBytes 3: rc=3 d=4 top=BODY/ILBM sz=-1 sc=3 < FORM/ILBM sz=-1 sc=12 < CAT /ILBM sz=-1 sc=12 < LIST/ILBM sz=-1 sc=56
+  io: W3
+Pop: rc=0 d=3 top=FORM/ILBM sz=-1 sc=16 < CAT /ILBM sz=-1 sc=12 < LIST/ILBM sz=-1 sc=56
+  io: W1 S-8 W4 S4
+Pop: rc=0 d=2 top=CAT /ILBM sz=-1 sc=28 < LIST/ILBM sz=-1 sc=56
+  io: S-20 W4 S16
+Pop: rc=0 d=1 top=LIST/ILBM sz=-1 sc=84
+  io: S-32 W4 S28
+Pop: rc=0 d=0 top=NULL
+  io: S-88 W4 S84
+nested: closed d=0
+  io: C
+  out (92) = 4c 49 53 54 00 00 00 54 49 4c 42 4d 50 52 4f 50 00 00 00 0e 49 4c 42 4d 42 4d 48 44 00 00 00 02
+    50 50 46 4f 52 4d 00 00 00 0e 49 4c 42 4d 42 4f 44 59 00 00 00 02 62 31 43 41 54 20 00 00 00 1c
+    49 4c 42 4d 46 4f 52 4d 00 00 00 10 49 4c 42 4d 42 4f 44 59 00 00 00 03 62 32 62 00
+-- illegal
+illegal: OpenIFF = 0 flags=0x00010005
+  io: I
+Pop: rc=-1(EOF) d=0 top=NULL
+WriteBytes 7: rc=-1(EOF) d=0 top=NULL
+WriteRecs 1x7: rc=-1(EOF) d=0 top=NULL
+Push BMHD/.... 4: rc=-10(NOTIFF) d=0 top=NULL
+Push FORM/ILBM -1: rc=-1(EOF) d=0 top=NULL
+illegal: closed d=0
+  io: C
+  out (0) =
+case: OpenIFF = 0 flags=0x00010003
+  io: I
+Push PROP/ILBM -1: rc=-10(NOTIFF) d=0 top=NULL
+WriteBytes 2: rc=-1(EOF) d=0 top=NULL
+Pop: rc=-1(EOF) d=0 top=NULL
+Pop: rc=-1(EOF) d=0 top=NULL
+Pop: rc=-1(EOF) d=0 top=NULL
+case: closed d=0
+  io: C
+  out (0) =
+case: OpenIFF = 0 flags=0x00010003
+  io: I
+Push FORM/ilbm -1: rc=0 d=1 top=FORM/ilbm sz=-1 sc=4
+WriteBytes 2: rc=2 d=1 top=FORM/ilbm sz=-1 sc=6
+Pop: rc=0 d=0 top=NULL
+  io: W8 W4 W2
+Pop: rc=-1(EOF) d=0 top=NULL
+Pop: rc=-1(EOF) d=0 top=NULL
+case: closed d=0
+  io: C
+  out (14) = 46 4f 52 4d 00 00 00 06 69 6c 62 6d 7a 7a
+case: OpenIFF = 0 flags=0x00010003
+  io: I
+Push FORM/ ABC -1: rc=0 d=1 top=FORM/ ABC sz=-1 sc=4
+WriteBytes 2: rc=2 d=1 top=FORM/ ABC sz=-1 sc=6
+Pop: rc=0 d=0 top=NULL
+  io: W8 W4 W2
+Pop: rc=-1(EOF) d=0 top=NULL
+Pop: rc=-1(EOF) d=0 top=NULL
+case: closed d=0
+  io: C
+  out (14) = 46 4f 52 4d 00 00 00 06 20 41 42 43 7a 7a
+case: OpenIFF = 0 flags=0x00010003
+  io: I
+Push FORM/     -1: rc=0 d=1 top=FORM/     sz=-1 sc=4
+WriteBytes 2: rc=2 d=1 top=FORM/     sz=-1 sc=6
+Pop: rc=0 d=0 top=NULL
+  io: W8 W4 W2
+Pop: rc=-1(EOF) d=0 top=NULL
+Pop: rc=-1(EOF) d=0 top=NULL
+case: closed d=0
+  io: C
+  out (14) = 46 4f 52 4d 00 00 00 06 20 20 20 20 7a 7a
+case: OpenIFF = 0 flags=0x00010003
+  io: I
+Push LIST/ilbm -1: rc=0 d=1 top=LIST/ilbm sz=-1 sc=4
+WriteBytes 2: rc=2 d=1 top=LIST/ilbm sz=-1 sc=6
+Pop: rc=0 d=0 top=NULL
+  io: W8 W4 W2
+Pop: rc=-1(EOF) d=0 top=NULL
+Pop: rc=-1(EOF) d=0 top=NULL
+case: closed d=0
+  io: C
+  out (14) = 4c 49 53 54 00 00 00 06 69 6c 62 6d 7a 7a
+case: OpenIFF = 0 flags=0x00010003
+  io: I
+Push CAT /ilbm -1: rc=0 d=1 top=CAT /ilbm sz=-1 sc=4
+WriteBytes 2: rc=2 d=1 top=CAT /ilbm sz=-1 sc=6
+Pop: rc=0 d=0 top=NULL
+  io: W8 W4 W2
+Pop: rc=-1(EOF) d=0 top=NULL
+Pop: rc=-1(EOF) d=0 top=NULL
+case: closed d=0
+  io: C
+  out (14) = 43 41 54 20 00 00 00 06 69 6c 62 6d 7a 7a
+case: OpenIFF = 0 flags=0x00010003
+  io: I
+Push XYZ1/ILBM -1: rc=-10(NOTIFF) d=0 top=NULL
+WriteBytes 2: rc=-1(EOF) d=0 top=NULL
+Pop: rc=-1(EOF) d=0 top=NULL
+Pop: rc=-1(EOF) d=0 top=NULL
+Pop: rc=-1(EOF) d=0 top=NULL
+case: closed d=0
+  io: C
+  out (0) =
+case: OpenIFF = 0 flags=0x00010003
+  io: I
+Push FOR1/ILBM -1: rc=-10(NOTIFF) d=0 top=NULL
+WriteBytes 2: rc=-1(EOF) d=0 top=NULL
+Pop: rc=-1(EOF) d=0 top=NULL
+Pop: rc=-1(EOF) d=0 top=NULL
+Pop: rc=-1(EOF) d=0 top=NULL
+case: closed d=0
+  io: C
+  out (0) =
+case: OpenIFF = 0 flags=0x00010003
+  io: I
+Push form/ILBM -1: rc=-10(NOTIFF) d=0 top=NULL
+WriteBytes 2: rc=-1(EOF) d=0 top=NULL
+Pop: rc=-1(EOF) d=0 top=NULL
+Pop: rc=-1(EOF) d=0 top=NULL
+Pop: rc=-1(EOF) d=0 top=NULL
+case: closed d=0
+  io: C
+  out (0) =
+case: OpenIFF = 0 flags=0x00010003
+  io: I
+Push FORM/ILBM -1: rc=0 d=1 top=FORM/ILBM sz=-1 sc=4
+Push PROP/ILBM -1: rc=-9(SYNTAX) d=1 top=FORM/ILBM sz=-1 sc=4
+WriteBytes 2: rc=2 d=1 top=FORM/ILBM sz=-1 sc=6
+Pop: rc=0 d=0 top=NULL
+  io: W8 W4 W2
+Pop: rc=-1(EOF) d=0 top=NULL
+Pop: rc=-1(EOF) d=0 top=NULL
+case: closed d=0
+  io: C
+  out (14) = 46 4f 52 4d 00 00 00 06 49 4c 42 4d 7a 7a
+case: OpenIFF = 0 flags=0x00010003
+  io: I
+Push FORM/ILBM -1: rc=0 d=1 top=FORM/ILBM sz=-1 sc=4
+Push a.cd/.... -1: rc=-9(SYNTAX) d=1 top=FORM/ILBM sz=-1 sc=4
+WriteBytes 2: rc=2 d=1 top=FORM/ILBM sz=-1 sc=6
+Pop: rc=0 d=0 top=NULL
+  io: W8 W4 W2
+Pop: rc=-1(EOF) d=0 top=NULL
+Pop: rc=-1(EOF) d=0 top=NULL
+case: closed d=0
+  io: C
+  out (14) = 46 4f 52 4d 00 00 00 06 49 4c 42 4d 7a 7a
+case: OpenIFF = 0 flags=0x00010003
+  io: I
+Push FORM/ILBM -1: rc=0 d=1 top=FORM/ILBM sz=-1 sc=4
+Push  ABC/.... -1: rc=-9(SYNTAX) d=1 top=FORM/ILBM sz=-1 sc=4
+WriteBytes 2: rc=2 d=1 top=FORM/ILBM sz=-1 sc=6
+Pop: rc=0 d=0 top=NULL
+  io: W8 W4 W2
+Pop: rc=-1(EOF) d=0 top=NULL
+Pop: rc=-1(EOF) d=0 top=NULL
+case: closed d=0
+  io: C
+  out (14) = 46 4f 52 4d 00 00 00 06 49 4c 42 4d 7a 7a
+case: OpenIFF = 0 flags=0x00010003
+  io: I
+Push FORM/ILBM -1: rc=0 d=1 top=FORM/ILBM sz=-1 sc=4
+Push ABC /.... -1: rc=0 d=2 top=ABC /ILBM sz=-1 sc=0 < FORM/ILBM sz=-1 sc=12
+WriteBytes 2: rc=2 d=2 top=ABC /ILBM sz=-1 sc=2 < FORM/ILBM sz=-1 sc=12
+Pop: rc=0 d=1 top=FORM/ILBM sz=-1 sc=14
+Pop: rc=0 d=0 top=NULL
+  io: W8 W4 W8 W2
+Pop: rc=-1(EOF) d=0 top=NULL
+case: closed d=0
+  io: C
+  out (22) = 46 4f 52 4d 00 00 00 0e 49 4c 42 4d 41 42 43 20 00 00 00 02 7a 7a
+case: OpenIFF = 0 flags=0x00010003
+  io: I
+Push FORM/ILBM -1: rc=0 d=1 top=FORM/ILBM sz=-1 sc=4
+Push abcd/.... -1: rc=0 d=2 top=abcd/ILBM sz=-1 sc=0 < FORM/ILBM sz=-1 sc=12
+WriteBytes 2: rc=2 d=2 top=abcd/ILBM sz=-1 sc=2 < FORM/ILBM sz=-1 sc=12
+Pop: rc=0 d=1 top=FORM/ILBM sz=-1 sc=14
+Pop: rc=0 d=0 top=NULL
+  io: W8 W4 W8 W2
+Pop: rc=-1(EOF) d=0 top=NULL
+case: closed d=0
+  io: C
+  out (22) = 46 4f 52 4d 00 00 00 0e 49 4c 42 4d 61 62 63 64 00 00 00 02 7a 7a
+case: OpenIFF = 0 flags=0x00010003
+  io: I
+Push FORM/ILBM -1: rc=0 d=1 top=FORM/ILBM sz=-1 sc=4
+Push     /.... -1: rc=0 d=2 top=    /ILBM sz=-1 sc=0 < FORM/ILBM sz=-1 sc=12
+WriteBytes 2: rc=2 d=2 top=    /ILBM sz=-1 sc=2 < FORM/ILBM sz=-1 sc=12
+Pop: rc=0 d=1 top=FORM/ILBM sz=-1 sc=14
+Pop: rc=0 d=0 top=NULL
+  io: W8 W4 W8 W2
+Pop: rc=-1(EOF) d=0 top=NULL
+case: closed d=0
+  io: C
+  out (22) = 46 4f 52 4d 00 00 00 0e 49 4c 42 4d 20 20 20 20 00 00 00 02 7a 7a
+case: OpenIFF = 0 flags=0x00010003
+  io: I
+Push FORM/ILBM -1: rc=0 d=1 top=FORM/ILBM sz=-1 sc=4
+Push FORM/ilbm -1: rc=-10(NOTIFF) d=1 top=FORM/ILBM sz=-1 sc=4
+WriteBytes 2: rc=2 d=1 top=FORM/ILBM sz=-1 sc=6
+Pop: rc=0 d=0 top=NULL
+  io: W8 W4 W2
+Pop: rc=-1(EOF) d=0 top=NULL
+Pop: rc=-1(EOF) d=0 top=NULL
+case: closed d=0
+  io: C
+  out (14) = 46 4f 52 4d 00 00 00 06 49 4c 42 4d 7a 7a
+case: OpenIFF = 0 flags=0x00010003
+  io: I
+Push FORM/ILBM -1: rc=0 d=1 top=FORM/ILBM sz=-1 sc=4
+Push LIST/ILBM -1: rc=0 d=2 top=LIST/ILBM sz=-1 sc=4 < FORM/ILBM sz=-1 sc=12
+WriteBytes 2: rc=2 d=2 top=LIST/ILBM sz=-1 sc=6 < FORM/ILBM sz=-1 sc=12
+Pop: rc=0 d=1 top=FORM/ILBM sz=-1 sc=18
+Pop: rc=0 d=0 top=NULL
+  io: W8 W4 W8 W4 W2
+Pop: rc=-1(EOF) d=0 top=NULL
+case: closed d=0
+  io: C
+  out (26) = 46 4f 52 4d 00 00 00 12 49 4c 42 4d 4c 49 53 54 00 00 00 06 49 4c 42 4d 7a 7a
+case: OpenIFF = 0 flags=0x00010003
+  io: I
+Push FORM/ILBM -1: rc=0 d=1 top=FORM/ILBM sz=-1 sc=4
+Push CAT /ILBM -1: rc=0 d=2 top=CAT /ILBM sz=-1 sc=4 < FORM/ILBM sz=-1 sc=12
+WriteBytes 2: rc=2 d=2 top=CAT /ILBM sz=-1 sc=6 < FORM/ILBM sz=-1 sc=12
+Pop: rc=0 d=1 top=FORM/ILBM sz=-1 sc=18
+Pop: rc=0 d=0 top=NULL
+  io: W8 W4 W8 W4 W2
+Pop: rc=-1(EOF) d=0 top=NULL
+case: closed d=0
+  io: C
+  out (26) = 46 4f 52 4d 00 00 00 12 49 4c 42 4d 43 41 54 20 00 00 00 06 49 4c 42 4d 7a 7a
+case: OpenIFF = 0 flags=0x00010003
+  io: I
+Push FORM/ILBM -1: rc=0 d=1 top=FORM/ILBM sz=-1 sc=4
+Push FORM/8SVX -1: rc=0 d=2 top=FORM/8SVX sz=-1 sc=4 < FORM/ILBM sz=-1 sc=12
+WriteBytes 2: rc=2 d=2 top=FORM/8SVX sz=-1 sc=6 < FORM/ILBM sz=-1 sc=12
+Pop: rc=0 d=1 top=FORM/ILBM sz=-1 sc=18
+Pop: rc=0 d=0 top=NULL
+  io: W8 W4 W8 W4 W2
+Pop: rc=-1(EOF) d=0 top=NULL
+case: closed d=0
+  io: C
+  out (26) = 46 4f 52 4d 00 00 00 12 49 4c 42 4d 46 4f 52 4d 00 00 00 06 38 53 56 58 7a 7a
+case: OpenIFF = 0 flags=0x00010003
+  io: I
+Push FORM/ILBM -1: rc=0 d=1 top=FORM/ILBM sz=-1 sc=4
+Push BODY/.... -1: rc=0 d=2 top=BODY/ILBM sz=-1 sc=0 < FORM/ILBM sz=-1 sc=12
+Push DATA/.... -1: rc=-9(SYNTAX) d=2 top=BODY/ILBM sz=-1 sc=0 < FORM/ILBM sz=-1 sc=12
+WriteBytes 2: rc=2 d=2 top=BODY/ILBM sz=-1 sc=2 < FORM/ILBM sz=-1 sc=12
+Pop: rc=0 d=1 top=FORM/ILBM sz=-1 sc=14
+Pop: rc=0 d=0 top=NULL
+  io: W8 W4 W8 W2
+Pop: rc=-1(EOF) d=0 top=NULL
+case: closed d=0
+  io: C
+  out (22) = 46 4f 52 4d 00 00 00 0e 49 4c 42 4d 42 4f 44 59 00 00 00 02 7a 7a
+case: OpenIFF = 0 flags=0x00010003
+  io: I
+Push FORM/ILBM -1: rc=0 d=1 top=FORM/ILBM sz=-1 sc=4
+Push BODY/.... -1: rc=0 d=2 top=BODY/ILBM sz=-1 sc=0 < FORM/ILBM sz=-1 sc=12
+Push FORM/ILBM -1: rc=0 d=3 top=FORM/ILBM sz=-1 sc=4 < BODY/ILBM sz=-1 sc=8 < FORM/ILBM sz=-1 sc=12
+WriteBytes 2: rc=2 d=3 top=FORM/ILBM sz=-1 sc=6 < BODY/ILBM sz=-1 sc=8 < FORM/ILBM sz=-1 sc=12
+Pop: rc=0 d=2 top=BODY/ILBM sz=-1 sc=14 < FORM/ILBM sz=-1 sc=12
+Pop: rc=0 d=1 top=FORM/ILBM sz=-1 sc=26
+Pop: rc=0 d=0 top=NULL
+  io: W8 W4 W8 W8 W4 W2
+case: closed d=0
+  io: C
+  out (34) = 46 4f 52 4d 00 00 00 1a 49 4c 42 4d 42 4f 44 59 00 00 00 0e 46 4f 52 4d 00 00 00 06 49 4c 42 4d
+    7a 7a
+case: OpenIFF = 0 flags=0x00010003
+  io: I
+Push LIST/ILBM -1: rc=0 d=1 top=LIST/ILBM sz=-1 sc=4
+Push BMHD/.... -1: rc=-9(SYNTAX) d=1 top=LIST/ILBM sz=-1 sc=4
+WriteBytes 2: rc=2 d=1 top=LIST/ILBM sz=-1 sc=6
+Pop: rc=0 d=0 top=NULL
+  io: W8 W4 W2
+Pop: rc=-1(EOF) d=0 top=NULL
+Pop: rc=-1(EOF) d=0 top=NULL
+case: closed d=0
+  io: C
+  out (14) = 4c 49 53 54 00 00 00 06 49 4c 42 4d 7a 7a
+case: OpenIFF = 0 flags=0x00010003
+  io: I
+Push LIST/ILBM -1: rc=0 d=1 top=LIST/ILBM sz=-1 sc=4
+Push PROP/abcd -1: rc=0 d=2 top=PROP/abcd sz=-1 sc=4 < LIST/ILBM sz=-1 sc=12
+WriteBytes 2: rc=2 d=2 top=PROP/abcd sz=-1 sc=6 < LIST/ILBM sz=-1 sc=12
+Pop: rc=0 d=1 top=LIST/ILBM sz=-1 sc=18
+Pop: rc=0 d=0 top=NULL
+  io: W8 W4 W8 W4 W2
+Pop: rc=-1(EOF) d=0 top=NULL
+case: closed d=0
+  io: C
+  out (26) = 4c 49 53 54 00 00 00 12 49 4c 42 4d 50 52 4f 50 00 00 00 06 61 62 63 64 7a 7a
+case: OpenIFF = 0 flags=0x00010003
+  io: I
+Push LIST/ILBM -1: rc=0 d=1 top=LIST/ILBM sz=-1 sc=4
+Push PROP/8SVX -1: rc=0 d=2 top=PROP/8SVX sz=-1 sc=4 < LIST/ILBM sz=-1 sc=12
+WriteBytes 2: rc=2 d=2 top=PROP/8SVX sz=-1 sc=6 < LIST/ILBM sz=-1 sc=12
+Pop: rc=0 d=1 top=LIST/ILBM sz=-1 sc=18
+Pop: rc=0 d=0 top=NULL
+  io: W8 W4 W8 W4 W2
+Pop: rc=-1(EOF) d=0 top=NULL
+case: closed d=0
+  io: C
+  out (26) = 4c 49 53 54 00 00 00 12 49 4c 42 4d 50 52 4f 50 00 00 00 06 38 53 56 58 7a 7a
+case: OpenIFF = 0 flags=0x00010003
+  io: I
+Push LIST/ILBM -1: rc=0 d=1 top=LIST/ILBM sz=-1 sc=4
+Push PROP/ILBM -1: rc=0 d=2 top=PROP/ILBM sz=-1 sc=4 < LIST/ILBM sz=-1 sc=12
+Push BMHD/.... -1: rc=0 d=3 top=BMHD/ILBM sz=-1 sc=0 < PROP/ILBM sz=-1 sc=12 < LIST/ILBM sz=-1 sc=12
+WriteBytes 2: rc=2 d=3 top=BMHD/ILBM sz=-1 sc=2 < PROP/ILBM sz=-1 sc=12 < LIST/ILBM sz=-1 sc=12
+Pop: rc=0 d=2 top=PROP/ILBM sz=-1 sc=14 < LIST/ILBM sz=-1 sc=12
+Pop: rc=0 d=1 top=LIST/ILBM sz=-1 sc=26
+Pop: rc=0 d=0 top=NULL
+  io: W8 W4 W8 W4 W8 W2
+case: closed d=0
+  io: C
+  out (34) = 4c 49 53 54 00 00 00 1a 49 4c 42 4d 50 52 4f 50 00 00 00 0e 49 4c 42 4d 42 4d 48 44 00 00 00 02
+    7a 7a
+case: OpenIFF = 0 flags=0x00010003
+  io: I
+Push LIST/ILBM -1: rc=0 d=1 top=LIST/ILBM sz=-1 sc=4
+Push PROP/ILBM -1: rc=0 d=2 top=PROP/ILBM sz=-1 sc=4 < LIST/ILBM sz=-1 sc=12
+Push PROP/ILBM -1: rc=-9(SYNTAX) d=2 top=PROP/ILBM sz=-1 sc=4 < LIST/ILBM sz=-1 sc=12
+WriteBytes 2: rc=2 d=2 top=PROP/ILBM sz=-1 sc=6 < LIST/ILBM sz=-1 sc=12
+Pop: rc=0 d=1 top=LIST/ILBM sz=-1 sc=18
+Pop: rc=0 d=0 top=NULL
+  io: W8 W4 W8 W4 W2
+Pop: rc=-1(EOF) d=0 top=NULL
+case: closed d=0
+  io: C
+  out (26) = 4c 49 53 54 00 00 00 12 49 4c 42 4d 50 52 4f 50 00 00 00 06 49 4c 42 4d 7a 7a
+case: OpenIFF = 0 flags=0x00010003
+  io: I
+Push LIST/ILBM -1: rc=0 d=1 top=LIST/ILBM sz=-1 sc=4
+Push PROP/ILBM -1: rc=0 d=2 top=PROP/ILBM sz=-1 sc=4 < LIST/ILBM sz=-1 sc=12
+Push LIST/ILBM -1: rc=0 d=3 top=LIST/ILBM sz=-1 sc=4 < PROP/ILBM sz=-1 sc=12 < LIST/ILBM sz=-1 sc=12
+WriteBytes 2: rc=2 d=3 top=LIST/ILBM sz=-1 sc=6 < PROP/ILBM sz=-1 sc=12 < LIST/ILBM sz=-1 sc=12
+Pop: rc=0 d=2 top=PROP/ILBM sz=-1 sc=18 < LIST/ILBM sz=-1 sc=12
+Pop: rc=0 d=1 top=LIST/ILBM sz=-1 sc=30
+Pop: rc=0 d=0 top=NULL
+  io: W8 W4 W8 W4 W8 W4 W2
+case: closed d=0
+  io: C
+  out (38) = 4c 49 53 54 00 00 00 1e 49 4c 42 4d 50 52 4f 50 00 00 00 12 49 4c 42 4d 4c 49 53 54 00 00 00 06
+    49 4c 42 4d 7a 7a
+case: OpenIFF = 0 flags=0x00010003
+  io: I
+Push CAT /ILBM -1: rc=0 d=1 top=CAT /ILBM sz=-1 sc=4
+Push PROP/ILBM -1: rc=-9(SYNTAX) d=1 top=CAT /ILBM sz=-1 sc=4
+WriteBytes 2: rc=2 d=1 top=CAT /ILBM sz=-1 sc=6
+Pop: rc=0 d=0 top=NULL
+  io: W8 W4 W2
+Pop: rc=-1(EOF) d=0 top=NULL
+Pop: rc=-1(EOF) d=0 top=NULL
+case: closed d=0
+  io: C
+  out (14) = 43 41 54 20 00 00 00 06 49 4c 42 4d 7a 7a
+case: OpenIFF = 0 flags=0x00010003
+  io: I
+Push CAT /ILBM -1: rc=0 d=1 top=CAT /ILBM sz=-1 sc=4
+Push BMHD/.... -1: rc=-9(SYNTAX) d=1 top=CAT /ILBM sz=-1 sc=4
+WriteBytes 2: rc=2 d=1 top=CAT /ILBM sz=-1 sc=6
+Pop: rc=0 d=0 top=NULL
+  io: W8 W4 W2
+Pop: rc=-1(EOF) d=0 top=NULL
+Pop: rc=-1(EOF) d=0 top=NULL
+case: closed d=0
+  io: C
+  out (14) = 43 41 54 20 00 00 00 06 49 4c 42 4d 7a 7a
+case: OpenIFF = 0 flags=0x00010003
+  io: I
+Push CAT /ILBM -1: rc=0 d=1 top=CAT /ILBM sz=-1 sc=4
+Push LIST/8SVX -1: rc=0 d=2 top=LIST/8SVX sz=-1 sc=4 < CAT /ILBM sz=-1 sc=12
+Push PROP/8SVX -1: rc=0 d=3 top=PROP/8SVX sz=-1 sc=4 < LIST/8SVX sz=-1 sc=12 < CAT /ILBM sz=-1 sc=12
+WriteBytes 2: rc=2 d=3 top=PROP/8SVX sz=-1 sc=6 < LIST/8SVX sz=-1 sc=12 < CAT /ILBM sz=-1 sc=12
+Pop: rc=0 d=2 top=LIST/8SVX sz=-1 sc=18 < CAT /ILBM sz=-1 sc=12
+Pop: rc=0 d=1 top=CAT /ILBM sz=-1 sc=30
+Pop: rc=0 d=0 top=NULL
+  io: W8 W4 W8 W4 W8 W4 W2
+case: closed d=0
+  io: C
+  out (38) = 43 41 54 20 00 00 00 1e 49 4c 42 4d 4c 49 53 54 00 00 00 12 38 53 56 58 50 52 4f 50 00 00 00 06
+    38 53 56 58 7a 7a
+-- header past known size
+hdr: OpenIFF = 0 flags=0x00010005
+  io: I
+Push FORM/ILBM 10: rc=0 d=1 top=FORM/ILBM sz=10 sc=4
+  io: W8 W4
+Push BODY/.... 0: rc=-6(WRITE) d=1 top=FORM/ILBM sz=10 sc=10
+  io: W6
+Pop: rc=0 d=0 top=NULL
+Push BODY/.... 0: rc=-1(EOF) d=0 top=NULL
+WriteBytes 1: rc=-1(EOF) d=0 top=NULL
+Pop: rc=-1(EOF) d=0 top=NULL
+Pop: rc=-1(EOF) d=0 top=NULL
+hdr: closed d=0
+  io: C
+  out (18) = 46 4f 52 4d 00 00 00 0a 49 4c 42 4d 42 4f 44 59 00 00
+hdr2: OpenIFF = 0 flags=0x00010005
+  io: I
+Push FORM/ILBM 16: rc=0 d=1 top=FORM/ILBM sz=16 sc=4
+  io: W8 W4
+Push BODY/.... 6: rc=0 d=2 top=BODY/ILBM sz=6 sc=0 < FORM/ILBM sz=16 sc=12
+  io: W8
+WriteBytes 3: rc=3 d=2 top=BODY/ILBM sz=6 sc=3 < FORM/ILBM sz=16 sc=12
+  io: W3
+Pop: rc=-8(MANGLED) d=2 top=BODY/ILBM sz=6 sc=3 < FORM/ILBM sz=16 sc=12
+Pop: rc=-8(MANGLED) d=2 top=BODY/ILBM sz=6 sc=3 < FORM/ILBM sz=16 sc=12
+hdr2: closed d=0
+  io: C
+  out (23) = 46 4f 52 4d 00 00 00 10 49 4c 42 4d 42 4f 44 59 00 00 00 06 31 32 33
+-- list-content
+list-content: OpenIFF = 0 flags=0x00010005
+  io: I
+Push LIST/ILBM -1: rc=0 d=1 top=LIST/ILBM sz=-1 sc=4
+  io: W8 W4
+Push BMHD/.... 2: rc=-9(SYNTAX) d=1 top=LIST/ILBM sz=-1 sc=4
+Push PROP/ILBM -1: rc=0 d=2 top=PROP/ILBM sz=-1 sc=4 < LIST/ILBM sz=-1 sc=12
+  io: W8 W4
+Push FORM/ILBM -1: rc=0 d=3 top=FORM/ILBM sz=-1 sc=4 < PROP/ILBM sz=-1 sc=12 < LIST/ILBM sz=-1 sc=12
+  io: W8 W4
+Push BMHD/.... 2: rc=0 d=4 top=BMHD/ILBM sz=2 sc=0 < FORM/ILBM sz=-1 sc=12 < PROP/ILBM sz=-1 sc=12 < LIST/ILBM sz=-1 sc=12
+  io: W8
+WriteBytes 2: rc=2 d=4 top=BMHD/ILBM sz=2 sc=2 < FORM/ILBM sz=-1 sc=12 < PROP/ILBM sz=-1 sc=12 < LIST/ILBM sz=-1 sc=12
+  io: W2
+Pop: rc=0 d=3 top=FORM/ILBM sz=-1 sc=14 < PROP/ILBM sz=-1 sc=12 < LIST/ILBM sz=-1 sc=12
+Pop: rc=0 d=2 top=PROP/ILBM sz=-1 sc=26 < LIST/ILBM sz=-1 sc=12
+  io: S-18 W4 S14
+Push LIST/8SVX -1: rc=0 d=3 top=LIST/8SVX sz=-1 sc=4 < PROP/ILBM sz=-1 sc=34 < LIST/ILBM sz=-1 sc=12
+  io: W8 W4
+Push CAT /8SVX -1: rc=0 d=4 top=CAT /8SVX sz=-1 sc=4 < LIST/8SVX sz=-1 sc=12 < PROP/ILBM sz=-1 sc=34 < LIST/ILBM sz=-1 sc=12
+  io: W8 W4
+Pop: rc=0 d=3 top=LIST/8SVX sz=-1 sc=16 < PROP/ILBM sz=-1 sc=34 < LIST/ILBM sz=-1 sc=12
+  io: S-8 W4 S4
+Pop: rc=0 d=2 top=PROP/ILBM sz=-1 sc=50 < LIST/ILBM sz=-1 sc=12
+  io: S-20 W4 S16
+Pop: rc=0 d=1 top=LIST/ILBM sz=-1 sc=62
+  io: S-54 W4 S50
+list-content: closed d=0
+  io: S-66 W4 S62 C
+  out (70) = 4c 49 53 54 00 00 00 3e 49 4c 42 4d 50 52 4f 50 00 00 00 32 49 4c 42 4d 46 4f 52 4d 00 00 00 0e
+    49 4c 42 4d 42 4d 48 44 00 00 00 02 7a 7a 4c 49 53 54 00 00 00 10 38 53 56 58 43 41 54 20 00 00
+    00 04 38 53 56 58
+-- cat-content
+cat-content: OpenIFF = 0 flags=0x00010005
+  io: I
+Push CAT /     -1: rc=0 d=1 top=CAT /     sz=-1 sc=4
+  io: W8 W4
+Push BMHD/.... 2: rc=-9(SYNTAX) d=1 top=CAT /     sz=-1 sc=4
+Push PROP/ILBM -1: rc=-9(SYNTAX) d=1 top=CAT /     sz=-1 sc=4
+Push FORM/ILBM -1: rc=0 d=2 top=FORM/ILBM sz=-1 sc=4 < CAT /     sz=-1 sc=12
+  io: W8 W4
+Pop: rc=0 d=1 top=CAT /     sz=-1 sc=16
+  io: S-8 W4 S4
+Push FORM/8SVX -1: rc=0 d=2 top=FORM/8SVX sz=-1 sc=4 < CAT /     sz=-1 sc=24
+  io: W8 W4
+Pop: rc=0 d=1 top=CAT /     sz=-1 sc=28
+  io: S-8 W4 S4
+Pop: rc=0 d=0 top=NULL
+  io: S-32 W4 S28
+cat-content: closed d=0
+  io: C
+  out (36) = 43 41 54 20 00 00 00 1c 20 20 20 20 46 4f 52 4d 00 00 00 04 49 4c 42 4d 46 4f 52 4d 00 00 00 04
+    38 53 56 58
+-- write-errors
+werr1: OpenIFF = 0 flags=0x00010005
+  io: I
+Push FORM/ILBM -1: rc=-6(WRITE) d=0 top=NULL
+  io: W8=42
+Push FORM/ILBM -1: rc=-1(EOF) d=0 top=NULL
+Push BODY/.... -1: rc=-1(EOF) d=0 top=NULL
+WriteBytes 4: rc=-1(EOF) d=0 top=NULL
+WriteBytes 4: rc=-1(EOF) d=0 top=NULL
+Pop: rc=-1(EOF) d=0 top=NULL
+Pop: rc=-1(EOF) d=0 top=NULL
+Pop: rc=-1(EOF) d=0 top=NULL
+werr1: closed d=0
+  io: C
+  out (0) =
+werr2: OpenIFF = 0 flags=0x00010005
+  io: I
+Push FORM/ILBM 12: rc=0 d=1 top=FORM/ILBM sz=12 sc=4
+  io: W8 W4
+Push BODY/.... 4: rc=0 d=2 top=BODY/ILBM sz=4 sc=0 < FORM/ILBM sz=12 sc=12
+  io: W8
+WriteBytes 4: rc=4 d=2 top=BODY/ILBM sz=4 sc=4 < FORM/ILBM sz=12 sc=12
+  io: W4
+Pop: rc=-8(MANGLED) d=1 top=FORM/ILBM sz=12 sc=16
+Pop: rc=-8(MANGLED) d=1 top=FORM/ILBM sz=12 sc=16
+werr2: closed d=0
+  io: C
+  out (24) = 46 4f 52 4d 00 00 00 0c 49 4c 42 4d 42 4f 44 59 00 00 00 04 61 62 63 64
+werr-seek: OpenIFF = 0 flags=0x00010005
+  io: I
+Push FORM/ILBM -1: rc=0 d=1 top=FORM/ILBM sz=-1 sc=4
+  io: W8 W4
+Push BODY/.... -1: rc=0 d=2 top=BODY/ILBM sz=-1 sc=0 < FORM/ILBM sz=-1 sc=12
+  io: W8
+WriteBytes 2: rc=2 d=2 top=BODY/ILBM sz=-1 sc=2 < FORM/ILBM sz=-1 sc=12
+  io: W2
+Pop: rc=-7(SEEK) d=1 top=FORM/ILBM sz=-1 sc=12
+  io: S-6=9
+Pop: rc=0 d=0 top=NULL
+  io: S-16 W4 S12
+Push BODY/.... -1: rc=-1(EOF) d=0 top=NULL
+Pop: rc=-1(EOF) d=0 top=NULL
+Pop: rc=-1(EOF) d=0 top=NULL
+werr-seek: closed d=0
+  io: C
+  out (22) = 46 4f 52 4d ff ff 00 00 00 0c 42 4d 42 4f 44 59 ff ff ff ff 61 62
+werr-flush: OpenIFF = 0 flags=0x00010001
+  io: I
+Push FORM/ILBM -1: rc=0 d=1 top=FORM/ILBM sz=-1 sc=4
+Push BODY/.... -1: rc=0 d=2 top=BODY/ILBM sz=-1 sc=0 < FORM/ILBM sz=-1 sc=12
+WriteBytes 2: rc=2 d=2 top=BODY/ILBM sz=-1 sc=2 < FORM/ILBM sz=-1 sc=12
+Pop: rc=0 d=1 top=FORM/ILBM sz=-1 sc=14
+Pop: rc=-6(WRITE) d=0 top=NULL
+  io: W8 W4 W8=8
+Pop: rc=-1(EOF) d=0 top=NULL
+werr-flush: closed d=0
+  io: C
+  out (12) = 46 4f 52 4d 00 00 00 0e 49 4c 42 4d
+werr-body: OpenIFF = 0 flags=0x00010005
+  io: I
+Push FORM/ILBM -1: rc=0 d=1 top=FORM/ILBM sz=-1 sc=4
+  io: W8 W4
+Push BODY/.... -1: rc=0 d=2 top=BODY/ILBM sz=-1 sc=0 < FORM/ILBM sz=-1 sc=12
+  io: W8
+WriteBytes 2: rc=-6(WRITE) d=2 top=BODY/ILBM sz=-1 sc=0 < FORM/ILBM sz=-1 sc=12
+  io: W2=8
+WriteBytes 2: rc=2 d=2 top=BODY/ILBM sz=-1 sc=2 < FORM/ILBM sz=-1 sc=12
+  io: W2
+Pop: rc=0 d=1 top=FORM/ILBM sz=-1 sc=14
+  io: S-6 W4 S2
+Pop: rc=0 d=0 top=NULL
+  io: S-18 W4 S14
+werr-body: closed d=0
+  io: C
+  out (22) = 46 4f 52 4d 00 00 00 0e 49 4c 42 4d 42 4f 44 59 00 00 00 02 63 64
+-- close with open chunks
+rseek: OpenIFF = 0 flags=0x00010005
+  io: I
+Push FORM/ILBM -1: rc=0 d=1 top=FORM/ILBM sz=-1 sc=4
+  io: W8 W4
+Push BODY/.... -1: rc=0 d=2 top=BODY/ILBM sz=-1 sc=0 < FORM/ILBM sz=-1 sc=12
+  io: W8
+WriteBytes 3: rc=3 d=2 top=BODY/ILBM sz=-1 sc=3 < FORM/ILBM sz=-1 sc=12
+  io: W3
+rseek: closed d=0
+  io: W1 S-8 W4 S4 S-20 W4 S16 C
+  out (24) = 46 4f 52 4d 00 00 00 10 49 4c 42 4d 42 4f 44 59 00 00 00 03 61 62 63 00
+noseek: OpenIFF = 0 flags=0x00010001
+  io: I
+Push FORM/ILBM -1: rc=0 d=1 top=FORM/ILBM sz=-1 sc=4
+Push BODY/.... -1: rc=0 d=2 top=BODY/ILBM sz=-1 sc=0 < FORM/ILBM sz=-1 sc=12
+WriteBytes 3: rc=3 d=2 top=BODY/ILBM sz=-1 sc=3 < FORM/ILBM sz=-1 sc=12
+noseek: closed d=0
+  io: W8 W4 W8 W3 W1 C
+  out (24) = 46 4f 52 4d 00 00 00 10 49 4c 42 4d 42 4f 44 59 00 00 00 03 61 62 63 00
+known: OpenIFF = 0 flags=0x00010005
+  io: I
+Push FORM/ILBM 16: rc=0 d=1 top=FORM/ILBM sz=16 sc=4
+  io: W8 W4
+Push BODY/.... 4: rc=0 d=2 top=BODY/ILBM sz=4 sc=0 < FORM/ILBM sz=16 sc=12
+  io: W8
+WriteBytes 3: rc=3 d=2 top=BODY/ILBM sz=4 sc=3 < FORM/ILBM sz=16 sc=12
+  io: W3
+known: closed d=0
+  io: C
+  out (23) = 46 4f 52 4d 00 00 00 10 49 4c 42 4d 42 4f 44 59 00 00 00 04 61 62 63
+-- init-fail
+OpenIFF with failing INIT = 1234 flags=0x00010003
+  io: I=1234
+-- flags
+AllocIFF flags = 0x00000000
+AllocIFF depth = 0
+AllocIFF stream = 0x00000000
+InitIFF(~0) flags = 0xffffffff
+InitIFF(WRITE|FSEEK) flags = 0x00000003
+InitIFF(RSEEK) after reserved bit = 0x00000004
+OpenIFF(WRITE) = 0
+flags = 0x00010005
+flags after CloseIFF = 0x00010005
+OpenIFF(READ) = 0
+flags = 0x00010004
+OpenIFF(0x1235) = 0
+flags = 0x00010005
+  io: I C I C I C
+-- dos
+Open = TRUE
+flags after InitIFFasDOS = 0x00000006
+OpenIFF = 0
+flags after OpenIFF = 0x00010007
+Push CAT = 0
+Push FORM = 0
+Push BMHD = 0
+Write = 5
+Pop BMHD = 0
+Seek pos = 38
+Pop FORM = 0
+Push FORM2 = 0
+Push BODY = 0
+Write = 3
+Pop BODY = 0
+Pop FORM2 = 0
+Pop CAT = 0
+Seek pos = 62
+Seek pos after CloseIFF = 62
+file (62) = 43 41 54 20 00 00 00 36 49 4c 42 4d 46 4f 52 4d 00 00 00 12 49 4c 42 4d 42 4d 48 44 00 00 00 05
+    68 65 6c 6c 6f 00 46 4f 52 4d 00 00 00 10 38 53 56 58 42 4f 44 59 00 00 00 03 78 79 7a 00
+-- null
+OpenIFF(NULL) = -4
+CloseIFF/FreeIFF(NULL) = "ok"

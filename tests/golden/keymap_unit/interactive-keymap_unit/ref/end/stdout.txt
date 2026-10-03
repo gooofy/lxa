@@ -1,0 +1,5 @@
+keymap_unit: testing console.device keymap commands
+OK: CONU_LIBRARY open works
+OK: CD_ASKKEYMAP/CD_SETKEYMAP round-trip succeeded
+Waiting for remapped input
+PASS: keymap_unit all tests passed

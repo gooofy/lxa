@@ -1,0 +1,290 @@
+-- OpenDevice units
+unit 0: OpenDevice=0 io_Error=0 cu_UnitNum=0 ln_Type=0
+unit 1: OpenDevice=0 io_Error=0 cu_UnitNum=1 ln_Type=0
+unit 2: OpenDevice=0 io_Error=0 cu_UnitNum=2 ln_Type=0
+unit 9: OpenDevice=0 io_Error=0 cu_UnitNum=9 ln_Type=0
+unit 10: OpenDevice=0 io_Error=0 cu_UnitNum=10 ln_Type=0
+unit 99: OpenDevice=0 io_Error=0 cu_UnitNum=99 ln_Type=0
+unit 100: OpenDevice=0 io_Error=0 cu_UnitNum=100 ln_Type=0
+unit 254: OpenDevice=0 io_Error=0 cu_UnitNum=254 ln_Type=0
+unit 255: OpenDevice=0 io_Error=0 cu_UnitNum=255 ln_Type=0
+unit 256: OpenDevice=0 io_Error=0 cu_UnitNum=256 ln_Type=0
+unit 257: OpenDevice=0 io_Error=0 cu_UnitNum=257 ln_Type=0
+unit 1000: OpenDevice=0 io_Error=0 cu_UnitNum=1000 ln_Type=0
+unit 65535: OpenDevice=0 io_Error=0 cu_UnitNum=65535 ln_Type=0
+unit 65536: OpenDevice=0 io_Error=0 cu_UnitNum=65536 ln_Type=0
+unit 2147483647: OpenDevice=0 io_Error=0 cu_UnitNum=2147483647 ln_Type=0
+unit -1: OpenDevice=0 io_Error=0 cu_UnitNum=-1 ln_Type=0
+two opens of unit 5 share io_Unit = TRUE
+unit 6 has its own io_Unit = TRUE
+-- unit 200 (never written)
+absolute IDs: unit 200: readid=base+1 writeid=base+1
+read: err=0 actual=0 offset=0 clip=-1
+read again: err=1 actual=0 offset=0 clip=-1
+unit 200: readid=base+1 writeid=base+1
+-- units are independent
+-- units are independent (unit 0 side)
+unit 0 clip = base+1
+-- units are independent (unit 1 side)
+unit 1 CURRENTWRITEID unchanged = 1
+unit 1 read: err=0 actual=0 offset=0 clip=-1
+-- CMD_WRITE / CMD_UPDATE
+start: readid=base+0 writeid=base+0
+write 8 (clip 0): err=0 actual=8 offset=8 clip=base+1
+  during write: readid=base+1 writeid=base+1
+write 4 (continue): err=0 actual=4 offset=12 clip=base+1
+write 16 at offset 20 (gap): err=0 actual=16 offset=36 clip=base+1
+write 4 back at offset 12: err=0 actual=4 offset=16 clip=base+1
+write 0 bytes: err=0 actual=0 offset=0 clip=base+1
+  during write: readid=base+1 writeid=base+1
+update with a wrong clip ID: err=0 actual=0 offset=0 clip=base+4
+  after update: readid=base+1 writeid=base+1
+read: err=0 actual=36 offset=36 clip=base+1
+  data = 46 4f 52 4d 00 00 00 1c 46 54 58 54 43 48 52 53 00 00 00 00 48 65 6c 6c 6f 20 43 6c 69 70 62 6f 61 72 64 21 ee ee ee ee
+  finish reads = 1
+next clip = base+2
+  update: err=0 actual=28 offset=28 clip=base+2
+  after: readid=base+2 writeid=base+2
+write with an obsolete clip ID: err=1 actual=0 offset=0 clip=base+1
+  after: readid=base+2 writeid=base+2
+-- CMD_READ
+read 4: err=0 actual=4 offset=4 clip=base+1
+  data = 46 4f 52 4d ee ee
+read 0: err=0 actual=0 offset=4 clip=base+1
+read 6: err=0 actual=6 offset=10 clip=base+1
+  data = 00 00 00 1c 46 54 ee ee
+read 4 at io_Offset 2: err=0 actual=4 offset=6 clip=base+1
+  data = 52 4d 00 00 ee ee
+read 6 with NULL io_Data: err=0 actual=6 offset=12 clip=base+1
+read 100: err=0 actual=24 offset=36 clip=base+1
+  data = 43 48 52 53 00 00 00 10 48 65 6c 6c 6f 20 43 6c 69 70 62 6f 61 72 64 21 ee ee
+read at the end: err=0 actual=0 offset=36 clip=-1
+  data = ee ee
+read again (clip -1): err=1 actual=0 offset=36 clip=-1
+CBD_CURRENTREADID = base+1
+new read at io_Offset 30: err=0 actual=6 offset=36 clip=base+1
+  data = 62 6f 61 72 64 21 ee ee
+  finish reads = 1
+new read at io_Offset 36: err=0 actual=0 offset=36 clip=-1
+new read at io_Offset 1000: err=0 actual=0 offset=1000 clip=-1
+new read, NULL io_Data, length 1000: err=0 actual=36 offset=36 clip=base+1
+  finish reads = 1
+read with clip -1: err=1 actual=0 offset=0 clip=-1
+read with an obsolete clip ID: err=1 actual=0 offset=0 clip=base+0
+-- clip sizes
+clip = "FORM size 5"
+  read 100: err=0 actual=13 offset=13 clip=base+1
+  data = 46 4f 52 4d 00 00 00 05 46 54 58 54 61 ee ee
+  finish reads = 1
+  final io_Offset = 13
+clip = "FORM size 0x40, 24 bytes written"
+  read 100: err=0 actual=72 offset=72 clip=base+2
+  data = 46 4f 52 4d 00 00 00 40 46 54 58 54 43 48 52 53 00 00 00 04 61 62 63 64 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 ee ee
+  finish reads = 1
+  final io_Offset = 72
+clip = "FORM size 4, 24 bytes written"
+  read 100: err=0 actual=12 offset=12 clip=base+3
+  data = 46 4f 52 4d 00 00 00 04 46 54 58 54 ee ee
+  finish reads = 1
+  final io_Offset = 12
+clip = "ABCD size 3 (not IFF)"
+  read 100: err=0 actual=11 offset=11 clip=base+4
+  data = 41 42 43 44 00 00 00 03 78 79 7a ee ee
+  finish reads = 1
+  final io_Offset = 11
+clip = "CAT size 12"
+  read 100: err=0 actual=20 offset=20 clip=base+5
+  data = 43 41 54 20 00 00 00 0c 46 54 58 54 46 4f 52 4d 00 00 00 00 ee ee
+  finish reads = 1
+  final io_Offset = 20
+clip = "FORM size 0"
+  read 100: err=0 actual=8 offset=8 clip=base+6
+  data = 46 4f 52 4d 00 00 00 00 ee ee
+  finish reads = 1
+  final io_Offset = 8
+-- unfinished read holds off writes
+read 4: err=0 actual=4 offset=4 clip=base+1
+  then: write held off
+  while held: readid=base+2 writeid=base+1
+read 32 (up to the end): err=0 actual=32 offset=36 clip=base+1
+  then: held write still pending
+read at the end: err=0 actual=0 offset=36 clip=-1
+  then: held write done
+    write: err=0 actual=28 offset=28 clip=base+2
+    update: err=0 actual=28 offset=28 clip=base+2
+  after: readid=base+2 writeid=base+2
+new read: err=0 actual=28 offset=28 clip=base+2
+  data = 46 4f 52 4d 00 00 00 14 46 54 58 54 43 48 52 53 00 00 00 08 43 6c 69 70 20 74 77 6f ee ee
+  finish reads = 1
+-- two readers
+reader 1 read 4: err=0 actual=4 offset=4 clip=base+1
+  then: write held off
+reader 2 read 4: err=0 actual=4 offset=4 clip=base+2
+  data = 46 4f 52 4d
+  ids: readid=base+2 writeid=base+1
+reader 1 finish reads = 2
+  then: held write still pending
+reader 2 finish reads = 2
+  then: held write done
+    write: err=0 actual=28 offset=28 clip=base+2
+    update: err=0 actual=28 offset=28 clip=base+2
+  after: readid=base+2 writeid=base+2
+-- restarting a read counts as another reader
+read 4: err=0 actual=4 offset=4 clip=base+1
+read 4 again with clip 0: err=0 actual=4 offset=4 clip=base+1
+  then: write held off
+finish reads = 2
+  then: held write still pending
+read by current ID: err=0 actual=36 offset=36 clip=base+2
+  at the end: err=0 actual=0 offset=36 clip=-1
+  then: held write done
+    write: err=0 actual=28 offset=28 clip=base+2
+    update: err=0 actual=28 offset=28 clip=base+2
+-- reads that do not hold off
+read 4 by current ID: err=0 actual=4 offset=4 clip=base+1
+  then: write not held off
+    write: err=0 actual=28 offset=28 clip=base+2
+    update: err=0 actual=28 offset=28 clip=base+2
+  read on (clip replaced): err=1 actual=0 offset=4 clip=base+1
+read with an obsolete ID: err=1 actual=0 offset=0 clip=base+2
+  then: write not held off
+    write: err=0 actual=28 offset=28 clip=base+4
+    update: err=0 actual=28 offset=28 clip=base+4
+read starting past the end: err=0 actual=0 offset=100 clip=-1
+  then: write not held off
+    write: err=0 actual=28 offset=28 clip=base+5
+    update: err=0 actual=28 offset=28 clip=base+5
+read of 0 bytes: err=0 actual=0 offset=0 clip=base+5
+  then: write held off
+finish reads = 2
+  then: held write done
+    write: err=0 actual=28 offset=28 clip=base+6
+    update: err=0 actual=28 offset=28 clip=base+6
+-- ending a read that was not counted
+read by current ID: err=0 actual=36 offset=36 clip=base+1
+  at the end: err=0 actual=0 offset=36 clip=-1
+  then: write held off
+new read with clip 0: err=0 actual=4 offset=4 clip=base+2
+  then: held write done
+    write: err=0 actual=28 offset=28 clip=base+2
+    update: err=0 actual=28 offset=28 clip=base+2
+  after: readid=base+2 writeid=base+2
+-- write in progress holds off reads
+write (no update yet): err=0 actual=28 offset=28 clip=base+2
+  ids: readid=base+2 writeid=base+2
+read done = FALSE
+update: err=0 actual=28 offset=28 clip=base+2
+read done = TRUE
+  read: err=0 actual=28 offset=28 clip=base+2
+  data = 46 4f 52 4d 00 00 00 14 46 54 58 54 43 48 52 53 00 00 00 08 43 6c 69 70 20 74 77 6f ee ee
+  finish reads = 1
+-- write with a chosen clip ID
+write with clip base+3: err=0 actual=28 offset=28 clip=base+3
+  ids: readid=base+1 writeid=base+3
+read done = TRUE
+  read: err=1 actual=0 offset=0 clip=base+1
+update: err=0 actual=28 offset=28 clip=base+3
+read done = TRUE
+  read: err=1 actual=0 offset=0 clip=base+1
+  ids: readid=base+1 writeid=base+3
+read with clip 0: err=1 actual=0 offset=0 clip=base+1
+read with clip base+3: err=0 actual=28 offset=28 clip=base+3
+write with clip 0: err=1 actual=0 offset=0 clip=base+2
+write with clip 0: err=0 actual=36 offset=36 clip=base+3
+  update: err=0 actual=36 offset=36 clip=base+3
+  ids: readid=base+3 writeid=base+3
+-- CBD_CHANGEHOOK and CBD_POST
+install hook io_Error = 0
+after write: hook calls = 0
+after update: hook calls = 1
+    type=0 cmd=4 clip=base+1 object=io_Unit
+after read: hook calls = 0
+post: err=0 actual=36 offset=0 clip=base+2
+after post: hook calls = 1
+    type=0 cmd=9 clip=base+2 object=io_Unit
+  ids: readid=base+2 writeid=base+2
+satisfy before read: none
+read of the post done = FALSE
+satisfy: unit=60 clip=base+2 mn_Length=0 ln_Type=5 replyport=NULL
+after read: hook calls = 1
+    type=0 cmd=9 clip=base+2 object=io_Unit
+satisfying write: err=0 actual=28 offset=28 clip=base+2
+  ids: readid=base+2 writeid=base+2
+after satisfying write: hook calls = 0
+read done = FALSE
+satisfying update: err=0 actual=28 offset=28 clip=base+2
+after satisfying update: hook calls = 1
+    type=0 cmd=4 clip=base+2 object=io_Unit
+read done = TRUE
+  read: err=0 actual=28 offset=28 clip=base+2
+  data = 46 4f 52 4d 00 00 00 14 46 54 58 54 43 48 52 53 00 00 00 08 43 6c 69 70 20 74 77 6f ee ee
+  finish reads = 1
+satisfy left: none
+remove hook io_Error = 0
+after clip (hook removed): hook calls = 0
+-- post superseded by a clip
+post: err=0 actual=0 offset=0 clip=base+1
+clip = base+2
+  ids: readid=base+2 writeid=base+2
+read: err=0 actual=36 offset=36 clip=base+2
+  finish reads = 1
+satisfy: none
+write with the superseded post ID: err=1 actual=0 offset=0 clip=base+1
+-- two posts
+post 1: err=0 actual=0 offset=0 clip=base+1
+post 2: err=0 actual=0 offset=0 clip=base+2
+  ids: readid=base+2 writeid=base+2
+read done = FALSE
+satisfy: unit=62 clip=base+2 mn_Length=0 ln_Type=5 replyport=NULL
+satisfy: none
+satisfy post 2: err=0 actual=28 offset=28 clip=base+2
+read done = TRUE
+  read: err=0 actual=28 offset=28 clip=base+2
+  finish reads = 1
+-- unfinished read holds off a post
+reader read 4: err=0 actual=4 offset=4 clip=base+1
+post done = FALSE
+  ids: readid=base+2 writeid=base+1
+reader finish reads = 2
+post done = TRUE
+  post: err=0 actual=36 offset=0 clip=base+2
+  ids: readid=base+2 writeid=base+2
+clip superseding the post = base+3
+satisfy: none
+-- aborting a read of a post
+post: err=0 actual=36 offset=0 clip=base+2
+read done = FALSE
+satisfy: unit=64 clip=base+2 mn_Length=0 ln_Type=5 replyport=NULL
+read done after AbortIO = TRUE
+  read: err=-2 actual=0 offset=0 clip=base+2
+satisfy the post: err=0 actual=28 offset=28 clip=base+2
+-- other commands
+command 0
+  err=-3 actual=0x1234 clip=0x0777 offset=0x0055
+command 5
+  err=-3 actual=0x1234 clip=0x0777 offset=0x0055
+command 6
+  err=-3 actual=0x1234 clip=0x0777 offset=0x0055
+command 7
+  err=-3 actual=0x1234 clip=0x0777 offset=0x0055
+command 8
+  err=-3 actual=0x1234 clip=0x0777 offset=0x0055
+command 13
+  err=-3 actual=0x1234 clip=0x0777 offset=0x0055
+command 14
+  err=-3 actual=0x1234 clip=0x0777 offset=0x0055
+command 15
+  err=-3 actual=0x1234 clip=0x0777 offset=0x0055
+command 16
+  err=-3 actual=0x1234 clip=0x0777 offset=0x0055
+command 100
+  err=-3 actual=0x1234 clip=0x0777 offset=0x0055
+command 32767
+  err=-3 actual=0x1234 clip=0x0777 offset=0x0055
+command 65535
+  err=-3 actual=0x1234 clip=0x0777 offset=0x0055
+DoIO(CBD_CURRENTREADID) io_Flags & IOF_QUICK = 0x00000001
+DoIO(CBD_CURRENTWRITEID) io_Actual = 0x00001234
+DoIO(CMD_INVALID) io_Flags & IOF_QUICK = 0x00000001
+DoIO(CMD_INVALID) io_Error = -3
+-- done

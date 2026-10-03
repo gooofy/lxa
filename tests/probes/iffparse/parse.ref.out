@@ -1,0 +1,727 @@
+-- rawstep rseek
+open: rc=0 d=0 top=NULL
+  io: I
+raw: rc=0 d=1 top=FORM/ILBM sz=42 sc=4
+  io: R8 R4
+raw: rc=0 d=2 top=BMHD/ILBM sz=4 sc=0 < FORM/ILBM sz=42 sc=12
+  io: R8
+raw: rc=-2(EOC) d=2 top=BMHD/ILBM sz=4 sc=0 < FORM/ILBM sz=42 sc=12
+raw: rc=0 d=2 top=CMAP/ILBM sz=3 sc=0 < FORM/ILBM sz=42 sc=24
+  io: S4 R8
+raw: rc=-2(EOC) d=2 top=CMAP/ILBM sz=3 sc=0 < FORM/ILBM sz=42 sc=24
+raw: rc=0 d=2 top=BODY/ILBM sz=6 sc=0 < FORM/ILBM sz=42 sc=36
+  io: S4 R8
+raw: rc=-2(EOC) d=2 top=BODY/ILBM sz=6 sc=0 < FORM/ILBM sz=42 sc=36
+raw: rc=-2(EOC) d=1 top=FORM/ILBM sz=42 sc=42
+  io: S6
+raw: rc=-1(EOF) d=0 top=NULL
+raw: rc=-1(EOF) d=0 top=NULL
+close: rc=0 d=0 top=NULL
+  io: C
+-- rawstep fseek
+open: rc=0 d=0 top=NULL
+  io: I
+raw: rc=0 d=1 top=FORM/ILBM sz=42 sc=4
+  io: R8 R4
+raw: rc=0 d=2 top=BMHD/ILBM sz=4 sc=0 < FORM/ILBM sz=42 sc=12
+  io: R8
+raw: rc=-2(EOC) d=2 top=BMHD/ILBM sz=4 sc=0 < FORM/ILBM sz=42 sc=12
+raw: rc=0 d=2 top=CMAP/ILBM sz=3 sc=0 < FORM/ILBM sz=42 sc=24
+  io: S4 R8
+raw: rc=-2(EOC) d=2 top=CMAP/ILBM sz=3 sc=0 < FORM/ILBM sz=42 sc=24
+raw: rc=0 d=2 top=BODY/ILBM sz=6 sc=0 < FORM/ILBM sz=42 sc=36
+  io: S4 R8
+raw: rc=-2(EOC) d=2 top=BODY/ILBM sz=6 sc=0 < FORM/ILBM sz=42 sc=36
+raw: rc=-2(EOC) d=1 top=FORM/ILBM sz=42 sc=42
+  io: S6
+raw: rc=-1(EOF) d=0 top=NULL
+close: rc=0 d=0 top=NULL
+  io: C
+-- rawstep noseek
+open: rc=0 d=0 top=NULL
+  io: I
+raw: rc=0 d=1 top=FORM/ILBM sz=42 sc=4
+  io: R8 R4
+raw: rc=0 d=2 top=BMHD/ILBM sz=4 sc=0 < FORM/ILBM sz=42 sc=12
+  io: R8
+raw: rc=-2(EOC) d=2 top=BMHD/ILBM sz=4 sc=0 < FORM/ILBM sz=42 sc=12
+raw: rc=0 d=2 top=CMAP/ILBM sz=3 sc=0 < FORM/ILBM sz=42 sc=24
+  io: R4 R8
+raw: rc=-2(EOC) d=2 top=CMAP/ILBM sz=3 sc=0 < FORM/ILBM sz=42 sc=24
+raw: rc=0 d=2 top=BODY/ILBM sz=6 sc=0 < FORM/ILBM sz=42 sc=36
+  io: R4 R8
+raw: rc=-2(EOC) d=2 top=BODY/ILBM sz=6 sc=0 < FORM/ILBM sz=42 sc=36
+raw: rc=-2(EOC) d=1 top=FORM/ILBM sz=42 sc=42
+  io: R6
+raw: rc=-1(EOF) d=0 top=NULL
+close: rc=0 d=0 top=NULL
+  io: C
+-- step
+open: rc=0 d=0 top=NULL
+  io: I
+step: rc=0 d=1 top=FORM/ILBM sz=42 sc=4
+  io: R8 R4
+step: rc=0 d=2 top=BMHD/ILBM sz=4 sc=0 < FORM/ILBM sz=42 sc=12
+  io: R8
+step: rc=-2(EOC) d=2 top=BMHD/ILBM sz=4 sc=0 < FORM/ILBM sz=42 sc=12
+step: rc=0 d=2 top=CMAP/ILBM sz=3 sc=0 < FORM/ILBM sz=42 sc=24
+  io: S4 R8
+step: rc=-2(EOC) d=2 top=CMAP/ILBM sz=3 sc=0 < FORM/ILBM sz=42 sc=24
+step: rc=0 d=2 top=BODY/ILBM sz=6 sc=0 < FORM/ILBM sz=42 sc=36
+  io: S4 R8
+step: rc=-2(EOC) d=2 top=BODY/ILBM sz=6 sc=0 < FORM/ILBM sz=42 sc=36
+step: rc=-2(EOC) d=1 top=FORM/ILBM sz=42 sc=42
+  io: S6
+step: rc=-1(EOF) d=0 top=NULL
+close: rc=0 d=0 top=NULL
+  io: C
+-- scan
+open: rc=0 d=0 top=NULL
+  io: I
+scan: rc=-1(EOF) d=0 top=NULL
+  io: R8 R4 R8 S4 R8 S4 R8 S6
+scan: rc=-1(EOF) d=0 top=NULL
+close: rc=0 d=0 top=NULL
+  io: C
+-- read in chunks
+open: rc=0 d=0 top=NULL
+  io: I
+ReadBytes 4 -> -1(EOF) "": rc=-1(EOF) d=0 top=NULL
+raw: rc=0 d=1 top=FORM/ILBM sz=42 sc=4
+  io: R8 R4
+ReadBytes 4 -> 4 "BMHD": rc=4 d=1 top=FORM/ILBM sz=42 sc=8
+  io: R4
+raw: rc=-8(MANGLED) d=1 top=FORM/ILBM sz=42 sc=16
+  io: R8
+ReadBytes 1 -> 1 "C": rc=1 d=1 top=FORM/ILBM sz=42 sc=17
+  io: R1
+ReadBytes 2 -> 2 "MA": rc=2 d=1 top=FORM/ILBM sz=42 sc=19
+  io: R2
+ReadBytes 5 -> 5 "P~~~~": rc=5 d=1 top=FORM/ILBM sz=42 sc=24
+  io: R5
+ReadBytes 1 -> 1 "r": rc=1 d=1 top=FORM/ILBM sz=42 sc=25
+  io: R1
+ReadBytes 0 -> 0 "": rc=0 d=1 top=FORM/ILBM sz=42 sc=25
+raw: rc=-8(MANGLED) d=1 top=FORM/ILBM sz=42 sc=33
+  io: R8
+ReadRecs 2x5 -> 4 "~~~body0........": rc=4 d=1 top=FORM/ILBM sz=42 sc=41
+  io: R8
+ReadRecs 2x1 -> 0 "................": rc=0 d=1 top=FORM/ILBM sz=42 sc=41
+ReadBytes 10 -> 1 "1": rc=1 d=1 top=FORM/ILBM sz=42 sc=42
+  io: R1
+ReadRecs 2x1 -> 0 "................": rc=0 d=1 top=FORM/ILBM sz=42 sc=42
+raw: rc=-2(EOC) d=1 top=FORM/ILBM sz=42 sc=42
+raw: rc=-1(EOF) d=0 top=NULL
+ReadRecs 4x1 -> -1(EOF) "................": rc=-1(EOF) d=0 top=NULL
+ReadRecs 0x3 -> -1(EOF) "................": rc=-1(EOF) d=0 top=NULL
+ReadRecs 3x0 -> -1(EOF) "................": rc=-1(EOF) d=0 top=NULL
+ReadRecs 1x1 -> -1(EOF) "................": rc=-1(EOF) d=0 top=NULL
+ReadBytes -1 -> -1(EOF) "": rc=-1(EOF) d=0 top=NULL
+raw: rc=-1(EOF) d=0 top=NULL
+ReadBytes 1 -> -1(EOF) "": rc=-1(EOF) d=0 top=NULL
+raw: rc=-1(EOF) d=0 top=NULL
+ReadBytes 1 -> -1(EOF) "": rc=-1(EOF) d=0 top=NULL
+raw: rc=-1(EOF) d=0 top=NULL
+close: rc=0 d=0 top=NULL
+  io: C
+-- noseek partial read
+open: rc=0 d=0 top=NULL
+  io: I
+raw: rc=0 d=1 top=FORM/ILBM sz=42 sc=4
+  io: R8 R4
+raw: rc=0 d=2 top=BMHD/ILBM sz=4 sc=0 < FORM/ILBM sz=42 sc=12
+  io: R8
+ReadBytes 1 -> 1 "b": rc=1 d=2 top=BMHD/ILBM sz=4 sc=1 < FORM/ILBM sz=42 sc=12
+  io: R1
+raw: rc=-2(EOC) d=2 top=BMHD/ILBM sz=4 sc=1 < FORM/ILBM sz=42 sc=12
+raw: rc=0 d=2 top=CMAP/ILBM sz=3 sc=0 < FORM/ILBM sz=42 sc=24
+  io: R3 R8
+raw: rc=-2(EOC) d=2 top=CMAP/ILBM sz=3 sc=0 < FORM/ILBM sz=42 sc=24
+ReadBytes 3 -> 3 "rgb": rc=3 d=2 top=CMAP/ILBM sz=3 sc=3 < FORM/ILBM sz=42 sc=24
+  io: R3
+raw: rc=0 d=2 top=BODY/ILBM sz=6 sc=0 < FORM/ILBM sz=42 sc=36
+  io: R1 R8
+raw: rc=-2(EOC) d=2 top=BODY/ILBM sz=6 sc=0 < FORM/ILBM sz=42 sc=36
+raw: rc=-2(EOC) d=1 top=FORM/ILBM sz=42 sc=42
+  io: R6
+raw: rc=-1(EOF) d=0 top=NULL
+close: rc=0 d=0 top=NULL
+  io: C
+-- pushchunk in read mode
+open: rc=0 d=0 top=NULL
+  io: I
+PushChunk: rc=-1(EOF) d=0 top=NULL
+PushChunk: rc=-1(EOF) d=0 top=NULL
+ReadBytes 4 -> -1(EOF) "": rc=-1(EOF) d=0 top=NULL
+PopChunk: rc=-1(EOF) d=0 top=NULL
+PushChunk: rc=-1(EOF) d=0 top=NULL
+PopChunk: rc=-1(EOF) d=0 top=NULL
+PopChunk: rc=-1(EOF) d=0 top=NULL
+PopChunk: rc=-1(EOF) d=0 top=NULL
+close: rc=0 d=0 top=NULL
+  io: C
+open: rc=0 d=0 top=NULL
+  io: I
+raw: rc=0 d=1 top=FORM/ILBM sz=42 sc=4
+  io: R8 R4
+PushChunk in FORM: rc=0 d=2 top=BMHD/ILBM sz=4 sc=0 < FORM/ILBM sz=42 sc=12
+  io: R8
+ReadBytes 2 -> 2 "bm": rc=2 d=2 top=BMHD/ILBM sz=4 sc=2 < FORM/ILBM sz=42 sc=12
+  io: R2
+PopChunk: rc=0 d=1 top=FORM/ILBM sz=42 sc=16
+  io: S2
+PushChunk: rc=0 d=2 top=CMAP/ILBM sz=3 sc=0 < FORM/ILBM sz=42 sc=24
+  io: R8
+raw: rc=-2(EOC) d=2 top=CMAP/ILBM sz=3 sc=0 < FORM/ILBM sz=42 sc=24
+raw: rc=0 d=2 top=BODY/ILBM sz=6 sc=0 < FORM/ILBM sz=42 sc=36
+  io: S4 R8
+raw: rc=-2(EOC) d=2 top=BODY/ILBM sz=6 sc=0 < FORM/ILBM sz=42 sc=36
+PopChunk mid-chunk: rc=0 d=1 top=FORM/ILBM sz=42 sc=42
+  io: S6
+raw: rc=-1(EOF) d=0 top=NULL
+close: rc=0 d=0 top=NULL
+  io: C
+-- big chunk
+noseek: rc=0 d=0 top=NULL
+  io: I
+raw: rc=0 d=1 top=FORM/ILBM sz=722 sc=4
+  io: R8 R4
+raw: rc=0 d=2 top=BODY/ILBM sz=700 sc=0 < FORM/ILBM sz=722 sc=12
+  io: R8
+raw: rc=-2(EOC) d=2 top=BODY/ILBM sz=700 sc=0 < FORM/ILBM sz=722 sc=12
+raw: rc=0 d=2 top=CMAP/ILBM sz=2 sc=0 < FORM/ILBM sz=722 sc=720
+  io: R512 R188 R8
+raw: rc=-2(EOC) d=2 top=CMAP/ILBM sz=2 sc=0 < FORM/ILBM sz=722 sc=720
+raw: rc=-2(EOC) d=1 top=FORM/ILBM sz=722 sc=722
+  io: R2
+raw: rc=-1(EOF) d=0 top=NULL
+close: rc=0 d=0 top=NULL
+  io: C
+noseek partial: rc=0 d=0 top=NULL
+  io: I
+raw: rc=0 d=1 top=FORM/ILBM sz=722 sc=4
+  io: R8 R4
+raw: rc=0 d=2 top=BODY/ILBM sz=700 sc=0 < FORM/ILBM sz=722 sc=12
+  io: R8
+ReadBytes 3 -> 3 "~~~": rc=3 d=2 top=BODY/ILBM sz=700 sc=3 < FORM/ILBM sz=722 sc=12
+  io: R3
+raw: rc=-2(EOC) d=2 top=BODY/ILBM sz=700 sc=3 < FORM/ILBM sz=722 sc=12
+raw: rc=0 d=2 top=CMAP/ILBM sz=2 sc=0 < FORM/ILBM sz=722 sc=720
+  io: R512 R185 R8
+raw: rc=-2(EOC) d=2 top=CMAP/ILBM sz=2 sc=0 < FORM/ILBM sz=722 sc=720
+raw: rc=-2(EOC) d=1 top=FORM/ILBM sz=722 sc=722
+  io: R2
+raw: rc=-1(EOF) d=0 top=NULL
+close: rc=0 d=0 top=NULL
+  io: C
+fseek: rc=0 d=0 top=NULL
+  io: I
+raw: rc=0 d=1 top=FORM/ILBM sz=722 sc=4
+  io: R8 R4
+raw: rc=0 d=2 top=BODY/ILBM sz=700 sc=0 < FORM/ILBM sz=722 sc=12
+  io: R8
+raw: rc=-2(EOC) d=2 top=BODY/ILBM sz=700 sc=0 < FORM/ILBM sz=722 sc=12
+raw: rc=0 d=2 top=CMAP/ILBM sz=2 sc=0 < FORM/ILBM sz=722 sc=720
+  io: S700 R8
+raw: rc=-2(EOC) d=2 top=CMAP/ILBM sz=2 sc=0 < FORM/ILBM sz=722 sc=720
+raw: rc=-2(EOC) d=1 top=FORM/ILBM sz=722 sc=722
+  io: S2
+raw: rc=-1(EOF) d=0 top=NULL
+close: rc=0 d=0 top=NULL
+  io: C
+noseek close: rc=0 d=0 top=NULL
+  io: I
+raw: rc=0 d=1 top=FORM/ILBM sz=722 sc=4
+  io: R8 R4
+raw: rc=0 d=2 top=BODY/ILBM sz=700 sc=0 < FORM/ILBM sz=722 sc=12
+  io: R8
+close: rc=0 d=0 top=NULL
+  io: R512 R188 R10 C
+-- write in read mode
+open: rc=0 d=0 top=NULL
+  io: I
+raw: rc=0 d=1 top=FORM/ILBM sz=42 sc=4
+  io: R8 R4
+raw: rc=0 d=2 top=BMHD/ILBM sz=4 sc=0 < FORM/ILBM sz=42 sc=12
+  io: R8
+WriteChunkBytes: rc=2 d=2 top=BMHD/ILBM sz=4 sc=2 < FORM/ILBM sz=42 sc=12
+  io: W2
+WriteChunkRecords: rc=2 d=2 top=BMHD/ILBM sz=4 sc=4 < FORM/ILBM sz=42 sc=12
+  io: W2
+close: rc=0 d=0 top=NULL
+  io: S26 C
+-- read errors
+open: rc=0 d=0 top=NULL
+  io: I
+raw: rc=0 d=1 top=FORM/ILBM sz=42 sc=4
+  io: R8 R4
+raw: rc=-5(READ) d=1 top=FORM/ILBM sz=42 sc=4
+  io: R8=99
+close: rc=0 d=0 top=NULL
+  io: S38 C
+open: rc=0 d=0 top=NULL
+  io: I
+raw: rc=0 d=1 top=FORM/ILBM sz=42 sc=4
+  io: R8 R4
+raw: rc=0 d=2 top=BMHD/ILBM sz=4 sc=0 < FORM/ILBM sz=42 sc=12
+  io: R8
+raw: rc=-2(EOC) d=2 top=BMHD/ILBM sz=4 sc=0 < FORM/ILBM sz=42 sc=12
+raw: rc=-7(SEEK) d=2 top=BMHD/ILBM sz=4 sc=0 < FORM/ILBM sz=42 sc=12
+  io: S4=-3
+close: rc=0 d=0 top=NULL
+  io: S4 S26 C
+open: rc=0 d=0 top=NULL
+  io: I
+raw: rc=0 d=1 top=FORM/ILBM sz=42 sc=4
+  io: R8 R4
+raw: rc=0 d=2 top=BMHD/ILBM sz=4 sc=0 < FORM/ILBM sz=42 sc=12
+  io: R8
+ReadBytes 2 -> -5(READ) "": rc=-5(READ) d=2 top=BMHD/ILBM sz=4 sc=0 < FORM/ILBM sz=42 sc=12
+  io: R2=1
+raw: rc=-2(EOC) d=2 top=BMHD/ILBM sz=4 sc=0 < FORM/ILBM sz=42 sc=12
+raw: rc=0 d=2 top=CMAP/ILBM sz=3 sc=0 < FORM/ILBM sz=42 sc=24
+  io: S4 R8
+raw: rc=-2(EOC) d=2 top=CMAP/ILBM sz=3 sc=0 < FORM/ILBM sz=42 sc=24
+raw: rc=0 d=2 top=BODY/ILBM sz=6 sc=0 < FORM/ILBM sz=42 sc=36
+  io: S4 R8
+raw: rc=-2(EOC) d=2 top=BODY/ILBM sz=6 sc=0 < FORM/ILBM sz=42 sc=36
+raw: rc=-2(EOC) d=1 top=FORM/ILBM sz=42 sc=42
+  io: S6
+raw: rc=-1(EOF) d=0 top=NULL
+close: rc=0 d=0 top=NULL
+  io: C
+open: rc=0 d=0 top=NULL
+  io: I
+raw: rc=0 d=1 top=FORM/ILBM sz=42 sc=4
+  io: R8 R4
+raw: rc=0 d=2 top=BMHD/ILBM sz=4 sc=0 < FORM/ILBM sz=42 sc=12
+  io: R8
+raw: rc=-2(EOC) d=2 top=BMHD/ILBM sz=4 sc=0 < FORM/ILBM sz=42 sc=12
+raw: rc=-5(READ) d=1 top=FORM/ILBM sz=42 sc=16
+  io: R4 R8=7
+close: rc=0 d=0 top=NULL
+  io: R26 C
+-- nested
+open: rc=0 d=0 top=NULL
+  io: I
+raw: rc=0 d=1 top=LIST/ILBM sz=82 sc=4
+  io: R8 R4
+raw: rc=0 d=2 top=PROP/ILBM sz=14 sc=4 < LIST/ILBM sz=82 sc=12
+  io: R8 R4
+raw: rc=0 d=3 top=BMHD/ILBM sz=2 sc=0 < PROP/ILBM sz=14 sc=12 < LIST/ILBM sz=82 sc=12
+  io: R8
+raw: rc=-2(EOC) d=3 top=BMHD/ILBM sz=2 sc=0 < PROP/ILBM sz=14 sc=12 < LIST/ILBM sz=82 sc=12
+raw: rc=-2(EOC) d=2 top=PROP/ILBM sz=14 sc=14 < LIST/ILBM sz=82 sc=12
+  io: S2
+raw: rc=0 d=2 top=FORM/ILBM sz=14 sc=4 < LIST/ILBM sz=82 sc=34
+  io: R8 R4
+raw: rc=0 d=3 top=BODY/ILBM sz=1 sc=0 < FORM/ILBM sz=14 sc=12 < LIST/ILBM sz=82 sc=34
+  io: R8
+raw: rc=-2(EOC) d=3 top=BODY/ILBM sz=1 sc=0 < FORM/ILBM sz=14 sc=12 < LIST/ILBM sz=82 sc=34
+raw: rc=-2(EOC) d=2 top=FORM/ILBM sz=14 sc=14 < LIST/ILBM sz=82 sc=34
+  io: S2
+raw: rc=0 d=2 top=CAT /8SVX sz=26 sc=4 < LIST/ILBM sz=82 sc=56
+  io: R8 R4
+raw: rc=0 d=3 top=FORM/8SVX sz=14 sc=4 < CAT /8SVX sz=26 sc=12 < LIST/ILBM sz=82 sc=56
+  io: R8 R4
+raw: rc=0 d=4 top=BODY/8SVX sz=2 sc=0 < FORM/8SVX sz=14 sc=12 < CAT /8SVX sz=26 sc=12 < LIST/ILBM sz=82 sc=56
+  io: R8
+raw: rc=-2(EOC) d=4 top=BODY/8SVX sz=2 sc=0 < FORM/8SVX sz=14 sc=12 < CAT /8SVX sz=26 sc=12 < LIST/ILBM sz=82 sc=56
+raw: rc=-2(EOC) d=3 top=FORM/8SVX sz=14 sc=14 < CAT /8SVX sz=26 sc=12 < LIST/ILBM sz=82 sc=56
+  io: S2
+raw: rc=-2(EOC) d=2 top=CAT /8SVX sz=26 sc=26 < LIST/ILBM sz=82 sc=56
+raw: rc=-2(EOC) d=1 top=LIST/ILBM sz=82 sc=82
+raw: rc=-1(EOF) d=0 top=NULL
+close: rc=0 d=0 top=NULL
+  io: C
+open: rc=0 d=0 top=NULL
+  io: I
+step: rc=0 d=1 top=LIST/ILBM sz=82 sc=4
+  io: R8 R4
+step: rc=0 d=2 top=PROP/ILBM sz=14 sc=4 < LIST/ILBM sz=82 sc=12
+  io: R8 R4
+step: rc=0 d=3 top=BMHD/ILBM sz=2 sc=0 < PROP/ILBM sz=14 sc=12 < LIST/ILBM sz=82 sc=12
+  io: R8
+step: rc=-2(EOC) d=3 top=BMHD/ILBM sz=2 sc=0 < PROP/ILBM sz=14 sc=12 < LIST/ILBM sz=82 sc=12
+step: rc=-2(EOC) d=2 top=PROP/ILBM sz=14 sc=14 < LIST/ILBM sz=82 sc=12
+  io: R2
+step: rc=0 d=2 top=FORM/ILBM sz=14 sc=4 < LIST/ILBM sz=82 sc=34
+  io: R8 R4
+step: rc=0 d=3 top=BODY/ILBM sz=1 sc=0 < FORM/ILBM sz=14 sc=12 < LIST/ILBM sz=82 sc=34
+  io: R8
+step: rc=-2(EOC) d=3 top=BODY/ILBM sz=1 sc=0 < FORM/ILBM sz=14 sc=12 < LIST/ILBM sz=82 sc=34
+step: rc=-2(EOC) d=2 top=FORM/ILBM sz=14 sc=14 < LIST/ILBM sz=82 sc=34
+  io: R2
+step: rc=0 d=2 top=CAT /8SVX sz=26 sc=4 < LIST/ILBM sz=82 sc=56
+  io: R8 R4
+step: rc=0 d=3 top=FORM/8SVX sz=14 sc=4 < CAT /8SVX sz=26 sc=12 < LIST/ILBM sz=82 sc=56
+  io: R8 R4
+step: rc=0 d=4 top=BODY/8SVX sz=2 sc=0 < FORM/8SVX sz=14 sc=12 < CAT /8SVX sz=26 sc=12 < LIST/ILBM sz=82 sc=56
+  io: R8
+step: rc=-2(EOC) d=4 top=BODY/8SVX sz=2 sc=0 < FORM/8SVX sz=14 sc=12 < CAT /8SVX sz=26 sc=12 < LIST/ILBM sz=82 sc=56
+step: rc=-2(EOC) d=3 top=FORM/8SVX sz=14 sc=14 < CAT /8SVX sz=26 sc=12 < LIST/ILBM sz=82 sc=56
+  io: R2
+step: rc=-2(EOC) d=2 top=CAT /8SVX sz=26 sc=26 < LIST/ILBM sz=82 sc=56
+step: rc=-2(EOC) d=1 top=LIST/ILBM sz=82 sc=82
+step: rc=-1(EOF) d=0 top=NULL
+close: rc=0 d=0 top=NULL
+  io: C
+-- two top-level forms
+open: rc=0 d=0 top=NULL
+  io: I
+scan: rc=-1(EOF) d=0 top=NULL
+  io: R8 R4 R8 S4 R8 S4 R8 S6
+stream pos = 50
+close: rc=0 d=0 top=NULL
+  io: C
+-- malformed
+empty: rc=0 d=0 top=NULL
+  io: I
+raw: rc=-5(READ) d=0 top=NULL
+  io: R8=1
+close: rc=0 d=0 top=NULL
+  io: C
+trunc-size: rc=0 d=0 top=NULL
+  io: I
+raw: rc=-5(READ) d=0 top=NULL
+  io: R8=1
+close: rc=0 d=0 top=NULL
+  io: C
+trunc-type: rc=0 d=0 top=NULL
+  io: I
+raw: rc=-5(READ) d=1 top=FORM/.... sz=4 sc=0
+  io: R8 R4=1
+close: rc=0 d=0 top=NULL
+  io: S4=3 C
+empty-form: rc=0 d=0 top=NULL
+  io: I
+raw: rc=0 d=1 top=FORM/ILBM sz=4 sc=4
+  io: R8 R4
+raw: rc=-2(EOC) d=1 top=FORM/ILBM sz=4 sc=4
+raw: rc=-1(EOF) d=0 top=NULL
+close: rc=0 d=0 top=NULL
+  io: C
+form-size0: rc=0 d=0 top=NULL
+  io: I
+raw: rc=-5(READ) d=1 top=FORM/.... sz=0 sc=0
+  io: R8
+close: rc=0 d=0 top=NULL
+  io: C
+form-size3: rc=0 d=0 top=NULL
+  io: I
+raw: rc=-8(MANGLED) d=1 top=FORM/.... sz=3 sc=0
+  io: R8
+close: rc=0 d=0 top=NULL
+  io: S4 C
+form-negsize: rc=0 d=0 top=NULL
+  io: I
+raw: rc=-8(MANGLED) d=0 top=NULL
+  io: R8
+close: rc=0 d=0 top=NULL
+  io: C
+not-iff: rc=0 d=0 top=NULL
+  io: I
+raw: rc=-10(NOTIFF) d=1 top=ABCD/.... sz=4 sc=0
+  io: R8
+close: rc=0 d=0 top=NULL
+  io: S4 C
+top-prop: rc=0 d=0 top=NULL
+  io: I
+raw: rc=-10(NOTIFF) d=1 top=PROP/.... sz=4 sc=0
+  io: R8
+close: rc=0 d=0 top=NULL
+  io: S4 C
+text: rc=0 d=0 top=NULL
+  io: I
+scan: rc=-10(NOTIFF) d=1 top=This/.... sz=543781664 sc=0
+  io: R8
+close: rc=0 d=0 top=NULL
+  io: S543781664=3 C
+bad-type: rc=0 d=0 top=NULL
+  io: I
+raw: rc=-8(MANGLED) d=1 top=FORM/ilbm sz=12 sc=4
+  io: R8 R4
+close: rc=0 d=0 top=NULL
+  io: S8 C
+space-type: rc=0 d=0 top=NULL
+  io: I
+raw: rc=-8(MANGLED) d=1 top=FORM/ ABC sz=12 sc=4
+  io: R8 R4
+close: rc=0 d=0 top=NULL
+  io: S8 C
+bad-id: rc=0 d=0 top=NULL
+  io: I
+raw: rc=0 d=1 top=FORM/ILBM sz=12 sc=4
+  io: R8 R4
+raw: rc=-9(SYNTAX) d=1 top=FORM/ILBM sz=12 sc=12
+  io: R8
+close: rc=0 d=0 top=NULL
+  io: C
+chunk-too-big: rc=0 d=0 top=NULL
+  io: I
+raw: rc=0 d=1 top=FORM/ILBM sz=20 sc=4
+  io: R8 R4
+raw: rc=-8(MANGLED) d=1 top=FORM/ILBM sz=20 sc=12
+  io: R8
+close: rc=0 d=0 top=NULL
+  io: S8 C
+truncated-file: rc=0 d=0 top=NULL
+  io: I
+raw: rc=0 d=1 top=FORM/ILBM sz=30 sc=4
+  io: R8 R4
+raw: rc=0 d=2 top=BODY/ILBM sz=6 sc=0 < FORM/ILBM sz=30 sc=12
+  io: R8
+raw: rc=-2(EOC) d=2 top=BODY/ILBM sz=6 sc=0 < FORM/ILBM sz=30 sc=12
+raw: rc=-5(READ) d=1 top=FORM/ILBM sz=30 sc=18
+  io: S6 R8=1
+close: rc=0 d=0 top=NULL
+  io: S12=3 C
+truncated-file scan: rc=0 d=0 top=NULL
+  io: I
+scan: rc=-5(READ) d=1 top=FORM/ILBM sz=30 sc=18
+  io: R8 R4 R8 S6 R8=1
+close: rc=0 d=0 top=NULL
+  io: S12=3 C
+odd-form: rc=0 d=0 top=NULL
+  io: I
+raw: rc=-8(MANGLED) d=1 top=FORM/.... sz=17 sc=0
+  io: R8
+close: rc=0 d=0 top=NULL
+  io: S18 C
+form-ends-mid-pad: rc=0 d=0 top=NULL
+  io: I
+raw: rc=0 d=1 top=FORM/ILBM sz=14 sc=4
+  io: R8 R4
+raw: rc=0 d=2 top=BODY/ILBM sz=1 sc=0 < FORM/ILBM sz=14 sc=12
+  io: R8
+raw: rc=-2(EOC) d=2 top=BODY/ILBM sz=1 sc=0 < FORM/ILBM sz=14 sc=12
+raw: rc=-2(EOC) d=1 top=FORM/ILBM sz=14 sc=14
+  io: S2
+raw: rc=-1(EOF) d=0 top=NULL
+close: rc=0 d=0 top=NULL
+  io: C
+form-ends-mid-header: rc=0 d=0 top=NULL
+  io: I
+raw: rc=0 d=1 top=FORM/ILBM sz=10 sc=4
+  io: R8 R4
+raw: rc=-5(READ) d=1 top=FORM/ILBM sz=10 sc=10
+  io: R6
+close: rc=0 d=0 top=NULL
+  io: C
+form-in-form: rc=0 d=0 top=NULL
+  io: I
+raw: rc=0 d=1 top=FORM/ILBM sz=16 sc=4
+  io: R8 R4
+raw: rc=0 d=2 top=FORM/TEST sz=4 sc=4 < FORM/ILBM sz=16 sc=12
+  io: R8 R4
+raw: rc=-2(EOC) d=2 top=FORM/TEST sz=4 sc=4 < FORM/ILBM sz=16 sc=12
+raw: rc=-2(EOC) d=1 top=FORM/ILBM sz=16 sc=16
+raw: rc=-1(EOF) d=0 top=NULL
+close: rc=0 d=0 top=NULL
+  io: C
+prop-in-form: rc=0 d=0 top=NULL
+  io: I
+raw: rc=0 d=1 top=FORM/ILBM sz=16 sc=4
+  io: R8 R4
+raw: rc=-9(SYNTAX) d=2 top=PROP/ILBM sz=4 sc=0 < FORM/ILBM sz=16 sc=12
+  io: R8
+close: rc=0 d=0 top=NULL
+  io: S4 C
+leaf-in-list: rc=0 d=0 top=NULL
+  io: I
+raw: rc=0 d=1 top=LIST/ILBM sz=14 sc=4
+  io: R8 R4
+raw: rc=-9(SYNTAX) d=2 top=BODY/ILBM sz=2 sc=0 < LIST/ILBM sz=14 sc=12
+  io: R8
+close: rc=0 d=0 top=NULL
+  io: S2 C
+leaf-in-cat: rc=0 d=0 top=NULL
+  io: I
+raw: rc=0 d=1 top=CAT /     sz=14 sc=4
+  io: R8 R4
+raw: rc=-9(SYNTAX) d=2 top=BODY/     sz=2 sc=0 < CAT /     sz=14 sc=12
+  io: R8
+close: rc=0 d=0 top=NULL
+  io: S2 C
+prop-bad-type: rc=0 d=0 top=NULL
+  io: I
+raw: rc=0 d=1 top=LIST/ILBM sz=16 sc=4
+  io: R8 R4
+raw: rc=-8(MANGLED) d=2 top=PROP/abcd sz=4 sc=4 < LIST/ILBM sz=16 sc=12
+  io: R8 R4
+close: rc=0 d=0 top=NULL
+  io: C
+form-in-prop: rc=0 d=0 top=NULL
+  io: I
+raw: rc=0 d=1 top=LIST/ILBM sz=28 sc=4
+  io: R8 R4
+raw: rc=0 d=2 top=PROP/ILBM sz=16 sc=4 < LIST/ILBM sz=28 sc=12
+  io: R8 R4
+raw: rc=0 d=3 top=FORM/ILBM sz=4 sc=4 < PROP/ILBM sz=16 sc=12 < LIST/ILBM sz=28 sc=12
+  io: R8 R4
+raw: rc=-2(EOC) d=3 top=FORM/ILBM sz=4 sc=4 < PROP/ILBM sz=16 sc=12 < LIST/ILBM sz=28 sc=12
+raw: rc=-2(EOC) d=2 top=PROP/ILBM sz=16 sc=16 < LIST/ILBM sz=28 sc=12
+raw: rc=-2(EOC) d=1 top=LIST/ILBM sz=28 sc=28
+raw: rc=-1(EOF) d=0 top=NULL
+close: rc=0 d=0 top=NULL
+  io: C
+-- continue after error
+bad-id: rc=0 d=0 top=NULL
+  io: I
+raw: rc=0 d=1 top=FORM/ILBM sz=30 sc=4
+  io: R8 R4
+raw: rc=-9(SYNTAX) d=1 top=FORM/ILBM sz=30 sc=12
+  io: R8
+raw: rc=-8(MANGLED) d=1 top=FORM/ILBM sz=30 sc=20
+  io: R8
+raw: rc=-5(READ) d=1 top=FORM/ILBM sz=30 sc=20
+  io: R8=1
+raw: rc=-5(READ) d=1 top=FORM/ILBM sz=30 sc=20
+  io: R8=1
+close: rc=0 d=0 top=NULL
+  io: S10=3 C
+prop-in-form: rc=0 d=0 top=NULL
+  io: I
+raw: rc=0 d=1 top=FORM/ILBM sz=34 sc=4
+  io: R8 R4
+raw: rc=-9(SYNTAX) d=2 top=PROP/ILBM sz=6 sc=0 < FORM/ILBM sz=34 sc=12
+  io: R8
+raw: rc=-5(READ) d=2 top=PROP/ILBM sz=6 sc=6 < FORM/ILBM sz=34 sc=12
+  io: R6
+raw: rc=-2(EOC) d=2 top=PROP/ILBM sz=6 sc=6 < FORM/ILBM sz=34 sc=12
+raw: rc=0 d=2 top=DATA/ILBM sz=2 sc=0 < FORM/ILBM sz=34 sc=26
+  io: R8
+raw: rc=-2(EOC) d=2 top=DATA/ILBM sz=2 sc=0 < FORM/ILBM sz=34 sc=26
+raw: rc=-5(READ) d=1 top=FORM/ILBM sz=34 sc=28
+  io: S2 R6=1
+close: rc=0 d=0 top=NULL
+  io: S6=3 C
+form-size2: rc=0 d=0 top=NULL
+  io: I
+raw: rc=-5(READ) d=1 top=FORM/IL.. sz=2 sc=2
+  io: R8 R2
+close: rc=0 d=0 top=NULL
+  io: C
+form-size-max: rc=0 d=0 top=NULL
+  io: I
+raw: rc=-8(MANGLED) d=1 top=FORM/.... sz=2147483647 sc=0
+  io: R8
+close: rc=0 d=0 top=NULL
+  io: C
+chunk-negsize: rc=0 d=0 top=NULL
+  io: I
+raw: rc=0 d=1 top=FORM/ILBM sz=20 sc=4
+  io: R8 R4
+raw: rc=-8(MANGLED) d=1 top=FORM/ILBM sz=20 sc=12
+  io: R8
+close: rc=0 d=0 top=NULL
+  io: S8 C
+chunk-pad-past-end: rc=0 d=0 top=NULL
+  io: I
+raw: rc=0 d=1 top=FORM/ILBM sz=20 sc=4
+  io: R8 R4
+raw: rc=-8(MANGLED) d=1 top=FORM/ILBM sz=20 sc=12
+  io: R8
+close: rc=0 d=0 top=NULL
+  io: S8 C
+chunk-exact: rc=0 d=0 top=NULL
+  io: I
+raw: rc=0 d=1 top=FORM/ILBM sz=20 sc=4
+  io: R8 R4
+raw: rc=0 d=2 top=BODY/ILBM sz=8 sc=0 < FORM/ILBM sz=20 sc=12
+  io: R8
+raw: rc=-2(EOC) d=2 top=BODY/ILBM sz=8 sc=0 < FORM/ILBM sz=20 sc=12
+raw: rc=-2(EOC) d=1 top=FORM/ILBM sz=20 sc=20
+  io: S8
+raw: rc=-1(EOF) d=0 top=NULL
+close: rc=0 d=0 top=NULL
+  io: C
+cat-size0-in-list: rc=0 d=0 top=NULL
+  io: I
+raw: rc=0 d=1 top=LIST/ILBM sz=12 sc=4
+  io: R8 R4
+raw: rc=-5(READ) d=2 top=CAT /ILBM sz=0 sc=0 < LIST/ILBM sz=12 sc=12
+  io: R8
+close: rc=0 d=0 top=NULL
+  io: C
+cat-other-type: rc=0 d=0 top=NULL
+  io: I
+raw: rc=0 d=1 top=CAT /ILBM sz=16 sc=4
+  io: R8 R4
+raw: rc=0 d=2 top=FORM/8SVX sz=4 sc=4 < CAT /ILBM sz=16 sc=12
+  io: R8 R4
+raw: rc=-2(EOC) d=2 top=FORM/8SVX sz=4 sc=4 < CAT /ILBM sz=16 sc=12
+raw: rc=-2(EOC) d=1 top=CAT /ILBM sz=16 sc=16
+raw: rc=-1(EOF) d=0 top=NULL
+close: rc=0 d=0 top=NULL
+  io: C
+list-other-types: rc=0 d=0 top=NULL
+  io: I
+raw: rc=0 d=1 top=LIST/ILBM sz=28 sc=4
+  io: R8 R4
+raw: rc=0 d=2 top=PROP/8SVX sz=4 sc=4 < LIST/ILBM sz=28 sc=12
+  io: R8 R4
+raw: rc=-2(EOC) d=2 top=PROP/8SVX sz=4 sc=4 < LIST/ILBM sz=28 sc=12
+raw: rc=0 d=2 top=FORM/8SVX sz=4 sc=4 < LIST/ILBM sz=28 sc=24
+  io: R8 R4
+raw: rc=-2(EOC) d=2 top=FORM/8SVX sz=4 sc=4 < LIST/ILBM sz=28 sc=24
+raw: rc=-2(EOC) d=1 top=LIST/ILBM sz=28 sc=28
+raw: rc=-1(EOF) d=0 top=NULL
+close: rc=0 d=0 top=NULL
+  io: C
+cat-blank: rc=0 d=0 top=NULL
+  io: I
+raw: rc=0 d=1 top=CAT /     sz=4 sc=4
+  io: R8 R4
+raw: rc=-2(EOC) d=1 top=CAT /     sz=4 sc=4
+raw: rc=-1(EOF) d=0 top=NULL
+close: rc=0 d=0 top=NULL
+  io: C
+form-blank: rc=0 d=0 top=NULL
+  io: I
+raw: rc=0 d=1 top=FORM/     sz=4 sc=4
+  io: R8 R4
+raw: rc=-2(EOC) d=1 top=FORM/     sz=4 sc=4
+raw: rc=-1(EOF) d=0 top=NULL
+close: rc=0 d=0 top=NULL
+  io: C
+form-type-form: rc=0 d=0 top=NULL
+  io: I
+raw: rc=0 d=1 top=FORM/FORM sz=4 sc=4
+  io: R8 R4
+raw: rc=-2(EOC) d=1 top=FORM/FORM sz=4 sc=4
+raw: rc=-1(EOF) d=0 top=NULL
+close: rc=0 d=0 top=NULL
+  io: C
+form-type-ab1: rc=0 d=0 top=NULL
+  io: I
+raw: rc=0 d=1 top=FORM/AB1  sz=4 sc=4
+  io: R8 R4
+raw: rc=-2(EOC) d=1 top=FORM/AB1  sz=4 sc=4
+raw: rc=-1(EOF) d=0 top=NULL
+close: rc=0 d=0 top=NULL
+  io: C
+-- dos
+OpenIFF = 0
+pos = 0
+raw: rc=0 d=1 top=FORM/ILBM sz=42 sc=4
+raw: rc=0 d=2 top=BMHD/ILBM sz=4 sc=0 < FORM/ILBM sz=42 sc=12
+pos = 20
+ReadBytes 2 -> 2 "bm": rc=2 d=2 top=BMHD/ILBM sz=4 sc=2 < FORM/ILBM sz=42 sc=12
+raw: rc=-2(EOC) d=2 top=BMHD/ILBM sz=4 sc=2 < FORM/ILBM sz=42 sc=12
+raw: rc=0 d=2 top=CMAP/ILBM sz=3 sc=0 < FORM/ILBM sz=42 sc=24
+raw: rc=-2(EOC) d=2 top=CMAP/ILBM sz=3 sc=0 < FORM/ILBM sz=42 sc=24
+pos = 32
+raw: rc=0 d=2 top=BODY/ILBM sz=6 sc=0 < FORM/ILBM sz=42 sc=36
+raw: rc=-2(EOC) d=2 top=BODY/ILBM sz=6 sc=0 < FORM/ILBM sz=42 sc=36
+raw: rc=-2(EOC) d=1 top=FORM/ILBM sz=42 sc=42
+raw: rc=-1(EOF) d=0 top=NULL
+pos = 50
+pos after CloseIFF = 50
+OpenIFF again = 0
+scan: rc=-5(READ) d=0 top=NULL
+OpenIFF trunc = 0
+raw: rc=0 d=1 top=FORM/ILBM sz=42 sc=4
+raw: rc=0 d=2 top=BMHD/ILBM sz=4 sc=0 < FORM/ILBM sz=42 sc=12
+raw: rc=-2(EOC) d=2 top=BMHD/ILBM sz=4 sc=0 < FORM/ILBM sz=42 sc=12
+raw: rc=-5(READ) d=1 top=FORM/ILBM sz=42 sc=16
