@@ -1,0 +1,11 @@
+open a.ticked=1 a.ticks=1 a.active=1 b.ticked=0 b.ticks=0 b.active=0
+idle 1s a.ticked=1 a.ticks=1 a.active=1 b.ticked=0 b.ticks=0 b.active=0
+a replied a.ticked=1 a.ticks=0 a.active=1 b.ticked=0 b.ticks=0 b.active=0
+a replied +0.5s a.ticked=1 a.ticks=1 a.active=1 b.ticked=0 b.ticks=0 b.active=0
+b activated a.ticked=1 a.ticks=1 a.active=0 b.ticked=1 b.ticks=1 b.active=1
+both replied +0.5s a.ticked=1 a.ticks=0 a.active=0 b.ticked=1 b.ticks=1 b.active=1
+b idcmp off a.ticked=1 a.ticks=0 a.active=0 b.ticked=1 b.ticks=1 b.active=1
+b idcmp off replied a.ticked=1 a.ticks=0 a.active=0 b.ticked=0 b.ticks=0 b.active=1
+b idcmp on a.ticked=1 a.ticks=0 a.active=0 b.ticked=1 b.ticks=1 b.active=1
+a moved a.ticked=0 a.ticks=0 a.active=0 b.ticked=1 b.ticks=1 b.active=1
+a moved again a.ticked=0 a.ticks=0 a.active=0 b.ticked=1 b.ticks=1 b.active=1

@@ -295,6 +295,11 @@ static VOID _dispose_idcmp_message(struct IntuiMessage *msg)
             state->pending_mousemoves--;
     }
 
+    /* AmigaOS 3.1: WFLG_WINDOWTICKED stays set from the moment a tick is
+     * sent until Intuition reaps its reply (tests/probes/intuition/ticks). */
+    if (msg->Class == IDCMP_INTUITICKS && msg->IDCMPWindow)
+        msg->IDCMPWindow->Flags &= ~WFLG_WINDOWTICKED;
+
     if (msg->Class == IDCMP_IDCMPUPDATE && msg->IAddress)
     {
         ULONG payload_size = _idcmp_update_payload_size(msg->IAddress);
@@ -8631,27 +8636,27 @@ VOID _intuition_VBlankInputHook(void)
 
     /*
      * IDCMP_INTUITICKS: fire approximately every 10th VBlank (~5 Hz on PAL).
-     * Per RKRM, INTUITICKS are sent to every open window whose IDCMPFlags
-     * include IDCMP_INTUITICKS.  The message carries the current mouse
-     * position relative to the window.
+     * AmigaOS 3.1 (tests/probes/intuition/ticks): only the active window
+     * gets ticks, and never a second one while WFLG_WINDOWTICKED is set;
+     * the flag is cleared when Intuition reaps the tick's reply, which it
+     * does for the active window on every tick and for any window when it
+     * posts another message to it.
      */
     g_intuitick_counter++;
     if (g_intuitick_counter >= 10)
     {
-        struct Screen *scr;
-        struct Window *win;
+        struct Window *win = IntuitionBase->ActiveWindow;
 
         g_intuitick_counter = 0;
-        for (scr = IntuitionBase->FirstScreen; scr; scr = scr->NextScreen)
+        if (win && _intuition_find_window_state((struct LXAIntuitionBase *)IntuitionBase, win))
         {
-            for (win = scr->FirstWindow; win; win = win->NextWindow)
+            _reap_window_idcmp_replies(win);
+            if ((win->IDCMPFlags & IDCMP_INTUITICKS) && !(win->Flags & WFLG_WINDOWTICKED))
             {
-                if (win->IDCMPFlags & IDCMP_INTUITICKS)
-                {
-                    _post_idcmp_message(win, IDCMP_INTUITICKS, 0,
+                if (_post_idcmp_message(win, IDCMP_INTUITICKS, 0,
                                         g_current_qualifier,
-                                        NULL, win->MouseX, win->MouseY);
-                }
+                                        NULL, win->MouseX, win->MouseY))
+                    win->Flags |= WFLG_WINDOWTICKED;
             }
         }
     }
