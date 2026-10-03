@@ -231,6 +231,8 @@ Built-in C: commands with full AmigaDOS template support:
 
 ## Current Status
 
+**Version 0.11.16** - Fred Fish mass run (Phase 232): all 9932 executables from the Fred Fish collection run under lxa without crashing or stalling the emulator itself; crashes inside emulated programs behave like AmigaOS (held task / Guru) and are classified against a real AmigaOS 3.1 run (`doc/sweeps/2026-10-03-fish-massrun.md`).
+
 **Version 0.11.15** - Rendering matches AmigaOS 3.1 (Phase 223): Workbench screen and window chrome, system gadgets, menus, requesters, BOOPSI images and GadTools gadgets are checked pixel-by-pixel against the reference in 15 gallery goldens - the remaining differences are the ROM font's glyphs (Phase 225). API conformance probes for utility/exec/dos (Phase 222a) and fixes for Fred Fish programs (`Open("*")`, CLI stack-size convention).
 
 **Version 0.11.14** - Shell and C: commands match Workbench 3.1 (Phase 221): 11 parity scripts produce identical output on lxa and AmigaOS 3.1; 13 missing commands added (Which, SetDate, Lock, Relabel, IconX, ...). CPU faults now behave like AmigaOS (held tasks, Guru for faulting interrupt code), and several more emulator stalls found by the Fred Fish mass run are fixed.
