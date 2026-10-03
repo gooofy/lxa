@@ -1,0 +1,7 @@
+-- CLI process
+cli_Module set = TRUE
+cli: count = 2 [1]=other [2]=other [3]=seglist [4]=0
+-- children
+CreateNewProc NP_Seglist: count = 2 [1]=same [2]=same [3]=seglist [4]=0
+CreateNewProc NP_Entry: count = 2 [1]=same [2]=same [3]=other [4]=0
+CreateProc: count = 2 [1]=same [2]=same [3]=seglist [4]=0

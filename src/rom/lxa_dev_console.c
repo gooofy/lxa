@@ -76,7 +76,6 @@ extern struct GfxBase       *GfxBase;
 #define INPUT_BUF_LEN 256
 
 /* Required console IDCMP flags */
-#define CONSOLE_REQUIRED_IDCMP_FLAGS (IDCMP_RAWKEY | IDCMP_NEWSIZE)
 
 /* Our extended ConUnit with additional state */
 struct LxaConUnit {
@@ -131,7 +130,9 @@ struct LxaConUnit {
     UWORD  text_rows;            /* Visible text rows */
     char   *visible_text;        /* Visible text cell buffer */
     char   *scrollback_text;     /* Scrollback text cell buffer */
-    ULONG  base_idcmp_flags;     /* Window IDCMP flags before console additions */
+    struct MsgPort *input_port;  /* input events Intuition passes on (not the window's IDCMP) */
+    WORD   known_width;          /* window size the console geometry was computed for */
+    WORD   known_height;
     BOOL   auto_page_length;     /* Use geometry-derived page length */
     BOOL   auto_line_length;     /* Use geometry-derived line length */
     BOOL   auto_left_offset;     /* Use geometry-derived left offset */
@@ -266,7 +267,7 @@ static BOOL console_should_pass_backspace(struct LxaConUnit *unit);
 static void console_update_window_geometry(struct LxaConUnit *unit);
 static void console_sync_text_geometry(struct LxaConUnit *unit);
 static void console_refresh_scrollback_view(struct LxaConUnit *unit);
-static void console_update_idcmp_flags(struct LxaConUnit *unit);
+extern VOID _intuition_set_console_port(struct Window *window, struct MsgPort *port, BOOL attach);
 static BOOL console_raw_event_enabled(struct LxaConUnit *unit, UBYTE event_class);
 static void console_emit_raw_event_report(struct LxaConUnit *unit,
                                           UBYTE event_class,
@@ -382,7 +383,18 @@ static struct LxaConUnit *console_create_unit(struct Window *window)
     unit->text_rows = 0;
     unit->visible_text = NULL;
     unit->scrollback_text = NULL;
-    unit->base_idcmp_flags = window->IDCMPFlags;
+    /* The console reads the window's input from its own port: Intuition
+     * delivers there what the window's IDCMP does not take.  It never
+     * touches the window's IDCMP (AmigaOS 3.1, tests/console/idcmp_console). */
+    unit->input_port = (struct MsgPort *)AllocMem(sizeof(struct MsgPort), MEMF_PUBLIC | MEMF_CLEAR);
+    if (unit->input_port) {
+        unit->input_port->mp_Node.ln_Type = NT_MSGPORT;
+        unit->input_port->mp_Flags = PA_IGNORE;
+        NEWLIST(&unit->input_port->mp_MsgList);
+        _intuition_set_console_port(window, unit->input_port, TRUE);
+    }
+    unit->known_width = window->Width;
+    unit->known_height = window->Height;
     console_sync_text_geometry(unit);
     
     LPRINTF(LOG_INFO, "_console: Created ConUnit for window 0x%08lx: XMax=%d YMax=%d XRSize=%d YRSize=%d\n",
@@ -399,6 +411,14 @@ static struct LxaConUnit *console_create_unit(struct Window *window)
 static void console_destroy_unit(struct LxaConUnit *unit)
 {
     if (unit) {
+        if (unit->input_port) {
+            struct Message *msg;
+            if (unit->cu.cu_Window)
+                _intuition_set_console_port(unit->cu.cu_Window, unit->input_port, FALSE);
+            while ((msg = GetMsg(unit->input_port)) != NULL)
+                ReplyMsg(msg);
+            FreeMem(unit->input_port, sizeof(struct MsgPort));
+        }
         if (unit->visible_text) {
             FreeMem(unit->visible_text, unit->text_cols * unit->text_rows);
         }
@@ -433,6 +453,8 @@ static void console_update_window_geometry(struct LxaConUnit *unit)
     }
 
     window = unit->cu.cu_Window;
+    unit->known_width = window->Width;
+    unit->known_height = window->Height;
     rp = window->RPort;
     bm = rp ? rp->BitMap : NULL;
 
@@ -1052,59 +1074,6 @@ static void console_refresh_scrollback_view(struct LxaConUnit *unit)
     _graphics_RefreshAllScreens();
 }
 
-static void console_update_idcmp_flags(struct LxaConUnit *unit)
-{
-    struct Window *window;
-    ULONG desired_flags;
-    struct IntuitionBase *IntuitionBase;
-
-    if (!unit || !unit->cu.cu_Window) {
-        return;
-    }
-
-    window = unit->cu.cu_Window;
-    desired_flags = unit->base_idcmp_flags | CONSOLE_REQUIRED_IDCMP_FLAGS;
-
-    if (console_raw_event_enabled(unit, IECLASS_RAWMOUSE)) {
-        desired_flags |= IDCMP_MOUSEBUTTONS;
-    }
-    if (console_raw_event_enabled(unit, IECLASS_POINTERPOS)) {
-        desired_flags |= IDCMP_MOUSEMOVE;
-    }
-    if (console_raw_event_enabled(unit, IECLASS_GADGETDOWN)) {
-        desired_flags |= IDCMP_GADGETDOWN;
-    }
-    if (console_raw_event_enabled(unit, IECLASS_GADGETUP)) {
-        desired_flags |= IDCMP_GADGETUP;
-    }
-    if (console_raw_event_enabled(unit, IECLASS_CLOSEWINDOW)) {
-        desired_flags |= IDCMP_CLOSEWINDOW;
-    }
-    if (console_raw_event_enabled(unit, IECLASS_REFRESHWINDOW)) {
-        desired_flags |= IDCMP_REFRESHWINDOW;
-    }
-    if (console_raw_event_enabled(unit, IECLASS_ACTIVEWINDOW)) {
-        desired_flags |= IDCMP_ACTIVEWINDOW;
-    }
-    if (console_raw_event_enabled(unit, IECLASS_INACTIVEWINDOW)) {
-        desired_flags |= IDCMP_INACTIVEWINDOW;
-    }
-    if (console_raw_event_enabled(unit, IECLASS_CHANGEWINDOW)) {
-        desired_flags |= IDCMP_CHANGEWINDOW;
-    }
-
-    if (window->IDCMPFlags == desired_flags) {
-        return;
-    }
-
-    IntuitionBase = (struct IntuitionBase *)OpenLibrary((STRPTR)"intuition.library", 0);
-    if (!IntuitionBase) {
-        return;
-    }
-
-    ModifyIDCMP(window, desired_flags);
-    CloseLibrary((struct Library *)IntuitionBase);
-}
 
 static BOOL console_raw_event_enabled(struct LxaConUnit *unit, UBYTE event_class)
 {
@@ -1127,7 +1096,6 @@ static void console_set_raw_event(struct LxaConUnit *unit, UBYTE event_class, BO
         unit->cu.cu_RawEvents[event_class / 8] &= ~(1U << (event_class & 7));
     }
 
-    console_update_idcmp_flags(unit);
 }
 
 static char *console_append_ulong(char *dst, char *end, ULONG value)
@@ -1599,8 +1567,12 @@ static BOOL console_handle_raw_event_message(struct LxaConUnit *unit,
             event_class = IECLASS_SIZEWINDOW;
             seconds = imsg->Seconds;
             micros = imsg->Micros;
+            /* x;y carry the two words of the window address (ie_EventAddress),
+             * as on AmigaOS 3.1 (tests/console/raw_events_unit) */
+            x = (UWORD)((ULONG)imsg->IDCMPWindow >> 16);
+            y = (UWORD)((ULONG)imsg->IDCMPWindow & 0xFFFF);
             console_emit_raw_event_report(unit, event_class, event_subclass,
-                                          0, 0, 0, 0, seconds, micros);
+                                          0, 0, x, y, seconds, micros);
             return TRUE;
 
         case IDCMP_REFRESHWINDOW:
@@ -1662,7 +1634,6 @@ static BOOL console_handle_raw_event_message(struct LxaConUnit *unit,
  */
 static void console_process_input(struct LxaConUnit *unit)
 {
-    struct Window *window;
     struct MsgPort *port;
     struct IntuiMessage *imsg;
     BOOL redraw_cursor = FALSE;
@@ -1671,8 +1642,7 @@ static void console_process_input(struct LxaConUnit *unit)
         return;
     }
     
-    window = unit->cu.cu_Window;
-    port = window->UserPort;
+    port = unit->input_port;
     
     if (!port) {
         return;
@@ -3344,10 +3314,6 @@ static void __g_lxa_console_Open ( register struct Library   *dev   __asm("a6"),
                 break;
         }
 
-        console_update_idcmp_flags(unit);
-        
-        DPRINTF(LOG_DEBUG, "_console: Window now has IDCMPFlags=0x%08lx, UserPort=0x%08lx\n",
-                (ULONG)window->IDCMPFlags, (ULONG)window->UserPort);
         
         /* Register unit in tracking array for VBlank hook (Phase 45: async I/O) */
         for (i = 0; i < MAX_CONSOLE_UNITS; i++) {
@@ -3417,6 +3383,15 @@ static BPTR __g_lxa_console_BeginIO ( register struct Library   *dev   __asm("a6
     
     ioreq->io_Error = 0;
     iostd->io_Actual = 0;
+
+    /* The console follows the window's size even when the application's
+     * IDCMP takes IDCMP_NEWSIZE (AmigaOS 3.1, tests/console/csi_unit). */
+    if (unit && unit->cu.cu_Window &&
+        (unit->cu.cu_Window->Width != unit->known_width ||
+         unit->cu.cu_Window->Height != unit->known_height)) {
+        console_hide_cursor(unit);
+        console_update_window_geometry(unit);
+    }
     
     switch (ioreq->io_Command)
     {

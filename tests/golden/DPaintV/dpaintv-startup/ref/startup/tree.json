@@ -40,7 +40,7 @@
       2
      ],
      "detail_pen": 0,
-     "flags": 134230022,
+     "flags": 203436046,
      "font": {
       "baseline": 6,
       "name": "topaz.font",
@@ -58,6 +58,17 @@
        "top": 0,
        "type": 32837,
        "width": 24
+      },
+      {
+       "activation": 32769,
+       "flags": 32772,
+       "height": 11,
+       "id": 0,
+       "left": 0,
+       "text": [],
+       "top": 0,
+       "type": 32901,
+       "width": 20
       },
       {
        "activation": 32768,
@@ -82,122 +93,858 @@
        "width": 0
       },
       {
-       "activation": 0,
-       "flags": 32775,
-       "height": 14,
-       "id": 8,
-       "left": 24,
-       "text": [],
-       "top": 21,
-       "type": 256,
-       "width": 250
-      },
-      {
-       "activation": 0,
-       "flags": 32775,
-       "height": 14,
-       "id": 8,
-       "left": 24,
-       "text": [],
-       "top": 31,
-       "type": 256,
-       "width": 250
-      },
-      {
-       "activation": 0,
-       "flags": 32775,
-       "height": 14,
-       "id": 4,
-       "left": 24,
+       "activation": 8193,
+       "flags": 32772,
+       "height": 8,
+       "id": 2,
+       "left": 14,
        "text": [
         {
          "bpen": 0,
          "drawmode": 0,
          "fpen": 2,
-         "left": 109,
-         "text": "Name",
+         "left": -14,
+         "text": "",
+         "top": 4
+        }
+       ],
+       "top": 122,
+       "type": 260,
+       "width": 338
+      },
+      {
+       "activation": 11,
+       "flags": 7,
+       "height": 90,
+       "id": 1,
+       "left": 10,
+       "text": [],
+       "top": 27,
+       "type": 257,
+       "width": 330
+      },
+      {
+       "activation": 11,
+       "flags": 7,
+       "height": 72,
+       "id": 1,
+       "left": 346,
+       "text": [],
+       "top": 27,
+       "type": 259,
+       "width": 8
+      },
+      {
+       "activation": 3,
+       "flags": 32774,
+       "height": 9,
+       "id": 1,
+       "left": 342,
+       "text": [],
+       "top": 101,
+       "type": 257,
+       "width": 16
+      },
+      {
+       "activation": 3,
+       "flags": 32774,
+       "height": 9,
+       "id": 1,
+       "left": 342,
+       "text": [],
+       "top": 110,
+       "type": 257,
+       "width": 16
+      },
+      {
+       "activation": 0,
+       "flags": 32775,
+       "height": 94,
+       "id": 1,
+       "left": 342,
+       "text": [],
+       "top": 25,
+       "type": 256,
+       "width": 16
+      },
+      {
+       "activation": 0,
+       "flags": 32775,
+       "height": 94,
+       "id": 1,
+       "left": 8,
+       "text": [
+        {
+         "bpen": 0,
+         "drawmode": 0,
+         "fpen": 2,
+         "left": 99,
+         "text": "Choose Display Mode",
          "top": -12
         }
        ],
-       "top": 66,
+       "top": 25,
        "type": 256,
-       "width": 250
+       "width": 350
+      },
+      {
+       "activation": 11,
+       "flags": 7,
+       "height": 108,
+       "id": 3,
+       "left": 376,
+       "text": [],
+       "top": 27,
+       "type": 257,
+       "width": 238
+      },
+      {
+       "activation": 11,
+       "flags": 7,
+       "height": 90,
+       "id": 3,
+       "left": 620,
+       "text": [],
+       "top": 27,
+       "type": 259,
+       "width": 8
+      },
+      {
+       "activation": 3,
+       "flags": 32774,
+       "height": 9,
+       "id": 3,
+       "left": 616,
+       "text": [],
+       "top": 119,
+       "type": 257,
+       "width": 16
+      },
+      {
+       "activation": 3,
+       "flags": 32774,
+       "height": 9,
+       "id": 3,
+       "left": 616,
+       "text": [],
+       "top": 128,
+       "type": 257,
+       "width": 16
+      },
+      {
+       "activation": 0,
+       "flags": 32775,
+       "height": 112,
+       "id": 3,
+       "left": 616,
+       "text": [],
+       "top": 25,
+       "type": 256,
+       "width": 16
+      },
+      {
+       "activation": 0,
+       "flags": 32775,
+       "height": 112,
+       "id": 3,
+       "left": 374,
+       "text": [
+        {
+         "bpen": 0,
+         "drawmode": 0,
+         "fpen": 2,
+         "left": 53,
+         "text": "Display Information",
+         "top": -12
+        }
+       ],
+       "top": 25,
+       "type": 256,
+       "width": 258
+      },
+      {
+       "activation": 1,
+       "flags": 32774,
+       "height": 14,
+       "id": 4,
+       "left": 33,
+       "text": [
+        {
+         "bpen": 0,
+         "drawmode": 0,
+         "fpen": 2,
+         "left": 28,
+         "text": "  Screen Size",
+         "top": -12
+        }
+       ],
+       "top": 164,
+       "type": 257,
+       "width": 160
+      },
+      {
+       "activation": 10241,
+       "flags": 33540,
+       "height": 8,
+       "id": 6,
+       "left": 215,
+       "text": [
+        {
+         "bpen": 0,
+         "drawmode": 0,
+         "fpen": 2,
+         "left": -14,
+         "text": "",
+         "top": 4
+        }
+       ],
+       "top": 167,
+       "type": 260,
+       "width": 40
+      },
+      {
+       "activation": 10241,
+       "flags": 33540,
+       "height": 8,
+       "id": 7,
+       "left": 290,
+       "text": [
+        {
+         "bpen": 0,
+         "drawmode": 0,
+         "fpen": 2,
+         "left": -14,
+         "text": "",
+         "top": 4
+        }
+       ],
+       "top": 167,
+       "type": 260,
+       "width": 40
+      },
+      {
+       "activation": 1,
+       "flags": 32774,
+       "height": 14,
+       "id": 5,
+       "left": 33,
+       "text": [
+        {
+         "bpen": 0,
+         "drawmode": 0,
+         "fpen": 2,
+         "left": 36,
+         "text": "  Page Size",
+         "top": -12
+        }
+       ],
+       "top": 192,
+       "type": 257,
+       "width": 160
+      },
+      {
+       "activation": 10241,
+       "flags": 33540,
+       "height": 8,
+       "id": 8,
+       "left": 215,
+       "text": [
+        {
+         "bpen": 0,
+         "drawmode": 0,
+         "fpen": 2,
+         "left": -14,
+         "text": "",
+         "top": 4
+        }
+       ],
+       "top": 195,
+       "type": 260,
+       "width": 48
+      },
+      {
+       "activation": 10241,
+       "flags": 33540,
+       "height": 8,
+       "id": 9,
+       "left": 290,
+       "text": [
+        {
+         "bpen": 0,
+         "drawmode": 0,
+         "fpen": 2,
+         "left": -14,
+         "text": "",
+         "top": 4
+        }
+       ],
+       "top": 195,
+       "type": 260,
+       "width": 48
+      },
+      {
+       "activation": 11,
+       "flags": 7,
+       "height": 10,
+       "id": 10,
+       "left": 57,
+       "text": [],
+       "top": 222,
+       "type": 259,
+       "width": 132
       },
       {
        "activation": 0,
        "flags": 32775,
        "height": 14,
-       "id": 5,
-       "left": 24,
+       "id": 10,
+       "left": 53,
+       "text": [
+        {
+         "bpen": 0,
+         "drawmode": 0,
+         "fpen": 2,
+         "left": 22,
+         "text": "Palette Size",
+         "top": -12
+        }
+       ],
+       "top": 220,
+       "type": 256,
+       "width": 140
+      },
+      {
+       "activation": 1,
+       "flags": 32774,
+       "height": 14,
+       "id": 16,
+       "left": 209,
+       "text": [
+        {
+         "bpen": 0,
+         "drawmode": 0,
+         "fpen": 2,
+         "left": 16,
+         "text": "Backing Store",
+         "top": -12
+        }
+       ],
+       "top": 220,
+       "type": 257,
+       "width": 135
+      },
+      {
+       "activation": 257,
+       "flags": 33158,
+       "height": 11,
+       "id": 11,
+       "left": 209,
+       "text": [
+        {
+         "bpen": 0,
+         "drawmode": 0,
+         "fpen": 1,
+         "left": 33,
+         "text": "Retain Picture",
+         "top": 2
+        },
+        {
+         "bpen": 0,
+         "drawmode": 0,
+         "fpen": 1,
+         "left": 33,
+         "text": "R",
+         "top": 2
+        }
+       ],
+       "top": 240,
+       "type": 257,
+       "width": 26
+      },
+      {
+       "activation": 11,
+       "flags": 7,
+       "height": 72,
+       "id": 13,
+       "left": 380,
+       "text": [],
+       "top": 162,
+       "type": 257,
+       "width": 230
+      },
+      {
+       "activation": 11,
+       "flags": 7,
+       "height": 56,
+       "id": 13,
+       "left": 616,
+       "text": [],
+       "top": 162,
+       "type": 259,
+       "width": 8
+      },
+      {
+       "activation": 3,
+       "flags": 32774,
+       "height": 8,
+       "id": 13,
+       "left": 612,
+       "text": [],
+       "top": 220,
+       "type": 257,
+       "width": 16
+      },
+      {
+       "activation": 3,
+       "flags": 32774,
+       "height": 8,
+       "id": 13,
+       "left": 612,
+       "text": [],
+       "top": 228,
+       "type": 257,
+       "width": 16
+      },
+      {
+       "activation": 0,
+       "flags": 32775,
+       "height": 76,
+       "id": 13,
+       "left": 612,
+       "text": [],
+       "top": 160,
+       "type": 256,
+       "width": 16
+      },
+      {
+       "activation": 0,
+       "flags": 32775,
+       "height": 76,
+       "id": 13,
+       "left": 378,
        "text": [
         {
          "bpen": 0,
          "drawmode": 0,
          "fpen": 2,
          "left": 97,
-         "text": "Company",
+         "text": "Credits",
          "top": -12
         }
        ],
-       "top": 96,
+       "top": 160,
        "type": 256,
        "width": 250
       },
       {
-       "activation": 0,
-       "flags": 32775,
-       "height": 14,
-       "id": 6,
-       "left": 66,
-       "text": [
-        {
-         "bpen": 0,
-         "drawmode": 0,
-         "fpen": 2,
-         "left": 27,
-         "text": "Registration #",
-         "top": -12
-        }
-       ],
-       "top": 126,
-       "type": 256,
-       "width": 165
-      },
-      {
-       "activation": 0,
-       "flags": 32775,
-       "height": 14,
-       "id": 7,
-       "left": 24,
-       "text": [],
-       "top": 156,
-       "type": 256,
-       "width": 250
-      },
-      {
-       "activation": 3,
+       "activation": 1,
        "flags": 32774,
        "height": 14,
-       "id": 1,
-       "left": 124,
+       "id": 14,
+       "left": 12,
        "text": [],
-       "top": 174,
+       "top": 238,
        "type": 257,
        "width": 50
+      },
+      {
+       "activation": 1,
+       "flags": 32774,
+       "height": 14,
+       "id": 15,
+       "left": 553,
+       "text": [],
+       "top": 238,
+       "type": 257,
+       "width": 75
       }
      ],
-     "height": 197,
-     "idcmp": 2097264,
-     "left": 175,
-     "max_height": 197,
-     "max_width": 298,
-     "menus": [],
+     "height": 256,
+     "idcmp": 6292348,
+     "left": 0,
+     "max_height": 256,
+     "max_width": 640,
+     "menus": [
+      {
+       "flags": 1,
+       "height": 0,
+       "items": [
+        {
+         "command": 70,
+         "flags": 86,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "FirstMode",
+         "top": 0,
+         "width": 114
+        },
+        {
+         "command": 76,
+         "flags": 86,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "LastMode",
+         "top": 9,
+         "width": 114
+        },
+        {
+         "command": 78,
+         "flags": 86,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "NextMode",
+         "top": 18,
+         "width": 114
+        },
+        {
+         "command": 80,
+         "flags": 86,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "PrevMode",
+         "top": 27,
+         "width": 114
+        },
+        {
+         "command": 0,
+         "flags": 192,
+         "height": 6,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": null,
+         "top": 36,
+         "width": 114
+        },
+        {
+         "command": 85,
+         "flags": 86,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Use",
+         "top": 42,
+         "width": 114
+        },
+        {
+         "command": 67,
+         "flags": 86,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Cancel",
+         "top": 51,
+         "width": 114
+        }
+       ],
+       "left": 2,
+       "title": "Control",
+       "top": 0,
+       "width": 64
+      },
+      {
+       "flags": 1,
+       "height": 0,
+       "items": [
+        {
+         "command": 0,
+         "flags": 82,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Reset To Defaults",
+         "top": 0,
+         "width": 163
+        },
+        {
+         "command": 0,
+         "flags": 82,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Restore Last Saved",
+         "top": 9,
+         "width": 163
+        },
+        {
+         "command": 0,
+         "flags": 82,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Save Settings",
+         "top": 18,
+         "width": 163
+        },
+        {
+         "command": 0,
+         "flags": 192,
+         "height": 6,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": null,
+         "top": 27,
+         "width": 163
+        },
+        {
+         "command": 0,
+         "flags": 82,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [
+          {
+           "command": 68,
+           "flags": 86,
+           "height": 9,
+           "left": 123,
+           "mutualexclude": 0,
+           "sub": [],
+           "text": "Use",
+           "top": -1,
+           "width": 90
+          },
+          {
+           "command": 69,
+           "flags": 86,
+           "height": 9,
+           "left": 123,
+           "mutualexclude": 0,
+           "sub": [],
+           "text": "Define",
+           "top": 8,
+           "width": 90
+          }
+         ],
+         "text": "Default Pattern",
+         "top": 33,
+         "width": 163
+        }
+       ],
+       "left": 74,
+       "title": "Edit",
+       "top": 0,
+       "width": 40
+      },
+      {
+       "flags": 1,
+       "height": 0,
+       "items": [
+        {
+         "command": 65,
+         "flags": 86,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "All",
+         "top": 0,
+         "width": 73
+        },
+        {
+         "command": 49,
+         "flags": 86,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "PAL",
+         "top": 9,
+         "width": 73
+        }
+       ],
+       "left": 122,
+       "title": "Monitors",
+       "top": 0,
+       "width": 72
+      },
+      {
+       "flags": 1,
+       "height": 0,
+       "items": [
+        {
+         "command": 0,
+         "flags": 82,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [
+          {
+           "command": 0,
+           "flags": 339,
+           "height": 9,
+           "left": 111,
+           "mutualexclude": -2,
+           "sub": [],
+           "text": "Monitor Name",
+           "top": -1,
+           "width": 116
+          },
+          {
+           "command": 0,
+           "flags": 83,
+           "height": 9,
+           "left": 111,
+           "mutualexclude": -3,
+           "sub": [],
+           "text": "Mode ID",
+           "top": 8,
+           "width": 116
+          }
+         ],
+         "text": "Display Names By",
+         "top": 0,
+         "width": 147
+        },
+        {
+         "command": 0,
+         "flags": 82,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [
+          {
+           "command": 0,
+           "flags": 82,
+           "height": 9,
+           "left": 111,
+           "mutualexclude": 0,
+           "sub": [],
+           "text": "#?",
+           "top": -1,
+           "width": 37
+          },
+          {
+           "command": 0,
+           "flags": 82,
+           "height": 9,
+           "left": 111,
+           "mutualexclude": 0,
+           "sub": [],
+           "text": "#?",
+           "top": 8,
+           "width": 37
+          },
+          {
+           "command": 0,
+           "flags": 82,
+           "height": 9,
+           "left": 111,
+           "mutualexclude": 0,
+           "sub": [],
+           "text": "#?",
+           "top": 17,
+           "width": 37
+          },
+          {
+           "command": 0,
+           "flags": 82,
+           "height": 9,
+           "left": 111,
+           "mutualexclude": 0,
+           "sub": [],
+           "text": "#?",
+           "top": 26,
+           "width": 37
+          },
+          {
+           "command": 0,
+           "flags": 82,
+           "height": 9,
+           "left": 111,
+           "mutualexclude": 0,
+           "sub": [],
+           "text": "#?",
+           "top": 35,
+           "width": 37
+          },
+          {
+           "command": 0,
+           "flags": 82,
+           "height": 9,
+           "left": 111,
+           "mutualexclude": 0,
+           "sub": [],
+           "text": "#?",
+           "top": 44,
+           "width": 37
+          },
+          {
+           "command": 0,
+           "flags": 82,
+           "height": 9,
+           "left": 111,
+           "mutualexclude": 0,
+           "sub": [],
+           "text": "#?",
+           "top": 53,
+           "width": 37
+          },
+          {
+           "command": 0,
+           "flags": 82,
+           "height": 9,
+           "left": 111,
+           "mutualexclude": 0,
+           "sub": [],
+           "text": "#?",
+           "top": 62,
+           "width": 37
+          },
+          {
+           "command": 0,
+           "flags": 82,
+           "height": 9,
+           "left": 111,
+           "mutualexclude": 0,
+           "sub": [],
+           "text": "#?",
+           "top": 71,
+           "width": 37
+          },
+          {
+           "command": 0,
+           "flags": 82,
+           "height": 9,
+           "left": 111,
+           "mutualexclude": 0,
+           "sub": [],
+           "text": "#?",
+           "top": 80,
+           "width": 37
+          }
+         ],
+         "text": "History",
+         "top": 9,
+         "width": 147
+        }
+       ],
+       "left": 202,
+       "title": "Settings",
+       "top": 0,
+       "width": 72
+      }
+     ],
      "min_height": 197,
-     "min_width": 298,
+     "min_width": 640,
      "screen_title": "Workbench Screen",
-     "title": "Ownership Information",
-     "top": 24,
-     "width": 298
+     "title": "DeluxePaint 5.2 - Screen Format",
+     "top": 0,
+     "width": 640
     },
     {
      "app": false,

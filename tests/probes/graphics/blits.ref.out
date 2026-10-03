@@ -1,0 +1,86 @@
+source = p0 0xb783b14a p1 0x89b6f245 p2 0x371cb506
+destination = p0 0x5368354d p1 0xa4ac3255 p2 0xd5cfc565
+-- BltBitMap minterms
+minterm 0x00 rc 3 = p0 0xc5b8acbd p1 0x23617df5 p2 0x0653e105
+minterm 0x0c rc 3 = p0 0xc5b8acbd p1 0x23617df5 p2 0x0653e105
+minterm 0x30 rc 3 = p0 0x5195dde1 p1 0xcc3e26f5 p2 0x25e3a555
+minterm 0x3c rc 3 = p0 0x5195dde1 p1 0xcc3e26f5 p2 0x25e3a555
+minterm 0x50 rc 3 = p0 0x4a503a0d p1 0xd76b5075 p2 0xccc9d985
+minterm 0x5a rc 3 = p0 0x4a503a0d p1 0xd76b5075 p2 0xccc9d985
+minterm 0x60 rc 3 = p0 0xb7b42341 p1 0x228cfcfd p2 0x222a9a59
+minterm 0x66 rc 3 = p0 0xb7b42341 p1 0x228cfcfd p2 0x222a9a59
+minterm 0x80 rc 3 = p0 0xbffbe7af p1 0x76c4defd p2 0xd743dccd
+minterm 0x88 rc 3 = p0 0xbffbe7af p1 0x76c4defd p2 0xd743dccd
+minterm 0xa0 rc 3 = p0 0x5368354d p1 0xa4ac3255 p2 0xd5cfc565
+minterm 0xaa rc 3 = p0 0x5368354d p1 0xa4ac3255 p2 0xd5cfc565
+minterm 0xc0 rc 3 = p0 0x879537d1 p1 0x20e4582d p2 0x4d8636bd
+minterm 0xcc rc 3 = p0 0x879537d1 p1 0x20e4582d p2 0x4d8636bd
+minterm 0xee rc 3 = p0 0xc897329b p1 0xb156d32d p2 0xd3a0e13d
+minterm 0xf0 rc 3 = p0 0x96c82e4d p1 0xf28b8515 p2 0xcba22825
+minterm 0xff rc 3 = p0 0x96c82e4d p1 0xf28b8515 p2 0xcba22825
+-- BltBitMap masks and shifts
+mask 5 rc = 2
+mask 5 = p0 0xb783b14a p1 0xa4ac3255 p2 0x371cb506
+mask 0 rc = 0
+mask 0 = p0 0x5368354d p1 0xa4ac3255 p2 0xd5cfc565
+copy 0 rc 3 = p0 0x08e75d0e p1 0x6da3d881 p2 0x1ccc4e76
+copy 1 rc 3 = p0 0x2d13ff64 p1 0x96f7b34d p2 0x52fb8a04
+copy 2 rc 3 = p0 0x8846a4b9 p1 0x9f20acb9 p2 0x386a9193
+copy 3 rc 3 = p0 0x7082ac25 p1 0x54a93d8e p2 0x63e415e9
+copy 4 rc 3 = p0 0xe8e08ecd p1 0xa47fc9f5 p2 0xfb1ac842
+copy 5 rc 3 = p0 0xb2edca61 p1 0x297eacf9 p2 0x369a42d5
+copy 6 rc 3 = p0 0x5368354d p1 0x358267d5 p2 0xd5cfc565
+copy 7 rc 3 = p0 0x402ed9cf p1 0x857192ac p2 0xe768040f
+-- BltBitMap overlapping
+overlap 0 = p0 0xdf1f868d p1 0x1c28adf1 p2 0x07265c3d
+overlap 1 = p0 0xa68b5f91 p1 0xc2ddb29c p2 0x3eb4281d
+overlap 2 = p0 0x72511766 p1 0x8657a64d p2 0x7a37bcfe
+overlap 3 = p0 0xee93043d p1 0x96c9fe5b p2 0xf3a41cb1
+overlap 4 = p0 0xffe360e4 p1 0xf1ecd842 p2 0x1c2e59d8
+overlap 5 = p0 0x53be2fac p1 0xf5bd0fbe p2 0xe9862ea0
+overlap 6 = p0 0x2f6bc0ba p1 0x0e300082 p2 0xa883cb32
+overlap 7 = p0 0xa69da9d3 p1 0xf96c1a3a p2 0xb5ac767b
+overlap xor = p0 0xa6bef4df p1 0xe73203c1 p2 0x1709470b
+-- BltClear
+bytes 96..103 = 00 00 00 00 a5 a5 a5 a5
+rows 10x8: 76..83 = 00 00 00 00 a5 a5 a5 a5
+rows 10x8: 0..3 = 00 00 00 00
+-- BltTemplate
+template dm 0 = p0 0x41249fe3 p1 0x3e3e2a40 p2 0x0e03507c
+template dm 1 = p0 0xa1fee6e7 p1 0x359cf4bf p2 0x5e1d2559
+template dm 2 = p0 0xf9ececad p1 0xeabf8745 p2 0x6fbe4b85
+template dm 4 = p0 0xb45c7bc1 p1 0xd1c2bace p2 0x2046202c
+template dm 5 = p0 0xdf650aab p1 0xedc92d33 p2 0xafdb51ed
+-- BltPattern
+bltpattern = p0 0x8f751133 p1 0xd280ab26 p2 0xf3239db9
+-- BltBitMapRastPort/ClipBlit/BltMaskBitMapRastPort
+BltBitMapRastPort 0xc0 = p0 0x8dac0ef8 p1 0x6055a91d p2 0x27f4fcee
+BltBitMapRastPort 0x30 = p0 0x2f1cc1ac p1 0x8a49763d p2 0xc6ddfe5e
+BltBitMapRastPort 0x60 = p0 0x997d3e28 p1 0x5c9b8d9d p2 0x92ee1580
+BltBitMapRastPort 0x80 = p0 0xbf726df2 p1 0x876ff245 p2 0xac0d7f9b
+BltBitMapRastPort 0xee = p0 0x9d3dbf1f p1 0x9dcdbced p2 0x860db758
+ClipBlit = p0 0x31200ff8 p1 0x35959b85 p2 0x379d2102
+BltMaskBitMapRastPort cookie = p0 0x2d5e7a4b p1 0x57f1a28e p2 0xf7a4390e
+BltMaskBitMapRastPort 0xe2 = p0 0x130dd38d p1 0x945d3ac1 p2 0xc49980db
+BltMaskBitMapRastPort 0x60 = p0 0x2b6d55d3 p1 0xeb56a6c3 p2 0x1d63c203
+-- BitMapScale
+scale 0 dest 20x12 = p0 0xac53eba7 p1 0xcecefb59 p2 0xb32b8649
+scale 1 dest 10x12 = p0 0xa8aa07fd p1 0x59e101dc p2 0xbf5ee29b
+scale 2 dest 40x24 = p0 0x360c1791 p1 0x9e78582d p2 0xc05cbdb1
+scale 3 dest 13x18 = p0 0x07edb65b p1 0x8962e3ae p2 0x77d347ab
+scale 4 dest 28x16 = p0 0xeb91c152 p1 0xa0f10732 p2 0x5fe1841c
+ScalerDiv(100, 3, 2) = 150
+ScalerDiv(7, 2, 3) = 5
+ScalerDiv(1, 1, 16383) = 1
+-- chunky pixels
+WritePixelLine8 rc = 50
+WritePixelLine8 = p0 0x9087aa13 p1 0xbe7bbe35 p2 0x50920be7
+ReadPixelLine8 rc = 60
+ReadPixelLine8 = 01 01 00 05 02 07 04 01 06 03 00 05 02 07 04 01 06 03 00 05 02 07 04 01 06 03 00 05 02 07 04 01 06 03 00 05 02 07 04 01 06 03 00 05 02 07 04 01 06 03 00 05 01 01 01 01 01 01 01 01
+WritePixelArray8 rc = 132
+WritePixelArray8 = p0 0xaba6ca71 p1 0x3020ef2d p2 0x92ab72b9
+ReadPixelArray8 rc = 54
+ReadPixelArray8 row 0 = 06 06 06 06 06 06 06 06 06 06 06 06 06 06 06 06 06 06
+ReadPixelArray8 row 1 = 06 00 00 00 01 01 01 02 02 02 03 03 03 04 04 04 05 05
+ReadPixelArray8 row 2 = 07 02 03 03 03 04 04 04 05 05 05 06 06 06 07 07 07 00
+WriteChunkyPixels = p0 0x56d1ec9b p1 0x222409e0 p2 0xcf8334e4

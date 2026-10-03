@@ -1342,7 +1342,8 @@ static LONG run_external(const char *cmdname, char *args)
     char script[NAME_LEN];
     static char argbuf[LINE_MAX_LEN + 2];
     LONG rc, n;
-    BPTR old_home;
+    BPTR old_home, old_seg;
+    BPTR *segarray;
 
     seg = find_command(cmdname, &res, &home, script, sizeof(script));
     if (!seg && script[0]) {
@@ -1370,6 +1371,10 @@ static LONG run_external(const char *cmdname, char *args)
 
     bstr_set(cli->cli_CommandName, cmdname);
     cli->cli_Module = seg;
+    segarray = (BPTR *)BADDR(me->pr_SegList);
+    old_seg = segarray ? segarray[3] : 0;
+    if (segarray)
+        segarray[3] = seg;
     old_home = me->pr_HomeDir;
     me->pr_HomeDir = home;
     SetIoErr(0);
@@ -1381,6 +1386,8 @@ static LONG run_external(const char *cmdname, char *args)
     if (home)
         UnLock(home);
     cli->cli_Module = 0;
+    if (segarray)
+        segarray[3] = old_seg;
     if (res) {
         Forbid();
         if (res->seg_UC > 0)

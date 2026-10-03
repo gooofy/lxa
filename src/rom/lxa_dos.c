@@ -1192,7 +1192,7 @@ static struct ConHandle *open_con_window(const char *path)
     nw.Height = h > 0 ? h : 200;
     nw.DetailPen = 0;
     nw.BlockPen = 1;
-    nw.IDCMPFlags = IDCMP_CLOSEWINDOW | IDCMP_RAWKEY;
+    nw.IDCMPFlags = 0;      /* console.device gets the window's input */
     nw.Flags = WFLG_CLOSEGADGET | WFLG_DRAGBAR | WFLG_DEPTHGADGET | 
                WFLG_SIZEGADGET | WFLG_ACTIVATE | WFLG_SMART_REFRESH;
     nw.FirstGadget = NULL;
@@ -5559,9 +5559,9 @@ struct Process * _dos_CreateNewProc ( register struct DosLibrary * DOSBase __asm
 
     U_prepareProcess (process, initpc, 0, stackSize, args);
 
-    /* Set pr_SegList from the NP_Seglist tag */
-    if (seglist)
-        process->pr_SegList = seglist;
+    /* the child finds its segment at pr_SegList[3]; for NP_Entry 3.1 has
+       a non-zero entry there too (tests/probes/dos/seglist.c) */
+    U_processSegArray(process)[3] = seglist ? seglist : ((BPTR *)BADDR(process->pr_SegList))[1];
 
     if (do_cli)
     {

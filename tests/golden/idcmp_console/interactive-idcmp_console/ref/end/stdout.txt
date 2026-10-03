@@ -1,0 +1,13 @@
+Waiting for key: IDCMP_RAWKEY
+IDCMP_RAWKEY: key arrived
+  console: nothing
+  idcmp: got key messages
+Waiting for key: no IDCMP
+no IDCMP: key arrived
+  console: got characters
+  idcmp: nothing
+Waiting for key: IDCMP_VANILLAKEY
+IDCMP_VANILLAKEY: key arrived
+  console: nothing
+  idcmp: got key messages
+done

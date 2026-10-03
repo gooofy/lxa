@@ -1,0 +1,65 @@
+-- InitArea
+MaxCount = 20
+Count = 0
+VctrTbl == buffer = TRUE
+FlagPtr after vectors = TRUE
+TmpRas RasPtr = TRUE
+TmpRas Size = 384
+-- polygons
+Count after 3 vertices = 3
+AreaEnd rc = 0
+Count after AreaEnd = 0
+cp_x = 0
+cp_y = 0
+triangle = p0 0x95091f29 p1 0x95091f29 p2 0x25e26bc5
+star = p0 0xd03fe0a7 p1 0x25e26bc5 p2 0xd03fe0a7
+concave = p0 0x25e26bc5 p1 0x60d7afe3 p2 0x60d7afe3
+thin = p0 0x8784800a p1 0x8784800a p2 0x8784800a
+Count two polygons = 8
+two polygons = p0 0x0c8e99a9 p1 0x25e26bc5 p2 0x25e26bc5
+-- outline
+Flags after SetOPen = 0x00000009
+AOlPen = 5
+star outlined = p0 0xdac85e17 p1 0x9ded4fe5 p2 0xdac85e17
+Flags after BNDRYOFF = 0x00000000
+triangle+ellipse outlined = p0 0x25e26bc5 p1 0x07cd55f2 p2 0xbc01dc16
+-- AreaEllipse
+AreaEllipse 0: rc 0, Count 2
+  ellipse = p0 0xaa13d4c2 p1 0x25e26bc5 p2 0x25e26bc5
+AreaEllipse 1: rc 0, Count 2
+  ellipse = p0 0x25e26bc5 p1 0x0f82fdc8 p2 0x25e26bc5
+AreaEllipse 2: rc 0, Count 2
+  ellipse = p0 0x3f867053 p1 0x3f867053 p2 0x25e26bc5
+AreaEllipse 3: rc 0, Count 2
+  ellipse = p0 0x25e26bc5 p1 0x25e26bc5 p2 0xfb816c26
+AreaEllipse 4: rc 0, Count 2
+  ellipse = p0 0x634bc829 p1 0x25e26bc5 p2 0x634bc829
+AreaEllipse 5: rc 0, Count 2
+  ellipse = p0 0x25e26bc5 p1 0x09073a54 p2 0x09073a54
+-- draw modes and patterns
+complement = p0 0xa4f90833 p1 0x60d7afe3 p2 0x60d7afe3
+pattern JAM1 = p0 0xd8098997 p1 0x0673c85f p2 0x0673c85f
+pattern JAM2 = p0 0x29bbc5b8 p1 0xd03fe0a7 p2 0x379d5eb8
+pattern JAM2|INVERSVID outlined = p0 0x3d65d23e p1 0x7c758a56 p2 0x323f6563
+-- vector table limits
+AreaDraw 19 rc = -1
+AreaDraw 20 rc = -1
+AreaDraw 21 rc = -1
+AreaDraw 22 rc = -1
+Count = 20
+AreaEnd rc = -1
+overflow = p0 0x25e26bc5 p1 0x25e26bc5 p2 0x25e26bc5
+AreaEnd line rc = 0
+degenerate = p0 0x25e26bc5 p1 0x25e26bc5 p2 0x659fcd39
+-- Flood
+Flood outline rc = TRUE
+flood outline mode = p0 0x25e26bc5 p1 0x441b67cd p2 0xd1866861
+Flood colour rc = TRUE
+flood colour mode = p0 0xeff28989 p1 0x441b67cd p2 0xc6e35bf1
+Flood colour outside = TRUE
+flood outside = p0 0xc09d871d p1 0x441b67cd p2 0xc6e35bf1
+flood pattern = p0 0xcedd6dca p1 0x15b29c95 p2 0xb41f87db
+Flood maze rc = TRUE
+flood maze = p0 0xe3496045 p1 0x6f269e85 p2 0x9d8aa265
+Flood maze outline rc = TRUE
+flood maze outline = p0 0x6f269e85 p1 0xe3496045 p2 0x9d8aa265

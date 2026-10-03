@@ -1,0 +1,246 @@
+layers created = non-NULL
+-- created
+  L0 bounds 0,0-159,99 refresh no front L3 back L-1
+   visible: 0-4:0-159 5-9:0-99,151-159 10-29:0-9,90-99,151-159 30-40:0-9,151-159 41-59:0-9,140-159 60-79:0-19,140-159 80-94:0-19,70-159 95-99:0-159
+   backing store:
+   obscured: 5-9:100-150 10-29:10-89,100-150 30-40:10-150 41-59:10-139 60-79:20-139 80-94:20-69
+   damage:
+  L1 bounds 10,10-89,59 refresh no front L2 back L3
+   visible: 0-19:0-79 20-49:0-29
+   backing store:
+   obscured: 20-49:30-79
+   damage:
+  L2 bounds 40,30-139,79 refresh no front L4 back L1
+   visible: 0-10:0-59 11-49:0-99
+   backing store: 0-10:60-99
+   obscured:
+   damage:
+  L3 bounds 20,50-69,94 refresh no front L1 back L0
+   visible: 10-29:0-19 30-44:0-49
+   backing store: 0-9:0-49 10-29:20-49
+   obscured:
+   damage:
+  L4 bounds 100,5-150,40 refresh no front L-1 back L2
+   visible: 0-35:0-50
+   backing store:
+   obscured:
+   damage:
+WhichLayer 5,5 = L0
+WhichLayer 50,40 = L2
+WhichLayer 25,55 = L1
+WhichLayer 25,85 = L3
+WhichLayer 120,20 = L4
+WhichLayer 159,99 = L0
+WhichLayer -1,0 = L-1
+MoveLayer L1 +30,+5 = 1
+-- after MoveLayer
+  L0 bounds 0,0-159,99 refresh yes front L3 back L-1
+   visible: 0-4:0-159 5-14:0-99,151-159 15-40:0-39,151-159 41-49:0-39,140-159 50-79:0-19,140-159 80-94:0-19,70-159 95-99:0-159
+   backing store:
+   obscured: 5-14:100-150 15-40:40-150 41-49:40-139 50-79:20-139 80-94:20-69
+   damage: 10-14:10-89 15-49:10-39 50-59:10-19
+  L1 bounds 40,15-119,64 refresh yes front L2 back L3
+   visible: 0-14:0-59
+   backing store:
+   obscured: 0-14:60-79 15-49:0-79
+   damage: 20-49:30-79
+  L2 bounds 40,30-139,79 refresh no front L4 back L1
+   visible: 0-10:0-59 11-49:0-99
+   backing store: 0-10:60-99
+   obscured:
+   damage:
+  L3 bounds 20,50-69,94 refresh no front L1 back L0
+   visible: 0-29:0-19 30-44:0-49
+   backing store: 0-29:20-49
+   obscured:
+   damage:
+  L4 bounds 100,5-150,40 refresh no front L-1 back L2
+   visible: 0-35:0-50
+   backing store:
+   obscured:
+   damage:
+SizeLayer L2 -30,+15 = 1
+-- after SizeLayer
+  L0 bounds 0,0-159,99 refresh yes front L3 back L-1
+   visible: 0-4:0-159 5-14:0-99,151-159 15-40:0-39,151-159 41-49:0-39,120-159 50-64:0-19,120-159 65-94:0-19,110-159 95-99:0-159
+   backing store:
+   obscured: 5-14:100-150 15-40:40-150 41-49:40-119 50-64:20-119 65-94:20-109
+   damage: 10-14:10-89 15-40:10-39 41-49:10-39,120-139 50-59:10-19,120-139 60-64:120-139 65-79:110-139
+  L1 bounds 40,15-119,64 refresh yes front L2 back L3
+   visible: 0-14:0-59 26-49:70-79
+   backing store:
+   obscured: 0-14:60-79 15-25:0-79 26-49:0-69
+   damage: 20-49:30-79
+  L2 bounds 40,30-109,94 refresh yes front L4 back L1
+   visible: 0-10:0-59 11-64:0-69
+   backing store: 0-10:60-69
+   obscured:
+   damage: 50-64:0-69
+  L3 bounds 20,50-69,94 refresh no front L1 back L0
+   visible: 0-44:0-19
+   backing store: 0-44:20-49
+   obscured:
+   damage:
+  L4 bounds 100,5-150,40 refresh no front L-1 back L2
+   visible: 0-35:0-50
+   backing store:
+   obscured:
+   damage:
+UpfrontLayer L3 = 1
+-- after UpfrontLayer
+  L0 bounds 0,0-159,99 refresh yes front L1 back L-1
+   visible: 0-4:0-159 5-14:0-99,151-159 15-40:0-39,151-159 41-49:0-39,120-159 50-64:0-19,120-159 65-94:0-19,110-159 95-99:0-159
+   backing store:
+   obscured: 5-14:100-150 15-40:40-150 41-49:40-119 50-64:20-119 65-94:20-109
+   damage: 10-14:10-89 15-40:10-39 41-49:10-39,120-139 50-59:10-19,120-139 60-64:120-139 65-79:110-139
+  L1 bounds 40,15-119,64 refresh yes front L2 back L0
+   visible: 0-14:0-59 26-49:70-79
+   backing store:
+   obscured: 0-14:60-79 15-25:0-79 26-49:0-69
+   damage: 20-49:30-79
+  L2 bounds 40,30-109,94 refresh yes front L4 back L1
+   visible: 0-10:0-59 11-19:0-69 20-64:30-69
+   backing store: 0-10:60-69 20-64:0-29
+   obscured:
+   damage: 50-64:0-69
+  L3 bounds 20,50-69,94 refresh no front L-1 back L4
+   visible: 0-44:0-49
+   backing store:
+   obscured:
+   damage:
+  L4 bounds 100,5-150,40 refresh no front L3 back L2
+   visible: 0-35:0-50
+   backing store:
+   obscured:
+   damage:
+BehindLayer L4 = 1
+-- after BehindLayer
+  L0 bounds 0,0-159,99 refresh yes front L4 back L-1
+   visible: 0-4:0-159 5-14:0-99,151-159 15-40:0-39,151-159 41-49:0-39,120-159 50-64:0-19,120-159 65-94:0-19,110-159 95-99:0-159
+   backing store:
+   obscured: 5-14:100-150 15-40:40-150 41-49:40-119 50-64:20-119 65-94:20-109
+   damage: 10-14:10-89 15-40:10-39 41-49:10-39,120-139 50-59:10-19,120-139 60-64:120-139 65-79:110-139
+  L1 bounds 40,15-119,64 refresh yes front L2 back L4
+   visible: 0-14:0-79 15-49:70-79
+   backing store:
+   obscured: 15-49:0-69
+   damage: 0-14:60-79 15-19:70-79 20-49:30-79
+  L2 bounds 40,30-109,94 refresh yes front L3 back L1
+   visible: 0-19:0-69 20-64:30-69
+   backing store: 20-64:0-29
+   obscured:
+   damage: 50-64:0-69
+  L3 bounds 20,50-69,94 refresh no front L-1 back L2
+   visible: 0-44:0-49
+   backing store:
+   obscured:
+   damage:
+  L4 bounds 100,5-150,40 refresh no front L1 back L0
+   visible: 0-9:0-50 10-35:20-50
+   backing store:
+   obscured: 10-35:0-19
+   damage:
+MoveLayerInFrontOf L2 L1 = 1
+-- after MoveLayerInFrontOf
+  L0 bounds 0,0-159,99 refresh yes front L4 back L-1
+   visible: 0-4:0-159 5-14:0-99,151-159 15-40:0-39,151-159 41-49:0-39,120-159 50-64:0-19,120-159 65-94:0-19,110-159 95-99:0-159
+   backing store:
+   obscured: 5-14:100-150 15-40:40-150 41-49:40-119 50-64:20-119 65-94:20-109
+   damage: 10-14:10-89 15-40:10-39 41-49:10-39,120-139 50-59:10-19,120-139 60-64:120-139 65-79:110-139
+  L1 bounds 40,15-119,64 refresh yes front L2 back L4
+   visible: 0-14:0-79 15-49:70-79
+   backing store:
+   obscured: 15-49:0-69
+   damage: 0-14:60-79 15-19:70-79 20-49:30-79
+  L2 bounds 40,30-109,94 refresh yes front L3 back L1
+   visible: 0-19:0-69 20-64:30-69
+   backing store: 20-64:0-29
+   obscured:
+   damage: 50-64:0-69
+  L3 bounds 20,50-69,94 refresh no front L-1 back L2
+   visible: 0-44:0-49
+   backing store:
+   obscured:
+   damage:
+  L4 bounds 100,5-150,40 refresh no front L1 back L0
+   visible: 0-9:0-50 10-35:20-50
+   backing store:
+   obscured: 10-35:0-19
+   damage:
+MoveSizeLayer L4 = 1
+-- after MoveSizeLayer
+  L0 bounds 0,0-159,99 refresh yes front L4 back L-1
+   visible: 0-14:0-159 15-49:0-39,120-159 50-64:0-19,120-159 65-94:0-19,110-159 95-99:0-159
+   backing store:
+   obscured: 15-49:40-119 50-64:20-119 65-94:20-109
+   damage: 5-9:100-150 10-14:10-89,100-150 15-40:10-39,120-150 41-49:10-39,120-139 50-59:10-19,120-139 60-64:120-139 65-79:110-139
+  L1 bounds 40,15-119,64 refresh yes front L2 back L4
+   visible: 0-14:0-79 15-49:70-79
+   backing store:
+   obscured: 15-49:0-69
+   damage: 0-14:60-79 15-19:70-79 20-49:30-79
+  L2 bounds 40,30-109,94 refresh yes front L3 back L1
+   visible: 0-19:0-69 20-64:30-69
+   backing store: 20-64:0-29
+   obscured:
+   damage: 50-64:0-69
+  L3 bounds 20,50-69,94 refresh no front L-1 back L2
+   visible: 0-44:0-49
+   backing store:
+   obscured:
+   damage:
+  L4 bounds 40,25-100,55 refresh yes front L1 back L0
+   visible:
+   backing store:
+   obscured: 0-30:0-60
+   damage: 0-9:51-60 10-30:0-19,51-60
+UpfrontLayer backdrop = 1
+BehindLayer L1 = 1
+-- after backdrop moves
+  L0 bounds 0,0-159,99 refresh yes front L1 back L-1
+   visible: 0-14:0-159 15-49:0-39,120-159 50-64:0-19,120-159 65-94:0-19,110-159 95-99:0-159
+   backing store:
+   obscured: 15-49:40-119 50-64:20-119 65-94:20-109
+   damage: 5-9:100-150 10-14:10-89,100-150 15-40:10-39,120-150 41-49:10-39,120-139 50-59:10-19,120-139 60-64:120-139 65-79:110-139
+  L1 bounds 40,15-119,64 refresh yes front L4 back L0
+   visible: 0-9:0-79 10-14:61-79 15-49:70-79
+   backing store:
+   obscured: 10-14:0-60 15-49:0-69
+   damage: 0-14:60-79 15-19:70-79 20-49:30-79
+  L2 bounds 40,30-109,94 refresh yes front L3 back L4
+   visible: 0-19:0-69 20-64:30-69
+   backing store: 20-64:0-29
+   obscured:
+   damage: 50-64:0-69
+  L3 bounds 20,50-69,94 refresh no front L-1 back L2
+   visible: 0-44:0-49
+   backing store:
+   obscured:
+   damage:
+  L4 bounds 40,25-100,55 refresh yes front L2 back L1
+   visible: 0-4:0-60
+   backing store:
+   obscured: 5-30:0-60
+   damage: 0-4:0-60 5-9:51-60 10-30:0-19,51-60
+DeleteLayer L2 = 1
+-- after DeleteLayer
+  L0 bounds 0,0-159,99 refresh yes front L1 back L-1
+   visible: 0-14:0-159 15-49:0-39,120-159 50-64:0-19,120-159 65-94:0-19,70-159 95-99:0-159
+   backing store:
+   obscured: 15-49:40-119 50-64:20-119 65-94:20-69
+   damage: 5-9:100-150 10-14:10-89,100-150 15-40:10-39,120-150 41-49:10-39,120-139 50-59:10-19,120-139 60-64:120-139 65-79:70-139 80-94:70-109
+  L1 bounds 40,15-119,64 refresh yes front L4 back L0
+   visible: 0-9:0-79 10-40:61-79 41-49:30-79
+   backing store:
+   obscured: 10-40:0-60 41-49:0-29
+   damage: 0-14:60-79 15-19:61-79 20-49:30-79
+  L3 bounds 20,50-69,94 refresh no front L-1 back L4
+   visible: 0-44:0-49
+   backing store:
+   obscured:
+   damage:
+  L4 bounds 40,25-100,55 refresh yes front L3 back L1
+   visible: 0-24:0-60 25-30:30-60
+   backing store:
+   obscured: 25-30:0-29
+   damage: 0-24:0-60 25-30:0-19,30-60
