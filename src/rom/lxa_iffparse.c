@@ -320,7 +320,10 @@ static LONG ClipboardStreamHandler(register struct Hook *hook __asm("a0"),
             if (clipreq->io_Error != 0)
                 return IFFERR_READ;
 
-            clip->cbh_ClipID = clipreq->io_ClipID;
+            /* the first read or write starts with clip ID 0: the device
+             * assigns the ID (a read started this way counts as unfinished
+             * and holds off writers until it reaches the end) */
+            clip->cbh_ClipID = 0;
             clip->cbh_Position = 0;
             result = 0;
             break;
@@ -334,12 +337,33 @@ static LONG ClipboardStreamHandler(register struct Hook *hook __asm("a0"),
                 if (clipreq->io_Error == 0)
                     clip->cbh_ClipID = clipreq->io_ClipID;
             }
+            else if (clip->cbh_ClipID != 0 && clip->cbh_ClipID != -1)
+            {
+                /* read past the end so clipboard.device ends this read */
+                int n;
+                for (n = 0; n < 8; n++)
+                {
+                    clipreq->io_Command = CMD_READ;
+                    clipreq->io_Flags = IOF_QUICK;
+                    clipreq->io_Data = NULL;
+                    clipreq->io_Length = 0x7fffffffL;
+                    clipreq->io_Offset = clip->cbh_Position;
+                    clipreq->io_ClipID = clip->cbh_ClipID;
+                    DoIO((struct IORequest *)clipreq);
+                    if (clipreq->io_Error != 0 || clipreq->io_Actual == 0)
+                        break;
+                    clip->cbh_Position += clipreq->io_Actual;
+                }
+            }
 
+            clip->cbh_ClipID = 0;
             clip->cbh_Position = 0;
             result = 0;
             break;
 
         case IFFCMD_READ:
+            if (clip->cbh_ClipID == -1)
+                return 0;   /* the read already ended */
             clipreq->io_Command = CMD_READ;
             clipreq->io_Flags = IOF_QUICK;
             clipreq->io_Data = (STRPTR)cmd->sc_Buf;
@@ -350,6 +374,7 @@ static LONG ClipboardStreamHandler(register struct Hook *hook __asm("a0"),
             if (clipreq->io_Error != 0)
                 return IFFERR_READ;
 
+            clip->cbh_ClipID = clipreq->io_ClipID;
             clip->cbh_Position += clipreq->io_Actual;
             result = clipreq->io_Actual;
             break;
@@ -360,9 +385,12 @@ static LONG ClipboardStreamHandler(register struct Hook *hook __asm("a0"),
             clipreq->io_Data = (STRPTR)cmd->sc_Buf;
             clipreq->io_Length = cmd->sc_NBytes;
             clipreq->io_Offset = clip->cbh_Position;
+            clipreq->io_ClipID = clip->cbh_ClipID;
             DoIO((struct IORequest *)clipreq);
             if (clipreq->io_Error != 0)
                 return IFFERR_WRITE;
+
+            clip->cbh_ClipID = clipreq->io_ClipID;
 
             clip->cbh_Position += clipreq->io_Actual;
             result = clipreq->io_Actual;
