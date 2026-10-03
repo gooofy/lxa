@@ -1,7 +1,7 @@
 {
  "app": "DevPac",
  "disabled": null,
- "lxa_version": "0.11.20",
+ "lxa_version": "0.11.23",
  "promoted": "2026-10-03",
  "reference": "AmigaOS 3.1 (KS 40.70), profile aga",
  "requires_apps": true,
@@ -63,7 +63,7 @@
      "where": "screen[Settings]/window[Untitled]/menu[Settings]/Settings..."
     }
    ],
-   "pixel_budget": 4263,
+   "pixel_budget": 2524,
    "pixel_phase": 222,
    "stdout_known_diff": null
   },
@@ -78,7 +78,7 @@
      "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]"
     }
    ],
-   "pixel_budget": 2094,
+   "pixel_budget": 2000,
    "pixel_phase": 222,
    "stdout_known_diff": null
   },
@@ -93,7 +93,7 @@
      "where": "screen[Devpac Amiga 3.18  Copyright \u00a9 1997 HiSoft]/window[Untitled]"
     }
    ],
-   "pixel_budget": 2200,
+   "pixel_budget": 2000,
    "pixel_phase": 222,
    "stdout_known_diff": null
   }
