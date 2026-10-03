@@ -134,6 +134,10 @@ struct Task    *U_getCurrentTask (void);
 struct Process *U_getCurrentProcess(void);
 
 struct Task    *U_allocTask      (STRPTR name, LONG pri, ULONG stacksize, BOOL isProcess);
+/* a process allocation carries its pr_SegList array (5 BPTRs) behind the Process */
+#define PROCESS_SEGARRAY_OFFSET ((sizeof(struct Process) + 3) & ~3)
+#define PROCESS_ALLOC_SIZE      (PROCESS_SEGARRAY_OFFSET + 5 * sizeof(BPTR))
+#define U_processSegArray(p)    ((BPTR *)((UBYTE *)(p) + PROCESS_SEGARRAY_OFFSET))
 void            U_prepareTask    (struct Task *task, APTR initPC, APTR finalPC, char *args);
 void            U_freeTask       (struct Task *task);
 struct Task    *U_createTask     (STRPTR name, LONG pri, APTR initpc, ULONG stacksize);

@@ -5568,17 +5568,13 @@ void _bootstrap(void)
 
     emucall0 (EMU_CALL_LOADED);
 
-    /* Set pr_SegList on the current process so programs like BeckerText II
-     * can read their own seglist (e.g., to pass to CreateProc for child processes).
-     * Many old Amiga programs expect to find their seglist in pr_SegList.
-     * Also set cli_Module in the CLI structure - some programs read the seglist
-     * from there instead of pr_SegList.
+    /* The program's seglist goes into pr_SegList[3] (and cli_Module), as for
+     * a command started by the 3.1 shell (tests/probes/dos/seglist.c).
      */
     {
         struct Process *me = U_getCurrentProcess();
-        me->pr_SegList = segs;
-        DPRINTF (LOG_DEBUG, "_exec: _bootstrap(): set pr_SegList=0x%08lx on process 0x%08lx\n", segs, me);
-        
+        ((BPTR *)BADDR(me->pr_SegList))[3] = segs;
+
         /* Also set cli_Module if we have a CLI structure */
         if (me->pr_CLI) {
             struct CommandLineInterface *cli = (struct CommandLineInterface *)BADDR(me->pr_CLI);

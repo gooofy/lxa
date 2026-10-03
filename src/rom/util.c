@@ -754,6 +754,9 @@ struct newMemList
   struct MemEntry nml_ME[2];
 };
 
+/* the shared system entries of every pr_SegList array: an empty one-hunk seglist (next = 0, rts) */
+static const ULONG g_systemSegment[2] __attribute__((aligned(4))) = { 0, 0x4e754e75 };
+
 struct Task *U_allocTask (STRPTR name, LONG pri, ULONG stacksize, BOOL isProcess)
 {
     struct newMemList  nml;
@@ -774,7 +777,7 @@ struct Task *U_allocTask (STRPTR name, LONG pri, ULONG stacksize, BOOL isProcess
     nml.nml_NumEntries = 2;
 
     nml.nml_ME[0].me_Un.meu_Reqs = MEMF_CLEAR|MEMF_PUBLIC;
-    nml.nml_ME[0].me_Length      = isProcess ? sizeof(struct Process) : sizeof (struct Task);
+    nml.nml_ME[0].me_Length      = isProcess ? PROCESS_ALLOC_SIZE : sizeof (struct Task);
     nml.nml_ME[1].me_Un.meu_Reqs = MEMF_CLEAR;
     nml.nml_ME[1].me_Length      = stacksize;
 
@@ -910,7 +913,23 @@ void U_prepareProcess (struct Process *process, APTR initPC, APTR finalPC, ULONG
      */
     NEWLIST (&process->pr_MsgPort.mp_MsgList);
 
-    process->pr_SegList                 = 0;
+    /*
+     * pr_SegList is a BPTR to a segment array (verified on AmigaOS 3.1,
+     * tests/probes/dos/seglist.c): [0] = 2, [1] and [2] are system
+     * segments shared by every process, [3] is the process's own seglist
+     * (cli_Module of a CLI command, NP_Seglist / CreateProc's segment).
+     * Detaching programs ("cback" startup, Directory Opus) unlink their
+     * code from [3].  The array lives behind the Process structure.
+     */
+    {
+        BPTR *segarray = U_processSegArray(process);
+        segarray[0] = 2;
+        segarray[1] = MKBADDR((ULONG)g_systemSegment);
+        segarray[2] = MKBADDR((ULONG)g_systemSegment);
+        segarray[3] = 0;
+        segarray[4] = 0;
+        process->pr_SegList = MKBADDR(segarray);
+    }
     process->pr_StackSize               = stacksize;
     process->pr_GlobVec					= 0; /* unsupported */
     process->pr_TaskNum					= 0;

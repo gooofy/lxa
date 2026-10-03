@@ -139,9 +139,8 @@ Complete (Phases 210–216, v0.11.9); see the summary table.
 - [ ] **222a** utility, exec (lists, memory, semaphores, signals, ports), dos (paths, `ReadArgs`, pattern matching, locks, `ExAll`, `SetVBuf`, error codes).
   - Open from Phase 221: `OpenLibrary("exec.library")` fails on lxa; `CacheControl()` is partial; C:Copy onto itself does not report "object in use"; C:Sort NUMERIC/COLSTART are not order-stable on equal keys on 3.1 (lxa is); lxa's graphics/intuition report revision 40.1 (3.1: 40.24/40.85) and differ in their `$VER` date strings.
   - Open from the Phase 220 dos triage: `ReadArgs()` must read the command line from `Input()`'s buffer, not `pr_Arguments`; `Output()` buffering differs from AmigaOS (visible when stdio and dos output are mixed); `NameFromLock()` returns `SYS:` instead of the volume name; RawDoFmt's stray NUL after zero-padded negative numbers (`%05ld`) is not emulated.
-- [ ] **222b** graphics on off-screen bitmaps (lines, areas, flood, blits, `Text`/`TextExtent`/`TextFit`, algorithmic styles), compared as bitmap hashes.
-  - From the Phase 220 triage: `tests/exec/library_lxa` sections that still differ from 3.1 (GEL animation `AddAnimOb`/`RemIBob`, `CMove`, `CalcIVG` beyond 40 copper instructions, `SyncSBitMap`/`CopySBitMap`, sprite allocation, `VTAG_IMMEDIATE` and unset `VTAG_*_GET` values); PaletteExtra keeps 16-bit refcount/allocation arrays where 3.1 has 8-bit ones; `IEEESPMul`/`IEEESPDiv` never return on the reference (check FS-UAE's FPU emulation before trusting it: `Tests/Exec/MathIeeeSingBasMulDiv` is lxa_only until then).
-- [ ] **222c** layers: clip rects, damage lists, backfill hooks, SMART/SIMPLE/SUPER refresh sequences.
+- [x] **222b/c** done (v0.11.18): probes `graphics/{lines,areas,blits,text}`, `layers/{cliprects,refresh}` equal the reference.
+- [ ] **222b** remainder: `tests/exec/library_lxa` sections that still differ from 3.1 (GEL animation `AddAnimOb`/`RemIBob`, `CMove`, `CalcIVG` beyond 40 copper instructions, sprite allocation, `VTAG_IMMEDIATE` and unset `VTAG_*_GET` values); PaletteExtra keeps 16-bit refcount/allocation arrays where 3.1 has 8-bit ones; `IEEESPMul`/`IEEESPDiv` never return on the reference (check FS-UAE's FPU emulation before trusting it: `Tests/Exec/MathIeeeSingBasMulDiv` is lxa_only until then). Not emulated yet: the accumulator values `BitMapScale` writes back, `WritePixelArray8` destroying its input, exact ClipRect order (only the covered areas are compared).
 - [ ] **222d** (from Phase 224) requesters get their own layer on 3.1 (`ReqLayer` != `WLayer`); `EndRequest()` clears `ReqLayer` but not `RWindow` - fix, then validate `tests/scenarios/interactive/RequesterBasic.yaml`.
 - [ ] **222d** (from Phase 224) `IDCMP_DELTAMOVE` reports deltas and positions in Intuition's internal pointer resolution on 3.1 (a 10/5 pixel move on a 640x256 hires screen reports 20/10; lxa reports pixels) - then validate `tests/scenarios/interactive/IDCMPDeltaMove.yaml` on both systems and promote it.
 - [ ] **222d** (from Phase 223) `AutoRequest()` requester sizing rule; where a requester opens when the pointer is not at 0,0; minimum gap between requester buttons; whether `SHOWTITLE` defaults on for NewScreen-opened screens (DirectoryOpus golden).
@@ -166,7 +165,7 @@ Complete (Phases 210–216, v0.11.9); see the summary table.
 - [ ] Retire pixel-count heuristics that the goldens make redundant.
 - [ ] Re-express the `interactive` test programs in `tests/ref_suite.yaml` (console key input, IDCMP mouse/menu/size verify, requester clicks, keyboard.device) as reference scenarios that inject the same input through `lxaprobe`, so they are validated on AmigaOS 3.1 like the unattended programs (Phase 220).
 - [ ] First twin-run findings (Phase 213 starter scenarios, `tests/scenarios/`):
-  - `dopus-startup`: lxa shows "Directory not available" in both panes (the reference lists `SYS:` on the right), and lacks the "OK" message line and the CHIP/FAST/TOTAL/date status line.
+  - `dopus-startup` (v0.11.18: `pr_SegList` array fixed, both panes and the "OK" line now as on 3.1): the path string gadgets stay empty on lxa (reference: `SYS:x/`, `SYS:`) and the right pane's header shows no volume name; the right pane lists pylxa's `SYS:` (the samples directory) where the reference lists its system root - give the lxa backend a `SYS:` laid out like the reference's.
   - `dpaintv-startup`: lxa opens the "Ownership Information" registration dialog; the reference goes straight to "Choose Display Mode" (DPaint reads its personalisation from its own executable via the CLI command name).
 
 **Test gate**: no regression in coverage of app behaviour; suite wall time recorded.
@@ -223,6 +222,7 @@ Complete (Phases 210–216, v0.11.9); see the summary table.
 - [ ] Present a 68040 with FPU. Switch the Musashi CPU type, set `AttnFlags` (`exec.c:5898`), and ship a `68040.library`-compatible `SYS:Libs` entry, since apps probe for it.
 - [ ] Report AGA everywhere (`ChipRevBits0`, `GetChipRev`-style code at `lxa_graphics.c:9314`, `exec.c:5765`). Add AGA display modes, 256-colour planar screens and `LoadRGB32`/`SetRGB32` 24-bit palettes.
 - [ ] Cross-check GfxBase, ExecBase and display-info fields one by one against a reference `aga` dump.
+- [ ] Memory layout of the reference: 2 MB chip RAM plus fast RAM (lxa has one 10 MB `MEMF_CHIP` region). Directory Opus shows `MEMORY:` instead of `CHIP: FAST: TOTAL:` (dopus-startup golden pixel budget).
 
 **Test gate**: the field dump and the `aga` gallery (Phase 223) match the reference.
 
