@@ -285,7 +285,10 @@ static void lxa_api_calculate_gadget_box(uint32_t window_ptr,
     calc_height = (int16_t)m68k_read_memory_16(gadget_ptr + GADGET_HEIGHT_OFFSET);
     flags = (uint16_t)m68k_read_memory_16(gadget_ptr + GADGET_FLAGS_OFFSET);
 
+    /* GadTools gadgets (GadgetType 0x0100) carry bounds that include their
+     * label (for gadget help); the select box is the gadget itself */
     if ((flags & GFLG_EXTENDED) &&
+        !(m68k_read_memory_16(gadget_ptr + GADGET_TYPE_OFFSET) & 0x0100) &&
         (m68k_read_memory_32(gadget_ptr + EXTGADGET_MOREFLAGS_OFFSET) & GMORE_BOUNDS))
     {
         calc_left = (int16_t)m68k_read_memory_16(gadget_ptr + EXTGADGET_BOUNDSLEFT_OFFSET);

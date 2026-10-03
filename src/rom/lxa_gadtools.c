@@ -34,6 +34,8 @@
 #include "util.h"
 #include "lxa_images.h"
 #include <intuition/imageclass.h>
+#include <intuition/sghooks.h>
+#include <intuition/classusr.h>
 
 #define VERSION    40
 #define REVISION   1
@@ -63,14 +65,6 @@ struct VisualInfo {
     struct DrawInfo *vi_DrawInfo;
 };
 
-/* GadgetContext - internal context for gadget list creation */
-struct GadgetContext {
-    ULONG magic;
-    struct Gadget *gc_Last;
-};
-
-#define GT_CONTEXT_MAGIC 0x47544358UL
-
 /* GadgetType bit AmigaOS 3.1 GadTools sets on every gadget it creates
  * (including the context gadget, which has no class bits at all). */
 #define LXA_GTYP_GADTOOLS 0x0100
@@ -89,9 +83,19 @@ enum gt_kind
     GT_KIND_LISTVIEW,
     GT_KIND_PALETTE,
     GT_KIND_TEXT,
-    GT_KIND_NUMBER
+    GT_KIND_NUMBER,
+    GT_KIND_GENERIC
 };
 
+/*
+ * A GadTools kind is a group of Intuition gadgets, exactly as AmigaOS 3.1
+ * builds it (tests/probes/gadtools/gadgets_*.c): e.g. a slider is a prop
+ * gadget followed by a frame gadget carrying the label, a listview is the
+ * list area, a scroller (prop + two arrow buttons + frame) and the frame
+ * with the label.  CreateGadget() returns the last gadget of the group.
+ * All members share one GTGadgetData; `main` is the gadget whose state
+ * GadTools keeps (prop, string, list area, ...).
+ */
 struct GTGadgetData
 {
     ULONG kind;
@@ -99,7 +103,7 @@ struct GTGadgetData
     LONG min;
     LONG max;
     APTR aux;
-    struct IntuiText *level_text;
+    struct IntuiText *level_text;   /* slider level / cycle text (private) */
     STRPTR level_buffer;
     STRPTR format;
     ULONG max_level_len;
@@ -107,27 +111,69 @@ struct GTGadgetData
     UWORD level_place;
     UBYTE justification;
     LONG (*disp_func)(struct Gadget *, LONG);
-    LONG underline_pos;     /* Phase 157: Character position to underline (-1 if none) */
-    /* Phase 223: imagery */
+    LONG underline_pos;     /* label character to underline (-1 if none) */
     ULONG magic;            /* GT_DATA_MAGIC */
     struct VisualInfo *vi;
     struct TextFont *font;  /* ng_TextAttr, opened at creation */
-    WORD box_dx, box_dy;    /* NewGadget box relative to the Intuition gadget */
+    WORD ng_left, ng_top;   /* the NewGadget box (window coordinates) */
     WORD box_w, box_h;
-    STRPTR label;           /* BUTTON_KIND label (drawn inside the frame) */
+    STRPTR label;           /* BUTTON_KIND label (drawn by the button) */
     UWORD label_pen;        /* dri pen index of that label */
+    WORD label_x, label_y;  /* BUTTON_KIND label position in the box */
+    BOOL label_in;
     WORD mx_spacing;
-    WORD arrows;            /* GTSC_Arrows */
+    WORD arrows;            /* GTSC_Arrows / listview arrow height */
     BOOL vertical;
     WORD lv_top;
     BOOL lv_showsel;
     BOOL lv_readonly;
+    WORD lv_scroll_w;
+    WORD level_x0;          /* slider level field, relative to the box */
     UWORD pal_depth;
     UWORD pal_offset;
+    WORD pal_cols, pal_rows;
     BOOL border;            /* GTTX_Border / GTNM_Border */
+    /* the group */
+    struct Gadget *main;
+    struct Gadget *pub;         /* returned by CreateGadget() */
+    struct Gadget *label_gad;   /* carries the label IntuiText */
+    struct Gadget *arrow_dec, *arrow_inc;
+    struct Gadget *lv_prop;
+    struct Gadget *lv_string;
+    struct Gadget **items;      /* MX buttons */
+    WORD nitems;
+    WORD refs;
+    ULONG drawn_pass;
 };
 
 #define GT_DATA_MAGIC 0x47544433UL   /* "GTD3" */
+
+/* member roles */
+#define GT_ROLE_CONTEXT    1
+#define GT_ROLE_MAIN       2
+#define GT_ROLE_FRAME      3    /* frame / label gadget (no class bits) */
+#define GT_ROLE_ARROW_DEC  4
+#define GT_ROLE_ARROW_INC  5
+#define GT_ROLE_LVPROP     6
+#define GT_ROLE_LVFRAME    7    /* listview scroller frame */
+#define GT_ROLE_MXITEM     8
+#define GT_ROLE_CONTAINER  9    /* MX container */
+
+/* Every gadget GadTools allocates: an ExtGadget plus private fields. */
+struct GTGad
+{
+    struct ExtGadget eg;
+    ULONG magic;                /* GT_GAD_MAGIC */
+    struct GTGadgetData *data;
+    UWORD role;
+    WORD index;                 /* MX button number */
+    APTR render_img;            /* images we allocated */
+    APTR select_img;
+    BOOL boopsi_imgs;           /* render/select are BOOPSI objects */
+    struct Gadget *ctx_last;    /* context gadget: last gadget appended */
+};
+
+#define GT_GAD_MAGIC 0x47544741UL    /* "GTGA" */
 
 BOOL _gadtools_IsCheckbox(register struct Gadget *gad __asm("a0"));
 BOOL _gadtools_GetCheckboxState(register struct Gadget *gad __asm("a0"));
@@ -146,41 +192,32 @@ struct gt_format_state
     ULONG remaining;
 };
 
-/* The context gadget is a plain struct Gadget of type GTYP_GADTOOLS (0x0100,
- * no gadget class bits), zero size, GFLG_GADGHNONE and SpecialInfo NULL -
- * exactly as AmigaOS 3.1 GadTools creates it (Phase 220 reference probe).
- * lxa's private bookkeeping lives directly behind the Gadget in the same
- * allocation. */
-struct GTContextGadget {
-    struct Gadget  gadget;
-    struct GadgetContext context;
-};
-
-static struct GadgetContext *gt_get_context(struct Gadget *gad)
+static struct GTGad *gt_gad(struct Gadget *gad)
 {
-    struct GadgetContext *context;
+    struct GTGad *g = (struct GTGad *)gad;
 
-    if (!gad || gad->GadgetType != LXA_GTYP_GADTOOLS || gad->SpecialInfo ||
-        gad->Width != 0 || gad->Height != 0)
+    if (!gad || !(gad->GadgetType & LXA_GTYP_GADTOOLS) || (gad->GadgetType & GTYP_SYSGADGET))
         return NULL;
-
-    context = &((struct GTContextGadget *)gad)->context;
-    if (context->magic != GT_CONTEXT_MAGIC)
+    if ((gad->GadgetType & GTYP_GTYPEMASK) == GTYP_CUSTOMGADGET)
         return NULL;
-
-    return context;
+    if (g->magic != GT_GAD_MAGIC)
+        return NULL;
+    return g;
 }
 
+/* The context gadget is a plain gadget of type GTYP_GADTOOLS (0x0100, no
+ * gadget class bits), zero size, GFLG_GADGHNONE and SpecialInfo NULL -
+ * exactly as AmigaOS 3.1 GadTools creates it. */
 static BOOL gt_is_context_gadget(struct Gadget *gad)
 {
-    return gt_get_context(gad) != NULL;
+    struct GTGad *g = gt_gad(gad);
+
+    return g && g->role == GT_ROLE_CONTEXT;
 }
 
 static struct Gadget *gt_public_glist(struct Gadget *gad)
 {
-    struct GadgetContext *context = gt_get_context(gad);
-
-    if (!context)
+    if (!gt_is_context_gadget(gad))
         return gad;
 
     return gad->NextGadget;
@@ -256,14 +293,47 @@ static struct GTGadgetData *gt_alloc_data(ULONG kind)
 
     data = (struct GTGadgetData *)AllocMem(sizeof(struct GTGadgetData), MEMF_CLEAR | MEMF_PUBLIC);
     if (data)
+    {
         data->kind = kind;
+        data->magic = GT_DATA_MAGIC;
+        data->underline_pos = -1;
+    }
 
     return data;
 }
 
+static struct IClass *g_gt_palette_class;
+
+struct GTPaletteInst
+{
+    ULONG magic;
+    struct GTGadgetData *data;
+    APTR img;
+};
+
 static struct GTGadgetData *gt_get_data(struct Gadget *gad)
 {
-    return (struct GTGadgetData *)gad->SelectRender;
+    struct GTGad *g = gt_gad(gad);
+
+    if (g)
+        return (g->data && g->data->magic == GT_DATA_MAGIC) ? g->data : NULL;
+    /* the palette is a BOOPSI gadget of GadTools' private class */
+    if (gad && g_gt_palette_class && (gad->GadgetType & LXA_GTYP_GADTOOLS) &&
+        (gad->GadgetType & GTYP_GTYPEMASK) == GTYP_CUSTOMGADGET &&
+        OCLASS(gad) == g_gt_palette_class)
+    {
+        struct GTPaletteInst *pi = (struct GTPaletteInst *)INST_DATA(g_gt_palette_class, gad);
+        if (pi->magic == GT_DATA_MAGIC && pi->data && pi->data->magic == GT_DATA_MAGIC)
+            return pi->data;
+    }
+    return NULL;
+}
+
+/* the gadget whose state GadTools keeps (prop, string, list area...) */
+static struct Gadget *gt_main(struct Gadget *gad)
+{
+    struct GTGadgetData *data = gt_get_data(gad);
+    return (data && data->main) ? data->main : gad;
 }
 
 static WORD gt_font_ysize(struct TextFont *font);
@@ -271,44 +341,153 @@ static WORD gt_font_ysize(struct TextFont *font);
 /* TRUE for the gadgets GadTools draws itself (Intuition asks before rendering) */
 BOOL _gadtools_IsGadTools(register struct Gadget *gad __asm("a0"))
 {
-    struct GTGadgetData *data;
+    struct GTGad *g = gt_gad(gad);
 
-    if (!gad || !(gad->GadgetType & LXA_GTYP_GADTOOLS) || (gad->GadgetType & GTYP_SYSGADGET))
-        return FALSE;
-    if ((gad->GadgetType & GTYP_GTYPEMASK) == GTYP_CUSTOMGADGET)
-        return FALSE;
-    data = gt_get_data(gad);
-    return (data && data->magic == GT_DATA_MAGIC) ? TRUE : FALSE;
+    return (g && g->role != GT_ROLE_CONTEXT && g->data) ? TRUE : FALSE;
+}
+
+/* RefreshGList() brackets a whole list with this, so that a GadTools group
+ * (several Intuition gadgets) is drawn once per pass. */
+static ULONG g_gt_pass;
+static BOOL g_gt_in_pass;
+
+VOID _gadtools_RefreshPass(register LONG begin __asm("d0"))
+{
+    if (begin)
+    {
+        g_gt_pass++;
+        g_gt_in_pass = TRUE;
+    }
+    else
+        g_gt_in_pass = FALSE;
+}
+
+static void gt_update_mx_flags(struct GTGadgetData *data)
+{
+    WORD i;
+
+    for (i = 0; i < data->nitems; i++)
+    {
+        if (i == data->value)
+            data->items[i]->Flags |= GFLG_SELECTED;
+        else
+            data->items[i]->Flags &= ~GFLG_SELECTED;
+    }
+}
+
+static LONG gt_list_count(struct List *list)
+{
+    struct Node *n;
+    LONG k = 0;
+
+    if (!list || list == (struct List *)~0)
+        return 0;
+    for (n = list->lh_Head; n->ln_Succ; n = n->ln_Succ)
+        k++;
+    return k;
+}
+
+static void gt_scroller_values(LONG top, LONG total, LONG visible, UWORD *pot, UWORD *body);
+
+static WORD gt_lv_visible(struct GTGadgetData *data)
+{
+    WORD fh = gt_font_ysize(data->font);
+    return data->main ? (WORD)(data->main->Height / fh) : 0;
+}
+
+static void gt_lv_update_prop(struct GTGadgetData *data)
+{
+    struct PropInfo *pi;
+
+    if (!data->lv_prop || !(pi = (struct PropInfo *)data->lv_prop->SpecialInfo))
+        return;
+    gt_scroller_values(data->lv_top, gt_list_count((struct List *)data->aux), gt_lv_visible(data),
+                       &pi->VertPot, &pi->VertBody);
+}
+
+static void gt_lv_clamp_top(struct GTGadgetData *data)
+{
+    LONG max = gt_list_count((struct List *)data->aux) - gt_lv_visible(data);
+
+    if (data->lv_top > max)
+        data->lv_top = (WORD)max;
+    if (data->lv_top < 0)
+        data->lv_top = 0;
+}
+
+static void gt_scroller_update_prop(struct GTGadgetData *data)
+{
+    struct PropInfo *pi = data->main ? (struct PropInfo *)data->main->SpecialInfo : NULL;
+    UWORD pot, body;
+
+    if (!pi)
+        return;
+    gt_scroller_values(data->value, data->max, data->min, &pot, &body);
+    if (pi->Flags & FREEVERT)
+    {
+        pi->VertPot = pot;
+        pi->VertBody = body;
+    }
+    else
+    {
+        pi->HorizPot = pot;
+        pi->HorizBody = body;
+    }
 }
 
 /*
- * Click on an MX, listview or palette gadget (relative to the gadget).
- * Updates the GadTools state; returns the IntuiMessage code, or -1 when the
- * click selects nothing.
+ * Click on an MX, listview, palette gadget or an arrow button (relative to
+ * the gadget).  Updates the GadTools state; returns the IntuiMessage code,
+ * or -1 when the click selects nothing.
  */
 LONG _gadtools_HandleClick(register struct Gadget *gad __asm("a0"),
                            register LONG relx __asm("d0"),
                            register LONG rely __asm("d1"))
 {
     struct GTGadgetData *data = gt_get_data(gad);
+    struct GTGad *g = gt_gad(gad);
     WORD fh;
 
-    if (!data || data->magic != GT_DATA_MAGIC)
+    if (!data)
         return -1;
     relx = (LONG)(WORD)relx;
     rely = (LONG)(WORD)rely;
     fh = gt_font_ysize(data->font);
+
+    if (g && (g->role == GT_ROLE_ARROW_DEC || g->role == GT_ROLE_ARROW_INC))
+    {
+        WORD d = (g->role == GT_ROLE_ARROW_DEC) ? -1 : 1;
+        if (data->kind == GT_KIND_LISTVIEW)
+        {
+            data->lv_top += d;
+            gt_lv_clamp_top(data);
+            gt_lv_update_prop(data);
+            return data->lv_top;
+        }
+        if (data->kind == GT_KIND_SCROLLER)
+        {
+            LONG top = data->value + d;
+            if (top > data->max - data->min)
+                top = data->max - data->min;
+            if (top < 0)
+                top = 0;
+            data->value = top;
+            gt_scroller_update_prop(data);
+            return top;
+        }
+        return -1;
+    }
+    if (g && g->role == GT_ROLE_MXITEM)
+    {
+        data->value = g->index;
+        gt_update_mx_flags(data);
+        return g->index;
+    }
+    if (gad != data->main)
+        return -1;
+
     switch (data->kind)
     {
-        case GT_KIND_MX:
-        {
-            WORD step = fh + data->mx_spacing;
-            WORD i = (step > 0) ? (WORD)(rely / step) : 0;
-            if (i < 0 || i >= data->max)
-                return -1;
-            data->value = i;
-            return i;
-        }
         case GT_KIND_LISTVIEW:
         {
             struct List *list = (struct List *)data->aux;
@@ -327,10 +506,19 @@ LONG _gadtools_HandleClick(register struct Gadget *gad __asm("a0"),
         }
         case GT_KIND_PALETTE:
         {
-            WORD ncol = 1 << data->pal_depth;
-            WORD bw = (data->box_w - 5) / ncol;
-            WORD i = (bw > 0) ? (WORD)((relx + data->box_dx - 4) / bw) : 0;
-            if (i < 0 || i >= ncol)
+            WORD cols = data->pal_cols ? data->pal_cols : 1;
+            WORD rows = data->pal_rows ? data->pal_rows : 1;
+            WORD bw = (data->box_w - 5) / cols;
+            WORD bh = (data->box_h - 5) / rows;
+            WORD c = (bw > 0) ? (WORD)((relx - 3) / bw) : 0;
+            WORD r = (bh > 0) ? (WORD)((rely - 3) / bh) : 0;
+            WORD i;
+            if (c < 0) c = 0;
+            if (c >= cols) c = cols - 1;
+            if (r < 0) r = 0;
+            if (r >= rows) r = rows - 1;
+            i = r * cols + c;
+            if (i < 0 || i >= (1 << data->pal_depth))
                 return -1;
             data->value = data->pal_offset + i;
             return data->value;
@@ -366,6 +554,10 @@ VOID _gadtools_SetCheckboxState(register struct Gadget *gad __asm("a0"),
         return;
 
     data->value = checked ? TRUE : FALSE;
+    if (checked)
+        gad->Flags |= GFLG_SELECTED;
+    else
+        gad->Flags &= ~GFLG_SELECTED;
 }
 
 static UWORD gt_cycle_label_count(struct GTGadgetData *data)
@@ -671,16 +863,6 @@ static WORD gt_format_slider_level(STRPTR buf, ULONG maxchars,
     return (WORD)(state.cursor - buf);
 }
 
-static struct IntuiText *gt_label_chain_tail(struct IntuiText *it)
-{
-    if (!it)
-        return NULL;
-
-    while (it->NextText)
-        it = it->NextText;
-
-    return it;
-}
 
 static WORD gt_text_width(struct TextFont *font, CONST_STRPTR s, WORD len);
 static WORD gt_font_ysize(struct TextFont *font);
@@ -741,8 +923,7 @@ static void gt_position_slider_level_text(struct GTGadgetData *data,
         level_text->LeftEdge = (W - (WORD)data->max_pixel_len) / 2 + text_left;
         level_text->TopEdge  = H + 3;
     }
-    level_text->LeftEdge += data->box_dx;
-    level_text->TopEdge += data->box_dy;
+    data->level_x0 = level_text->LeftEdge - text_left;
 }
 
 VOID _gadtools_UpdateSliderLevelDisplay(register struct Gadget *gad __asm("a0"),
@@ -859,11 +1040,83 @@ static STRPTR gt_strip_underscore(CONST_STRPTR label, UBYTE us, WORD *ul_pos)
 }
 
 /*
- * Create the IntuiText label of a gadget, placed against the NewGadget box
- * (0,0,gadWidth,gadHeight) the way AmigaOS 3.1 GadTools places it
- * (reference gallery): 8 pixels left of the box, 7 right of it, 4 above,
- * centred inside; vertically (height - fontheight + 1) / 2.
- * The underlined character index (GT_Underscore) is returned in *ul.
+ * Label placement of AmigaOS 3.1 GadTools (tests/probes/gadtools): 8 pixels
+ * left of the box, 7 right of it, fontheight+4 above, 3 below, centred
+ * otherwise ((size - textsize + 1) >> 1).
+ */
+static ULONG gt_label_place(ULONG flags, ULONG defaultPlace)
+{
+    ULONG place = flags & (PLACETEXT_LEFT | PLACETEXT_RIGHT | PLACETEXT_ABOVE |
+                           PLACETEXT_BELOW | PLACETEXT_IN);
+    return place ? place : defaultPlace;
+}
+
+static void gt_label_pos(ULONG place, WORD w, WORD h, WORD tw, WORD fh, WORD *x, WORD *y)
+{
+    if (place & PLACETEXT_LEFT)
+    {
+        *x = -tw - 8;
+        *y = (h - fh + 1) >> 1;
+    }
+    else if (place & PLACETEXT_RIGHT)
+    {
+        *x = w + 7;
+        *y = (h - fh + 1) >> 1;
+    }
+    else if (place & PLACETEXT_ABOVE)
+    {
+        *x = (w - tw + 1) >> 1;
+        *y = -fh - 4;
+    }
+    else if (place & PLACETEXT_BELOW)
+    {
+        *x = (w - tw + 1) >> 1;
+        *y = h + 3;
+    }
+    else
+    {
+        *x = (w - tw + 1) >> 1;
+        *y = (h - fh + 1) >> 1;
+    }
+}
+
+/* ExtGadget bounds: the box widened by the label (AmigaOS 3.1) */
+static void gt_set_bounds(struct Gadget *gad, ULONG more, WORD x, WORD y, WORD w, WORD h,
+                          ULONG place, WORD tw, WORD fh, BOOL has_label)
+{
+    struct ExtGadget *eg = (struct ExtGadget *)gad;
+
+    if (has_label)
+    {
+        if (place & PLACETEXT_LEFT)
+        {
+            x -= tw + 8;
+            w += tw + 8;
+        }
+        else if (place & PLACETEXT_RIGHT)
+            w += tw + 8;
+        else if (place & PLACETEXT_ABOVE)
+        {
+            y -= fh + 4;
+            h += fh + 4;
+        }
+        else if (place & PLACETEXT_BELOW)
+            h += fh + 4;
+        if ((place & (PLACETEXT_LEFT | PLACETEXT_RIGHT)) && h < fh + 1)
+            h = fh + 1;
+    }
+    gad->Flags |= GFLG_EXTENDED;
+    eg->MoreFlags = more;
+    eg->BoundsLeftEdge = x;
+    eg->BoundsTopEdge = y;
+    eg->BoundsWidth = w;
+    eg->BoundsHeight = h;
+}
+
+/*
+ * Create the IntuiText label of a gadget, placed against the box
+ * (0,0,gadWidth,gadHeight).  The underlined character index (GT_Underscore)
+ * is returned in *ul, the text width in *twp.
  */
 static struct IntuiText * gt_create_label(CONST_STRPTR text, ULONG flags,
                                            ULONG defaultPlace,
@@ -872,7 +1125,6 @@ static struct IntuiText * gt_create_label(CONST_STRPTR text, ULONG flags,
                                            struct TextAttr *ta, WORD *ul)
 {
     struct IntuiText *it;
-    ULONG place;
     WORD textWidth, fh;
     STRPTR displayText;
     WORD ul_pos;
@@ -899,59 +1151,33 @@ static struct IntuiText * gt_create_label(CONST_STRPTR text, ULONG flags,
     it->IText     = displayText;
     it->NextText  = NULL;
 
-    place = flags & (PLACETEXT_LEFT | PLACETEXT_RIGHT | PLACETEXT_ABOVE |
-                     PLACETEXT_BELOW | PLACETEXT_IN);
-    if (!place)
-        place = defaultPlace;
-
     textWidth = gt_text_width(font, displayText, gt_strlen(displayText));
     fh = gt_font_ysize(font);
-
-    if (place & PLACETEXT_LEFT)
-    {
-        it->LeftEdge = -textWidth - 8;
-        it->TopEdge  = (gadHeight - fh + 1) / 2;
-    }
-    else if (place & PLACETEXT_RIGHT)
-    {
-        it->LeftEdge = gadWidth + 7;
-        it->TopEdge  = (gadHeight - fh + 1) / 2;
-    }
-    else if (place & PLACETEXT_ABOVE)
-    {
-        it->LeftEdge = (gadWidth - textWidth) / 2;
-        it->TopEdge  = -fh - 4;
-    }
-    else if (place & PLACETEXT_BELOW)
-    {
-        it->LeftEdge = (gadWidth - textWidth) / 2;
-        it->TopEdge  = gadHeight + 3;
-    }
-    else /* PLACETEXT_IN */
-    {
-        it->LeftEdge = (gadWidth - textWidth) / 2;
-        it->TopEdge  = (gadHeight - fh + 1) / 2;
-    }
+    gt_label_pos(gt_label_place(flags, defaultPlace), gadWidth, gadHeight, textWidth, fh,
+                 &it->LeftEdge, &it->TopEdge);
 
     if (ul)
         *ul = ul_pos;
     return it;
 }
 
-/* Helper: free an IntuiText label allocated by gt_create_label. */
-static void gt_free_label(struct IntuiText *it)
+static WORD gt_label_width(CONST_STRPTR text, UBYTE us, struct TextFont *font)
 {
-    while (it)
-    {
-        struct IntuiText *next = it->NextText;
+    WORD ul;
+    STRPTR s;
+    WORD w;
 
-        if (it->IText)
-            FreeMem(it->IText, gt_strlen(it->IText) + 1);
-
-        FreeMem(it, sizeof(struct IntuiText));
-        it = next;
-    }
+    if (!text)
+        return 0;
+    s = gt_strip_underscore(text, us, &ul);
+    if (!s)
+        return 0;
+    w = gt_text_width(font, s, gt_strlen(s));
+    FreeMem(s, gt_strlen(s) + 1);
+    return w;
 }
+
+/* Helper: free an IntuiText label allocated by gt_create_label. */
 
 /* scroller/listview prop values (AmigaOS 3.1 GadTools: one line overlap) */
 static void gt_scroller_values(LONG top, LONG total, LONG visible, UWORD *pot, UWORD *body)
@@ -968,16 +1194,159 @@ static void gt_scroller_values(LONG top, LONG total, LONG visible, UWORD *pot, U
     }
 }
 
+/*
+ * Gadget group construction.  Geometry, flags and the list layout follow
+ * AmigaOS 3.1 GadTools as observed by tests/probes/gadtools/gadgets_*.c.
+ */
+struct gt_build
+{
+    struct GTGadgetData *data;
+    struct NewGadget *ng;
+    struct Gadget *first, *last;
+    BOOL failed;
+};
+
+static void gt_free_member(struct Gadget *gad);
+
+static struct Gadget *gt_member(struct gt_build *b, UWORD role, UWORD type, UWORD flags, UWORD act,
+                                WORD l, WORD t, WORD w, WORD h)
+{
+    struct GTGad *g;
+    struct Gadget *gad;
+
+    if (b->failed)
+        return NULL;
+    g = (struct GTGad *)AllocMem(sizeof(struct GTGad), MEMF_CLEAR | MEMF_PUBLIC);
+    if (!g)
+    {
+        b->failed = TRUE;
+        return NULL;
+    }
+    gad = (struct Gadget *)&g->eg;
+    g->magic = GT_GAD_MAGIC;
+    g->data = b->data;
+    g->role = role;
+    b->data->refs++;
+    gad->GadgetType = LXA_GTYP_GADTOOLS | type;
+    gad->Flags = flags;
+    gad->Activation = act;
+    gad->LeftEdge = l;
+    gad->TopEdge = t;
+    gad->Width = w;
+    gad->Height = h;
+    gad->GadgetID = b->ng->ng_GadgetID;
+    gad->UserData = b->ng->ng_UserData;
+    if (b->last)
+        b->last->NextGadget = gad;
+    else
+        b->first = gad;
+    b->last = gad;
+    return gad;
+}
+
+static APTR gt_new_frame(WORD l, WORD t, WORD w, WORD h, ULONG type, BOOL recessed)
+{
+    struct TagItem tags[7];
+
+    tags[0].ti_Tag = IA_Left;      tags[0].ti_Data = (ULONG)(LONG)l;
+    tags[1].ti_Tag = IA_Top;       tags[1].ti_Data = (ULONG)(LONG)t;
+    tags[2].ti_Tag = IA_Width;     tags[2].ti_Data = (ULONG)(LONG)w;
+    tags[3].ti_Tag = IA_Height;    tags[3].ti_Data = (ULONG)(LONG)h;
+    tags[4].ti_Tag = IA_FrameType; tags[4].ti_Data = type;
+    tags[5].ti_Tag = IA_Recessed;  tags[5].ti_Data = recessed;
+    tags[6].ti_Tag = TAG_DONE;     tags[6].ti_Data = 0;
+    return NewObjectA(NULL, (UBYTE *)FRAMEICLASS, tags);
+}
+
+/* GadgetRender (and SelectRender) as BOOPSI frame images */
+static void gt_images(struct gt_build *b, struct Gadget *gad, WORD l, WORD t, WORD w, WORD h,
+                      ULONG type, BOOL recessed, BOOL select)
+{
+    struct GTGad *g = (struct GTGad *)gad;
+
+    if (!gad)
+        return;
+    g->boopsi_imgs = TRUE;
+    g->render_img = gt_new_frame(l, t, w, h, type, recessed);
+    gad->GadgetRender = g->render_img;
+    if (select)
+    {
+        g->select_img = gt_new_frame(l, t, w, h, type, recessed);
+        gad->SelectRender = g->select_img;
+    }
+    if (!g->render_img || (select && !g->select_img))
+        b->failed = TRUE;
+}
+
+/* the (empty) AUTOKNOB image Intuition fills in */
+static void gt_knob_image(struct gt_build *b, struct Gadget *gad)
+{
+    struct GTGad *g = (struct GTGad *)gad;
+
+    if (!gad)
+        return;
+    g->render_img = AllocMem(sizeof(struct Image), MEMF_CLEAR | MEMF_PUBLIC);
+    gad->GadgetRender = g->render_img;
+    if (!g->render_img)
+        b->failed = TRUE;
+}
+
+static struct PropInfo *gt_new_prop(struct gt_build *b, struct Gadget *gad, BOOL vert)
+{
+    struct PropInfo *pi;
+
+    if (!gad)
+        return NULL;
+    pi = (struct PropInfo *)AllocMem(sizeof(struct PropInfo), MEMF_CLEAR | MEMF_PUBLIC);
+    if (!pi)
+    {
+        b->failed = TRUE;
+        return NULL;
+    }
+    pi->Flags = AUTOKNOB | PROPBORDERLESS | (vert ? FREEVERT : FREEHORIZ);
+    gad->SpecialInfo = (APTR)pi;
+    return pi;
+}
+
+/* attach the ng_GadgetText label to `gad`, placed against the box (bx,by,bw,bh),
+ * and set the ExtGadget bounds of `gad` (more flags `more`) */
+static void gt_label(struct gt_build *b, struct Gadget *gad, ULONG defplace, WORD bx, WORD by,
+                     WORD bw, WORD bh, UBYTE us, ULONG more)
+{
+    struct NewGadget *ng = b->ng;
+    struct GTGadgetData *data = b->data;
+    ULONG place = gt_label_place(ng->ng_Flags, defplace);
+    WORD ul = -1, tw = 0;
+
+    if (!gad)
+        return;
+    if (ng->ng_GadgetText)
+    {
+        struct IntuiText *it = gt_create_label(ng->ng_GadgetText, ng->ng_Flags, defplace, bw, bh, us,
+                                               data->font, (struct TextAttr *)ng->ng_TextAttr, &ul);
+        if (!it)
+        {
+            b->failed = TRUE;
+            return;
+        }
+        it->LeftEdge += bx - gad->LeftEdge;
+        it->TopEdge += by - gad->TopEdge;
+        gad->GadgetText = it;
+        data->label_gad = gad;
+        data->underline_pos = ul;
+        tw = gt_text_width(data->font, it->IText, gt_strlen(it->IText));
+    }
+    gt_set_bounds(gad, more, bx, by, bw, bh, place, tw, gt_font_ysize(data->font),
+                  ng->ng_GadgetText != NULL);
+}
+
+static struct Gadget *gt_palette_new(struct gt_build *b, WORD l, WORD t, WORD w, WORD h);
+
 /* CreateGadgetA - Create a GadTools gadget
  * kind: gadget kind (BUTTON_KIND, STRING_KIND, etc.)
  * gad: previous gadget in list (or context gadget)
  * ng: NewGadget structure
  * taglist: additional tags
- *
- * Geometry follows AmigaOS 3.1 (tests/scenarios/gallery-gt-*.yaml): the
- * Intuition gadget covers the active part of the kind (the string area,
- * the prop container, ...); the NewGadget box is kept in the GadTools data
- * for the imagery, which _gadtools_RenderGadget() draws.
  */
 struct Gadget * _gadtools_CreateGadgetA ( register struct GadToolsBase *GadToolsBase __asm("a6"),
                                           register ULONG kind __asm("d0"),
@@ -985,322 +1354,185 @@ struct Gadget * _gadtools_CreateGadgetA ( register struct GadToolsBase *GadTools
                                           register struct NewGadget *ng __asm("a1"),
                                           register struct TagItem *taglist __asm("a2") )
 {
-    struct Gadget *newgad;
+    struct gt_build b;
     struct GTGadgetData *data;
-    UBYTE us;  /* GT_Underscore character, or 0 if not set */
+    struct Gadget *mg = NULL, *pub = NULL, *x;
+    UBYTE us;
     struct TextFont *font = NULL;
-    WORD fh;
-    WORD ul = -1;
-    WORD ng_adjust = 0;     /* the gadget moved against its NewGadget box */
+    WORD fh, L, T, W, H;
+    UWORD dis;
 
     DPRINTF (LOG_DEBUG, "_gadtools: CreateGadgetA() kind=%ld, prevgad=0x%08lx, ng=0x%08lx\n",
              kind, (ULONG)gad, (ULONG)ng);
 
-    if (!ng)
+    /* a failed CreateGadget() earlier in the chain propagates (autodoc) */
+    if (!ng || !gad)
         return NULL;
 
     /* An MX gadget without labels cannot be created (AmigaOS 3.1). */
     if (kind == MX_KIND && !GetTagData(GTMX_Labels, 0, taglist))
         return NULL;
 
-    /* Parse GT_Underscore tag — this is common to all gadget kinds */
     us = (UBYTE)GetTagData(GT_Underscore, 0, taglist);
-
-    /* Allocate gadget structure */
-    newgad = AllocMem(sizeof(struct Gadget), MEMF_CLEAR | MEMF_PUBLIC);
-    if (!newgad)
-        return NULL;
 
     data = gt_alloc_data(GT_KIND_UNKNOWN);
     if (!data)
-    {
-        FreeMem(newgad, sizeof(struct Gadget));
         return NULL;
-    }
-    newgad->SelectRender = (APTR)data;
-    data->magic = GT_DATA_MAGIC;
     data->vi = (struct VisualInfo *)ng->ng_VisualInfo;
     if (ng->ng_TextAttr)
         font = OpenFont(ng->ng_TextAttr);
     data->font = font;
     fh = gt_font_ysize(font);
-    data->underline_pos = -1;
-    data->box_w = ng->ng_Width;
-    data->box_h = ng->ng_Height;
+    L = ng->ng_LeftEdge;
+    T = ng->ng_TopEdge;
+    W = ng->ng_Width;
+    H = ng->ng_Height;
+    data->ng_left = L;
+    data->ng_top = T;
+    data->box_w = W;
+    data->box_h = H;
+    dis = GetTagData(GA_Disabled, FALSE, taglist) ? GFLG_DISABLED : 0;
 
-    /* Fill in basic gadget fields from NewGadget */
-    newgad->LeftEdge = ng->ng_LeftEdge;
-    newgad->TopEdge = ng->ng_TopEdge;
-    newgad->Width = ng->ng_Width;
-    newgad->Height = ng->ng_Height;
-    newgad->GadgetID = ng->ng_GadgetID;
-    newgad->UserData = ng->ng_UserData;
-    if (GetTagData(GA_Disabled, FALSE, taglist))
-        newgad->Flags |= GFLG_DISABLED;
-
-#define GT_LABEL(place) gt_create_label(ng->ng_GadgetText, ng->ng_Flags, (place), \
-                                        ng->ng_Width, ng->ng_Height, us, font, (struct TextAttr *)ng->ng_TextAttr, &ul)
+    b.data = data;
+    b.ng = ng;
+    b.first = b.last = NULL;
+    b.failed = FALSE;
 
     switch (kind) {
         case BUTTON_KIND:
         {
-            WORD ul_pos;
+            WORD ul_pos, tw;
+            ULONG place = gt_label_place(ng->ng_Flags, PLACETEXT_IN);
 
             data->kind = GT_KIND_BUTTON;
-            newgad->GadgetType = LXA_GTYP_GADTOOLS | GTYP_BOOLGADGET;
-            newgad->Activation = GACT_RELVERIFY;
-            newgad->Flags |= GFLG_GADGHNONE;
+            mg = gt_member(&b, GT_ROLE_MAIN, GTYP_BOOLGADGET,
+                             GFLG_EXTENDED | GFLG_GADGIMAGE | GFLG_GADGHIMAGE | dis,
+                             GACT_RELVERIFY | (GetTagData(GA_Immediate, FALSE, taglist) ? GACT_IMMEDIATE : 0),
+                             L, T, W, H);
+            gt_images(&b, mg, 0, 0, W, H, FRAME_BUTTON, FALSE, TRUE);
             /* the label is part of the button imagery (no GadgetText) */
             data->label = gt_strip_underscore(ng->ng_GadgetText, us, &ul_pos);
             data->label_pen = (ng->ng_Flags & NG_HIGHLABEL) ? HIGHLIGHTTEXTPEN : TEXTPEN;
             data->underline_pos = ul_pos;
+            tw = data->label ? gt_text_width(font, data->label, gt_strlen(data->label)) : 0;
+            gt_label_pos(place, W, H, tw, fh, &data->label_x, &data->label_y);
+            data->label_in = (place & (PLACETEXT_LEFT | PLACETEXT_RIGHT | PLACETEXT_ABOVE | PLACETEXT_BELOW)) == 0;
+            if (mg)
+                gt_set_bounds(mg, GMORE_BOUNDS | GMORE_GADGETHELP, L, T, W, H, place, tw, fh,
+                              data->label != NULL);
             break;
         }
+
         case STRING_KIND:
         case INTEGER_KIND:
         {
-            struct StringInfo *si;
-            STRPTR buf;
+            struct StringInfo *si = NULL;
+            struct StringExtend *se;
             ULONG maxchars;
-            STRPTR initstr;
-            WORD len;
+            WORD dy = (H - fh + 1) >> 1;
+            UWORD act = GACT_RELVERIFY | GACT_STRINGEXTEND;
+            ULONG just = GetTagData(STRINGA_Justification, GACT_STRINGLEFT, taglist);
 
             data->kind = (kind == INTEGER_KIND) ? GT_KIND_INTEGER : GT_KIND_STRING;
-            newgad->GadgetType = LXA_GTYP_GADTOOLS | GTYP_STRGADGET;
-            newgad->Activation = GACT_RELVERIFY;
-            newgad->Flags |= GFLG_GADGHCOMP;
-
-            /* the string area inside the ridge frame (AmigaOS 3.1) */
-            newgad->LeftEdge  = ng->ng_LeftEdge + 6;
-            newgad->TopEdge   = ng->ng_TopEdge + 3;
-            newgad->Width     = ng->ng_Width - 12;
-            newgad->Height    = ng->ng_Height - 6;
-
-            newgad->GadgetText = GT_LABEL(PLACETEXT_LEFT);
-            data->underline_pos = ul;
+            if (kind == INTEGER_KIND)
+                act |= GACT_LONGINT;
+            act |= just & (GACT_STRINGCENTER | GACT_STRINGRIGHT);
+            mg = gt_member(&b, GT_ROLE_MAIN, GTYP_STRGADGET,
+                             GFLG_EXTENDED | GFLG_GADGIMAGE | dis |
+                             (GetTagData(GA_TabCycle, TRUE, taglist) ? GFLG_TABCYCLE : 0),
+                             act, L + 6, T + dy, W - 12, fh);
+            /* the ridge frame around the string area */
+            gt_images(&b, mg, -6, -dy, W, H, FRAME_RIDGE, FALSE, FALSE);
+            gt_label(&b, mg, PLACETEXT_LEFT, L, T, W, H, us, GMORE_BOUNDS | GMORE_GADGETHELP);
 
             if (kind == INTEGER_KIND)
                 maxchars = GetTagData(GTIN_MaxChars, 10, taglist) + 1;
             else
                 maxchars = GetTagData(GTST_MaxChars, 64, taglist) + 1;
-
-            si = (struct StringInfo *)AllocMem(sizeof(struct StringInfo), MEMF_CLEAR | MEMF_PUBLIC);
-            buf = si ? (STRPTR)AllocMem(maxchars, MEMF_CLEAR | MEMF_PUBLIC) : NULL;
-            if (!si || !buf)
+            if (mg && !b.failed)
+                si = (struct StringInfo *)AllocMem(sizeof(struct StringInfo), MEMF_CLEAR | MEMF_PUBLIC);
+            if (!si)
             {
-                if (si)
-                    FreeMem(si, sizeof(struct StringInfo));
-                gt_free_label(newgad->GadgetText);
-                if (font)
-                    CloseFont(font);
-                FreeMem(data, sizeof(struct GTGadgetData));
-                FreeMem(newgad, sizeof(struct Gadget));
-                return NULL;
+                b.failed = TRUE;
+                break;
             }
-
-            si->Buffer = buf;
+            mg->SpecialInfo = (APTR)si;
+            /* one spare byte: 3.1 copies up to MaxChars characters */
+            si->Buffer = (STRPTR)AllocMem(maxchars + 1, MEMF_CLEAR | MEMF_PUBLIC);
+            si->UndoBuffer = (STRPTR)AllocMem(maxchars + 1, MEMF_CLEAR | MEMF_PUBLIC);
+            se = (struct StringExtend *)AllocMem(sizeof(struct StringExtend), MEMF_CLEAR | MEMF_PUBLIC);
+            si->Extension = se;
             si->MaxChars = (WORD)maxchars;
+            if (!si->Buffer || !si->UndoBuffer || !se)
+            {
+                b.failed = TRUE;
+                break;
+            }
+            se->Font = font;
+            se->Pens[0] = 1;
+            se->Pens[1] = 0;
+            se->ActivePens[0] = 1;
+            se->ActivePens[1] = 0;
 
             if (kind == INTEGER_KIND)
             {
                 LONG num = (LONG)GetTagData(GTIN_Number, 0, taglist);
                 data->value = num;
                 si->LongInt = num;
-                si->NumChars = gt_format_long(buf, maxchars, num);
-                newgad->Activation |= GACT_LONGINT;
+                gt_format_long(si->Buffer, maxchars, num);
             }
             else
             {
-                initstr = (STRPTR)GetTagData(GTST_String, 0, taglist);
-                len = 0;
+                STRPTR initstr = (STRPTR)GetTagData(GTST_String, 0, taglist);
+                WORD len = 0;
                 if (initstr)
-                {
-                    while (initstr[len] != '\0' && len < (WORD)maxchars - 1)
+                    while (initstr[len] != '\0' && len < (WORD)maxchars)
                     {
-                        buf[len] = initstr[len];
+                        si->Buffer[len] = initstr[len];
                         len++;
                     }
-                }
-                buf[len] = '\0';
-                si->NumChars = len;
+                si->Buffer[len] = '\0';
             }
-
-            si->BufferPos = si->NumChars;
-            newgad->SpecialInfo = (APTR)si;
             break;
         }
+
         case CHECKBOX_KIND:
         {
-            BOOL cb_scaled = (BOOL)GetTagData(GTCB_Scaled, FALSE, taglist);
-            WORD cb_w, cb_h;
+            BOOL scaled = (BOOL)GetTagData(GTCB_Scaled, FALSE, taglist);
+            WORD cw = scaled ? W : CHECKBOX_WIDTH, ch = scaled ? H : CHECKBOX_HEIGHT, ct = T;
 
             data->kind = GT_KIND_CHECKBOX;
-            newgad->GadgetType = LXA_GTYP_GADTOOLS | GTYP_BOOLGADGET;
-            newgad->Activation = GACT_RELVERIFY | GACT_TOGGLESELECT;
-            newgad->Flags |= GFLG_GADGHNONE;
-
-            if (GetTagData(GTCB_Checked, FALSE, taglist))
-            {
-                data->value = TRUE;
-                newgad->Flags |= GFLG_SELECTED;
-            }
-
-            if (cb_scaled)
-            {
-                cb_w = ng->ng_Width;
-                cb_h = ng->ng_Height;
-            }
-            else
-            {
-                cb_w = CHECKBOX_WIDTH;
-                cb_h = CHECKBOX_HEIGHT;
-                newgad->Width  = cb_w;
-                newgad->Height = cb_h;
-            }
-            data->box_w = cb_w;
-            data->box_h = cb_h;
-            newgad->GadgetText = gt_create_label(ng->ng_GadgetText, ng->ng_Flags, PLACETEXT_LEFT,
-                                                 cb_w, cb_h, us, font, (struct TextAttr *)ng->ng_TextAttr, &ul);
-            /* with a left/right label the box is centred on taller fonts;
-             * the label stays where it is (AmigaOS 3.1) */
-            if (!cb_scaled && ng->ng_GadgetText &&
+            /* with a left/right label the box is centred on taller fonts */
+            if (!scaled && ng->ng_GadgetText &&
                 !(ng->ng_Flags & (PLACETEXT_ABOVE | PLACETEXT_BELOW | PLACETEXT_IN)) && fh > 7)
-            {
-                WORD adj = (fh - 7) / 2;
-                newgad->TopEdge += adj;
-                ng_adjust = adj;
-            }
-            data->underline_pos = ul;
+                ct += (fh - 7) / 2;
+            data->value = GetTagData(GTCB_Checked, FALSE, taglist) ? TRUE : FALSE;
+            data->ng_top = ct;
+            data->box_w = cw;
+            data->box_h = ch;
+            mg = gt_member(&b, GT_ROLE_MAIN, GTYP_BOOLGADGET,
+                             GFLG_EXTENDED | GFLG_GADGIMAGE | GFLG_GADGHIMAGE | dis |
+                             (data->value ? GFLG_SELECTED : 0),
+                             GACT_RELVERIFY | GACT_TOGGLESELECT, L, ct, cw, ch);
+            gt_images(&b, mg, 0, 0, cw, ch, FRAME_BUTTON, FALSE, TRUE);
+            gt_label(&b, mg, PLACETEXT_LEFT, L, ct, cw, ch, us, GMORE_BOUNDS | GMORE_GADGETHELP);
             break;
         }
-        case SLIDER_KIND:
-        {
-            struct PropInfo *pi;
-            struct IntuiText *label_tail;
-            struct IntuiText *level_text;
-            LONG sl_min, sl_max, sl_level;
-            LONG display_level;
-            UWORD horizPot, horizBody;
-            UWORD max_level_len;
-            ULONG freedom;
 
-            data->kind = GT_KIND_SLIDER;
-            newgad->GadgetType = LXA_GTYP_GADTOOLS | GTYP_PROPGADGET;
-            newgad->Activation = GACT_RELVERIFY | GACT_IMMEDIATE;
-            newgad->Flags |= GFLG_GADGHNONE;
-            /* the prop container inside the frame (AmigaOS 3.1) */
-            newgad->LeftEdge = ng->ng_LeftEdge + 4;
-            newgad->TopEdge  = ng->ng_TopEdge + 2;
-            newgad->Width    = ng->ng_Width - 8;
-            newgad->Height   = ng->ng_Height - 4;
-
-            sl_min   = (LONG)GetTagData(GTSL_Min,   0,  taglist);
-            sl_max   = (LONG)GetTagData(GTSL_Max,   15, taglist);
-            sl_level = (LONG)GetTagData(GTSL_Level, 0,  taglist);
-            freedom  = GetTagData(PGA_Freedom, LORIENT_HORIZ, taglist);
-            data->min = sl_min;
-            data->max = sl_max;
-            data->vertical = (freedom == LORIENT_VERT);
-
-            if (sl_level < sl_min) sl_level = sl_min;
-            if (sl_level > sl_max) sl_level = sl_max;
-            data->value = sl_level;
-            data->format = gt_strdup((STRPTR)GetTagData(GTSL_LevelFormat, (ULONG)"%ld", taglist));
-            max_level_len = (UWORD)GetTagData(GTSL_MaxLevelLen, 2, taglist);
-            if (max_level_len == 0)
-                max_level_len = 2;
-            data->max_level_len = max_level_len;
-            data->level_place = (UWORD)GetTagData(GTSL_LevelPlace, PLACETEXT_LEFT, taglist);
-            data->justification = (UBYTE)GetTagData(GTSL_Justification, GTJ_LEFT, taglist);
-            data->max_pixel_len = GetTagData(GTSL_MaxPixelLen,
-                                             (ULONG)(max_level_len * gt_text_width(font, (CONST_STRPTR)"0", 1)),
-                                             taglist);
-            data->disp_func = (LONG (*)(struct Gadget *, LONG))GetTagData(GTSL_DispFunc, 0, taglist);
-            data->level_buffer = (STRPTR)AllocMem(max_level_len + 1, MEMF_CLEAR | MEMF_PUBLIC);
-            pi = (struct PropInfo *)AllocMem(sizeof(struct PropInfo), MEMF_CLEAR | MEMF_PUBLIC);
-            if (!data->format || !data->level_buffer || !pi)
-            {
-                if (pi)
-                    FreeMem(pi, sizeof(struct PropInfo));
-                if (data->level_buffer)
-                    FreeMem(data->level_buffer, max_level_len + 1);
-                if (data->format)
-                    FreeMem(data->format, gt_strlen(data->format) + 1);
-                if (font)
-                    CloseFont(font);
-                FreeMem(data, sizeof(struct GTGadgetData));
-                FreeMem(newgad, sizeof(struct Gadget));
-                return NULL;
-            }
-
-            if (sl_max > sl_min)
-            {
-                horizPot = (UWORD)(((sl_level - sl_min) * (LONG)0xFFFF + (sl_max - sl_min) / 2) / (sl_max - sl_min));
-                horizBody = (UWORD)((LONG)0xFFFF / (sl_max - sl_min + 1));
-            }
-            else
-            {
-                horizPot = 0;
-                horizBody = 0xFFFF;
-            }
-
-            pi->Flags = AUTOKNOB | PROPNEWLOOK | PROPBORDERLESS |
-                        (data->vertical ? FREEVERT : FREEHORIZ);
-            if (data->vertical)
-            {
-                pi->VertPot = horizPot;
-                pi->VertBody = horizBody;
-                pi->HorizBody = 0xFFFF;
-            }
-            else
-            {
-                pi->HorizPot  = horizPot;
-                pi->HorizBody = horizBody;
-                pi->VertBody  = 0xFFFF;
-            }
-            /* Store min/max in unused PropInfo fields for GT_SetGadgetAttrs */
-            pi->CWidth    = (UWORD)sl_min;
-            pi->CHeight   = (UWORD)sl_max;
-            newgad->SpecialInfo = (APTR)pi;
-
-            newgad->GadgetText = GT_LABEL(PLACETEXT_LEFT);
-            data->underline_pos = ul;
-
-            display_level = data->disp_func ? data->disp_func(newgad, sl_level) : sl_level;
-            gt_format_slider_level(data->level_buffer, max_level_len + 1,
-                                   data->format, display_level);
-            /* AmigaOS 3.1 shows the level only when GTSL_LevelFormat is given */
-            level_text = gt_find_tagitem(GTSL_LevelFormat, taglist)
-                       ? (struct IntuiText *)AllocMem(sizeof(struct IntuiText), MEMF_CLEAR | MEMF_PUBLIC)
-                       : NULL;
-            if (level_text)
-            {
-                level_text->FrontPen = 1;
-                level_text->DrawMode = JAM1;
-                level_text->ITextFont = (struct TextAttr *)ng->ng_TextAttr;
-                level_text->IText = data->level_buffer;
-                data->level_text = level_text;
-                label_tail = gt_label_chain_tail(newgad->GadgetText);
-                if (label_tail)
-                    label_tail->NextText = level_text;
-                else
-                    newgad->GadgetText = level_text;
-            }
-            break;
-        }
         case CYCLE_KIND:
         {
-            struct IntuiText *label_tail;
             struct IntuiText *cycle_text;
             UWORD max_label_len;
 
             data->kind = GT_KIND_CYCLE;
             data->aux = (APTR)GetTagData(GTCY_Labels, 0, taglist);
             data->value = (LONG)GetTagData(GTCY_Active, 0, taglist);
-            data->max_pixel_len = (ULONG)ng->ng_Width;
-            newgad->GadgetType = LXA_GTYP_GADTOOLS | GTYP_BOOLGADGET;
-            newgad->Activation = GACT_RELVERIFY;
-            newgad->Flags |= GFLG_GADGHNONE;
+            data->max_pixel_len = (ULONG)W;
+            mg = gt_member(&b, GT_ROLE_MAIN, GTYP_BOOLGADGET,
+                             GFLG_EXTENDED | GFLG_GADGIMAGE | GFLG_GADGHIMAGE | dis,
+                             GACT_RELVERIFY, L, T, W, H);
+            gt_images(&b, mg, 0, 0, W, H, FRAME_BUTTON, FALSE, TRUE);
+            gt_label(&b, mg, PLACETEXT_LEFT, L, T, W, H, us, GMORE_BOUNDS | GMORE_GADGETHELP);
 
             max_label_len = gt_cycle_max_label_len(data);
             if (max_label_len == 0)
@@ -1308,246 +1540,575 @@ struct Gadget * _gadtools_CreateGadgetA ( register struct GadToolsBase *GadTools
             data->max_level_len = max_label_len;
             data->level_buffer = (STRPTR)AllocMem(max_label_len + 1, MEMF_CLEAR | MEMF_PUBLIC);
             cycle_text = (struct IntuiText *)AllocMem(sizeof(struct IntuiText), MEMF_CLEAR | MEMF_PUBLIC);
-            if (!data->level_buffer || !cycle_text)
+            data->level_text = cycle_text;
+            if (!data->level_buffer || !cycle_text || !mg)
             {
-                if (cycle_text)
-                    FreeMem(cycle_text, sizeof(struct IntuiText));
-                if (data->level_buffer)
-                    FreeMem(data->level_buffer, max_label_len + 1);
-                if (font)
-                    CloseFont(font);
-                FreeMem(data, sizeof(struct GTGadgetData));
-                FreeMem(newgad, sizeof(struct Gadget));
-                return NULL;
+                b.failed = TRUE;
+                break;
             }
-
-            newgad->GadgetText = GT_LABEL(PLACETEXT_LEFT);
-            data->underline_pos = ul;
             cycle_text->FrontPen = 1;
             cycle_text->DrawMode = JAM1;
             cycle_text->ITextFont = (struct TextAttr *)ng->ng_TextAttr;
             cycle_text->IText = data->level_buffer;
-            cycle_text->TopEdge = (ng->ng_Height - fh + 1) / 2;
-            data->level_text = cycle_text;
-
-            _gadtools_SetCycleState(newgad, (UWORD)data->value);
-
-            label_tail = gt_label_chain_tail(newgad->GadgetText);
-            if (label_tail)
-                label_tail->NextText = cycle_text;
-            else
-                newgad->GadgetText = cycle_text;
+            cycle_text->TopEdge = (H - fh + 1) / 2;
+            data->main = mg;
+            _gadtools_SetCycleState(mg, (UWORD)data->value);
             break;
         }
+
         case MX_KIND:
         {
             STRPTR *labels = (STRPTR *)GetTagData(GTMX_Labels, 0, taglist);
-            WORD n = 0;
-            UWORD ih = 9;
+            BOOL scaled = (BOOL)GetTagData(GTMX_Scaled, FALSE, taglist);
+            ULONG place = gt_label_place(ng->ng_Flags, PLACETEXT_LEFT);
+            ULONG tplace = GetTagData(GTMX_TitlePlace, 0, taglist);
+            WORD n = 0, i, maxw = 0, iw = 17, ih = 9, top, cl, cw, chh;
+            UWORD siw = 17, sih = 9;
 
-            lxa_sysi_dims(MXIMAGE, SYSISIZE_MEDRES, NULL, &ih);
+            lxa_sysi_dims(MXIMAGE, SYSISIZE_MEDRES, &siw, &sih);
+            iw = siw;
+            ih = sih;
+            if (scaled)
+            {
+                iw = W;
+                ih = H;
+            }
             data->kind = GT_KIND_MX;
             data->aux = (APTR)labels;
             data->value = (LONG)GetTagData(GTMX_Active, 0, taglist);
             data->mx_spacing = (WORD)GetTagData(GTMX_Spacing, 1, taglist);
-            while (labels && labels[n])
+            while (labels[n])
+            {
+                WORD tw = gt_label_width(labels[n], us, font);
+                if (tw > maxw)
+                    maxw = tw;
                 n++;
+            }
             data->max = n;
-            newgad->GadgetType = LXA_GTYP_GADTOOLS | GTYP_BOOLGADGET;
-            newgad->Activation = GACT_IMMEDIATE;
-            newgad->Flags |= GFLG_GADGHNONE;
-            newgad->Width = 17;
-            newgad->Height = (n > 0) ? (n - 1) * (fh + data->mx_spacing) + ih : ih;
-            data->box_w = 17;
-            data->box_h = newgad->Height;
-            newgad->GadgetText = gt_create_label(ng->ng_GadgetText, ng->ng_Flags, PLACETEXT_LEFT,
-                                                 17, newgad->Height, us, font, (struct TextAttr *)ng->ng_TextAttr, &ul);
-            data->underline_pos = ul;
+            data->nitems = n;
+            data->box_w = iw;
+            data->box_h = ih;
+            data->items = n ? (struct Gadget **)AllocMem(n * sizeof(struct Gadget *), MEMF_CLEAR | MEMF_PUBLIC)
+                            : NULL;
+            if (n && !data->items)
+            {
+                b.failed = TRUE;
+                break;
+            }
+            top = T + ((!scaled && fh > 7) ? (fh - 7) / 2 : 0);
+            data->ng_top = top;
+            for (i = 0; i < n; i++)
+            {
+                struct GTGad *g;
+                struct Gadget *it = gt_member(&b, GT_ROLE_MXITEM, GTYP_BOOLGADGET,
+                                              GFLG_GADGIMAGE | GFLG_GADGHIMAGE | dis |
+                                              (i == data->value ? GFLG_SELECTED : 0),
+                                              GACT_IMMEDIATE, L, top + i * (fh + data->mx_spacing), iw, ih);
+                if (!it)
+                    break;
+                g = (struct GTGad *)it;
+                g->index = i;
+                it->GadgetID = i;
+                data->items[i] = it;
+                gt_images(&b, it, 0, 0, iw, ih, FRAME_BUTTON, FALSE, TRUE);
+                it->GadgetText = gt_create_label(labels[i], ng->ng_Flags & ~NG_HIGHLABEL, PLACETEXT_LEFT,
+                                                 iw, ih, us, font, (struct TextAttr *)ng->ng_TextAttr, NULL);
+                if (!it->GadgetText)
+                    b.failed = TRUE;
+            }
+            /* the container: items and their labels */
+            cl = L;
+            cw = iw;
+            if (place & (PLACETEXT_LEFT | PLACETEXT_RIGHT))
+            {
+                cw += maxw + 8;
+                if (place & PLACETEXT_LEFT)
+                    cl -= maxw + 8;
+            }
+            chh = (n > 0 ? (n - 1) * (fh + data->mx_spacing) : 0) + ((ih > fh + 2) ? ih : fh + 2);
+            pub = gt_member(&b, GT_ROLE_CONTAINER, 0, GFLG_EXTENDED | GFLG_GADGHNONE, 0, cl, T, cw, chh);
+            if (pub && tplace && ng->ng_GadgetText)
+            {
+                struct NewGadget tng = *ng;
+                tng.ng_Flags = (ng->ng_Flags & NG_HIGHLABEL) | tplace;
+                b.ng = &tng;
+                gt_label(&b, pub, tplace, cl, T, cw, chh, us, GMORE_BOUNDS | GMORE_GADGETHELP);
+                b.ng = ng;
+            }
+            else if (pub)
+                gt_set_bounds(pub, GMORE_BOUNDS | GMORE_GADGETHELP, cl, T, cw, chh, 0, 0, fh, FALSE);
+            mg = data->items ? data->items[0] : pub;
             break;
         }
+
+        case SLIDER_KIND:
+        case SCROLLER_KIND:
+        {
+            struct PropInfo *pi;
+            BOOL vert = (GetTagData(PGA_Freedom, LORIENT_HORIZ, taglist) == LORIENT_VERT);
+            WORD a = 0, fw = W, fhh = H;
+
+            data->vertical = vert;
+            if (kind == SCROLLER_KIND)
+            {
+                a = (WORD)GetTagData(GTSC_Arrows, 0, taglist);
+                data->arrows = a;
+                if (vert)
+                    fhh = H - 2 * a;
+                else
+                    fw = W - 2 * a;
+            }
+            mg = gt_member(&b, GT_ROLE_MAIN, GTYP_PROPGADGET, GFLG_GADGHNONE | GFLG_GADGIMAGE | dis,
+                             GACT_RELVERIFY | GACT_IMMEDIATE | GACT_FOLLOWMOUSE, L + 4, T + 2, fw - 8, fhh - 4);
+            gt_knob_image(&b, mg);
+            pi = gt_new_prop(&b, mg, vert);
+            if (!pi)
+                break;
+
+            if (kind == SLIDER_KIND)
+            {
+                LONG sl_min = (LONG)GetTagData(GTSL_Min, 0, taglist);
+                LONG sl_max = (LONG)GetTagData(GTSL_Max, 15, taglist);
+                LONG sl_level = (LONG)GetTagData(GTSL_Level, 0, taglist);
+                UWORD max_level_len;
+                UWORD pot = 0, body = 0xFFFF;
+
+                data->kind = GT_KIND_SLIDER;
+                if (sl_level < sl_min) sl_level = sl_min;
+                if (sl_level > sl_max) sl_level = sl_max;
+                data->min = sl_min;
+                data->max = sl_max;
+                data->value = sl_level;
+                if (sl_max > sl_min)
+                {
+                    pot = (UWORD)(((ULONG)(vert ? sl_max - sl_level : sl_level - sl_min) * 0xFFFFUL) /
+                                  (ULONG)(sl_max - sl_min));
+                    body = (UWORD)(0xFFFFUL / (ULONG)(sl_max - sl_min + 1));
+                }
+                if (vert)
+                {
+                    pi->VertPot = pot;
+                    pi->VertBody = body;
+                }
+                else
+                {
+                    pi->HorizPot = pot;
+                    pi->HorizBody = body;
+                }
+                /* min/max for Intuition's level computation */
+                pi->CWidth = (UWORD)sl_min;
+                pi->CHeight = (UWORD)sl_max;
+
+                data->format = gt_strdup((STRPTR)GetTagData(GTSL_LevelFormat, (ULONG)"%ld", taglist));
+                max_level_len = (UWORD)GetTagData(GTSL_MaxLevelLen, 2, taglist);
+                if (max_level_len == 0)
+                    max_level_len = 2;
+                data->max_level_len = max_level_len;
+                data->level_place = (UWORD)GetTagData(GTSL_LevelPlace, PLACETEXT_LEFT, taglist);
+                data->justification = (UBYTE)GetTagData(GTSL_Justification, GTJ_LEFT, taglist);
+                data->max_pixel_len = GetTagData(GTSL_MaxPixelLen,
+                                                 (ULONG)(max_level_len * gt_text_width(font, (CONST_STRPTR)"0", 1)),
+                                                 taglist);
+                data->disp_func = (LONG (*)(struct Gadget *, LONG))GetTagData(GTSL_DispFunc, 0, taglist);
+                data->level_buffer = (STRPTR)AllocMem(max_level_len + 1, MEMF_CLEAR | MEMF_PUBLIC);
+                if (!data->format || !data->level_buffer)
+                {
+                    b.failed = TRUE;
+                    break;
+                }
+                /* AmigaOS 3.1 shows the level only when GTSL_LevelFormat is given */
+                if (gt_find_tagitem(GTSL_LevelFormat, taglist))
+                {
+                    struct IntuiText *lt = (struct IntuiText *)AllocMem(sizeof(struct IntuiText),
+                                                                        MEMF_CLEAR | MEMF_PUBLIC);
+                    if (!lt)
+                    {
+                        b.failed = TRUE;
+                        break;
+                    }
+                    lt->FrontPen = 1;
+                    lt->DrawMode = JAM1;
+                    lt->ITextFont = (struct TextAttr *)ng->ng_TextAttr;
+                    lt->IText = data->level_buffer;
+                    data->level_text = lt;
+                }
+            }
+            else
+            {
+                LONG sc_top = (LONG)GetTagData(GTSC_Top, 0, taglist);
+                LONG sc_total = (LONG)GetTagData(GTSC_Total, 0, taglist);
+                LONG sc_visible = (LONG)GetTagData(GTSC_Visible, 2, taglist);
+
+                data->kind = GT_KIND_SCROLLER;
+                if (sc_total > sc_visible)
+                {
+                    if (sc_top > sc_total - sc_visible)
+                        sc_top = sc_total - sc_visible;
+                }
+                else
+                    sc_top = 0;
+                if (sc_top < 0)
+                    sc_top = 0;
+                data->value = sc_top;
+                data->min = sc_visible;   /* Visible */
+                data->max = sc_total;     /* Total */
+                data->main = mg;
+                gt_scroller_update_prop(data);
+                if (a > 0)
+                {
+                    if (vert)
+                    {
+                        data->arrow_dec = gt_member(&b, GT_ROLE_ARROW_DEC, GTYP_BOOLGADGET,
+                                                    GFLG_EXTENDED | GFLG_GADGIMAGE | GFLG_GADGHIMAGE,
+                                                    GACT_RELVERIFY | GACT_IMMEDIATE, L, T + H - 2 * a, W, a);
+                        gt_images(&b, data->arrow_dec, 0, 0, W, a, FRAME_BUTTON, FALSE, TRUE);
+                        data->arrow_inc = gt_member(&b, GT_ROLE_ARROW_INC, GTYP_BOOLGADGET,
+                                                    GFLG_EXTENDED | GFLG_GADGIMAGE | GFLG_GADGHIMAGE,
+                                                    GACT_RELVERIFY | GACT_IMMEDIATE, L, T + H - a, W, a);
+                        gt_images(&b, data->arrow_inc, 0, 0, W, a, FRAME_BUTTON, FALSE, TRUE);
+                    }
+                    else
+                    {
+                        data->arrow_dec = gt_member(&b, GT_ROLE_ARROW_DEC, GTYP_BOOLGADGET,
+                                                    GFLG_EXTENDED | GFLG_GADGIMAGE | GFLG_GADGHIMAGE,
+                                                    GACT_RELVERIFY | GACT_IMMEDIATE, L + W - 2 * a, T, a, H);
+                        gt_images(&b, data->arrow_dec, 0, 0, a, H, FRAME_BUTTON, FALSE, TRUE);
+                        data->arrow_inc = gt_member(&b, GT_ROLE_ARROW_INC, GTYP_BOOLGADGET,
+                                                    GFLG_EXTENDED | GFLG_GADGIMAGE | GFLG_GADGHIMAGE,
+                                                    GACT_RELVERIFY | GACT_IMMEDIATE, L + W - a, T, a, H);
+                        gt_images(&b, data->arrow_inc, 0, 0, a, H, FRAME_BUTTON, FALSE, TRUE);
+                    }
+                    if (data->arrow_dec)
+                        gt_set_bounds(data->arrow_dec, GMORE_BOUNDS, data->arrow_dec->LeftEdge,
+                                      data->arrow_dec->TopEdge, data->arrow_dec->Width,
+                                      data->arrow_dec->Height, 0, 0, fh, FALSE);
+                    if (data->arrow_inc)
+                        gt_set_bounds(data->arrow_inc, GMORE_BOUNDS, data->arrow_inc->LeftEdge,
+                                      data->arrow_inc->TopEdge, data->arrow_inc->Width,
+                                      data->arrow_inc->Height, 0, 0, fh, FALSE);
+                }
+            }
+            /* the frame gadget with the label */
+            pub = gt_member(&b, GT_ROLE_FRAME, 0, GFLG_EXTENDED | GFLG_GADGHNONE | GFLG_GADGIMAGE, 0,
+                            L, T, W, H);
+            gt_images(&b, pub, 0, 0, fw, fhh, FRAME_BUTTON, FALSE, FALSE);
+            gt_label(&b, pub, PLACETEXT_LEFT, L, T, W, H, us, GMORE_BOUNDS | GMORE_GADGETHELP);
+            /* the slider level beside the box widens the bounds */
+            if (pub && data->level_text && (data->level_place & PLACETEXT_RIGHT))
+                ((struct ExtGadget *)pub)->BoundsWidth += (WORD)data->max_pixel_len;
+            break;
+        }
+
         case LISTVIEW_KIND:
         {
+            struct Gadget *sg = (struct Gadget *)GetTagData(GTLV_ShowSelected, (ULONG)~0, taglist);
+            struct GTGadgetData *sdata = NULL;
+            struct PropInfo *pi;
+            WORD sw = (WORD)GetTagData(GTLV_ScrollWidth, 16, taglist);
+            WORD avail = H, frameH, ah;
+            struct Gadget *sframe;
+
             data->kind = GT_KIND_LISTVIEW;
             data->aux = (APTR)GetTagData(GTLV_Labels, 0, taglist);
             data->lv_top = (WORD)GetTagData(GTLV_Top, 0, taglist);
             data->value = (LONG)GetTagData(GTLV_Selected, (ULONG)~0, taglist);
-            data->lv_showsel = gt_find_tagitem(GTLV_ShowSelected, taglist) != NULL;
+            data->lv_showsel = (sg != (struct Gadget *)~0);
             data->lv_readonly = GetTagData(GTLV_ReadOnly, FALSE, taglist) ? TRUE : FALSE;
             if (data->lv_readonly)
                 data->lv_showsel = FALSE;
-            newgad->GadgetType = LXA_GTYP_GADTOOLS | GTYP_BOOLGADGET;
-            newgad->Activation = GACT_RELVERIFY | GACT_IMMEDIATE;
-            newgad->Flags |= GFLG_GADGHNONE;
-            /* the list area inside the frame (AmigaOS 3.1) */
-            newgad->LeftEdge = ng->ng_LeftEdge + 2;
-            newgad->TopEdge  = ng->ng_TopEdge + 2;
-            newgad->Width    = ng->ng_Width - 16 - 4;
-            newgad->Height   = ((ng->ng_Height - 4) / fh) * fh;   /* whole lines */
-            data->box_h = newgad->Height + 4;
-            newgad->GadgetText = GT_LABEL(PLACETEXT_ABOVE);
-            data->underline_pos = ul;
+            if (sg == (struct Gadget *)~0)
+                sg = NULL;
+            if (sg && (sdata = gt_get_data(sg)) && sdata->kind == GT_KIND_STRING)
+                avail = H - sdata->box_h - 2;
+            else
+                sg = NULL;
+            frameH = ((avail - 4) / fh) * fh + 4;
+            ah = (frameH / 4 < fh) ? frameH / 4 : fh;
+            data->arrows = ah;
+            data->lv_scroll_w = sw;
+            data->box_h = frameH;
+
+            mg = gt_member(&b, GT_ROLE_MAIN, GTYP_BOOLGADGET, GFLG_GADGHNONE | GFLG_GADGIMAGE | dis,
+                             GACT_RELVERIFY | GACT_IMMEDIATE | GACT_FOLLOWMOUSE,
+                             L + 2, T + 2, W - sw - 4, frameH - 4);
+            data->main = mg;
+            data->lv_prop = gt_member(&b, GT_ROLE_LVPROP, GTYP_PROPGADGET, GFLG_GADGHNONE | GFLG_GADGIMAGE | dis,
+                                      GACT_RELVERIFY | GACT_IMMEDIATE | GACT_FOLLOWMOUSE,
+                                      L + W - sw + 4, T + 2, sw - 8, frameH - 2 * ah - 4);
+            gt_knob_image(&b, data->lv_prop);
+            pi = gt_new_prop(&b, data->lv_prop, TRUE);
+            if (pi && mg)
+            {
+                gt_lv_clamp_top(data);
+                gt_lv_update_prop(data);
+            }
+            data->arrow_dec = gt_member(&b, GT_ROLE_ARROW_DEC, GTYP_BOOLGADGET,
+                                        GFLG_EXTENDED | GFLG_GADGIMAGE | GFLG_GADGHIMAGE | dis,
+                                        GACT_RELVERIFY | GACT_IMMEDIATE, L + W - sw, T + frameH - 2 * ah, sw, ah);
+            gt_images(&b, data->arrow_dec, 0, 0, sw, ah, FRAME_BUTTON, FALSE, TRUE);
+            data->arrow_inc = gt_member(&b, GT_ROLE_ARROW_INC, GTYP_BOOLGADGET,
+                                        GFLG_EXTENDED | GFLG_GADGIMAGE | GFLG_GADGHIMAGE | dis,
+                                        GACT_RELVERIFY | GACT_IMMEDIATE, L + W - sw, T + frameH - ah, sw, ah);
+            gt_images(&b, data->arrow_inc, 0, 0, sw, ah, FRAME_BUTTON, FALSE, TRUE);
+            sframe = gt_member(&b, GT_ROLE_LVFRAME, 0, GFLG_EXTENDED | GFLG_GADGHNONE | GFLG_GADGIMAGE, 0,
+                               L + W - sw, T, sw, frameH);
+            gt_images(&b, sframe, 0, 0, sw, frameH - 2 * ah, FRAME_BUTTON, FALSE, FALSE);
+            for (x = data->arrow_dec; x && x != sframe->NextGadget; x = x->NextGadget)
+                gt_set_bounds(x, GMORE_BOUNDS, x->LeftEdge, x->TopEdge, x->Width, x->Height, 0, 0, fh, FALSE);
+            pub = gt_member(&b, GT_ROLE_FRAME, 0, GFLG_EXTENDED | GFLG_GADGHNONE | GFLG_GADGIMAGE, 0,
+                            L, T, W, frameH);
+            gt_images(&b, pub, 0, 0, W - sw, frameH, FRAME_BUTTON, data->lv_readonly, FALSE);
+            gt_label(&b, pub, PLACETEXT_ABOVE, L, T, W, frameH, us, GMORE_BOUNDS | GMORE_GADGETHELP);
+            if (sg && pub && !b.failed)
+            {
+                /* the selection is shown in the string gadget below the list */
+                struct GTGad *sgg = (struct GTGad *)sg;
+                struct Image *simg = (struct Image *)sg->GadgetRender;
+                WORD dy = simg ? -simg->TopEdge : 0;
+
+                sg->LeftEdge = L + 6;
+                sg->TopEdge = T + frameH + 3;
+                sg->Width = W - 12;
+                sdata->ng_left = L;
+                sdata->ng_top = sg->TopEdge - dy;
+                sdata->box_w = W;
+                ((struct ExtGadget *)sg)->MoreFlags &= ~GMORE_GADGETHELP;
+                ((struct ExtGadget *)pub)->BoundsHeight += sdata->box_h;
+                data->lv_string = sg;
+                (void)sgg;
+            }
             break;
         }
+
         case PALETTE_KIND:
         {
+            WORD n, cols, rows, bestc = 1, bestm = -1;
+            ULONG defplace = GetTagData(GTPA_IndicatorWidth, 0, taglist) ? PLACETEXT_LEFT : PLACETEXT_ABOVE;
+
             data->kind = GT_KIND_PALETTE;
             data->pal_depth = (UWORD)GetTagData(GTPA_Depth, 1, taglist);
             data->pal_offset = (UWORD)GetTagData(GTPA_ColorOffset, 0, taglist);
             data->value = (LONG)GetTagData(GTPA_Color, 1, taglist);
+            n = 1 << data->pal_depth;
+            /* colour boxes in the grid whose boxes are the most square */
+            for (cols = 1; cols <= n; cols <<= 1)
             {
-                WORD n = 1 << data->pal_depth;
-                WORD pitch = (ng->ng_Width - 5) / n;
-                if (pitch > 3)
-                    newgad->Width = pitch * n + 5;
-                data->box_w = newgad->Width;
+                WORD bw = (W - 5) / cols, bh = (H - 5) / (n / cols);
+                WORD m = bw < bh ? bw : bh;
+                if (m > bestm)
+                {
+                    bestm = m;
+                    bestc = cols;
+                }
             }
-            newgad->GadgetType = LXA_GTYP_GADTOOLS | GTYP_BOOLGADGET;
-            newgad->Activation = GACT_RELVERIFY;
-            newgad->Flags |= GFLG_GADGHNONE;
-            newgad->GadgetText = GT_LABEL(PLACETEXT_LEFT);
-            data->underline_pos = ul;
+            cols = bestc;
+            rows = n / cols;
+            data->pal_cols = cols;
+            data->pal_rows = rows;
+            data->box_w = ((W - 5) / cols) * cols + 5;
+            data->box_h = ((H - 5) / rows) * rows + 5;
+            mg = gt_palette_new(&b, L, T, data->box_w, data->box_h);
+            if (mg)
+            {
+                mg->Flags |= dis;
+                gt_label(&b, mg, defplace, L, T, data->box_w, data->box_h, us,
+                         GMORE_BOUNDS | GMORE_GADGETHELP);
+            }
             break;
         }
-        case SCROLLER_KIND:
-        {
-            struct PropInfo *pi;
-            LONG sc_top, sc_total, sc_visible;
-            UWORD freedom;
-            UWORD pot, body;
-            WORD a;
 
-            data->kind = GT_KIND_SCROLLER;
-            newgad->GadgetType = LXA_GTYP_GADTOOLS | GTYP_PROPGADGET;
-            newgad->Activation = GACT_RELVERIFY | GACT_IMMEDIATE;
-            newgad->Flags |= GFLG_GADGHNONE;
-
-            sc_top     = (LONG)GetTagData(GTSC_Top,     0,  taglist);
-            sc_total   = (LONG)GetTagData(GTSC_Total,   0,  taglist);
-            sc_visible = (LONG)GetTagData(GTSC_Visible, 2,  taglist);
-            freedom    = (UWORD)GetTagData(PGA_Freedom, LORIENT_HORIZ, taglist);
-            a          = (WORD)GetTagData(GTSC_Arrows, 0, taglist);
-            data->arrows = a;
-            data->vertical = (freedom == LORIENT_VERT);
-
-            if (sc_total > sc_visible)
-            {
-                if (sc_top > sc_total - sc_visible)
-                    sc_top = sc_total - sc_visible;
-            }
-            else
-                sc_top = 0;
-            if (sc_top < 0) sc_top = 0;
-            data->value = sc_top;
-            data->min   = sc_visible;  /* store Visible in min for GT_SetGadgetAttrs */
-            data->max   = sc_total;
-
-            /* the prop container inside the frame, arrows excluded */
-            newgad->LeftEdge = ng->ng_LeftEdge + 4;
-            newgad->TopEdge  = ng->ng_TopEdge + 2;
-            newgad->Width    = ng->ng_Width - 8 - (data->vertical ? 0 : 2 * a);
-            newgad->Height   = ng->ng_Height - 4 - (data->vertical ? 2 * a : 0);
-
-            gt_scroller_values(sc_top, sc_total, sc_visible, &pot, &body);
-
-            pi = (struct PropInfo *)AllocMem(sizeof(struct PropInfo), MEMF_CLEAR | MEMF_PUBLIC);
-            if (!pi)
-            {
-                if (font)
-                    CloseFont(font);
-                FreeMem(data, sizeof(struct GTGadgetData));
-                FreeMem(newgad, sizeof(struct Gadget));
-                return NULL;
-            }
-
-            if (data->vertical)
-            {
-                pi->Flags    = AUTOKNOB | FREEVERT | PROPNEWLOOK | PROPBORDERLESS;
-                pi->VertPot  = pot;
-                pi->HorizBody = 0xFFFF;
-                pi->VertBody  = body;
-            }
-            else
-            {
-                pi->Flags    = AUTOKNOB | FREEHORIZ | PROPNEWLOOK | PROPBORDERLESS;
-                pi->HorizPot = pot;
-                pi->HorizBody = body;
-                pi->VertBody  = 0xFFFF;
-            }
-            newgad->SpecialInfo = (APTR)pi;
-            newgad->GadgetText = GT_LABEL(PLACETEXT_LEFT);
-            data->underline_pos = ul;
-            break;
-        }
         case TEXT_KIND:
         case NUMBER_KIND:
-            data->kind = (kind == TEXT_KIND) ? GT_KIND_TEXT : GT_KIND_NUMBER;
-            /* Display-only: a GadTools gadget without an Intuition gadget
-             * class (AmigaOS 3.1 GadgetType 0x0100). */
-            newgad->GadgetType = LXA_GTYP_GADTOOLS;
-            newgad->Flags |= GFLG_GADGHNONE;
+            mg = gt_member(&b, GT_ROLE_MAIN, 0, GFLG_EXTENDED | GFLG_GADGHNONE | GFLG_GADGIMAGE, 0,
+                             L, T, W, H);
             if (kind == TEXT_KIND)
             {
+                data->kind = GT_KIND_TEXT;
                 data->border = GetTagData(GTTX_Border, FALSE, taglist) ? TRUE : FALSE;
                 data->level_buffer = gt_strdup((STRPTR)GetTagData(GTTX_Text, (ULONG)"", taglist));
+                if (!data->level_buffer)
+                    b.failed = TRUE;
             }
             else
             {
+                data->kind = GT_KIND_NUMBER;
                 data->border = GetTagData(GTNM_Border, FALSE, taglist) ? TRUE : FALSE;
                 data->value = (LONG)GetTagData(GTNM_Number, 0, taglist);
-                data->level_buffer = (STRPTR)AllocMem(16, MEMF_CLEAR | MEMF_PUBLIC);
-                if (data->level_buffer)
-                    gt_format_long(data->level_buffer, 16, data->value);
+                data->format = gt_strdup((STRPTR)GetTagData(GTNM_Format, (ULONG)"%ld", taglist));
+                data->level_buffer = (STRPTR)AllocMem(32, MEMF_CLEAR | MEMF_PUBLIC);
+                if (!data->level_buffer || !data->format)
+                    b.failed = TRUE;
+                else
+                    gt_format_slider_level(data->level_buffer, 32, data->format, data->value);
             }
-            newgad->GadgetText = GT_LABEL(PLACETEXT_LEFT);
-            data->underline_pos = ul;
+            if (data->border)
+                gt_images(&b, mg, 0, 0, W, H, FRAME_BUTTON, TRUE, FALSE);
+            gt_label(&b, mg, PLACETEXT_LEFT, L, T, W, H, us, GMORE_BOUNDS | GMORE_GADGETHELP);
             break;
-        default:
-            newgad->GadgetType = LXA_GTYP_GADTOOLS | GTYP_BOOLGADGET;
-            newgad->Flags |= GFLG_GADGHCOMP;
+
+        default:    /* GENERIC_KIND: a plain gadget the application fills in */
+            data->kind = GT_KIND_GENERIC;
+            mg = gt_member(&b, GT_ROLE_MAIN, 0, GFLG_EXTENDED, 0, L, T, W, H);
+            if (mg)
+            {
+                if (ng->ng_GadgetText)
+                {
+                    struct IntuiText *it = (struct IntuiText *)AllocMem(sizeof(struct IntuiText),
+                                                                        MEMF_CLEAR | MEMF_PUBLIC);
+                    if (it)
+                    {
+                        it->FrontPen = 1;
+                        it->DrawMode = JAM1;
+                        it->ITextFont = (struct TextAttr *)ng->ng_TextAttr;
+                        it->IText = gt_strdup(ng->ng_GadgetText);
+                        mg->GadgetText = it;
+                        data->label_gad = mg;
+                    }
+                }
+                gt_set_bounds(mg, GMORE_BOUNDS | GMORE_GADGETHELP, L, T, W, H, 0, 0, fh, FALSE);
+            }
             break;
     }
-#undef GT_LABEL
 
-    newgad->GadgetType |= LXA_GTYP_GADTOOLS;
-
-    /* The NewGadget box relative to the Intuition gadget, and the label
-     * texts (placed against the NewGadget box) moved accordingly. */
-    data->box_dx = ng->ng_LeftEdge - newgad->LeftEdge;
-    data->box_dy = ng->ng_TopEdge + ng_adjust - newgad->TopEdge;
+    if (!pub)
+        pub = mg;
+    if (b.failed || !pub)
     {
-        struct IntuiText *it;
-        for (it = newgad->GadgetText; it; it = it->NextText)
+        struct Gadget *next;
+        if (!b.first && kind == PALETTE_KIND && mg)
+            b.first = mg;
+        for (x = b.first; x; x = next)
         {
-            if (it == data->level_text && data->kind == GT_KIND_SLIDER)
-                continue;
-            it->LeftEdge += data->box_dx;
-            it->TopEdge += data->box_dy;
+            next = x->NextGadget;
+            gt_free_member(x);
         }
+        if (!b.first)
+        {
+            if (font)
+                CloseFont(font);
+            FreeMem(data, sizeof(struct GTGadgetData));
+        }
+        return NULL;
     }
+    data->main = mg;
+    data->pub = pub;
     if (data->kind == GT_KIND_SLIDER)
-        gt_position_slider_level_text(data, data->level_text, 0, 0);
+        _gadtools_UpdateSliderLevelDisplay(mg, data->value);
+    if (!b.first)
+        b.first = b.last = mg;    /* the palette object */
 
     /* Link to previous gadget */
-    if (gad) {
-        if (gt_is_context_gadget(gad))
-        {
-            struct GadgetContext *context = gt_get_context(gad);
-            struct Gadget *tail = context ? context->gc_Last : gad;
+    if (gt_is_context_gadget(gad))
+    {
+        struct GTGad *ctx = (struct GTGad *)gad;
+        struct Gadget *tail = ctx->ctx_last ? ctx->ctx_last : gad;
 
-            tail->NextGadget = newgad;
-            if (context)
-                context->gc_Last = newgad;
-        }
-        else
-        {
-            gad->NextGadget = newgad;
-        }
+        tail->NextGadget = b.first;
+        ctx->ctx_last = b.last;
     }
+    else
+        gad->NextGadget = b.first;
 
-    DPRINTF (LOG_DEBUG, "_gadtools: CreateGadgetA() -> 0x%08lx\n", (ULONG)newgad);
-    return newgad;
+    DPRINTF (LOG_DEBUG, "_gadtools: CreateGadgetA() -> 0x%08lx\n", (ULONG)pub);
+    return pub;
 }
 
+/*
+ * The palette: a BOOPSI gadget of a private gadgetclass subclass, like the
+ * one AmigaOS 3.1 GadTools creates (GadgetType GTYP_GADTOOLS|CUSTOMGADGET).
+ */
+BOOL _gadtools_RenderGadget(register struct Window *win __asm("a0"),
+                            register struct Gadget *gad __asm("a1"),
+                            register struct RastPort *rp __asm("a2"),
+                            register LONG gl __asm("d0"),
+                            register LONG gt __asm("d1"));
+
+static ULONG gt_palette_dispatch(register struct IClass *cl __asm("a0"),
+                                 register Object *obj __asm("a2"),
+                                 register Msg msg __asm("a1"))
+{
+    struct Gadget *gad = (struct Gadget *)obj;
+
+    switch (msg->MethodID)
+    {
+        case GM_RENDER:
+        {
+            struct gpRender *gpr = (struct gpRender *)msg;
+            struct Window *win = gpr->gpr_GInfo ? gpr->gpr_GInfo->gi_Window : NULL;
+            struct Requester *req = gpr->gpr_GInfo ? gpr->gpr_GInfo->gi_Requester : NULL;
+            LONG l = gad->LeftEdge, t = gad->TopEdge;
+
+            if (req)
+            {
+                l += req->LeftEdge + (win ? win->BorderLeft : 0);
+                t += req->TopEdge + (win ? win->BorderTop : 0);
+            }
+            _gadtools_RenderGadget(win, gad, gpr->gpr_RPort, l, t);
+            return 0;
+        }
+        case GM_HITTEST:
+            return GMR_GADGETHIT;
+        case GM_GOACTIVE:
+        case GM_HANDLEINPUT:
+            return GMR_NOREUSE;
+        case GM_GOINACTIVE:
+            return 0;
+        default:
+            return CallHookPkt(&cl->cl_Super->cl_Dispatcher, obj, msg);
+    }
+}
+
+static struct Gadget *gt_palette_new(struct gt_build *b, WORD l, WORD t, WORD w, WORD h)
+{
+    struct TagItem tags[5];
+    struct Gadget *gad;
+    struct GTPaletteInst *inst;
+    APTR img;
+
+    if (!g_gt_palette_class)
+    {
+        struct IClass *cl = MakeClass(NULL, (UBYTE *)GADGETCLASS, NULL, sizeof(struct GTPaletteInst), 0);
+        if (!cl)
+        {
+            b->failed = TRUE;
+            return NULL;
+        }
+        cl->cl_Dispatcher.h_Entry = (ULONG (*)())gt_palette_dispatch;
+        g_gt_palette_class = cl;
+    }
+    tags[0].ti_Tag = GA_Left;   tags[0].ti_Data = (ULONG)(LONG)l;
+    tags[1].ti_Tag = GA_Top;    tags[1].ti_Data = (ULONG)(LONG)t;
+    tags[2].ti_Tag = GA_Width;  tags[2].ti_Data = (ULONG)(LONG)w;
+    tags[3].ti_Tag = GA_Height; tags[3].ti_Data = (ULONG)(LONG)h;
+    tags[4].ti_Tag = TAG_DONE;  tags[4].ti_Data = 0;
+    gad = (struct Gadget *)NewObjectA(g_gt_palette_class, NULL, tags);
+    if (!gad)
+    {
+        b->failed = TRUE;
+        return NULL;
+    }
+    inst = (struct GTPaletteInst *)INST_DATA(g_gt_palette_class, gad);
+    inst->magic = GT_DATA_MAGIC;
+    inst->data = b->data;
+    b->data->refs++;
+    gad->LeftEdge = l;
+    gad->TopEdge = t;
+    gad->Width = w;
+    gad->Height = h;
+    gad->GadgetType = LXA_GTYP_GADTOOLS | GTYP_CUSTOMGADGET;
+    gad->Flags = GFLG_EXTENDED | GFLG_GADGHNONE | GFLG_GADGIMAGE;
+    gad->Activation = GACT_RELVERIFY | GACT_IMMEDIATE;
+    gad->GadgetID = b->ng->ng_GadgetID;
+    gad->UserData = b->ng->ng_UserData;
+    /* a custom gadget's MutualExclude is its dispatcher hook */
+    gad->MutualExclude = (ULONG)&g_gt_palette_class->cl_Dispatcher;
+    img = gt_new_frame(0, 0, w, h, FRAME_BUTTON, FALSE);
+    inst->img = img;
+    gad->GadgetRender = img;
+    if (!img)
+        b->failed = TRUE;
+    return gad;
+}
 
 /*
  * GadTools imagery (Phase 223).
@@ -1730,20 +2291,22 @@ static void gt_draw_label_chain(struct RastPort *rp, struct Gadget *gad, WORD gl
 {
     struct IntuiText *it;
 
+    if (!gad)
+        return;
     for (it = gad->GadgetText; it; it = it->NextText)
     {
         if (!it->IText)
             continue;
-        if (it->IText[0] == '_' && it->IText[1] == '\0')
-            continue;   /* legacy underline marker */
-        if (data && it == data->level_text && data->kind == GT_KIND_CYCLE)
-            continue;   /* drawn by the cycle renderer */
         gt_draw_text(rp, gl + it->LeftEdge, gt + it->TopEdge, it->IText, gt_strlen(it->IText),
                      pens[it->FrontPen == 2 ? HIGHLIGHTTEXTPEN : TEXTPEN],
-                     (it == gad->GadgetText && data) ? data->underline_pos : -1);
+                     (gad == data->label_gad && it == gad->GadgetText) ? data->underline_pos : -1);
     }
 }
 
+/*
+ * Draw a whole GadTools group.  `gad` is any member, (gl, gt) its position
+ * in the RastPort; every other member is placed relative to it.
+ */
 BOOL _gadtools_RenderGadget(register struct Window *win __asm("a0"),
                             register struct Gadget *gad __asm("a1"),
                             register struct RastPort *rp __asm("a2"),
@@ -1751,15 +2314,23 @@ BOOL _gadtools_RenderGadget(register struct Window *win __asm("a0"),
                             register LONG gt __asm("d1"))
 {
     struct GTGadgetData *data = gt_get_data(gad);
+    struct Gadget *mg;
     const UWORD *pens;
     struct TextFont *oldfont;
     UBYTE oldpen, olddm;
-    WORD L, T, W, H, fh;
+    WORD ox, oy, mgl, mgt, L, T, W, H, fh;
     BOOL disabled;
 
-    if (!data || data->magic != GT_DATA_MAGIC || !rp)
+    if (!data || !rp || !data->main)
         return FALSE;
+    if (g_gt_in_pass)
+    {
+        if (data->drawn_pass == g_gt_pass)
+            return TRUE;
+        data->drawn_pass = g_gt_pass;
+    }
 
+    mg = data->main;
     pens = gt_pens(data);
     oldfont = rp->Font;
     oldpen = rp->FgPen;
@@ -1767,26 +2338,37 @@ BOOL _gadtools_RenderGadget(register struct Window *win __asm("a0"),
     if (data->font)
         SetFont(rp, data->font);
     fh = gt_font_height(rp);
-    /* the NewGadget box, in the same coordinates as the gadget box */
-    L = (WORD)gl + data->box_dx;
-    T = (WORD)gt + data->box_dy;
+    /* gadget coordinates -> RastPort coordinates */
+    ox = (WORD)gl - gad->LeftEdge;
+    oy = (WORD)gt - gad->TopEdge;
+    mgl = ox + mg->LeftEdge;
+    mgt = oy + mg->TopEdge;
+    /* the NewGadget box */
+    L = ox + data->ng_left;
+    T = oy + data->ng_top;
     W = data->box_w;
     H = data->box_h;
-    disabled = (gad->Flags & GFLG_DISABLED) != 0;
+    disabled = (mg->Flags & GFLG_DISABLED) != 0;
 
     switch (data->kind)
     {
         case GT_KIND_BUTTON:
         {
-            BOOL sel = (gad->Flags & GFLG_SELECTED) != 0;
+            BOOL sel = (mg->Flags & GFLG_SELECTED) != 0;
             lxa_draw_frame(rp, FRAME_BUTTON, FALSE, L, T, W, H,
                            sel ? IDS_SELECTED : IDS_NORMAL, FALSE, pens);
             if (data->label)
             {
                 WORD len = gt_strlen(data->label);
-                WORD tl = TextLength(rp, data->label, len);
-                gt_draw_text(rp, L + (W - tl) / 2, T + (H - fh + 1) / 2, data->label, len,
-                             sel ? pens[FILLTEXTPEN] : pens[data->label_pen], data->underline_pos);
+                if (data->label_in)
+                {
+                    WORD tl = TextLength(rp, data->label, len);
+                    gt_draw_text(rp, L + (W - tl) / 2, T + (H - fh + 1) / 2, data->label, len,
+                                 sel ? pens[FILLTEXTPEN] : pens[data->label_pen], data->underline_pos);
+                }
+                else
+                    gt_draw_text(rp, L + data->label_x, T + data->label_y, data->label, len,
+                                 pens[data->label_pen], data->underline_pos);
             }
             if (disabled)
                 lxa_ghost_rect(rp, L, T, L + W - 1, T + H - 1, pens);
@@ -1795,59 +2377,61 @@ BOOL _gadtools_RenderGadget(register struct Window *win __asm("a0"),
 
         case GT_KIND_CHECKBOX:
         {
-            WORD w = gad->Width, h = gad->Height;
+            WORD w = mg->Width, h = mg->Height;
             ULONG st = data->value ? IDS_SELECTED : IDS_NORMAL;
             UWORD iw = 26, ih = 11;
 
             lxa_sysi_dims(CHECKIMAGE, SYSISIZE_MEDRES, &iw, &ih);
             if (w == iw && h == ih)
-                lxa_sysi_draw(rp, CHECKIMAGE, SYSISIZE_MEDRES, gl, gt, st, pens);
+                lxa_sysi_draw(rp, CHECKIMAGE, SYSISIZE_MEDRES, mgl, mgt, st, pens);
             else
             {
-                lxa_draw_frame(rp, FRAME_BUTTON, FALSE, gl, gt, w, h, IDS_NORMAL, FALSE, pens);
+                lxa_draw_frame(rp, FRAME_BUTTON, FALSE, mgl, mgt, w, h, IDS_NORMAL, FALSE, pens);
                 if (data->value)
                 {
                     SetAPen(rp, pens[TEXTPEN]);
-                    RectFill(rp, gl + w / 3, gt + h / 2, gl + w / 2, gt + h - 3);
-                    RectFill(rp, gl + w / 2, gt + 2, gl + 2 * w / 3, gt + h / 2);
+                    RectFill(rp, mgl + w / 3, mgt + h / 2, mgl + w / 2, mgt + h - 3);
+                    RectFill(rp, mgl + w / 2, mgt + 2, mgl + 2 * w / 3, mgt + h / 2);
                 }
             }
-            gt_draw_label_chain(rp, gad, gl, gt, data, pens);
+            gt_draw_label_chain(rp, mg, mgl, mgt, data, pens);
             if (disabled)
-                lxa_ghost_rect(rp, gl, gt, gl + w - 1, gt + h - 1, pens);
+                lxa_ghost_rect(rp, mgl, mgt, mgl + w - 1, mgt + h - 1, pens);
             break;
         }
 
         case GT_KIND_MX:
         {
-            STRPTR *labels = (STRPTR *)data->aux;
-            WORD i, y = T, step = fh + data->mx_spacing;
+            WORD i;
             UWORD iw = 17, ih = 9;
 
             lxa_sysi_dims(MXIMAGE, SYSISIZE_MEDRES, &iw, &ih);
-            if (data->mx_spacing < 0)
-                step = ih + 1;
-            for (i = 0; labels && labels[i]; i++, y += step)
+            for (i = 0; i < data->nitems; i++)
             {
-                /* AmigaOS 3.1: the label one pixel below the row top, the
-                 * image centred on the label */
-                WORD len = gt_strlen(labels[i]);
-                WORD ty = y + 1;
-                WORD d = (WORD)ih - fh + 1;
-                WORD iy = ty - ((d >= 0) ? d / 2 : -((1 - d) / 2));
-                lxa_sysi_draw(rp, MXIMAGE, SYSISIZE_MEDRES, L, iy,
-                              (i == data->value) ? IDS_SELECTED : IDS_NORMAL, pens);
-                gt_draw_text(rp, L + W + 7, ty, labels[i], len, pens[TEXTPEN], -1);
-                if (disabled)
-                    lxa_ghost_rect(rp, L, iy, L + iw - 1, iy + ih - 1, pens);
+                struct Gadget *it = data->items[i];
+                WORD x = ox + it->LeftEdge, y = oy + it->TopEdge;
+                ULONG st = (i == data->value) ? IDS_SELECTED : IDS_NORMAL;
+
+                if (it->Width == (WORD)iw && it->Height == (WORD)ih)
+                    lxa_sysi_draw(rp, MXIMAGE, SYSISIZE_MEDRES, x, y, st, pens);
+                else
+                {
+                    UWORD sx = x + (it->Width - (WORD)iw) / 2, sy = y + (it->Height - (WORD)ih) / 2;
+                    lxa_sysi_draw(rp, MXIMAGE, SYSISIZE_MEDRES, sx, sy, st, pens);
+                }
+                gt_draw_label_chain(rp, it, x, y, data, pens);
+                if (it->Flags & GFLG_DISABLED)
+                    lxa_ghost_rect(rp, x, y, x + it->Width - 1, y + it->Height - 1, pens);
             }
-            gt_draw_label_chain(rp, gad, gl, gt, data, pens);
+            if (data->label_gad)
+                gt_draw_label_chain(rp, data->label_gad, ox + data->label_gad->LeftEdge,
+                                    oy + data->label_gad->TopEdge, data, pens);
             break;
         }
 
         case GT_KIND_CYCLE:
         {
-            BOOL sel = (gad->Flags & GFLG_SELECTED) != 0;
+            BOOL sel = (mg->Flags & GFLG_SELECTED) != 0;
             WORD gh = H - 5;
             STRPTR s = data->level_buffer;
 
@@ -1868,7 +2452,7 @@ BOOL _gadtools_RenderGadget(register struct Window *win __asm("a0"),
                 gt_draw_text(rp, L + 22 + (W - 22 - tl) / 2, T + (H - fh + 1) / 2, s, len,
                              sel ? pens[FILLTEXTPEN] : pens[TEXTPEN], -1);
             }
-            gt_draw_label_chain(rp, gad, gl, gt, data, pens);
+            gt_draw_label_chain(rp, mg, mgl, mgt, data, pens);
             if (disabled)
                 lxa_ghost_rect(rp, L, T, L + W - 1, T + H - 1, pens);
             break;
@@ -1877,17 +2461,17 @@ BOOL _gadtools_RenderGadget(register struct Window *win __asm("a0"),
         case GT_KIND_STRING:
         case GT_KIND_INTEGER:
         {
-            struct StringInfo *si = (struct StringInfo *)gad->SpecialInfo;
-            WORD gw = gad->Width, gh2 = gad->Height;
+            struct StringInfo *si = (struct StringInfo *)mg->SpecialInfo;
+            WORD gw = mg->Width, gh2 = mg->Height;
 
             lxa_draw_frame(rp, FRAME_RIDGE, FALSE, L, T, W, H, IDS_NORMAL, TRUE, pens);
             SetAPen(rp, pens[BACKGROUNDPEN]);
-            RectFill(rp, gl, gt, gl + gw - 1, gt + gh2 - 1);
+            RectFill(rp, mgl, mgt, mgl + gw - 1, mgt + gh2 - 1);
             if (si && si->Buffer)
             {
-                WORD len = si->NumChars;
+                WORD len = gt_strlen(si->Buffer);
                 WORD disp = si->DispPos;
-                        WORD fit;
+                WORD fit;
 
                 if (disp < 0 || disp > len)
                     disp = 0;
@@ -1895,68 +2479,70 @@ BOOL _gadtools_RenderGadget(register struct Window *win __asm("a0"),
                 SetAPen(rp, pens[TEXTPEN]);
                 SetBPen(rp, pens[BACKGROUNDPEN]);
                 SetDrMd(rp, JAM2);
-                Move(rp, gl, gt + rp->TxBaseline);
+                Move(rp, mgl, mgt + rp->TxBaseline);
                 if (fit > 0)
                     Text(rp, si->Buffer + disp, fit);
-                if (gad->Flags & GFLG_SELECTED)
+                if (mg->Flags & GFLG_SELECTED)
                 {
                     WORD pos = si->BufferPos - disp;
-                    WORD cx = gl + ((pos > 0) ? TextLength(rp, si->Buffer + disp, pos) : 0);
+                    WORD cx = mgl + ((pos > 0) ? TextLength(rp, si->Buffer + disp, pos) : 0);
                     WORD cw = (si->BufferPos < len) ? TextLength(rp, si->Buffer + si->BufferPos, 1)
                                                     : TextLength(rp, (STRPTR)" ", 1);
                     SetDrMd(rp, COMPLEMENT);
-                    RectFill(rp, cx, gt, cx + cw - 1, gt + gh2 - 1);
+                    RectFill(rp, cx, mgt, cx + cw - 1, mgt + gh2 - 1);
                     SetDrMd(rp, JAM1);
                 }
             }
-            gt_draw_label_chain(rp, gad, gl, gt, data, pens);
+            gt_draw_label_chain(rp, mg, mgl, mgt, data, pens);
             if (disabled)
-                lxa_ghost_rect(rp, gl, gt, gl + gw - 1, gt + gh2 - 1, pens);
+                lxa_ghost_rect(rp, mgl, mgt, mgl + gw - 1, mgt + gh2 - 1, pens);
             break;
         }
 
         case GT_KIND_SLIDER:
         {
             lxa_draw_frame(rp, FRAME_BUTTON, FALSE, L, T, W, H, IDS_NORMAL, TRUE, pens);
-            gt_draw_prop(rp, (struct PropInfo *)gad->SpecialInfo, gl, gt, gad->Width, gad->Height, pens);
+            gt_draw_prop(rp, (struct PropInfo *)mg->SpecialInfo, mgl, mgt, mg->Width, mg->Height, pens);
             if (data->level_text)
             {
+                struct IntuiText *lt = data->level_text;
                 /* clear the level text field before redrawing it */
                 SetAPen(rp, pens[BACKGROUNDPEN]);
-                RectFill(rp, gl + data->level_text->LeftEdge, gt + data->level_text->TopEdge,
-                         gl + data->level_text->LeftEdge + (WORD)data->max_pixel_len - 1,
-                         gt + data->level_text->TopEdge + fh - 1);
+                RectFill(rp, L + data->level_x0, T + lt->TopEdge,
+                         L + data->level_x0 + (WORD)data->max_pixel_len - 1, T + lt->TopEdge + fh - 1);
+                gt_draw_text(rp, L + lt->LeftEdge, T + lt->TopEdge, lt->IText, gt_strlen(lt->IText),
+                             pens[TEXTPEN], -1);
             }
-            gt_draw_label_chain(rp, gad, gl, gt, data, pens);
+            if (data->label_gad)
+                gt_draw_label_chain(rp, data->label_gad, ox + data->label_gad->LeftEdge,
+                                    oy + data->label_gad->TopEdge, data, pens);
             if (disabled)
-                lxa_ghost_rect(rp, gl, gt, gl + gad->Width - 1, gt + gad->Height - 1, pens);
+                lxa_ghost_rect(rp, mgl, mgt, mgl + mg->Width - 1, mgt + mg->Height - 1, pens);
             break;
         }
 
         case GT_KIND_SCROLLER:
         {
-            WORD a = data->arrows;
-            BOOL vert = data->vertical;
             WORD fw = W, fhh = H;
 
-            if (a > 0)
+            if (data->arrow_dec && data->arrow_inc)
             {
+                struct Gadget *d = data->arrow_dec, *u = data->arrow_inc;
+                BOOL vert = data->vertical;
+                gt_draw_arrow_button(rp, ox + d->LeftEdge, oy + d->TopEdge, d->Width, d->Height,
+                                     vert ? UPIMAGE : LEFTIMAGE, (d->Flags & GFLG_SELECTED) != 0, pens);
+                gt_draw_arrow_button(rp, ox + u->LeftEdge, oy + u->TopEdge, u->Width, u->Height,
+                                     vert ? DOWNIMAGE : RIGHTIMAGE, (u->Flags & GFLG_SELECTED) != 0, pens);
                 if (vert)
-                {
-                    fhh = H - 2 * a;
-                    gt_draw_arrow_button(rp, L, T + fhh, W, a, UPIMAGE, FALSE, pens);
-                    gt_draw_arrow_button(rp, L, T + fhh + a, W, a, DOWNIMAGE, FALSE, pens);
-                }
+                    fhh = H - 2 * data->arrows;
                 else
-                {
-                    fw = W - 2 * a;
-                    gt_draw_arrow_button(rp, L + fw, T, a, H, LEFTIMAGE, FALSE, pens);
-                    gt_draw_arrow_button(rp, L + fw + a, T, a, H, RIGHTIMAGE, FALSE, pens);
-                }
+                    fw = W - 2 * data->arrows;
             }
             lxa_draw_frame(rp, FRAME_BUTTON, FALSE, L, T, fw, fhh, IDS_NORMAL, TRUE, pens);
-            gt_draw_prop(rp, (struct PropInfo *)gad->SpecialInfo, gl, gt, gad->Width, gad->Height, pens);
-            gt_draw_label_chain(rp, gad, gl, gt, data, pens);
+            gt_draw_prop(rp, (struct PropInfo *)mg->SpecialInfo, mgl, mgt, mg->Width, mg->Height, pens);
+            if (data->label_gad)
+                gt_draw_label_chain(rp, data->label_gad, ox + data->label_gad->LeftEdge,
+                                    oy + data->label_gad->TopEdge, data, pens);
             if (disabled)
                 lxa_ghost_rect(rp, L, T, L + W - 1, T + H - 1, pens);
             break;
@@ -1965,21 +2551,19 @@ BOOL _gadtools_RenderGadget(register struct Window *win __asm("a0"),
         case GT_KIND_LISTVIEW:
         {
             struct List *list = (struct List *)data->aux;
-            WORD sw = 16, lw = W - sw, ah = fh;
+            WORD sw = data->lv_scroll_w, lw = W - sw;
             WORD lines, i, y;
             struct Node *n;
-            struct PropInfo pi;
 
             /* read-only lists sit in a recessed frame (AmigaOS 3.1) */
             lxa_draw_frame(rp, FRAME_BUTTON, data->lv_readonly, L, T, lw, H, IDS_NORMAL, TRUE, pens);
-            /* items */
-            lines = (H - 4) / fh;
+            lines = mg->Height / fh;
             SetAPen(rp, pens[BACKGROUNDPEN]);
             RectFill(rp, L + 2, T + 2, L + lw - 3, T + H - 3);
             n = (list && list != (struct List *)~0) ? list->lh_Head : NULL;
             for (i = 0; n && n->ln_Succ && i < data->lv_top; i++)
                 n = n->ln_Succ;
-            for (i = 0, y = T + 2; n && n->ln_Succ && i < lines; i++, y += fh, n = n->ln_Succ)
+            for (i = 0, y = mgt; n && n->ln_Succ && i < lines; i++, y += fh, n = n->ln_Succ)
             {
                 BOOL sel = data->lv_showsel && (data->lv_top + i == data->value);
                 if (sel)
@@ -1989,27 +2573,28 @@ BOOL _gadtools_RenderGadget(register struct Window *win __asm("a0"),
                 }
                 if (n->ln_Name)
                 {
-                                WORD len = gt_strlen((STRPTR)n->ln_Name);
+                    WORD len = gt_strlen((STRPTR)n->ln_Name);
                     WORD fit = lxa_text_fit(rp, (STRPTR)n->ln_Name, len, lw - 4 - 4);
                     gt_draw_text(rp, L + 4, y, (STRPTR)n->ln_Name, fit,
                                  sel ? pens[FILLTEXTPEN] : pens[TEXTPEN], -1);
                 }
             }
             /* scroller with arrows */
-            lxa_draw_frame(rp, FRAME_BUTTON, FALSE, L + lw, T, sw, H - 2 * ah, IDS_NORMAL, TRUE, pens);
-            pi.Flags = FREEVERT;
+            if (data->lv_prop && data->arrow_dec && data->arrow_inc)
             {
-                LONG total = 0, vis = lines, top = data->lv_top;
-                struct Node *c;
-                if (list && list != (struct List *)~0)
-                    for (c = list->lh_Head; c->ln_Succ; c = c->ln_Succ)
-                        total++;
-                gt_scroller_values(top, total, vis, &pi.VertPot, &pi.VertBody);
+                struct Gadget *p = data->lv_prop, *d = data->arrow_dec, *u = data->arrow_inc;
+                lxa_draw_frame(rp, FRAME_BUTTON, FALSE, L + lw, T, sw, H - 2 * data->arrows,
+                               IDS_NORMAL, TRUE, pens);
+                gt_draw_prop(rp, (struct PropInfo *)p->SpecialInfo, ox + p->LeftEdge, oy + p->TopEdge,
+                             p->Width, p->Height, pens);
+                gt_draw_arrow_button(rp, ox + d->LeftEdge, oy + d->TopEdge, d->Width, d->Height, UPIMAGE,
+                                     (d->Flags & GFLG_SELECTED) != 0, pens);
+                gt_draw_arrow_button(rp, ox + u->LeftEdge, oy + u->TopEdge, u->Width, u->Height, DOWNIMAGE,
+                                     (u->Flags & GFLG_SELECTED) != 0, pens);
             }
-            gt_draw_prop(rp, &pi, L + lw + 4, T + 2, sw - 8, H - 2 * ah - 4, pens);
-            gt_draw_arrow_button(rp, L + lw, T + H - 2 * ah, sw, ah, UPIMAGE, FALSE, pens);
-            gt_draw_arrow_button(rp, L + lw, T + H - ah, sw, ah, DOWNIMAGE, FALSE, pens);
-            gt_draw_label_chain(rp, gad, gl, gt, data, pens);
+            if (data->label_gad)
+                gt_draw_label_chain(rp, data->label_gad, ox + data->label_gad->LeftEdge,
+                                    oy + data->label_gad->TopEdge, data, pens);
             if (disabled)
                 lxa_ghost_rect(rp, L, T, L + W - 1, T + H - 1, pens);
             break;
@@ -2018,17 +2603,20 @@ BOOL _gadtools_RenderGadget(register struct Window *win __asm("a0"),
         case GT_KIND_PALETTE:
         {
             WORD ncol = 1 << data->pal_depth;
-            WORD i, bw, x;
+            WORD cols = data->pal_cols ? data->pal_cols : ncol, rows = data->pal_rows ? data->pal_rows : 1;
+            WORD i, bw, bh;
 
             /* AmigaOS 3.1: colour boxes on a (W - 5) / n pitch, 3 pixels apart */
-            bw = (W - 5) / ncol;
+            bw = (W - 5) / cols;
+            bh = (H - 5) / rows;
             lxa_draw_frame(rp, FRAME_BUTTON, FALSE, L, T, W, H, IDS_NORMAL, FALSE, pens);
-            for (i = 0, x = L + 4; i < ncol; i++, x += bw)
+            for (i = 0; i < ncol; i++)
             {
+                WORD x = L + 4 + (i % cols) * bw, y = T + 2 + (i / cols) * bh;
                 SetAPen(rp, data->pal_offset + i);
-                RectFill(rp, x, T + 2, x + bw - 4, T + H - 3);
+                RectFill(rp, x, y, x + bw - 4, y + bh - (rows > 1 ? 2 : 0) - 1);
             }
-            gt_draw_label_chain(rp, gad, gl, gt, data, pens);
+            gt_draw_label_chain(rp, mg, mgl, mgt, data, pens);
             if (disabled)
                 lxa_ghost_rect(rp, L, T, L + W - 1, T + H - 1, pens);
             break;
@@ -2043,18 +2631,18 @@ BOOL _gadtools_RenderGadget(register struct Window *win __asm("a0"),
                 lxa_draw_frame(rp, FRAME_BUTTON, TRUE, L, T, W, H, IDS_NORMAL, FALSE, pens);
             if (s)
             {
-                        WORD len = gt_strlen(s);
+                WORD len = gt_strlen(s);
                 WORD inner = data->border ? W - 8 : W;
                 WORD fit = lxa_text_fit(rp, s, len, inner);
                 gt_draw_text(rp, L + (data->border ? 4 : 0), T + (H - fh + 1) / 2, s, fit,
                              pens[TEXTPEN], -1);
             }
-            gt_draw_label_chain(rp, gad, gl, gt, data, pens);
+            gt_draw_label_chain(rp, mg, mgl, mgt, data, pens);
             break;
         }
 
         default:
-            gt_draw_label_chain(rp, gad, gl, gt, data, pens);
+            gt_draw_label_chain(rp, mg, mgl, mgt, data, pens);
             break;
     }
 
@@ -2062,6 +2650,99 @@ BOOL _gadtools_RenderGadget(register struct Window *win __asm("a0"),
     SetAPen(rp, oldpen);
     SetDrMd(rp, olddm);
     return TRUE;
+}
+
+static void gt_free_itext(struct IntuiText *it)
+{
+    while (it)
+    {
+        struct IntuiText *next = it->NextText;
+        if (it->IText)
+            FreeMem(it->IText, gt_strlen(it->IText) + 1);
+        FreeMem(it, sizeof(struct IntuiText));
+        it = next;
+    }
+}
+
+static void gt_release_data(struct GTGadgetData *data)
+{
+    if (!data || --data->refs > 0)
+        return;
+    if (data->format)
+        FreeMem(data->format, gt_strlen(data->format) + 1);
+    if (data->level_buffer)
+    {
+        if (data->kind == GT_KIND_TEXT)
+            FreeMem(data->level_buffer, gt_strlen(data->level_buffer) + 1);
+        else if (data->kind == GT_KIND_NUMBER)
+            FreeMem(data->level_buffer, 32);
+        else
+            FreeMem(data->level_buffer, data->max_level_len + 1);
+    }
+    if (data->level_text)
+        FreeMem(data->level_text, sizeof(struct IntuiText));
+    if (data->label)
+        FreeMem(data->label, gt_strlen(data->label) + 1);
+    if (data->items)
+        FreeMem(data->items, data->nitems * sizeof(struct Gadget *));
+    if (data->font)
+        CloseFont(data->font);
+    data->magic = 0;
+    FreeMem(data, sizeof(struct GTGadgetData));
+}
+
+/* free one gadget GadTools allocated, with everything it owns */
+static void gt_free_member(struct Gadget *gad)
+{
+    struct GTGad *g = gt_gad(gad);
+    struct GTGadgetData *data;
+
+    if (!g)
+    {
+        /* the palette object */
+        data = gt_get_data(gad);
+        if (data && g_gt_palette_class)
+        {
+            struct GTPaletteInst *inst = (struct GTPaletteInst *)INST_DATA(g_gt_palette_class, gad);
+            gt_free_itext(gad->GadgetText);
+            gad->GadgetText = NULL;
+            if (inst->img)
+                DisposeObject(inst->img);
+            inst->magic = 0;
+            gt_release_data(data);
+            DisposeObject(gad);
+        }
+        return;
+    }
+    data = g->data;
+
+    if ((gad->GadgetType & GTYP_GTYPEMASK) == GTYP_STRGADGET && gad->SpecialInfo)
+    {
+        struct StringInfo *si = (struct StringInfo *)gad->SpecialInfo;
+        if (si->Buffer)
+            FreeMem(si->Buffer, si->MaxChars + 1);
+        if (si->UndoBuffer)
+            FreeMem(si->UndoBuffer, si->MaxChars + 1);
+        if (si->Extension)
+            FreeMem(si->Extension, sizeof(struct StringExtend));
+        FreeMem(si, sizeof(struct StringInfo));
+    }
+    if ((gad->GadgetType & GTYP_GTYPEMASK) == GTYP_PROPGADGET && gad->SpecialInfo)
+        FreeMem(gad->SpecialInfo, sizeof(struct PropInfo));
+    if (g->boopsi_imgs)
+    {
+        if (g->render_img)
+            DisposeObject(g->render_img);
+        if (g->select_img)
+            DisposeObject(g->select_img);
+    }
+    else if (g->render_img)
+        FreeMem(g->render_img, sizeof(struct Image));
+    gt_free_itext(gad->GadgetText);
+    g->magic = 0;
+    if (data)
+        gt_release_data(data);
+    FreeMem(g, sizeof(struct GTGad));
 }
 
 /* FreeGadgets - Free a list of gadgets created by CreateGadgetA */
@@ -2072,67 +2753,11 @@ void _gadtools_FreeGadgets ( register struct GadToolsBase *GadToolsBase __asm("a
 
     DPRINTF (LOG_DEBUG, "_gadtools: FreeGadgets() gad=0x%08lx\n", (ULONG)gad);
 
-    if (gt_is_context_gadget(gad))
+    while (gad)
     {
-        struct Gadget *first = gad->NextGadget;
-
-        gt_get_context(gad)->magic = 0;
-        FreeMem(gad, sizeof(struct GTContextGadget));
-        gad = first;
-    }
-
-    while (gad) {
         next = gad->NextGadget;
-
-        /* Free StringInfo and buffer for string gadgets */
-        if ((gad->GadgetType & GTYP_GTYPEMASK) == GTYP_STRGADGET && gad->SpecialInfo)
-        {
-            struct StringInfo *si = (struct StringInfo *)gad->SpecialInfo;
-            if (si->Buffer)
-                FreeMem(si->Buffer, si->MaxChars);
-            FreeMem(si, sizeof(struct StringInfo));
-        }
-
-        /* Free PropInfo for proportional gadgets (SLIDER_KIND) */
-        if ((gad->GadgetType & GTYP_GTYPEMASK) == GTYP_PROPGADGET && gad->SpecialInfo)
-        {
-            FreeMem(gad->SpecialInfo, sizeof(struct PropInfo));
-        }
-
-        if (gad->SelectRender)
-        {
-            struct GTGadgetData *data = (struct GTGadgetData *)gad->SelectRender;
-            struct IntuiText *it, *nit;
-
-            /* label chain: level/cycle texts point at data buffers */
-            for (it = gad->GadgetText; it; it = nit)
-            {
-                nit = it->NextText;
-                if (it != data->level_text && it->IText)
-                    FreeMem(it->IText, gt_strlen(it->IText) + 1);
-                FreeMem(it, sizeof(struct IntuiText));
-            }
-            gad->GadgetText = NULL;
-            if (data->format)
-                FreeMem(data->format, gt_strlen(data->format) + 1);
-            if (data->level_buffer)
-            {
-                if (data->kind == GT_KIND_TEXT)
-                    FreeMem(data->level_buffer, gt_strlen(data->level_buffer) + 1);
-                else if (data->kind == GT_KIND_NUMBER)
-                    FreeMem(data->level_buffer, 16);
-                else
-                    FreeMem(data->level_buffer, data->max_level_len + 1);
-            }
-            if (data->label)
-                FreeMem(data->label, gt_strlen(data->label) + 1);
-            if (data->font)
-                CloseFont(data->font);
-            FreeMem(data, sizeof(struct GTGadgetData));
-            gad->SelectRender = NULL;
-        }
-
-        FreeMem(gad, sizeof(struct Gadget));
+        if (gt_get_data(gad) || gt_is_context_gadget(gad))
+            gt_free_member(gad);
         gad = next;
     }
 }
@@ -2154,6 +2779,7 @@ void _gadtools_GT_SetGadgetAttrsA ( register struct GadToolsBase *GadToolsBase _
         return;
 
     data = gt_get_data(gad);
+    gad = gt_main(gad);
 
     if (data && data->kind == GT_KIND_CHECKBOX)
     {
@@ -2234,11 +2860,17 @@ void _gadtools_GT_SetGadgetAttrsA ( register struct GadToolsBase *GadToolsBase _
                 data->max = sl_max;
                 data->value = level;
 
-                /* Recompute HorizPot from new level */
-                if (sl_max > sl_min)
-                    pi->HorizPot = (UWORD)(((level - sl_min) * (LONG)0xFFFF) / (sl_max - sl_min));
-                else
-                    pi->HorizPot = 0;
+                /* Recompute the pot from the new level */
+                {
+                    UWORD pot = 0;
+                    if (sl_max > sl_min)
+                        pot = (UWORD)(((ULONG)((pi->Flags & FREEVERT) ? sl_max - level : level - sl_min) *
+                                       0xFFFFUL) / (ULONG)(sl_max - sl_min));
+                    if (pi->Flags & FREEVERT)
+                        pi->VertPot = pot;
+                    else
+                        pi->HorizPot = pot;
+                }
 
                 _gadtools_UpdateSliderLevelDisplay(gad, level);
 
@@ -2309,10 +2941,20 @@ void _gadtools_GT_SetGadgetAttrsA ( register struct GadToolsBase *GadToolsBase _
     tag = gt_find_tagitem(GA_Disabled, taglist);
     if (tag)
     {
-        if (tag->ti_Data)
-            gad->Flags |= GFLG_DISABLED;
-        else
-            gad->Flags &= ~GFLG_DISABLED;
+        struct Gadget *m;
+        WORD k;
+        for (k = -4; k < (data ? data->nitems : 0); k++)
+        {
+            m = (k == -4) ? gad : (k == -3) ? (data ? data->arrow_dec : NULL)
+              : (k == -2) ? (data ? data->arrow_inc : NULL) : (k == -1) ? (data ? data->lv_prop : NULL)
+              : data->items[k];
+            if (!m)
+                continue;
+            if (tag->ti_Data)
+                m->Flags |= GFLG_DISABLED;
+            else
+                m->Flags &= ~GFLG_DISABLED;
+        }
         needs_refresh = TRUE;
     }
 
@@ -2325,6 +2967,7 @@ void _gadtools_GT_SetGadgetAttrsA ( register struct GadToolsBase *GadToolsBase _
                 if (tag && (LONG)tag->ti_Data >= 0 && (LONG)tag->ti_Data < data->max)
                 {
                     data->value = (LONG)tag->ti_Data;
+                    gt_update_mx_flags(data);
                     needs_refresh = TRUE;
                 }
                 break;
@@ -2352,6 +2995,11 @@ void _gadtools_GT_SetGadgetAttrsA ( register struct GadToolsBase *GadToolsBase _
                 {
                     data->lv_top = (WORD)tag->ti_Data;
                     needs_refresh = TRUE;
+                }
+                if (needs_refresh)
+                {
+                    gt_lv_clamp_top(data);
+                    gt_lv_update_prop(data);
                 }
                 break;
             case GT_KIND_PALETTE:
@@ -2381,7 +3029,8 @@ void _gadtools_GT_SetGadgetAttrsA ( register struct GadToolsBase *GadToolsBase _
                 if (tag && data->level_buffer)
                 {
                     data->value = (LONG)tag->ti_Data;
-                    gt_format_long(data->level_buffer, 16, data->value);
+                    gt_format_slider_level(data->level_buffer, 32,
+                                           data->format ? data->format : (STRPTR)"%ld", data->value);
                     needs_refresh = TRUE;
                 }
                 break;
@@ -2397,7 +3046,7 @@ void _gadtools_GT_SetGadgetAttrsA ( register struct GadToolsBase *GadToolsBase _
     }
 
     if (needs_refresh && win)
-        RefreshGList(gad, win, req, 1);
+        RefreshGList(data && data->pub ? data->pub : gad, win, req, 1);
 }
 
 /*
@@ -2467,6 +3116,24 @@ static BOOL gt_validate_newmenu_array(const struct NewMenu *newmenu)
 
 #define GT_SUBMENU_INDICATOR "\xbb"
 
+/* Menu and MenuItem allocations: the GTMENU(ITEM)_USERDATA field, then a
+ * tag telling FreeMenus() a menu from an item list (CreateMenus() of a
+ * NewMenu array without titles returns the item list itself). */
+#define GT_MENU_MAGIC 0x47544D55UL   /* "GTMU" */
+#define GT_ITEM_MAGIC 0x47544D49UL   /* "GTMI" */
+#define GT_MENU_SIZE (sizeof(struct Menu) + sizeof(APTR) + sizeof(ULONG))
+#define GT_ITEM_SIZE (sizeof(struct MenuItem) + sizeof(APTR) + sizeof(ULONG))
+#define GT_MENU_MAGIC_OF(m) (((ULONG *)((struct Menu *)(m) + 1))[1])
+#define GT_ITEM_MAGIC_OF(i) (((ULONG *)((struct MenuItem *)(i) + 1))[1])
+
+static struct MenuItem *gt_alloc_menuitem(void)
+{
+    struct MenuItem *item = AllocMem(GT_ITEM_SIZE, MEMF_CLEAR | MEMF_PUBLIC);
+    if (item)
+        GT_ITEM_MAGIC_OF(item) = GT_ITEM_MAGIC;
+    return item;
+}
+
 static struct IntuiText *gt_alloc_menu_itext(STRPTR label)
 {
     struct IntuiText *itext = AllocMem(sizeof(struct IntuiText), MEMF_CLEAR | MEMF_PUBLIC);
@@ -2488,7 +3155,13 @@ static struct Image *gt_alloc_bar_image(void)
 {
     struct Image *im = AllocMem(sizeof(struct Image) + sizeof(ULONG), MEMF_CLEAR | MEMF_PUBLIC);
     if (im)
+    {
+        /* AmigaOS 3.1: 2,2 and two lines high before the layout */
+        im->LeftEdge = 2;
+        im->TopEdge = 2;
+        im->Height = 2;
         *(ULONG *)(im + 1) = GT_BAR_MAGIC;
+    }
     return im;
 }
 
@@ -2525,6 +3198,7 @@ struct gt_menu_layout
     struct TextFont *font;
     struct TextAttr *textattr;
     UBYTE front_pen;
+    BOOL newlook;
     WORD check_width;
     WORD comm_width;
     WORD item_height;
@@ -2564,6 +3238,7 @@ static void gt_menu_layout_init(struct gt_menu_layout *ml, struct VisualInfo *vi
     else
         default_pen = newlook ? 1 : 0;
     ml->front_pen = (UBYTE)GetTagData(GTMN_FrontPen, default_pen, taglist);
+    ml->newlook = newlook;
 
     if (newlook)
     {
@@ -2611,6 +3286,10 @@ static BOOL gt_layout_menu_item_chain(struct gt_menu_layout *ml, struct MenuItem
             text = gt_menu_text_width(ml, ((struct IntuiText *)item->ItemFill)->IText);
         else if (item->ItemFill)
             text = ((struct Image *)item->ItemFill)->Width;
+        if ((item->Flags & ITEMTEXT) && item->ItemFill && !item->SubItem &&
+            ((struct IntuiText *)item->ItemFill)->NextText)
+            /* NM_COMMANDSTRING: the command text right-aligned */
+            right = 6 + gt_menu_text_width(ml, ((struct IntuiText *)item->ItemFill)->NextText->IText);
         if (item->Flags & COMMSEQ)
         {
             char cmd[2];
@@ -2645,10 +3324,18 @@ static BOOL gt_layout_menu_item_chain(struct gt_menu_layout *ml, struct MenuItem
         if (gt_is_separator_item(item))
         {
             struct Image *im = (struct Image *)item->ItemFill;
-            im->LeftEdge = 0;
-            im->TopEdge = 1;
+            im->LeftEdge = 2;
+            im->TopEdge = 2;
             im->Width = width - 4;
             im->Height = 2;
+            im->PlaneOnOff = ml->newlook ? ml->front_pen : 0;
+        }
+        else if (!(item->Flags & ITEMTEXT) && item->ItemFill)
+        {
+            /* image items (AmigaOS 3.1): image at 2,1, item one line taller */
+            struct Image *im = (struct Image *)item->ItemFill;
+            im->LeftEdge = (item->Flags & CHECKIT) ? ml->check_width + 2 : 2;
+            item->Height = im->TopEdge + im->Height;
         }
 
         if ((item->Flags & ITEMTEXT) && item->ItemFill)
@@ -2702,6 +3389,9 @@ struct Menu * _gadtools_CreateMenusA ( register struct GadToolsBase *GadToolsBas
     struct IntuiText *itext;
     struct NewMenu *nm;
     BOOL menu_image;
+    UBYTE front_pen = (UBYTE)GetTagData(GTMN_FrontPen, 0, taglist);
+    struct Menu fake;     /* holds an item list without titles */
+    BOOL items_only = FALSE;
 
     DPRINTF (LOG_DEBUG, "_gadtools: CreateMenusA() newmenu=0x%08lx\n", (ULONG)newmenu);
 
@@ -2710,7 +3400,25 @@ struct Menu * _gadtools_CreateMenusA ( register struct GadToolsBase *GadToolsBas
 
     gt_set_menu_error(taglist, 0);
 
-    if (!gt_validate_newmenu_array(newmenu))
+    {
+        struct NewMenu *f = newmenu;
+        while (f->nm_Type != NM_END && (f->nm_Type & NM_IGNORE))
+            f++;
+        if ((f->nm_Type & ~MENU_IMAGE) == NM_ITEM)
+        {
+            /* items without a title: the item list for LayoutMenuItems() */
+            items_only = TRUE;
+            for (f = newmenu; f->nm_Type != NM_END; f++)
+                if (!(f->nm_Type & NM_IGNORE) && f->nm_Type == NM_TITLE)
+                    items_only = FALSE;
+        }
+    }
+    if (items_only)
+    {
+        memset(&fake, 0, sizeof(fake));
+        firstMenu = currentMenu = lastMenu = &fake;
+    }
+    else if (!gt_validate_newmenu_array(newmenu))
     {
         gt_set_menu_error(taglist, GTMENU_INVALID);
         return NULL;
@@ -2732,16 +3440,19 @@ struct Menu * _gadtools_CreateMenusA ( register struct GadToolsBase *GadToolsBas
         switch (type) {
             case NM_TITLE: {
                 /* Create a new Menu structure */
-                struct Menu *menu = AllocMem(sizeof(struct Menu) + sizeof(APTR), MEMF_CLEAR | MEMF_PUBLIC);
+                struct Menu *menu = AllocMem(GT_MENU_SIZE, MEMF_CLEAR | MEMF_PUBLIC);
                 if (!menu) {
                     /* Out of memory - free what we have and return NULL */
                     gt_set_menu_error(taglist, GTMENU_NOMEM);
-                    if (firstMenu)
+                    if (items_only)
+                        FreeMenuItems(fake.FirstItem);
+                    else if (firstMenu)
                         _gadtools_FreeMenus(GadToolsBase, firstMenu);
                     return NULL;
                 }
 
                 /* Geometry stays 0 until LayoutMenusA() (AmigaOS 3.1). */
+                GT_MENU_MAGIC_OF(menu) = GT_MENU_MAGIC;
                 menu->Flags = MENUENABLED;
                 menu->MenuName = nm->nm_Label;
                 menu->FirstItem = NULL;
@@ -2773,15 +3484,19 @@ struct Menu * _gadtools_CreateMenusA ( register struct GadToolsBase *GadToolsBas
                 if (!currentMenu) {
                     DPRINTF (LOG_ERROR, "_gadtools: CreateMenusA: NM_ITEM without NM_TITLE!\n");
                     gt_set_menu_error(taglist, GTMENU_INVALID);
-                    if (firstMenu)
+                    if (items_only)
+                        FreeMenuItems(fake.FirstItem);
+                    else if (firstMenu)
                         _gadtools_FreeMenus(GadToolsBase, firstMenu);
                     return NULL;
                 }
 
-                item = AllocMem(sizeof(struct MenuItem) + sizeof(APTR), MEMF_CLEAR | MEMF_PUBLIC);
+                item = gt_alloc_menuitem();
                 if (!item) {
                     gt_set_menu_error(taglist, GTMENU_NOMEM);
-                    if (firstMenu)
+                    if (items_only)
+                        FreeMenuItems(fake.FirstItem);
+                    else if (firstMenu)
                         _gadtools_FreeMenus(GadToolsBase, firstMenu);
                     return NULL;
                 }
@@ -2800,16 +3515,28 @@ struct Menu * _gadtools_CreateMenusA ( register struct GadToolsBase *GadToolsBas
                 } else if (menu_image) {
                     item->ItemFill = (APTR)nm->nm_Label;
                     item->Flags &= ~ITEMTEXT;
+                    if (item->ItemFill)
+                        ((struct Image *)item->ItemFill)->TopEdge = 1;
                 } else {
                     /* Create IntuiText for the label */
                     itext = gt_alloc_menu_itext((STRPTR)nm->nm_Label);
+                    if (itext)
+                        itext->FrontPen = front_pen;
                     item->ItemFill = itext;
                 }
 
                 /* Handle command key */
                 if (nm->nm_CommKey && nm->nm_CommKey[0]) {
-                    item->Flags |= COMMSEQ;
-                    item->Command = nm->nm_CommKey[0];
+                    if ((nm->nm_Flags & NM_COMMANDSTRING) && (item->Flags & ITEMTEXT) && item->ItemFill) {
+                        /* the whole string, drawn right-aligned (V39) */
+                        struct IntuiText *ct = gt_alloc_menu_itext((STRPTR)nm->nm_CommKey);
+                        if (ct)
+                            ct->FrontPen = front_pen;
+                        ((struct IntuiText *)item->ItemFill)->NextText = ct;
+                    } else {
+                        item->Flags |= COMMSEQ;
+                        item->Command = nm->nm_CommKey[0];
+                    }
                 }
 
                 /* Handle checkmark */
@@ -2848,15 +3575,19 @@ struct Menu * _gadtools_CreateMenusA ( register struct GadToolsBase *GadToolsBas
                 if (!currentItem) {
                     DPRINTF (LOG_ERROR, "_gadtools: CreateMenusA: NM_SUB without NM_ITEM!\n");
                     gt_set_menu_error(taglist, GTMENU_INVALID);
-                    if (firstMenu)
+                    if (items_only)
+                        FreeMenuItems(fake.FirstItem);
+                    else if (firstMenu)
                         _gadtools_FreeMenus(GadToolsBase, firstMenu);
                     return NULL;
                 }
 
-                subitem = AllocMem(sizeof(struct MenuItem) + sizeof(APTR), MEMF_CLEAR | MEMF_PUBLIC);
+                subitem = gt_alloc_menuitem();
                 if (!subitem) {
                     gt_set_menu_error(taglist, GTMENU_NOMEM);
-                    if (firstMenu)
+                    if (items_only)
+                        FreeMenuItems(fake.FirstItem);
+                    else if (firstMenu)
                         _gadtools_FreeMenus(GadToolsBase, firstMenu);
                     return NULL;
                 }
@@ -2874,15 +3605,27 @@ struct Menu * _gadtools_CreateMenusA ( register struct GadToolsBase *GadToolsBas
                 } else if (menu_image) {
                     subitem->ItemFill = (APTR)nm->nm_Label;
                     subitem->Flags &= ~ITEMTEXT;
+                    if (subitem->ItemFill)
+                        ((struct Image *)subitem->ItemFill)->TopEdge = 1;
                 } else {
                     itext = gt_alloc_menu_itext((STRPTR)nm->nm_Label);
+                    if (itext)
+                        itext->FrontPen = front_pen;
                     subitem->ItemFill = itext;
                 }
 
                 /* Handle command key */
                 if (nm->nm_CommKey && nm->nm_CommKey[0]) {
-                    subitem->Flags |= COMMSEQ;
-                    subitem->Command = nm->nm_CommKey[0];
+                    if ((nm->nm_Flags & NM_COMMANDSTRING) && (subitem->Flags & ITEMTEXT) && subitem->ItemFill) {
+                        /* the whole string, drawn right-aligned (V39) */
+                        struct IntuiText *ct = gt_alloc_menu_itext((STRPTR)nm->nm_CommKey);
+                        if (ct)
+                            ct->FrontPen = front_pen;
+                        ((struct IntuiText *)subitem->ItemFill)->NextText = ct;
+                    } else {
+                        subitem->Flags |= COMMSEQ;
+                        subitem->Command = nm->nm_CommKey[0];
+                    }
                 }
 
                 /* Handle checkmark and flags */
@@ -2916,6 +3659,8 @@ struct Menu * _gadtools_CreateMenusA ( register struct GadToolsBase *GadToolsBas
         }
     }
 
+    if (items_only)
+        return (struct Menu *)fake.FirstItem;
     DPRINTF (LOG_DEBUG, "_gadtools: CreateMenusA() -> 0x%08lx\n", (ULONG)firstMenu);
     return firstMenu;
 }
@@ -2942,7 +3687,7 @@ static void FreeMenuItems(struct MenuItem *item)
             FreeMem(it, sizeof(struct IntuiText));
         }
 
-        FreeMem(item, sizeof(struct MenuItem) + sizeof(APTR));
+        FreeMem(item, GT_ITEM_SIZE);
         item = next;
     }
 }
@@ -2953,6 +3698,12 @@ void _gadtools_FreeMenus ( register struct GadToolsBase *GadToolsBase __asm("a6"
 {
     DPRINTF (LOG_DEBUG, "_gadtools: FreeMenus() menu=0x%08lx\n", (ULONG)menu);
 
+    if (menu && GT_MENU_MAGIC_OF(menu) != GT_MENU_MAGIC && GT_ITEM_MAGIC_OF(menu) == GT_ITEM_MAGIC)
+    {
+        FreeMenuItems((struct MenuItem *)menu);
+        return;
+    }
+
     while (menu) {
         struct Menu *nextMenu = menu->NextMenu;
 
@@ -2962,7 +3713,7 @@ void _gadtools_FreeMenus ( register struct GadToolsBase *GadToolsBase __asm("a6"
         }
 
         /* Free the menu itself */
-        FreeMem(menu, sizeof(struct Menu) + sizeof(APTR));
+        FreeMem(menu, GT_MENU_SIZE);
         menu = nextMenu;
     }
 }
@@ -3044,6 +3795,61 @@ static struct GTIMsgCopy *gt_imsg_copy(struct IntuiMessage *imsg)
     return NULL;
 }
 
+/*
+ * Messages of the auxiliary gadgets of a GadTools group are translated to
+ * the gadget CreateGadget() returned (AmigaOS 3.1 hands the application
+ * only that one): listview scrolling is consumed, scroller arrows report
+ * the new Top, palettes and listviews their selection.
+ * Returns FALSE when GadTools consumed the message.
+ */
+static BOOL gt_translate_imsg(struct IntuiMessage *m)
+{
+    struct Gadget *g;
+    struct GTGadgetData *data;
+    UWORD role;
+
+    if (!(m->Class & (IDCMP_GADGETUP | IDCMP_GADGETDOWN | IDCMP_MOUSEMOVE)) || !m->IAddress)
+        return TRUE;
+    g = (struct Gadget *)m->IAddress;
+    if (m->Class == IDCMP_MOUSEMOVE && m->IDCMPWindow && (APTR)g == (APTR)m->IDCMPWindow)
+        return TRUE;
+    data = gt_get_data(g);
+    if (!data || !data->pub)
+        return TRUE;
+    role = gt_gad(g) ? gt_gad(g)->role : GT_ROLE_MAIN;
+
+    if (data->kind == GT_KIND_LISTVIEW && role != GT_ROLE_MAIN)
+    {
+        if (role == GT_ROLE_LVPROP && data->lv_prop && data->lv_prop->SpecialInfo)
+        {
+            struct PropInfo *pi = (struct PropInfo *)data->lv_prop->SpecialInfo;
+            LONG hidden = gt_list_count((struct List *)data->aux) - gt_lv_visible(data);
+            if (hidden > 0)
+                data->lv_top = (WORD)(((ULONG)pi->VertPot * (ULONG)hidden + 0x7FFF) / 0xFFFF);
+            gt_lv_clamp_top(data);
+            if (m->IDCMPWindow)
+                RefreshGList(data->pub, m->IDCMPWindow, NULL, 1);
+        }
+        return FALSE;   /* scrolling a listview is GadTools' business */
+    }
+    if (data->kind == GT_KIND_SCROLLER)
+    {
+        if (role == GT_ROLE_MAIN && data->main->SpecialInfo)
+        {
+            struct PropInfo *pi = (struct PropInfo *)data->main->SpecialInfo;
+            UWORD pot = (pi->Flags & FREEVERT) ? pi->VertPot : pi->HorizPot;
+            LONG hidden = data->max - data->min;
+            data->value = hidden > 0 ? (LONG)(((ULONG)pot * (ULONG)hidden + 0x7FFF) / 0xFFFF) : 0;
+        }
+        m->Code = (UWORD)data->value;
+    }
+    else if (data->kind == GT_KIND_PALETTE ||
+             (data->kind == GT_KIND_LISTVIEW && m->Class == IDCMP_GADGETUP))
+        m->Code = (UWORD)data->value;
+    m->IAddress = (APTR)data->pub;
+    return TRUE;
+}
+
 static struct IntuiMessage *gt_filter_imsg(struct IntuiMessage *imsg)
 {
     struct GTIMsgCopy *c;
@@ -3058,6 +3864,12 @@ static struct IntuiMessage *gt_filter_imsg(struct IntuiMessage *imsg)
     CopyMem(imsg, &c->copy, sizeof(struct IntuiMessage));
     c->original = imsg;
     c->magic = GT_IMSG_MAGIC;
+    if (!gt_translate_imsg(&c->copy.eim_IntuiMessage))
+    {
+        c->magic = 0;
+        FreeMem(c, sizeof(struct GTIMsgCopy));
+        return NULL;
+    }
     return &c->copy.eim_IntuiMessage;
 }
 
@@ -3175,7 +3987,7 @@ struct IntuiMessage * _gadtools_GT_PostFilterIMsg ( register struct GadToolsBase
 struct Gadget * _gadtools_CreateContext ( register struct GadToolsBase *GadToolsBase __asm("a6"),
                                           register struct Gadget **glistptr __asm("a0") )
 {
-    struct GTContextGadget *block;
+    struct GTGad *block;
     struct Gadget *context;
 
     DPRINTF (LOG_DEBUG, "_gadtools: CreateContext() glistptr=0x%08lx\n", (ULONG)glistptr);
@@ -3183,13 +3995,13 @@ struct Gadget * _gadtools_CreateContext ( register struct GadToolsBase *GadTools
     if (!glistptr)
         return NULL;
 
-    block = AllocMem(sizeof(struct GTContextGadget), MEMF_CLEAR | MEMF_PUBLIC);
+    block = AllocMem(sizeof(struct GTGad), MEMF_CLEAR | MEMF_PUBLIC);
     if (!block)
         return NULL;
 
-    context = &block->gadget;
-    block->context.magic = GT_CONTEXT_MAGIC;
-    block->context.gc_Last = context;
+    context = (struct Gadget *)&block->eg;
+    block->magic = GT_GAD_MAGIC;
+    block->role = GT_ROLE_CONTEXT;
 
     /* Invisible, zero-size placeholder that stays in the window's gadget
      * list (it is the list head the application passes to WA_Gadgets). */
@@ -3354,6 +4166,7 @@ LONG _gadtools_GT_GetGadgetAttrsA ( register struct GadToolsBase *GadToolsBase _
         return 0;
 
     data = gt_get_data(gad);
+    gad = gt_main(gad);
 
     for (tag = taglist; tag; )
     {

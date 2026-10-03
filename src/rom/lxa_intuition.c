@@ -51,6 +51,7 @@ extern UWORD _gadtools_GetCycleState(register struct Gadget *gad __asm("a0"));
 extern UWORD _gadtools_AdvanceCycleState(register struct Gadget *gad __asm("a0"));
 extern STRPTR _gadtools_GetCycleLabel(register struct Gadget *gad __asm("a0"));
 extern BOOL _gadtools_IsGadTools(register struct Gadget *gad __asm("a0"));
+extern VOID _gadtools_RefreshPass(register LONG begin __asm("d0"));
 extern LONG _gadtools_HandleClick(register struct Gadget *gad __asm("a0"),
                                   register LONG relx __asm("d0"),
                                   register LONG rely __asm("d1"));
@@ -3659,7 +3660,7 @@ static VOID _intuition_handle_mouse_button_event(struct IntuitionBase *Intuition
                                     LONG level;
 
                                     if (sl_max > sl_min)
-                                        level = sl_min + ((LONG)pi->HorizPot * (sl_max - sl_min)) / 0xFFFF;
+                                        level = sl_min + ((LONG)pi->HorizPot * (sl_max - sl_min) + 0x7FFF) / 0xFFFF;
                                     else
                                         level = sl_min;
 
@@ -3753,7 +3754,7 @@ static VOID _intuition_handle_mouse_button_event(struct IntuitionBase *Intuition
                         LONG level;
 
                         if (range > 0)
-                            level = sl_min + ((LONG)pi->HorizPot * range) / 0xFFFF;
+                            level = sl_min + ((LONG)pi->HorizPot * range + 0x7FFF) / 0xFFFF;
                         else
                             level = sl_min;
                         _gadtools_UpdateSliderLevelDisplay(gad, level);
@@ -3781,7 +3782,11 @@ static VOID _intuition_handle_mouse_button_event(struct IntuitionBase *Intuition
                             _gadtools_SetCheckboxState(gad,
                                                        _gadtools_GetCheckboxState(gad) ? FALSE : TRUE);
                         }
-                        gad->Flags &= ~GFLG_SELECTED;
+                        /* a checked GadTools checkbox stays GFLG_SELECTED (AmigaOS 3.1) */
+                        if (_gadtools_GetCheckboxState(gad))
+                            gad->Flags |= GFLG_SELECTED;
+                        else
+                            gad->Flags &= ~GFLG_SELECTED;
                     }
                     else if (_gadtools_IsCycle(gad))
                     {
@@ -4188,7 +4193,7 @@ static VOID _intuition_handle_pointerpos_event(struct IntuitionBase *IntuitionBa
                 sl_max = (WORD)pi->CHeight;
                 range = sl_max - sl_min;
                 if (range > 0)
-                    level = sl_min + ((LONG)pi->HorizPot * range) / 0xFFFF;
+                    level = sl_min + ((LONG)pi->HorizPot * range + 0x7FFF) / 0xFFFF;
                 else
                     level = sl_min;
 
@@ -7562,7 +7567,7 @@ VOID _intuition_ProcessInputEvents(struct Screen *hint_screen)
                                             LONG level;
 
                                             if (sl_max > sl_min)
-                                                level = sl_min + ((LONG)pi->HorizPot * (sl_max - sl_min)) / 0xFFFF;
+                                                level = sl_min + ((LONG)pi->HorizPot * (sl_max - sl_min) + 0x7FFF) / 0xFFFF;
                                             else
                                                 level = sl_min;
 
@@ -7672,7 +7677,7 @@ VOID _intuition_ProcessInputEvents(struct Screen *hint_screen)
                                     LONG level;
 
                                     if (range > 0)
-                                        level = sl_min + ((LONG)pi->HorizPot * range) / 0xFFFF;
+                                        level = sl_min + ((LONG)pi->HorizPot * range + 0x7FFF) / 0xFFFF;
                                     else
                                         level = sl_min;
                                     _gadtools_UpdateSliderLevelDisplay(gad, level);
@@ -7703,7 +7708,11 @@ VOID _intuition_ProcessInputEvents(struct Screen *hint_screen)
                                         _gadtools_SetCheckboxState(gad,
                                                                    _gadtools_GetCheckboxState(gad) ? FALSE : TRUE);
                                     }
-                                    gad->Flags &= ~GFLG_SELECTED;
+                                    /* a checked GadTools checkbox stays GFLG_SELECTED (AmigaOS 3.1) */
+                                    if (_gadtools_GetCheckboxState(gad))
+                                        gad->Flags |= GFLG_SELECTED;
+                                    else
+                                        gad->Flags &= ~GFLG_SELECTED;
                                 }
                                 else if (_gadtools_IsCycle(gad))
                                 {
@@ -8159,7 +8168,7 @@ VOID _intuition_ProcessInputEvents(struct Screen *hint_screen)
                             LONG range = sl_max - sl_min;
                             LONG level;
                             if (range > 0)
-                                level = sl_min + ((LONG)pi->HorizPot * range) / 0xFFFF;
+                                level = sl_min + ((LONG)pi->HorizPot * range + 0x7FFF) / 0xFFFF;
                             else
                                 level = sl_min;
 
@@ -9494,11 +9503,13 @@ static void _render_window_user_gadgets(struct Window *window)
     if (!window)
         return;
 
+    _gadtools_RefreshPass(TRUE);
     for (gad = window->FirstGadget; gad; gad = gad->NextGadget)
     {
         if (!(gad->GadgetType & GTYP_SYSGADGET))
             _render_gadget(window, NULL, gad);
     }
+    _gadtools_RefreshPass(FALSE);
 }
 
 /* Phase 147a: Decide whether a window should get its own native host SDL
@@ -12215,7 +12226,8 @@ VOID _intuition_RefreshGList ( register struct IntuitionBase * IntuitionBase __a
              (ULONG)gadgets, (ULONG)window, (ULONG)requester, numGad);
              
     if (!window || !gadgets) return;
-    
+
+    _gadtools_RefreshPass(TRUE);
     while (gad && (numGad == -1 || count < numGad))
     {
         /* Don't render if disabled (unless we want to render disabled state - which we should) 
@@ -12232,6 +12244,7 @@ VOID _intuition_RefreshGList ( register struct IntuitionBase * IntuitionBase __a
         gad = gad->NextGadget;
         count++;
     }
+    _gadtools_RefreshPass(FALSE);
 }
 
 UWORD _intuition_AddGList ( register struct IntuitionBase * IntuitionBase __asm("a6"),

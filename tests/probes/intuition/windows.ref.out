@@ -1,0 +1,398 @@
+wb WBorTop = 2
+wb WBorLeft = 4
+wb WBorRight = 4
+wb WBorBottom = 2
+wb BarHeight = 10
+wb font ysize = 8
+-- wb plain
+window box=20,30,200x80 bl=4 bt=2 br=4 bb=2
+   minw=200 minh=80 maxw=200 maxh=80 gzzw=192 gzzh=76
+   flags=0x08000000 idcmp=0x00000000 title=NULL stitle dpen=0 bpen=1
+   rport rpfont=8 noborderrp layer box=20,30,200x80 lflags=0x0002
+-- wb title
+window box=20,30,200x80 bl=4 bt=11 br=4 bb=2
+   minw=200 minh=80 maxw=200 maxh=80 gzzw=192 gzzh=67
+   flags=0x08000000 idcmp=0x00000000 title="Probe" stitle dpen=0 bpen=1
+   rport rpfont=8 noborderrp layer box=20,30,200x80 lflags=0x0002
+-- wb close
+window box=20,30,200x80 bl=4 bt=11 br=4 bb=2
+   minw=200 minh=80 maxw=200 maxh=80 gzzw=192 gzzh=67
+   flags=0x08000008 idcmp=0x00000000 title=NULL stitle dpen=0 bpen=1
+   rport rpfont=8 noborderrp layer box=20,30,200x80 lflags=0x0002
+gad0 id=0 type=0x8085 flags=0x8004 act=0x8001 box=0,0,20x11 render noselect notext nospecial mx=big
+ext more=0x00000002
+-- wb depth
+window box=20,30,200x80 bl=4 bt=11 br=4 bb=2
+   minw=200 minh=80 maxw=200 maxh=80 gzzw=192 gzzh=67
+   flags=0x08000004 idcmp=0x00000000 title=NULL stitle dpen=0 bpen=1
+   rport rpfont=8 noborderrp layer box=20,30,200x80 lflags=0x0002
+gad0 id=0 type=0x8045 flags=0x8014 act=0x8001 box=-22,0,24x11 render noselect notext nospecial mx=big
+ext more=0x00000002
+-- wb drag
+window box=20,30,200x80 bl=4 bt=11 br=4 bb=2
+   minw=200 minh=80 maxw=200 maxh=80 gzzw=192 gzzh=67
+   flags=0x08000002 idcmp=0x00000000 title=NULL stitle dpen=0 bpen=1
+   rport rpfont=8 noborderrp layer box=20,30,200x80 lflags=0x0002
+gad0 id=0 type=0x8025 flags=0x8024 act=0x8000 box=0,0,0x10 norender noselect notext nospecial mx=big
+ext more=0x00000002
+-- wb size
+window box=20,30,200x80 bl=4 bt=2 br=18 bb=2
+   minw=200 minh=80 maxw=200 maxh=80 gzzw=178 gzzh=76
+   flags=0x08000001 idcmp=0x00000000 title=NULL stitle dpen=0 bpen=1
+   rport rpfont=8 noborderrp layer box=20,30,200x80 lflags=0x0002
+gad0 id=0 type=0x8015 flags=0x801c act=0x8001 box=-17,-9,18x10 render noselect notext nospecial mx=big
+ext more=0x00000002
+-- wb size bright
+window box=20,30,200x80 bl=4 bt=2 br=18 bb=2
+   minw=200 minh=80 maxw=200 maxh=80 gzzw=178 gzzh=76
+   flags=0x08000011 idcmp=0x00000000 title=NULL stitle dpen=0 bpen=1
+   rport rpfont=8 noborderrp layer box=20,30,200x80 lflags=0x0002
+gad0 id=0 type=0x8015 flags=0x801c act=0x8001 box=-17,-9,18x10 render noselect notext nospecial mx=big
+ext more=0x00000002
+-- wb size bbottom
+window box=20,30,200x80 bl=4 bt=2 br=4 bb=10
+   minw=200 minh=80 maxw=200 maxh=80 gzzw=192 gzzh=68
+   flags=0x08000021 idcmp=0x00000000 title=NULL stitle dpen=0 bpen=1
+   rport rpfont=8 noborderrp layer box=20,30,200x80 lflags=0x0002
+gad0 id=0 type=0x8015 flags=0x801c act=0x8001 box=-17,-9,18x10 render noselect notext nospecial mx=big
+ext more=0x00000002
+-- wb all
+window box=20,30,200x80 bl=4 bt=11 br=18 bb=2
+   minw=200 minh=80 maxw=200 maxh=80 gzzw=178 gzzh=67
+   flags=0x2800300f idcmp=0x00000000 title="All" stitle dpen=0 bpen=1
+   rport rpfont=8 noborderrp layer box=20,30,200x80 lflags=0x0002
+gad0 id=0 type=0x8045 flags=0x8014 act=0x8001 box=-22,0,24x11 render noselect notext nospecial mx=big
+ext more=0x00000002
+gad1 id=0 type=0x8065 flags=0x8014 act=0x8001 box=-45,0,24x11 render noselect notext nospecial mx=big
+ext more=0x00000002
+gad2 id=0 type=0x8015 flags=0x801c act=0x8001 box=-17,-9,18x10 render noselect notext nospecial mx=big
+ext more=0x00000002
+gad3 id=0 type=0x8085 flags=0x8004 act=0x8001 box=0,0,20x11 render noselect notext nospecial mx=big
+ext more=0x00000002
+gad4 id=0 type=0x8025 flags=0x8024 act=0x8000 box=0,0,0x10 norender noselect notext nospecial mx=big
+ext more=0x00000002
+-- wb all zoom
+window box=20,30,200x80 bl=4 bt=11 br=18 bb=2
+   minw=200 minh=80 maxw=200 maxh=80 gzzw=178 gzzh=67
+   flags=0x2800000f idcmp=0x00000000 title="Zoom" stitle dpen=0 bpen=1
+   rport rpfont=8 noborderrp layer box=20,30,200x80 lflags=0x0002
+gad0 id=0 type=0x8045 flags=0x8014 act=0x8001 box=-22,0,24x11 render noselect notext nospecial mx=big
+ext more=0x00000002
+gad1 id=0 type=0x8065 flags=0x8014 act=0x8001 box=-45,0,24x11 render noselect notext nospecial mx=big
+ext more=0x00000002
+gad2 id=0 type=0x8015 flags=0x801c act=0x8001 box=-17,-9,18x10 render noselect notext nospecial mx=big
+ext more=0x00000002
+gad3 id=0 type=0x8085 flags=0x8004 act=0x8001 box=0,0,20x11 render noselect notext nospecial mx=big
+ext more=0x00000002
+gad4 id=0 type=0x8025 flags=0x8024 act=0x8000 box=0,0,0x10 norender noselect notext nospecial mx=big
+ext more=0x00000002
+-- wb gzz
+window box=20,30,200x80 bl=4 bt=11 br=18 bb=2
+   minw=200 minh=80 maxw=200 maxh=80 gzzw=178 gzzh=67
+   flags=0x08000409 idcmp=0x00000000 title="GZZ" stitle dpen=0 bpen=1
+   rport rpfont=8 borderrp layer box=24,41,178x67 lflags=0x0002
+gad0 id=0 type=0xa015 flags=0x801c act=0x8001 box=-17,-9,18x10 render noselect notext nospecial mx=big
+ext more=0x00000002
+gad1 id=0 type=0xa085 flags=0x8004 act=0x8001 box=0,0,20x11 render noselect notext nospecial mx=big
+ext more=0x00000002
+-- wb borderless
+window box=20,30,200x80 bl=0 bt=0 br=0 bb=0
+   minw=200 minh=80 maxw=200 maxh=80 gzzw=200 gzzh=80
+   flags=0x08000800 idcmp=0x00000000 title=NULL stitle dpen=0 bpen=1
+   rport rpfont=8 noborderrp layer box=20,30,200x80 lflags=0x0002
+-- wb borderless title
+window box=20,30,200x80 bl=0 bt=9 br=0 bb=0
+   minw=200 minh=80 maxw=200 maxh=80 gzzw=200 gzzh=71
+   flags=0x08000802 idcmp=0x00000000 title="B" stitle dpen=0 bpen=1
+   rport rpfont=8 noborderrp layer box=20,30,200x80 lflags=0x0002
+gad0 id=0 type=0x8025 flags=0x8024 act=0x8000 box=0,0,0x8 norender noselect notext nospecial mx=big
+ext more=0x00000002
+-- wb backdrop
+window box=0,0,640x256 bl=0 bt=0 br=0 bb=0
+   minw=640 minh=256 maxw=640 maxh=256 gzzw=640 gzzh=256
+   flags=0x08000900 idcmp=0x00000000 title=NULL stitle dpen=0 bpen=1
+   rport rpfont=8 noborderrp layer box=0,0,640x256 lflags=0x0042
+-- wb inner size
+window box=20,30,122x63 bl=4 bt=11 br=18 bb=2
+   minw=122 minh=63 maxw=122 maxh=63 gzzw=100 gzzh=50
+   flags=0x08000009 idcmp=0x00000000 title="Inner" stitle dpen=0 bpen=1
+   rport rpfont=8 noborderrp layer box=20,30,122x63 lflags=0x0002
+gad0 id=0 type=0x8015 flags=0x801c act=0x8001 box=-17,-9,18x10 render noselect notext nospecial mx=big
+ext more=0x00000002
+gad1 id=0 type=0x8085 flags=0x8004 act=0x8001 box=0,0,20x11 render noselect notext nospecial mx=big
+ext more=0x00000002
+-- wb limits
+window box=20,30,200x80 bl=4 bt=2 br=18 bb=2
+   minw=50 minh=30 maxw=65535 maxh=150 gzzw=178 gzzh=76
+   flags=0x08000001 idcmp=0x00000000 title=NULL stitle dpen=0 bpen=1
+   rport rpfont=8 noborderrp layer box=20,30,200x80 lflags=0x0002
+gad0 id=0 type=0x8015 flags=0x801c act=0x8001 box=-17,-9,18x10 render noselect notext nospecial mx=big
+ext more=0x00000002
+-- wb limits clamp
+window box=20,30,200x80 bl=4 bt=2 br=18 bb=2
+   minw=200 minh=5 maxw=200 maxh=80 gzzw=178 gzzh=76
+   flags=0x08000001 idcmp=0x00000000 title=NULL stitle dpen=0 bpen=1
+   rport rpfont=8 noborderrp layer box=20,30,200x80 lflags=0x0002
+gad0 id=0 type=0x8015 flags=0x801c act=0x8001 box=-17,-9,18x10 render noselect notext nospecial mx=big
+ext more=0x00000002
+-- wb defaults
+window box=0,0,640x256 bl=4 bt=2 br=4 bb=2
+   minw=640 minh=256 maxw=640 maxh=256 gzzw=632 gzzh=252
+   flags=0x08000000 idcmp=0x00000000 title=NULL stitle dpen=0 bpen=1
+   rport rpfont=8 noborderrp layer box=0,0,640x256 lflags=0x0002
+-- wb no top
+window box=20,11,200x80 bl=4 bt=11 br=4 bb=2
+   minw=200 minh=80 maxw=200 maxh=80 gzzw=192 gzzh=67
+   flags=0x08000000 idcmp=0x00000000 title="NoTop" stitle dpen=0 bpen=1
+   rport rpfont=8 noborderrp layer box=20,11,200x80 lflags=0x0002
+-- wb autoadjust
+window box=440,136,200x120 bl=4 bt=2 br=4 bb=2
+   minw=200 minh=120 maxw=200 maxh=120 gzzw=192 gzzh=116
+   flags=0x08000000 idcmp=0x00000000 title=NULL stitle dpen=0 bpen=1
+   rport rpfont=8 noborderrp layer box=440,136,200x120 lflags=0x0002
+-- wb too big autoadjust
+window box=0,0,640x256 bl=4 bt=2 br=4 bb=2
+   minw=640 minh=256 maxw=640 maxh=256 gzzw=632 gzzh=252
+   flags=0x08000000 idcmp=0x00000000 title=NULL stitle dpen=0 bpen=1
+   rport rpfont=8 noborderrp layer box=0,0,640x256 lflags=0x0002
+-- wb idcmp simple refresh
+window box=20,30,200x80 bl=4 bt=2 br=4 bb=2
+   minw=200 minh=80 maxw=200 maxh=80 gzzw=192 gzzh=76
+   flags=0x08030240 idcmp=0x00000600 title=NULL stitle dpen=0 bpen=1
+   rport rpfont=8 noborderrp layer box=20,30,200x80 lflags=0x0001
+-- wb screen title pens
+window box=20,30,200x80 bl=4 bt=11 br=4 bb=2
+   minw=200 minh=80 maxw=200 maxh=80 gzzw=192 gzzh=67
+   flags=0x08000002 idcmp=0x00000000 title=NULL stitle dpen=2 bpen=3
+   rport rpfont=8 noborderrp layer box=20,30,200x80 lflags=0x0002
+gad0 id=0 type=0x8025 flags=0x8024 act=0x8000 box=0,0,0x10 norender noselect notext nospecial mx=big
+ext more=0x00000002
+-- wb newlookmenus
+window box=20,30,200x80 bl=4 bt=11 br=4 bb=2
+   minw=200 minh=80 maxw=200 maxh=80 gzzw=192 gzzh=67
+   flags=0x08200002 idcmp=0x00000000 title=NULL stitle dpen=0 bpen=1
+   rport rpfont=8 noborderrp layer box=20,30,200x80 lflags=0x0002
+gad0 id=0 type=0x8025 flags=0x8024 act=0x8000 box=0,0,0x10 norender noselect notext nospecial mx=big
+ext more=0x00000002
+-- NewWindow plain
+window box=10,20,150x60 bl=4 bt=2 br=4 bb=2
+   minw=150 minh=60 maxw=150 maxh=60 gzzw=142 gzzh=56
+   flags=0x08000000 idcmp=0x00000000 title=NULL stitle dpen=0 bpen=1
+   rport rpfont=8 noborderrp layer box=10,20,150x60 lflags=0x0002
+-- NewWindow all, limits 0
+window box=10,20,150x60 bl=4 bt=11 br=18 bb=2
+   minw=150 minh=60 maxw=150 maxh=60 gzzw=128 gzzh=47
+   flags=0x2800000f idcmp=0x00000000 title="NW" stitle dpen=0 bpen=1
+   rport rpfont=8 noborderrp layer box=10,20,150x60 lflags=0x0002
+gad0 id=0 type=0x8045 flags=0x8014 act=0x8001 box=-22,0,24x11 render noselect notext nospecial mx=big
+ext more=0x00000002
+gad1 id=0 type=0x8065 flags=0x8014 act=0x8001 box=-45,0,24x11 render noselect notext nospecial mx=big
+ext more=0x00000002
+gad2 id=0 type=0x8015 flags=0x801c act=0x8001 box=-17,-9,18x10 render noselect notext nospecial mx=big
+ext more=0x00000002
+gad3 id=0 type=0x8085 flags=0x8004 act=0x8001 box=0,0,20x11 render noselect notext nospecial mx=big
+ext more=0x00000002
+gad4 id=0 type=0x8025 flags=0x8024 act=0x8000 box=0,0,0x10 norender noselect notext nospecial mx=big
+ext more=0x00000002
+-- NewWindow limits
+window box=10,20,150x60 bl=4 bt=11 br=18 bb=2
+   minw=20 minh=20 maxw=400 maxh=200 gzzw=128 gzzh=47
+   flags=0x2802300f idcmp=0x00000200 title="NW" stitle dpen=0 bpen=1
+   rport rpfont=8 noborderrp layer box=10,20,150x60 lflags=0x0002
+gad0 id=0 type=0x8045 flags=0x8014 act=0x8001 box=-22,0,24x11 render noselect notext nospecial mx=big
+ext more=0x00000002
+gad1 id=0 type=0x8065 flags=0x8014 act=0x8001 box=-45,0,24x11 render noselect notext nospecial mx=big
+ext more=0x00000002
+gad2 id=0 type=0x8015 flags=0x801c act=0x8001 box=-17,-9,18x10 render noselect notext nospecial mx=big
+ext more=0x00000002
+gad3 id=0 type=0x8085 flags=0x8004 act=0x8001 box=0,0,20x11 render noselect notext nospecial mx=big
+ext more=0x00000002
+gad4 id=0 type=0x8025 flags=0x8024 act=0x8000 box=0,0,0x10 norender noselect notext nospecial mx=big
+ext more=0x00000002
+-- NewWindow size bbottom no title
+window box=10,20,150x60 bl=4 bt=2 br=4 bb=10
+   minw=20 minh=20 maxw=400 maxh=200 gzzw=142 gzzh=48
+   flags=0x08000021 idcmp=0x00000200 title=NULL stitle dpen=0 bpen=1
+   rport rpfont=8 noborderrp layer box=10,20,150x60 lflags=0x0002
+gad0 id=0 type=0x8015 flags=0x801c act=0x8001 box=-17,-9,18x10 render noselect notext nospecial mx=big
+ext more=0x00000002
+cs WBorTop = 2
+cs BarHeight = 10
+cs font ysize = 8
+-- custom plain
+window box=20,30,200x80 bl=4 bt=2 br=4 bb=2
+   minw=200 minh=80 maxw=200 maxh=80 gzzw=192 gzzh=76
+   flags=0x08000000 idcmp=0x00000000 title=NULL stitle dpen=0 bpen=1
+   rport rpfont=8 noborderrp layer box=20,30,200x80 lflags=0x0002
+-- custom title
+window box=20,30,200x80 bl=4 bt=11 br=4 bb=2
+   minw=200 minh=80 maxw=200 maxh=80 gzzw=192 gzzh=67
+   flags=0x08000000 idcmp=0x00000000 title="Probe" stitle dpen=0 bpen=1
+   rport rpfont=8 noborderrp layer box=20,30,200x80 lflags=0x0002
+-- custom close
+window box=20,30,200x80 bl=4 bt=11 br=4 bb=2
+   minw=200 minh=80 maxw=200 maxh=80 gzzw=192 gzzh=67
+   flags=0x08000008 idcmp=0x00000000 title=NULL stitle dpen=0 bpen=1
+   rport rpfont=8 noborderrp layer box=20,30,200x80 lflags=0x0002
+gad0 id=0 type=0x8085 flags=0x8004 act=0x8001 box=0,0,20x11 render noselect notext nospecial mx=big
+ext more=0x00000002
+-- custom depth
+window box=20,30,200x80 bl=4 bt=11 br=4 bb=2
+   minw=200 minh=80 maxw=200 maxh=80 gzzw=192 gzzh=67
+   flags=0x08000004 idcmp=0x00000000 title=NULL stitle dpen=0 bpen=1
+   rport rpfont=8 noborderrp layer box=20,30,200x80 lflags=0x0002
+gad0 id=0 type=0x8045 flags=0x8014 act=0x8001 box=-22,0,24x11 render noselect notext nospecial mx=big
+ext more=0x00000002
+-- custom drag
+window box=20,30,200x80 bl=4 bt=11 br=4 bb=2
+   minw=200 minh=80 maxw=200 maxh=80 gzzw=192 gzzh=67
+   flags=0x08000002 idcmp=0x00000000 title=NULL stitle dpen=0 bpen=1
+   rport rpfont=8 noborderrp layer box=20,30,200x80 lflags=0x0002
+gad0 id=0 type=0x8025 flags=0x8024 act=0x8000 box=0,0,0x10 norender noselect notext nospecial mx=big
+ext more=0x00000002
+-- custom size
+window box=20,30,200x80 bl=4 bt=2 br=18 bb=2
+   minw=200 minh=80 maxw=200 maxh=80 gzzw=178 gzzh=76
+   flags=0x08000001 idcmp=0x00000000 title=NULL stitle dpen=0 bpen=1
+   rport rpfont=8 noborderrp layer box=20,30,200x80 lflags=0x0002
+gad0 id=0 type=0x8015 flags=0x801c act=0x8001 box=-17,-9,18x10 render noselect notext nospecial mx=big
+ext more=0x00000002
+-- custom size bright
+window box=20,30,200x80 bl=4 bt=2 br=18 bb=2
+   minw=200 minh=80 maxw=200 maxh=80 gzzw=178 gzzh=76
+   flags=0x08000011 idcmp=0x00000000 title=NULL stitle dpen=0 bpen=1
+   rport rpfont=8 noborderrp layer box=20,30,200x80 lflags=0x0002
+gad0 id=0 type=0x8015 flags=0x801c act=0x8001 box=-17,-9,18x10 render noselect notext nospecial mx=big
+ext more=0x00000002
+-- custom size bbottom
+window box=20,30,200x80 bl=4 bt=2 br=4 bb=10
+   minw=200 minh=80 maxw=200 maxh=80 gzzw=192 gzzh=68
+   flags=0x08000021 idcmp=0x00000000 title=NULL stitle dpen=0 bpen=1
+   rport rpfont=8 noborderrp layer box=20,30,200x80 lflags=0x0002
+gad0 id=0 type=0x8015 flags=0x801c act=0x8001 box=-17,-9,18x10 render noselect notext nospecial mx=big
+ext more=0x00000002
+-- custom all
+window box=20,30,200x80 bl=4 bt=11 br=18 bb=2
+   minw=200 minh=80 maxw=200 maxh=80 gzzw=178 gzzh=67
+   flags=0x2800300f idcmp=0x00000000 title="All" stitle dpen=0 bpen=1
+   rport rpfont=8 noborderrp layer box=20,30,200x80 lflags=0x0002
+gad0 id=0 type=0x8045 flags=0x8014 act=0x8001 box=-22,0,24x11 render noselect notext nospecial mx=big
+ext more=0x00000002
+gad1 id=0 type=0x8065 flags=0x8014 act=0x8001 box=-45,0,24x11 render noselect notext nospecial mx=big
+ext more=0x00000002
+gad2 id=0 type=0x8015 flags=0x801c act=0x8001 box=-17,-9,18x10 render noselect notext nospecial mx=big
+ext more=0x00000002
+gad3 id=0 type=0x8085 flags=0x8004 act=0x8001 box=0,0,20x11 render noselect notext nospecial mx=big
+ext more=0x00000002
+gad4 id=0 type=0x8025 flags=0x8024 act=0x8000 box=0,0,0x10 norender noselect notext nospecial mx=big
+ext more=0x00000002
+-- custom all zoom
+window box=20,30,200x80 bl=4 bt=11 br=18 bb=2
+   minw=200 minh=80 maxw=200 maxh=80 gzzw=178 gzzh=67
+   flags=0x2800000f idcmp=0x00000000 title="Zoom" stitle dpen=0 bpen=1
+   rport rpfont=8 noborderrp layer box=20,30,200x80 lflags=0x0002
+gad0 id=0 type=0x8045 flags=0x8014 act=0x8001 box=-22,0,24x11 render noselect notext nospecial mx=big
+ext more=0x00000002
+gad1 id=0 type=0x8065 flags=0x8014 act=0x8001 box=-45,0,24x11 render noselect notext nospecial mx=big
+ext more=0x00000002
+gad2 id=0 type=0x8015 flags=0x801c act=0x8001 box=-17,-9,18x10 render noselect notext nospecial mx=big
+ext more=0x00000002
+gad3 id=0 type=0x8085 flags=0x8004 act=0x8001 box=0,0,20x11 render noselect notext nospecial mx=big
+ext more=0x00000002
+gad4 id=0 type=0x8025 flags=0x8024 act=0x8000 box=0,0,0x10 norender noselect notext nospecial mx=big
+ext more=0x00000002
+-- custom gzz
+window box=20,30,200x80 bl=4 bt=11 br=18 bb=2
+   minw=200 minh=80 maxw=200 maxh=80 gzzw=178 gzzh=67
+   flags=0x08000409 idcmp=0x00000000 title="GZZ" stitle dpen=0 bpen=1
+   rport rpfont=8 borderrp layer box=24,41,178x67 lflags=0x0002
+gad0 id=0 type=0xa015 flags=0x801c act=0x8001 box=-17,-9,18x10 render noselect notext nospecial mx=big
+ext more=0x00000002
+gad1 id=0 type=0xa085 flags=0x8004 act=0x8001 box=0,0,20x11 render noselect notext nospecial mx=big
+ext more=0x00000002
+-- custom borderless
+window box=20,30,200x80 bl=0 bt=0 br=0 bb=0
+   minw=200 minh=80 maxw=200 maxh=80 gzzw=200 gzzh=80
+   flags=0x08000800 idcmp=0x00000000 title=NULL stitle dpen=0 bpen=1
+   rport rpfont=8 noborderrp layer box=20,30,200x80 lflags=0x0002
+-- custom borderless title
+window box=20,30,200x80 bl=0 bt=9 br=0 bb=0
+   minw=200 minh=80 maxw=200 maxh=80 gzzw=200 gzzh=71
+   flags=0x08000802 idcmp=0x00000000 title="B" stitle dpen=0 bpen=1
+   rport rpfont=8 noborderrp layer box=20,30,200x80 lflags=0x0002
+gad0 id=0 type=0x8025 flags=0x8024 act=0x8000 box=0,0,0x8 norender noselect notext nospecial mx=big
+ext more=0x00000002
+-- custom backdrop
+window box=0,0,640x256 bl=0 bt=0 br=0 bb=0
+   minw=640 minh=256 maxw=640 maxh=256 gzzw=640 gzzh=256
+   flags=0x08000900 idcmp=0x00000000 title=NULL stitle dpen=0 bpen=1
+   rport rpfont=8 noborderrp layer box=0,0,640x256 lflags=0x0042
+-- custom inner size
+window box=20,30,122x63 bl=4 bt=11 br=18 bb=2
+   minw=122 minh=63 maxw=122 maxh=63 gzzw=100 gzzh=50
+   flags=0x08000009 idcmp=0x00000000 title="Inner" stitle dpen=0 bpen=1
+   rport rpfont=8 noborderrp layer box=20,30,122x63 lflags=0x0002
+gad0 id=0 type=0x8015 flags=0x801c act=0x8001 box=-17,-9,18x10 render noselect notext nospecial mx=big
+ext more=0x00000002
+gad1 id=0 type=0x8085 flags=0x8004 act=0x8001 box=0,0,20x11 render noselect notext nospecial mx=big
+ext more=0x00000002
+-- custom limits
+window box=20,30,200x80 bl=4 bt=2 br=18 bb=2
+   minw=50 minh=30 maxw=65535 maxh=150 gzzw=178 gzzh=76
+   flags=0x08000001 idcmp=0x00000000 title=NULL stitle dpen=0 bpen=1
+   rport rpfont=8 noborderrp layer box=20,30,200x80 lflags=0x0002
+gad0 id=0 type=0x8015 flags=0x801c act=0x8001 box=-17,-9,18x10 render noselect notext nospecial mx=big
+ext more=0x00000002
+-- custom limits clamp
+window box=20,30,200x80 bl=4 bt=2 br=18 bb=2
+   minw=200 minh=5 maxw=200 maxh=80 gzzw=178 gzzh=76
+   flags=0x08000001 idcmp=0x00000000 title=NULL stitle dpen=0 bpen=1
+   rport rpfont=8 noborderrp layer box=20,30,200x80 lflags=0x0002
+gad0 id=0 type=0x8015 flags=0x801c act=0x8001 box=-17,-9,18x10 render noselect notext nospecial mx=big
+ext more=0x00000002
+-- custom defaults
+window box=0,0,640x256 bl=4 bt=2 br=4 bb=2
+   minw=640 minh=256 maxw=640 maxh=256 gzzw=632 gzzh=252
+   flags=0x08000000 idcmp=0x00000000 title=NULL stitle dpen=0 bpen=1
+   rport rpfont=8 noborderrp layer box=0,0,640x256 lflags=0x0002
+-- custom no top
+window box=20,11,200x80 bl=4 bt=11 br=4 bb=2
+   minw=200 minh=80 maxw=200 maxh=80 gzzw=192 gzzh=67
+   flags=0x08000000 idcmp=0x00000000 title="NoTop" stitle dpen=0 bpen=1
+   rport rpfont=8 noborderrp layer box=20,11,200x80 lflags=0x0002
+-- custom autoadjust
+window box=440,136,200x120 bl=4 bt=2 br=4 bb=2
+   minw=200 minh=120 maxw=200 maxh=120 gzzw=192 gzzh=116
+   flags=0x08000000 idcmp=0x00000000 title=NULL stitle dpen=0 bpen=1
+   rport rpfont=8 noborderrp layer box=440,136,200x120 lflags=0x0002
+-- custom too big autoadjust
+window box=0,0,640x256 bl=4 bt=2 br=4 bb=2
+   minw=640 minh=256 maxw=640 maxh=256 gzzw=632 gzzh=252
+   flags=0x08000000 idcmp=0x00000000 title=NULL stitle dpen=0 bpen=1
+   rport rpfont=8 noborderrp layer box=0,0,640x256 lflags=0x0002
+-- custom idcmp simple refresh
+window box=20,30,200x80 bl=4 bt=2 br=4 bb=2
+   minw=200 minh=80 maxw=200 maxh=80 gzzw=192 gzzh=76
+   flags=0x08030240 idcmp=0x00000600 title=NULL stitle dpen=0 bpen=1
+   rport rpfont=8 noborderrp layer box=20,30,200x80 lflags=0x0001
+-- custom screen title pens
+window box=20,30,200x80 bl=4 bt=11 br=4 bb=2
+   minw=200 minh=80 maxw=200 maxh=80 gzzw=192 gzzh=67
+   flags=0x08000002 idcmp=0x00000000 title=NULL stitle dpen=2 bpen=3
+   rport rpfont=8 noborderrp layer box=20,30,200x80 lflags=0x0002
+gad0 id=0 type=0x8025 flags=0x8024 act=0x8000 box=0,0,0x10 norender noselect notext nospecial mx=big
+ext more=0x00000002
+-- custom newlookmenus
+window box=20,30,200x80 bl=4 bt=11 br=4 bb=2
+   minw=200 minh=80 maxw=200 maxh=80 gzzw=192 gzzh=67
+   flags=0x08200002 idcmp=0x00000000 title=NULL stitle dpen=0 bpen=1
+   rport rpfont=8 noborderrp layer box=20,30,200x80 lflags=0x0002
+gad0 id=0 type=0x8025 flags=0x8024 act=0x8000 box=0,0,0x10 norender noselect notext nospecial mx=big
+ext more=0x00000002
+-- custom customscreen
+window box=0,0,100x50 bl=4 bt=11 br=4 bb=2
+   minw=100 minh=50 maxw=100 maxh=50 gzzw=92 gzzh=37
+   flags=0x00000008 idcmp=0x00000000 title="C" stitle dpen=0 bpen=1
+   rport rpfont=8 noborderrp layer box=0,0,100x50 lflags=0x0002
+gad0 id=0 type=0x8085 flags=0x8004 act=0x8001 box=0,0,20x11 render noselect notext nospecial mx=big
+ext more=0x00000002
