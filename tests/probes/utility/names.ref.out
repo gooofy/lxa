@@ -43,6 +43,17 @@ freed alpha = 1
 freed beta = 1
 freed Alpha = 1
 freed gamma = 1
+-- RemNamedObject while in use
+add inuse = TRUE
+found twice = TRUE
+AttemptRem while used twice = 0
+replied after Rem = NULL
+Find after Rem = NULL
+space after Rem =
+NamedObjectName after Rem = "inuse"
+replied after first release = NULL
+replied after second release = non-NULL
+reply ln_Name == object = TRUE
 -- GetUniqueID
 GetUniqueID delta = 1
 GetUniqueID nonzero = TRUE
