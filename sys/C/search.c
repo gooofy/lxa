@@ -1,21 +1,21 @@
 /*
- * SEARCH command - Search for text in files
- * Step 9.3 implementation for lxa
- * 
- * Template: FROM/M/A,SEARCH/A,ALL/S,NONUM/S,QUIET/S,QUICK/S,FILE/S,PATTERN/S
- * 
- * Features:
- *   - Search for text string in one or more files
- *   - ALL: Recursive directory search
- *   - NONUM: Don't show line numbers
- *   - QUIET: Only show filenames with matches
- *   - QUICK: Stop after first match in each file
- *   - FILE: Show only filenames containing matches
- *   - PATTERN: Use AmigaDOS pattern matching for search string
- *   - Ctrl+C break handling
+ * SEARCH - find text in files
+ *
+ * Template: FROM/M,SEARCH/A,ALL/S,NONUM/S,QUIET/S,QUICK/S,FILE/S,PATTERN/S
+ *
+ * Output of AmigaOS 3.1's Search (verified on the reference, Phase 221):
+ *  - every file of a pattern or directory is announced ("   name.."),
+ *    subdirectories (ALL) as "     name (dir)", nested 5 more columns;
+ *    an explicitly named file is not announced;
+ *  - matching lines: "%6ld %s" (NONUM: the line alone);
+ *  - QUIET prints only the full names of matching files;
+ *  - FILE matches the file names instead of the contents, PATTERN takes
+ *    SEARCH as an AmigaDOS pattern; matching is case-insensitive;
+ *  - RC 0 if something was found, 5 if not, 20 for errors.
  */
 
 #include <exec/types.h>
+#include <exec/memory.h>
 #include <dos/dos.h>
 #include <dos/dosextens.h>
 #include <clib/exec_protos.h>
@@ -25,389 +25,199 @@
 
 #include <string.h>
 
-#define VERSION "1.0"
+#pragma GCC diagnostic ignored "-Wpointer-sign"
 
-/* External reference to library bases */
 extern struct DosLibrary *DOSBase;
 extern struct ExecBase *SysBase;
 
-/* Command template */
-#define TEMPLATE "FROM/M/A,SEARCH/A,ALL/S,NONUM/S,QUIET/S,QUICK/S,FILE/S,PATTERN/S"
+#define TEMPLATE "FROM/M,SEARCH/A,ALL/S,NONUM/S,QUIET/S,QUICK/S,FILE/S,PATTERN/S"
 
-/* Argument array indices */
-#define ARG_FROM    0
-#define ARG_SEARCH  1
-#define ARG_ALL     2
-#define ARG_NONUM   3
-#define ARG_QUIET   4
-#define ARG_QUICK   5
-#define ARG_FILE    6
-#define ARG_PATTERN 7
-#define ARG_COUNT   8
+enum { A_FROM, A_SEARCH, A_ALL, A_NONUM, A_QUIET, A_QUICK, A_FILE, A_PATTERN, A_COUNT };
 
-/* Buffer sizes */
-#define LINE_BUFFER_SIZE 512
-#define PATH_BUFFER_SIZE 256
+#define LINE_LEN 512
 
-/* Global state */
-static BOOL g_user_break = FALSE;
-static LONG g_total_matches = 0;
-static LONG g_files_with_matches = 0;
+static LONG args[A_COUNT];
+static char pattern[LINE_LEN * 2 + 2];
+static BOOL found = FALSE, broken = FALSE;
+static LONG rc = 0;
 
-/* Helper: check for Ctrl+C break */
-static BOOL check_break(void)
+static void indent(int n)
 {
-    if (SetSignal(0L, SIGBREAKF_CTRL_C) & SIGBREAKF_CTRL_C) {
-        g_user_break = TRUE;
-        return TRUE;
-    }
-    return g_user_break;
+    while (n-- > 0)
+        PutStr((STRPTR)" ");
 }
 
-/* Helper: output a string */
-static void out_str(const char *str)
+static BOOL contains(const char *line, const char *what)
 {
-    Write(Output(), (STRPTR)str, strlen(str));
+    int n = strlen(what);
+    for (; *line; line++)
+        if (!strnicmp(line, what, n))
+            return TRUE;
+    return n == 0;
 }
 
-/* Helper: output newline */
-static void out_nl(void)
+static BOOL matches(const char *text)
 {
-    Write(Output(), (STRPTR)"\n", 1);
+    if (args[A_PATTERN])
+        return MatchPatternNoCase((STRPTR)pattern, (STRPTR)text);
+    return contains(text, (char *)args[A_SEARCH]);
 }
 
-/* Helper: output a number */
-static void out_num(LONG num)
-{
-    char buf[16];
-    char *p = buf + sizeof(buf) - 1;
-    BOOL neg = num < 0;
-    
-    *p = '\0';
-    if (neg) num = -num;
-    
-    do {
-        *--p = '0' + (num % 10);
-        num /= 10;
-    } while (num);
-    
-    if (neg) *--p = '-';
-    out_str(p);
-}
-
-/* Case-insensitive string search */
-static const char *stristr(const char *haystack, const char *needle)
-{
-    if (!*needle) return haystack;
-    
-    for (; *haystack; haystack++) {
-        const char *h = haystack;
-        const char *n = needle;
-        
-        while (*h && *n) {
-            char hc = *h;
-            char nc = *n;
-            
-            /* Convert to lowercase */
-            if (hc >= 'A' && hc <= 'Z') hc += 32;
-            if (nc >= 'A' && nc <= 'Z') nc += 32;
-            
-            if (hc != nc) break;
-            h++;
-            n++;
-        }
-        
-        if (!*n) return haystack;
-    }
-    
-    return NULL;
-}
-
-/* Read a line from file (up to maxlen-1 chars, null terminated) */
-static LONG read_line(BPTR fh, char *buf, LONG maxlen)
-{
-    LONG i = 0;
-    char c;
-    
-    while (i < maxlen - 1) {
-        if (Read(fh, &c, 1) != 1) {
-            break;
-        }
-        if (c == '\n') {
-            break;
-        }
-        buf[i++] = c;
-    }
-    
-    buf[i] = '\0';
-    return i;
-}
-
-/* Search a single file */
-static BOOL search_file(const char *filename, const char *search_str,
-                        BOOL show_nums, BOOL quiet, BOOL quick, BOOL file_only,
-                        BOOL use_pattern, STRPTR pattern_buf)
+static void search_file(const char *path, const char *name, int level, BOOL announce)
 {
     BPTR fh;
-    char line[LINE_BUFFER_SIZE];
-    LONG line_num = 0;
-    BOOL found_any = FALSE;
-    BOOL first_match = TRUE;
-    
-    fh = Open((STRPTR)filename, MODE_OLDFILE);
+    static char line[LINE_LEN];
+    LONG num = 0;
+
+    if (announce && !args[A_QUIET]) {
+        indent(3 + 5 * level);
+        Printf((STRPTR)"%s..\n", (LONG)name);
+    }
+    if (args[A_FILE]) {
+        /* names are matched for the files a pattern or directory yields */
+        if (announce && matches(name)) {
+            found = TRUE;
+            if (args[A_QUIET])
+                Printf((STRPTR)"%s\n", (LONG)path);
+        }
+        return;
+    }
+    fh = Open((STRPTR)path, MODE_OLDFILE);
     if (!fh) {
-        if (!quiet) {
-            out_str("Can't open ");
-            out_str(filename);
-            out_nl();
-        }
-        return FALSE;
+        PrintFault(IoErr(), NULL);
+        rc = RETURN_FAIL;
+        return;
     }
-    
-    while (!check_break()) {
-        LONG len = read_line(fh, line, sizeof(line));
-        if (len == 0) {
-            /* Seek() returns the previous position */
-            LONG pos = Seek(fh, 0, OFFSET_END);
-            LONG end = Seek(fh, pos, OFFSET_BEGINNING);
-            if (pos >= end) {
-                /* End of file */
-                break;
-            }
+    while (FGets(fh, (STRPTR)line, sizeof(line))) {
+        int n = strlen(line);
+        if (SetSignal(0, SIGBREAKF_CTRL_C) & SIGBREAKF_CTRL_C) {
+            broken = TRUE;
+            break;
         }
-        
-        line_num++;
-        
-        /* Check for match */
-        BOOL match = FALSE;
-        
-        if (use_pattern && pattern_buf) {
-            /* Use AmigaDOS pattern matching */
-            match = MatchPatternNoCase(pattern_buf, (STRPTR)line);
-        } else {
-            /* Simple case-insensitive substring search */
-            match = (stristr(line, search_str) != NULL);
+        num++;
+        if (n && line[n - 1] == '\n')
+            line[--n] = '\0';
+        if (!matches(line))
+            continue;
+        found = TRUE;
+        if (args[A_QUIET]) {
+            char full[512];
+            if (NameFromFH(fh, (STRPTR)full, sizeof(full)))
+                Printf((STRPTR)"%s\n", (LONG)full);
+            else
+                Printf((STRPTR)"%s\n", (LONG)path);
+            break;
         }
-        
-        if (match) {
-            found_any = TRUE;
-            g_total_matches++;
-            
-            if (file_only) {
-                /* FILE mode: just print filename once and stop */
-                out_str(filename);
-                out_nl();
-                break;
-            }
-            
-            if (quiet) {
-                /* QUIET mode: just count, don't print */
-            } else {
-                /* Normal output */
-                if (first_match) {
-                    /* Print filename header for first match */
-                    out_str(filename);
-                    out_nl();
-                    first_match = FALSE;
-                }
-                
-                if (show_nums) {
-                    out_str("    ");
-                    out_num(line_num);
-                    out_str(": ");
-                }
-                out_str(line);
-                out_nl();
-            }
-            
-            if (quick) {
-                /* QUICK mode: stop after first match */
-                break;
-            }
-        }
+        if (args[A_NONUM])
+            Printf((STRPTR)"%s\n", (LONG)line);
+        else
+            Printf((STRPTR)"%6ld %s\n", num, (LONG)line);
     }
-    
     Close(fh);
-    
-    if (found_any) {
-        g_files_with_matches++;
-    }
-    
-    return found_any;
 }
 
-/* Process a directory recursively */
-static void search_directory(const char *dirname, const char *search_str,
-                             BOOL recursive, BOOL show_nums, BOOL quiet,
-                             BOOL quick, BOOL file_only, BOOL use_pattern,
-                             STRPTR pattern_buf)
+static void search_dir(BPTR lock, const char *path, const char *pat, int level)
 {
-    BPTR lock;
-    struct FileInfoBlock *fib;
-    char path[PATH_BUFFER_SIZE];
-    
-    lock = Lock((STRPTR)dirname, SHARED_LOCK);
-    if (!lock) {
-        if (!quiet) {
-            out_str("Can't lock ");
-            out_str(dirname);
-            out_nl();
-        }
+    struct FileInfoBlock *fib = AllocDosObject(DOS_FIB, NULL);
+    char sub[512];
+
+    if (!fib)
         return;
-    }
-    
-    fib = AllocDosObject(DOS_FIB, NULL);
-    if (!fib) {
-        UnLock(lock);
-        return;
-    }
-    
     if (Examine(lock, fib)) {
-        if (fib->fib_DirEntryType > 0) {
-            /* It's a directory - enumerate contents */
-            while (ExNext(lock, fib) && !check_break()) {
-                /* Build full path */
-                LONG dlen = strlen(dirname);
-                LONG nlen = strlen((const char *)fib->fib_FileName);
-                
-                if (dlen + nlen + 2 < PATH_BUFFER_SIZE) {
-                    strcpy(path, dirname);
-                    if (dlen > 0 && dirname[dlen-1] != ':' && dirname[dlen-1] != '/') {
-                        strcat(path, "/");
+        while (!broken && !rc && ExNext(lock, fib)) {
+            if (pat && !MatchPatternNoCase((STRPTR)pat, fib->fib_FileName))
+                continue;
+            strcpy(sub, path);
+            AddPart((STRPTR)sub, fib->fib_FileName, sizeof(sub));
+            if (fib->fib_DirEntryType >= 0) {
+                if (args[A_ALL]) {
+                    BPTR sl = Lock((STRPTR)sub, SHARED_LOCK);
+                    if (!args[A_QUIET]) {
+                        indent(5 + 5 * level);
+                        Printf((STRPTR)"%s (dir)\n", (LONG)fib->fib_FileName);
                     }
-                    strcat(path, (const char *)fib->fib_FileName);
-                    
-                    if (fib->fib_DirEntryType > 0) {
-                        /* Subdirectory */
-                        if (recursive) {
-                            search_directory(path, search_str, recursive,
-                                           show_nums, quiet, quick, file_only,
-                                           use_pattern, pattern_buf);
-                        }
-                    } else {
-                        /* Regular file */
-                        search_file(path, search_str, show_nums, quiet, quick,
-                                  file_only, use_pattern, pattern_buf);
+                    if (sl) {
+                        search_dir(sl, sub, NULL, level + 1);
+                        UnLock(sl);
                     }
                 }
+                continue;
             }
-        } else {
-            /* It's a file - search it directly */
-            search_file(dirname, search_str, show_nums, quiet, quick,
-                       file_only, use_pattern, pattern_buf);
+            search_file(sub, (char *)fib->fib_FileName, level, TRUE);
         }
     }
-    
     FreeDosObject(DOS_FIB, fib);
-    UnLock(lock);
 }
 
-/* Main entry point */
-int main(int argc, char **argv)
+int main(void)
 {
-    struct RDArgs *rdargs;
-    LONG args[ARG_COUNT] = {0};
-    STRPTR *from_files;
-    STRPTR search_str;
-    BOOL recursive, show_nums, quiet, quick, file_only, use_pattern;
-    STRPTR pattern_buf = NULL;
-    int rc = RETURN_OK;
-    
-    /* Parse arguments */
-    rdargs = ReadArgs((STRPTR)TEMPLATE, args, NULL);
-    if (!rdargs) {
-        PrintFault(IoErr(), (STRPTR)"SEARCH");
+    struct RDArgs *rda;
+    STRPTR *from;
+    static STRPTR here[2] = { (STRPTR)"", NULL };
+    char pat[LINE_LEN * 2 + 2], dir[512];
+
+    memset(args, 0, sizeof(args));
+    rda = ReadArgs((STRPTR)TEMPLATE, args, NULL);
+    if (!rda) {
+        PrintFault(IoErr(), NULL);
         return RETURN_FAIL;
     }
-    
-    from_files = (STRPTR *)args[ARG_FROM];
-    search_str = (STRPTR)args[ARG_SEARCH];
-    recursive = args[ARG_ALL] != 0;
-    show_nums = args[ARG_NONUM] == 0;  /* Show numbers unless NONUM is set */
-    quiet = args[ARG_QUIET] != 0;
-    quick = args[ARG_QUICK] != 0;
-    file_only = args[ARG_FILE] != 0;
-    use_pattern = args[ARG_PATTERN] != 0;
-    
-    /* If PATTERN mode, parse the search pattern */
-    if (use_pattern) {
-        LONG pat_len = strlen((char *)search_str) * 2 + 2;
-        pattern_buf = AllocVec(pat_len, MEMF_CLEAR);
-        if (pattern_buf) {
-            if (ParsePatternNoCase(search_str, pattern_buf, pat_len) < 0) {
-                out_str("Invalid search pattern\n");
-                FreeVec(pattern_buf);
-                FreeArgs(rdargs);
-                return RETURN_ERROR;
-            }
-        } else {
-            out_str("Out of memory\n");
-            FreeArgs(rdargs);
-            return RETURN_FAIL;
-        }
+    if (args[A_PATTERN] &&
+        ParsePatternNoCase((STRPTR)args[A_SEARCH], (STRPTR)pattern, sizeof(pattern)) < 0) {
+        PrintFault(IoErr(), NULL);
+        FreeArgs(rda);
+        return RETURN_FAIL;
     }
-    
-    /* Process each file/directory argument */
-    while (*from_files && !check_break()) {
-        STRPTR path = *from_files++;
-        BPTR lock;
-        struct FileInfoBlock *fib;
-        
-        /* Check if it's a file or directory */
-        lock = Lock(path, SHARED_LOCK);
-        if (lock) {
-            fib = AllocDosObject(DOS_FIB, NULL);
-            if (fib) {
-                if (Examine(lock, fib)) {
-                    if (fib->fib_DirEntryType > 0) {
-                        /* Directory */
-                        search_directory((char *)path, (char *)search_str,
-                                       recursive, show_nums, quiet, quick,
-                                       file_only, use_pattern, pattern_buf);
-                    } else {
-                        /* Single file */
-                        search_file((char *)path, (char *)search_str,
-                                  show_nums, quiet, quick, file_only,
-                                  use_pattern, pattern_buf);
-                    }
-                }
-                FreeDosObject(DOS_FIB, fib);
+    from = args[A_FROM] ? (STRPTR *)args[A_FROM] : here;
+    for (; *from && !broken && !rc; from++) {
+        const char *name = (char *)*from;
+        if (*name && ParsePatternNoCase(FilePart((STRPTR)name), (STRPTR)pat, sizeof(pat)) == 1) {
+            int n = (char *)FilePart((STRPTR)name) - name;
+            BPTR lock;
+            strncpy(dir, name, n);
+            dir[n] = '\0';
+            lock = Lock((STRPTR)dir, SHARED_LOCK);
+            if (!lock) {
+                LONG err = IoErr();
+                PrintFault(err, NULL);
+                SetIoErr(err);
+                rc = RETURN_FAIL;
+                break;
             }
+            search_dir(lock, dir, pat, 0);
             UnLock(lock);
         } else {
-            if (!quiet) {
-                out_str("Can't find ");
-                out_str((char *)path);
-                out_nl();
+            BPTR lock = Lock((STRPTR)name, SHARED_LOCK);
+            struct FileInfoBlock *fib = AllocDosObject(DOS_FIB, NULL);
+            if (!lock || !fib || !Examine(lock, fib)) {
+                LONG err = IoErr();
+                PrintFault(err, NULL);
+                SetIoErr(err);
+                rc = RETURN_FAIL;
+                if (lock)
+                    UnLock(lock);
+                if (fib)
+                    FreeDosObject(DOS_FIB, fib);
+                break;
             }
-            rc = RETURN_WARN;
+            if (fib->fib_DirEntryType >= 0) {
+                /* a directory argument is shown like an entry */
+                if (!args[A_QUIET])
+                    Printf((STRPTR)"     %s (dir)\n", (LONG)fib->fib_FileName);
+                search_dir(lock, name, NULL, 1);
+            }
+            else
+                search_file(name, (char *)fib->fib_FileName, 0, FALSE);
+            FreeDosObject(DOS_FIB, fib);
+            UnLock(lock);
         }
     }
-    
-    /* Show summary if not quiet and not FILE mode */
-    if (!quiet && !file_only && g_total_matches > 0) {
-        out_nl();
-        out_num(g_total_matches);
-        out_str(" match");
-        if (g_total_matches != 1) out_str("es");
-        out_str(" found in ");
-        out_num(g_files_with_matches);
-        out_str(" file");
-        if (g_files_with_matches != 1) out_str("s");
-        out_str(".");
-        out_nl();
-    }
-    
-    if (check_break()) {
-        out_str("***Break\n");
+    if (broken) {
+        PutStr((STRPTR)"***Break\n");
         rc = RETURN_WARN;
     }
-    
-    /* Cleanup */
-    if (pattern_buf) {
-        FreeVec(pattern_buf);
-    }
-    FreeArgs(rdargs);
-    
+    if (!rc && !found)
+        rc = RETURN_WARN;
+    FreeArgs(rda);
     return rc;
 }

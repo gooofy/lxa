@@ -56,6 +56,7 @@
 #define EMU_CALL_DOS_NOTIFY_START  1035  /* StartNotify(notify, fullname, flags) -> success */
 #define EMU_CALL_DOS_NOTIFY_END    1036  /* EndNotify(notify) */
 #define EMU_CALL_DOS_NOTIFY_POLL   1037  /* Poll next changed notify -> notify ptr or 0 */
+#define EMU_CALL_DOS_ASSIGN_INFO   1038  /* AssignInfo(name, buf, buflen) -> type+1 (0: none); buf = paths, NUL-separated */
 
 /* Phase 10: File Handle Utilities */
 #define EMU_CALL_DOS_DUPLOCKFROMFH 1040  /* DupLockFromFH(fh) -> lock_id */

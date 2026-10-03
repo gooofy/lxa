@@ -1,0 +1,26 @@
+packet request type unknown
+rc=0 r2=0
+Attempt to lock drive RAM: failed
+rc=20 r2=209
+Attempt to lock drive RAM: failed
+rc=20 r2=209
+value after keyword missing
+rc=20 r2=117
+required argument missing
+rc=20 r2=116
+Invalid device or volume name
+rc=20 r2=0
+required argument missing
+rc=20 r2=116
+rc=0 r2=0
+'nosuch' - object not found
+rc=20 r2=205
+rc=20 r2=0
+object not found
+rc=20 r2=205
+rc=0 r2=0
+ERROR: can't load requested keymap
+rc=20 r2=205
+rc=0 r2=0
+rc=20 r2=0
+done

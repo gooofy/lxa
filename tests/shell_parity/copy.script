@@ -1,0 +1,91 @@
+; Copy, Join, Sort, Search options (Phase 221)
+FailAt 21
+Delete work-copy ALL QUIET >NIL:
+MakeDir work-copy
+CD work-copy
+Echo "one" >f1
+MakeDir d1
+MakeDir d1/d2
+Echo "deep" >d1/d2/f3
+MakeDir dst
+Copy f1 dst
+Type dst/f1
+Copy f1 TO dst/renamed
+Type dst/renamed
+Copy f1 dst2
+Echo "rc=$RC r2=$Result2"
+Type dst2
+Copy f1 newdir/
+Echo "rc=$RC r2=$Result2"
+Copy d1 dst3
+Echo "rc=$RC"
+Copy d1 dst4 ALL
+Echo "rc=$RC"
+Type dst4/d2/f3
+Copy d1 dst5 ALL QUIET
+Echo "rc=$RC"
+Copy f1 nosuchdir/x
+Echo "rc=$RC r2=$Result2"
+Copy nosuch x
+Echo "rc=$RC r2=$Result2"
+Copy f#? dst6
+Echo "rc=$RC"
+Filenote f1 "note"
+Protect f1 +s
+SetDate f1 02-Feb-22 10:11:12
+Copy f1 TO plain
+List plain NODATES
+Copy f1 TO cloned CLONE
+List cloned
+Copy f1 TO dated DATES
+List dated
+Copy f1 TO commented COM
+List commented NODATES
+Copy f1 TO nopro NOPRO
+List nopro NODATES
+Echo "two" >f2
+Join f1 f2 TO j1
+Type j1
+Join f1 nosuch TO j2
+Echo "join rc=$RC r2=$Result2"
+Type j2
+Join f1 f2 j3
+Echo "join rc=$RC r2=$Result2"
+Join f1 AS j4
+Type j4
+Echo "zebra" >s1
+Echo "Apple" >>s1
+Echo "mango" >>s1
+Echo "10" >>s1
+Echo "9" >>s1
+Sort s1 TO s2
+Type s2
+Sort s1 TO s3 CASE
+Type s3
+Echo "30" >n1
+Echo "4" >>n1
+Echo "100" >>n1
+Echo "-2" >>n1
+Sort n1 TO n2 NUMERIC
+Type n2
+Echo "x3 b" >c1
+Echo "y1 c" >>c1
+Echo "z2 a" >>c1
+Sort c1 c2 COLSTART 4
+Type c2
+Sort nosuch TO s6
+Echo "sort rc=$RC r2=$Result2"
+Search f1 ONE
+Echo "rc=$RC"
+Search f1 o NONUM
+Search f1 xyz
+Echo "rc=$RC"
+Search d1 deep ALL
+Echo "rc=$RC"
+Search f1 "o?e" PATTERN
+Search f1 f1 FILE QUIET
+Search nosuch x
+Echo "rc=$RC r2=$Result2"
+CD /
+Delete work-copy ALL QUIET
+Echo "done"

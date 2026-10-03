@@ -1,0 +1,70 @@
+; Path, Assign, CD, Which, Resident, Stack (Phase 221)
+FailAt 21
+Path RESET
+Path
+Path SYS:Tests ADD
+Path
+Path SYS:Tests/ShellParity
+Path
+Path SYS:Tests REMOVE
+Path
+Path SYS:nonexistent ADD
+Echo "path rc=$RC r2=$Result2"
+Path RESET
+Which List
+Which Echo
+Which If
+Which nosuchcmd
+Echo "which rc=$RC r2=$Result2"
+Which List ALL
+Which Run.script
+Assign PTEST: SYS:Tests
+Assign PTEST: EXISTS
+Echo "rc=$RC"
+Assign NOPE: EXISTS
+Echo "rc=$RC r2=$Result2"
+Assign PTEST: SYS:Tests/ShellParity ADD
+Assign PTEST: EXISTS
+Assign PTEST: SYS:Tests REMOVE
+Assign PTEST: EXISTS
+Assign PTEST:
+Assign PTEST: EXISTS
+Echo "rc=$RC"
+Assign DTEST: SYS:Tests DEFER
+Assign DTEST: EXISTS
+Assign PPTEST: SYS:Tests PATH
+Assign PPTEST: EXISTS
+Assign DTEST:
+Assign PPTEST:
+Assign NOPE: SYS:nonexistent
+Echo "assign rc=$RC r2=$Result2"
+Assign NOPE
+Echo "assign rc=$RC r2=$Result2"
+CD SYS:Tests
+CD
+CD ShellParity
+CD /
+CD
+CD nosuchdir
+Echo "cd rc=$RC r2=$Result2"
+CD SYS:Tests/ShellParity/Run
+Echo "cd rc=$RC r2=$Result2"
+CD SYS:Tests/ShellParity
+Stack 8000
+Stack
+Stack 100
+Echo "stack rc=$RC"
+Stack
+Resident Wait C:Wait PURE
+Echo "resident rc=$RC"
+Resident Wait C:Wait PURE
+Echo "resident rc=$RC"
+Which Wait
+Wait 0
+Resident Wait REMOVE
+Echo "resident rc=$RC"
+Resident Wait REMOVE
+Echo "resident rc=$RC"
+Resident nosuch
+Echo "resident rc=$RC r2=$Result2"
+Echo "done"

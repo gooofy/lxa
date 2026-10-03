@@ -85,6 +85,11 @@ add_disk_library(amigaguide_disklib amigaguide.library
 # Real binaries are installed to share/lxa/System/Libs/ from others/.
 # DO NOT add stub implementations here — see AGENTS.md §1 and roadmap Phase 142.
 
+add_disk_library(version_disklib version.library
+    SOURCES
+        ${CMAKE_CURRENT_SOURCE_DIR}/../src/rom/lxa_versionlib.c
+)
+
 add_disk_library(datatypes_disklib datatypes.library
     SOURCES
         ${CMAKE_CURRENT_SOURCE_DIR}/../src/rom/lxa_datatypes.c
@@ -92,44 +97,64 @@ add_disk_library(datatypes_disklib datatypes.library
 
 # === SYS:C Commands ===
 set(C_COMMANDS
-    assign
-    avail
-    break
-    changetaskpri
-    copy
-    date
-    delete
-    dir
-    eval
-    execute
-    filenote
-    getenv
-    info
-    join
-    list
-    makedir
-    makelink
-    protect
-    rename
-    requestchoice
-    resident
-    run
-    search
-    set
-    setenv
-    sort
-    stack
-    status
-    type
-    unset
-    unsetenv
-    version
-    wait
+    AddBuffers
+    Assign
+    Avail
+    Break
+    ChangeTaskPri
+    Copy
+    CPU
+    Date
+    Delete
+    Dir
+    DiskChange
+    Eval
+    Execute
+    Filenote
+    GetEnv
+    IconX
+    Info
+    Join
+    List
+    LoadResource
+    Lock
+    MakeDir
+    MakeLink
+    Protect
+    Relabel
+    Rename
+    RequestChoice
+    RequestFile
+    Resident
+    Run
+    Search
+    Set
+    SetDate
+    SetEnv
+    SetFont
+    SetKeyboard
+    SetPatch
+    Sort
+    Stack
+    Status
+    Type
+    Unset
+    UnSetEnv
+    Version
+    Wait
+    Which
 )
 
+# The commands carry their AmigaOS names (List, MakeDir, ...); the sources
+# are sys/C/<lower case name>.c.
 foreach(cmd ${C_COMMANDS})
-    set(src "${CMAKE_CURRENT_SOURCE_DIR}/C/${cmd}.c")
+    string(TOLOWER ${cmd} cmd_lower)
+    set(src "${CMAKE_CURRENT_SOURCE_DIR}/C/${cmd_lower}.c")
     set(output "${CMAKE_CURRENT_BINARY_DIR}/C/${cmd}")
+    # earlier builds named the binaries in lower case
+    if(NOT cmd STREQUAL cmd_lower AND EXISTS "${CMAKE_CURRENT_BINARY_DIR}/C/${cmd_lower}")
+        file(REMOVE "${CMAKE_CURRENT_BINARY_DIR}/C/${cmd_lower}")
+    endif()
     
     add_custom_command(
         OUTPUT ${output}
