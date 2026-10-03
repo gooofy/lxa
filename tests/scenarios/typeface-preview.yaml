@@ -1,0 +1,13 @@
+# Phase 224: the Typeface assertions of typeface_gtest (main window, Project/Preview window
+# with content) as a reference golden.
+name: typeface-preview
+app:
+  manifest: Typeface
+steps:
+  - launch
+  - wait_window: {title: "topaz/8", timeout: 30000}
+  - frames: 100
+  - snapshot: startup
+  - menu: "Project/Preview..."
+  - frames: 250
+  - snapshot: preview
