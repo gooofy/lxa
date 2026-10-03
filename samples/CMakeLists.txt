@@ -292,7 +292,9 @@ set(TESTS_LIST
     "../tests/devices/narrator|main|Tests/Devices/Narrator"
     "../tests/devices/gameport|main|Tests/Devices/Gameport"
     "../tests/devices/printer|main|Tests/Devices/Printer"
+    "../tests/devices/printer_peer|main|Tests/Devices/PrinterPeer"
     "../tests/devices/parallel|main|Tests/Devices/Parallel"
+    "../tests/devices/parallel_loopback|main|Tests/Devices/ParallelLoopback"
     "../tests/devices/ramdrive|main|Tests/Devices/Ramdrive"
     "../tests/devices/scsi|main|Tests/Devices/Scsi"
     "../tests/devices/serial|main|Tests/Devices/Serial"
@@ -303,6 +305,7 @@ set(TESTS_LIST
     "../tests/layers/scroll_layer|main|Tests/Layers/ScrollLayer"
     "../tests/layers/tag_layers|main|Tests/Layers/TagLayers"
     "../tests/layers/visibility|main|Tests/Layers/Visibility"
+    "../tests/layers/visibility_v45|main|Tests/Layers/VisibilityV45"
     "../tests/layers/smart_refresh|main|Tests/Layers/SmartRefresh"
     "../tests/shell/alias|main|Tests/Shell/Alias/Test"
     "../tests/shell/controlflow|main|Tests/Shell/ControlFlow/Test"
@@ -451,6 +454,39 @@ foreach(gallery_info ${GALLERY_LIST})
         COMMENT "Building Gallery page: ${output_name}"
     )
     list(APPEND ALL_SAMPLES ${output})
+endforeach()
+
+# === Shell parity scripts (Phase 221) ===
+# tests/shell_parity/<name>.script runs as "SYS:Tests/ShellParity/Run <name>"
+# on lxa and on real AmigaOS 3.1; expected output: <name>.ref.out.
+set(SHELL_PARITY_DIR "${CMAKE_CURRENT_BINARY_DIR}/Samples/Tests/ShellParity")
+file(MAKE_DIRECTORY "${SHELL_PARITY_DIR}")
+add_custom_command(
+    OUTPUT "${SHELL_PARITY_DIR}/Run"
+    COMMAND ${M68K_GCC_BIN} ${SAMPLES_CFLAGS} ${SAMPLES_LDFLAGS} -o "${SHELL_PARITY_DIR}/Run"
+            "${CMAKE_CURRENT_SOURCE_DIR}/../tests/shell_parity/runner.c"
+    DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/../tests/shell_parity/runner.c"
+    COMMENT "Building Test: Tests/ShellParity/Run"
+)
+list(APPEND ALL_SAMPLES "${SHELL_PARITY_DIR}/Run")
+file(GLOB SHELL_PARITY_FILES CONFIGURE_DEPENDS
+     "${CMAKE_CURRENT_SOURCE_DIR}/../tests/shell_parity/*.script"
+     "${CMAKE_CURRENT_SOURCE_DIR}/../tests/shell_parity/fixtures/*")
+foreach(f ${SHELL_PARITY_FILES})
+    get_filename_component(fname ${f} NAME)
+    get_filename_component(fdir ${f} DIRECTORY)
+    get_filename_component(fdirname ${fdir} NAME)
+    if(fdirname STREQUAL "fixtures")
+        set(dst "${SHELL_PARITY_DIR}/fixtures/${fname}")
+    else()
+        set(dst "${SHELL_PARITY_DIR}/${fname}")
+    endif()
+    add_custom_command(
+        OUTPUT ${dst}
+        COMMAND ${CMAKE_COMMAND} -E copy ${f} ${dst}
+        DEPENDS ${f}
+    )
+    list(APPEND ALL_SAMPLES ${dst})
 endforeach()
 
 # Custom target to build all samples

@@ -1,0 +1,53 @@
+Current_directory
+C:
+Current_directory
+SYS:Tests
+C:
+Current_directory
+SYS:Tests
+SYS:Tests/ShellParity
+C:
+Current_directory
+SYS:Tests/ShellParity
+C:
+SYS:nonexistent: object not found
+path rc=10 r2=205
+SYS:C/List
+INTERNAL Echo
+INTERNAL If
+which rc=5 r2=205
+SYS:C/List
+PTEST          SYS:Tests
+rc=0
+NOPE: not assigned
+rc=5 r2=0
+PTEST          SYS:Tests
+             + SYS:Tests/ShellParity
+PTEST          SYS:Tests/ShellParity
+PTEST: not assigned
+rc=5
+DTEST          <SYS:Tests>
+PPTEST         [SYS:Tests]
+Can't find SYS:nonexistent
+assign rc=20 r2=205
+Invalid device name NOPE
+assign rc=20 r2=0
+SYS:Tests
+SYS:Tests
+object not found
+cd rc=20 r2=205
+object is not of required type
+cd rc=20 r2=212
+Current stack size is 8000 bytes
+Requested size too small
+stack rc=10
+Current stack size is 8000 bytes
+resident rc=0
+resident rc=0
+RES Wait
+resident rc=0
+object not found
+resident rc=5
+object not found
+resident rc=5 r2=205
+done

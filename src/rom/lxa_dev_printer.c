@@ -56,21 +56,6 @@ struct PrinterBase
     UBYTE pb_Status[2];
 };
 
-static const UWORD printer_supported_commands[] =
-{
-    CMD_FLUSH,
-    CMD_RESET,
-    CMD_START,
-    CMD_STOP,
-    CMD_WRITE,
-    PRD_QUERY,
-    PRD_RAWWRITE,
-    PRD_PRTCOMMAND,
-    PRD_DUMPRPORT,
-    PRD_DUMPRPORTTAGS,
-    NSCMD_DEVICEQUERY,
-    0
-};
 
 static void printer_reply_request(struct IORequest *ioreq)
 {
@@ -343,7 +328,10 @@ static void __g_lxa_printer_Open(register struct Library *dev __asm("a6"),
     ioreq->io_Device = NULL;
     ioreq->io_Unit = NULL;
 
-    if (unit >= PRINTER_UNIT_COUNT || !printer_request_is_valid(ioreq))
+    /* AmigaOS 3.1 ignores the unit number and allows one opener at a time
+     * (the printer owns its port) - verified on the reference, Phase 220 */
+    (void)unit;
+    if (printerbase->pb_Device.dd_Library.lib_OpenCnt != 0)
     {
         ioreq->io_Error = IOERR_OPENFAIL;
         return;
@@ -431,37 +419,6 @@ static LONG printer_execute_request(struct PrinterBase *printerbase,
 
     switch (ioreq->io_Command)
     {
-        case NSCMD_DEVICEQUERY:
-        {
-            struct IOStdReq *io;
-            struct NSDeviceQueryResult *query;
-
-            if (!printer_request_has_iostd(ioreq))
-            {
-                return IOERR_BADLENGTH;
-            }
-
-            io = (struct IOStdReq *)ioreq;
-            query = (struct NSDeviceQueryResult *)io->io_Data;
-
-            if (!query)
-            {
-                return IOERR_BADADDRESS;
-            }
-            if (io->io_Length < sizeof(*query))
-            {
-                return IOERR_BADLENGTH;
-            }
-
-            query->nsdqr_DevQueryFormat = 0;
-            query->nsdqr_SizeAvailable = sizeof(*query);
-            query->nsdqr_DeviceType = NSDEVTYPE_PRINTER;
-            query->nsdqr_DeviceSubType = 0;
-            query->nsdqr_SupportedCommands = (APTR)printer_supported_commands;
-            io->io_Actual = sizeof(*query);
-            return 0;
-        }
-
         case CMD_FLUSH:
             printerbase->pb_BufferCount = 0;
             printer_abort_all_pending(printerbase, IOERR_ABORTED);
@@ -604,19 +561,9 @@ static LONG printer_execute_request(struct PrinterBase *printerbase,
             }
 
             io = (struct IODRPReq *)ioreq;
-            if (io->io_Special & SPECIAL_NOPRINT)
-            {
-                if (io->io_DestCols <= 0)
-                {
-                    io->io_DestCols = io->io_SrcWidth;
-                }
-                if (io->io_DestRows <= 0)
-                {
-                    io->io_DestRows = io->io_SrcHeight;
-                }
-                return 0;
-            }
-
+            /* the printer driver (Generic) has no graphics: AmigaOS 3.1
+             * answers PDERR_NOTGRAPHICS, even for SPECIAL_NOPRINT */
+            (void)io;
             return PDERR_NOTGRAPHICS;
         }
 
@@ -642,19 +589,9 @@ static LONG printer_execute_request(struct PrinterBase *printerbase,
             }
 
             io = (struct IODRPTagsReq *)ioreq;
-            if (io->io_Special & SPECIAL_NOPRINT)
-            {
-                if (io->io_DestCols <= 0)
-                {
-                    io->io_DestCols = io->io_SrcWidth;
-                }
-                if (io->io_DestRows <= 0)
-                {
-                    io->io_DestRows = io->io_SrcHeight;
-                }
-                return 0;
-            }
-
+            /* the printer driver (Generic) has no graphics: AmigaOS 3.1
+             * answers PDERR_NOTGRAPHICS, even for SPECIAL_NOPRINT */
+            (void)io;
             return PDERR_NOTGRAPHICS;
         }
 
@@ -671,11 +608,7 @@ static BPTR __g_lxa_printer_BeginIO(register struct Library *dev __asm("a6"),
 
     ioreq->io_Message.mn_Node.ln_Type = NT_MESSAGE;
     ioreq->io_Error = 0;
-    if (printer_request_has_iostd(ioreq))
-    {
-        ((struct IOStdReq *)ioreq)->io_Actual = 0;
-    }
-
+    /* only the write commands set io_Actual (AmigaOS 3.1) */
     result = printer_execute_request(printerbase, ioreq, TRUE);
     if (result == 1)
     {

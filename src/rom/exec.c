@@ -2024,26 +2024,39 @@ APTR _exec_AddTask ( register struct ExecBase *SysBase __asm("a6"),
     return task;
 }
 
-void _defaultTaskExit (void)
+/*
+ * A task or process whose initial code returns lands here (the return
+ * address on its initial stack).  A process ends through dos Exit() with
+ * the code it returned in d0 - its return code (NP_ExitCode, System()
+ * see it, as on AmigaOS); a task through RemTask().
+ */
+void _defaultTaskExit (void);
+void _defaultTaskExitRC (LONG rc);
+
+asm(
+"        .text                                                                              \n"
+"        .even                                                                              \n"
+"__defaultTaskExit:                                                                         \n"
+"        move.l     d0, -(sp)                       | the task's return code                \n"
+"        jsr        __defaultTaskExitRC                                                     \n"
+"        addq.l     #4, sp                                                                  \n"
+"        rts                                                                                \n"
+);
+
+void _defaultTaskExitRC (LONG rc)
 {
     DPUTS (LOG_DEBUG, "_exec: _defaultTaskExit() called\n");
 
-    /*
-     * Check if this is a Process (which needs to go through dos.library's Exit()
-     * to properly clean up CLI resources and TaskArray entries).
-     * If tc_Node.ln_Type == NT_PROCESS, call Exit(0) instead of RemTask(NULL).
-     */
     struct Task *me = FindTask(NULL);
     if (me->tc_Node.ln_Type == NT_PROCESS)
     {
-        DPUTS(LOG_DEBUG, "_exec: _defaultTaskExit() -> calling Exit(0) for process\n");
-        /* Call Exit(0) via DOS library */
+        DPUTS(LOG_DEBUG, "_exec: _defaultTaskExit() -> calling Exit(rc) for process\n");
         asm(
             "    move.l  %0, a6     \n" // DOSBase -> a6
-            "    moveq   #0, d1     \n" // returnCode = 0
-            "    jsr    -144(a6)    \n" // Exit(0) - offset -144
+            "    move.l  %1, d1     \n" // returnCode
+            "    jsr    -144(a6)    \n" // Exit() - offset -144
             : /* no outputs */
-            : "r" (DOSBase)
+            : "a" (DOSBase), "d" (rc)
             : "cc", "d0", "d1", "a0", "a1", "a6"
         );
     }
@@ -3234,16 +3247,22 @@ void _exec_CloseDevice ( register struct ExecBase  *SysBase   __asm("a6"),
 
     Forbid();
 
-    if (ioRequest->io_Device)
+    /* tolerate a second CloseDevice() of a request a device set to -1 */
+    if (ioRequest->io_Device && ioRequest->io_Device != (struct Device *)-1)
     {
-        struct JumpVec *jv = &(((struct JumpVec *)(ioRequest->io_Device))[-2]);
+        struct Device *device = ioRequest->io_Device;
+        struct JumpVec *jv = &(((struct JumpVec *)(device))[-2]);
         devCloseFn_t closefn = jv->vec;
 
-        closefn (&ioRequest->io_Device->dd_Library, ioRequest);
+        closefn (&device->dd_Library, ioRequest);
 
         // FIXME: expunge
 
-        ioRequest->io_Device = NULL;
+        /* Most devices clear io_Device on Close(); some (timer.device,
+         * trackdisk.device, audio.device on AmigaOS 3.1) set it to -1
+         * themselves - keep whatever the device stored. */
+        if (ioRequest->io_Device == device)
+            ioRequest->io_Device = NULL;
     }
 
     Permit();
@@ -5875,7 +5894,9 @@ void coldstart (void)
     g_ResidentModules[35] = NULL;
 
     SysBase->ResModules = g_ResidentModules;
-    SysBase->SoftVer = VERSION;
+    /* Kickstart 3.1 is 40.70: exec 40 with SoftVer 70 (C:Version shows
+     * "Kickstart 40.70", reference-verified, Phase 221) */
+    SysBase->SoftVer = 70;
     /* NDK execbase.h: ChkBase holds the complement of SysBase; debuggers,
      * reset-proof code and validity checks rely on it */
     SysBase->ChkBase = ~(ULONG)SysBase;

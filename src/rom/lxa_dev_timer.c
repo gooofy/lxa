@@ -458,31 +458,6 @@ static struct Library * __g_lxa_timer_InitDev  ( register struct Library    *dev
     return dev;
 }
 
-static BPTR timer_expunge_if_possible(struct TimerBase *timerbase)
-{
-    if (FindName(&SysBase->DeviceList,
-                 (CONST_STRPTR)timerbase->tb_Device.dd_Library.lib_Node.ln_Name) ==
-        &timerbase->tb_Device.dd_Library.lib_Node)
-    {
-        Remove(&timerbase->tb_Device.dd_Library.lib_Node);
-        DPRINTF(LOG_DEBUG, "_timer: Expunge() removed device from DeviceList\n");
-    }
-
-    if (timerbase->tb_Device.dd_Library.lib_OpenCnt != 0)
-    {
-        timerbase->tb_Device.dd_Library.lib_Flags |= LIBF_DELEXP;
-        DPRINTF(LOG_DEBUG, "_timer: Expunge() deferred, open count=%u\n",
-                (unsigned int)timerbase->tb_Device.dd_Library.lib_OpenCnt);
-        return 0;
-    }
-
-    timerbase->tb_Device.dd_Library.lib_Flags &= ~LIBF_DELEXP;
-
-    DPRINTF(LOG_DEBUG, "_timer: Expunge() finalizing removal\n");
-
-    return timerbase->tb_SegList;
-}
-
 /*
  * Device Open
  */
@@ -541,18 +516,14 @@ static BPTR __g_lxa_timer_Close( register struct Library   *dev   __asm("a6"),
     
     if (timer_unit) {
         FreeMem(timer_unit, sizeof(struct TimerUnit));
-        ioreq->io_Unit = NULL;
     }
+    /* AmigaOS 3.1 timer.device invalidates the request with -1 */
+    ioreq->io_Unit = (struct Unit *)-1;
+    ioreq->io_Device = (struct Device *)-1;
 
     if (timerbase->tb_Device.dd_Library.lib_OpenCnt > 0)
     {
         timerbase->tb_Device.dd_Library.lib_OpenCnt--;
-    }
-
-    if (timerbase->tb_Device.dd_Library.lib_OpenCnt == 0 &&
-        (timerbase->tb_Device.dd_Library.lib_Flags & LIBF_DELEXP))
-    {
-        return timer_expunge_if_possible(timerbase);
     }
 
     return 0;
@@ -563,8 +534,11 @@ static BPTR __g_lxa_timer_Close( register struct Library   *dev   __asm("a6"),
  */
 static BPTR __g_lxa_timer_Expunge ( register struct Library   *dev   __asm("a6"))
 {
-    DPRINTF(LOG_DEBUG, "_timer: Expunge() called\n");
-    return timer_expunge_if_possible((struct TimerBase *)dev);
+    /* timer.device is a permanent ROM device: on AmigaOS 3.1 RemDevice()
+     * leaves it in place and its flags unchanged (verified, Phase 220). */
+    (void)dev;
+    DPRINTF(LOG_DEBUG, "_timer: Expunge() called - ignored\n");
+    return 0;
 }
 
 /*
@@ -751,32 +725,11 @@ static BPTR __g_lxa_timer_BeginIO ( register struct Library   *dev   __asm("a6")
             break;
         }
         
-        case CMD_READ: {
-            /* Read elapsed time since device was opened */
-            struct timeval current_time;
-            get_current_time(timerbase, &current_time);
-            
-            tr->tr_time.tv_secs = current_time.tv_secs;
-            tr->tr_time.tv_micro = current_time.tv_micro;
-            
-            DPRINTF (LOG_DEBUG, "_timer: CMD_READ -> %lu.%06lu\n",
-                     tr->tr_time.tv_secs, tr->tr_time.tv_micro);
-            
-            ioreq->io_Error = 0;
-            break;
-        }
-        
-        case CMD_RESET:
-        case CMD_CLEAR:
-        case CMD_UPDATE:
-        case CMD_FLUSH:
-            /* These commands are no-ops for timer */
-            DPRINTF (LOG_DEBUG, "_timer: command %u (no-op)\n", command);
-            ioreq->io_Error = 0;
-            break;
-        
+        /* AmigaOS 3.1 timer.device only knows the TR_* commands; every
+         * standard exec command (CMD_READ, CMD_RESET, ...) is IOERR_NOCMD
+         * (verified on the reference, Phase 220). */
         default:
-            DPRINTF (LOG_ERROR, "_timer: BeginIO() unknown command %u\n", command);
+            DPRINTF (LOG_DEBUG, "_timer: BeginIO() unknown command %u\n", command);
             ioreq->io_Error = IOERR_NOCMD;
             break;
     }

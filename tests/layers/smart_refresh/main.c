@@ -87,6 +87,21 @@ static int count_cliprects(struct Layer *layer)
     return count;
 }
 
+/* obscured ClipRects that carry a backing-store BitMap */
+static int count_backed_cliprects(struct Layer *layer)
+{
+    int count = 0;
+    struct ClipRect *cr;
+
+    for (cr = layer ? layer->ClipRect : NULL; cr; cr = cr->Next)
+    {
+        if (cr->obscured && cr->BitMap)
+            count++;
+    }
+
+    return count;
+}
+
 static int count_obscured_cliprects(struct Layer *layer)
 {
     int count = 0;
@@ -223,11 +238,7 @@ int main(void)
         int total = count_cliprects(back_layer);
         int obscured = count_obscured_cliprects(back_layer);
 
-        print("  Back layer ClipRects: total=");
-        print_num(total);
-        print(" obscured=");
-        print_num(obscured);
-        print("\n");
+        (void)total;  /* the split into ClipRects is version specific */
 
         if (obscured > 0)
         {
@@ -476,14 +487,16 @@ int main(void)
     }
 
     {
-        int obscured = count_obscured_cliprects(back_layer);
+        /* AmigaOS 3.1 keeps ClipRects for the obscured parts of a
+         * SIMPLE_REFRESH layer, but never with a backing-store BitMap */
+        int obscured = count_backed_cliprects(back_layer);
         if (obscured == 0)
         {
-            print("OK: SIMPLE_REFRESH layer has no obscured ClipRects (no backing store)\n");
+            print("OK: SIMPLE_REFRESH layer has no backing-store ClipRects\n");
         }
         else
         {
-            print("FAIL: SIMPLE_REFRESH layer should not have obscured ClipRects, got ");
+            print("FAIL: SIMPLE_REFRESH layer should not have backing-store ClipRects, got ");
             print_num(obscured);
             print("\n");
             errors++;

@@ -19,6 +19,7 @@
 extern struct ExecBase *SysBase;
 extern struct DosLibrary *DOSBase;
 struct Library *TimerBase;
+static int g_failures = 0;
 
 #define NEWLIST(l) ((l)->lh_Head = (struct Node *)&(l)->lh_Tail, \
                     (l)->lh_Tail = NULL, \
@@ -67,6 +68,7 @@ int main(void)
     struct timeval tv_a;
     struct timeval tv_b;
     struct timeval tv_set;
+    struct timeval tv_orig;
     struct timeval tv_now;
     struct timeval tv_quick;
     struct timeval tv_lib;
@@ -84,16 +86,14 @@ int main(void)
     print("Testing timer.device\n");
     
     /* Create message port for timer replies */
-    timerPort = (struct MsgPort *)AllocMem(sizeof(struct MsgPort), MEMF_PUBLIC | MEMF_CLEAR);
+    /* a signalling port: WaitIO() on a request that completes from the
+     * timer interrupt needs the reply signal (a PA_IGNORE port hangs on
+     * AmigaOS 3.1) */
+    timerPort = CreateMsgPort();
     if (!timerPort) {
         print("FAIL: Cannot allocate message port\n");
         return 1;
     }
-    
-    timerPort->mp_Node.ln_Type = NT_MSGPORT;
-    timerPort->mp_Flags = PA_IGNORE;
-    timerPort->mp_SigTask = FindTask(NULL);
-    NEWLIST(&timerPort->mp_MsgList);
     
     print("OK: Message port created\n");
     
@@ -101,7 +101,7 @@ int main(void)
     timerReq = (struct timerequest *)AllocMem(sizeof(struct timerequest), MEMF_PUBLIC | MEMF_CLEAR);
     if (!timerReq) {
         print("FAIL: Cannot allocate IO request\n");
-        FreeMem(timerPort, sizeof(struct MsgPort));
+        DeleteMsgPort(timerPort);
         return 1;
     }
     
@@ -117,7 +117,7 @@ int main(void)
         print_num((ULONG)error);
         print("\n");
         FreeMem(timerReq, sizeof(struct timerequest));
-        FreeMem(timerPort, sizeof(struct MsgPort));
+        DeleteMsgPort(timerPort);
         return 1;
     }
     print("OK: timer.device opened\n");
@@ -128,7 +128,7 @@ int main(void)
         print("FAIL: Cannot allocate wait-until IO request\n");
         CloseDevice((struct IORequest *)timerReq);
         FreeMem(timerReq, sizeof(struct timerequest));
-        FreeMem(timerPort, sizeof(struct MsgPort));
+        DeleteMsgPort(timerPort);
         return 1;
     }
 
@@ -143,7 +143,7 @@ int main(void)
         FreeMem(waitUntilReq, sizeof(struct timerequest));
         CloseDevice((struct IORequest *)timerReq);
         FreeMem(timerReq, sizeof(struct timerequest));
-        FreeMem(timerPort, sizeof(struct MsgPort));
+        DeleteMsgPort(timerPort);
         return 1;
     }
     print("OK: wait-until unit opened\n");
@@ -160,7 +160,7 @@ int main(void)
         print("\n");
         CloseDevice((struct IORequest *)timerReq);
         FreeMem(timerReq, sizeof(struct timerequest));
-        FreeMem(timerPort, sizeof(struct MsgPort));
+        DeleteMsgPort(timerPort);
         return 1;
     }
 
@@ -175,7 +175,7 @@ int main(void)
         FreeMem(waitUntilReq, sizeof(struct timerequest));
         CloseDevice((struct IORequest *)timerReq);
         FreeMem(timerReq, sizeof(struct timerequest));
-        FreeMem(timerPort, sizeof(struct MsgPort));
+        DeleteMsgPort(timerPort);
         return 1;
     }
 
@@ -188,7 +188,7 @@ int main(void)
         FreeMem(waitUntilReq, sizeof(struct timerequest));
         CloseDevice((struct IORequest *)timerReq);
         FreeMem(timerReq, sizeof(struct timerequest));
-        FreeMem(timerPort, sizeof(struct MsgPort));
+        DeleteMsgPort(timerPort);
         return 1;
     }
 
@@ -202,7 +202,7 @@ int main(void)
         FreeMem(waitUntilReq, sizeof(struct timerequest));
         CloseDevice((struct IORequest *)timerReq);
         FreeMem(timerReq, sizeof(struct timerequest));
-        FreeMem(timerPort, sizeof(struct MsgPort));
+        DeleteMsgPort(timerPort);
         return 1;
     }
 
@@ -219,7 +219,7 @@ int main(void)
         FreeMem(waitUntilReq, sizeof(struct timerequest));
         CloseDevice((struct IORequest *)timerReq);
         FreeMem(timerReq, sizeof(struct timerequest));
-        FreeMem(timerPort, sizeof(struct MsgPort));
+        DeleteMsgPort(timerPort);
         return 1;
     }
 
@@ -236,7 +236,7 @@ int main(void)
         FreeMem(waitUntilReq, sizeof(struct timerequest));
         CloseDevice((struct IORequest *)timerReq);
         FreeMem(timerReq, sizeof(struct timerequest));
-        FreeMem(timerPort, sizeof(struct MsgPort));
+        DeleteMsgPort(timerPort);
         return 1;
     }
 
@@ -254,10 +254,11 @@ int main(void)
         FreeMem(waitUntilReq, sizeof(struct timerequest));
         CloseDevice((struct IORequest *)timerReq);
         FreeMem(timerReq, sizeof(struct timerequest));
-        FreeMem(timerPort, sizeof(struct MsgPort));
+        DeleteMsgPort(timerPort);
         return 1;
     }
 
+    GetSysTime(&tv_orig);
     tv_set.tv_secs = 1000;
     tv_set.tv_micro = 250000;
     timerReq->tr_node.io_Command = TR_SETSYSTIME;
@@ -270,7 +271,7 @@ int main(void)
         FreeMem(waitUntilReq, sizeof(struct timerequest));
         CloseDevice((struct IORequest *)timerReq);
         FreeMem(timerReq, sizeof(struct timerequest));
-        FreeMem(timerPort, sizeof(struct MsgPort));
+        DeleteMsgPort(timerPort);
         return 1;
     }
     if (timerReq->tr_time.tv_secs == 0 && timerReq->tr_time.tv_micro == 0) {
@@ -281,7 +282,7 @@ int main(void)
         FreeMem(waitUntilReq, sizeof(struct timerequest));
         CloseDevice((struct IORequest *)timerReq);
         FreeMem(timerReq, sizeof(struct timerequest));
-        FreeMem(timerPort, sizeof(struct MsgPort));
+        DeleteMsgPort(timerPort);
         return 1;
     }
 
@@ -294,7 +295,7 @@ int main(void)
         FreeMem(waitUntilReq, sizeof(struct timerequest));
         CloseDevice((struct IORequest *)timerReq);
         FreeMem(timerReq, sizeof(struct timerequest));
-        FreeMem(timerPort, sizeof(struct MsgPort));
+        DeleteMsgPort(timerPort);
         return 1;
     }
     print("OK: TR_SETSYSTIME updated system time\n");
@@ -306,7 +307,7 @@ int main(void)
         FreeMem(waitUntilReq, sizeof(struct timerequest));
         CloseDevice((struct IORequest *)timerReq);
         FreeMem(timerReq, sizeof(struct timerequest));
-        FreeMem(timerPort, sizeof(struct MsgPort));
+        DeleteMsgPort(timerPort);
         return 1;
     }
     print("OK: GetSysTime follows TR_SETSYSTIME\n");
@@ -326,7 +327,7 @@ int main(void)
             FreeMem(waitUntilReq, sizeof(struct timerequest));
             CloseDevice((struct IORequest *)timerReq);
             FreeMem(timerReq, sizeof(struct timerequest));
-            FreeMem(timerPort, sizeof(struct MsgPort));
+            DeleteMsgPort(timerPort);
             return 1;
         }
         eclock_freq_2 = ReadEClock(&eclock_2);
@@ -345,7 +346,7 @@ int main(void)
         FreeMem(waitUntilReq, sizeof(struct timerequest));
         CloseDevice((struct IORequest *)timerReq);
         FreeMem(timerReq, sizeof(struct timerequest));
-        FreeMem(timerPort, sizeof(struct MsgPort));
+        DeleteMsgPort(timerPort);
         return 1;
     }
 
@@ -357,7 +358,7 @@ int main(void)
         FreeMem(waitUntilReq, sizeof(struct timerequest));
         CloseDevice((struct IORequest *)timerReq);
         FreeMem(timerReq, sizeof(struct timerequest));
-        FreeMem(timerPort, sizeof(struct MsgPort));
+        DeleteMsgPort(timerPort);
         return 1;
     }
 
@@ -384,36 +385,42 @@ int main(void)
         FreeMem(waitUntilReq, sizeof(struct timerequest));
         CloseDevice((struct IORequest *)timerReq);
         FreeMem(timerReq, sizeof(struct timerequest));
-        FreeMem(timerPort, sizeof(struct MsgPort));
+        DeleteMsgPort(timerPort);
         return 1;
     }
 
-    /* Test CMD_READ */
+    /* restore the system time saved before TR_SETSYSTIME */
+    timerReq->tr_node.io_Command = TR_SETSYSTIME;
+    timerReq->tr_node.io_Flags = IOF_QUICK;
+    timerReq->tr_time = tv_orig;
+    DoIO((struct IORequest *)timerReq);
+    GetSysTime(&tv_lib);
+    if (timerReq->tr_node.io_Error == 0 && tv_lib.tv_secs >= tv_orig.tv_secs) {
+        print("OK: TR_SETSYSTIME restored the original time\n");
+    } else {
+        print("FAIL: TR_SETSYSTIME could not restore the original time\n");
+        g_failures++;
+    }
+
+    /* timer.device only knows the TR_* commands */
     timerReq->tr_node.io_Command = CMD_READ;
     timerReq->tr_node.io_Flags = IOF_QUICK;
-    
     DoIO((struct IORequest *)timerReq);
-    
-    if (timerReq->tr_node.io_Error != 0) {
-        print("FAIL: CMD_READ failed\n");
-        CloseDevice((struct IORequest *)timerReq);
-        FreeMem(timerReq, sizeof(struct timerequest));
-        FreeMem(timerPort, sizeof(struct MsgPort));
-        return 1;
-    }
-    
-    print("OK: CMD_READ succeeded\n");
-
-    if (timerReq->tr_time.tv_micro < 1000000) {
-        print("OK: CMD_READ returned normalized timeval\n");
+    if (timerReq->tr_node.io_Error == IOERR_NOCMD) {
+        print("OK: CMD_READ is not a timer.device command\n");
     } else {
-        print("FAIL: CMD_READ returned unnormalized timeval\n");
-        CloseDevice((struct IORequest *)waitUntilReq);
-        FreeMem(waitUntilReq, sizeof(struct timerequest));
-        CloseDevice((struct IORequest *)timerReq);
-        FreeMem(timerReq, sizeof(struct timerequest));
-        FreeMem(timerPort, sizeof(struct MsgPort));
-        return 1;
+        print("FAIL: CMD_READ did not return IOERR_NOCMD\n");
+        g_failures++;
+    }
+
+    timerReq->tr_node.io_Command = CMD_RESET;
+    timerReq->tr_node.io_Flags = IOF_QUICK;
+    DoIO((struct IORequest *)timerReq);
+    if (timerReq->tr_node.io_Error == IOERR_NOCMD) {
+        print("OK: CMD_RESET is not a timer.device command\n");
+    } else {
+        print("FAIL: CMD_RESET did not return IOERR_NOCMD\n");
+        g_failures++;
     }
 
     timerDevice = timerReq->tr_node.io_Device;
@@ -424,80 +431,58 @@ int main(void)
         print("FAIL: timer.device missing from DeviceList before Expunge\n");
         FreeMem(waitUntilReq, sizeof(struct timerequest));
         FreeMem(timerReq, sizeof(struct timerequest));
-        FreeMem(timerPort, sizeof(struct MsgPort));
+        DeleteMsgPort(timerPort);
         return 1;
     }
 
+    /* timer.device is a permanent ROM device: RemDevice() is ignored */
     RemDevice(timerDevice);
-    if ((timerDevice->dd_Library.lib_Flags & LIBF_DELEXP) != 0 &&
-        FindName(&SysBase->DeviceList, (STRPTR)TIMERNAME) == NULL) {
-        print("OK: Expunge() defers while open and unlinks timer.device\n");
+    if ((timerDevice->dd_Library.lib_Flags & LIBF_DELEXP) == 0 &&
+        FindName(&SysBase->DeviceList, (STRPTR)TIMERNAME) == &timerDevice->dd_Library.lib_Node) {
+        print("OK: RemDevice() leaves timer.device in place\n");
     } else {
-        print("FAIL: Expunge() did not defer/unlink correctly\n");
-        FreeMem(waitUntilReq, sizeof(struct timerequest));
-        FreeMem(timerReq, sizeof(struct timerequest));
-        FreeMem(timerPort, sizeof(struct MsgPort));
-        return 1;
+        print("FAIL: RemDevice() changed timer.device\n");
+        g_failures++;
     }
 
     reopenReq = (struct timerequest *)AllocMem(sizeof(struct timerequest), MEMF_PUBLIC | MEMF_CLEAR);
     if (!reopenReq) {
         print("FAIL: Cannot allocate reopen IO request\n");
-        FreeMem(waitUntilReq, sizeof(struct timerequest));
-        FreeMem(timerReq, sizeof(struct timerequest));
-        FreeMem(timerPort, sizeof(struct MsgPort));
         return 1;
     }
     reopenReq->tr_node.io_Message.mn_ReplyPort = timerPort;
     reopenReq->tr_node.io_Message.mn_Length = sizeof(struct timerequest);
     error = OpenDevice((STRPTR)TIMERNAME, UNIT_MICROHZ, (struct IORequest *)reopenReq, 0);
-    if (error == IOERR_OPENFAIL) {
-        print("OK: Expunge() blocks new opens once timer.device is unlinked\n");
+    if (error == 0 && reopenReq->tr_node.io_Device == timerDevice) {
+        print("OK: OpenDevice() still works after RemDevice()\n");
+        CloseDevice((struct IORequest *)reopenReq);
     } else {
-        print("FAIL: OpenDevice succeeded after deferred Expunge\n");
-        if (error == 0) {
-            CloseDevice((struct IORequest *)reopenReq);
-        }
-        FreeMem(reopenReq, sizeof(struct timerequest));
-        FreeMem(waitUntilReq, sizeof(struct timerequest));
-        FreeMem(timerReq, sizeof(struct timerequest));
-        FreeMem(timerPort, sizeof(struct MsgPort));
-        return 1;
+        print("FAIL: OpenDevice() failed after RemDevice()\n");
+        g_failures++;
     }
     FreeMem(reopenReq, sizeof(struct timerequest));
 
     CloseDevice((struct IORequest *)waitUntilReq);
-    if (timerDevice->dd_Library.lib_OpenCnt == 1 &&
-        (timerDevice->dd_Library.lib_Flags & LIBF_DELEXP) != 0) {
-        print("OK: Close() keeps deferred expunge pending until last opener closes\n");
-    } else {
-        print("FAIL: Close() completed expunge too early\n");
-        FreeMem(waitUntilReq, sizeof(struct timerequest));
-        FreeMem(timerReq, sizeof(struct timerequest));
-        FreeMem(timerPort, sizeof(struct MsgPort));
-        return 1;
-    }
-
     CloseDevice((struct IORequest *)timerReq);
-    if (FindName(&SysBase->DeviceList, (STRPTR)TIMERNAME) == NULL &&
-        timerDevice->dd_Library.lib_OpenCnt == 0 &&
-        (timerDevice->dd_Library.lib_Flags & LIBF_DELEXP) == 0) {
-        print("OK: final Close() completes deferred Expunge\n");
+    if (FindName(&SysBase->DeviceList, (STRPTR)TIMERNAME) == &timerDevice->dd_Library.lib_Node &&
+        timerReq->tr_node.io_Device == (struct Device *)-1) {
+        print("OK: closing leaves timer.device in place and invalidates the request\n");
     } else {
-        print("FAIL: final Close() did not complete deferred Expunge\n");
-        FreeMem(waitUntilReq, sizeof(struct timerequest));
-        FreeMem(timerReq, sizeof(struct timerequest));
-        FreeMem(timerPort, sizeof(struct MsgPort));
-        return 1;
+        print("FAIL: closing timer.device misbehaved\n");
+        g_failures++;
     }
 
     /* Cleanup */
     FreeMem(waitUntilReq, sizeof(struct timerequest));
     FreeMem(timerReq, sizeof(struct timerequest));
-    FreeMem(timerPort, sizeof(struct MsgPort));
+    DeleteMsgPort(timerPort);
     print("OK: Cleanup complete\n");
-    
+
+    if (g_failures) {
+        print("FAIL: timer.device test had failures\n");
+        return 1;
+    }
     print("PASS: timer.device test complete\n");
-    
+
     return 0;
 }

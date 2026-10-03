@@ -1,6 +1,9 @@
 /*
  * Test: layers/visibility
- * Tests layer visibility, layer-info bounds, and hit testing.
+ * Tests WhichLayer() hit testing, InstallClipRegion() and the hook /
+ * fatten-thin helpers of the V40 layers.library (validated against
+ * AmigaOS 3.1, Phase 220).  The V45 HideLayer/ShowLayer/LayerOccluded/
+ * SetLayerInfoBounds tests live in the lxa-only Tests/Layers/VisibilityV45.
  */
 
 #include <exec/types.h>
@@ -23,6 +26,18 @@ extern struct DosLibrary *DOSBase;
 extern struct ExecBase *SysBase;
 extern struct GfxBase *GfxBase;
 extern struct Library *LayersBase;
+
+/* a valid (no-op) backfill hook: layers.library calls the hooks it is
+ * given, so h_Entry must never be NULL (AmigaOS 3.1 jumps through it) */
+static ULONG noop_backfill(register struct Hook *hook __asm("a0"),
+                           register APTR object __asm("a2"),
+                           register APTR message __asm("a1"))
+{
+    (void)hook;
+    (void)object;
+    (void)message;
+    return 0;
+}
 
 static void print(const char *s)
 {
@@ -168,123 +183,6 @@ int main(void)
         errors++;
     }
 
-    print("\nTest 2: HideLayer updates occlusion and hit-testing...\n");
-    if (!LayerOccluded(back))
-    {
-        print("OK: Back layer initially visible\n");
-    }
-    else
-    {
-        print("FAIL: Back layer unexpectedly occluded\n");
-        errors++;
-    }
-
-    if (HideLayer(front))
-    {
-        print("OK: HideLayer(front) succeeded\n");
-    }
-    else
-    {
-        print("FAIL: HideLayer(front) failed\n");
-        errors++;
-    }
-
-    if (LayerOccluded(front) && count_cliprects(front) == 0)
-    {
-        print("OK: Hidden layer is occluded and has no ClipRects\n");
-    }
-    else
-    {
-        print("FAIL: Hidden layer still reports visible ClipRects\n");
-        errors++;
-    }
-
-    if (WhichLayer(li, 50, 50) == back)
-    {
-        print("OK: Hidden front layer no longer wins hit test\n");
-    }
-    else
-    {
-        print("FAIL: Hidden front layer still affects hit testing\n");
-        errors++;
-    }
-
-    print("\nTest 3: ShowLayer restores layer and supports front/back constants...\n");
-    if (ShowLayer(front, LAYER_BACKMOST))
-    {
-        print("OK: ShowLayer(front, LAYER_BACKMOST) succeeded\n");
-    }
-    else
-    {
-        print("FAIL: ShowLayer(front, LAYER_BACKMOST) failed\n");
-        errors++;
-    }
-
-    if (li->top_layer == back && WhichLayer(li, 50, 50) == back)
-    {
-        print("OK: Back layer moved to front of z-order\n");
-    }
-    else
-    {
-        print("FAIL: LAYER_BACKMOST handling incorrect\n");
-        errors++;
-    }
-
-    if (ShowLayer(front, LAYER_FRONTMOST))
-    {
-        print("OK: ShowLayer(front, LAYER_FRONTMOST) succeeded\n");
-    }
-    else
-    {
-        print("FAIL: ShowLayer(front, LAYER_FRONTMOST) failed\n");
-        errors++;
-    }
-
-    if (li->top_layer == front && WhichLayer(li, 50, 50) == front)
-    {
-        print("OK: Front layer restored to top\n");
-    }
-    else
-    {
-        print("FAIL: LAYER_FRONTMOST handling incorrect\n");
-        errors++;
-    }
-
-    print("\nTest 4: SetLayerInfoBounds clips new ClipRects...\n");
-    bounds.MinX = 0;
-    bounds.MinY = 0;
-    bounds.MaxX = 60;
-    bounds.MaxY = 60;
-    if (SetLayerInfoBounds(li, &bounds))
-    {
-        print("OK: SetLayerInfoBounds succeeded\n");
-    }
-    else
-    {
-        print("FAIL: SetLayerInfoBounds failed\n");
-        errors++;
-    }
-
-    if (front->ClipRect && front->ClipRect->bounds.MaxX <= 60 && front->ClipRect->bounds.MaxY <= 60)
-    {
-        print("OK: Front layer ClipRects clipped to Layer_Info bounds\n");
-    }
-    else
-    {
-        print("FAIL: Front layer ClipRects not clipped by bounds\n");
-        errors++;
-    }
-
-    if (WhichLayer(li, 80, 80) == NULL)
-    {
-        print("OK: Out-of-bounds point returns NULL\n");
-    }
-    else
-    {
-        print("FAIL: Out-of-bounds point still resolves to layer\n");
-        errors++;
-    }
-
     print("\nTest 4b: InstallClipRegion constrains cliprects and hit testing...\n");
     {
         struct Region *clip = NewRegion();
@@ -311,14 +209,31 @@ int main(void)
                 errors++;
             }
             else if (count_cliprects(front) == 1 && count_region_rects(clip) == 1 &&
-                     front->ClipRect->bounds.MinX == 45 && front->ClipRect->bounds.MaxX == 55 &&
-                     WhichLayer(li, 50, 50) == front && WhichLayer(li, 70, 70) == NULL)
+                     /* the region is layer-relative: (45..55) + origin 40 = 85..95,
+                      * clipped to the layer's right edge at 90 */
+                     front->ClipRect->bounds.MinX == 85 && front->ClipRect->bounds.MaxX == 90 &&
+                     WhichLayer(li, 50, 50) == front)
             {
                 print("OK: InstallClipRegion tightened cliprects and hit testing\n");
             }
             else
             {
                 print("FAIL: InstallClipRegion did not constrain visibility correctly\n");
+                {
+                    struct ClipRect *c;
+                    print("  cliprects:");
+                    for (c = front->ClipRect; c; c = c->Next)
+                    {
+                        print(" [");
+                        print_num(c->bounds.MinX); print(",");
+                        print_num(c->bounds.MinY); print("-");
+                        print_num(c->bounds.MaxX); print(",");
+                        print_num(c->bounds.MaxY); print(c->obscured ? " obs]" : "]");
+                    }
+                    print(" region rects=");
+                    print_num(count_region_rects(clip));
+                    print(WhichLayer(li, 50, 50) == front ? " which=front\n" : " which=other\n");
+                }
                 errors++;
             }
 
@@ -343,10 +258,10 @@ int main(void)
     }
 
     print("\nTest 5: Hook installation helpers and fatten/thin flags...\n");
-    hook_a.h_Entry = NULL;
+    hook_a.h_Entry = (ULONG (*)())noop_backfill;
     hook_a.h_SubEntry = NULL;
     hook_a.h_Data = (APTR)1;
-    hook_b.h_Entry = NULL;
+    hook_b.h_Entry = (ULONG (*)())noop_backfill;
     hook_b.h_SubEntry = NULL;
     hook_b.h_Data = (APTR)2;
 

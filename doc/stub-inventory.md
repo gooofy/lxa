@@ -23,13 +23,12 @@ implementing the function, never by deleting the macro.
 | graphics | 0 | 9 | 8 |
 | icon | 0 | 2 | 0 |
 | intuition | 3 | 17 | 11 |
-| layers | 0 | 1 | 0 |
 | locale | 0 | 1 | 0 |
 | rexxsyslib | 17 | 0 | 0 |
 | translator | 1 | 0 | 0 |
 | utility | 0 | 0 | 7 |
 | workbench | 0 | 0 | 3 |
-| **total** | **83** | **37** | **49** |
+| **total** | **83** | **36** | **49** |
 
 ## amigaguide
 
@@ -202,10 +201,6 @@ implementing the function, never by deleting the macro.
 - `DisplayBeep` — stub: no screen flash or bell (Phase 256) (`src/rom/lxa_intuition.c`)
 - `PointInImage` — stub: always TRUE (Phase 256) (`src/rom/lxa_intuition.c`)
 - `SetDefaultPubScreen` — stub: default public screen not changed (Phase 256) (`src/rom/lxa_intuition.c`)
-
-## layers
-
-- `ScrollLayer` — partial: SuperBitMap layers only update scroll offsets, no SyncSBitMap/CopySBitMap (Phase 256) (`src/rom/lxa_layers.c`)
 
 ## locale
 

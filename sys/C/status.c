@@ -1,15 +1,14 @@
 /*
- * STATUS command - Display list of tasks and processes
- * Phase 7.2 implementation for lxa
- * 
- * Template: FULL/S,TCB/S,CLI=ALL/S,COM=COMMAND/K
- * 
- * Usage:
- *   STATUS           - List CLI processes
- *   STATUS FULL      - Show detailed information
- *   STATUS ALL       - Show all tasks including non-CLI
- *   STATUS TCB       - Show task control block addresses
- *   STATUS COMMAND name - Show processes running specified command
+ * STATUS - list the CLI processes
+ *
+ * Template: PROCESS/N,FULL/S,TCB/S,CLI=ALL/S,COM=COMMAND/K
+ *
+ * Output of AmigaOS 3.1 (verified on the reference, Phase 221):
+ *   Process  1: Loaded as command: List
+ *   Process  1: stk 4000, gv 150, pri   0 Loaded as command: List   (FULL)
+ *   Process  2: No command loaded
+ *   COMMAND=<name>: the process numbers running it (" %2ld"), RC 5 if none
+ *   Process <n> does not exist                               (RC 20)
  */
 
 #include <exec/types.h>
@@ -23,267 +22,108 @@
 #include <inline/dos.h>
 
 #include <string.h>
+#include <stddef.h>
 
-#define VERSION "1.0"
-
-/* External reference to library bases */
 extern struct DosLibrary *DOSBase;
 extern struct ExecBase *SysBase;
 
-/* Command template - AmigaOS compatible */
-#define TEMPLATE "FULL/S,TCB/S,CLI=ALL/S,COM=COMMAND/K"
+#define TEMPLATE "PROCESS/N,FULL/S,TCB/S,CLI=ALL/S,COM=COMMAND/K"
 
-/* Argument array indices */
-#define ARG_FULL    0
-#define ARG_TCB     1
-#define ARG_ALL     2
-#define ARG_COMMAND 3
-#define ARG_COUNT   4
+enum { A_PROCESS, A_FULL, A_TCB, A_ALL, A_COMMAND, A_COUNT };
 
-/* Helper: output a string */
-static void out_str(const char *str)
+static LONG args[A_COUNT];
+
+static struct Process *process_of(ULONG *array, ULONG n)
 {
-    Write(Output(), (STRPTR)str, strlen(str));
+    struct MsgPort *port = (struct MsgPort *)array[n];
+    if (!port)
+        return NULL;
+    return (struct Process *)((UBYTE *)port - offsetof(struct Process, pr_MsgPort));
 }
 
-/* Helper: output newline */
-static void out_nl(void)
+static void command_name(struct Process *pr, char *buf, int len)
 {
-    Write(Output(), (STRPTR)"\n", 1);
-}
+    struct CommandLineInterface *cli = BADDR(pr->pr_CLI);
+    UBYTE *b = cli ? BADDR(cli->cli_CommandName) : NULL;
+    int n = 0;
 
-/* Helper: output a number (right-aligned in field width) */
-static void out_num(LONG num, int width)
-{
-    char buf[16];
-    char *p = buf + sizeof(buf) - 1;
-    *p = '\0';
-    int neg = (num < 0);
-    unsigned long n = neg ? (unsigned long)(-num) : (unsigned long)num;
-    
-    do {
-        *--p = '0' + (n % 10);
-        n /= 10;
-    } while (n);
-    
-    if (neg) *--p = '-';
-    
-    /* Pad to width */
-    int len = (buf + sizeof(buf) - 1) - p;
-    while (len < width) {
-        out_str(" ");
-        len++;
+    if (b && b[0]) {
+        n = b[0];
+        if (n > len - 1)
+            n = len - 1;
+        CopyMem(b + 1, buf, n);
     }
-    out_str(p);
+    buf[n] = '\0';
 }
 
-/* Helper: output hex number */
-static void out_hex(ULONG num, int width)
+static void show(ULONG num, struct Process *pr)
 {
-    char buf[12];
-    char *p = buf + sizeof(buf) - 1;
-    *p = '\0';
-    
-    static const char hex[] = "0123456789abcdef";
-    
-    do {
-        *--p = hex[num & 0xf];
-        num >>= 4;
-    } while (num);
-    
-    /* Pad to width */
-    int len = (buf + sizeof(buf) - 1) - p;
-    while (len < width) {
-        *--p = '0';
-        len++;
+    char cmd[256];
+
+    command_name(pr, cmd, sizeof(cmd));
+    Printf((STRPTR)"Process %2ld: ", (LONG)num);
+    if (args[A_FULL] || args[A_TCB]) {
+        struct CommandLineInterface *cli = BADDR(pr->pr_CLI);
+        Printf((STRPTR)"stk %ld, gv %ld, pri %3ld ",
+               cli ? cli->cli_DefaultStack * 4 : (LONG)pr->pr_StackSize,
+               150L, (LONG)pr->pr_Task.tc_Node.ln_Pri);
     }
-    out_str(p);
+    if (cmd[0])
+        Printf((STRPTR)"Loaded as command: %s\n", (LONG)cmd);
+    else
+        PutStr((STRPTR)"No command loaded\n");
 }
 
-/* Get task state string */
-static const char *task_state_str(UBYTE state)
+int main(void)
 {
-    switch (state) {
-        case TS_RUN:      return "Running";
-        case TS_READY:    return "Ready";
-        case TS_WAIT:     return "Waiting";
-        case TS_EXCEPT:   return "Exception";
-        case TS_REMOVED:  return "Removed";
-        default:          return "Unknown";
-    }
-}
-
-/* Get process CLI number from TaskArray if available */
-static LONG get_cli_number(struct Task *task)
-{
-    /* Walk the RootNode's TaskArray to find this task */
+    struct RDArgs *rda;
     struct RootNode *root = DOSBase->dl_Root;
-    if (!root) return 0;
-    
-    /* TaskArray is a BPTR to array of pointers:
-     * [0] = max slots
-     * [1..n] = pointer to MsgPort of CLI process (or 0 if slot free)
-     */
-    ULONG *taskArray = (ULONG *)BADDR(root->rn_TaskArray);
-    if (!taskArray) return 0;
-    
-    ULONG maxCli = taskArray[0];
-    
-    for (ULONG i = 1; i <= maxCli; i++) {
-        struct MsgPort *port = (struct MsgPort *)taskArray[i];
-        if (port && port->mp_SigTask == task) {
-            return (LONG)i;
-        }
-    }
-    
-    return 0;
-}
+    ULONG *array, max, i;
+    LONG rc = 0;
 
-/* Check if task name matches filter (case insensitive partial match) */
-static BOOL match_command(const char *name, const char *filter)
-{
-    if (!filter || !filter[0]) return TRUE;
-    if (!name) return FALSE;
-    
-    /* Case-insensitive substring search */
-    const char *p = name;
-    while (*p) {
-        const char *s1 = p;
-        const char *s2 = filter;
-        while (*s1 && *s2) {
-            char c1 = *s1;
-            char c2 = *s2;
-            if (c1 >= 'A' && c1 <= 'Z') c1 += 32;
-            if (c2 >= 'A' && c2 <= 'Z') c2 += 32;
-            if (c1 != c2) break;
-            s1++;
-            s2++;
-        }
-        if (!*s2) return TRUE;  /* Match found */
-        p++;
+    memset(args, 0, sizeof(args));
+    rda = ReadArgs((STRPTR)TEMPLATE, args, NULL);
+    if (!rda) {
+        PrintFault(IoErr(), NULL);
+        return RETURN_FAIL;
     }
-    return FALSE;
-}
+    array = root ? (ULONG *)BADDR(root->rn_TaskArray) : NULL;
+    max = array ? array[0] : 0;
 
-/* Print information about a task */
-static void print_task(struct Task *task, BOOL full, BOOL tcb, const char *filter)
-{
-    if (!task) return;
-    
-    const char *name = task->tc_Node.ln_Name ? task->tc_Node.ln_Name : "(unnamed)";
-    
-    /* Check command filter */
-    if (!match_command(name, filter)) return;
-    
-    LONG cliNum = 0;
-    if (task->tc_Node.ln_Type == NT_PROCESS) {
-        cliNum = get_cli_number(task);
-    }
-    
-    /* Print CLI number or * for non-CLI */
-    if (cliNum > 0) {
-        out_num(cliNum, 3);
-    } else {
-        out_str("  *");
-    }
-    out_str(". ");
-    
-    if (tcb) {
-        out_str("0x");
-        out_hex((ULONG)task, 8);
-        out_str(" ");
-    }
-    
-    if (full) {
-        /* Priority */
-        out_str("Pri ");
-        out_num(task->tc_Node.ln_Pri, 3);
-        out_str(" ");
-        
-        /* State */
-        out_str(task_state_str(task->tc_State));
-        out_str(" ");
-        
-        /* Stack usage (approximate) */
-        if (task->tc_SPLower && task->tc_SPUpper) {
-            ULONG stackSize = (ULONG)task->tc_SPUpper - (ULONG)task->tc_SPLower;
-            out_str("Stack ");
-            out_num(stackSize, 5);
-            out_str(" ");
-        }
-    }
-    
-    /* Task name */
-    out_str(name);
-    out_nl();
-}
-
-/* Walk a task list and print each task */
-static void walk_task_list(struct List *list, BOOL full, BOOL tcb, BOOL showAll, const char *filter)
-{
-    struct Task *task;
-    
-    for (task = (struct Task *)list->lh_Head;
-         task->tc_Node.ln_Succ != NULL;
-         task = (struct Task *)task->tc_Node.ln_Succ)
-    {
-        /* Skip non-process tasks unless ALL is specified */
-        if (!showAll && task->tc_Node.ln_Type != NT_PROCESS) {
-            continue;
-        }
-        
-        print_task(task, full, tcb, filter);
-    }
-}
-
-int main(int argc, char **argv)
-{
-    struct RDArgs *rdargs;
-    LONG args[ARG_COUNT] = {0, 0, 0, 0};
-    int rc = RETURN_OK;
-    
-    /* Parse arguments using AmigaDOS template */
-    rdargs = ReadArgs((STRPTR)TEMPLATE, args, NULL);
-    if (!rdargs) {
-        PrintFault(IoErr(), (STRPTR)"STATUS");
-        return RETURN_ERROR;
-    }
-    
-    BOOL full = (BOOL)args[ARG_FULL];
-    BOOL tcb = (BOOL)args[ARG_TCB];
-    BOOL showAll = (BOOL)args[ARG_ALL];
-    const char *filter = (const char *)args[ARG_COMMAND];
-    
-    /* Print header */
-    out_str("Process List:\n");
-    if (full) {
-        out_str("CLI ");
-        if (tcb) out_str("   TCB Addr  ");
-        out_str("Pri      State        Stack Name\n");
-        out_str("--- ");
-        if (tcb) out_str("------------ ");
-        out_str("--- ---------- ----- ----\n");
-    }
-    
-    /* Disable task switching while we enumerate */
     Forbid();
-    
-    /* Print current task first */
-    struct Task *thisTask = SysBase->ThisTask;
-    if (thisTask) {
-        if (showAll || thisTask->tc_Node.ln_Type == NT_PROCESS) {
-            print_task(thisTask, full, tcb, filter);
+    if (args[A_COMMAND]) {
+        BOOL found = FALSE;
+        for (i = 1; i <= max; i++) {
+            struct Process *pr = process_of(array, i);
+            char cmd[256];
+            if (!pr)
+                continue;
+            command_name(pr, cmd, sizeof(cmd));
+            if (cmd[0] && !stricmp((char *)FilePart((STRPTR)cmd), (char *)args[A_COMMAND])) {
+                Printf((STRPTR)" %ld\n", (LONG)i);
+                found = TRUE;
+            }
+        }
+        if (!found)
+            rc = RETURN_WARN;
+    } else if (args[A_PROCESS]) {
+        ULONG n = *(LONG *)args[A_PROCESS];
+        struct Process *pr = (n >= 1 && n <= max) ? process_of(array, n) : NULL;
+        if (pr) {
+            show(n, pr);
+        } else {
+            Printf((STRPTR)"Process %ld does not exist\n", (LONG)n);
+            SetIoErr(0);
+            rc = RETURN_FAIL;
+        }
+    } else {
+        for (i = 1; i <= max; i++) {
+            struct Process *pr = process_of(array, i);
+            if (pr)
+                show(i, pr);
         }
     }
-    
-    /* Walk TaskReady list */
-    walk_task_list(&SysBase->TaskReady, full, tcb, showAll, filter);
-    
-    /* Walk TaskWait list */
-    walk_task_list(&SysBase->TaskWait, full, tcb, showAll, filter);
-    
     Permit();
-    
-    FreeArgs(rdargs);
+    FreeArgs(rda);
     return rc;
 }

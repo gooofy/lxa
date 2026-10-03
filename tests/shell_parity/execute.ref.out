@@ -1,0 +1,29 @@
+name=alpha count=3 flag= dflt=alpha
+in sub rc=0
+subvar=fromsub
+name=beta count= flag=flag dflt=beta
+in sub rc=0
+name=gamma count=3 flag= dflt=gamma
+in sub rc=0
+EXECUTE: Parameters unsuitable for key "name/a,count/n,flag/s"
+required argument missing
+rc=10
+EXECUTE: Parameters unsuitable for key "name/a,count/n,flag/s"
+bad number
+rc=10
+first=one second=two literal=<first>
+default=three unknown=dflt empty=
+third=three
+plain <not substituted>
+after plain rc=0
+EXECUTE: Can't open nosuchscript
+object not found
+rc=10
+rc=20
+fails: start
+bad number
+fails: after error rc=20
+after fails rc=0
+fails: start
+bad number
+Wait failed returncode 20

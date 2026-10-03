@@ -231,6 +231,10 @@ Built-in C: commands with full AmigaDOS template support:
 
 ## Current Status
 
+**Version 0.11.14** - Shell and C: commands match Workbench 3.1 (Phase 221): 11 parity scripts produce identical output on lxa and AmigaOS 3.1; 13 missing commands added (Which, SetDate, Lock, Relabel, IconX, ...). CPU faults now behave like AmigaOS (held tasks, Guru for faulting interrupt code), and several more emulator stalls found by the Fred Fish mass run are fixed.
+
+**Version 0.11.13** - Phase 220 complete: all 236 lxa test programs were run on a real AmigaOS 3.1 system; 197 now produce identical output on both, the rest are justified lxa-only or interactive tests. Hundreds of compatibility fixes across dos, exec, graphics, intuition, gadtools, layers, console and the devices came out of it. Several emulator crashes and stalls found by the Fred Fish mass run are fixed.
+
 **Version 0.11.12** - Reference-validated test programs (Phase 220, in progress): the dos, intuition, gadtools, icon, iffparse and datatypes test programs now produce the same output as on AmigaOS 3.1, with many compatibility fixes in those libraries. CPU exceptions follow the AmigaOS trap convention (a crashed task is held), several emulator crashes found by the Fred Fish mass run are fixed, and `LXA_OVERRIDE` can load a user's real Workbench 3.1 disk library for debugging (Phase 235).
 
 **Version 0.11.11** - App corpus (Phase 230): 36 applications are catalogued in `apps/` with compatibility ratings derived from twin runs against AmigaOS 3.1 (`apps/compat.yaml`, `python3 -m rdd dashboard`). liblxa now reports CPU exceptions (`lxa_get_exception_log`).

@@ -197,8 +197,10 @@ static LONG input_dispatch_single_event(struct InputBase *inputbase,
     return 0;
 }
 
-/* IND_WRITEEVENT / IND_ADDEVENT: application-written events pass the
- * handler chain and then Intuition's input handler. */
+/* IND_WRITEEVENT: an application-written event passes the handler chain
+ * and then Intuition's input handler.  It keeps its own qualifier and does
+ * not change the device's qualifier state (PeekQualifier() reflects the
+ * keyboard and mouse only) - verified on AmigaOS 3.1, Phase 220. */
 static LONG input_write_event(struct InputBase *inputbase,
                               struct InputEvent *event)
 {
@@ -209,48 +211,13 @@ static LONG input_write_event(struct InputBase *inputbase,
         return IOERR_BADADDRESS;
     }
 
-    input_prepare_event(inputbase, event);
+    event->ie_NextEvent = NULL;
+    U_getSysTime(&event->ie_TimeStamp);
     rest = input_forward_handlers(inputbase, event);
     if (rest)
     {
         _intuition_input_device_events(rest);
     }
-    return 0;
-}
-
-static LONG input_dispatch_event_chain(struct InputBase *inputbase,
-                                       struct InputEvent *events,
-                                       ULONG event_count,
-                                       BOOL filter_classes)
-{
-    ULONG idx;
-
-    if (!inputbase || !events)
-    {
-        return IOERR_BADADDRESS;
-    }
-
-    for (idx = 0; idx < event_count; idx++)
-    {
-        struct InputEvent *event = &events[idx];
-
-        if (filter_classes && event->ie_Class != IECLASS_RAWKEY && event->ie_Class != IECLASS_RAWMOUSE)
-        {
-            continue;
-        }
-
-        if (filter_classes)
-        {
-            /* IND_ADDEVENT: written by an application or driver */
-            input_write_event(inputbase, event);
-        }
-        else
-        {
-            input_prepare_event(inputbase, event);
-            input_forward_handlers(inputbase, event);
-        }
-    }
-
     return 0;
 }
 
@@ -409,71 +376,45 @@ static BPTR __g_lxa_input_BeginIO(register struct Library *dev __asm("a6"),
             break;
         }
 
+        /* AmigaOS 3.1 keeps its own normalised copy; the request's timeval
+         * is left untouched (verified on the reference, Phase 220). */
         case IND_SETTHRESH:
-            U_normalizeTimeval(&((struct timerequest *)ioreq)->tr_time);
             inputbase->ib_KeyRepeatThreshold = ((struct timerequest *)ioreq)->tr_time;
+            U_normalizeTimeval(&inputbase->ib_KeyRepeatThreshold);
             break;
 
         case IND_SETPERIOD:
-            U_normalizeTimeval(&((struct timerequest *)ioreq)->tr_time);
             inputbase->ib_KeyRepeatPeriod = ((struct timerequest *)ioreq)->tr_time;
+            U_normalizeTimeval(&inputbase->ib_KeyRepeatPeriod);
             break;
 
         case IND_SETMPORT:
-            if (!io->io_Data)
-            {
-                error = IOERR_BADADDRESS;
-                break;
-            }
             if (io->io_Length != 1)
             {
                 error = IOERR_BADLENGTH;
                 break;
             }
-            inputbase->ib_MousePort = *((UBYTE *)io->io_Data);
+            inputbase->ib_MousePort = io->io_Data ? *((UBYTE *)io->io_Data) : 0;
             break;
 
         case IND_SETMTYPE:
-            if (!io->io_Data)
-            {
-                error = IOERR_BADADDRESS;
-                break;
-            }
             if (io->io_Length != 1)
             {
                 error = IOERR_BADLENGTH;
                 break;
             }
-            inputbase->ib_MouseType = *((UBYTE *)io->io_Data);
+            inputbase->ib_MouseType = io->io_Data ? *((UBYTE *)io->io_Data) : 0;
             break;
 
+        /* A written event reaches the handlers with its own qualifier; it
+         * does not change the device's qualifier state (PeekQualifier()
+         * reflects the keyboard and mouse only) - verified on AmigaOS 3.1. */
         case IND_WRITEEVENT:
             error = input_write_event(inputbase, (struct InputEvent *)io->io_Data);
             break;
 
-        case IND_ADDEVENT:
-        {
-            ULONG event_count;
-
-            if (!io->io_Data)
-            {
-                error = IOERR_BADADDRESS;
-                break;
-            }
-            if (io->io_Length == 0 || (io->io_Length % sizeof(struct InputEvent)) != 0)
-            {
-                error = IOERR_BADLENGTH;
-                break;
-            }
-
-            event_count = io->io_Length / sizeof(struct InputEvent);
-            error = input_dispatch_event_chain(inputbase,
-                                               (struct InputEvent *)io->io_Data,
-                                               event_count,
-                                               TRUE);
-            break;
-        }
-
+        /* IND_ADDEVENT (CMD_NONSTD+15) only exists since V47; this is a
+         * V40 input.device, which rejects it like AmigaOS 3.1. */
         default:
             error = IOERR_NOCMD;
             break;

@@ -107,7 +107,9 @@ TEST_F(DeviceTest, Input) { RunDeviceTest("Input"); }
 TEST_F(DeviceTest, Keyboard) { RunKeyboardDeviceTest(); }
 TEST_F(DeviceTest, Narrator) { RunDeviceTest("Narrator"); }
 TEST_F(DeviceTest, Parallel) { RunDeviceTest("Parallel"); }
+TEST_F(DeviceTest, ParallelLoopback) { RunDeviceTest("ParallelLoopback"); }
 TEST_F(DeviceTest, Printer) { RunDeviceTest("Printer"); }
+TEST_F(DeviceTest, PrinterPeer) { RunDeviceTest("PrinterPeer"); }
 TEST_F(DeviceTest, Ramdrive) { RunDeviceTest("Ramdrive"); }
 TEST_F(DeviceTest, Scsi) { RunDeviceTest("Scsi"); }
 TEST_F(DeviceTest, Serial) { RunDeviceTest("Serial"); }

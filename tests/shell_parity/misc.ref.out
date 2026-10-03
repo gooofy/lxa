@@ -1,0 +1,103 @@
+7
+3
+32
+1
+-3
+0
+eval rc=0 r2=0
+9
+5
+14
+20
+5
+240
+7
+-7
+2
+7
+1
+-1
+-3
+-1
+-2147483648
+9
+9
+0
+Mismatched parenthesis
+14
+eval rc=0
+hex=Fhex4=00FF
+A
+97
+o=7d=255 x=000000FF c=ÿ
+12
+value after keyword missing
+eval rc=20 r2=117
+required argument missing
+eval rc=20 r2=116
+wait rc=0
+bad number
+wait rc=20 r2=115
+Time should be HH:MM
+wait rc=20 r2=0
+Monday 01-Jan-24 hh:mm:ss
+date rc=0
+***Bad args
+- use DD-MMM-YY or <dayname> or yesterday etc. to set date
+      HH:MM:SS OR HH:MM to set time
+date rc=20 r2=0
+Tuesday 02-Jan-24 hh:mm:ss
+Monday 01-Jan-24 hh:mm:ss
+Monday 01-Jan-24 hh:mm:ss
+Kickstart 40.70, Workbench 40.42
+version rc=0
+Kickstart 40.70, Workbench 40.42 (02/18/94)
+exec.library 40.10
+dos.library 40.3
+dos.library 40.3
+version rc=0 r2=0
+object not found
+version rc=20 r2=205
+exec.library 40.10
+version rc=5 r2=0
+exec.library 40.10
+version rc=0 r2=0
+Could not find version information for 'SYS:Tests/ShellParity/Run'
+version rc=20 r2=0
+bad number
+status rc=20 r2=115
+Process 99 does not exist
+status rc=20 r2=0
+status rc=5 r2=0
+Copy: required argument missing
+rc=20 r2=116
+required argument missing
+rc=20 r2=116
+required argument missing
+rc=20 r2=116
+required argument missing
+No file to delete
+rc=5 r2=0
+required argument missing
+rc=20 r2=116
+No information for "x": object not found
+rc=20 r2=205
+required argument missing
+rc=20 r2=116
+required argument missing
+rc=20 r2=116
+required argument missing
+rc=20 r2=116
+required argument missing
+rc=20 r2=116
+No name given
+rc=20 r2=0
+required argument missing
+rc=20 r2=116
+required argument missing
+rc=5 r2=116
+Only one of ADD, SUB, PATH, or DEFER allowed
+rc=20 r2=0
+wrong number of arguments
+rc=20 r2=118
+done

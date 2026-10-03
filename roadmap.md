@@ -115,7 +115,7 @@ M0 and M1 are on the critical path: nothing in M2 and later is efficient without
 
 ## Next Phase
 
-> **Phase 220 — Run all m68k test programs on real AmigaOS**.
+> **Phase 222 — API conformance probes** (222a/b/c running; 222d/e after Phase 223) and **Phase 223 — Rendering conformance gallery**.
 
 ---
 
@@ -133,32 +133,17 @@ Complete (Phases 210–216, v0.11.9); see the summary table.
 
 ## M2 — Ground-Truth the Existing Suite
 
-### Phase 220 — Run all m68k test programs on real AmigaOS
-**Class**: Quality (validates 225 self-written oracles).
-- [ ] `rdd suite-ref` runs every `tests/**/main.c` binary on the reference and captures stdout and the exit code.
-- [ ] Triage each mismatch:
-  - (a) FAIL on the real OS: the test's expectation is wrong. Fix the test first, then lxa.
-  - (b) It crashes on the real OS: the test is buggy.
-  - (c) It depends on lxa-only behaviour: tag it `lxa_only` and justify why.
-- [ ] Bring back expected-output comparison. `tests/<area>/<t>/expected.ref.out` is captured **from the reference only**, and the drivers compare against it in addition to PASS/FAIL.
-
-**Test gate**: every test program passes on the reference or carries an `lxa_only` justification, and lxa output matches `expected.ref.out` for all of them.
-
-### Phase 221 — C: commands & Shell parity
-**Class**: Compatibility. Scripts break when output formats differ.
-- [ ] Run identical scripts on the reference (WB 3.1 `C:`) and on lxa (`sys/C`). Cover `Dir`, `List` (LFORMAT), `Info`, `Version`, `Assign`, `Echo`, `If`/`Skip`, `ReadArgs` error messages and return codes.
-- [ ] List the WB 3.1 `C:` commands that lxa lacks. Each one is either implemented or explicitly ruled out of scope (decided in this phase).
-
-**Test gate**: golden output parity for the script set.
-
 ### Phase 222 — API conformance probes ("WINE tests")
 **Class**: Compatibility. Small generated probe programs call each function with normal and edge-case inputs and print the results. The reference output is the golden. Sub-phases are prioritised by stub telemetry and app traces:
 - [ ] **222a** utility, exec (lists, memory, semaphores, signals, ports), dos (paths, `ReadArgs`, pattern matching, locks, `ExAll`, `SetVBuf`, error codes).
+  - Open from Phase 221: `OpenLibrary("exec.library")` fails on lxa; `CacheControl()` is partial; C:Copy onto itself does not report "object in use"; C:Sort NUMERIC/COLSTART are not order-stable on equal keys on 3.1 (lxa is); lxa's graphics/intuition report revision 40.1 (3.1: 40.24/40.85) and differ in their `$VER` date strings.
   - Open from the Phase 220 dos triage: `ReadArgs()` must read the command line from `Input()`'s buffer, not `pr_Arguments`; `Output()` buffering differs from AmigaOS (visible when stdio and dos output are mixed); `NameFromLock()` returns `SYS:` instead of the volume name; RawDoFmt's stray NUL after zero-padded negative numbers (`%05ld`) is not emulated.
 - [ ] **222b** graphics on off-screen bitmaps (lines, areas, flood, blits, `Text`/`TextExtent`/`TextFit`, algorithmic styles), compared as bitmap hashes.
+  - From the Phase 220 triage: `tests/exec/library_lxa` sections that still differ from 3.1 (GEL animation `AddAnimOb`/`RemIBob`, `CMove`, `CalcIVG` beyond 40 copper instructions, `SyncSBitMap`/`CopySBitMap`, sprite allocation, `VTAG_IMMEDIATE` and unset `VTAG_*_GET` values); PaletteExtra keeps 16-bit refcount/allocation arrays where 3.1 has 8-bit ones; `IEEESPMul`/`IEEESPDiv` never return on the reference (check FS-UAE's FPU emulation before trusting it: `Tests/Exec/MathIeeeSingBasMulDiv` is lxa_only until then).
 - [ ] **222c** layers: clip rects, damage lists, backfill hooks, SMART/SIMPLE/SUPER refresh sequences.
 - [ ] **222d** intuition geometry: border sizes per flag combination, `WA_*` tag effects, requester layout, `EasyRequest` layout, screen title bar. Includes the `OpenWindowTags` defaults seen in the `simplegad`/`simplegtgadget` goldens: untitled window `Title` is `""` not NULL, `MaxWidth`/`MaxHeight` default to the window size (not 65535) without a sizing gadget, `WFLG_VISITOR` on public screens, system gadget type bits (close gadget `0x8085`).
 - [ ] **222e** gadtools: `CreateGadget` resulting geometry for every kind, font and flag combination; `CreateMenus`/`LayoutMenus` item geometry. Includes finding starter-4: GadTools gadgets lack `GTYP_GADTOOLS` (0x0100) and the zero-size context gadget.
+- [ ] **222f** clipboard.device holds off writes while a read is unfinished (3.1) - lxa does not.
 - [ ] **222f** locale, keymap (`MapRawKey`/`MapANSI` over all keys and qualifiers), iffparse, icon, diskfont. Includes re-enabling `ConsoleTest.DISABLED_KeymapUnit` (`console_gtest.cpp`): `keymap_unit` terminates silently (rc 0, no output) inside `CD_ASKDEFAULTKEYMAP` on a `CONU_LIBRARY` open.
 
 **Test gate per sub-phase**: probe outputs equal the reference goldens.
@@ -217,6 +202,7 @@ Complete (Phases 210–216, v0.11.9); see the summary table.
 
 ### Phase 236 — Prefs fidelity
 **Class**: Compatibility.
+- [ ] C:IPrefs (deferred from Phase 221) - the prefs reader below is its core.
 - [ ] Read the `ENV:Sys/*.prefs` files the way IPrefs does: screenmode, font, palette, wbpattern, input, pointer, overscan, locale.
 - [ ] lxa's defaults equal the reference defaults. Verify with goldens taken under non-default prefs, such as a different font or palette.
 
@@ -268,6 +254,7 @@ The order below is provisional. After Phase 231/232 it is re-sorted by how often
 - [ ] Gate: gallery pages (Phase 223) for each class match the reference.
 
 ### Phase 253 — datatypes: real class dispatch + WB 3.1 classes
+- [ ] C:AddDataTypes (needs the descriptor list; deferred from Phase 221).
 - [ ] Replace the private-struct guessing (`lxa_datatypes.c:385`) with real class dispatch and DataTypes descriptors (`DEVS:DataTypes`).
 - [ ] Implement picture, ilbm, text, ascii, sound and 8svx classes, and the `AddDTObject`/`RefreshDTObjectA`/`RemoveDTObject`/`DoAsyncLayout`/`PrintDTObjectA` stubs.
 - [ ] Gate: MultiView-equivalent scenarios (ILBM, text) match the reference.
@@ -277,6 +264,7 @@ The order below is provisional. After Phase 231/232 it is re-sorted by how often
 - [ ] Gate: an app's Help menu opens its guide, matching the reference.
 
 ### Phase 255 — Missing libraries, resources & exec/dos slots
+- [ ] C:Mount and DOS handler loading (deferred from Phase 221).
 - [ ] Libraries: mathieeesingtrans, lowlevel, nonvolatile.
 - [ ] Resources: battclock, battmem, misc, potgo, disk, FileSystem. SysInfo needs these (Phase 234).
 - [ ] exec: `RawIOInit`/`RawMayGetChar`/`RawPutChar` (routed to `lxa.log`), `Child*`, `ObtainQuickVector`, plus `Alert` (logged guru plus host dialog) and the `Cache*` functions (flush the CPU core).
@@ -302,6 +290,7 @@ The order below is provisional. After Phase 231/232 it is re-sorted by how often
 - [ ] Volume model: every host path must belong to a volume. Today `ParentDir()` from an assign that lies outside all drives walks up to a bogus `home:` volume (FinalWriter builds its font path this way), so `HOME:` cannot simply be pointed elsewhere. Add a fallback root volume and isolate `HOME:` in test prefixes.
 
 ### Phase 261 — Host clipboard bridge
+- [ ] C:ConClip (console copy/paste through clipboard.device), ruled out of Phase 221 until the console has clipboard support.
 - [ ] clipboard.device unit 0 ↔ host clipboard (IFF FTXT ↔ UTF-8, with Latin-1 mapping).
 
 ### Phase 262 — Disk images
@@ -311,6 +300,7 @@ The order below is provisional. After Phase 231/232 it is re-sorted by how often
 - [ ] Host window decorations policy, HiDPI integer scaling, AppWindow drag-and-drop from the host file manager, AppIcon → host tray.
 
 ### Phase 264 — Workbench
+- [ ] C:LoadWB (deferred from Phase 221).
 - [ ] Decide the scope: a hosted `LoadWB` desktop versus relying on the host desktop. If a desktop is in scope, evaluate porting AROS Wanderer or its WB 3.x-style workbench.library parts.
 
 ### Phase 265 — Audio validation (was legacy 169)
@@ -330,6 +320,7 @@ The order below is provisional. After Phase 231/232 it is re-sorted by how often
 - [ ] Needs an OS 3.9 reference profile (the user has AmigaOS 3.9 media). Add a second refsys profile.
 
 ### Phase 273 — OS 3.2 / 3.9 API levels
+- [ ] Decide one rule for post-3.1 (V44-V47) extensions lxa already has: Phase 220 removed input.device `IND_ADDEVENT` (V47) to match 3.1, but kept console scrollback, icon/workbench V44, layers V45 and diskfont V45 calls as `lxa_only` tests. Either all stay (gated by version) or all go.
 - [ ] Per-version reference profiles. Decide which V44+/V47 functions lxa exposes; the gadtools V47 stubs are an early instance.
 
 ### Phase 274 — Performance (was legacy 163)
@@ -387,6 +378,8 @@ The order below is provisional. After Phase 231/232 it is re-sorted by how often
 | 214 | Comparator, report & vision review: `tools/rdd/compare.py` (tree diff with ignore list and GadgetID pairing, pen-index pixel diff with 16 px heat-map regions, palette/Text()/stdout), `python3 -m rdd report` (composite lxa \| reference \| diff ×2 with grid, HTML, `compare-summary.json`), `findings.yaml` format + validator, skill `rdd-review`; dry run `doc/findings/2026-10-02-starter.yaml` (7 findings, routed to Phases 222–224). | v0.11.7 |
 | 215 | Golden promotion: `python3 -m rdd promote <scenario> --phase N` copies reference bundles to `tests/golden/<app>/<scenario>/` with a ratchet (known tree diffs + pixel budget + known size, each owned by a phase); `rdd golden` replays on lxa (fail on new divergence, `tighten` on improvement); one CTest per golden (label `golden`, DISABLED only via `golden.json`, `golden_lint` checks owning phases). 6 goldens (HelloWorld, SimpleGad, SimpleGTGadget, GadToolsGadgets, DOpus, DPaint V); an injected 1 px GadTools label shift fails `gadtoolsgadgets`. Python goldens instead of generated GTests: the scenario replay lives in pylxa. | v0.11.8 |
 | 216 | RDD skills & loop: skills `rdd-reference`, `compat-sweep` (parallel per-app triage in worktrees, coordinator clustering); `python3 -m rdd cluster` (mechanical tree-diff clusters with bit-level flag signatures and folded geometry + reviewed findings; owners from golden ratchets, findings and roadmap text; phase stubs for unowned clusters in ≥ 2 scenarios); `python3 -m rdd loop` (run → report → goldens → cluster → sweep report, non-zero on golden regression or unowned cluster). First loop: `doc/sweeps/2026-10-02-loop.md`, 6 scenarios, 6/6 goldens pass, 0 unowned multi-app clusters (no stubs). Compat-DB refresh moved to Phase 230. | v0.11.9 |
+| 220 | All m68k test programs run on real AmigaOS 3.1 (`python3 -m rdd suite-ref`: batched reference runs with `WAIT_EXIT`, `SYS:Tests` overlay, crash/hang detection, per-binary cache): 236 programs → 197 identical on both, 26 `lxa_only` and 13 `interactive` (owned by Phase 224) in `tests/ref_suite.yaml`; 196 `expected.ref.out` captured from the reference and checked by CTest `ref_expected_outputs_*`. Six parallel triage agents fixed the tests that encoded lxa guesses and the lxa behaviour they hid (dos: error codes, locks, Seek/Close, ParsePattern, ReadArgs, IoErr rules, Execute/C:Execute, AddSegment; exec: signals, RawDoFmt, vblank servers, CIA, trap convention + held tasks; graphics: InitBitMap/RastPort flags, draw modes, regions, sprites/GELs, display database; intuition/gadtools/BOOPSI/icon/iffparse/datatypes; devices: timer, clipboard, gameport, ramdrive, parallel/printer, console CSI/SGR, layers scrolling/damage). | v0.11.13 |
+| 221 | C: commands & Shell parity: 11 shell scripts (`tests/shell_parity/`, runner `SYS:Tests/ShellParity/Run`) produce output identical to WB 3.1's commands (`.ref.out` from the reference, checked by `ref_expected_outputs`). Shell rewritten after the 3.1 shell (commands run in-process via `RunCommand`, vars/backticks/aliases/redirection, internal commands, If/Skip/Lab/FailAt); dos `ReadArgs` rewrite, in-process `RunCommand`/`System`, `MatchFirst` recursion, date strings, 3.1 fault texts, `NameFromLock` volume names, protection bits in xattrs; List/Dir/Type/Copy/Delete/Rename/Protect/Filenote/MakeDir/Join/Search/Sort/Eval/Wait/Date/Version/Status/Avail/Info/Assign/Execute rewritten to 3.1 output; new Which, SetDate, AddBuffers, CPU, DiskChange, IconX, LoadResource, Lock, Relabel, RequestFile, SetFont, SetKeyboard, SetPatch, version.library 40.42. Decision table `doc/c-commands.md` (Ed/Edit/hardware tools out of scope; ConClip/AddDataTypes/Mount/IPrefs/LoadWB owned by Phases 261/253/255/236/264). | v0.11.14 |
 | 230 | App corpus & compat DB: 36 apps catalogued (`apps/<App>.json`; 20 added from the user's FS-UAE disk, with provenance and their real third-party libraries; DOPUS/SYSINFO/KP2 are `alias_of` symlinks), `tools/rdd/corpus.py --check` (CTest `corpus_check`), one launch scenario per app (`tests/scenarios/apps/`), `python3 -m rdd compat` derives ratings from a twin run into `apps/compat.yaml` (no free-text issues; divergences linked to phases), `rdd dashboard`, `rdd loop` fails when a rating drops. First run: 1 platinum, 22 silver, 2 bronze, 6 garbage, 5 untested (3 crash the reference too). | v0.11.11 |
 | 233 | Relay-trace differential: `src/lxa/lxa_relay.c` traces calls through library jump tables (`LXA_TRACE`, `lxa_trace_start`, return detection by return address + SP, library list refreshed after `OpenLibrary`, ROM-internal calls skipped, `LXA_TRACE_INJECT` fault injection); scenario step `trace:`; reference side via lxaprobe `TRACE`; `python3 -m rdd tracediff` (NDK .fd names, clib-prototype typing, top-level calls only, first divergence in order or return value). Gate: an injected `Seek` return bug is located (`tests/rdd/test_tracediff.py`). Found and fixed: `Close()` returned 1 instead of DOSTRUE, `Seek()` returned the new position and allowed seeking past EOF; `ExecBase->ChkBase` was never set. | v0.11.10 |
 | 235 | Library override mode: `LXA_OVERRIDE=asl,iffparse` (+ `LXA_OVERRIDE_DIR`, default the reference system's `Libs/`) keeps the built-in library private to the ROM and maps `LIBS:<name>` to the user's AmigaOS 3.1 binary (`src/lxa/lxa_override.c`, `EMU_CALL_LIB_OVERRIDDEN`); only 3.1 disk libraries accepted; `tests/exec/libident`; gate `tests/rdd/test_override.py` (Tests/IffParse/Basic runs on the real iffparse 40.1). Debug-only workflow: AGENTS §6.26. | v0.11.12 |

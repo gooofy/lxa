@@ -348,7 +348,7 @@ static BOOL get_window_bounds(int *rows, int *cols)
     int i;
 
     con_clear_input();
-    con_puts(CSI "0q");
+    con_puts(CSI "0 q");    /* WINDOW STATUS REQUEST */
 
     len = con_read(buf, sizeof(buf) - 1);
     if (len <= 0) {
@@ -498,13 +498,12 @@ static void test_cursor_horizontal(void)
 {
     con_puts(CSI "5;10H");
     
-    /* Move to column 15 on same row */
+    /* CSI n G (CHA) is not an AmigaOS 3.1 console sequence: ignored */
     con_puts(CSI "15G");
-    assert_cursor(5, 15, "Cursor horizontal absolute (CSI 15G)");
+    assert_cursor(5, 10, "CSI 15G is ignored");
     
-    /* Move to column 1 (explicit) */
     con_puts(CSI "1G");
-    assert_cursor(5, 1, "Cursor horizontal absolute (CSI 1G)");
+    assert_cursor(5, 10, "CSI 1G is ignored");
 }
 
 /*
@@ -588,9 +587,9 @@ static void test_boundary_left(void)
 {
     con_puts(CSI "5;1H");
     
-    /* Try to move left past left edge - should stay at column 1 */
+    /* moving left past the left edge wraps onto the previous line */
     con_puts(CSI "10D");
-    assert_cursor(5, 1, "Cursor left at left boundary");
+    assert_cursor(4, 38, "Cursor left at left boundary wraps to the previous line");
 }
 
 static void test_esc_bracket_sequences(void)
@@ -616,20 +615,21 @@ static void test_esc_bracket_sequences(void)
     assert_cell_blank(3, 2, "ESC[J clears to end of display");
 
     con_puts(CSI "2J" CSI "H");
-    con_puts("\x1b[?25l");
+    /* cursor rendition: CSI 0 SP p hides, CSI SP p shows the cursor */
+    con_puts(CSI "0 p");
     start_async_read(read_buf, sizeof(read_buf));
     WaitTOF();
     WaitTOF();
-    assert_cell_blank(1, 1, "ESC[?25l hides the cursor");
+    assert_cell_blank(1, 1, "CSI 0 SP p hides the cursor");
     finish_async_read();
 
-    con_puts("\x1b[?25h");
+    con_puts(CSI " p");
     start_async_read(read_buf, sizeof(read_buf));
     WaitTOF();
     WaitTOF();
-    assert_cell_has_content(1, 1, "ESC[?25h shows the cursor");
+    assert_cell_has_content(1, 1, "CSI SP p shows the cursor");
     finish_async_read();
-    con_puts("\x1b[?25l");
+    con_puts(CSI "0 p");
 }
 
 static void test_window_resize_updates_console(void)
@@ -746,7 +746,7 @@ static BOOL setup_console(void)
         NULL, NULL,
         (STRPTR)"CSI Unit Test",
         NULL, NULL,
-        0, 0, 0, 0,
+        0, 0, (UWORD)~0, (UWORD)~0,   /* max 0 would fix the size */
         WBENCHSCREEN
     };
     

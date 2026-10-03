@@ -537,6 +537,13 @@ LXA_OVERRIDE_DIR=/path/to/Libs           # default: ~/.cache/lxa/refsys/SYS-aga/
 
 The built-in library stays private to lxa's ROM and `OpenLibrary()` loads `LIBS:<name>` from that directory. Only hardware-independent libraries that 3.1 itself loads from disk are accepted (asl, iffparse, diskfont, locale, commodities, datatypes, amigaguide, math*, rexxsyslib, ...). If the app behaves like on the reference with the override, the bug is in lxa's library; if not, it is below (exec/graphics/intuition/dos). Never commit or ship those binaries; lxa's own implementations stay mandatory (§1). `tests/exec/libident` prints which implementation answered.
 
+### 6.27 Shell and Command Execution (Phase 221)
+
+- C: commands run **inside the shell's process** via `RunCommand()` (as on AmigaOS): a command's stack overflow corrupts the shell. lxa gives commands at least 16 KB of stack because ROM routines need more than 4 KB.
+- `System()`/`Execute()` run their command line through the shell (`sys/System/Shell.c`), so variables, aliases, redirection and return codes behave like a 3.1 CLI; `C:Execute` runs command files (`.key/.def/.bra/.ket`).
+- `NameFromLock()` returns volume-based names (never assign names); protection bits live in a host extended attribute.
+- Output parity is checked by `tests/shell_parity/*.script` against WB 3.1's own commands; add a script line rather than a hand-written expectation when you change a command.
+
 ## 7. Quick Start
 1. Check `roadmap.md`.
 2. Load `lxa-workflow` to understand the process.

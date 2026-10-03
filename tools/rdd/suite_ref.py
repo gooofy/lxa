@@ -70,6 +70,26 @@ def programs(build):
                 if os.path.exists(host):
                     out.append({"name": rel, "src": "tests/probes/%s" % lib, "host": host, "probe": True,
                                 "expected": os.path.join(pdir, lib, name + ".ref.out")})
+    # Shell parity scripts (Phase 221): tests/shell_parity/<name>.script runs
+    # as "SYS:Tests/ShellParity/Run <name>" on both backends (the reference
+    # uses its own WB 3.1 C: commands, lxa its sys/C commands and shell).
+    sdir = os.path.join(ROOT, "tests", "shell_parity")
+    runner = os.path.join(build, "target", "samples", "Samples", "Tests", "ShellParity", "Run")
+    if os.path.isdir(sdir) and os.path.exists(runner):
+        fixtures = os.path.join(sdir, "fixtures")
+        fx = sorted(os.path.join(fixtures, f) for f in os.listdir(fixtures)) if os.path.isdir(fixtures) else []
+        for fn in sorted(os.listdir(sdir)):
+            if fn.endswith(".script"):
+                name = fn[:-7]
+                # "; parity: numbers" in a script: its numbers are machine
+                # dependent (Avail) and compared as "N"
+                with open(os.path.join(sdir, fn), encoding="latin-1") as f:
+                    numbers = "parity: numbers" in f.read()
+                out.append({"name": "Tests/ShellParity/" + name, "src": "tests/shell_parity", "host": runner,
+                            "prog": "Tests/ShellParity/Run", "args": name,
+                            "shell": "numbers" if numbers else True,
+                            "deps": [os.path.join(sdir, fn)] + fx,
+                            "expected": os.path.join(sdir, name + ".ref.out")})
     return out
 
 
@@ -82,6 +102,13 @@ def _flat(name):
     return name.replace("/", "_")
 
 
+# Shell parity: lxa's boot volume is SYS: (the reference's is "System"),
+# and times of day printed by Date differ (the reference clock runs).
+SHELL_NORMALISE = [
+    (re.compile(r"\bSystem:"), "SYS:"),
+    (re.compile(r"\b\d\d:\d\d:\d\d\b"), "hh:mm:ss"),
+]
+
 NORMALISE = [
     (re.compile(r"0x[0-9a-fA-F]{6,8}\b"), "0xADDR"),
     (re.compile(r"\$[0-9a-fA-F]{6,8}\b"), "$ADDR"),
@@ -89,17 +116,33 @@ NORMALISE = [
 ]
 
 
-def normalise(text, probe=False):
+def normalise(text, probe=False, shell=False):
     """Probes print values, never pointers: only line endings are normalised."""
-    for rx, rep in NORMALISE[2:] if probe else NORMALISE:
+    if shell:
+        for rx, rep in SHELL_NORMALISE:
+            text = rx.sub(rep, text)
+        if shell == "numbers":
+            text = re.sub(r" *\d+", " N", text)
+    for rx, rep in NORMALISE[2:] if (probe or shell) else NORMALISE:
         text = rx.sub(rep, text)
     return text.rstrip() + "\n" if text.strip() else ""
 
 
 # -- reference --------------------------------------------------------------------
 
+def _key(p):
+    """Cache key: the binary, plus the script and fixtures it reads."""
+    h = _hash(p["host"])
+    if p.get("deps"):
+        d = hashlib.sha256(h.encode())
+        for f in p["deps"]:
+            d.update(open(f, "rb").read())
+        h = d.hexdigest()[:16]
+    return h
+
+
 def ref_cache_path(p, fp):
-    return os.path.join(CACHE, "%s-%s-%s-v2.json" % (_flat(p["name"]), _hash(p["host"]), fp))
+    return os.path.join(CACHE, "%s-%s-%s-v2.json" % (_flat(p["name"]), _key(p), fp))
 
 
 def run_ref_chunk(chunk, timeout_ms, profile="aga"):
@@ -126,7 +169,9 @@ def run_ref_chunk(chunk, timeout_ms, profile="aga"):
             agent.cmd("SETCLOCK %d" % EPOCH)
             while todo:
                 p = todo[0]
-                prog = "SYS:" + p["name"]
+                prog = "SYS:" + p.get("prog", p["name"])
+                if p.get("args"):
+                    prog += " " + p["args"]
                 outf = "out/%s.txt" % _flat(p["name"])
                 res = {"name": p["name"]}
                 t0 = time.time()
@@ -208,11 +253,11 @@ def run_ref(progs, jobs, timeout_ms, use_cache=True, chunk=12):
 
 # -- lxa --------------------------------------------------------------------------
 
-def run_lxa_one(name, build, timeout_ms):
+def run_lxa_one(name, build, timeout_ms, prog=None, args=""):
     from rdd.pylxa import Lxa
     lxa = Lxa(build=build)
     try:
-        lxa.run("SYS:" + name, "")
+        lxa.run("SYS:" + (prog or name), args or "")
         # like the reference agent's WAIT_EXIT: the launched program has
         # returned, even if tasks it started (an app window...) still run
         ok = lxa.wait_program_exit(timeout_ms)
@@ -230,8 +275,9 @@ def run_lxa(progs, build, jobs, timeout_ms):
         fd_, tmp = tempfile.mkstemp(prefix="suite-ref-", suffix=".json")
         os.close(fd_)
         try:
+            extra = ["--prog", p["prog"], "--args", p["args"]] if p.get("prog") else []
             r = subprocess.run([sys.executable, "-m", "rdd.suite_ref", "--lxa-one", p["name"], "--build", build,
-                                "--timeout", str(timeout_ms), "--result", tmp], capture_output=True,
+                                "--timeout", str(timeout_ms), "--result", tmp] + extra, capture_output=True,
                                encoding="latin-1", env=env, cwd=ROOT, timeout=timeout_ms / 1000 * 10 + 60)
         except subprocess.TimeoutExpired:
             os.unlink(tmp)
@@ -289,7 +335,8 @@ def classify(ref, lxa, cfg_entry=None):
     if lxa["status"] != "exit" or lxa.get("rc"):
         return "lxa-fail"
     probe = ref.get("name", "").startswith("Tests/Probes/")
-    return "pass" if normalise(ref["stdout"], probe) == normalise(lxa["stdout"], probe) else "output"
+    shell = ref.get("shell") or ref.get("name", "").startswith("Tests/ShellParity/")
+    return "pass" if normalise(ref["stdout"], probe, shell) == normalise(lxa["stdout"], probe, shell) else "output"
 
 
 def expected_path(p):
@@ -310,8 +357,8 @@ def lxa_check(a):
     for p in progs:
         x = res[p["name"]]
         with open(expected_path(p), encoding="latin-1") as f:
-            want = normalise(f.read(), p.get("probe"))
-        got = normalise(x["stdout"], p.get("probe"))
+            want = normalise(f.read(), p.get("probe"), p.get("shell"))
+        got = normalise(x["stdout"], p.get("probe"), p.get("shell"))
         if x["status"] != "exit" or x.get("rc") or got != want:
             bad += 1
             print("FAIL %s: status=%s rc=%s" % (p["name"], x["status"], x.get("rc")))
@@ -333,10 +380,12 @@ def main(argv=None):
     ap.add_argument("--no-cache", action="store_true")
     ap.add_argument("--capture", action="store_true")
     ap.add_argument("--capture-ref", action="store_true",
-                    help="probes: write <name>.ref.out from the reference whenever it exits 0 "
+                    help="probes and shell parity scripts: write <name>.ref.out from the reference whenever it exits 0 "
                          "(lxa must then be fixed to match)")
     ap.add_argument("--lxa-one")
     ap.add_argument("--result", help="--lxa-one: write the result JSON here")
+    ap.add_argument("--prog", help="--lxa-one: program to run (default: the name)")
+    ap.add_argument("--args", default="", help="--lxa-one: its arguments")
     ap.add_argument("--lint", action="store_true", help="check tests/ref_suite.yaml")
     ap.add_argument("--ref-only", action="store_true", help="skip the lxa runs")
     ap.add_argument("--lxa-check", action="store_true",
@@ -353,7 +402,7 @@ def main(argv=None):
     if a.lxa_check:
         return lxa_check(a)
     if a.lxa_one:
-        res = run_lxa_one(a.lxa_one, a.build, a.timeout)
+        res = run_lxa_one(a.lxa_one, a.build, a.timeout, a.prog, a.args)
         if a.result:                 # not stdout: the program writes there too
             with open(a.result, "w") as f:
                 json.dump(res, f)
@@ -372,22 +421,23 @@ def main(argv=None):
     rows = []
     for p in progs:
         r, x = ref[p["name"]], lxa[p["name"]]
-        cls = classify(r, x, cfg.get(p["name"]))
+        cls = classify(dict(r, shell=p.get("shell")) if p.get("shell") else r, x, cfg.get(p["name"]))
         row = {"name": p["name"], "class": cls, "ref_status": r["status"], "ref_rc": r.get("rc"),
                "lxa_status": x["status"], "lxa_rc": x.get("rc"), "ref_error": r.get("error"),
                "ref_last": (r.get("stdout") or "").strip().split("\n")[-1][:120]}
         exp = expected_path(p)
         if os.path.exists(exp):
             with open(exp, encoding="latin-1") as f:
-                row["expected_matches_lxa"] = normalise(f.read(), p.get("probe")) == normalise(x["stdout"], p.get("probe"))
+                row["expected_matches_lxa"] = (normalise(f.read(), p.get("probe"), p.get("shell")) ==
+                                               normalise(x["stdout"], p.get("probe"), p.get("shell")))
         rows.append(row)
         with open(os.path.join(a.out, _flat(p["name"]) + ".json"), "w") as f:
             json.dump({"ref": r, "lxa": x, "class": cls}, f, indent=1)
         capture = (a.capture and cls == "pass") or \
-            (a.capture_ref and p.get("probe") and r["status"] == "exit" and not r.get("rc"))
+            (a.capture_ref and (p.get("probe") or p.get("shell")) and r["status"] == "exit" and not r.get("rc"))
         if capture and r["stdout"].strip():
             with open(exp, "w", encoding="latin-1") as f:
-                f.write(normalise(r["stdout"], p.get("probe")))
+                f.write(normalise(r["stdout"], p.get("probe"), p.get("shell")))
     with open(os.path.join(a.out, "summary.json"), "w") as f:
         json.dump(rows, f, indent=1)
     counts = {}

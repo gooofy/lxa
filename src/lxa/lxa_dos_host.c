@@ -1966,7 +1966,8 @@ static uint32_t _unix_mode_to_amiga(mode_t mode)
     /* Owner/basic permissions (bits 0-3) */
     if (!(mode & S_IRUSR)) prot |= FIBF_READ;
     if (!(mode & S_IWUSR)) prot |= FIBF_WRITE;
-    if (!(mode & S_IXUSR)) prot |= FIBF_EXECUTE;
+    /* 'e' stays set: host files have no executable bit by default, and
+     * AmigaOS files are ----rwed unless protected (FS-UAE does the same) */
     /* Note: delete permission is tied to write permission */
     if (!(mode & S_IWUSR)) prot |= FIBF_DELETE;
     
@@ -1985,6 +1986,36 @@ static uint32_t _unix_mode_to_amiga(mode_t mode)
     /* Amiga also has archive and script flags - leave them as 0 (not set) */
     
     return prot;
+}
+
+/* The protection bits SetProtection() stored (user.amiga.protection), or
+ * the ones derived from the Unix mode.  The xattr keeps h/s/p/a and the
+ * exact rwed bits, which Unix permissions cannot represent. */
+static uint32_t _amiga_protection_path(const char *linux_path, mode_t mode)
+{
+    char buf[16];
+    ssize_t len;
+
+    if (linux_path) {
+        len = getxattr(linux_path, "user.amiga.protection", buf, sizeof(buf) - 1);
+        if (len > 0) {
+            buf[len] = '\0';
+            return (uint32_t)strtoul(buf, NULL, 16);
+        }
+    }
+    return _unix_mode_to_amiga(mode);
+}
+
+static uint32_t _amiga_protection_fd(int fd, mode_t mode)
+{
+    char buf[16];
+    ssize_t len = fgetxattr(fd, "user.amiga.protection", buf, sizeof(buf) - 1);
+
+    if (len > 0) {
+        buf[len] = '\0';
+        return (uint32_t)strtoul(buf, NULL, 16);
+    }
+    return _unix_mode_to_amiga(mode);
 }
 
 /* Convert Unix time_t to Amiga DateStamp */
@@ -2393,7 +2424,7 @@ int _dos_examine(uint32_t lock_id, uint32_t fib68k)
     }
     m68k_write_memory_8(fib68k + FIB_fib_FileName + namelen, 0);  /* Null terminator */
     
-    m68k_write_memory_32(fib68k + FIB_fib_Protection, _unix_mode_to_amiga(st.st_mode));
+    m68k_write_memory_32(fib68k + FIB_fib_Protection, _amiga_protection_path(lock->linux_path, st.st_mode));
     m68k_write_memory_32(fib68k + FIB_fib_Size, st.st_size);
     m68k_write_memory_32(fib68k + FIB_fib_NumBlocks, (st.st_size + 511) / 512);
     
@@ -2490,7 +2521,7 @@ int _dos_exnext(uint32_t lock_id, uint32_t fib68k)
     }
     m68k_write_memory_8(fib68k + FIB_fib_FileName + namelen, 0);  /* Null terminator */
     
-    m68k_write_memory_32(fib68k + FIB_fib_Protection, _unix_mode_to_amiga(st.st_mode));
+    m68k_write_memory_32(fib68k + FIB_fib_Protection, _amiga_protection_path(fullpath, st.st_mode));
     m68k_write_memory_32(fib68k + FIB_fib_Size, st.st_size);
     m68k_write_memory_32(fib68k + FIB_fib_NumBlocks, (st.st_size + 511) / 512);
     
@@ -2775,8 +2806,13 @@ int _dos_namefromlock(uint32_t lock_id, uint32_t buf68k, uint32_t buflen)
     lock_entry_t *lock = _lock_get(lock_id);
     if (!lock) return 0;
     
-    /* Return the Amiga path stored in the lock */
+    /* AmigaOS names the object by its volume and its real name (case as
+     * stored), whatever path was used to lock it (an assign, other case);
+     * the path stored in the lock is the fallback */
+    char canonical[PATH_MAX];
     const char *path = lock->amiga_path;
+    if (lock->linux_path[0] && vfs_path_to_amiga(lock->linux_path, canonical, sizeof(canonical)))
+        path = canonical;
     size_t len = strlen(path);
     if (len >= buflen) len = buflen - 1;
     
@@ -2858,6 +2894,20 @@ int _dos_setprotection(uint32_t name68k, uint32_t protect)
     /* If no permissions set, default to rw-r--r-- */
     if (mode == 0) mode = 0644;
     
+    /* keep the exact Amiga bits (h/s/p/a, rwed) in an xattr; writing a
+     * user xattr needs write permission, so set it before the chmod */
+    {
+        char buf[16];
+        struct stat st;
+        if (stat(linux_path, &st) == 0 && !(st.st_mode & S_IWUSR))
+            chmod(linux_path, (st.st_mode & 07777) | S_IWUSR);
+        snprintf(buf, sizeof(buf), "%08x", protect);
+        if (protect == 0)
+            removexattr(linux_path, "user.amiga.protection");
+        else
+            setxattr(linux_path, "user.amiga.protection", buf, strlen(buf), 0);
+    }
+
     if (chmod(linux_path, mode) != 0) {
         DPRINTF(LOG_DEBUG, "lxa: _dos_setprotection(): chmod failed: %s\n", strerror(errno));
         return 0;
@@ -3250,6 +3300,39 @@ int _dos_assign_remove(uint32_t name68k)
     }
     
     return 0;
+}
+
+/* One assign: returns its type + 1 (1 lock, 2 late, 3 path; 0 if there is
+ * no such assign) and writes its directories as Amiga paths, each
+ * NUL-terminated, the list ended by an empty string (C:Assign, Phase 221). */
+int _dos_assign_info(uint32_t name68k, uint32_t buf68k, uint32_t buflen)
+{
+    char *name = _mgetstr(name68k);
+    const char *paths[32];
+    char amiga[PATH_MAX];
+    uint32_t offset = 0;
+    int count, i;
+
+    if (!name || !name[0] || !vfs_assign_exists(name))
+        return 0;
+    count = vfs_assign_get_paths(name, paths, 32);
+    for (i = 0; i < count && buf68k; i++) {
+        const char *p = paths[i];
+        size_t len;
+        if (!p)
+            continue;
+        if (_linux_path_to_amiga(p, amiga, sizeof(amiga)))
+            p = amiga;
+        len = strlen(p);
+        if (offset + len + 2 >= buflen)
+            break;
+        for (size_t j = 0; j < len; j++)
+            m68k_write_memory_8(buf68k + offset++, p[j]);
+        m68k_write_memory_8(buf68k + offset++, 0);
+    }
+    if (buf68k && offset < buflen)
+        m68k_write_memory_8(buf68k + offset, 0);
+    return (int)vfs_assign_get_type(name) + 1;
 }
 
 /* List assigns - returns count and writes packed strings to buffer */
@@ -3702,7 +3785,7 @@ int _dos_examinefh(uint32_t fh68k, uint32_t fib68k)
     }
     m68k_write_memory_8(fib68k + FIB_fib_FileName + namelen, 0);
     
-    m68k_write_memory_32(fib68k + FIB_fib_Protection, _unix_mode_to_amiga(st.st_mode));
+    m68k_write_memory_32(fib68k + FIB_fib_Protection, _amiga_protection_fd(fd, st.st_mode));
     m68k_write_memory_32(fib68k + FIB_fib_Size, st.st_size);
     m68k_write_memory_32(fib68k + FIB_fib_NumBlocks, (st.st_size + 511) / 512);
     
@@ -3890,10 +3973,22 @@ int _dos_waitforchar(uint32_t fh68k, uint32_t timeout_us)
     struct timeval tv;
     tv.tv_sec = timeout_us / 1000000;
     tv.tv_usec = timeout_us % 1000000;
-    
-    int result = select(fd + 1, &readfds, NULL, NULL, &tv);
-    
+
+    /* liblxa runs on the virtual clock: never block in real time - poll,
+     * and let the timeout pass in virtual time (Fred Fish Hextract waited
+     * on a non-console handle and stalled the emulator in wall-clock time) */
+    if (g_console_stdin_detached)
+    {
+        tv.tv_sec = 0;
+        tv.tv_usec = 0;
+    }
+
+    int result = (fd >= 0 && fd < FD_SETSIZE) ? select(fd + 1, &readfds, NULL, NULL, &tv) : -1;
+
     DPRINTF(LOG_DEBUG, "lxa: _dos_waitforchar(): select returned %d\n", result);
-    
+
+    if (result <= 0 && g_console_stdin_detached)
+        vclock_advance_us(timeout_us);
+
     return (result > 0) ? 1 : 0;
 }

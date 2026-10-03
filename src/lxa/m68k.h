@@ -351,6 +351,9 @@ void m68k_pulse_halt(void);
 /* Trigger a bus error exception */
 void m68k_pulse_bus_error(void);
 
+/* lxa: raise an exception at the current instruction boundary */
+void m68k_raise_exception_at_boundary(int vector);
+
 
 /* Context switching to allow multiple CPUs */
 

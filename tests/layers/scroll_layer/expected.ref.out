@@ -1,0 +1,32 @@
+Testing ScrollLayer...
+
+OK: LayersBase available
+OK: NewLayerInfo() succeeded
+OK: BitMap allocated
+
+OK: Layer created
+
+Test 1: ScrollLayer updates scroll offsets...
+  Before: Scroll_X=0, Scroll_Y=0
+  After:  Scroll_X=5, Scroll_Y=10
+  OK: Scroll offsets updated correctly
+
+Test 2: ScrollLayer scrolls pixel content...
+  OK: Pixel set at (50,50)
+  After scroll dx=-10: pixel at (50,50) = 0, at (60,50) = 0
+  OK: ScrollLayer moved the layer origin, not the pixels
+
+Test 3: Multiple ScrollLayer calls accumulate offsets...
+  OK: Offsets accumulated (5, 10)
+
+Test 4: ScrollLayer with zero deltas...
+  OK: Zero scroll is no-op
+
+Test 5: ScrollLayer with negative deltas...
+  OK: Negative scroll offsets work
+
+Cleaning up...
+OK: Deleted layer
+OK: Cleanup complete
+
+PASS: layers/scroll_layer all tests passed

@@ -85,7 +85,9 @@ class Lxa:
         self._open = True
         # same standard assigns as the GTest fixtures (tests/drivers/lxa_test.h)
         samples = os.path.join(self.build, "target", "samples", "Samples")
-        system = os.path.join(ROOT, "share", "lxa", "System")
+        # LXA_SYSTEM_DIR: a private copy for runs of untrusted programs (mass
+        # runs) - installers write into LIBS: and must not touch the repo
+        system = os.environ.get("LXA_SYSTEM_DIR") or os.path.join(ROOT, "share", "lxa", "System")
         self.assign("SYS", samples)
         self.assign_add("SYS", system)
         self.assign("LIBS", os.path.join(system, "Libs"))
@@ -93,6 +95,10 @@ class Lxa:
         if os.path.isdir(disklibs):
             self.assign_add("LIBS", disklibs)
         self.assign("C", os.path.join(self.build, "target", "sys", "C"))
+        # the built sys tree belongs to SYS: as in an installed system
+        # (SYS:C/List, SYS:System/Shell), so names resolve as on AmigaOS
+        if os.path.isdir(os.path.join(self.build, "target", "sys")):
+            self.assign_add("SYS", os.path.join(self.build, "target", "sys"))
         apps = apps or os.environ.get("LXA_APPS") or os.path.normpath(os.path.join(ROOT, "..", "lxa-apps"))
         if os.path.isdir(apps):
             self.assign("APPS", apps)
@@ -110,6 +116,12 @@ class Lxa:
         self.assign("T", os.path.join(self._tmp, "T"))
         self.assign("ENV", os.path.join(self._tmp, "ENV"))
         self.assign("ENVARC", os.path.join(self._tmp, "ENV"))
+        # FONTS: always exists on AmigaOS (disk fonts; topaz is in ROM)
+        fonts = os.path.join(system, "Fonts")
+        if not os.path.isdir(fonts):
+            fonts = os.path.join(self._tmp, "Fonts")
+            os.makedirs(fonts)
+        self.assign("FONTS", fonts)
         for name, path in (extra_assigns or {}).items():
             self.assign(name, path)
         self._text_cb = None

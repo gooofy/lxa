@@ -1,0 +1,11 @@
+; parity: numbers - Avail and Info layout (the values are machine-dependent)
+FailAt 21
+Avail
+Echo "rc=$RC"
+Avail CHIP
+Avail FAST
+Avail TOTAL
+Avail FLUSH
+Echo "rc=$RC"
+Avail FOO
+Echo "rc=$RC r2=$Result2"

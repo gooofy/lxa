@@ -1,9 +1,8 @@
 /*
  * lxa ramdrive.device implementation
  *
- * Hosted compatibility implementation with a byte-addressable in-memory
- * backing store, trackdisk-style status/geometry commands, and KillRAD
- * helpers for the default RAD: unit.
+ * In-memory disk units sized from their mounted DOS device node, with the
+ * trackdisk-style command set and KillRAD() of AmigaOS 3.1.
  */
 
 #include <exec/types.h>
@@ -17,8 +16,9 @@
 #include <clib/exec_protos.h>
 #include <inline/exec.h>
 
-#include <devices/newstyle.h>
 #include <devices/trackdisk.h>
+#include <dos/dosextens.h>
+#include <dos/filehandler.h>
 
 #include "util.h"
 
@@ -27,22 +27,26 @@
 #define EXDEVNAME  "ramdrive"
 #define EXDEVVER   " 40.1 (2026/03/17)"
 
-#define RAMDRIVE_UNIT_COUNT    1
-#define RAMDRIVE_SIZE          (80UL * 2UL * 11UL * 512UL)
-#define RAMDRIVE_SECTOR_SIZE   512UL
-#define RAMDRIVE_TRACK_SECTORS 11UL
-#define RAMDRIVE_HEADS         2UL
-#define RAMDRIVE_CYLINDERS     80UL
+#define RAMDRIVE_UNIT_COUNT    16
+#define RAMDRIVE_NAME_MAX      32
 
 char __aligned _g_ramdrive_ExDevName [] = EXDEVNAME ".device";
 char __aligned _g_ramdrive_ExDevID   [] = EXDEVNAME EXDEVVER;
 char __aligned _g_ramdrive_Copyright [] = "(C)opyright 2026 by G. Bartsch. Licensed under the MIT License.";
 
 char __aligned _g_ramdrive_VERSTRING [] = "\0$VER: " EXDEVNAME EXDEVVER;
-static char __aligned _g_ramdrive_DeviceName [] = "RAD:";
 
 extern struct ExecBase *SysBase;
 
+/*
+ * A unit is created by the first OpenDevice() of its number, which needs a
+ * DOS device node for "ramdrive.device"/unit (what "Mount RAD:" creates):
+ * the unit size comes from the node's DosEnvec and KillRAD() returns the
+ * node's name.  The unit (and its data) then lives until KillRAD(); after
+ * KillRAD() the unit stays known but reports TDERR_DiskChanged.  This is
+ * the AmigaOS 3.1 (ramdrive.device 39.35) behaviour, verified on the
+ * reference in Phase 220.
+ */
 struct RamdriveUnit
 {
     struct Unit ru_Unit;
@@ -50,6 +54,7 @@ struct RamdriveUnit
     ULONG ru_Size;
     ULONG ru_ChangeCount;
     BOOL ru_WriteProtected;
+    char ru_Name[RAMDRIVE_NAME_MAX];
 };
 
 struct RamdriveBase
@@ -59,35 +64,12 @@ struct RamdriveBase
     struct RamdriveUnit *rb_Units[RAMDRIVE_UNIT_COUNT];
 };
 
-static const UWORD ramdrive_supported_commands[] =
-{
-    CMD_CLEAR,
-    CMD_FLUSH,
-    CMD_READ,
-    CMD_RESET,
-    CMD_UPDATE,
-    CMD_WRITE,
-    TD_CHANGENUM,
-    TD_CHANGESTATE,
-    TD_FORMAT,
-    TD_GETGEOMETRY,
-    TD_MOTOR,
-    TD_PROTSTATUS,
-    NSCMD_DEVICEQUERY,
-    0
-};
-
 static void ramdrive_reply_request(struct IORequest *ioreq)
 {
     if (!(ioreq->io_Flags & IOF_QUICK))
     {
         ReplyMsg(&ioreq->io_Message);
     }
-}
-
-static BOOL ramdrive_request_is_valid(const struct IORequest *ioreq)
-{
-    return ioreq != NULL && ioreq->io_Message.mn_Length >= sizeof(struct IOExtTD);
 }
 
 static struct RamdriveUnit *ramdrive_get_unit(struct IORequest *ioreq)
@@ -100,100 +82,105 @@ static struct RamdriveUnit *ramdrive_get_unit(struct IORequest *ioreq)
     return (struct RamdriveUnit *)ioreq->io_Unit;
 }
 
-static void ramdrive_clear_unit(struct RamdriveUnit *unit)
+static BOOL ramdrive_bstr_equal(BSTR bstr, const char *s)
 {
-    if (unit && unit->ru_Data)
+    const UBYTE *b = (const UBYTE *)BADDR(bstr);
+    ULONG len;
+    ULONG i;
+
+    if (!b)
     {
-        memset(unit->ru_Data, 0, unit->ru_Size);
+        return FALSE;
     }
-}
 
-static LONG ramdrive_validate_extended_count(struct IORequest *ioreq,
-                                             struct RamdriveUnit *unit)
-{
-    if ((ioreq->io_Command & TDF_EXTCOM) != 0)
+    len = b[0];
+    /* MakeDosNode() counts the terminating NUL in the BSTR length */
+    if (len > 0 && b[len] == '\0')
     {
-        struct IOExtTD *iotd = (struct IOExtTD *)ioreq;
-
-        if (iotd->iotd_Count > unit->ru_ChangeCount)
+        len--;
+    }
+    for (i = 0; i < len; i++)
+    {
+        if (!s[i] || s[i] != (char)b[i + 1])
         {
-            return TDERR_DiskChanged;
+            return FALSE;
         }
     }
 
-    return 0;
+    return s[len] == '\0';
 }
 
-static LONG ramdrive_transfer(struct IORequest *ioreq,
-                              struct RamdriveUnit *unit,
-                              BOOL write)
+/* find the DOS device node mounted for ramdrive.device/unit_number */
+static struct DosList *ramdrive_find_dos_node(ULONG unit_number)
 {
-    struct IOStdReq *io = (struct IOStdReq *)ioreq;
-    ULONG offset;
-    ULONG length;
-    LONG error;
+    struct DosLibrary *dosbase;
+    struct RootNode *root;
+    struct DosInfo *info;
+    struct DosList *dl;
 
-    if (!unit)
+    dosbase = (struct DosLibrary *)FindName(&SysBase->LibList, (CONST_STRPTR)"dos.library");
+    if (!dosbase || !(root = dosbase->dl_Root) || !(info = (struct DosInfo *)BADDR(root->rn_Info)))
     {
-        return IOERR_OPENFAIL;
+        return NULL;
     }
 
-    if (!io->io_Data && io->io_Length != 0)
+    for (dl = (struct DosList *)BADDR(info->di_DevInfo); dl; dl = (struct DosList *)BADDR(dl->dol_Next))
     {
-        return IOERR_BADADDRESS;
-    }
+        struct FileSysStartupMsg *fssm;
 
-    if (write && unit->ru_WriteProtected)
-    {
-        return TDERR_WriteProt;
-    }
-
-    error = ramdrive_validate_extended_count(ioreq, unit);
-    if (error != 0)
-    {
-        return error;
-    }
-
-    offset = io->io_Offset;
-    length = io->io_Length;
-    if (offset > unit->ru_Size || length > (unit->ru_Size - offset))
-    {
-        return TDERR_SeekError;
-    }
-
-    if (length != 0)
-    {
-        if (write)
+        if (dl->dol_Type != DLT_DEVICE)
         {
-            CopyMem(io->io_Data, unit->ru_Data + offset, length);
+            continue;
         }
-        else
+
+        /* dol_Startup may also hold a small integer for handlers */
+        if ((ULONG)dl->dol_misc.dol_handler.dol_Startup < 0x400)
         {
-            CopyMem(unit->ru_Data + offset, io->io_Data, length);
+            continue;
+        }
+
+        fssm = (struct FileSysStartupMsg *)BADDR(dl->dol_misc.dol_handler.dol_Startup);
+        if (fssm->fssm_Unit == unit_number &&
+            ramdrive_bstr_equal(fssm->fssm_Device, "ramdrive.device") &&
+            fssm->fssm_Environ)
+        {
+            return dl;
         }
     }
 
-    io->io_Actual = length;
-    return 0;
+    return NULL;
 }
 
-static void ramdrive_fill_geometry(struct DriveGeometry *dg)
-{
-    dg->dg_SectorSize = RAMDRIVE_SECTOR_SIZE;
-    dg->dg_TotalSectors = RAMDRIVE_SIZE / RAMDRIVE_SECTOR_SIZE;
-    dg->dg_Cylinders = RAMDRIVE_CYLINDERS;
-    dg->dg_CylSectors = RAMDRIVE_HEADS * RAMDRIVE_TRACK_SECTORS;
-    dg->dg_Heads = RAMDRIVE_HEADS;
-    dg->dg_TrackSectors = RAMDRIVE_TRACK_SECTORS;
-    dg->dg_BufMemType = MEMF_PUBLIC;
-    dg->dg_DeviceType = DG_DIRECT_ACCESS;
-    dg->dg_Flags = DGF_REMOVABLE;
-    dg->dg_Reserved = 0;
-}
-
-static struct RamdriveUnit *ramdrive_alloc_unit(ULONG flags)
+static struct RamdriveUnit *ramdrive_create_unit(ULONG unit_number)
 {
     struct RamdriveUnit *unit;
+    struct DosList *dl;
+    struct FileSysStartupMsg *fssm;
+    struct DosEnvec *de;
+    const UBYTE *name;
+    ULONG size;
+    ULONG len;
+    ULONG i;
+
+    dl = ramdrive_find_dos_node(unit_number);
+    if (!dl)
+    {
+        return NULL;
+    }
+
+    fssm = (struct FileSysStartupMsg *)BADDR(dl->dol_misc.dol_handler.dol_Startup);
+    de = (struct DosEnvec *)BADDR(fssm->fssm_Environ);
+    if (de->de_HighCyl < de->de_LowCyl)
+    {
+        return NULL;
+    }
+
+    size = (de->de_HighCyl - de->de_LowCyl + 1) * de->de_Surfaces * de->de_BlocksPerTrack *
+           de->de_SizeBlock * 4;
+    if (size == 0)
+    {
+        return NULL;
+    }
 
     unit = (struct RamdriveUnit *)AllocMem(sizeof(*unit), MEMF_PUBLIC | MEMF_CLEAR);
     if (!unit)
@@ -201,17 +188,29 @@ static struct RamdriveUnit *ramdrive_alloc_unit(ULONG flags)
         return NULL;
     }
 
-    unit->ru_Data = (UBYTE *)AllocMem(RAMDRIVE_SIZE, MEMF_PUBLIC | MEMF_CLEAR);
+    unit->ru_Data = (UBYTE *)AllocMem(size, MEMF_PUBLIC | MEMF_CLEAR);
     if (!unit->ru_Data)
     {
         FreeMem(unit, sizeof(*unit));
         return NULL;
     }
 
-    unit->ru_Unit.unit_OpenCnt = 0;
-    unit->ru_Size = RAMDRIVE_SIZE;
+    unit->ru_Size = size;
     unit->ru_ChangeCount = 1;
-    unit->ru_WriteProtected = (flags & 1UL) != 0;
+
+    name = (const UBYTE *)BADDR(dl->dol_Name);
+    len = name ? name[0] : 0;
+    if (len > RAMDRIVE_NAME_MAX - 2)
+    {
+        len = RAMDRIVE_NAME_MAX - 2;
+    }
+    for (i = 0; i < len; i++)
+    {
+        unit->ru_Name[i] = (char)name[i + 1];
+    }
+    unit->ru_Name[len] = ':';
+    unit->ru_Name[len + 1] = '\0';
+
     return unit;
 }
 
@@ -228,6 +227,55 @@ static void ramdrive_free_unit(struct RamdriveUnit *unit)
     }
 
     FreeMem(unit, sizeof(*unit));
+}
+
+static LONG ramdrive_transfer(struct IORequest *ioreq,
+                              struct RamdriveUnit *unit,
+                              BOOL write)
+{
+    struct IOStdReq *io = (struct IOStdReq *)ioreq;
+    ULONG offset;
+    ULONG length;
+
+    if (!io->io_Data && io->io_Length != 0)
+    {
+        return IOERR_BADADDRESS;
+    }
+
+    if (write && unit->ru_WriteProtected)
+    {
+        return TDERR_WriteProt;
+    }
+
+    /* killed unit (KillRAD) or a stale ETD change count */
+    if (!unit->ru_Data ||
+        ((ioreq->io_Command & TDF_EXTCOM) != 0 &&
+         ((struct IOExtTD *)ioreq)->iotd_Count < unit->ru_ChangeCount))
+    {
+        return TDERR_DiskChanged;
+    }
+
+    offset = io->io_Offset;
+    length = io->io_Length;
+    if (offset > unit->ru_Size || length > (unit->ru_Size - offset))
+    {
+        return IOERR_BADLENGTH;
+    }
+
+    if (length != 0)
+    {
+        if (write)
+        {
+            CopyMem(io->io_Data, unit->ru_Data + offset, length);
+        }
+        else
+        {
+            CopyMem(unit->ru_Data + offset, io->io_Data, length);
+        }
+    }
+
+    io->io_Actual = length;
+    return 0;
 }
 
 static BPTR ramdrive_expunge_if_possible(struct RamdriveBase *ramdrivebase)
@@ -271,15 +319,14 @@ static STRPTR ramdrive_kill_unit(struct RamdriveBase *ramdrivebase, ULONG unit_n
     }
 
     unit = ramdrivebase->rb_Units[unit_number];
-    if (!unit)
+    if (!unit || !unit->ru_Data)
     {
         return NULL;
     }
 
-    ramdrive_clear_unit(unit);
-    unit->ru_WriteProtected = FALSE;
-    unit->ru_ChangeCount = 1;
-    return (STRPTR)&_g_ramdrive_DeviceName[0];
+    FreeMem(unit->ru_Data, unit->ru_Size);
+    unit->ru_Data = NULL;
+    return (STRPTR)&unit->ru_Name[0];
 }
 
 static struct Library * __g_lxa_ramdrive_InitDev(register struct Library *dev __asm("d0"),
@@ -312,9 +359,7 @@ static void __g_lxa_ramdrive_Open(register struct Library *dev __asm("a6"),
     ioreq->io_Device = NULL;
     ioreq->io_Unit = NULL;
 
-    if ((dev->lib_Flags & LIBF_DELEXP) != 0 ||
-        unit >= RAMDRIVE_UNIT_COUNT ||
-        !ramdrive_request_is_valid(ioreq))
+    if ((dev->lib_Flags & LIBF_DELEXP) != 0 || unit >= RAMDRIVE_UNIT_COUNT)
     {
         ioreq->io_Error = IOERR_OPENFAIL;
         return;
@@ -323,7 +368,7 @@ static void __g_lxa_ramdrive_Open(register struct Library *dev __asm("a6"),
     ramunit = ramdrivebase->rb_Units[unit];
     if (!ramunit)
     {
-        ramunit = ramdrive_alloc_unit(flags);
+        ramunit = ramdrive_create_unit(unit);
         if (!ramunit)
         {
             ioreq->io_Error = IOERR_OPENFAIL;
@@ -331,10 +376,9 @@ static void __g_lxa_ramdrive_Open(register struct Library *dev __asm("a6"),
         }
         ramdrivebase->rb_Units[unit] = ramunit;
     }
-    else
-    {
-        ramunit->ru_WriteProtected = (flags & 1UL) != 0;
-    }
+
+    /* OpenDevice() flags bit 0 write-protects the unit */
+    ramunit->ru_WriteProtected = (flags & 1UL) != 0;
 
     ramunit->ru_Unit.unit_OpenCnt++;
     dev->lib_OpenCnt++;
@@ -389,7 +433,6 @@ static BPTR __g_lxa_ramdrive_BeginIO(register struct Library *dev __asm("a6"),
 
     ioreq->io_Message.mn_Node.ln_Type = NT_MESSAGE;
     ioreq->io_Error = 0;
-    io->io_Actual = 0;
 
     if (!ramunit)
     {
@@ -398,36 +441,12 @@ static BPTR __g_lxa_ramdrive_BeginIO(register struct Library *dev __asm("a6"),
         return 0;
     }
 
+    /* only the commands below exist; io_Actual is only set where noted */
     switch (command)
     {
-        case NSCMD_DEVICEQUERY:
-        {
-            struct NSDeviceQueryResult *query = (struct NSDeviceQueryResult *)io->io_Data;
-
-            if (!query)
-            {
-                result = IOERR_BADADDRESS;
-                break;
-            }
-            if (io->io_Length < sizeof(*query))
-            {
-                result = IOERR_BADLENGTH;
-                break;
-            }
-
-            query->nsdqr_DevQueryFormat = 0;
-            query->nsdqr_SizeAvailable = sizeof(*query);
-            query->nsdqr_DeviceType = NSDEVTYPE_TRACKDISK;
-            query->nsdqr_DeviceSubType = 0;
-            query->nsdqr_SupportedCommands = (APTR)ramdrive_supported_commands;
-            io->io_Actual = sizeof(*query);
-            break;
-        }
-
         case CMD_CLEAR:
-        case CMD_FLUSH:
-        case CMD_RESET:
         case CMD_UPDATE:
+        case TD_REMOVE:
             break;
 
         case CMD_READ:
@@ -446,25 +465,6 @@ static BPTR __g_lxa_ramdrive_BeginIO(register struct Library *dev __asm("a6"),
         case TD_CHANGESTATE:
             io->io_Actual = 0;
             break;
-
-        case TD_GETGEOMETRY:
-        {
-            struct DriveGeometry *dg = (struct DriveGeometry *)io->io_Data;
-
-            if (!dg)
-            {
-                result = IOERR_BADADDRESS;
-                break;
-            }
-            if (io->io_Length < sizeof(*dg))
-            {
-                result = IOERR_BADLENGTH;
-                break;
-            }
-
-            ramdrive_fill_geometry(dg);
-            break;
-        }
 
         case TD_MOTOR:
             io->io_Actual = 1;

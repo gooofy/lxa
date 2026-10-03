@@ -4980,8 +4980,11 @@ VOID _intuition_EndRequest ( register struct IntuitionBase * IntuitionBase __asm
     if (window->RPort)
     {
         _calculate_requester_box(window, requester, &left, &top, &width, &height);
+        UBYTE save_fg = window->RPort->FgPen;
+
         SetAPen(window->RPort, 0);
         RectFill(window->RPort, left, top, left + width - 1, top + height - 1);
+        SetAPen(window->RPort, save_fg);
         _rerender_requester_stack(window);
     }
 
@@ -9336,7 +9339,36 @@ static void _render_sys_gadget(struct Window *window, struct Gadget *gad)
                               _window_image_state(window, gad), NULL);
 }
 
+static void _render_window_frame_impl(struct Window *window);
+
+/*
+ * Intuition renders the frame without leaving traces in the window's
+ * RastPort: on AmigaOS 3.1 a window's RPort keeps its InitRastPort()
+ * attributes (FgPen -1, BgPen 0, JAM2) - verified in Phase 220.
+ */
 static void _render_window_frame(struct Window *window)
+{
+    struct RastPort *rp = window ? (window->BorderRPort ? window->BorderRPort : window->RPort) : NULL;
+    UBYTE fg, bg, ol, dm;
+
+    if (!rp)
+    {
+        _render_window_frame_impl(window);
+        return;
+    }
+
+    fg = rp->FgPen;
+    bg = rp->BgPen;
+    ol = rp->AOlPen;
+    dm = rp->DrawMode;
+    _render_window_frame_impl(window);
+    SetAPen(rp, fg);
+    SetBPen(rp, bg);
+    SetOPen(rp, ol);
+    SetDrMd(rp, dm);
+}
+
+static void _render_window_frame_impl(struct Window *window)
 {
     struct RastPort *rp;
     const UWORD *pens;
@@ -9959,10 +9991,13 @@ struct Window * _intuition_OpenWindow ( register struct IntuitionBase * Intuitio
      * overdraw it correctly afterwards. */
     if (window->RPort)
     {
+        UBYTE save_fg = window->RPort->FgPen;
+
         SetAPen(window->RPort, 0);
         RectFill(window->RPort, window->LeftEdge, window->TopEdge,
                  window->LeftEdge + window->Width - 1,
                  window->TopEdge  + window->Height - 1);
+        SetAPen(window->RPort, save_fg);
     }
 
     /* Render initial visuals.
@@ -12550,8 +12585,21 @@ VOID _intuition_ChangeWindowBox ( register struct IntuitionBase * IntuitionBase 
      * box change (no separate CHANGEWINDOW for the move part) */
     if (width != window->Width || height != window->Height)
     {
+        /* ChangeWindowBox() (and ZipWindow() through it) is not bound by the
+         * window's size limits, unlike SizeWindow() (AmigaOS 3.1, Phase 220) */
+        WORD min_w = window->MinWidth, min_h = window->MinHeight;
+        UWORD max_w = window->MaxWidth, max_h = window->MaxHeight;
+
         _intuition_move_window_impl(IntuitionBase, window, left - window->LeftEdge, top - window->TopEdge, FALSE);
+        window->MinWidth = 1;
+        window->MinHeight = 1;
+        window->MaxWidth = (UWORD)-1;
+        window->MaxHeight = (UWORD)-1;
         _intuition_SizeWindow(IntuitionBase, window, width - window->Width, height - window->Height);
+        window->MinWidth = min_w;
+        window->MinHeight = min_h;
+        window->MaxWidth = max_w;
+        window->MaxHeight = max_h;
     }
     else if (left != window->LeftEdge || top != window->TopEdge)
     {

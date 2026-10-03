@@ -1,386 +1,243 @@
 /*
- * ASSIGN command - Manage logical assignments
- * Phase 7 implementation for lxa
- * 
- * Template: NAME,TARGET,LIST/S,EXISTS/S,DISMOUNT/S,DEFER/S,PATH/S,ADD/S,REMOVE/S
- * 
- * Usage:
- *   ASSIGN               - List all assigns
- *   ASSIGN LIST          - List all assigns (explicit)
- *   ASSIGN name:         - Remove assign 'name'
- *   ASSIGN name: target  - Create assign 'name' pointing to 'target'
- *   ASSIGN name: target ADD  - Add 'target' to multi-assign 'name'
- *   ASSIGN name: EXISTS  - Check if assign 'name' exists
- *   ASSIGN name: REMOVE  - Remove assign 'name'
- *   ASSIGN name: target PATH - Create non-binding path assign
- *   ASSIGN name: target DEFER - Create late-binding assign
+ * ASSIGN - create, remove and list logical device names
+ *
+ * Template: NAME,TARGET/M,LIST/S,EXISTS/S,DISMOUNT/S,DEFER/S,PATH/S,
+ *           ADD/S,REMOVE/S,VOLS/S,DIRS/S,DEVICES/S
+ *
+ * Messages and layout of AmigaOS 3.1's Assign (verified on the reference,
+ * Phase 221):
+ *   NAME:                       remove the assign (silent)
+ *   NAME: dir [dir...]          assign (several directories: multi-assign)
+ *   NAME: dir ADD / REMOVE      add a directory to / remove it from it
+ *   NAME: path DEFER / PATH     late-binding / non-binding assign
+ *   NAME: EXISTS                "NAME           dir" ("+ dir" for more),
+ *                               "<path>" late, "[path]" non-binding;
+ *                               "NAME: not assigned" (RC 5)
+ *   Can't find <dir>            (RC 20)
+ *   Invalid device name <name>  (RC 20)
+ * Without a name (or with LIST) the volumes, directories and devices are
+ * listed (VOLS, DIRS, DEVICES select).
+ *
+ * The assign table lives in lxa's host VFS; EMU_CALL_DOS_ASSIGN_INFO and
+ * EMU_CALL_DOS_ASSIGN_LIST read it (lxa's DosList is not complete yet,
+ * Phase 255).
  */
 
 #include <exec/types.h>
+#include <exec/memory.h>
 #include <dos/dos.h>
 #include <dos/dosextens.h>
+#include <clib/exec_protos.h>
 #include <clib/dos_protos.h>
+#include <inline/exec.h>
 #include <inline/dos.h>
 
 #include <string.h>
 
-#define VERSION "1.0"
+#include "emucalls.h"
 
-/* EMU_CALL numbers from emucalls.h */
-#define EMU_CALL_DOS_ASSIGN_LIST   1032
-
-/* emucall2 - call emulator with 2 parameters */
-static ULONG emucall2(ULONG func, ULONG param1, ULONG param2)
-{
-    ULONG res;
-    __asm volatile(
-        "move.l    %1, d0\n\t"
-        "move.l    %2, d1\n\t"
-        "move.l    %3, d2\n\t"
-        "illegal\n\t"
-        "move.l    d0, %0\n"
-        : "=r" (res)
-        : "r" (func), "r" (param1), "r" (param2)
-        : "cc", "d0", "d1", "d2"
-    );
-    return res;
-}
-
-/* External reference to DOS library base */
 extern struct DosLibrary *DOSBase;
+extern struct ExecBase *SysBase;
 
-/* Command template - AmigaOS compatible */
-#define TEMPLATE "NAME,TARGET,LIST/S,EXISTS/S,DISMOUNT/S,DEFER/S,PATH/S,ADD/S,REMOVE/S"
+#define TEMPLATE "NAME,TARGET/M,LIST/S,EXISTS/S,DISMOUNT/S,DEFER/S,PATH/S,ADD/S,REMOVE/S,VOLS/S,DIRS/S,DEVICES/S"
 
-/* Argument array indices */
-#define ARG_NAME      0
-#define ARG_TARGET    1
-#define ARG_LIST      2
-#define ARG_EXISTS    3
-#define ARG_DISMOUNT  4
-#define ARG_DEFER     5
-#define ARG_PATH      6
-#define ARG_ADD       7
-#define ARG_REMOVE    8
-#define ARG_COUNT     9
+enum { A_NAME, A_TARGET, A_LIST, A_EXISTS, A_DISMOUNT, A_DEFER, A_PATH, A_ADD, A_REMOVE,
+       A_VOLS, A_DIRS, A_DEVICES, A_COUNT };
 
-/* Helper: output a string */
-static void out_str(const char *str)
+static ULONG emucall3(ULONG func, ULONG p1, ULONG p2, ULONG p3)
 {
-    Write(Output(), (STRPTR)str, strlen(str));
+    register ULONG d0 __asm("d0") = func;
+    register ULONG d1 __asm("d1") = p1;
+    register ULONG d2 __asm("d2") = p2;
+    register ULONG d3 __asm("d3") = p3;
+
+    __asm volatile ("illegal" : "+r" (d0) : "r" (d1), "r" (d2), "r" (d3) : "cc", "memory");
+    return d0;
 }
 
-/* Helper: output newline */
-static void out_nl(void)
+static char info[2048];
+
+/* print one assign as "NAME           dir" (+ further dirs); FALSE if none */
+static BOOL show_assign(const char *name)
 {
-    Write(Output(), (STRPTR)"\n", 1);
+    ULONG type = emucall3(EMU_CALL_DOS_ASSIGN_INFO, (ULONG)name, (ULONG)info, sizeof(info));
+    const char *p = info;
+    BOOL first = TRUE;
+
+    if (!type)
+        return FALSE;
+    Printf((STRPTR)"%-15s", (LONG)name);
+    while (*p) {
+        if (!first)
+            PutStr((STRPTR)"             + ");
+        if (type == 2)
+            Printf((STRPTR)"<%s>\n", (LONG)p);
+        else if (type == 3)
+            Printf((STRPTR)"[%s]\n", (LONG)p);
+        else
+            Printf((STRPTR)"%s\n", (LONG)p);
+        first = FALSE;
+        p += strlen(p) + 1;
+    }
+    if (first)
+        PutStr((STRPTR)"\n");
+    return TRUE;
 }
 
-/* Strip trailing colon from assign name */
-static void strip_colon(char *name)
+static void list_all(BOOL vols, BOOL dirs, BOOL devs)
 {
-    int len = strlen(name);
-    if (len > 0 && name[len - 1] == ':') {
-        name[len - 1] = '\0';
+    static char buf[4096];
+    if (vols) {
+        PutStr((STRPTR)"Volumes:\n");
+        PutStr((STRPTR)"SYS [Mounted]\n");
+        PutStr((STRPTR)"\n");
     }
-}
-
-/* List all assigns */
-static int list_assigns(void)
-{
-    /* Buffer to receive assign list from host */
-    char buffer[4096];
-    
-    out_str("Volumes:\n");
-    out_str("  SYS [Mounted]\n");
-    out_nl();
-    
-    out_str("Directories:\n");
-    
-    /* First, show hardcoded system assigns that are typically mapped */
-    BPTR lock;
-    
-    lock = Lock((STRPTR)"C:", SHARED_LOCK);
-    if (lock) {
-        out_str("  C           SYS:C\n");
-        UnLock(lock);
-    }
-    
-    lock = Lock((STRPTR)"S:", SHARED_LOCK);
-    if (lock) {
-        out_str("  S           SYS:S\n");
-        UnLock(lock);
-    }
-    
-    lock = Lock((STRPTR)"LIBS:", SHARED_LOCK);
-    if (lock) {
-        out_str("  LIBS        SYS:Libs\n");
-        UnLock(lock);
-    }
-    
-    lock = Lock((STRPTR)"DEVS:", SHARED_LOCK);
-    if (lock) {
-        out_str("  DEVS        SYS:Devs\n");
-        UnLock(lock);
-    }
-    
-    lock = Lock((STRPTR)"T:", SHARED_LOCK);
-    if (lock) {
-        out_str("  T           SYS:T\n");
-        UnLock(lock);
-    }
-    
-    lock = Lock((STRPTR)"L:", SHARED_LOCK);
-    if (lock) {
-        out_str("  L           SYS:L\n");
-        UnLock(lock);
-    }
-    
-    /* Now list user-created assigns from the host VFS */
-    int count = (int)emucall2(EMU_CALL_DOS_ASSIGN_LIST, (ULONG)buffer, sizeof(buffer));
-    
-    if (count > 0) {
-        /* Buffer contains: name\0path\0name\0path\0...\0\0 */
-        char *p = buffer;
-        
-        for (int i = 0; i < count; i++) {
+    if (dirs) {
+        ULONG count = emucall3(EMU_CALL_DOS_ASSIGN_LIST, (ULONG)buf, sizeof(buf), 0);
+        const char *p = buf;
+        ULONG i;
+        PutStr((STRPTR)"Directories:\n");
+        for (i = 0; i < count && *p; i++) {
             const char *name = p;
             p += strlen(p) + 1;
-            const char *path = p;
             p += strlen(p) + 1;
-            
-            /* Don't show duplicates with system assigns */
-            if (strcasecmp(name, "C") == 0 ||
-                strcasecmp(name, "S") == 0 ||
-                strcasecmp(name, "LIBS") == 0 ||
-                strcasecmp(name, "DEVS") == 0 ||
-                strcasecmp(name, "T") == 0 ||
-                strcasecmp(name, "L") == 0) {
+            if (!stricmp(name, "SYS"))
                 continue;
-            }
-            
-            /* Format: NAME spaces PATH (simplified) */
-            out_str("  ");
-            out_str(name);
-            
-            /* Pad to column 14 */
-            int len = (int)strlen(name);
-            while (len < 12) {
-                out_str(" ");
-                len++;
-            }
-            
-            out_str(path);
-            out_nl();
+            show_assign(name);
         }
+        PutStr((STRPTR)"\n");
     }
-    
-    out_nl();
-    return 0;
+    if (devs) {
+        PutStr((STRPTR)"Devices:\n");
+        PutStr((STRPTR)"RAM\n");
+    }
 }
 
-/* Check if an assign exists */
-static int check_exists(const char *name)
+int main(void)
 {
-    char namebuf[256];
-    strncpy(namebuf, name, sizeof(namebuf) - 2);
-    namebuf[sizeof(namebuf) - 2] = '\0';
-    
-    /* Add colon if needed */
-    int len = strlen(namebuf);
-    if (len > 0 && namebuf[len - 1] != ':') {
-        namebuf[len] = ':';
-        namebuf[len + 1] = '\0';
-    }
-    
-    BPTR lock = Lock((STRPTR)namebuf, SHARED_LOCK);
-    if (lock) {
-        UnLock(lock);
-        return 0;  /* Success - exists */
-    }
-    
-    out_str("ASSIGN: ");
-    out_str(name);
-    out_str(" does not exist\n");
-    return 5;  /* WARN - does not exist */
-}
-
-/* Create an assign */
-static int create_assign(const char *name, const char *target, BOOL defer, BOOL path_assign, BOOL add)
-{
-    char namebuf[256];
-    strncpy(namebuf, name, sizeof(namebuf) - 1);
-    namebuf[sizeof(namebuf) - 1] = '\0';
-    strip_colon(namebuf);
-    
-    if (strlen(namebuf) == 0) {
-        out_str("ASSIGN: Invalid assign name\n");
-        return 10;  /* ERROR */
-    }
-    
-    /* Lock the target to verify it exists */
-    BPTR lock = Lock((STRPTR)target, SHARED_LOCK);
-    if (!lock) {
-        out_str("ASSIGN: ");
-        out_str(target);
-        out_str(" not found\n");
-        return 10;  /* ERROR */
-    }
-    
-    BOOL result;
-    
-    if (defer) {
-        /* Late-binding assign */
-        UnLock(lock);  /* AssignLate uses path string, not lock */
-        result = AssignLate((STRPTR)namebuf, (STRPTR)target);
-    } else if (path_assign) {
-        /* Non-binding path assign */
-        UnLock(lock);  /* AssignPath uses path string, not lock */
-        result = AssignPath((STRPTR)namebuf, (STRPTR)target);
-    } else if (add) {
-        /* Add to multi-assign */
-        result = AssignAdd((STRPTR)namebuf, lock);
-        /* AssignAdd consumes the lock on success */
-        if (!result) {
-            UnLock(lock);
-        }
-    } else {
-        /* Regular assign */
-        result = AssignLock((STRPTR)namebuf, lock);
-        /* AssignLock consumes the lock on success */
-        if (!result) {
-            UnLock(lock);
-        }
-    }
-    
-    if (!result) {
-        out_str("ASSIGN: Failed to create assign ");
-        out_str(namebuf);
-        out_str(":\n");
-        return 10;  /* ERROR */
-    }
-    
-    return 0;  /* Success */
-}
-
-/* Remove an assign */
-static int remove_assign(const char *name)
-{
-    char namebuf[256];
-    strncpy(namebuf, name, sizeof(namebuf) - 1);
-    namebuf[sizeof(namebuf) - 1] = '\0';
-    strip_colon(namebuf);
-    
-    if (strlen(namebuf) == 0) {
-        out_str("ASSIGN: Invalid assign name\n");
-        return 10;  /* ERROR */
-    }
-    
-    /* AssignLock(name, 0) removes the whole assign (RemAssignList() only
-     * removes the directory matching a given lock) */
-    LONG result = FALSE;
-    {
-        char devname[260];
-        struct DevProc *dvp;
-
-        strcpy(devname, namebuf);
-        strcat(devname, ":");
-        dvp = GetDeviceProc((STRPTR)devname, NULL);
-        if (dvp) {
-            if (dvp->dvp_Flags & DVPF_ASSIGN)
-                result = AssignLock((STRPTR)namebuf, 0);
-            FreeDeviceProc(dvp);
-        }
-    }
-    
-    if (!result) {
-        out_str("ASSIGN: ");
-        out_str(namebuf);
-        out_str(": not assigned\n");
-        return 5;  /* WARN */
-    }
-    
-    return 0;  /* Success */
-}
-
-int main(int argc, char **argv)
-{
+    LONG args[A_COUNT];
     struct RDArgs *rda;
-    LONG args[ARG_COUNT] = {0};
-    int result = 0;
-    
-    /* DEBUG: Show what arguments we received */
-    #if 0
-    out_str("DEBUG: argc=");
-    char buf[16];
-    char *p = buf + sizeof(buf) - 1;
-    *p = '\0';
-    int n = argc;
-    do { *--p = '0' + (n % 10); n /= 10; } while (n);
-    out_str(p);
-    out_nl();
-    for (int i = 0; i < argc; i++) {
-        out_str("  argv[");
-        p = buf + sizeof(buf) - 1;
-        *p = '\0';
-        n = i;
-        do { *--p = '0' + (n % 10); n /= 10; } while (n);
-        out_str(p);
-        out_str("]=");
-        out_str(argv[i]);
-        out_nl();
-    }
-    #endif
-    
-    /* Parse arguments */
+    char name[64];
+    STRPTR *t;
+    LONG rc = 0;
+    int n;
+
+    memset(args, 0, sizeof(args));
     rda = ReadArgs((STRPTR)TEMPLATE, args, NULL);
-    
     if (!rda) {
-        /* Check for /? help request */
-        out_str("Usage: ASSIGN [name:] [target] [LIST] [EXISTS] [DEFER] [PATH] [ADD] [REMOVE]\n");
-        out_str("Template: ");
-        out_str(TEMPLATE);
-        out_nl();
-        return 1;
+        PrintFault(IoErr(), NULL);
+        return RETURN_FAIL;
     }
-    
-    CONST_STRPTR name = (CONST_STRPTR)args[ARG_NAME];
-    CONST_STRPTR target = (CONST_STRPTR)args[ARG_TARGET];
-    BOOL list_flag = args[ARG_LIST] ? TRUE : FALSE;
-    BOOL exists_flag = args[ARG_EXISTS] ? TRUE : FALSE;
-    BOOL dismount_flag = args[ARG_DISMOUNT] ? TRUE : FALSE;
-    BOOL defer_flag = args[ARG_DEFER] ? TRUE : FALSE;
-    BOOL path_flag = args[ARG_PATH] ? TRUE : FALSE;
-    BOOL add_flag = args[ARG_ADD] ? TRUE : FALSE;
-    BOOL remove_flag = args[ARG_REMOVE] ? TRUE : FALSE;
-    
-    /* DISMOUNT is an alias for REMOVE */
-    if (dismount_flag) {
-        remove_flag = TRUE;
+
+    if ((args[A_ADD] != 0) + (args[A_REMOVE] != 0) + (args[A_PATH] != 0) + (args[A_DEFER] != 0) > 1) {
+        PutStr((STRPTR)"Only one of ADD, SUB, PATH, or DEFER allowed\n");
+        FreeArgs(rda);
+        SetIoErr(0);
+        return RETURN_FAIL;
     }
-    
-    /* Decide what to do */
-    if (list_flag || (!name && !target)) {
-        /* List assigns */
-        result = list_assigns();
-    } else if (exists_flag && name) {
-        /* Check if assign exists */
-        result = check_exists((const char *)name);
-    } else if (remove_flag && name) {
-        /* Remove assign */
-        result = remove_assign((const char *)name);
-    } else if (name && target) {
-        /* Create assign */
-        result = create_assign((const char *)name, (const char *)target, 
-                               defer_flag, path_flag, add_flag);
-    } else if (name && !target) {
-        /* Name without target - remove the assign */
-        result = remove_assign((const char *)name);
-    } else {
-        out_str("ASSIGN: Invalid arguments\n");
-        result = 10;
+
+    if (!args[A_NAME] || args[A_LIST]) {
+        BOOL any = args[A_VOLS] || args[A_DIRS] || args[A_DEVICES];
+        if (!args[A_NAME])
+            list_all(!any || args[A_VOLS], !any || args[A_DIRS], !any || args[A_DEVICES]);
+        if (!args[A_NAME]) {
+            FreeArgs(rda);
+            return 0;
+        }
     }
-    
+
+    n = strlen((char *)args[A_NAME]);
+    if (n < 2 || ((char *)args[A_NAME])[n - 1] != ':' || n > (int)sizeof(name)) {
+        Printf((STRPTR)"Invalid device name %s\n", args[A_NAME]);
+        FreeArgs(rda);
+        SetIoErr(0);
+        return RETURN_FAIL;
+    }
+    CopyMem((APTR)args[A_NAME], name, n - 1);
+    name[n - 1] = '\0';
+
+    if (args[A_EXISTS] || args[A_LIST]) {
+        if (!show_assign(name)) {
+            Printf((STRPTR)"%s not assigned\n", args[A_NAME]);
+            rc = RETURN_WARN;
+        }
+        FreeArgs(rda);
+        SetIoErr(0);
+        return rc;
+    }
+
+    t = (STRPTR *)args[A_TARGET];
+    if (!t || !*t) {
+        if (args[A_DISMOUNT]) {
+            /* the device itself cannot be removed from lxa's VFS */
+            AssignLock((STRPTR)name, 0);
+        } else {
+            AssignLock((STRPTR)name, 0);
+        }
+        FreeArgs(rda);
+        return 0;
+    }
+
+    if (args[A_DEFER] || args[A_PATH]) {
+        BOOL ok;
+        BPTR lock = Lock(*t, SHARED_LOCK);
+        if (args[A_PATH] && !lock) {
+            LONG err = IoErr();
+            Printf((STRPTR)"Can't find %s\n", (LONG)*t);
+            FreeArgs(rda);
+            SetIoErr(err);
+            return RETURN_FAIL;
+        }
+        if (lock)
+            UnLock(lock);
+        ok = args[A_DEFER] ? AssignLate((STRPTR)name, *t) : AssignPath((STRPTR)name, *t);
+        if (!ok) {
+            LONG err = IoErr();
+            Printf((STRPTR)"Can't find %s\n", (LONG)*t);
+            SetIoErr(err);
+            rc = RETURN_FAIL;
+        }
+        FreeArgs(rda);
+        return rc;
+    }
+
+    {
+        BOOL first = TRUE;
+        for (; *t; t++) {
+            BPTR lock = Lock(*t, SHARED_LOCK);
+            if (!lock) {
+                LONG err = IoErr();
+                Printf((STRPTR)"Can't find %s\n", (LONG)*t);
+                SetIoErr(err);
+                rc = RETURN_FAIL;
+                break;
+            }
+            if (args[A_REMOVE]) {
+                if (!RemAssignList((STRPTR)name, lock)) {
+                    Printf((STRPTR)"Can't cancel %s\n", (LONG)*t);
+                    rc = RETURN_WARN;
+                }
+                UnLock(lock);
+            } else if (args[A_ADD] || !first) {
+                if (!AssignAdd((STRPTR)name, lock)) {
+                    if (!AssignLock((STRPTR)name, lock)) {
+                        UnLock(lock);
+                        PrintFault(IoErr(), (STRPTR)args[A_NAME]);
+                        rc = RETURN_FAIL;
+                        break;
+                    }
+                }
+            } else {
+                if (!AssignLock((STRPTR)name, lock)) {
+                    UnLock(lock);
+                    PrintFault(IoErr(), (STRPTR)args[A_NAME]);
+                    rc = RETURN_FAIL;
+                    break;
+                }
+            }
+            first = FALSE;
+        }
+    }
     FreeArgs(rda);
-    return result;
+    return rc;
 }

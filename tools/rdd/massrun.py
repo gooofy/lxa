@@ -114,7 +114,12 @@ def run_lxa_one(rel, root, frames, build=None):
 def run_lxa(progs, out, root, jobs, frames, build):
     rdir = os.path.join(out, "lxa")
     os.makedirs(rdir, exist_ok=True)
-    env = dict(os.environ, PYTHONPATH=os.path.join(ROOT, "tools"))
+    # programs (installers!) write into LIBS:/SYS: - give them a private
+    # copy of lxa's system directory, never the checked-in one
+    sysdir = os.path.join(out, "system")
+    shutil.rmtree(sysdir, ignore_errors=True)
+    shutil.copytree(os.path.join(ROOT, "share", "lxa", "System"), sysdir)
+    env = dict(os.environ, PYTHONPATH=os.path.join(ROOT, "tools"), LXA_SYSTEM_DIR=sysdir)
 
     def one(p):
         dst = os.path.join(rdir, p["id"] + ".json")

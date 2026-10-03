@@ -1,0 +1,47 @@
+; Local and global variables, aliases, command substitution (Phase 221)
+FailAt 21
+Unset Kickstart
+Unset Workbench
+Unset process
+Set myvar hello world
+Echo "[$myvar]"
+Echo "[${myvar}!]"
+Get myvar
+Set quoted "a  b"
+Echo "[$quoted]"
+Set empty
+Echo "[$empty]"
+Set
+Unset myvar
+Get myvar
+Echo "get rc=$RC r2=$Result2"
+Echo "[$myvar]"
+Echo "*$quoted"
+Echo $nosuchvar
+Set n 5
+Set m `Eval $n + 1`
+Echo "m=$m"
+SetEnv ptgenv gval
+GetEnv ptgenv
+Echo "env=$ptgenv"
+Set ptgenv local
+Echo "local wins=$ptgenv"
+Unset ptgenv
+Echo "global again=$ptgenv"
+UnSetEnv ptgenv
+GetEnv ptgenv
+Echo "getenv rc=$RC"
+Alias
+Alias ll List
+Alias xx "Echo [] end"
+Alias yy Echo prefix
+Alias
+Alias ll
+xx middle
+yy tail
+Unalias ll
+Alias
+Unalias xx
+Unalias yy
+Alias
+Echo "done"

@@ -66,21 +66,6 @@ struct ParallelBase
     BOOL pb_Stopped;
 };
 
-static const UWORD parallel_supported_commands[] =
-{
-    CMD_CLEAR,
-    CMD_FLUSH,
-    CMD_READ,
-    CMD_RESET,
-    CMD_START,
-    CMD_STOP,
-    CMD_WRITE,
-    PDCMD_QUERY,
-    PDCMD_SETPARAMS,
-    NSCMD_DEVICEQUERY,
-    0
-};
-
 static void parallel_reply_request(struct IORequest *ioreq)
 {
     if (!(ioreq->io_Flags & IOF_QUICK))
@@ -110,11 +95,6 @@ static void parallel_fill_request_config(struct ParallelBase *parallelbase,
     io->io_ParFlags = parallelbase->pb_Config.io_ParFlags | (shared ? PARF_SHARED : 0);
     io->io_PTermArray = parallelbase->pb_Config.io_PTermArray;
     io->io_Status = parallelbase->pb_Status;
-}
-
-static BOOL parallel_request_is_valid(const struct IORequest *ioreq)
-{
-    return ioreq && ioreq->io_Message.mn_Length >= sizeof(struct IOExtPar);
 }
 
 static struct ParallelUnit *parallel_get_unit(struct IORequest *ioreq)
@@ -415,11 +395,9 @@ static void __g_lxa_parallel_Open(register struct Library *dev __asm("a6"),
     ioreq->io_Device = NULL;
     ioreq->io_Unit = NULL;
 
-    if (unit >= PARALLEL_UNIT_COUNT || !parallel_request_is_valid(ioreq))
-    {
-        ioreq->io_Error = IOERR_OPENFAIL;
-        return;
-    }
+    /* AmigaOS 3.1 ignores the unit number and does not check the request
+     * size (verified on the reference, Phase 220) */
+    (void)unit;
 
     shared = (io->io_ParFlags & PARF_SHARED) != 0;
     if (parallelbase->pb_Device.dd_Library.lib_OpenCnt != 0 &&
@@ -515,11 +493,7 @@ static LONG parallel_apply_setparams(struct ParallelBase *parallelbase,
         return ParErr_DevBusy;
     }
 
-    if (io->io_PExtFlags != 0)
-    {
-        return ParErr_InvParam;
-    }
-
+    /* io_PExtFlags is accepted as is (AmigaOS 3.1, verified Phase 220) */
     if ((io->io_ParFlags & ~allowed_flags) != 0)
     {
         return ParErr_InvParam;
@@ -536,7 +510,7 @@ static LONG parallel_apply_setparams(struct ParallelBase *parallelbase,
         parallelunit->pu_Shared = shared;
     }
 
-    parallelbase->pb_Config.io_PExtFlags = 0;
+    parallelbase->pb_Config.io_PExtFlags = io->io_PExtFlags;
     parallelbase->pb_Config.io_ParFlags = io->io_ParFlags & (PARF_SLOWMODE | PARF_FASTMODE | PARF_ACKMODE | PARF_EOFMODE);
     parallelbase->pb_Config.io_PTermArray = io->io_PTermArray;
     parallel_recompute_exclusive(parallelbase);
@@ -554,7 +528,6 @@ static BPTR __g_lxa_parallel_BeginIO(register struct Library *dev __asm("a6"),
 
     ioreq->io_Message.mn_Node.ln_Type = NT_MESSAGE;
     ioreq->io_Error = 0;
-    io->IOPar.io_Actual = 0;
 
     if (!parallelunit)
     {
@@ -565,29 +538,10 @@ static BPTR __g_lxa_parallel_BeginIO(register struct Library *dev __asm("a6"),
 
     switch (ioreq->io_Command)
     {
-        case NSCMD_DEVICEQUERY:
-        {
-            struct NSDeviceQueryResult *query = (struct NSDeviceQueryResult *)io->IOPar.io_Data;
-
-            if (!query)
-            {
-                result = IOERR_BADADDRESS;
-                break;
-            }
-            if (io->IOPar.io_Length < sizeof(*query))
-            {
-                result = IOERR_BADLENGTH;
-                break;
-            }
-
-            query->nsdqr_DevQueryFormat = 0;
-            query->nsdqr_SizeAvailable = sizeof(*query);
-            query->nsdqr_DeviceType = NSDEVTYPE_PARALLEL;
-            query->nsdqr_DeviceSubType = 0;
-            query->nsdqr_SupportedCommands = (APTR)parallel_supported_commands;
-            io->IOPar.io_Actual = sizeof(*query);
+        /* standard commands succeed without touching io_Actual; there is
+         * no NSCMD_DEVICEQUERY on AmigaOS 3.1 (verified, Phase 220) */
+        case CMD_UPDATE:
             break;
-        }
 
         case CMD_CLEAR:
             parallelbase->pb_BufferCount = 0;
@@ -602,8 +556,8 @@ static BPTR __g_lxa_parallel_BeginIO(register struct Library *dev __asm("a6"),
             parallelbase->pb_BufferCount = 0;
             parallelbase->pb_Status = IOPTF_PARSEL;
             parallelbase->pb_Stopped = FALSE;
+            /* resets the port but leaves the request's fields alone */
             parallel_set_default_config(parallelbase);
-            parallel_fill_request_config(parallelbase, io, parallelunit->pu_Shared);
             break;
 
         case CMD_START:
@@ -625,6 +579,7 @@ static BPTR __g_lxa_parallel_BeginIO(register struct Library *dev __asm("a6"),
                 break;
             }
 
+            io->IOPar.io_Actual = 0;
             length = parallel_compute_write_length(io);
             result = parallel_append_buffer(parallelbase,
                                             (const UBYTE *)io->IOPar.io_Data,
@@ -642,6 +597,7 @@ static BPTR __g_lxa_parallel_BeginIO(register struct Library *dev __asm("a6"),
         }
 
         case CMD_READ:
+            io->IOPar.io_Actual = 0;
             parallelbase->pb_Status &= (UBYTE)~IOPTF_RWDIR;
             if (parallelbase->pb_Stopped)
             {
