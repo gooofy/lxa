@@ -14,6 +14,8 @@
  *   lxcolor.font  FCH_ID   2-plane colour font, size 7
  *   lxbroken.font FCH_ID   one entry whose font file does not exist
  *   lxempty.font  FCH_ID   no entries
+ *   lxsel.font    FCH_ID   sizes 6, 8, 11, 15 (tf_LoChar 33..36), for
+ *                          the choice of the scaling source
  */
 #ifndef LXA_DFPROBE_H
 #define LXA_DFPROBE_H
@@ -339,6 +341,10 @@ static const struct df_spec df_fonts[] = {
     { "lxtag/9",    "lxtag9",   9, FSF_TAGGED, PF, 40, 80, 1, 1, 0x00640032, 2 },
     { "lxtag/6",    "lxtag6",   6, 0, PF, 40, 80, 1, 1, 0, 2 },
     { "lxcolor/7",  "lxcolor",  7, FSF_COLORFONT, PF, 48, 70, 1, 2, 0, 1 },
+    { "lxsel/6",    "lxsel",    6, 0, PF, 33, 70, 1, 1, 0, 1 },
+    { "lxsel/8",    "lxsel",    8, 0, PF, 34, 70, 1, 1, 0, 1 },
+    { "lxsel/11",   "lxsel",   11, 0, PF, 35, 70, 1, 1, 0, 1 },
+    { "lxsel/15",   "lxsel",   15, 0, PF, 36, 70, 1, 1, 0, 1 },
 };
 
 static const struct df_entry df_prop_e[] = {
@@ -347,9 +353,11 @@ static const struct df_entry df_fixed_e[] = { { "lxfixed/10", 10, 0, FPF_DESIGNE
 static const struct df_entry df_tag_e[] = {
     { "lxtag/9", 9, FSF_TAGGED, PF, 0x00640032 }, { "lxtag/6", 6, 0, PF, 0 } };
 static const struct df_entry df_color_e[] = { { "lxcolor/7", 7, FSF_COLORFONT, PF, 0 } };
+static const struct df_entry df_sel_e[] = {
+    { "lxsel/6", 6, 0, PF, 0 }, { "lxsel/8", 8, 0, PF, 0 }, { "lxsel/11", 11, 0, PF, 0 }, { "lxsel/15", 15, 0, PF, 0 } };
 static const struct df_entry df_broken_e[] = { { "lxbroken/12", 12, 0, PF, 0 } };
 
-static const char *df_dirs[] = { "lxprop", "lxfixed", "lxtag", "lxcolor", "lxbroken", "lxempty", NULL };
+static const char *df_dirs[] = { "lxprop", "lxfixed", "lxtag", "lxcolor", "lxbroken", "lxempty", "lxsel", NULL };
 
 static BPTR df_old_fonts;
 static BPTR df_dirlock;
@@ -409,6 +417,7 @@ static BOOL df_setup(void)
     ok = ok && df_write_contents("lxcolor.font", FCH_ID, df_color_e, 1);
     ok = ok && df_write_contents("lxbroken.font", FCH_ID, df_broken_e, 1);
     ok = ok && df_write_contents("lxempty.font", FCH_ID, NULL, 0);
+    ok = ok && df_write_contents("lxsel.font", FCH_ID, df_sel_e, 4);
 
     df_old_fonts = Lock((STRPTR)"FONTS:", SHARED_LOCK);
     l = Lock((STRPTR)DF_DIR, SHARED_LOCK);
@@ -459,6 +468,38 @@ static void df_lbl(char *buf, const char *a, const char *b)
     strcat(buf, b);
 }
 
+/* the glyph bits of one bit plane; bits no glyph covers (padding, never
+ * cleared by AmigaOS 3.1's scaler) read as 0 */
+static UBYTE *df_masked(struct TextFont *tf, const UBYTE *plane)
+{
+    LONG size = (LONG)tf->tf_Modulo * tf->tf_YSize;
+    UBYTE *m = AllocVec(size ? size : 1, MEMF_PUBLIC | MEMF_CLEAR);
+    WORD n = (WORD)(tf->tf_HiChar - tf->tf_LoChar + 2), i, y;
+    if (!m)
+        return NULL;
+    for (i = 0; i < n; i++) {
+        ULONG loc = ((ULONG *)tf->tf_CharLoc)[i];
+        ULONG o = loc >> 16, w = loc & 0xffff, x;
+        for (x = o; x < o + w && x < (ULONG)tf->tf_Modulo * 8; x++)
+            for (y = 0; y < (WORD)tf->tf_YSize; y++) {
+                LONG b = (LONG)y * tf->tf_Modulo + (LONG)(x >> 3);
+                m[b] |= (UBYTE)(plane[b] & (0x80 >> (x & 7)));
+            }
+    }
+    return m;
+}
+
+static ULONG df_data_hash(struct TextFont *tf, const UBYTE *plane)
+{
+    UBYTE *m = df_masked(tf, plane);
+    ULONG h;
+    if (!m)
+        return 0;
+    h = probe_hash(m, (LONG)tf->tf_Modulo * tf->tf_YSize);
+    FreeVec(m);
+    return h;
+}
+
 /* metrics only (fonts whose glyphs are not ours, e.g. ROM topaz) */
 static void df_metrics(const char *p, struct TextFont *tf)
 {
@@ -491,7 +532,7 @@ static void df_font(const char *p, struct TextFont *tf, BOOL ours)
     df_lbl(l, p, ".type");      P_LONG(l, tf->tf_Message.mn_Node.ln_Type);
     df_lbl(l, p, ".accessors"); P_LONG(l, tf->tf_Accessors);
     df_lbl(l, p, ".modulo");    P_LONG(l, tf->tf_Modulo);
-    df_lbl(l, p, ".data");      P_HEX(l, probe_hash(tf->tf_CharData, (LONG)tf->tf_Modulo * tf->tf_YSize));
+    df_lbl(l, p, ".data");      P_HEX(l, df_data_hash(tf, tf->tf_CharData));
     df_lbl(l, p, ".loc");       P_HEX(l, probe_hash(tf->tf_CharLoc, (LONG)n * 4));
     if (tf->tf_CharSpace) {
         df_lbl(l, p, ".spacetab"); P_HEX(l, probe_hash(tf->tf_CharSpace, (LONG)n * 2));
@@ -518,7 +559,7 @@ static void df_font(const char *p, struct TextFont *tf, BOOL ours)
             df_lbl(m, p, ".plane0");
             m[strlen(m) - 1] = (char)('0' + i);
             if (ctf->ctf_CharData[i])
-                P_HEX(m, probe_hash(ctf->ctf_CharData[i], (LONG)tf->tf_Modulo * tf->tf_YSize));
+                P_HEX(m, df_data_hash(tf, ctf->ctf_CharData[i]));
             else
                 P_NULL(m, NULL);
         }
@@ -528,7 +569,8 @@ static void df_font(const char *p, struct TextFont *tf, BOOL ours)
     if (tf->tf_Extension) {
         struct TextFontExtension *tfe = (struct TextFontExtension *)tf->tf_Extension;
         df_lbl(l, p, ".tfe_match"); df_flags(l, tfe->tfe_MatchWord);
-        df_lbl(l, p, ".tfe_flags0"); df_flags(l, tfe->tfe_Flags0);
+        /* bits 0 and 7 are diskfont's; the others are graphics.library's */
+        df_lbl(l, p, ".tfe_flags0"); df_flags(l, tfe->tfe_Flags0 & 0x81);
         df_lbl(l, p, ".tfe_backptr"); P_BOOL(l, tfe->tfe_BackPtr == tf);
         df_lbl(l, p, ".tfe_tags"); P_NULL(l, tfe->tfe_Tags);
         if (tfe->tfe_Tags) {
@@ -540,10 +582,8 @@ static void df_font(const char *p, struct TextFont *tf, BOOL ours)
         df_lbl(l, p, ".dfh_id");       df_flags(l, dfh->dfh_FileID);
         df_lbl(l, p, ".dfh_rev");      P_LONG(l, dfh->dfh_Revision);
         df_lbl(l, p, ".dfh_name");     P_STR(l, (char *)dfh->dfh_Name);
-        df_lbl(l, p, ".dfh_lnname");   P_BOOL(l, dfh->dfh_DF.ln_Name == (char *)dfh->dfh_Name);
         df_lbl(l, p, ".dfh_lntype");   P_LONG(l, dfh->dfh_DF.ln_Type);
         df_lbl(l, p, ".dfh_lnpri");    P_LONG(l, dfh->dfh_DF.ln_Pri);
-        df_lbl(l, p, ".dfh_ln");       P_STR(l, dfh->dfh_DF.ln_Name);
         df_lbl(l, p, ".dfh_seg");      P_NULL(l, (APTR)dfh->dfh_Segment);
         df_lbl(l, p, ".tfname_is_dfhname"); P_BOOL(l, tf->tf_Message.mn_Node.ln_Name == (char *)dfh->dfh_Name);
     }
@@ -554,6 +594,7 @@ static void df_dump(const char *p, struct TextFont *tf)
 {
     char l[64];
     WORD n, y;
+    UBYTE *mk;
     if (!tf)
         return;
     n = (WORD)(tf->tf_HiChar - tf->tf_LoChar + 2);
@@ -564,14 +605,15 @@ static void df_dump(const char *p, struct TextFont *tf)
     if (tf->tf_CharKern) {
         df_lbl(l, p, ".kerns");  P_BYTES(l, tf->tf_CharKern, (LONG)n * 2);
     }
-    for (y = 0; y < (WORD)tf->tf_YSize; y++) {
+    mk = df_masked(tf, tf->tf_CharData);
+    for (y = 0; mk && y < (WORD)tf->tf_YSize; y++) {
         char m[64];
         df_lbl(m, p, ".row");
         probe_s(m);
         probe_dec(y);
         probe_s(" =");
         {
-            const UBYTE *b = (const UBYTE *)tf->tf_CharData + (LONG)y * tf->tf_Modulo;
+            const UBYTE *b = mk + (LONG)y * tf->tf_Modulo;
             WORD i;
             static const char hx[] = "0123456789abcdef";
             for (i = 0; i < tf->tf_Modulo; i++) {
@@ -582,6 +624,8 @@ static void df_dump(const char *p, struct TextFont *tf)
         }
         probe_ch('\n');
     }
+    if (mk)
+        FreeVec(mk);
 }
 
 static int df_open_libs(void)

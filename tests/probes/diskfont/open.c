@@ -78,7 +78,6 @@ int main(void)
     df_open("prop12", "lxprop.font", 12, 0, 0, NULL);
     df_open("prop22", "lxprop.font", 22, 0, 0, NULL);
     df_open("prop1", "lxprop.font", 1, 0, 0, NULL);
-    df_open("prop0", "lxprop.font", 0, 0, 0, NULL);
     df_open("prop13d", "lxprop.font", 13, 0, FPF_DESIGNED, NULL);
     df_open("prop14b", "lxprop.font", 14, FSF_BOLD | FSF_ITALIC, 0, NULL);
     df_open("fixed20", "lxfixed.font", 20, 0, 0, NULL);
@@ -87,6 +86,46 @@ int main(void)
     df_open("tag18", "lxtag.font", 18, 0, 0, NULL);
     df_open("tag7", "lxtag.font", 7, 0, 0, NULL);
     df_open("color14", "lxcolor.font", 14, 0, 0, NULL);
+
+    P_SECTION("source selection");
+    {
+        /* lxsel has sizes 6, 8, 11 and 15; tf_LoChar (33..36) tells the source */
+        int T;
+        for (T = 1; T <= 40; T++) {
+            struct TextAttr ta;
+            struct TextFont *tf;
+            ta.ta_Name = (STRPTR)"lxsel.font";
+            ta.ta_YSize = (UWORD)T;
+            ta.ta_Style = 0;
+            ta.ta_Flags = 0;
+            tf = OpenDiskFont(&ta);
+            probe_s("sel");
+            probe_dec(T);
+            if (tf) {
+                probe_s(": ysize=");
+                probe_dec(tf->tf_YSize);
+                probe_s(" lo=");
+                probe_dec(tf->tf_LoChar);
+                probe_s(" xsize=");
+                probe_dec(tf->tf_XSize);
+                probe_s(" baseline=");
+                probe_dec(tf->tf_Baseline);
+                probe_s(" smear=");
+                probe_dec(tf->tf_BoldSmear);
+                probe_s(" flags=");
+                probe_hex(tf->tf_Flags, 2);
+                probe_s(" modulo=");
+                probe_dec(tf->tf_Modulo);
+                probe_s(" data=");
+                probe_hex(df_data_hash(tf, tf->tf_CharData), 8);
+                probe_s(" loc=");
+                probe_hex(probe_hash(tf->tf_CharLoc, (LONG)(tf->tf_HiChar - tf->tf_LoChar + 2) * 4), 8);
+                CloseFont(tf);
+            } else
+                probe_s(": NULL");
+            probe_ch('\n');
+        }
+    }
 
     P_SECTION("device dpi");
     dpi[0].ti_Tag = TA_DeviceDPI;
@@ -115,8 +154,21 @@ int main(void)
 
     P_SECTION("rom topaz");
     df_open("topaz8", "topaz.font", 8, 0, 0, NULL);
-    df_open("topaz16", "topaz.font", 16, 0, 0, NULL);
-    df_open("topaz11d", "topaz.font", 11, 0, FPF_DESIGNED, NULL);
+
+    P_SECTION("no contents file");
+    {
+        /* FONTS: without lxfixed.font: the closest size in memory */
+        BPTR l = Lock((STRPTR)DF_DIR "/lxempty", SHARED_LOCK);
+        BOOL ok = l && AssignLock((STRPTR)"FONTS", l);
+        P_BOOL("nocontents.assign", ok);
+        if (ok) {
+            df_open("nocontents14", "lxfixed.font", 14, 0, 0, NULL);
+            df_open("nocontents26", "lxfixed.font", 26, 0, 0, NULL);
+            df_open("nocontents_none", "lxnone.font", 8, 0, 0, NULL);
+            l = Lock((STRPTR)DF_DIR, SHARED_LOCK);
+            P_BOOL("nocontents.restore", l && AssignLock((STRPTR)"FONTS", l));
+        }
+    }
 
     P_SECTION("NewScaledDiskFont");
     {

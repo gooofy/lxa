@@ -112,8 +112,9 @@ static LONG avail(const char *label, ULONG flags, LONG size, BOOL show, BOOL mem
 {
     LONG r, i;
     char l[64];
+    /* zero: AmigaOS 3.1 leaves tta_Tags of FCH_ID disk entries untouched */
     for (i = 0; i < BUFSZ; i++)
-        buf[i] = 0xa5;
+        buf[i] = 0;
     ((struct AvailFontsHeader *)buf)->afh_NumEntries = 0x7777;
     r = AvailFonts((STRPTR)buf, size, (LONG)flags);
     df_lbl(l, label, ".result");
@@ -262,7 +263,8 @@ int main(void)
             for (k = 0; k <= 64; k++) {
                 LONG i;
                 for (i = 0; i < 80; i++)
-                    buf[i] = 0xa5;
+                    buf[i] = 0;
+                buf[0] = buf[1] = 0xa5;
                 r = AvailFonts((STRPTR)buf, k, (LONG)fl);
                 probe_s(fl & AFF_TAGGED ? "three_tagged " : "three ");
                 probe_dec(k);
@@ -270,6 +272,24 @@ int main(void)
                 probe_dec(r);
                 probe_s(" num=");
                 probe_hex(*(UWORD *)buf, 4);
+                /* where the names (and tags) went, as buffer offsets */
+                if (k >= 2 && *(UWORD *)buf <= 3) {
+                    UWORD e;
+                    for (e = 0; e < *(UWORD *)buf; e++) {
+                        UBYTE *ent = buf + 2 + e * (fl & AFF_TAGGED ? sizeof(struct TAvailFonts) : sizeof(struct AvailFonts));
+                        UBYTE *nm = *(UBYTE **)(ent + 2);
+                        probe_s(" name@");
+                        probe_dec((LONG)(nm - buf));
+                        if (fl & AFF_TAGGED) {
+                            struct TagItem *tg = ((struct TAvailFonts *)ent)->taf_Attr.tta_Tags;
+                            probe_s(" tags@");
+                            if (tg)
+                                probe_dec((LONG)((UBYTE *)tg - buf));
+                            else
+                                probe_s("NULL");
+                        }
+                    }
+                }
                 probe_ch('\n');
             }
             if (fl & AFF_TAGGED)

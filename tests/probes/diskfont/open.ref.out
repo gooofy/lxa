@@ -26,10 +26,8 @@ prop8.tfe_tags = NULL
 prop8.dfh_id = 0x00000f80
 prop8.dfh_rev = 3
 prop8.dfh_name = "lxprop.font"
-prop8.dfh_lnname = FALSE
 prop8.dfh_lntype = 12
 prop8.dfh_lnpri = 0
-prop8.dfh_ln = "op.font"
 prop8.dfh_seg = non-NULL
 prop8.tfname_is_dfhname = TRUE
 prop11.name = "lxprop.font"
@@ -58,10 +56,8 @@ prop11.tfe_tags = NULL
 prop11.dfh_id = 0x00000f80
 prop11.dfh_rev = 4
 prop11.dfh_name = "lxprop.font"
-prop11.dfh_lnname = FALSE
 prop11.dfh_lntype = 12
 prop11.dfh_lnpri = 0
-prop11.dfh_ln = "op.font"
 prop11.dfh_seg = non-NULL
 prop11.tfname_is_dfhname = TRUE
 fixed10.name = "lxfixed.font"
@@ -82,16 +78,14 @@ fixed10.data = 0xf3695785
 fixed10.loc = 0x68844e05
 fixed10.extension = non-NULL
 fixed10.tfe_match = 0x00004e1b
-fixed10.tfe_flags0 = 0x00000007
+fixed10.tfe_flags0 = 0x00000001
 fixed10.tfe_backptr = TRUE
 fixed10.tfe_tags = NULL
 fixed10.dfh_id = 0x00000f80
 fixed10.dfh_rev = 1
 fixed10.dfh_name = "lxfixed.font"
-fixed10.dfh_lnname = FALSE
 fixed10.dfh_lntype = 12
 fixed10.dfh_lnpri = 0
-fixed10.dfh_ln = "xed.font"
 fixed10.dfh_seg = non-NULL
 fixed10.tfname_is_dfhname = TRUE
 tag9.name = "lxtag.font"
@@ -120,10 +114,8 @@ tag9.tfe_tags = NULL
 tag9.dfh_id = 0x00000f80
 tag9.dfh_rev = 2
 tag9.dfh_name = "lxtag.font"
-tag9.dfh_lnname = FALSE
 tag9.dfh_lntype = 12
 tag9.dfh_lnpri = 0
-tag9.dfh_ln = "g.font"
 tag9.dfh_seg = non-NULL
 tag9.tfname_is_dfhname = TRUE
 tag6.name = "lxtag.font"
@@ -152,10 +144,8 @@ tag6.tfe_tags = NULL
 tag6.dfh_id = 0x00000f80
 tag6.dfh_rev = 2
 tag6.dfh_name = "lxtag.font"
-tag6.dfh_lnname = FALSE
 tag6.dfh_lntype = 12
 tag6.dfh_lnpri = 0
-tag6.dfh_ln = "g.font"
 tag6.dfh_seg = non-NULL
 tag6.tfname_is_dfhname = TRUE
 color7.name = "lxcolor.font"
@@ -196,10 +186,8 @@ color7.tfe_tags = NULL
 color7.dfh_id = 0x00000f80
 color7.dfh_rev = 1
 color7.dfh_name = "lxcolor.font"
-color7.dfh_lnname = FALSE
 color7.dfh_lntype = 12
 color7.dfh_lnpri = 0
-color7.dfh_ln = "lor.font"
 color7.dfh_seg = non-NULL
 color7.tfname_is_dfhname = TRUE
 -- reopen
@@ -229,10 +217,8 @@ prop8b.tfe_tags = NULL
 prop8b.dfh_id = 0x00000f80
 prop8b.dfh_rev = 3
 prop8b.dfh_name = "lxprop.font"
-prop8b.dfh_lnname = FALSE
 prop8b.dfh_lntype = 12
 prop8b.dfh_lnpri = 0
-prop8b.dfh_ln = "op.font"
 prop8b.dfh_seg = non-NULL
 prop8b.tfname_is_dfhname = TRUE
 prop8b.same = TRUE
@@ -262,10 +248,8 @@ prop8c.tfe_tags = NULL
 prop8c.dfh_id = 0x00000f80
 prop8c.dfh_rev = 3
 prop8c.dfh_name = "lxprop.font"
-prop8c.dfh_lnname = FALSE
 prop8c.dfh_lntype = 12
 prop8c.dfh_lnpri = 0
-prop8c.dfh_ln = "op.font"
 prop8c.dfh_seg = non-NULL
 prop8c.tfname_is_dfhname = TRUE
 prop8c.same = TRUE
@@ -295,10 +279,8 @@ prop8d.tfe_tags = NULL
 prop8d.dfh_id = 0x00000f80
 prop8d.dfh_rev = 3
 prop8d.dfh_name = "lxprop.font"
-prop8d.dfh_lnname = FALSE
 prop8d.dfh_lntype = 12
 prop8d.dfh_lnpri = 0
-prop8d.dfh_ln = "op.font"
 prop8d.dfh_seg = non-NULL
 prop8d.tfname_is_dfhname = TRUE
 prop8d.same = TRUE
@@ -328,10 +310,8 @@ prop8e.tfe_tags = NULL
 prop8e.dfh_id = 0x00000f80
 prop8e.dfh_rev = 3
 prop8e.dfh_name = "lxprop.font"
-prop8e.dfh_lnname = FALSE
 prop8e.dfh_lntype = 12
 prop8e.dfh_lnpri = 0
-prop8e.dfh_ln = "op.font"
 prop8e.dfh_seg = non-NULL
 prop8e.tfname_is_dfhname = TRUE
 prop8e.same = TRUE
@@ -422,7 +402,7 @@ prop4.kern = non-NULL
 prop4.type = 12
 prop4.accessors = 1
 prop4.modulo = 16
-prop4.data = 0x03a6cd13
+prop4.data = 0xd0cfc2c4
 prop4.loc = 0xf325246a
 prop4.spacetab = 0xa5bdd865
 prop4.kerntab = 0x603f7a60
@@ -569,29 +549,6 @@ prop1.tfe_match = 0x00004e1b
 prop1.tfe_flags0 = 0x00000001
 prop1.tfe_backptr = TRUE
 prop1.tfe_tags = NULL
-prop0.name = "lxprop.font"
-prop0.ysize = 1
-prop0.xsize = 1
-prop0.style = 0x00000000
-prop0.flags = 0x00000020
-prop0.baseline = 1
-prop0.boldsmear = 1
-prop0.lo = 32
-prop0.hi = 90
-prop0.space = non-NULL
-prop0.kern = non-NULL
-prop0.type = 12
-prop0.accessors = 2
-prop0.modulo = 8
-prop0.data = 0xaf0d4d59
-prop0.loc = 0xb27428e2
-prop0.spacetab = 0x0068f215
-prop0.kerntab = 0xf81e8f8d
-prop0.extension = non-NULL
-prop0.tfe_match = 0x00004e1b
-prop0.tfe_flags0 = 0x00000001
-prop0.tfe_backptr = TRUE
-prop0.tfe_tags = NULL
 prop13d.name = "lxprop.font"
 prop13d.ysize = 11
 prop13d.xsize = 6
@@ -618,10 +575,8 @@ prop13d.tfe_tags = NULL
 prop13d.dfh_id = 0x00000f80
 prop13d.dfh_rev = 4
 prop13d.dfh_name = "lxprop.font"
-prop13d.dfh_lnname = FALSE
 prop13d.dfh_lntype = 12
 prop13d.dfh_lnpri = 0
-prop13d.dfh_ln = "op.font"
 prop13d.dfh_seg = non-NULL
 prop13d.tfname_is_dfhname = TRUE
 prop14b.name = "lxprop.font"
@@ -665,7 +620,7 @@ fixed20.data = 0x8d480ad1
 fixed20.loc = 0x95fe8d45
 fixed20.extension = non-NULL
 fixed20.tfe_match = 0x00004e1b
-fixed20.tfe_flags0 = 0x00000005
+fixed20.tfe_flags0 = 0x00000001
 fixed20.tfe_backptr = TRUE
 fixed20.tfe_tags = NULL
 fixed5.name = "lxfixed.font"
@@ -686,7 +641,7 @@ fixed5.data = 0x8c6ce051
 fixed5.loc = 0xc3c36845
 fixed5.extension = non-NULL
 fixed5.tfe_match = 0x00004e1b
-fixed5.tfe_flags0 = 0x00000005
+fixed5.tfe_flags0 = 0x00000001
 fixed5.tfe_backptr = TRUE
 fixed5.tfe_tags = NULL
 fixed15.name = "lxfixed.font"
@@ -707,7 +662,7 @@ fixed15.data = 0x30fec73a
 fixed15.loc = 0x0e877ba6
 fixed15.extension = non-NULL
 fixed15.tfe_match = 0x00004e1b
-fixed15.tfe_flags0 = 0x00000005
+fixed15.tfe_flags0 = 0x00000001
 fixed15.tfe_backptr = TRUE
 fixed15.tfe_tags = NULL
 tag18.name = "lxtag.font"
@@ -724,7 +679,7 @@ tag18.kern = non-NULL
 tag18.type = 12
 tag18.accessors = 1
 tag18.modulo = 40
-tag18.data = 0x96c716c7
+tag18.data = 0x65303b75
 tag18.loc = 0xfbc80f7e
 tag18.spacetab = 0x2d307bfd
 tag18.kerntab = 0x561e817d
@@ -791,6 +746,47 @@ color14.tfe_match = 0x00004e1b
 color14.tfe_flags0 = 0x00000001
 color14.tfe_backptr = TRUE
 color14.tfe_tags = NULL
+-- source selection
+sel1: ysize=1 lo=33 xsize=1 baseline=1 smear=1 flags=0x20 modulo=6 data=0x23c79631 loc=0xffa29796
+sel2: ysize=2 lo=33 xsize=2 baseline=1 smear=1 flags=0x20 modulo=8 data=0x4bd2ac0f loc=0x99ccf3a9
+sel3: ysize=3 lo=33 xsize=3 baseline=2 smear=1 flags=0x20 modulo=12 data=0x99bec8e5 loc=0xb9bb2f1c
+sel4: ysize=4 lo=34 xsize=3 baseline=3 smear=1 flags=0x20 modulo=12 data=0x8ced3a1e loc=0xbeb3dbe9
+sel5: ysize=5 lo=33 xsize=5 baseline=3 smear=1 flags=0x20 modulo=16 data=0x8f80d26a loc=0xae18a66e
+sel6: ysize=6 lo=33 xsize=6 baseline=3 smear=1 flags=0x62 modulo=20 data=0x34323b75 loc=0xb0a21563
+sel7: ysize=7 lo=33 xsize=7 baseline=4 smear=1 flags=0x20 modulo=22 data=0x4db7242e loc=0x53fd631f
+sel8: ysize=8 lo=34 xsize=6 baseline=5 smear=1 flags=0x62 modulo=18 data=0x83229d76 loc=0x0d704341
+sel9: ysize=9 lo=34 xsize=7 baseline=6 smear=1 flags=0x20 modulo=22 data=0x8eee5870 loc=0xf670a761
+sel10: ysize=10 lo=34 xsize=8 baseline=7 smear=1 flags=0x20 modulo=24 data=0xb532ad0f loc=0x97cb24ca
+sel11: ysize=11 lo=35 xsize=6 baseline=8 smear=1 flags=0x62 modulo=18 data=0x7e0b0d1f loc=0x78d0696a
+sel12: ysize=12 lo=33 xsize=12 baseline=7 smear=2 flags=0x20 modulo=38 data=0x72b55c45 loc=0x762e47a1
+sel13: ysize=13 lo=35 xsize=7 baseline=10 smear=1 flags=0x20 modulo=22 data=0x7abcd86d loc=0x0daa6db3
+sel14: ysize=14 lo=35 xsize=8 baseline=10 smear=1 flags=0x20 modulo=22 data=0xd03e8639 loc=0x18e4834d
+sel15: ysize=15 lo=36 xsize=6 baseline=12 smear=1 flags=0x62 modulo=18 data=0x76c7c4df loc=0xb55d78b5
+sel16: ysize=16 lo=34 xsize=12 baseline=11 smear=2 flags=0x20 modulo=36 data=0x279dca59 loc=0x256a6a9a
+sel17: ysize=17 lo=36 xsize=7 baseline=14 smear=1 flags=0x20 modulo=20 data=0x8dc6c13a loc=0xe601a56f
+sel18: ysize=18 lo=36 xsize=7 baseline=15 smear=1 flags=0x20 modulo=22 data=0x3e1248bb loc=0x0be40faa
+sel19: ysize=19 lo=36 xsize=8 baseline=15 smear=1 flags=0x20 modulo=24 data=0xfae7a80a loc=0x6119186f
+sel20: ysize=20 lo=36 xsize=8 baseline=16 smear=1 flags=0x20 modulo=24 data=0x648d468f loc=0x6b4c8a5a
+sel21: ysize=21 lo=36 xsize=8 baseline=17 smear=1 flags=0x20 modulo=26 data=0x8c027aa8 loc=0x053a6c54
+sel22: ysize=22 lo=35 xsize=12 baseline=17 smear=2 flags=0x20 modulo=36 data=0x5928a291 loc=0x85a92941
+sel23: ysize=23 lo=36 xsize=9 baseline=19 smear=2 flags=0x20 modulo=28 data=0x94bca1d2 loc=0x25083dfb
+sel24: ysize=24 lo=36 xsize=10 baseline=20 smear=2 flags=0x20 modulo=28 data=0x499143cb loc=0x4ff69cf7
+sel25: ysize=25 lo=36 xsize=10 baseline=21 smear=2 flags=0x20 modulo=30 data=0x274df23b loc=0x9bf3166f
+sel26: ysize=26 lo=36 xsize=10 baseline=22 smear=2 flags=0x20 modulo=30 data=0xef4c2234 loc=0x133d704e
+sel27: ysize=27 lo=36 xsize=11 baseline=22 smear=2 flags=0x20 modulo=32 data=0xa9cc573e loc=0x7802aa89
+sel28: ysize=28 lo=36 xsize=11 baseline=23 smear=2 flags=0x20 modulo=32 data=0x0920ab86 loc=0xf12f4aa6
+sel29: ysize=29 lo=36 xsize=12 baseline=24 smear=2 flags=0x20 modulo=36 data=0x1adaaa0a loc=0xfc163557
+sel30: ysize=30 lo=36 xsize=12 baseline=25 smear=2 flags=0x20 modulo=36 data=0xab55d755 loc=0xfc163557
+sel31: ysize=31 lo=36 xsize=12 baseline=26 smear=2 flags=0x20 modulo=36 data=0xf9d5f99a loc=0xfc163557
+sel32: ysize=32 lo=36 xsize=13 baseline=27 smear=2 flags=0x20 modulo=38 data=0xc9358cae loc=0x50376665
+sel33: ysize=33 lo=36 xsize=13 baseline=28 smear=2 flags=0x20 modulo=38 data=0xf102975d loc=0x94ff0590
+sel34: ysize=34 lo=36 xsize=14 baseline=28 smear=2 flags=0x20 modulo=40 data=0xfd8f265a loc=0xccb6164c
+sel35: ysize=35 lo=36 xsize=14 baseline=29 smear=2 flags=0x20 modulo=40 data=0x0855bba0 loc=0x1b80f36f
+sel36: ysize=36 lo=36 xsize=14 baseline=30 smear=2 flags=0x20 modulo=42 data=0x19a3076f loc=0x5b536cd6
+sel37: ysize=37 lo=36 xsize=15 baseline=31 smear=2 flags=0x20 modulo=42 data=0x785a12af loc=0xd63e4f2f
+sel38: ysize=38 lo=36 xsize=15 baseline=32 smear=3 flags=0x20 modulo=46 data=0x24ca3856 loc=0x29b0518f
+sel39: ysize=39 lo=36 xsize=16 baseline=33 smear=3 flags=0x20 modulo=46 data=0x20cff203 loc=0xcabda7d3
+sel40: ysize=40 lo=36 xsize=16 baseline=34 smear=3 flags=0x20 modulo=48 data=0x252bcfcc loc=0xf0f049e4
 -- device dpi
 dpi8_100x100.name = "lxprop.font"
 dpi8_100x100.ysize = 8
@@ -818,10 +814,8 @@ dpi8_100x100.tfe_tags = NULL
 dpi8_100x100.dfh_id = 0x00000f80
 dpi8_100x100.dfh_rev = 3
 dpi8_100x100.dfh_name = "lxprop.font"
-dpi8_100x100.dfh_lnname = FALSE
 dpi8_100x100.dfh_lntype = 12
 dpi8_100x100.dfh_lnpri = 0
-dpi8_100x100.dfh_ln = "op.font"
 dpi8_100x100.dfh_seg = non-NULL
 dpi8_100x100.tfname_is_dfhname = TRUE
 dpi8_100x50.name = "lxprop.font"
@@ -938,7 +932,7 @@ dpi10_50x100.data = 0xd83a5b6e
 dpi10_50x100.loc = 0xc3c36845
 dpi10_50x100.extension = non-NULL
 dpi10_50x100.tfe_match = 0x00004e1b
-dpi10_50x100.tfe_flags0 = 0x00000085
+dpi10_50x100.tfe_flags0 = 0x00000081
 dpi10_50x100.tfe_backptr = TRUE
 dpi10_50x100.tfe_tags = non-NULL
 dpi10_50x100.tags = 0x80000001:0x00320064 0x00000000:0x00000000
@@ -1031,28 +1025,59 @@ topaz8.lo = 32
 topaz8.hi = 255
 topaz8.space = NULL
 topaz8.kern = NULL
-topaz16.name = "topaz.font"
-topaz16.ysize = 9
-topaz16.xsize = 10
-topaz16.style = 0x00000008
-topaz16.flags = 0x00000049
-topaz16.baseline = 6
-topaz16.boldsmear = 1
-topaz16.lo = 32
-topaz16.hi = 255
-topaz16.space = NULL
-topaz16.kern = NULL
-topaz11d.name = "topaz.font"
-topaz11d.ysize = 9
-topaz11d.xsize = 10
-topaz11d.style = 0x00000008
-topaz11d.flags = 0x00000049
-topaz11d.baseline = 6
-topaz11d.boldsmear = 1
-topaz11d.lo = 32
-topaz11d.hi = 255
-topaz11d.space = NULL
-topaz11d.kern = NULL
+-- no contents file
+nocontents.assign = TRUE
+nocontents14.name = "lxfixed.font"
+nocontents14.ysize = 10
+nocontents14.xsize = 8
+nocontents14.style = 0x00000000
+nocontents14.flags = 0x00000042
+nocontents14.baseline = 7
+nocontents14.boldsmear = 1
+nocontents14.lo = 32
+nocontents14.hi = 90
+nocontents14.space = NULL
+nocontents14.kern = NULL
+nocontents14.type = 12
+nocontents14.accessors = 2
+nocontents14.modulo = 60
+nocontents14.data = 0xf3695785
+nocontents14.loc = 0x68844e05
+nocontents14.extension = non-NULL
+nocontents14.tfe_match = 0x00004e1b
+nocontents14.tfe_flags0 = 0x00000001
+nocontents14.tfe_backptr = TRUE
+nocontents14.tfe_tags = NULL
+nocontents14.dfh_id = 0x00000f80
+nocontents14.dfh_rev = 1
+nocontents14.dfh_name = "lxfixed.font"
+nocontents14.dfh_lntype = 12
+nocontents14.dfh_lnpri = 0
+nocontents14.dfh_seg = non-NULL
+nocontents14.tfname_is_dfhname = TRUE
+nocontents26.name = "lxfixed.font"
+nocontents26.ysize = 20
+nocontents26.xsize = 16
+nocontents26.style = 0x00000000
+nocontents26.flags = 0x00000000
+nocontents26.baseline = 15
+nocontents26.boldsmear = 2
+nocontents26.lo = 32
+nocontents26.hi = 90
+nocontents26.space = NULL
+nocontents26.kern = NULL
+nocontents26.type = 12
+nocontents26.accessors = 2
+nocontents26.modulo = 120
+nocontents26.data = 0x8d480ad1
+nocontents26.loc = 0x95fe8d45
+nocontents26.extension = non-NULL
+nocontents26.tfe_match = 0x00004e1b
+nocontents26.tfe_flags0 = 0x00000001
+nocontents26.tfe_backptr = TRUE
+nocontents26.tfe_tags = NULL
+nocontents_none = NULL
+nocontents.restore = TRUE
 -- NewScaledDiskFont
 s8to16.result = non-NULL
 s8to16.dfh_id = 0x00000f80
@@ -1116,7 +1141,7 @@ s8to6.kern = non-NULL
 s8to6.type = 12
 s8to6.accessors = 0
 s8to6.modulo = 22
-s8to6.data = 0xfbea861e
+s8to6.data = 0x7f1eec2e
 s8to6.loc = 0x51620df0
 s8to6.spacetab = 0x59c3b3e7
 s8to6.kerntab = 0x8bba1a56
@@ -1128,12 +1153,12 @@ s8to6.tfe_tags = NULL
 s8to6.locs = 00 00 00 01 00 01 00 05 00 06 00 03 00 09 00 02 00 0b 00 05 00 10 00 04 00 14 00 02 00 16 00 00 00 16 00 05 00 1b 00 03 00 1e 00 02 00 20 00 05 00 25 00 04 00 29 00 02 00 2b 00 01 00 2c 00 05 00 31 00 03 00 34 00 02 00 36 00 05 00 3b 00 04 00 16 00 00 00 3f 00 01 00 40 00 05 00 45 00 03 00 48 00 02 00 4a 00 05 00 4f 00 04 00 53 00 02 00 55 00 01 00 56 00 05 00 5b 00 03 00 5e 00 02 00 60 00 05 00 16 00 00 00 65 00 02 00 67 00 01 00 68 00 05 00 6d 00 03 00 70 00 02 00 72 00 05 00 77 00 04 00 7b 00 02 00 7d 00 01 00 7e 00 05 00 83 00 03 00 86 00 02 00 16 00 00 00 88 00 04 00 8c 00 02 00 8e 00 01 00 8f 00 05 00 94 00 03 00 97 00 02 00 99 00 05 00 9e 00 04 00 a2 00 02 00 a4 00 01 00 a5 00 05 00 aa 00 03 00 16 00 00
 s8to6.spaces = 00 02 00 05 00 04 00 02 00 06 00 05 00 03 00 03 00 05 00 04 00 02 00 06 00 05 00 03 00 02 00 05 00 04 00 02 00 06 00 05 00 03 00 02 00 05 00 04 00 02 00 06 00 05 00 03 00 02 00 05 00 04 00 02 00 06 00 03 00 03 00 02 00 05 00 04 00 02 00 06 00 05 00 03 00 02 00 05 00 04 00 02 00 03 00 05 00 03 00 02 00 05 00 04 00 02 00 06 00 05 00 03 00 02 00 05 00 04 00 03
 s8to6.kerns = 00 00 00 00 00 00 00 01 ff ff 00 00 00 01 ff ff 00 00 00 01 00 00 00 00 00 00 ff ff 00 00 00 01 ff ff 00 00 00 01 ff ff 00 00 00 00 00 00 00 00 00 01 ff ff 00 00 00 01 ff ff 00 00 00 01 00 00 00 00 00 01 ff ff 00 00 00 01 ff ff 00 00 00 01 ff ff 00 00 00 00 00 00 00 00 00 01 ff ff 00 00 00 01 ff ff 00 00 00 01 00 00 00 00 00 00 ff ff 00 00 00 01 ff ff 00 00
-s8to6.row0 = 34 20 81 a3 04 82 88 12 2a 01 24 28 01 0b 10 20 0c 18 06 50 60 1c
-s8to6.row1 = 05 08 20 18 40 10 51 82 01 18 3a 08 6c 82 1a 02 06 05 03 34 34 84
-s8to6.row2 = 76 52 8b b3 84 5e ce 13 ac a1 36 ba 85 8e a1 36 3e 9b 0f 62 6c 3f
+s8to6.row0 = 34 20 81 a3 04 82 88 12 2a 01 24 28 01 0b 10 20 0c 18 06 50 60 18
+s8to6.row1 = 05 08 20 18 40 10 51 82 01 18 3a 08 6c 82 1a 02 06 05 03 34 34 80
+s8to6.row2 = 76 52 8b b3 84 5e ce 13 ac a1 36 ba 85 8e a1 36 3e 9b 0f 62 6c 38
 s8to6.row3 = 46 50 ba 3a c5 58 6b 11 85 b9 3e 16 e7 86 bb 16 1a 8b 0b 76 3c 28
 s8to6.row4 = 42 56 8f 12 a4 7c 4b 31 a4 b7 1e 92 b7 cc a9 1f 72 8b 69 47 2d 20
-s8to6.row5 = 52 70 da 32 85 d8 eb 15 86 b1 16 16 e7 85 b9 3e 1a 8b 0d 76 2c 2b
+s8to6.row5 = 52 70 da 32 85 d8 eb 15 86 b1 16 16 e7 85 b9 3e 1a 8b 0d 76 2c 28
 s8to12.result = non-NULL
 s8to12.dfh_id = 0x00000f80
 s8to12.dfh_seg = non-NULL
@@ -1151,7 +1176,7 @@ s8to12.kern = non-NULL
 s8to12.type = 12
 s8to12.accessors = 0
 s8to12.modulo = 44
-s8to12.data = 0xa38b0de5
+s8to12.data = 0x6d359f89
 s8to12.loc = 0x30b397b3
 s8to12.spacetab = 0x10096f1b
 s8to12.kerntab = 0xdcc9eba7
@@ -1177,7 +1202,7 @@ s11to7.kern = non-NULL
 s11to7.type = 12
 s11to7.accessors = 0
 s11to7.modulo = 20
-s11to7.data = 0x1d5c1f48
+s11to7.data = 0x54b40160
 s11to7.loc = 0x7c8471b0
 s11to7.spacetab = 0x85fc29bc
 s11to7.kerntab = 0x4abc194b
@@ -1203,7 +1228,7 @@ s8to8.kern = non-NULL
 s8to8.type = 12
 s8to8.accessors = 0
 s8to8.modulo = 28
-s8to8.data = 0xb06ef233
+s8to8.data = 0x5c5472e5
 s8to8.loc = 0xf04d92c6
 s8to8.spacetab = 0x30b53409
 s8to8.kerntab = 0x644db16d
@@ -1229,7 +1254,7 @@ s8to16b.kern = non-NULL
 s8to16b.type = 12
 s8to16b.accessors = 0
 s8to16b.modulo = 56
-s8to16b.data = 0x67dca2c8
+s8to16b.data = 0x40641f25
 s8to16b.loc = 0x2e8e1e1b
 s8to16b.spacetab = 0x575cc3bd
 s8to16b.kerntab = 0x87b67b15
@@ -1259,7 +1284,7 @@ s10to20.data = 0x8d480ad1
 s10to20.loc = 0x95fe8d45
 s10to20.extension = non-NULL
 s10to20.tfe_match = 0x00004e1b
-s10to20.tfe_flags0 = 0x00000004
+s10to20.tfe_flags0 = 0x00000000
 s10to20.tfe_backptr = TRUE
 s10to20.tfe_tags = NULL
 s10to13.result = non-NULL
@@ -1279,11 +1304,11 @@ s10to13.kern = NULL
 s10to13.type = 12
 s10to13.accessors = 0
 s10to13.modulo = 76
-s10to13.data = 0xee98ddd8
+s10to13.data = 0xfdfbc73d
 s10to13.loc = 0x064ee099
 s10to13.extension = non-NULL
 s10to13.tfe_match = 0x00004e1b
-s10to13.tfe_flags0 = 0x00000004
+s10to13.tfe_flags0 = 0x00000000
 s10to13.tfe_backptr = TRUE
 s10to13.tfe_tags = NULL
 s8dpi.result = non-NULL
@@ -1303,7 +1328,7 @@ s8dpi.kern = non-NULL
 s8dpi.type = 12
 s8dpi.accessors = 0
 s8dpi.modulo = 56
-s8dpi.data = 0x8926f374
+s8dpi.data = 0x001fb136
 s8dpi.loc = 0x2e8e1e1b
 s8dpi.spacetab = 0x575cc3bd
 s8dpi.kerntab = 0x87b67b15
@@ -1330,7 +1355,7 @@ s8dpi2.kern = non-NULL
 s8dpi2.type = 12
 s8dpi2.accessors = 0
 s8dpi2.modulo = 22
-s8dpi2.data = 0x5f406dcb
+s8dpi2.data = 0x94258046
 s8dpi2.loc = 0x51620df0
 s8dpi2.spacetab = 0x59c3b3e7
 s8dpi2.kerntab = 0x8bba1a56

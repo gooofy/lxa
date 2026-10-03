@@ -1,56 +1,72 @@
 setup = TRUE
 -- AvailFonts disk
 disk.result = 0
-disk.num = 7
+disk.num = 11
 disk: type=0x0002 name="lxbroken.font" ysize=12 style=0x00 flags=0x62
 disk: type=0x0002 name="lxcolor.font" ysize=7 style=0x40 flags=0x62
 disk: type=0x0002 name="lxfixed.font" ysize=10 style=0x00 flags=0x42
 disk: type=0x0002 name="lxprop.font" ysize=8 style=0x00 flags=0x62
 disk: type=0x0002 name="lxprop.font" ysize=11 style=0x00 flags=0x62
+disk: type=0x0002 name="lxsel.font" ysize=6 style=0x00 flags=0x62
+disk: type=0x0002 name="lxsel.font" ysize=8 style=0x00 flags=0x62
+disk: type=0x0002 name="lxsel.font" ysize=11 style=0x00 flags=0x62
+disk: type=0x0002 name="lxsel.font" ysize=15 style=0x00 flags=0x62
 disk: type=0x0002 name="lxtag.font" ysize=6 style=0x00 flags=0x62
 disk: type=0x0002 name="lxtag.font" ysize=9 style=0x00 flags=0x62
 disk_scaled.result = 0
-disk_scaled.num = 7
+disk_scaled.num = 11
 disk_scaled: type=0x0002 name="lxbroken.font" ysize=12 style=0x00 flags=0x62
 disk_scaled: type=0x0002 name="lxcolor.font" ysize=7 style=0x40 flags=0x62
 disk_scaled: type=0x0002 name="lxfixed.font" ysize=10 style=0x00 flags=0x42
 disk_scaled: type=0x0002 name="lxprop.font" ysize=8 style=0x00 flags=0x62
 disk_scaled: type=0x0002 name="lxprop.font" ysize=11 style=0x00 flags=0x62
+disk_scaled: type=0x0002 name="lxsel.font" ysize=6 style=0x00 flags=0x62
+disk_scaled: type=0x0002 name="lxsel.font" ysize=8 style=0x00 flags=0x62
+disk_scaled: type=0x0002 name="lxsel.font" ysize=11 style=0x00 flags=0x62
+disk_scaled: type=0x0002 name="lxsel.font" ysize=15 style=0x00 flags=0x62
 disk_scaled: type=0x0002 name="lxtag.font" ysize=6 style=0x00 flags=0x62
 disk_scaled: type=0x0002 name="lxtag.font" ysize=9 style=0x00 flags=0x62
 disk_tagged.result = 0
-disk_tagged.num = 7
-disk_tagged: type=0x0002 name="lxbroken.font" ysize=12 style=0x00 flags=0x62 tags=0x00000000:0x00000000 
-disk_tagged: type=0x0002 name="lxcolor.font" ysize=7 style=0x40 flags=0x62 tags=0x00000000:0x00000000 
-disk_tagged: type=0x0002 name="lxfixed.font" ysize=10 style=0x00 flags=0x42 tags=0x00000000:0x00000000 
-disk_tagged: type=0x0002 name="lxprop.font" ysize=8 style=0x00 flags=0x62 tags=0x00000000:0x00000000 
-disk_tagged: type=0x0002 name="lxprop.font" ysize=11 style=0x00 flags=0x62 tags=0x00000000:0x00000000 
+disk_tagged.num = 11
+disk_tagged: type=0x0002 name="lxbroken.font" ysize=12 style=0x00 flags=0x62 tags=NULL
+disk_tagged: type=0x0002 name="lxcolor.font" ysize=7 style=0x40 flags=0x62 tags=NULL
+disk_tagged: type=0x0002 name="lxfixed.font" ysize=10 style=0x00 flags=0x42 tags=NULL
+disk_tagged: type=0x0002 name="lxprop.font" ysize=8 style=0x00 flags=0x62 tags=NULL
+disk_tagged: type=0x0002 name="lxprop.font" ysize=11 style=0x00 flags=0x62 tags=NULL
+disk_tagged: type=0x0002 name="lxsel.font" ysize=6 style=0x00 flags=0x62 tags=NULL
+disk_tagged: type=0x0002 name="lxsel.font" ysize=8 style=0x00 flags=0x62 tags=NULL
+disk_tagged: type=0x0002 name="lxsel.font" ysize=11 style=0x00 flags=0x62 tags=NULL
+disk_tagged: type=0x0002 name="lxsel.font" ysize=15 style=0x00 flags=0x62 tags=NULL
 disk_tagged: type=0x0002 name="lxtag.font" ysize=6 style=0x80 flags=0x62 tags=NULL
 disk_tagged: type=0x0002 name="lxtag.font" ysize=9 style=0x80 flags=0x62 tags=NULL
 disk_bitmap.result = 0
-disk_bitmap.num = 7
+disk_bitmap.num = 11
 disk_bitmap: type=0x0002 name="lxbroken.font" ysize=12 style=0x00 flags=0x62
 disk_bitmap: type=0x0002 name="lxcolor.font" ysize=7 style=0x40 flags=0x62
 disk_bitmap: type=0x0002 name="lxfixed.font" ysize=10 style=0x00 flags=0x42
 disk_bitmap: type=0x0002 name="lxprop.font" ysize=8 style=0x00 flags=0x62
 disk_bitmap: type=0x0002 name="lxprop.font" ysize=11 style=0x00 flags=0x62
+disk_bitmap: type=0x0002 name="lxsel.font" ysize=6 style=0x00 flags=0x62
+disk_bitmap: type=0x0002 name="lxsel.font" ysize=8 style=0x00 flags=0x62
+disk_bitmap: type=0x0002 name="lxsel.font" ysize=11 style=0x00 flags=0x62
+disk_bitmap: type=0x0002 name="lxsel.font" ysize=15 style=0x00 flags=0x62
 disk_bitmap: type=0x0002 name="lxtag.font" ysize=6 style=0x00 flags=0x62
 disk_bitmap: type=0x0002 name="lxtag.font" ysize=9 style=0x00 flags=0x62
 none.result = 0
 none.num = 0
 -- AvailFonts small buffers
-disk_0.result = 158
+disk_0.result = 242
 disk_0.untouched = 0x00007777
-disk_2.result = 156
+disk_2.result = 240
 disk_2.untouched = 0x00000000
-disk_20.result = 138
+disk_20.result = 222
 disk_20.untouched = 0x00000000
-disk_min_ok = 136
-disk_need = 158
+disk_min_ok = 186
+disk_need = 242
 disk_need.result = 0
-tagged_0.result = 186
+tagged_0.result = 286
 tagged_0.untouched = 0x00007777
-tagged_min_ok = 164
+tagged_min_ok = 230
 three.setup = TRUE
 three 0: result=71 num=0xa5a5
 three 1: result=70 num=0xa5a5
@@ -77,46 +93,46 @@ three 21: result=50 num=0x0000
 three 22: result=49 num=0x0000
 three 23: result=48 num=0x0000
 three 24: result=47 num=0x0000
-three 25: result=20 num=0x0001
-three 26: result=19 num=0x0001
-three 27: result=18 num=0x0001
-three 28: result=17 num=0x0001
-three 29: result=16 num=0x0001
-three 30: result=15 num=0x0001
-three 31: result=14 num=0x0001
-three 32: result=13 num=0x0001
-three 33: result=12 num=0x0001
-three 34: result=11 num=0x0001
-three 35: result=10 num=0x0002
-three 36: result=9 num=0x0002
-three 37: result=8 num=0x0002
-three 38: result=7 num=0x0002
-three 39: result=6 num=0x0002
-three 40: result=5 num=0x0002
-three 41: result=4 num=0x0002
-three 42: result=3 num=0x0002
-three 43: result=2 num=0x0002
-three 44: result=1 num=0x0002
-three 45: result=0 num=0x0003
-three 46: result=0 num=0x0003
-three 47: result=0 num=0x0003
-three 48: result=0 num=0x0003
-three 49: result=0 num=0x0003
-three 50: result=0 num=0x0003
-three 51: result=0 num=0x0003
-three 52: result=0 num=0x0003
-three 53: result=0 num=0x0003
-three 54: result=0 num=0x0003
-three 55: result=0 num=0x0003
-three 56: result=0 num=0x0003
-three 57: result=0 num=0x0003
-three 58: result=0 num=0x0003
-three 59: result=0 num=0x0003
-three 60: result=0 num=0x0003
-three 61: result=0 num=0x0003
-three 62: result=0 num=0x0003
-three 63: result=0 num=0x0003
-three 64: result=0 num=0x0003
+three 25: result=20 num=0x0001 name@12
+three 26: result=19 num=0x0001 name@13
+three 27: result=18 num=0x0001 name@14
+three 28: result=17 num=0x0001 name@15
+three 29: result=16 num=0x0001 name@16
+three 30: result=15 num=0x0001 name@17
+three 31: result=14 num=0x0001 name@18
+three 32: result=13 num=0x0001 name@19
+three 33: result=12 num=0x0001 name@20
+three 34: result=11 num=0x0001 name@21
+three 35: result=10 num=0x0002 name@22 name@22
+three 36: result=9 num=0x0002 name@23 name@23
+three 37: result=8 num=0x0002 name@24 name@24
+three 38: result=7 num=0x0002 name@25 name@25
+three 39: result=6 num=0x0002 name@26 name@26
+three 40: result=5 num=0x0002 name@27 name@27
+three 41: result=4 num=0x0002 name@28 name@28
+three 42: result=3 num=0x0002 name@29 name@29
+three 43: result=2 num=0x0002 name@30 name@30
+three 44: result=1 num=0x0002 name@31 name@31
+three 45: result=0 num=0x0003 name@32 name@32 name@32
+three 46: result=0 num=0x0003 name@33 name@33 name@33
+three 47: result=0 num=0x0003 name@34 name@34 name@34
+three 48: result=0 num=0x0003 name@35 name@35 name@35
+three 49: result=0 num=0x0003 name@36 name@36 name@36
+three 50: result=0 num=0x0003 name@37 name@37 name@37
+three 51: result=0 num=0x0003 name@38 name@38 name@38
+three 52: result=0 num=0x0003 name@39 name@39 name@39
+three 53: result=0 num=0x0003 name@40 name@40 name@40
+three 54: result=0 num=0x0003 name@41 name@41 name@41
+three 55: result=0 num=0x0003 name@42 name@42 name@42
+three 56: result=0 num=0x0003 name@43 name@43 name@43
+three 57: result=0 num=0x0003 name@44 name@44 name@44
+three 58: result=0 num=0x0003 name@45 name@45 name@45
+three 59: result=0 num=0x0003 name@46 name@46 name@46
+three 60: result=0 num=0x0003 name@47 name@47 name@47
+three 61: result=0 num=0x0003 name@48 name@48 name@48
+three 62: result=0 num=0x0003 name@49 name@49 name@49
+three 63: result=0 num=0x0003 name@50 name@50 name@50
+three 64: result=0 num=0x0003 name@51 name@51 name@51
 three_tagged 0: result=83 num=0xa5a5
 three_tagged 1: result=82 num=0xa5a5
 three_tagged 2: result=81 num=0x0000
@@ -146,42 +162,42 @@ three_tagged 25: result=58 num=0x0000
 three_tagged 26: result=57 num=0x0000
 three_tagged 27: result=56 num=0x0000
 three_tagged 28: result=55 num=0x0000
-three_tagged 29: result=28 num=0x0001
-three_tagged 30: result=27 num=0x0001
-three_tagged 31: result=26 num=0x0001
-three_tagged 32: result=25 num=0x0001
-three_tagged 33: result=24 num=0x0001
-three_tagged 34: result=23 num=0x0001
-three_tagged 35: result=22 num=0x0001
-three_tagged 36: result=21 num=0x0001
-three_tagged 37: result=20 num=0x0001
-three_tagged 38: result=19 num=0x0001
-three_tagged 39: result=18 num=0x0001
-three_tagged 40: result=17 num=0x0001
-three_tagged 41: result=16 num=0x0001
-three_tagged 42: result=15 num=0x0001
-three_tagged 43: result=14 num=0x0002
-three_tagged 44: result=13 num=0x0002
-three_tagged 45: result=12 num=0x0002
-three_tagged 46: result=11 num=0x0002
-three_tagged 47: result=10 num=0x0002
-three_tagged 48: result=9 num=0x0002
-three_tagged 49: result=8 num=0x0002
-three_tagged 50: result=7 num=0x0002
-three_tagged 51: result=6 num=0x0002
-three_tagged 52: result=5 num=0x0002
-three_tagged 53: result=4 num=0x0002
-three_tagged 54: result=3 num=0x0002
-three_tagged 55: result=2 num=0x0002
-three_tagged 56: result=1 num=0x0002
-three_tagged 57: result=0 num=0x0003
-three_tagged 58: result=0 num=0x0003
-three_tagged 59: result=0 num=0x0003
-three_tagged 60: result=0 num=0x0003
-three_tagged 61: result=0 num=0x0003
-three_tagged 62: result=0 num=0x0003
-three_tagged 63: result=0 num=0x0003
-three_tagged 64: result=0 num=0x0003
+three_tagged 29: result=28 num=0x0001 name@16 tags@NULL
+three_tagged 30: result=27 num=0x0001 name@17 tags@NULL
+three_tagged 31: result=26 num=0x0001 name@18 tags@NULL
+three_tagged 32: result=25 num=0x0001 name@19 tags@NULL
+three_tagged 33: result=24 num=0x0001 name@20 tags@NULL
+three_tagged 34: result=23 num=0x0001 name@21 tags@NULL
+three_tagged 35: result=22 num=0x0001 name@22 tags@NULL
+three_tagged 36: result=21 num=0x0001 name@23 tags@NULL
+three_tagged 37: result=20 num=0x0001 name@24 tags@NULL
+three_tagged 38: result=19 num=0x0001 name@25 tags@NULL
+three_tagged 39: result=18 num=0x0001 name@26 tags@NULL
+three_tagged 40: result=17 num=0x0001 name@27 tags@NULL
+three_tagged 41: result=16 num=0x0001 name@28 tags@NULL
+three_tagged 42: result=15 num=0x0001 name@29 tags@NULL
+three_tagged 43: result=14 num=0x0002 name@30 tags@NULL name@30 tags@NULL
+three_tagged 44: result=13 num=0x0002 name@31 tags@NULL name@31 tags@NULL
+three_tagged 45: result=12 num=0x0002 name@32 tags@NULL name@32 tags@NULL
+three_tagged 46: result=11 num=0x0002 name@33 tags@NULL name@33 tags@NULL
+three_tagged 47: result=10 num=0x0002 name@34 tags@NULL name@34 tags@NULL
+three_tagged 48: result=9 num=0x0002 name@35 tags@NULL name@35 tags@NULL
+three_tagged 49: result=8 num=0x0002 name@36 tags@NULL name@36 tags@NULL
+three_tagged 50: result=7 num=0x0002 name@37 tags@NULL name@37 tags@NULL
+three_tagged 51: result=6 num=0x0002 name@38 tags@NULL name@38 tags@NULL
+three_tagged 52: result=5 num=0x0002 name@39 tags@NULL name@39 tags@NULL
+three_tagged 53: result=4 num=0x0002 name@40 tags@NULL name@40 tags@NULL
+three_tagged 54: result=3 num=0x0002 name@41 tags@NULL name@41 tags@NULL
+three_tagged 55: result=2 num=0x0002 name@42 tags@NULL name@42 tags@NULL
+three_tagged 56: result=1 num=0x0002 name@43 tags@NULL name@43 tags@NULL
+three_tagged 57: result=0 num=0x0003 name@44 tags@NULL name@44 tags@NULL name@44 tags@NULL
+three_tagged 58: result=0 num=0x0003 name@45 tags@NULL name@45 tags@NULL name@45 tags@NULL
+three_tagged 59: result=0 num=0x0003 name@46 tags@NULL name@46 tags@NULL name@46 tags@NULL
+three_tagged 60: result=0 num=0x0003 name@47 tags@NULL name@47 tags@NULL name@47 tags@NULL
+three_tagged 61: result=0 num=0x0003 name@48 tags@NULL name@48 tags@NULL name@48 tags@NULL
+three_tagged 62: result=0 num=0x0003 name@49 tags@NULL name@49 tags@NULL name@49 tags@NULL
+three_tagged 63: result=0 num=0x0003 name@50 tags@NULL name@50 tags@NULL name@50 tags@NULL
+three_tagged 64: result=0 num=0x0003 name@51 tags@NULL name@51 tags@NULL name@51 tags@NULL
 three.restore = TRUE
 -- AvailFonts memory
 mem_before.result = 0
@@ -211,6 +227,10 @@ all: type=0x0001 name="lxprop.font" ysize=8 style=0x00 flags=0x62
 all: type=0x0002 name="lxprop.font" ysize=8 style=0x00 flags=0x62
 all: type=0x0002 name="lxprop.font" ysize=11 style=0x00 flags=0x62
 all: type=0x0004 name="lxprop.font" ysize=16 style=0x00 flags=0x20
+all: type=0x0002 name="lxsel.font" ysize=6 style=0x00 flags=0x62
+all: type=0x0002 name="lxsel.font" ysize=8 style=0x00 flags=0x62
+all: type=0x0002 name="lxsel.font" ysize=11 style=0x00 flags=0x62
+all: type=0x0002 name="lxsel.font" ysize=15 style=0x00 flags=0x62
 all: type=0x0002 name="lxtag.font" ysize=6 style=0x00 flags=0x62
 all: type=0x0001 name="lxtag.font" ysize=9 style=0x00 flags=0x62
 all: type=0x0002 name="lxtag.font" ysize=9 style=0x00 flags=0x62
