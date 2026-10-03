@@ -287,7 +287,7 @@ TEST_F(RequesterBasicDriverTest, SystemRequesterCancelAndConfirm) {
     for (int i = 0; i < 100; i++) {
         RunCyclesWithVBlank(10, 50000);
         output = GetOutput();
-        if (output.find("OK: SysReqHandler returns cancel for IDCMP_CLOSEWINDOW") != std::string::npos) {
+        if (output.find("OK: SysReqHandler returns the negative gadget's ID") != std::string::npos) {
             saw_cancel = true;
             break;
         }

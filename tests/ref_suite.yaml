@@ -13,12 +13,12 @@ Tests/Console/input_inject:     {interactive: "waits for RAWKEY events injected 
 Tests/Console/kp2_test:         {interactive: "reads keys injected by console_gtest", validated_by: tests/scenarios/interactive/kp2_test.yaml}
 Tests/Console/raw_events_unit:  {interactive: "waits for special-key reports injected by console_gtest", phase: 224}
 Tests/Console/setmode:          {interactive: "reads RAW input injected by console_gtest", validated_by: tests/scenarios/interactive/setmode.yaml}
-Tests/Devices/Keyboard:         {interactive: "waits for a SHIFT key press injected by devices_gtest", phase: 224}
-Tests/Intuition/DisplayAlert:   {interactive: "DisplayAlert() blocks until the user clicks a mouse button", phase: 224}
+Tests/Devices/Keyboard:         {lxa_only: "keyboard.device KBD_READEVENT delivers hardware key events; the reference agent injects through input.device, which never reaches keyboard.device, so the test cannot be driven on the reference"}
+Tests/Intuition/DisplayAlert:   {lxa_only: "the AmigaOS 3.1 alert takes over the display and reads the mouse buttons from the hardware, so the reference agent cannot answer it; the dead-end case (returns FALSE) is lxa-only behaviour - a dead-end alert never returns on AmigaOS"}
 Tests/Intuition/IDCMPDeltaMove: {interactive: "waits for mouse moves injected by intuition_gtest", phase: 222}
 Tests/Intuition/IDCMPMenuVerify: {interactive: "waits for an RMB press injected by intuition_gtest", validated_by: tests/scenarios/interactive/IDCMPMenuVerify.yaml}
 Tests/Intuition/IDCMPSizeVerify: {interactive: "waits for a sizing-gadget drag injected by intuition_gtest", validated_by: tests/scenarios/interactive/IDCMPSizeVerify.yaml}
-Tests/Intuition/RequesterBasic: {interactive: "waits for requester clicks injected by intuition_gtest", phase: 224}
+Tests/Intuition/RequesterBasic: {interactive: "waits for requester clicks injected by intuition_gtest", phase: 222}
 Tests/Devices/ParallelLoopback: {lxa_only: "I/O through lxa's emulated loopback peer on the parallel port; the reference port has nothing connected, so CMD_WRITE never completes (peer-independent semantics: Tests/Devices/Parallel)"}
 Tests/Devices/PrinterPeer: {lxa_only: "output to lxa's emulated always-online printer; the reference has no printer at its port, so output never completes there (printer-independent semantics: Tests/Devices/Printer)"}
 Tests/Devices/Narrator: {lxa_only: "narrator.device is not part of AmigaOS 3.1 (dropped after 2.0, OpenDevice fails on the reference); lxa ships a replacement for 1.x/2.0 software"}

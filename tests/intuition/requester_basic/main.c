@@ -196,6 +196,18 @@ int main(void)
     req_border.XY = req_border_xy;
     
     result = Request(&requester, window);
+    {
+        char b[80] = "  conds: ";
+        int n = 9;
+        b[n++] = result ? '1' : '0';
+        b[n++] = window->FirstRequest == &requester ? '1' : '0';
+        b[n++] = (requester.Flags & REQACTIVE) ? '1' : '0';
+        b[n++] = requester.RWindow == window ? '1' : '0';
+        b[n++] = requester.ReqLayer == window->WLayer ? '1' : '0';
+        b[n++] = requester.ReqLayer ? '1' : '0';
+        b[n++] = '\n'; b[n] = 0;
+        print(b);
+    }
     if (result && window->FirstRequest == &requester &&
         (requester.Flags & REQACTIVE) && requester.RWindow == window &&
         requester.ReqLayer == window->WLayer) {
@@ -208,6 +220,17 @@ int main(void)
     /* Test 3: EndRequest */
     print("Test 3: EndRequest()...\n");
     EndRequest(&requester, window);
+    {
+        char b[80] = "  conds: ";
+        int n = 9;
+        b[n++] = window->FirstRequest == NULL ? '1' : '0';
+        b[n++] = !(requester.Flags & REQACTIVE) ? '1' : '0';
+        b[n++] = requester.RWindow == NULL ? '1' : '0';
+        b[n++] = requester.ReqLayer == NULL ? '1' : '0';
+        b[n++] = requester.OlderRequest == NULL ? '1' : '0';
+        b[n++] = '\n'; b[n] = 0;
+        print(b);
+    }
     if (window->FirstRequest == NULL && !(requester.Flags & REQACTIVE) &&
         requester.RWindow == NULL && requester.ReqLayer == NULL &&
         requester.OlderRequest == NULL) {
@@ -277,11 +300,12 @@ int main(void)
 
         idcmp_class = 0;
         sys_result = SysReqHandler(sys_window, &idcmp_class, TRUE);
-        if (idcmp_class == IDCMP_GADGETUP && neg_gad &&
-            sys_result == neg_gad->GadgetID) {
-            print("  OK: SysReqHandler returns cancel for IDCMP_CLOSEWINDOW\n");
+        /* AmigaOS 3.1: the negative gadget returns its GadgetID and leaves
+         * the class untouched (reference-verified) */
+        if (idcmp_class == 0 && neg_gad && sys_result == neg_gad->GadgetID) {
+            print("  OK: SysReqHandler returns the negative gadget's ID\n");
         } else {
-            print("  FAIL: SysReqHandler did not report IDCMP_CLOSEWINDOW correctly\n");
+            print("  FAIL: SysReqHandler did not return the negative gadget's ID\n");
         }
         FreeSysRequest(sys_window);
         print("\n");
@@ -318,11 +342,30 @@ int main(void)
 
         idcmp_class = 0;
         sys_result = SysReqHandler(sys_window, &idcmp_class, TRUE);
-        if (idcmp_class == IDCMP_GADGETUP && gad &&
-            sys_result == gad->GadgetID) {
+        /* AmigaOS 3.1: a gadget returns its GadgetID and leaves the class */
+        if (idcmp_class == 0 && gad && sys_result == gad->GadgetID) {
             print("  OK: SysReqHandler returns the gadget ID\n");
         } else {
             print("  FAIL: SysReqHandler did not return the gadget ID\n");
+        }
+        {
+            /* what came back (reference-comparable, no pointers) */
+            char b[64], *p = b;
+            const char *t = "  class/result/first-id/second-id: ";
+            LONG v[4];
+            int i;
+            v[0] = idcmp_class; v[1] = sys_result; v[2] = gad ? gad->GadgetID : -99;
+            v[3] = (gad && gad->NextGadget) ? gad->NextGadget->GadgetID : -99;
+            while (*t) *p++ = *t++;
+            for (i = 0; i < 4; i++) {
+                LONG x = v[i]; char d[12]; int n = 0;
+                if (x < 0) { *p++ = '-'; x = -x; }
+                do { d[n++] = '0' + x % 10; x /= 10; } while (x);
+                while (n) *p++ = d[--n];
+                *p++ = i < 3 ? '/' : '\n';
+            }
+            *p = 0;
+            print(b);
         }
 
         FreeSysRequest(sys_window);

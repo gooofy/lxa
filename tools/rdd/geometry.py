@@ -86,6 +86,16 @@ def click_point(tree, spec):
     """
     if "xy" in spec and "window" not in spec and "anchor" not in spec:
         return tuple(spec["xy"])
+    if spec.get("label") and "window" not in spec:
+        # a gadget label without a window: search every application window,
+        # front-most (last opened) first - requesters carry their parent's title
+        for _, _, win in reversed(windows(tree)):
+            if not win.get("app", True):
+                continue
+            g = find_gadget(win, None, spec["label"])
+            if g:
+                return center(gadget_box(win, g))
+        raise LookupError("no gadget labelled %r in any window" % spec["label"])
     found = find_window(tree, spec.get("window"))
     if not found:
         raise LookupError("no window %r" % spec.get("window"))
