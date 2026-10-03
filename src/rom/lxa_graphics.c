@@ -36,7 +36,7 @@
 #include <intuition/intuitionbase.h>
 
 #include "util.h"
-#include "topaz8_font.h"
+#include "romfont_data.h"
 
 /* Forward declaration for input processing (defined in lxa_intuition.c) */
 extern VOID _intuition_ProcessInputEvents(struct Screen *screen);
@@ -47,7 +47,7 @@ extern struct ExecBase *SysBase;
 extern struct UtilityBase *UtilityBase;
 
 /* Forward declarations for Topaz font (defined later in this file) */
-static struct TextFont g_topaz8_font;
+static struct TextFont g_topaz8_font, g_topaz9_font;
 static void init_topaz8_font(void);
 
 /* Screen position of a layer's coordinate origin: rendering honours the
@@ -1995,7 +1995,8 @@ struct GfxBase * __g_lxa_graphics_InitLib    ( register struct GfxBase *graphics
     graphicsb->bsblttl = NULL;
     graphicsb->BlitOwner = NULL;
     graphicsb->BlitNest = 0;
-    AddHead(&graphicsb->TextFonts, (struct Node *)&g_topaz8_font);
+    AddTail(&graphicsb->TextFonts, (struct Node *)&g_topaz8_font);
+    AddTail(&graphicsb->TextFonts, (struct Node *)&g_topaz9_font);
 
     /* Set the default font for the system */
     graphicsb->DefaultFont = &g_topaz8_font;
@@ -2160,42 +2161,48 @@ static VOID _graphics_ClearScreen ( register struct GfxBase * GfxBase __asm("a6"
 }
 
 /*
- * Phase 15: Built-in Topaz 8x8 font
- * This is a statically allocated TextFont structure for the built-in font.
- * We store it here to avoid needing dynamic allocation for the default font.
- *
- * Note: The TextFont structure starts with a Message header which contains
- * a Node. We initialize only the fields we need; the linker will zero the rest.
+ * The ROM fonts topaz 8 and topaz 9 (Phase 225).  Fields, CharLoc tables
+ * and glyph strikes are generated from what AmigaOS 3.1 reports and draws
+ * (src/rom/romfont_data.h, tools/gen_romfont.py).  Both live in
+ * GfxBase->TextFonts in that order; topaz 8 is the default font.
  */
-static char g_topaz8_name[] = "topaz.font";
+static char g_topaz_name[] = "topaz.font";
 
-static struct TextFont g_topaz8_font;  /* Initialized in init function */
 static BOOL g_topaz8_initialized;     /* Starts as FALSE (BSS is zeroed) */
+
+static void init_rom_font(struct TextFont *tf, BYTE pri, UWORD ysize, UWORD xsize,
+                          UWORD baseline, UBYTE style, UBYTE flags, UWORD boldsmear,
+                          UBYTE lo, UBYTE hi, const UBYTE *data, UWORD modulo,
+                          const ULONG *charloc)
+{
+    lxa_memset(tf, 0, sizeof(*tf));
+    tf->tf_Message.mn_Node.ln_Type = NT_FONT;
+    tf->tf_Message.mn_Node.ln_Pri = pri;
+    tf->tf_Message.mn_Node.ln_Name = g_topaz_name;
+    tf->tf_YSize = ysize;
+    tf->tf_Style = style;
+    tf->tf_Flags = flags;
+    tf->tf_XSize = xsize;
+    tf->tf_Baseline = baseline;
+    tf->tf_BoldSmear = boldsmear;
+    tf->tf_LoChar = lo;
+    tf->tf_HiChar = hi;
+    tf->tf_CharData = (APTR)data;
+    tf->tf_Modulo = modulo;
+    tf->tf_CharLoc = (APTR)charloc;
+}
 
 static void init_topaz8_font(void)
 {
     if (g_topaz8_initialized)
         return;
 
-    /* Initialize the font structure */
-    lxa_memset(&g_topaz8_font, 0, sizeof(g_topaz8_font));
-
-    /* Message/Node header */
-    g_topaz8_font.tf_Message.mn_Node.ln_Type = NT_FONT;
-    g_topaz8_font.tf_Message.mn_Node.ln_Name = g_topaz8_name;
-
-    /* Font metrics */
-    g_topaz8_font.tf_YSize = TOPAZ8_HEIGHT;
-    g_topaz8_font.tf_Style = FS_NORMAL;
-    g_topaz8_font.tf_Flags = FPF_ROMFONT | FPF_DESIGNED;
-    g_topaz8_font.tf_XSize = TOPAZ8_WIDTH;
-    g_topaz8_font.tf_Baseline = TOPAZ8_BASELINE;
-    g_topaz8_font.tf_BoldSmear = 1;
-    g_topaz8_font.tf_Accessors = 0;
-    g_topaz8_font.tf_LoChar = TOPAZ8_FIRST;
-    g_topaz8_font.tf_HiChar = TOPAZ8_LAST;
-    g_topaz8_font.tf_CharData = (APTR)g_topaz8_data;
-    g_topaz8_font.tf_Modulo = TOPAZ8_HEIGHT;  /* Bytes per character in our data */
+    init_rom_font(&g_topaz8_font, TOPAZ8_PRI, TOPAZ8_YSIZE, TOPAZ8_XSIZE, TOPAZ8_BASELINE,
+                  TOPAZ8_STYLE, TOPAZ8_FLAGS, TOPAZ8_BOLDSMEAR, TOPAZ8_LO, TOPAZ8_HI,
+                  g_topaz8_chardata, TOPAZ8_MODULO, g_topaz8_charloc);
+    init_rom_font(&g_topaz9_font, TOPAZ9_PRI, TOPAZ9_YSIZE, TOPAZ9_XSIZE, TOPAZ9_BASELINE,
+                  TOPAZ9_STYLE, TOPAZ9_FLAGS, TOPAZ9_BOLDSMEAR, TOPAZ9_LO, TOPAZ9_HI,
+                  g_topaz9_chardata, TOPAZ9_MODULO, g_topaz9_charloc);
 
     g_topaz8_initialized = TRUE;
 }
@@ -2593,7 +2600,6 @@ static LONG _graphics_Text ( register struct GfxBase * GfxBase __asm("a6"),
                     {
                         WORD idx = graphics_text_char_index(font, (UBYTE)string[k]);
                         WORD gx = xx, gw, col;
-                        const UBYTE *topaz_glyph = NULL;
                         WORD gpos = 0;
 
                         if (prop)
@@ -2612,8 +2618,6 @@ static LONG _graphics_Text ( register struct GfxBase * GfxBase __asm("a6"),
 
                         if (src_row)
                             gpos = graphics_text_glyph_pos(font, idx);
-                        else if (font->tf_CharData)
-                            topaz_glyph = topaz8_get_glyph((UBYTE)(font->tf_LoChar + idx));
 
                         for (col = 0; col < gw; col++)
                         {
@@ -2624,8 +2628,6 @@ static LONG _graphics_Text ( register struct GfxBase * GfxBase __asm("a6"),
                                 WORD bx = (WORD)(gpos + col);
                                 set = (src_row[bx >> 3] & (0x80 >> (bx & 7))) != 0;
                             }
-                            else if (topaz_glyph)
-                                set = col < 8 && (topaz_glyph[r] & (0x80 >> col)) != 0;
                             else
                                 set = FALSE;
                             px = (WORD)(gx + col + shift - ox);
@@ -2729,15 +2731,9 @@ static LONG _graphics_Text ( register struct GfxBase * GfxBase __asm("a6"),
             UWORD bpr = bm->BytesPerRow;
             UBYTE depth = bm->Depth;
             WORD glyph_pos = 0;
-            const UBYTE *topaz_glyph = NULL;
 
-            if (!colorfont && font->tf_CharData)
-            {
-                if (font->tf_CharLoc)
-                    glyph_pos = graphics_text_glyph_pos(font, idx);
-                else
-                    topaz_glyph = topaz8_get_glyph((UBYTE)(font->tf_LoChar + idx));
-            }
+            if (!colorfont && font->tf_CharData && font->tf_CharLoc)
+                glyph_pos = graphics_text_glyph_pos(font, idx);
 
             for (row = 0; row < (ULONG)font->tf_YSize; row++)
             {
@@ -2776,12 +2772,6 @@ static LONG _graphics_Text ( register struct GfxBase * GfxBase __asm("a6"),
                     {
                         WORD bx = glyph_pos + (WORD)col;
                         pixel_set = (src_row[bx >> 3] & (0x80 >> (bx & 7))) != 0;
-                        pen = fgpen;
-                    }
-                    else if (topaz_glyph)
-                    {
-                        pixel_set = col < (ULONG)font->tf_XSize &&
-                                    (topaz_glyph[row] & (0x80 >> col)) != 0;
                         pen = fgpen;
                     }
                     else
@@ -2927,6 +2917,8 @@ static LONG _graphics_SetFont ( register struct GfxBase * GfxBase __asm("a6"),
     return 1;  /* Success */
 }
 
+#define ABS_DIFF(a, b) ((a) > (b) ? (a) - (b) : (b) - (a))
+
 static struct TextFont * _graphics_OpenFont ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct TextAttr * textAttr __asm("a0"))
 {
@@ -2936,7 +2928,8 @@ static struct TextFont * _graphics_OpenFont ( register struct GfxBase * GfxBase 
 
     DPRINTF (LOG_DEBUG, "_graphics: OpenFont() textAttr=0x%08lx\n", (ULONG)textAttr);
 
-    if (!textAttr || !textAttr->ta_Name)
+    /* ta_YSize 0 matches no font on AmigaOS 3.1 (romfont probe) */
+    if (!textAttr || !textAttr->ta_Name || textAttr->ta_YSize == 0)
     {
         return NULL;
     }
@@ -2964,13 +2957,16 @@ static struct TextFont * _graphics_OpenFont ( register struct GfxBase * GfxBase 
             continue;
         }
 
-        if (textAttr->ta_YSize == 0 || font->tf_YSize == textAttr->ta_YSize)
+        if (font->tf_YSize == textAttr->ta_YSize)
         {
             best_font = font;
             break;
         }
 
-        if (!best_font)
+        /* AmigaOS 3.1 (romfont probe): without an exact size the font of
+         * the closest size is returned (topaz 5/7 -> 8, 10..20 -> 9) */
+        if (!best_font ||
+            ABS_DIFF(font->tf_YSize, textAttr->ta_YSize) < ABS_DIFF(best_font->tf_YSize, textAttr->ta_YSize))
         {
             best_font = font;
         }

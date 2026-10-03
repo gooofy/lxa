@@ -482,6 +482,18 @@ if(BUILD_GTESTS AND GTEST_FOUND)
             LABELS "meta"
         )
 
+        # Phase 225: the ROM font tables are generated from the romfont
+        # probe's AmigaOS 3.1 output
+        add_test(
+            NAME romfont_data_check
+            COMMAND ${Python3_EXECUTABLE}
+                ${CMAKE_SOURCE_DIR}/tools/gen_romfont.py --check
+        )
+        set_tests_properties(romfont_data_check PROPERTIES
+            TIMEOUT 60
+            LABELS "meta"
+        )
+
         # Phase 212: Python RDD tooling (pylxa bindings, snapshot bundles)
         add_test(
             NAME rdd_python

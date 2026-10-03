@@ -9746,7 +9746,7 @@ static void _render_window_frame_impl(struct Window *window)
     /* title */
     if (window->Title && bt > 0)
     {
-        WORD tx = (title_left > 1) ? title_left + 11 : 5;
+        WORD tx = (title_left > 1) ? title_left + 10 : 4;   /* 3.1 reference */
         WORD avail = title_right - tx + 1;
         WORD len = strlen((const char *)window->Title);
         WORD fit = (avail > 0) ? lxa_text_fit(rp, (STRPTR)window->Title, len, avail) : 0;
