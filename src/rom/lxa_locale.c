@@ -145,23 +145,25 @@ static const char *g_LocaleStrings[] = {
     "December",     /* ALTMON_12 */
 };
 
-/* Default locale structure */
+/* Default locale structure: the AmigaOS 3.1 built-in defaults, used when
+ * no locale prefs exist (reference-verified, Phase 222f) */
 /* AmigaOS 3.1 without locale prefs: loc_LocaleName "united_states.country",
  * loc_LanguageName "english.language", loc_PrefLanguages[0] "english"
  * (reference-verified, Phase 220) */
 static UBYTE g_DefaultLocaleName[] = "united_states.country";
 static UBYTE g_DefaultLocaleLanguageName[] = "english.language";
 static UBYTE g_DefaultLanguageName[] = "english";
-static UBYTE g_DefaultDateTimeFormat[] = "%A %B %e %Y %H:%M:%S";
+static UBYTE g_DefaultDateTimeFormat[] = "%A %B %e %Y %Q:%M %p";
 static UBYTE g_DefaultDateFormat[] = "%A %B %e %Y";
-static UBYTE g_DefaultTimeFormat[] = "%H:%M:%S";
-static UBYTE g_DefaultShortDateTimeFormat[] = "%m/%d/%y %H:%M";
+static UBYTE g_DefaultTimeFormat[] = "%Q:%M %p";
+static UBYTE g_DefaultShortDateTimeFormat[] = "%m/%d/%y %Q:%M %p";
 static UBYTE g_DefaultShortDateFormat[] = "%m/%d/%y";
-static UBYTE g_DefaultShortTimeFormat[] = "%H:%M";
+static UBYTE g_DefaultShortTimeFormat[] = "%Q:%M %p";
 static UBYTE g_DefaultDecimalPoint[] = ".";
 static UBYTE g_DefaultGroupSeparator[] = ",";
 static UBYTE g_DefaultMonCS[] = "$";
 static UBYTE g_DefaultMonIntCS[] = "USD";
+static UBYTE g_DefaultMonSmallCS[] = "\xa2";
 static UBYTE g_DefaultGrouping[] = { 3, 0 };
 
 static struct Locale g_DefaultLocale = {
@@ -170,9 +172,9 @@ static struct Locale g_DefaultLocale = {
     { g_DefaultLanguageName },       /* loc_PrefLanguages */
     0,                               /* loc_Flags */
     0,                               /* loc_CodeSet */
-    1,                               /* loc_CountryCode (USA) */
+    0x55534100,                      /* loc_CountryCode "USA" */
     1,                               /* loc_TelephoneCode */
-    0,                               /* loc_GMTOffset (UTC for now) */
+    -300,                            /* loc_GMTOffset (minutes, as on 3.1) */
     MS_AMERICAN,                     /* loc_MeasuringSystem */
     CT_7SUN,                         /* loc_CalendarType */
     { 0, 0 },                        /* loc_Reserved0 */
@@ -196,15 +198,15 @@ static struct Locale g_DefaultLocale = {
     2,                               /* loc_MonIntFracDigits */
     { 0, 0 },                        /* loc_Reserved1 */
     g_DefaultMonCS,                  /* loc_MonCS */
-    g_DefaultMonCS,                  /* loc_MonSmallCS */
+    g_DefaultMonSmallCS,             /* loc_MonSmallCS */
     g_DefaultMonIntCS,               /* loc_MonIntCS */
     (STRPTR)"",                      /* loc_MonPositiveSign */
-    SS_SPACE,                        /* loc_MonPositiveSpaceSep */
+    SS_NOSPACE,                      /* loc_MonPositiveSpaceSep */
     SP_PREC_ALL,                     /* loc_MonPositiveSignPos */
     CSP_PRECEDES,                    /* loc_MonPositiveCSPos */
     0,                               /* loc_Reserved2 */
     (STRPTR)"-",                     /* loc_MonNegativeSign */
-    SS_SPACE,                        /* loc_MonNegativeSpaceSep */
+    SS_NOSPACE,                      /* loc_MonNegativeSpaceSep */
     SP_PREC_ALL,                     /* loc_MonNegativeSignPos */
     CSP_PRECEDES,                    /* loc_MonNegativeCSPos */
     0,                               /* loc_Reserved3 */
@@ -224,30 +226,6 @@ static LONG _loc_strlen(CONST_STRPTR str)
 }
 
 static STRPTR _loc_dup_bytes(const UBYTE *buffer, ULONG size);
-
-static LONG _loc_strcmp(CONST_STRPTR lhs, CONST_STRPTR rhs)
-{
-    if (!lhs)
-        return rhs ? -1 : 0;
-    if (!rhs)
-        return 1;
-
-    while (*lhs && *rhs && *lhs == *rhs)
-    {
-        lhs++;
-        rhs++;
-    }
-
-    return (LONG)(UBYTE)*lhs - (LONG)(UBYTE)*rhs;
-}
-
-static ULONG _loc_ascii_upper(ULONG character)
-{
-    if (character >= 'a' && character <= 'z')
-        return character - ('a' - 'A');
-
-    return character;
-}
 
 static ULONG _loc_ascii_lower(ULONG character)
 {
@@ -490,122 +468,198 @@ static void _loc_parse_version_string(CONST_STRPTR version_string,
     }
 }
 
-static ULONG _loc_collate_primary(ULONG character)
+/*
+ * Character tables of the built-in (english, ISO-8859-1) locale.  The
+ * classification bitmaps and the collation keys were captured from
+ * AmigaOS 3.1 (tests/probes/locale/basics.ref.out, Phase 222f).
+ */
+/* character classes of the built-in (english) locale, AmigaOS 3.1 */
+#define LC_ALNUM 0x0001
+#define LC_ALPHA 0x0002
+#define LC_CNTRL 0x0004
+#define LC_DIGIT 0x0008
+#define LC_GRAPH 0x0010
+#define LC_LOWER 0x0020
+#define LC_PRINT 0x0040
+#define LC_PUNCT 0x0080
+#define LC_SPACE 0x0100
+#define LC_UPPER 0x0200
+#define LC_XDIGIT 0x0400
+static const UWORD g_CharClass[256] = {
+    0x0004, 0x0004, 0x0004, 0x0004, 0x0004, 0x0004, 0x0004, 0x0004,
+    0x0004, 0x0144, 0x0144, 0x0144, 0x0144, 0x0144, 0x0004, 0x0004,
+    0x0004, 0x0004, 0x0004, 0x0004, 0x0004, 0x0004, 0x0004, 0x0004,
+    0x0004, 0x0004, 0x0004, 0x0004, 0x0004, 0x0004, 0x0004, 0x0004,
+    0x0140, 0x00d0, 0x00d0, 0x00d0, 0x00d0, 0x00d0, 0x00d0, 0x00d0,
+    0x00d0, 0x00d0, 0x00d0, 0x00d0, 0x00d0, 0x00d0, 0x00d0, 0x00d0,
+    0x0459, 0x0459, 0x0459, 0x0459, 0x0459, 0x0459, 0x0459, 0x0459,
+    0x0459, 0x0459, 0x00d0, 0x00d0, 0x00d0, 0x00d0, 0x00d0, 0x00d0,
+    0x00d0, 0x0653, 0x0653, 0x0653, 0x0653, 0x0653, 0x0653, 0x0253,
+    0x0253, 0x0253, 0x0253, 0x0253, 0x0253, 0x0253, 0x0253, 0x0253,
+    0x0253, 0x0253, 0x0253, 0x0253, 0x0253, 0x0253, 0x0253, 0x0253,
+    0x0253, 0x0253, 0x0253, 0x00d0, 0x00d0, 0x00d0, 0x00d0, 0x00d0,
+    0x00d0, 0x0473, 0x0473, 0x0473, 0x0473, 0x0473, 0x0473, 0x0073,
+    0x0073, 0x0073, 0x0073, 0x0073, 0x0073, 0x0073, 0x0073, 0x0073,
+    0x0073, 0x0073, 0x0073, 0x0073, 0x0073, 0x0073, 0x0073, 0x0073,
+    0x0073, 0x0073, 0x0073, 0x00d0, 0x00d0, 0x00d0, 0x00d0, 0x0004,
+    0x0004, 0x0004, 0x0004, 0x0004, 0x0004, 0x0004, 0x0004, 0x0004,
+    0x0004, 0x0004, 0x0004, 0x0004, 0x0004, 0x0004, 0x0004, 0x0004,
+    0x0004, 0x0004, 0x0004, 0x0004, 0x0004, 0x0004, 0x0004, 0x0004,
+    0x0004, 0x0004, 0x0004, 0x0004, 0x0004, 0x0004, 0x0004, 0x0004,
+    0x0140, 0x00d0, 0x00d0, 0x00d0, 0x00d0, 0x00d0, 0x00d0, 0x00d0,
+    0x00d0, 0x00d0, 0x00d0, 0x00d0, 0x00d0, 0x00d0, 0x00d0, 0x00d0,
+    0x00d0, 0x00d0, 0x00d0, 0x00d0, 0x00d0, 0x00d0, 0x00d0, 0x00d0,
+    0x00d0, 0x00d0, 0x00d0, 0x00d0, 0x00d0, 0x00d0, 0x00d0, 0x00d0,
+    0x0253, 0x0253, 0x0253, 0x0253, 0x0253, 0x0253, 0x0253, 0x0253,
+    0x0253, 0x0253, 0x0253, 0x0253, 0x0253, 0x0253, 0x0253, 0x0253,
+    0x0253, 0x0253, 0x0253, 0x0253, 0x0253, 0x0253, 0x0253, 0x0253,
+    0x0253, 0x0253, 0x0253, 0x0253, 0x0253, 0x0253, 0x0253, 0x0273,
+    0x0073, 0x0073, 0x0073, 0x0073, 0x0073, 0x0073, 0x0073, 0x0073,
+    0x0073, 0x0073, 0x0073, 0x0073, 0x0073, 0x0073, 0x0073, 0x0073,
+    0x0073, 0x0073, 0x0073, 0x0073, 0x0073, 0x0073, 0x0073, 0x00d0,
+    0x0073, 0x0073, 0x0073, 0x0073, 0x0073, 0x0073, 0x0073, 0x0073,
+};
+
+/* SC_COLLATE1/SC_COLLATE2 primary sort key of each character, AmigaOS 3.1 */
+static const UBYTE g_CollateKey[256] = {
+    0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f,
+    0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f,
+    0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28, 0x29, 0x2a, 0x2b, 0x2c, 0x2d, 0x2e, 0x2f,
+    0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38, 0x39, 0x3a, 0x3b, 0x3c, 0x3d, 0x3e, 0x3f,
+    0x40, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47, 0x48, 0x49, 0x4a, 0x4b, 0x4c, 0x4d, 0x4e, 0x4f,
+    0x50, 0x51, 0x52, 0x53, 0x54, 0x55, 0x56, 0x57, 0x58, 0x59, 0x5a, 0x5b, 0x5c, 0x5d, 0x5e, 0x5f,
+    0x60, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47, 0x48, 0x49, 0x4a, 0x4b, 0x4c, 0x4d, 0x4e, 0x4f,
+    0x50, 0x51, 0x52, 0x53, 0x54, 0x55, 0x56, 0x57, 0x58, 0x59, 0x5a, 0x61, 0x62, 0x63, 0x64, 0x65,
+    0xe0, 0xe1, 0xe2, 0xe3, 0xe4, 0xe5, 0xe6, 0xe7, 0xe8, 0xe9, 0xea, 0xeb, 0xec, 0xed, 0xee, 0xef,
+    0xf0, 0xf1, 0xf2, 0xf3, 0xf4, 0xf5, 0xf6, 0xf7, 0xf8, 0xf9, 0xfa, 0xfb, 0xfc, 0xfd, 0xfe, 0xff,
+    0x20, 0x21, 0x24, 0x24, 0x67, 0x68, 0x69, 0x53, 0x6a, 0x6b, 0x6c, 0x22, 0x6d, 0x6e, 0x6f, 0x70,
+    0x71, 0x72, 0x73, 0x74, 0x75, 0x76, 0x77, 0x78, 0x79, 0x7a, 0x7b, 0x22, 0x7c, 0x7d, 0x7e, 0x3f,
+    0x41, 0x41, 0x41, 0x41, 0x41, 0x41, 0x41, 0x43, 0x45, 0x45, 0x45, 0x45, 0x49, 0x49, 0x49, 0x49,
+    0x44, 0x4e, 0x4f, 0x4f, 0x4f, 0x4f, 0x4f, 0x2a, 0x4f, 0x55, 0x55, 0x55, 0x55, 0x59, 0x50, 0x59,
+    0x41, 0x41, 0x41, 0x41, 0x41, 0x41, 0x41, 0x43, 0x45, 0x45, 0x45, 0x45, 0x49, 0x49, 0x49, 0x49,
+    0x44, 0x4e, 0x4f, 0x4f, 0x4f, 0x4f, 0x4f, 0x2f, 0x4f, 0x55, 0x55, 0x55, 0x55, 0x59, 0x50, 0x59,
+};
+
+static ULONG _loc_class(ULONG character, UWORD mask)
 {
-    return _loc_ascii_upper(character);
+    return (g_CharClass[character & 0xff] & mask) ? TRUE : FALSE;
 }
 
-static ULONG _loc_collate_secondary(ULONG character)
+/* ConvToUpper: a-z and 0xe0-0xfe (also 0xf7) map down by 0x20; 0xdf and 0xff stay */
+static ULONG _loc_to_upper(ULONG character)
 {
-    ULONG primary = _loc_collate_primary(character);
-
-    if (character == primary)
-        return 0;
-
+    character &= 0xff;
+    if ((character >= 'a' && character <= 'z') || (character >= 0xe0 && character <= 0xfe))
+        return character - 0x20;
     return character;
 }
 
-static LONG _loc_compare_folded(CONST_STRPTR string1, CONST_STRPTR string2, LONG length)
+static ULONG _loc_to_lower(ULONG character)
 {
-    while (*string1 && *string2 && length != 0)
-    {
-        LONG c1 = (LONG)_loc_collate_primary((ULONG)(UBYTE)*string1++);
-        LONG c2 = (LONG)_loc_collate_primary((ULONG)(UBYTE)*string2++);
-
-        if (c1 != c2)
-            return c1 - c2;
-
-        if (length > 0)
-            length--;
-    }
-
-    if (length == 0)
-        return 0;
-
-    return (LONG)_loc_collate_primary((ULONG)(UBYTE)*string1) -
-           (LONG)_loc_collate_primary((ULONG)(UBYTE)*string2);
+    character &= 0xff;
+    if ((character >= 'A' && character <= 'Z') || (character >= 0xc0 && character <= 0xde))
+        return character + 0x20;
+    return character;
 }
 
-static LONG _loc_compare_secondary(CONST_STRPTR string1, CONST_STRPTR string2, LONG length)
+static UBYTE _loc_key(ULONG type, UBYTE character)
 {
-    while (*string1 && *string2 && length != 0)
-    {
-        LONG c1 = (LONG)_loc_collate_secondary((ULONG)(UBYTE)*string1++);
-        LONG c2 = (LONG)_loc_collate_secondary((ULONG)(UBYTE)*string2++);
-
-        if (c1 != c2)
-            return c1 - c2;
-
-        if (length > 0)
-            length--;
-    }
-
-    if (length == 0)
-        return 0;
-
-    return (LONG)_loc_collate_secondary((ULONG)(UBYTE)*string1) -
-           (LONG)_loc_collate_secondary((ULONG)(UBYTE)*string2);
+    if (type == SC_ASCII)
+        return (UBYTE)_loc_to_upper(character);
+    return g_CollateKey[character];
 }
 
-static ULONG _loc_strconvert_ascii(CONST_STRPTR string,
-                                   APTR         buffer,
-                                   ULONG        buffer_size,
-                                   ULONG        type)
+static LONG _loc_strlen_n(CONST_STRPTR s)
 {
-    UBYTE *dst = (UBYTE *)buffer;
-    ULONG remaining = buffer_size;
-    ULONG written = 0;
-    CONST_STRPTR orig;
+    LONG n = 0;
+    while (s[n])
+        n++;
+    return n;
+}
 
-    if (!buffer || buffer_size == 0)
+/*
+ * StrConvert as on AmigaOS 3.1: SC_ASCII/SC_COLLATE1 write one key per
+ * character (at most bufferSize - 1) plus a NUL.  SC_COLLATE2 writes the
+ * primary key of character i at buffer[i] and the original character (when
+ * it differs from its key) at buffer[strlen + j]; a character is only
+ * converted while two more bytes fit, and the NUL goes after the secondary
+ * part (even past bufferSize, as on 3.1).  The result is
+ * min(bufferSize, converted length + 1).
+ */
+static ULONG _loc_strconvert(CONST_STRPTR string, UBYTE *dst, ULONG size, ULONG type)
+{
+    LONG len, i, total;
+
+    if (size == 0)
         return 0;
 
-    if (!string)
-        string = (CONST_STRPTR)"";
-
-    orig = string;
-
-    while (*string)
-    {
-        ULONG folded = _loc_collate_primary((ULONG)(UBYTE)*string);
-
-        if (remaining > 1)
-        {
-            *dst++ = (UBYTE)folded;
-            remaining--;
-            written++;
-        }
-
-        string++;
-    }
+    len = _loc_strlen_n(string);
 
     if (type == SC_COLLATE2)
     {
-        string = orig;
-        while (*string)
+        ULONG count = 0;
+        LONG j = 0;
+
+        total = len;
+        for (i = 0; i < len; i++)
         {
-            ULONG original = (ULONG)(UBYTE)*string;
-            ULONG folded = _loc_collate_primary(original);
-
-            if (original != folded && remaining > 1)
-            {
-                *dst++ = (UBYTE)original;
-                remaining--;
-                written++;
-            }
-
-            string++;
+            UBYTE c = (UBYTE)string[i];
+            if (g_CollateKey[c] != c)
+                total++;
         }
+
+        for (i = 0; i < len; i++)
+        {
+            UBYTE c = (UBYTE)string[i];
+            UBYTE k = g_CollateKey[c];
+
+            if (count + 2 > size)
+                break;
+            dst[i] = k;
+            count++;
+            if (k != c)
+            {
+                dst[len + j++] = c;
+                count++;
+            }
+        }
+        dst[len + j] = 0;
+    }
+    else
+    {
+        LONG n = len;
+        if ((ULONG)n > size - 1)
+            n = (LONG)(size - 1);
+        for (i = 0; i < n; i++)
+            dst[i] = _loc_key(type, (UBYTE)string[i]);
+        dst[n] = 0;
+        total = len;
     }
 
-    if (remaining > 0)
-        *dst = '\0';
-    else
-        ((UBYTE *)buffer)[buffer_size - 1] = '\0';
+    return (ULONG)(total + 1) < size ? (ULONG)(total + 1) : size;
+}
 
-    /* the count includes the terminating NUL (AmigaOS 3.1,
-     * reference-verified, Phase 220) */
-    return written + 1;
+/*
+ * StrnCmp: compares at most length characters (length < 0: all) by their
+ * keys; SC_COLLATE2 breaks ties of the primary keys by the original bytes.
+ */
+static LONG _loc_strncmp_keys(CONST_STRPTR s1, CONST_STRPTR s2, LONG length, ULONG type, BOOL raw)
+{
+    while (length != 0)
+    {
+        UBYTE a = (UBYTE)*s1++;
+        UBYTE b = (UBYTE)*s2++;
+        LONG ka = raw ? a : _loc_key(type, a);
+        LONG kb = raw ? b : _loc_key(type, b);
+
+        if (ka != kb)
+            return ka - kb;
+        if (!a)
+            break;
+        if (length > 0)
+            length--;
+    }
+    return 0;
 }
 
 static BOOL _loc_parse_catalog_strings(BPTR fh, struct MyCatalog *catalog, ULONG chunk_size)
@@ -983,7 +1037,7 @@ ULONG _locale_ConvToLower ( register struct MyLocaleBase *LocaleBase __asm("a6")
     (void)LocaleBase;
     (void)locale;
 
-    return _loc_ascii_lower(character);
+    return _loc_to_lower(character);
 }
 
 ULONG _locale_ConvToUpper ( register struct MyLocaleBase *LocaleBase __asm("a6"),
@@ -993,7 +1047,7 @@ ULONG _locale_ConvToUpper ( register struct MyLocaleBase *LocaleBase __asm("a6")
     (void)LocaleBase;
     (void)locale;
 
-    return _loc_ascii_upper(character);
+    return _loc_to_upper(character);
 }
 
 /****************************************************************************/
@@ -1002,7 +1056,7 @@ ULONG _locale_ConvToUpper ( register struct MyLocaleBase *LocaleBase __asm("a6")
 
 static void _loc_putchar(struct Hook *hook, ULONG ch, struct Locale *locale)
 {
-    /* FormatDate hook convention:
+    /* FormatDate/FormatString hook convention:
      * A0 = hook, A1 = character (value, not pointer), A2 = locale
      */
     typedef void (*HookFuncPtr)(
@@ -1013,63 +1067,35 @@ static void _loc_putchar(struct Hook *hook, ULONG ch, struct Locale *locale)
     ((HookFuncPtr)hook->h_Entry)(hook, ch, locale);
 }
 
-static void _loc_putstr(struct Hook *hook, const char *str, struct Locale *locale)
+static void _loc_putstr(struct Hook *hook, CONST_STRPTR str, struct Locale *locale)
 {
+    if (!str)
+        return;
     while (*str)
         _loc_putchar(hook, (ULONG)(UBYTE)*str++, locale);
 }
 
-/****************************************************************************/
-/* Helper: output a number with leading zeros or spaces                      */
-/****************************************************************************/
-
-static void _loc_putnumz(struct Hook *hook, LONG value, int width, struct Locale *locale)
+/* value (>= 0) with exactly `digits` digits (value is taken modulo 10^digits),
+ * padded with `pad`; digits == 0 means no padding */
+static void _loc_putnum(struct Hook *hook, LONG value, int digits, char pad, struct Locale *locale)
 {
-    char buf[16];
+    char buf[12];
     int i = 0;
-    LONG v = value;
-    BOOL neg = FALSE;
+    ULONG v = (ULONG)value;
 
-    if (v < 0)
+    do
     {
-        neg = TRUE;
-        v = -v;
+        buf[i++] = (char)('0' + v % 10);
+        v /= 10;
+    } while (i < 11 && (digits ? i < digits : v != 0));
+
+    if (digits && pad != '0')
+    {
+        /* replace leading zeros with the pad character */
+        int k = i - 1;
+        while (k > 0 && buf[k] == '0')
+            buf[k--] = pad;
     }
-
-    /* Generate digits in reverse */
-    do
-    {
-        buf[i++] = '0' + (v % 10);
-        v /= 10;
-    } while (v > 0 && i < 15);
-
-    if (neg)
-        buf[i++] = '-';
-
-    /* Pad with leading zeros if needed */
-    while (i < width && i < 15)
-        buf[i++] = '0';
-
-    /* Output in correct order */
-    while (i > 0)
-        _loc_putchar(hook, (ULONG)(UBYTE)buf[--i], locale);
-}
-
-/* Like _loc_putnumz but pads with spaces instead of zeros */
-static void _loc_putnums(struct Hook *hook, LONG value, int width, struct Locale *locale)
-{
-    char buf[16];
-    int i = 0;
-    LONG v = value;
-
-    do
-    {
-        buf[i++] = '0' + (v % 10);
-        v /= 10;
-    } while (v > 0 && i < 15);
-
-    while (i < width && i < 15)
-        buf[i++] = ' ';
 
     while (i > 0)
         _loc_putchar(hook, (ULONG)(UBYTE)buf[--i], locale);
@@ -1100,6 +1126,7 @@ struct DateParts
     LONG sec;     /* 0-59 */
     LONG wday;    /* 0=Sunday, 1=Monday, ... 6=Saturday */
     LONG yday;    /* 1-366 */
+    LONG ylen;    /* 365 or 366 */
 };
 
 static void _datestamp_to_parts(const struct DateStamp *ds, struct DateParts *dp)
@@ -1107,42 +1134,125 @@ static void _datestamp_to_parts(const struct DateStamp *ds, struct DateParts *dp
     LONG days = ds->ds_Days;
     LONG minutes = ds->ds_Minute;
     LONG ticks = ds->ds_Tick;
+    LONG year = 1978;
+    LONG month = 0;
+    BOOL leap;
 
-    /* Time */
     dp->hour = minutes / 60;
     dp->min = minutes % 60;
     dp->sec = ticks / TICKS_PER_SECOND;
 
-    /* Day of week: Jan 1, 1978 was a Sunday (wday=0) */
-    dp->wday = (days + 0) % 7;  /* 0=Sun */
-    if (dp->wday < 0) dp->wday += 7;
+    /* Jan 1, 1978 was a Sunday (wday=0) */
+    dp->wday = days % 7;
+    if (dp->wday < 0)
+        dp->wday += 7;
 
-    /* Convert days since 1978-01-01 to year/month/day */
-    LONG year = 1978;
     while (days >= (_is_leap_year(year) ? 366 : 365))
     {
         days -= (_is_leap_year(year) ? 366 : 365);
         year++;
     }
 
+    leap = _is_leap_year(year);
     dp->year = year;
-    dp->yday = days + 1;  /* 1-based */
+    dp->yday = days + 1;
+    dp->ylen = leap ? 366 : 365;
 
-    BOOL leap = _is_leap_year(year);
-    LONG month = 0;
     while (month < 12 && days >= g_DaysInMonth[leap ? 1 : 0][month])
     {
         days -= g_DaysInMonth[leap ? 1 : 0][month];
         month++;
     }
 
-    dp->month = month + 1;  /* 1-based */
-    dp->day = days + 1;     /* 1-based */
+    dp->month = month + 1;
+    dp->day = days + 1;
 }
 
 /****************************************************************************/
 /* FormatDate implementation                                                 */
 /****************************************************************************/
+
+static CONST_STRPTR _loc_str(struct Locale *locale, ULONG id)
+{
+    (void)locale;
+    if (id < sizeof(g_LocaleStrings) / sizeof(g_LocaleStrings[0]))
+        return (CONST_STRPTR)g_LocaleStrings[id];
+    return NULL;
+}
+
+/*
+ * One template.  Every template - also the built-in ones that %c, %C, %D,
+ * %r, %R, %T, %x and %X expand to - ends with a NUL sent to the hook, as on
+ * AmigaOS 3.1.  The day-of-year behind %j, %U and %W is counted as on 3.1
+ * (day of year + 1348 - length of the year, printed modulo 1000 / 100).
+ */
+static void _loc_format_date(struct Hook *hook, struct Locale *locale,
+                             const UBYTE *fmt, const struct DateParts *dp)
+{
+    LONG h12 = dp->hour % 12;
+    LONG jday = dp->yday + 1348 - dp->ylen;
+
+    if (h12 == 0)
+        h12 = 12;
+
+    while (*fmt)
+    {
+        if (*fmt != '%')
+        {
+            _loc_putchar(hook, (ULONG)*fmt++, locale);
+            continue;
+        }
+        fmt++;
+        if (!*fmt)
+            break;
+
+        switch (*fmt)
+        {
+            case '%': _loc_putchar(hook, '%', locale); break;
+            case 'a': _loc_putstr(hook, _loc_str(locale, ABDAY_1 + dp->wday), locale); break;
+            case 'A': _loc_putstr(hook, _loc_str(locale, DAY_1 + dp->wday), locale); break;
+            case 'b':
+            case 'h': _loc_putstr(hook, _loc_str(locale, ABMON_1 + dp->month - 1), locale); break;
+            case 'B': _loc_putstr(hook, _loc_str(locale, MON_1 + dp->month - 1), locale); break;
+            case 'c': _loc_format_date(hook, locale, (const UBYTE *)"%a %b %d %H:%M:%S %Y", dp); break;
+            case 'C': _loc_format_date(hook, locale, (const UBYTE *)"%a %b %e %T %Z %Y", dp); break;
+            case 'd': _loc_putnum(hook, dp->day, 2, '0', locale); break;
+            case 'D':
+            case 'x': _loc_format_date(hook, locale, (const UBYTE *)"%m/%d/%y", dp); break;
+            case 'e': _loc_putnum(hook, dp->day, 2, ' ', locale); break;
+            case 'H': _loc_putnum(hook, dp->hour, 2, '0', locale); break;
+            case 'I': _loc_putnum(hook, h12, 2, '0', locale); break;
+            case 'j': _loc_putnum(hook, jday, 3, '0', locale); break;
+            case 'm': _loc_putnum(hook, dp->month, 2, '0', locale); break;
+            case 'M': _loc_putnum(hook, dp->min, 2, '0', locale); break;
+            case 'n': _loc_putchar(hook, '\n', locale); break;
+            case 'p': _loc_putstr(hook, _loc_str(locale, dp->hour < 12 ? AM_STR : PM_STR), locale); break;
+            case 'q': _loc_putnum(hook, dp->hour, 0, '0', locale); break;
+            case 'Q': _loc_putnum(hook, h12, 0, '0', locale); break;
+            case 'r':
+                _loc_format_date(hook, locale, (const UBYTE *)"%I:%M:%S ", dp);
+                _loc_putstr(hook, _loc_str(locale, dp->hour < 12 ? AM_STR : PM_STR), locale);
+                break;
+            case 'R': _loc_format_date(hook, locale, (const UBYTE *)"%H:%M", dp); break;
+            case 'S': _loc_putnum(hook, dp->sec, 2, '0', locale); break;
+            case 't': _loc_putchar(hook, '\t', locale); break;
+            case 'T':
+            case 'X': _loc_format_date(hook, locale, (const UBYTE *)"%H:%M:%S", dp); break;
+            case 'U': _loc_putnum(hook, (jday - 1 + 7 - dp->wday) / 7, 2, '0', locale); break;
+            case 'w': _loc_putnum(hook, dp->wday, 1, '0', locale); break;
+            case 'W': _loc_putnum(hook, (jday - 1 + 7 - (dp->wday + 6) % 7) / 7, 2, '0', locale); break;
+            case 'y': _loc_putnum(hook, dp->year, 2, '0', locale); break;
+            case 'Y': _loc_putnum(hook, dp->year, 4, '0', locale); break;
+            default:
+                /* unknown conversion: only the '%' is printed */
+                _loc_putchar(hook, '%', locale);
+                break;
+        }
+        fmt++;
+    }
+
+    _loc_putchar(hook, 0, locale);
+}
 
 VOID _locale_FormatDate ( register struct MyLocaleBase *LocaleBase   __asm("a6"),
                           register struct Locale       *locale       __asm("a0"),
@@ -1151,7 +1261,6 @@ VOID _locale_FormatDate ( register struct MyLocaleBase *LocaleBase   __asm("a6")
                           register struct Hook         *putCharFunc  __asm("a3"))
 {
     struct DateParts dp;
-    const UBYTE *fmt;
 
     DPRINTF (LOG_DEBUG, "_locale: FormatDate() called\n");
 
@@ -1161,244 +1270,139 @@ VOID _locale_FormatDate ( register struct MyLocaleBase *LocaleBase   __asm("a6")
     if (!locale)
         locale = &g_DefaultLocale;
 
-    if (!fmtTemplate)
-    {
-        _loc_putchar(putCharFunc, 0, locale);
-        return;
-    }
-
-    if (!date)
+    if (!fmtTemplate || !date)
     {
         _loc_putchar(putCharFunc, 0, locale);
         return;
     }
 
     _datestamp_to_parts(date, &dp);
-
-    fmt = (const UBYTE *)fmtTemplate;
-    while (*fmt)
-    {
-        if (*fmt != '%')
-        {
-            _loc_putchar(putCharFunc, (ULONG)*fmt, locale);
-            fmt++;
-            continue;
-        }
-        fmt++; /* skip '%' */
-
-        switch (*fmt)
-        {
-            case '%':
-                _loc_putchar(putCharFunc, '%', locale);
-                break;
-            case 'a':
-                /* abbreviated weekday name */
-                _loc_putstr(putCharFunc, g_LocaleStrings[ABDAY_1 + dp.wday], locale);
-                break;
-            case 'A':
-                /* full weekday name */
-                _loc_putstr(putCharFunc, g_LocaleStrings[DAY_1 + dp.wday], locale);
-                break;
-            case 'b':
-            case 'h':
-                /* abbreviated month name */
-                _loc_putstr(putCharFunc, g_LocaleStrings[ABMON_1 + dp.month - 1], locale);
-                break;
-            case 'B':
-                /* full month name */
-                _loc_putstr(putCharFunc, g_LocaleStrings[MON_1 + dp.month - 1], locale);
-                break;
-            case 'c':
-                /* %a %b %d %H:%M:%S %Y */
-                _loc_putstr(putCharFunc, g_LocaleStrings[ABDAY_1 + dp.wday], locale);
-                _loc_putchar(putCharFunc, ' ', locale);
-                _loc_putstr(putCharFunc, g_LocaleStrings[ABMON_1 + dp.month - 1], locale);
-                _loc_putchar(putCharFunc, ' ', locale);
-                _loc_putnumz(putCharFunc, dp.day, 2, locale);
-                _loc_putchar(putCharFunc, ' ', locale);
-                _loc_putnumz(putCharFunc, dp.hour, 2, locale);
-                _loc_putchar(putCharFunc, ':', locale);
-                _loc_putnumz(putCharFunc, dp.min, 2, locale);
-                _loc_putchar(putCharFunc, ':', locale);
-                _loc_putnumz(putCharFunc, dp.sec, 2, locale);
-                _loc_putchar(putCharFunc, ' ', locale);
-                _loc_putnumz(putCharFunc, dp.year, 4, locale);
-                break;
-            case 'C':
-                /* %a %b %e %T %Z %Y - we output without timezone */
-                _loc_putstr(putCharFunc, g_LocaleStrings[ABDAY_1 + dp.wday], locale);
-                _loc_putchar(putCharFunc, ' ', locale);
-                _loc_putstr(putCharFunc, g_LocaleStrings[ABMON_1 + dp.month - 1], locale);
-                _loc_putchar(putCharFunc, ' ', locale);
-                _loc_putnums(putCharFunc, dp.day, 2, locale);
-                _loc_putchar(putCharFunc, ' ', locale);
-                _loc_putnumz(putCharFunc, dp.hour, 2, locale);
-                _loc_putchar(putCharFunc, ':', locale);
-                _loc_putnumz(putCharFunc, dp.min, 2, locale);
-                _loc_putchar(putCharFunc, ':', locale);
-                _loc_putnumz(putCharFunc, dp.sec, 2, locale);
-                _loc_putchar(putCharFunc, ' ', locale);
-                _loc_putstr(putCharFunc, "UTC", locale);
-                _loc_putchar(putCharFunc, ' ', locale);
-                _loc_putnumz(putCharFunc, dp.year, 4, locale);
-                break;
-            case 'd':
-                /* day of month with leading zero */
-                _loc_putnumz(putCharFunc, dp.day, 2, locale);
-                break;
-            case 'D':
-                /* %m/%d/%y */
-                _loc_putnumz(putCharFunc, dp.month, 2, locale);
-                _loc_putchar(putCharFunc, '/', locale);
-                _loc_putnumz(putCharFunc, dp.day, 2, locale);
-                _loc_putchar(putCharFunc, '/', locale);
-                _loc_putnumz(putCharFunc, dp.year % 100, 2, locale);
-                break;
-            case 'e':
-                /* day of month with leading space */
-                _loc_putnums(putCharFunc, dp.day, 2, locale);
-                break;
-            case 'H':
-                /* hour 24-hour with leading zero */
-                _loc_putnumz(putCharFunc, dp.hour, 2, locale);
-                break;
-            case 'I':
-            {
-                /* hour 12-hour with leading zero */
-                LONG h12 = dp.hour % 12;
-                if (h12 == 0) h12 = 12;
-                _loc_putnumz(putCharFunc, h12, 2, locale);
-                break;
-            }
-            case 'j':
-                /* julian day (day of year) */
-                _loc_putnumz(putCharFunc, dp.yday, 3, locale);
-                break;
-            case 'm':
-                /* month number with leading zero */
-                _loc_putnumz(putCharFunc, dp.month, 2, locale);
-                break;
-            case 'M':
-                /* minutes with leading zero */
-                _loc_putnumz(putCharFunc, dp.min, 2, locale);
-                break;
-            case 'n':
-                _loc_putchar(putCharFunc, '\n', locale);
-                break;
-            case 'p':
-                /* AM/PM string */
-                _loc_putstr(putCharFunc, g_LocaleStrings[dp.hour < 12 ? AM_STR : PM_STR], locale);
-                break;
-            case 'q':
-                /* hour 24-hour without leading zero (just the number) */
-                _loc_putnumz(putCharFunc, dp.hour, 1, locale);
-                break;
-            case 'Q':
-            {
-                /* hour 12-hour without leading zero */
-                LONG h12 = dp.hour % 12;
-                if (h12 == 0) h12 = 12;
-                _loc_putnumz(putCharFunc, h12, 1, locale);
-                break;
-            }
-            case 'r':
-                /* %I:%M:%S %p */
-            {
-                LONG h12 = dp.hour % 12;
-                if (h12 == 0) h12 = 12;
-                _loc_putnumz(putCharFunc, h12, 2, locale);
-                _loc_putchar(putCharFunc, ':', locale);
-                _loc_putnumz(putCharFunc, dp.min, 2, locale);
-                _loc_putchar(putCharFunc, ':', locale);
-                _loc_putnumz(putCharFunc, dp.sec, 2, locale);
-                _loc_putchar(putCharFunc, ' ', locale);
-                _loc_putstr(putCharFunc, g_LocaleStrings[dp.hour < 12 ? AM_STR : PM_STR], locale);
-                break;
-            }
-            case 'R':
-                /* %H:%M */
-                _loc_putnumz(putCharFunc, dp.hour, 2, locale);
-                _loc_putchar(putCharFunc, ':', locale);
-                _loc_putnumz(putCharFunc, dp.min, 2, locale);
-                break;
-            case 'S':
-                /* seconds with leading zero */
-                _loc_putnumz(putCharFunc, dp.sec, 2, locale);
-                break;
-            case 't':
-                _loc_putchar(putCharFunc, '\t', locale);
-                break;
-            case 'T':
-                /* %H:%M:%S */
-                _loc_putnumz(putCharFunc, dp.hour, 2, locale);
-                _loc_putchar(putCharFunc, ':', locale);
-                _loc_putnumz(putCharFunc, dp.min, 2, locale);
-                _loc_putchar(putCharFunc, ':', locale);
-                _loc_putnumz(putCharFunc, dp.sec, 2, locale);
-                break;
-            case 'U':
-            {
-                /* Week number (Sunday as first day) */
-                LONG wn = (dp.yday - 1 + ((7 - dp.wday) % 7)) / 7;
-                _loc_putnumz(putCharFunc, wn, 2, locale);
-                break;
-            }
-            case 'w':
-                /* weekday number (0=Sunday) */
-                _loc_putnumz(putCharFunc, dp.wday, 1, locale);
-                break;
-            case 'W':
-            {
-                /* Week number (Monday as first day) */
-                LONG mwday = (dp.wday + 6) % 7;  /* 0=Monday */
-                LONG wn = (dp.yday - 1 + ((7 - mwday) % 7)) / 7;
-                _loc_putnumz(putCharFunc, wn, 2, locale);
-                break;
-            }
-            case 'x':
-                /* %m/%d/%y */
-                _loc_putnumz(putCharFunc, dp.month, 2, locale);
-                _loc_putchar(putCharFunc, '/', locale);
-                _loc_putnumz(putCharFunc, dp.day, 2, locale);
-                _loc_putchar(putCharFunc, '/', locale);
-                _loc_putnumz(putCharFunc, dp.year % 100, 2, locale);
-                break;
-            case 'X':
-                /* %H:%M:%S */
-                _loc_putnumz(putCharFunc, dp.hour, 2, locale);
-                _loc_putchar(putCharFunc, ':', locale);
-                _loc_putnumz(putCharFunc, dp.min, 2, locale);
-                _loc_putchar(putCharFunc, ':', locale);
-                _loc_putnumz(putCharFunc, dp.sec, 2, locale);
-                break;
-            case 'y':
-                /* 2-digit year with leading zero */
-                _loc_putnumz(putCharFunc, dp.year % 100, 2, locale);
-                break;
-            case 'Y':
-                /* 4-digit year */
-                _loc_putnumz(putCharFunc, dp.year, 4, locale);
-                break;
-            case '\0':
-                /* % at end of string - just output % and stop */
-                _loc_putchar(putCharFunc, '%', locale);
-                goto done;
-            default:
-                /* Unknown - output literal */
-                _loc_putchar(putCharFunc, '%', locale);
-                _loc_putchar(putCharFunc, (ULONG)*fmt, locale);
-                break;
-        }
-        fmt++;
-    }
-done:
-    /* Output the terminating null */
-    _loc_putchar(putCharFunc, 0, locale);
+    _loc_format_date(putCharFunc, locale, (const UBYTE *)fmtTemplate, &dp);
 }
 
 /****************************************************************************/
 /* FormatString implementation                                               */
 /****************************************************************************/
+
+#define LOC_MAX_ARGS 64
+
+struct LocFmtSpec
+{
+    LONG  argnum;      /* 0: no argument */
+    BOOL  left;
+    BOOL  zero;
+    LONG  width;
+    LONG  limit;       /* -1: none */
+    BOOL  is_long;
+    UBYTE type;        /* 0: template ended inside the specification */
+};
+
+/* parse one specification after the '%'; returns the position after it */
+static const UBYTE *_loc_parse_spec(const UBYTE *fmt, struct LocFmtSpec *spec, LONG *cur)
+{
+    const UBYTE *look = fmt;
+    LONG pos = 0;
+
+    while (*look >= '0' && *look <= '9')
+        pos = pos * 10 + (*look++ - '0');
+    if (*look == '$')
+    {
+        *cur = pos;
+        spec->argnum = pos;
+        fmt = look + 1;
+    }
+    else
+        spec->argnum = -1;          /* sequential: assigned below */
+
+    spec->left = FALSE;
+    spec->zero = FALSE;
+    while (*fmt == '-' || *fmt == '0')
+    {
+        if (*fmt == '-')
+            spec->left = TRUE;
+        else
+            spec->zero = TRUE;
+        fmt++;
+    }
+
+    spec->width = 0;
+    while (*fmt >= '0' && *fmt <= '9')
+        spec->width = spec->width * 10 + (*fmt++ - '0');
+
+    spec->limit = -1;
+    if (*fmt == '.')
+    {
+        fmt++;
+        spec->limit = 0;
+        while (*fmt >= '0' && *fmt <= '9')
+            spec->limit = spec->limit * 10 + (*fmt++ - '0');
+    }
+
+    spec->is_long = FALSE;
+    if (*fmt == 'l')
+    {
+        spec->is_long = TRUE;
+        fmt++;
+    }
+
+    spec->type = *fmt;
+    if (*fmt)
+        fmt++;
+
+    switch (spec->type)
+    {
+        case 'd': case 'D': case 'u': case 'U': case 'x': case 'X':
+        case 'c': case 's': case 'b':
+            if (spec->argnum < 0)
+                spec->argnum = (*cur)++;
+            break;
+        default:
+            spec->argnum = 0;
+            break;
+    }
+    return fmt;
+}
+
+static LONG _loc_arg_size(const struct LocFmtSpec *spec)
+{
+    if (spec->type == 's' || spec->type == 'b' || spec->is_long)
+        return 4;
+    return 2;
+}
+
+/* unsigned value with the locale's digit grouping; returns TRUE if a
+ * separator was inserted.  Digits are written backwards from end. */
+static BOOL _loc_group_digits(struct Locale *locale, ULONG value, char **pstart, BOOL group)
+{
+    char *p = *pstart;
+    const UBYTE *grouping = locale->loc_Grouping;
+    CONST_STRPTR sep = (CONST_STRPTR)locale->loc_GroupSeparator;
+    LONG gsize = (group && grouping && grouping[0] && grouping[0] != 255) ? grouping[0] : 0;
+    LONG gi = 0, n = 0;
+    BOOL inserted = FALSE;
+
+    do
+    {
+        if (gsize && n == gsize)
+        {
+            LONG sl = sep ? _loc_strlen_n(sep) : 0;
+            while (sl > 0)
+                *--p = sep[--sl];
+            inserted = TRUE;
+            n = 0;
+            if (grouping[gi + 1] == 255)
+                gsize = 0;
+            else if (grouping[gi + 1] != 0)
+                gsize = grouping[++gi];
+        }
+        *--p = (char)('0' + value % 10);
+        value /= 10;
+        n++;
+    } while (value);
+
+    *pstart = p;
+    return inserted;
+}
 
 APTR _locale_FormatString ( register struct MyLocaleBase *LocaleBase   __asm("a6"),
                             register struct Locale       *locale       __asm("a0"),
@@ -1406,527 +1410,168 @@ APTR _locale_FormatString ( register struct MyLocaleBase *LocaleBase   __asm("a6
                             register APTR                 dataStream   __asm("a2"),
                             register struct Hook         *putCharFunc  __asm("a3"))
 {
+    UBYTE sizes[LOC_MAX_ARGS + 1];
+    LONG offsets[LOC_MAX_ARGS + 2];
     const UBYTE *fmt;
-    UWORD *args;
-    UWORD *max_args;
+    struct LocFmtSpec spec;
+    LONG cur, i, total;
+    BOOL grouped = FALSE;
 
     DPRINTF (LOG_DEBUG, "_locale: FormatString() called\n");
 
-    if (!putCharFunc)
+    if (!putCharFunc || !fmtTemplate)
         return dataStream;
 
     if (!locale)
         locale = &g_DefaultLocale;
 
-    if (!fmtTemplate)
-        return dataStream;
-
+    /* pass 1: the size of every argument; an argument no specification
+     * refers to takes no room in the data stream (AmigaOS 3.1) */
+    for (i = 0; i <= LOC_MAX_ARGS; i++)
+        sizes[i] = 0;
+    cur = 1;
     fmt = (const UBYTE *)fmtTemplate;
-    args = (UWORD *)dataStream;
-    max_args = args;  /* Track the highest arg pointer for return value */
-
     while (*fmt)
     {
+        if (*fmt++ != '%')
+            continue;
+        fmt = _loc_parse_spec(fmt, &spec, &cur);
+        if (spec.argnum > 0 && spec.argnum <= LOC_MAX_ARGS)
+            sizes[spec.argnum] = (UBYTE)_loc_arg_size(&spec);
+        if (!spec.type)
+            break;
+    }
+    offsets[1] = 0;
+    for (i = 1; i <= LOC_MAX_ARGS; i++)
+        offsets[i + 1] = offsets[i] + sizes[i];
+    total = offsets[LOC_MAX_ARGS + 1];
+
+    /* pass 2: output */
+    cur = 1;
+    fmt = (const UBYTE *)fmtTemplate;
+    while (*fmt)
+    {
+        char buf[48];
+        char *str, *end;
+        LONG len;
+        UBYTE *arg;
+
         if (*fmt != '%')
         {
-            _loc_putchar(putCharFunc, (ULONG)*fmt, locale);
-            fmt++;
+            _loc_putchar(putCharFunc, (ULONG)*fmt++, locale);
             continue;
         }
-        fmt++; /* skip '%' */
+        fmt = _loc_parse_spec(fmt + 1, &spec, &cur);
+        if (!spec.type)
+            break;
 
-        if (*fmt == '%')
-        {
-            _loc_putchar(putCharFunc, '%', locale);
-            fmt++;
-            continue;
-        }
+        arg = NULL;
+        if (spec.argnum > 0 && spec.argnum <= LOC_MAX_ARGS)
+            arg = (UBYTE *)dataStream + offsets[spec.argnum];
 
-        /* Check for positional argument: N$ */
-        UWORD *cur_args = args;
-        BOOL positional = FALSE;
+        end = buf + sizeof(buf) - 1;
+        *end = 0;
+        str = end;
+
+        switch (spec.type)
         {
-            const UBYTE *look = fmt;
-            LONG pos = 0;
-            while (*look >= '0' && *look <= '9')
+            case 'd': case 'D': case 'u': case 'U':
             {
-                pos = pos * 10 + (*look - '0');
-                look++;
-            }
-            if (*look == '$' && pos > 0)
-            {
-                /* Positional argument: rewind to dataStream base + offset */
-                cur_args = (UWORD *)dataStream;
-                /* Skip to the pos-th argument. We need to scan the format
-                 * string to know sizes, but for simplicity we'll just
-                 * index by position. Each arg is at least a WORD. We use
-                 * a fixed-size arg table approach. */
-                positional = TRUE;
-
-                /* Walk the format string to compute offsets for each arg position.
-                 * For simplicity, skip forward pos-1 arguments using the format
-                 * string. Since this gets complex, we'll use a simpler approach:
-                 * just skip (pos-1) * 2 bytes (WORD each) for non-pointer types.
-                 * However, this is not accurate for mixed types. Real Amiga
-                 * locale.library stores arg offsets in a table.
-                 *
-                 * For a basic but functional implementation, we re-scan from the
-                 * start of the format string and count arguments up to position
-                 * pos-1 to compute the byte offset.
-                 */
-                const UBYTE *scan = (const UBYTE *)fmtTemplate;
-                LONG arg_byte_offsets[128];
-                LONG arg_count = 0;
-                LONG byte_offset = 0;
-
-                /* Build a table of byte offsets for each sequential argument */
-                while (*scan && arg_count < 128)
-                {
-                    if (*scan != '%')
-                    {
-                        scan++;
-                        continue;
-                    }
-                    scan++;
-                    if (*scan == '%')
-                    {
-                        scan++;
-                        continue;
-                    }
-
-                    /* Skip positional spec if present */
-                    const UBYTE *spec_start = scan;
-                    {
-                        const UBYTE *t = scan;
-                        LONG n = 0;
-                        while (*t >= '0' && *t <= '9')
-                        {
-                            n = n * 10 + (*t - '0');
-                            t++;
-                        }
-                        if (*t == '$' && n > 0)
-                            scan = t + 1;
-                        else
-                            scan = spec_start;
-                    }
-
-                    /* Skip flags */
-                    while (*scan == '-' || *scan == '0')
-                        scan++;
-
-                    /* Skip width */
-                    while (*scan >= '0' && *scan <= '9')
-                        scan++;
-
-                    /* Skip precision */
-                    if (*scan == '.')
-                    {
-                        scan++;
-                        while (*scan >= '0' && *scan <= '9')
-                            scan++;
-                    }
-
-                    /* Check for 'l' modifier */
-                    BOOL is_long = FALSE;
-                    if (*scan == 'l')
-                    {
-                        is_long = TRUE;
-                        scan++;
-                    }
-
-                    /* Record offset for this argument position */
-                    arg_byte_offsets[arg_count] = byte_offset;
-                    arg_count++;
-
-                    /* Compute size consumed by this argument */
-                    switch (*scan)
-                    {
-                        case 's':
-                        case 'b':
-                            byte_offset += 4;  /* always 32-bit pointer */
-                            break;
-                        case 'd': case 'D':
-                        case 'u': case 'U':
-                        case 'x': case 'X':
-                            byte_offset += is_long ? 4 : 2;
-                            break;
-                        case 'c':
-                            byte_offset += is_long ? 4 : 2;
-                            break;
-                        default:
-                            byte_offset += 2;
-                            break;
-                    }
-                    if (*scan)
-                        scan++;
-                }
-
-                if (pos >= 1 && pos <= arg_count)
-                    cur_args = (UWORD *)((UBYTE *)dataStream + arg_byte_offsets[pos - 1]);
-                else
-                    cur_args = args;
-
-                fmt = look + 1;  /* skip past N$ */
-            }
-        }
-
-        /* Parse flags */
-        BOOL left_align = FALSE;
-        BOOL zero_pad = FALSE;
-
-        while (*fmt == '-' || *fmt == '0')
-        {
-            if (*fmt == '-') left_align = TRUE;
-            if (*fmt == '0' && !left_align) zero_pad = TRUE;
-            fmt++;
-        }
-
-        /* Parse width */
-        LONG width = 0;
-        while (*fmt >= '0' && *fmt <= '9')
-        {
-            width = width * 10 + (*fmt - '0');
-            fmt++;
-        }
-
-        /* Parse limit (precision for strings) */
-        LONG limit = -1;
-        if (*fmt == '.')
-        {
-            fmt++;
-            limit = 0;
-            while (*fmt >= '0' && *fmt <= '9')
-            {
-                limit = limit * 10 + (*fmt - '0');
-                fmt++;
-            }
-        }
-
-        /* Parse length modifier */
-        BOOL is_long = FALSE;
-        if (*fmt == 'l')
-        {
-            is_long = TRUE;
-            fmt++;
-        }
-
-        /* Parse type */
-        char type = *fmt;
-        if (*fmt)
-            fmt++;
-
-        switch (type)
-        {
-            case 'd':
-            case 'D':
-            {
-                /* Signed decimal */
                 LONG value;
-                if (is_long)
-                {
-                    value = *(LONG *)cur_args;
-                    cur_args += 2;
-                }
-                else
-                {
-                    value = (WORD)*cur_args++;
-                }
-
-                char buf[12];
-                int bi = 0;
                 BOOL neg = FALSE;
-                ULONG uval;
 
-                if (value < 0)
+                if (spec.is_long)
+                    value = *(LONG *)arg;
+                else if (spec.type == 'd' || spec.type == 'D')
+                    value = (WORD)*(UWORD *)arg;
+                else
+                    value = *(UWORD *)arg;
+
+                if ((spec.type == 'd' || spec.type == 'D') && value < 0)
                 {
                     neg = TRUE;
-                    uval = (ULONG)(-value);
+                    value = -value;
                 }
-                else
-                {
-                    uval = (ULONG)value;
-                }
-
-                /* Generate digits in reverse */
-                do
-                {
-                    buf[bi++] = '0' + (uval % 10);
-                    uval /= 10;
-                } while (uval && bi < 11);
-
+                if (_loc_group_digits(locale, (ULONG)value, &str,
+                                      spec.type == 'D' || spec.type == 'U'))
+                    grouped = TRUE;
                 if (neg)
-                    buf[bi++] = '-';
-
-                LONG len = bi;
-                char pad_char = zero_pad ? '0' : ' ';
-
-                if (!left_align)
-                {
-                    LONG i;
-                    for (i = len; i < width; i++)
-                        _loc_putchar(putCharFunc, (ULONG)(UBYTE)pad_char, locale);
-                }
-
-                while (bi > 0)
-                    _loc_putchar(putCharFunc, (ULONG)(UBYTE)buf[--bi], locale);
-
-                if (left_align)
-                {
-                    LONG i;
-                    for (i = len; i < width; i++)
-                        _loc_putchar(putCharFunc, ' ', locale);
-                }
-
-                if (!positional)
-                    args = cur_args;
+                    *--str = '-';
                 break;
             }
-
-            case 'u':
-            case 'U':
+            case 'x': case 'X':
             {
-                /* Unsigned decimal */
-                ULONG value;
-                if (is_long)
-                {
-                    value = *(ULONG *)cur_args;
-                    cur_args += 2;
-                }
-                else
-                {
-                    value = *cur_args++;
-                }
-
-                char buf[11];
-                int bi = 0;
-
+                const char *hex = spec.type == 'x' ? "0123456789ABCDEF" : "0123456789abcdef";
+                ULONG value = spec.is_long ? *(ULONG *)arg : *(UWORD *)arg;
                 do
                 {
-                    buf[bi++] = '0' + (value % 10);
-                    value /= 10;
-                } while (value && bi < 10);
-
-                LONG len = bi;
-                char pad_char = zero_pad ? '0' : ' ';
-
-                if (!left_align)
-                {
-                    LONG i;
-                    for (i = len; i < width; i++)
-                        _loc_putchar(putCharFunc, (ULONG)(UBYTE)pad_char, locale);
-                }
-
-                while (bi > 0)
-                    _loc_putchar(putCharFunc, (ULONG)(UBYTE)buf[--bi], locale);
-
-                if (left_align)
-                {
-                    LONG i;
-                    for (i = len; i < width; i++)
-                        _loc_putchar(putCharFunc, ' ', locale);
-                }
-
-                if (!positional)
-                    args = cur_args;
-                break;
-            }
-
-            case 'x':
-            case 'X':
-            {
-                /* Hex: %x = uppercase, %X = lowercase (Amiga convention, swapped from C) */
-                ULONG value;
-                if (is_long)
-                {
-                    value = *(ULONG *)cur_args;
-                    cur_args += 2;
-                }
-                else
-                {
-                    value = *cur_args++;
-                }
-
-                const char *hex_digits = (type == 'x') ? "0123456789ABCDEF" : "0123456789abcdef";
-
-                char buf[9];
-                int bi = 0;
-
-                do
-                {
-                    buf[bi++] = hex_digits[value & 0xF];
+                    *--str = hex[value & 15];
                     value >>= 4;
-                } while (value && bi < 8);
-
-                LONG len = bi;
-                char pad_char = zero_pad ? '0' : ' ';
-
-                if (!left_align)
-                {
-                    LONG i;
-                    for (i = len; i < width; i++)
-                        _loc_putchar(putCharFunc, (ULONG)(UBYTE)pad_char, locale);
-                }
-
-                while (bi > 0)
-                    _loc_putchar(putCharFunc, (ULONG)(UBYTE)buf[--bi], locale);
-
-                if (left_align)
-                {
-                    LONG i;
-                    for (i = len; i < width; i++)
-                        _loc_putchar(putCharFunc, ' ', locale);
-                }
-
-                if (!positional)
-                    args = cur_args;
+                } while (value);
                 break;
             }
-
+            case 'c':
+                *--str = (char)(spec.is_long ? arg[3] : arg[1]);
+                break;
             case 's':
-            {
-                /* String (32-bit pointer, always) */
-                char *str = (char *)*(ULONG *)cur_args;
-                cur_args += 2;
-
+                str = *(char **)arg;
                 if (!str)
-                    str = "";
-
-                /* Calculate length respecting limit */
-                LONG len = 0;
-                {
-                    const char *s = str;
-                    while (*s && (limit < 0 || len < limit))
-                    {
-                        len++;
-                        s++;
-                    }
-                }
-
-                if (!left_align)
-                {
-                    LONG i;
-                    for (i = len; i < width; i++)
-                        _loc_putchar(putCharFunc, ' ', locale);
-                }
-
-                {
-                    const char *s = str;
-                    LONG printed = 0;
-                    while (*s && (limit < 0 || printed < limit))
-                    {
-                        _loc_putchar(putCharFunc, (ULONG)(UBYTE)*s++, locale);
-                        printed++;
-                    }
-                }
-
-                if (left_align)
-                {
-                    LONG i;
-                    for (i = len; i < width; i++)
-                        _loc_putchar(putCharFunc, ' ', locale);
-                }
-
-                if (!positional)
-                    args = cur_args;
+                    str = (char *)"";
                 break;
-            }
-
             case 'b':
             {
-                /* BSTR (32-bit BPTR) */
-                BPTR bstr = *(BPTR *)cur_args;
-                cur_args += 2;
-
-                UBYTE *str = (UBYTE *)BADDR(bstr);
-                LONG len = 0;
-
-                if (str)
-                {
-                    len = str[0];
-                    str++;
-                }
-
-                if (limit >= 0 && len > limit)
-                    len = limit;
-
-                if (!left_align)
-                {
-                    LONG i;
-                    for (i = len; i < width; i++)
-                        _loc_putchar(putCharFunc, ' ', locale);
-                }
-
-                {
-                    LONG i;
-                    for (i = 0; i < len; i++)
-                        _loc_putchar(putCharFunc, (ULONG)str[i], locale);
-                }
-
-                if (left_align)
-                {
-                    LONG i;
-                    for (i = len; i < width; i++)
-                        _loc_putchar(putCharFunc, ' ', locale);
-                }
-
-                if (!positional)
-                    args = cur_args;
-                break;
+                UBYTE *b = (UBYTE *)BADDR(*(BPTR *)arg);
+                /* BSTR: printed from its length byte, not NUL-terminated */
+                len = b ? b[0] : 0;
+                str = b ? (char *)b + 1 : (char *)"";
+                goto have_len;
             }
-
-            case 'c':
-            {
-                /* Character */
-                ULONG ch;
-                if (is_long)
-                {
-                    ch = *(ULONG *)cur_args;
-                    cur_args += 2;
-                }
-                else
-                {
-                    ch = *cur_args++;
-                }
-
-                if (!left_align)
-                {
-                    LONG i;
-                    for (i = 1; i < width; i++)
-                        _loc_putchar(putCharFunc, ' ', locale);
-                }
-
-                _loc_putchar(putCharFunc, ch & 0xFF, locale);
-
-                if (left_align)
-                {
-                    LONG i;
-                    for (i = 1; i < width; i++)
-                        _loc_putchar(putCharFunc, ' ', locale);
-                }
-
-                if (!positional)
-                    args = cur_args;
-                break;
-            }
-
             default:
-                /* Unknown format - output literally */
-                _loc_putchar(putCharFunc, '%', locale);
-                _loc_putchar(putCharFunc, (ULONG)(UBYTE)type, locale);
-                break;
+                /* unknown type: the character itself, without padding */
+                _loc_putchar(putCharFunc, (ULONG)spec.type, locale);
+                continue;
         }
 
-        /* Track maximum args pointer for return value */
-        if (cur_args > max_args)
-            max_args = cur_args;
-        if (args > max_args)
-            max_args = args;
+        len = 0;
+        while (str[len])
+            len++;
+have_len:
+        if (spec.limit >= 0 && len > spec.limit)
+            len = spec.limit;
+
+        if (spec.left)
+        {
+            for (i = 0; i < len; i++)
+                _loc_putchar(putCharFunc, (ULONG)(UBYTE)str[i], locale);
+            for (i = len; i < spec.width; i++)
+                _loc_putchar(putCharFunc, ' ', locale);
+        }
+        else if (spec.zero && str[0] == '-' && spec.width > len)
+        {
+            /* as on 3.1: the sign, the zeros, then len characters after the
+             * sign - one more than the number has (usually its NUL) */
+            _loc_putchar(putCharFunc, '-', locale);
+            for (i = len; i < spec.width; i++)
+                _loc_putchar(putCharFunc, '0', locale);
+            for (i = 1; i <= len; i++)
+                _loc_putchar(putCharFunc, (ULONG)(UBYTE)str[i], locale);
+        }
+        else
+        {
+            for (i = len; i < spec.width; i++)
+                _loc_putchar(putCharFunc, spec.zero ? '0' : ' ', locale);
+            for (i = 0; i < len; i++)
+                _loc_putchar(putCharFunc, (ULONG)(UBYTE)str[i], locale);
+        }
     }
 
-    /* Output terminating NUL */
     _loc_putchar(putCharFunc, 0, locale);
 
-    return (APTR)max_args;
+    /* AmigaOS 3.1 returns dataStream + 2 once digit grouping inserted a
+     * separator (reference-verified, Phase 222f) */
+    if (grouped)
+        return (UBYTE *)dataStream + 2;
+    return (UBYTE *)dataStream + total;
 }
 
 STRPTR _locale_GetCatalogStr ( register struct MyLocaleBase   *LocaleBase    __asm("a6"),
@@ -2017,86 +1662,99 @@ BOOL _locale_IsAlNum ( register struct MyLocaleBase *LocaleBase __asm("a6"),
                        register struct Locale       *locale     __asm("a0"),
                        register ULONG                character  __asm("d0"))
 {
-    return (character >= 'A' && character <= 'Z') ||
-           (character >= 'a' && character <= 'z') ||
-           (character >= '0' && character <= '9');
+    (void)LocaleBase;
+    (void)locale;
+    return _loc_class(character, LC_ALNUM);
 }
 
 BOOL _locale_IsAlpha ( register struct MyLocaleBase *LocaleBase __asm("a6"),
                        register struct Locale       *locale     __asm("a0"),
                        register ULONG                character  __asm("d0"))
 {
-    return (character >= 'A' && character <= 'Z') ||
-           (character >= 'a' && character <= 'z');
+    (void)LocaleBase;
+    (void)locale;
+    return _loc_class(character, LC_ALPHA);
 }
 
 BOOL _locale_IsCntrl ( register struct MyLocaleBase *LocaleBase __asm("a6"),
                        register struct Locale       *locale     __asm("a0"),
                        register ULONG                character  __asm("d0"))
 {
-    return character < 32 || character == 127;
+    (void)LocaleBase;
+    (void)locale;
+    return _loc_class(character, LC_CNTRL);
 }
 
 BOOL _locale_IsDigit ( register struct MyLocaleBase *LocaleBase __asm("a6"),
                        register struct Locale       *locale     __asm("a0"),
                        register ULONG                character  __asm("d0"))
 {
-    return character >= '0' && character <= '9';
+    (void)LocaleBase;
+    (void)locale;
+    return _loc_class(character, LC_DIGIT);
 }
 
 BOOL _locale_IsGraph ( register struct MyLocaleBase *LocaleBase __asm("a6"),
                        register struct Locale       *locale     __asm("a0"),
                        register ULONG                character  __asm("d0"))
 {
-    return character > 32 && character < 127;
+    (void)LocaleBase;
+    (void)locale;
+    return _loc_class(character, LC_GRAPH);
 }
 
 BOOL _locale_IsLower ( register struct MyLocaleBase *LocaleBase __asm("a6"),
                        register struct Locale       *locale     __asm("a0"),
                        register ULONG                character  __asm("d0"))
 {
-    return character >= 'a' && character <= 'z';
+    (void)LocaleBase;
+    (void)locale;
+    return _loc_class(character, LC_LOWER);
 }
 
 BOOL _locale_IsPrint ( register struct MyLocaleBase *LocaleBase __asm("a6"),
                        register struct Locale       *locale     __asm("a0"),
                        register ULONG                character  __asm("d0"))
 {
-    return character >= 32 && character < 127;
+    (void)LocaleBase;
+    (void)locale;
+    return _loc_class(character, LC_PRINT);
 }
 
 BOOL _locale_IsPunct ( register struct MyLocaleBase *LocaleBase __asm("a6"),
                        register struct Locale       *locale     __asm("a0"),
                        register ULONG                character  __asm("d0"))
 {
-    return (character >= 33 && character <= 47) ||
-           (character >= 58 && character <= 64) ||
-           (character >= 91 && character <= 96) ||
-           (character >= 123 && character <= 126);
+    (void)LocaleBase;
+    (void)locale;
+    return _loc_class(character, LC_PUNCT);
 }
 
 BOOL _locale_IsSpace ( register struct MyLocaleBase *LocaleBase __asm("a6"),
                        register struct Locale       *locale     __asm("a0"),
                        register ULONG                character  __asm("d0"))
 {
-    return character == ' ' || character == '\t' || character == '\n' ||
-           character == '\r' || character == '\f' || character == '\v';
+    (void)LocaleBase;
+    (void)locale;
+    return _loc_class(character, LC_SPACE);
 }
 
 BOOL _locale_IsUpper ( register struct MyLocaleBase *LocaleBase __asm("a6"),
                        register struct Locale       *locale     __asm("a0"),
                        register ULONG                character  __asm("d0"))
 {
-    return character >= 'A' && character <= 'Z';
+    (void)LocaleBase;
+    (void)locale;
+    return _loc_class(character, LC_UPPER);
 }
 
 BOOL _locale_IsXDigit ( register struct MyLocaleBase *LocaleBase __asm("a6"),
                         register struct Locale       *locale     __asm("a0"),
                         register ULONG                character  __asm("d0"))
 {
-    return (character >= '0' && character <= '9') ||
-           (character >= 'A' && character <= 'F') ||
-           (character >= 'a' && character <= 'f');
+    (void)LocaleBase;
+    (void)locale;
+    return _loc_class(character, LC_XDIGIT);
 }
 
 struct Catalog * _locale_OpenCatalogA ( register struct MyLocaleBase    *LocaleBase __asm("a6"),
@@ -2211,100 +1869,115 @@ struct Locale * _locale_OpenLocale ( register struct MyLocaleBase *LocaleBase __
 /* ParseDate implementation                                                  */
 /****************************************************************************/
 
-/* Helper: call getCharFunc hook to get one character */
-static ULONG _loc_getchar(struct Hook *hook, struct Locale *locale)
+/*
+ * The behaviour below (character by character, including how many
+ * characters are read from the hook) was established by black-box probing
+ * of AmigaOS 3.1 (tests/probes/locale/format.c, Phase 222f):
+ *
+ *  - leading white space is skipped, an empty input fails;
+ *  - numeric fields (%d %e %m %y %Y %H %I %M %S) skip white space and read
+ *    digits; a field followed by white space is range-checked at once;
+ *  - month names (%b %B %h) accept a number, or a word that starts with
+ *    an abbreviated name when the field ends the template, or exactly an
+ *    abbreviated or full name otherwise; weekday names (%a %A) are only
+ *    checked when the template continues; %p only works at the end of the
+ *    template; "%%" swallows one word, other conversions read nothing;
+ *  - a white-space template character skips any white space; any other
+ *    template character is searched for (case-insensitively) - characters
+ *    skipped on the way make the result FALSE, white space or the end of
+ *    the input before it fails at once;
+ *  - after the template, trailing characters are skipped (white space
+ *    followed by the end of the input fails);
+ *  - out-of-range fields fail without touching *date; an impossible date
+ *    (Feb 30, beyond 2^32 seconds) clears *date and fails.
+ */
+
+struct LocParse
 {
-    /* ParseDate hook convention:
-     * A0 = hook, A1 = locale, A2 = NULL
-     * Returns character in D0
-     */
+    struct Hook   *hook;
+    struct Locale *locale;
+    ULONG          c;
+};
+
+static void _loc_pgetc(struct LocParse *ps)
+{
+    /* ParseDate hook convention: A0 = hook, A2 = locale, A1 = NULL */
     typedef ULONG (*GetCharFuncPtr)(
         register struct Hook   *hook   __asm("a0"),
-        register struct Locale *locale __asm("a1"),
-        register APTR           dummy  __asm("a2")
+        register APTR           dummy  __asm("a1"),
+        register struct Locale *locale __asm("a2")
     );
-    return ((GetCharFuncPtr)hook->h_Entry)(hook, locale, NULL);
+    ps->c = ((GetCharFuncPtr)ps->hook->h_Entry)(ps->hook, NULL, ps->locale) & 0xff;
 }
 
-/* Helper: parse a decimal number from the character stream */
-static BOOL _loc_parse_num(struct Hook *hook, struct Locale *locale,
-                           LONG *result, int min_digits, int max_digits,
-                           ULONG *next_ch)
+static BOOL _loc_pspace(ULONG c)
 {
-    LONG value = 0;
-    int digits = 0;
-    ULONG ch = *next_ch;
+    return c == ' ' || (c >= 9 && c <= 13);
+}
 
-    /* Skip leading spaces */
-    while (ch == ' ')
-        ch = _loc_getchar(hook, locale);
+static BOOL _loc_palpha(ULONG c)
+{
+    return (g_CharClass[c & 0xff] & LC_ALPHA) ? TRUE : FALSE;
+}
 
-    while (ch >= '0' && ch <= '9' && digits < max_digits)
+static void _loc_pskipws(struct LocParse *ps)
+{
+    while (_loc_pspace(ps->c))
+        _loc_pgetc(ps);
+}
+
+static LONG _loc_pnumber(struct LocParse *ps)
+{
+    LONG v = 0;
+    while (ps->c >= '0' && ps->c <= '9')
     {
-        value = value * 10 + (ch - '0');
-        digits++;
-        ch = _loc_getchar(hook, locale);
+        if (v > (0x7fffffff - 9) / 10)
+            v = 0x7fffffff;
+        else
+            v = v * 10 + (LONG)(ps->c - '0');
+        _loc_pgetc(ps);
     }
+    return v;
+}
 
-    *next_ch = ch;
+/* reads a word of letters (upper-cased) */
+static void _loc_pword(struct LocParse *ps, UBYTE *word, LONG size)
+{
+    LONG n = 0;
+    while (_loc_palpha(ps->c))
+    {
+        if (n < size - 1)
+            word[n++] = (UBYTE)_loc_to_upper(ps->c);
+        _loc_pgetc(ps);
+    }
+    word[n] = 0;
+}
 
-    if (digits < min_digits)
+static BOOL _loc_pword_is(const UBYTE *word, CONST_STRPTR name, BOOL prefix)
+{
+    if (!name)
         return FALSE;
-
-    *result = value;
-    return TRUE;
-}
-
-/* Helper: case-insensitive prefix match against getchar stream */
-static BOOL _loc_match_str(struct Hook *hook, struct Locale *locale,
-                           const char *str, ULONG *next_ch)
-{
-    ULONG ch = *next_ch;
-
-    while (*str)
+    while (*name)
     {
-        ULONG s = (ULONG)(UBYTE)*str;
-        ULONG c = ch;
-
-        /* Case-insensitive */
-        if (s >= 'A' && s <= 'Z') s += 'a' - 'A';
-        if (c >= 'A' && c <= 'Z') c += 'a' - 'A';
-
-        if (s != c)
+        if (*word != (UBYTE)_loc_to_upper((UBYTE)*name))
             return FALSE;
-
-        str++;
-        ch = _loc_getchar(hook, locale);
+        word++;
+        name++;
     }
-
-    *next_ch = ch;
-    return TRUE;
+    return prefix || *word == 0;
 }
 
-/* Helper: convert date parts back to a DateStamp */
-static void _parts_to_datestamp(const struct DateParts *dp, struct DateStamp *ds)
+struct LocPDate
 {
-    LONG days = 0;
-    LONG y;
+    LONG day, mon, year, hour, min, sec;
+    BOOL yinvalid;
+};
 
-    /* Count days from 1978 to dp->year */
-    for (y = 1978; y < dp->year; y++)
-        days += _is_leap_year(y) ? 366 : 365;
-
-    /* Add days in months */
-    {
-        BOOL leap = _is_leap_year(dp->year);
-        LONG m;
-        for (m = 0; m < dp->month - 1; m++)
-            days += g_DaysInMonth[leap ? 1 : 0][m];
-    }
-
-    /* Add day of month (1-based) */
-    days += dp->day - 1;
-
-    ds->ds_Days = days;
-    ds->ds_Minute = dp->hour * 60 + dp->min;
-    ds->ds_Tick = dp->sec * TICKS_PER_SECOND;
+static BOOL _loc_pdate_invalid(const struct LocPDate *d)
+{
+    return d->mon < 1 || d->mon > 12 || d->day < 1 || d->day > 31 ||
+           d->hour > 23 || d->min > 59 || d->sec > 59 ||
+           d->yinvalid || d->year < 1978;
 }
 
 BOOL _locale_ParseDate ( register struct MyLocaleBase    *LocaleBase  __asm("a6"),
@@ -2313,9 +1986,14 @@ BOOL _locale_ParseDate ( register struct MyLocaleBase    *LocaleBase  __asm("a6"
                          register CONST_STRPTR            fmtTemplate __asm("a2"),
                          register struct Hook            *getCharFunc __asm("a3"))
 {
-    struct DateParts dp;
-    const UBYTE *fmt;
-    ULONG ch;
+    struct LocParse ps;
+    struct LocPDate d;
+    const UBYTE *t;
+    LONG ampm = -1;
+    BOOL mismatch = FALSE;
+    UBYTE word[32];
+    LONG days, y, m;
+    ULONG secs;
 
     DPRINTF (LOG_DEBUG, "_locale: ParseDate() called\n");
 
@@ -2325,265 +2003,214 @@ BOOL _locale_ParseDate ( register struct MyLocaleBase    *LocaleBase  __asm("a6"
     if (!locale)
         locale = (struct Locale *)&g_DefaultLocale;
 
-    /* Initialize date parts to defaults */
-    dp.year = 1978;
-    dp.month = 1;
-    dp.day = 1;
-    dp.hour = 0;
-    dp.min = 0;
-    dp.sec = 0;
-    dp.wday = 0;
-    dp.yday = 1;
+    ps.hook = getCharFunc;
+    ps.locale = (struct Locale *)locale;
 
-    fmt = (const UBYTE *)fmtTemplate;
-    ch = _loc_getchar(getCharFunc, (struct Locale *)locale);
+    d.day = 1;
+    d.mon = 1;
+    d.year = 1978;
+    d.hour = 0;
+    d.min = 0;
+    d.sec = 0;
+    d.yinvalid = FALSE;
 
-    while (*fmt)
+    _loc_pgetc(&ps);
+    _loc_pskipws(&ps);
+    if (!ps.c)
+        return FALSE;
+
+    t = (const UBYTE *)fmtTemplate;
+    while (*t)
     {
-        if (*fmt != '%')
+        if (*t == '%')
         {
-            /* Literal character must match */
-            if (*fmt == ' ')
+            UBYTE code = t[1];
+            UBYTE term;
+
+            if (!code)
             {
-                /* Space in template matches any amount of whitespace */
-                while (ch == ' ' || ch == '\t')
-                    ch = _loc_getchar(getCharFunc, (struct Locale *)locale);
-                fmt++;
+                t++;
                 continue;
             }
+            term = t[2];
+            t += 2;
 
-            if ((ULONG)(UBYTE)*fmt != ch)
-                return FALSE;
-
-            ch = _loc_getchar(getCharFunc, (struct Locale *)locale);
-            fmt++;
-            continue;
-        }
-
-        fmt++; /* skip '%' */
-
-        switch (*fmt)
-        {
-            case 'd':
-            case 'e':
+            switch (code)
             {
-                /* Day of month */
-                LONG val;
-                if (!_loc_parse_num(getCharFunc, (struct Locale *)locale, &val, 1, 2, &ch))
-                    return FALSE;
-                if (val < 1 || val > 31)
-                    return FALSE;
-                dp.day = val;
-                break;
-            }
-
-            case 'm':
-            {
-                /* Month number */
-                LONG val;
-                if (!_loc_parse_num(getCharFunc, (struct Locale *)locale, &val, 1, 2, &ch))
-                    return FALSE;
-                if (val < 1 || val > 12)
-                    return FALSE;
-                dp.month = val;
-                break;
-            }
-
-            case 'y':
-            {
-                /* 2-digit year */
-                LONG val;
-                if (!_loc_parse_num(getCharFunc, (struct Locale *)locale, &val, 2, 2, &ch))
-                    return FALSE;
-                dp.year = (val >= 78) ? 1900 + val : 2000 + val;
-                break;
-            }
-
-            case 'Y':
-            {
-                /* 4-digit year */
-                LONG val;
-                if (!_loc_parse_num(getCharFunc, (struct Locale *)locale, &val, 4, 4, &ch))
-                    return FALSE;
-                dp.year = val;
-                break;
-            }
-
-            case 'H':
-            {
-                /* 24-hour hour */
-                LONG val;
-                if (!_loc_parse_num(getCharFunc, (struct Locale *)locale, &val, 1, 2, &ch))
-                    return FALSE;
-                if (val < 0 || val > 23)
-                    return FALSE;
-                dp.hour = val;
-                break;
-            }
-
-            case 'I':
-            {
-                /* 12-hour hour */
-                LONG val;
-                if (!_loc_parse_num(getCharFunc, (struct Locale *)locale, &val, 1, 2, &ch))
-                    return FALSE;
-                if (val < 1 || val > 12)
-                    return FALSE;
-                /* Will be adjusted by %p AM/PM if present */
-                dp.hour = (val == 12) ? 0 : val;
-                break;
-            }
-
-            case 'M':
-            {
-                /* Minutes */
-                LONG val;
-                if (!_loc_parse_num(getCharFunc, (struct Locale *)locale, &val, 1, 2, &ch))
-                    return FALSE;
-                if (val < 0 || val > 59)
-                    return FALSE;
-                dp.min = val;
-                break;
-            }
-
-            case 'S':
-            {
-                /* Seconds */
-                LONG val;
-                if (!_loc_parse_num(getCharFunc, (struct Locale *)locale, &val, 1, 2, &ch))
-                    return FALSE;
-                if (val < 0 || val > 59)
-                    return FALSE;
-                dp.sec = val;
-                break;
-            }
-
-            case 'p':
-            {
-                /* AM/PM */
-                ULONG c1 = ch;
-                ULONG c2 = _loc_getchar(getCharFunc, (struct Locale *)locale);
-
-                if ((c1 == 'P' || c1 == 'p') && (c2 == 'M' || c2 == 'm'))
+                case 'd': case 'e': case 'm': case 'y': case 'Y':
+                case 'H': case 'I': case 'M': case 'S':
                 {
-                    if (dp.hour < 12)
-                        dp.hour += 12;
-                }
-                else if ((c1 == 'A' || c1 == 'a') && (c2 == 'M' || c2 == 'm'))
-                {
-                    /* AM - hour stays as-is (already 0-11 from %I) */
-                }
-                else
-                {
-                    return FALSE;
-                }
-                ch = _loc_getchar(getCharFunc, (struct Locale *)locale);
-                break;
-            }
-
-            case 'a':
-            {
-                /* Abbreviated weekday - try to match, result is ignored */
-                BOOL matched = FALSE;
-                LONG i;
-                for (i = 0; i < 7 && !matched; i++)
-                {
-                    ULONG saved_ch = ch;
-                    if (_loc_match_str(getCharFunc, (struct Locale *)locale,
-                                       g_LocaleStrings[ABDAY_1 + i], &ch))
+                    LONG v;
+                    _loc_pskipws(&ps);
+                    v = _loc_pnumber(&ps);
+                    switch (code)
                     {
-                        matched = TRUE;
-                        dp.wday = i;
+                        case 'd': case 'e': d.day = v; break;
+                        case 'm': d.mon = v; break;
+                        case 'y':
+                            d.yinvalid = v > 99;
+                            d.year = v < 78 ? 2000 + v : 1900 + v;
+                            break;
+                        case 'Y':
+                            d.yinvalid = FALSE;
+                            d.year = v;
+                            break;
+                        case 'H': case 'I': d.hour = v; break;
+                        case 'M': d.min = v; break;
+                        case 'S': d.sec = v; break;
+                    }
+                    if (_loc_pspace(ps.c) && _loc_pdate_invalid(&d))
+                        return FALSE;
+                    break;
+                }
+
+                case 'b': case 'B': case 'h':
+                    _loc_pskipws(&ps);
+                    if (ps.c >= '0' && ps.c <= '9')
+                    {
+                        d.mon = _loc_pnumber(&ps);
+                        if (_loc_pspace(ps.c) && _loc_pdate_invalid(&d))
+                            return FALSE;
+                    }
+                    else if (_loc_palpha(ps.c))
+                    {
+                        LONG i, found = 0;
+                        _loc_pword(&ps, word, sizeof(word));
+                        for (i = 0; i < 12 && !found; i++)
+                        {
+                            CONST_STRPTR ab = _loc_str(ps.locale, ABMON_1 + i);
+                            if (!term)
+                            {
+                                if (_loc_pword_is(word, ab, TRUE))
+                                    found = i + 1;
+                            }
+                            else if (_loc_pword_is(word, ab, FALSE) ||
+                                     _loc_pword_is(word, _loc_str(ps.locale, MON_1 + i), FALSE))
+                                found = i + 1;
+                        }
+                        if (!found)
+                            goto fail_skip;
+                        d.mon = found;
                     }
                     else
+                        goto fail_skip;
+                    break;
+
+                case 'a': case 'A':
+                    _loc_pskipws(&ps);
+                    if (_loc_palpha(ps.c))
                     {
-                        /* Can't un-read characters easily, so for abbreviated
-                         * weekday matching we rely on the first try working.
-                         * This is a limitation of the hook-based approach. */
-                        ch = saved_ch;
+                        _loc_pword(&ps, word, sizeof(word));
+                        if (term)
+                        {
+                            LONG i;
+                            BOOL ok = FALSE;
+                            for (i = 0; i < 7 && !ok; i++)
+                                ok = _loc_pword_is(word, _loc_str(ps.locale, ABDAY_1 + i), FALSE) ||
+                                     _loc_pword_is(word, _loc_str(ps.locale, DAY_1 + i), FALSE);
+                            if (!ok)
+                                goto fail_skip;
+                        }
                     }
-                }
-                /* If no match, just skip some letters */
-                if (!matched)
-                {
-                    while (ch >= 'A' && ch <= 'z')
-                        ch = _loc_getchar(getCharFunc, (struct Locale *)locale);
-                }
-                break;
+                    break;
+
+                case 'p':
+                    _loc_pskipws(&ps);
+                    _loc_pword(&ps, word, sizeof(word));
+                    if (term)
+                        goto fail_skip;
+                    if (_loc_pword_is(word, _loc_str(ps.locale, AM_STR), TRUE))
+                        ampm = 0;
+                    else if (_loc_pword_is(word, _loc_str(ps.locale, PM_STR), TRUE))
+                        ampm = 1;
+                    else
+                        goto fail_skip;
+                    break;
+
+                case '%':
+                    while (ps.c && !_loc_pspace(ps.c))
+                        _loc_pgetc(&ps);
+                    break;
+
+                default:
+                    /* other conversions read nothing */
+                    break;
             }
-
-            case 'A':
-            {
-                /* Full weekday - skip letters */
-                while ((ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z'))
-                    ch = _loc_getchar(getCharFunc, (struct Locale *)locale);
-                break;
-            }
-
-            case 'b':
-            case 'h':
-            {
-                /* Abbreviated month name - try matching */
-                BOOL matched = FALSE;
-                LONG i;
-                for (i = 0; i < 12 && !matched; i++)
-                {
-                    if (_loc_match_str(getCharFunc, (struct Locale *)locale,
-                                       g_LocaleStrings[ABMON_1 + i], &ch))
-                    {
-                        matched = TRUE;
-                        dp.month = i + 1;
-                    }
-                }
-                if (!matched)
-                {
-                    /* Skip letters */
-                    while ((ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z'))
-                        ch = _loc_getchar(getCharFunc, (struct Locale *)locale);
-                }
-                break;
-            }
-
-            case 'B':
-            {
-                /* Full month name - try matching */
-                BOOL matched = FALSE;
-                LONG i;
-                for (i = 0; i < 12 && !matched; i++)
-                {
-                    if (_loc_match_str(getCharFunc, (struct Locale *)locale,
-                                       g_LocaleStrings[MON_1 + i], &ch))
-                    {
-                        matched = TRUE;
-                        dp.month = i + 1;
-                    }
-                }
-                if (!matched)
-                {
-                    while ((ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z'))
-                        ch = _loc_getchar(getCharFunc, (struct Locale *)locale);
-                }
-                break;
-            }
-
-            case '\0':
-                goto done;
-
-            default:
-                /* Unknown format code - skip */
-                break;
         }
-
-        if (*fmt)
-            fmt++;
+        else if (_loc_pspace(*t))
+        {
+            _loc_pskipws(&ps);
+            t++;
+        }
+        else
+        {
+            while (_loc_to_upper(ps.c) != _loc_to_upper(*t))
+            {
+                if (!ps.c || _loc_pspace(ps.c))
+                    return FALSE;
+                mismatch = TRUE;
+                _loc_pgetc(&ps);
+            }
+            _loc_pgetc(&ps);
+            t++;
+        }
     }
 
-done:
-    /* Store result if date pointer was provided */
-    if (date)
-        _parts_to_datestamp(&dp, date);
+    /* trailing input */
+    if (ps.c)
+    {
+        _loc_pskipws(&ps);
+        if (!ps.c)
+            return FALSE;
+        while (ps.c)
+            _loc_pgetc(&ps);
+    }
 
+    if (mismatch || _loc_pdate_invalid(&d))
+        return FALSE;
+
+    if (ampm == 0 && d.hour >= 12)
+        d.hour -= 12;
+    else if (ampm == 1 && d.hour < 12)
+        d.hour += 12;
+
+    /* an impossible date clears *date */
+    if (date)
+    {
+        date->ds_Days = 0;
+        date->ds_Minute = 0;
+        date->ds_Tick = 0;
+    }
+
+    if (d.day > g_DaysInMonth[_is_leap_year(d.year) ? 1 : 0][d.mon - 1] || d.year > 2114)
+        return FALSE;
+
+    days = 0;
+    for (y = 1978; y < d.year; y++)
+        days += _is_leap_year(y) ? 366 : 365;
+    for (m = 0; m < d.mon - 1; m++)
+        days += g_DaysInMonth[_is_leap_year(d.year) ? 1 : 0][m];
+    days += d.day - 1;
+
+    /* the date must fit into 32 bits of seconds since 1978 */
+    if (days > 49710)
+        return FALSE;
+    secs = (ULONG)days * 86400UL + (ULONG)(d.hour * 3600 + d.min * 60 + d.sec);
+    if (days == 49710 && secs < (ULONG)days * 86400UL)
+        return FALSE;
+
+    if (date)
+    {
+        date->ds_Days = days;
+        date->ds_Minute = d.hour * 60 + d.min;
+        date->ds_Tick = d.sec * TICKS_PER_SECOND;
+    }
     return TRUE;
+
+fail_skip:
+    while (ps.c && !_loc_pspace(ps.c))
+        _loc_pgetc(&ps);
+    return FALSE;
 }
 
 ULONG _locale_StrConvert ( register struct MyLocaleBase *LocaleBase __asm("a6"),
@@ -2598,17 +2225,13 @@ ULONG _locale_StrConvert ( register struct MyLocaleBase *LocaleBase __asm("a6"),
     (void)LocaleBase;
     (void)locale;
 
-    switch (type)
-    {
-        case SC_ASCII:
-        case SC_COLLATE1:
-        case SC_COLLATE2:
-            return _loc_strconvert_ascii(string, buffer, bufferSize, type);
-        default:
-            if (buffer && bufferSize > 0)
-                ((UBYTE *)buffer)[0] = '\0';
-            return 0;
-    }
+    if (!string || !buffer)
+        return 0;
+
+    if (type > SC_COLLATE2)
+        type = SC_ASCII;
+
+    return _loc_strconvert(string, (UBYTE *)buffer, bufferSize, type);
 }
 
 LONG _locale_StrnCmp ( register struct MyLocaleBase *LocaleBase __asm("a6"),
@@ -2620,8 +2243,6 @@ LONG _locale_StrnCmp ( register struct MyLocaleBase *LocaleBase __asm("a6"),
 {
     LONG result;
 
-    length = (LONG)(WORD)length; /* sign-extend: GCC m68k move.w workaround */
-
     (void)LocaleBase;
     (void)locale;
 
@@ -2632,39 +2253,13 @@ LONG _locale_StrnCmp ( register struct MyLocaleBase *LocaleBase __asm("a6"),
     if (!string2)
         return 1;
 
-    switch (type)
-    {
-        case SC_ASCII:
-        case SC_COLLATE1:
-            return _loc_compare_folded(string1, string2, length);
+    if (type > SC_COLLATE2)
+        type = SC_ASCII;
 
-        case SC_COLLATE2:
-            result = _loc_compare_folded(string1, string2, length);
-            if (result != 0)
-                return result;
-            return _loc_compare_secondary(string1, string2, length);
-
-        default:
-            if (length == 0)
-                return 0;
-
-            if (length < 0)
-                return _loc_strcmp(string1, string2);
-
-            while (*string1 && *string2 && length-- > 0)
-            {
-                LONG c1 = (LONG)(UBYTE)*string1++;
-                LONG c2 = (LONG)(UBYTE)*string2++;
-
-                if (c1 != c2)
-                    return c1 - c2;
-            }
-
-            if (length == 0)
-                return 0;
-
-            return (LONG)(UBYTE)*string1 - (LONG)(UBYTE)*string2;
-    }
+    result = _loc_strncmp_keys(string1, string2, length, type, FALSE);
+    if (result == 0 && type == SC_COLLATE2)
+        result = _loc_strncmp_keys(string1, string2, length, type, TRUE);
+    return result;
 }
 
 /****************************************************************************/
