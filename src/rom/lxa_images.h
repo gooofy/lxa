@@ -18,7 +18,9 @@ BOOL lxa_sysi_draw(struct RastPort *rp, UWORD which, UWORD size, WORD x, WORD y,
 
 void lxa_draw_frame(struct RastPort *rp, ULONG type, BOOL recessed, WORD x, WORD y,
                     WORD w, WORD h, ULONG state, BOOL edges_only, const UWORD *pens);
+WORD lxa_text_fit(struct RastPort *rp, CONST_STRPTR s, WORD len, WORD width);
 void lxa_frame_thickness(ULONG type, WORD *hthick, WORD *vthick);
+void lxa_ghost_rect(struct RastPort *rp, WORD x0, WORD y0, WORD x1, WORD y1, const UWORD *pens);
 
 ULONG lxa_imageclass_dispatch(register struct IClass *cl __asm("a0"),
                               register Object *obj __asm("a2"),

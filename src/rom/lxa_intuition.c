@@ -50,6 +50,15 @@ extern BOOL _gadtools_IsCycle(register struct Gadget *gad __asm("a0"));
 extern UWORD _gadtools_GetCycleState(register struct Gadget *gad __asm("a0"));
 extern UWORD _gadtools_AdvanceCycleState(register struct Gadget *gad __asm("a0"));
 extern STRPTR _gadtools_GetCycleLabel(register struct Gadget *gad __asm("a0"));
+extern BOOL _gadtools_IsGadTools(register struct Gadget *gad __asm("a0"));
+extern LONG _gadtools_HandleClick(register struct Gadget *gad __asm("a0"),
+                                  register LONG relx __asm("d0"),
+                                  register LONG rely __asm("d1"));
+extern BOOL _gadtools_RenderGadget(register struct Window *win __asm("a0"),
+                                   register struct Gadget *gad __asm("a1"),
+                                   register struct RastPort *rp __asm("a2"),
+                                   register LONG gl __asm("d0"),
+                                   register LONG gt __asm("d1"));
 extern VOID graphics_screen_sync_viewport_bitmap(struct Screen *screen);
 
 /*
@@ -1074,6 +1083,7 @@ VOID _intuition_SizeWindow(register struct IntuitionBase *IntuitionBase __asm("a
 static struct Gadget *g_active_gadget;
 static struct Window *g_active_window;
 static WORD g_prop_click_offset;
+static LONG g_gt_down_code;      /* GADGETDOWN code of a GadTools MX click */
 static UWORD g_intuitick_counter;   /* VBlank counter for IDCMP_INTUITICKS (fires every 10th VBlank) */
 static UWORD g_current_qualifier;   /* last known input qualifier (for INTUITICKS messages) */
 static BOOL g_menu_mode;
@@ -3548,8 +3558,18 @@ static VOID _intuition_handle_mouse_button_event(struct IntuitionBase *Intuition
 
                 gad->Flags |= GFLG_SELECTED;
 
-                if (_gadtools_IsCheckbox(gad) || _gadtools_IsCycle(gad))
+                if (_gadtools_IsGadTools(gad))
+                {
+                    if (gad->Activation & GACT_IMMEDIATE)
+                    {
+                        LONG gbl, gbt, gbw, gbh;
+                        _calculate_gadget_box(window, NULL, gad, &gbl, &gbt, &gbw, &gbh);
+                        g_gt_down_code = _gadtools_HandleClick(gad, relX - gbl, relY - gbt);
+                        if (g_gt_down_code < 0)
+                            g_gt_down_code = 0;
+                    }
                     _render_gadget(window, NULL, gad);
+                }
 
                 if ((gad->GadgetType & GTYP_SYSGADGET) &&
                     (gad->GadgetType & GTYP_SYSTYPEMASK) == GTYP_SIZING)
@@ -3648,7 +3668,7 @@ static VOID _intuition_handle_mouse_button_event(struct IntuitionBase *Intuition
 
                 if (gad->Activation & GACT_IMMEDIATE)
                 {
-                    _post_idcmp_message(window, IDCMP_GADGETDOWN, 0,
+                    _post_idcmp_message(window, IDCMP_GADGETDOWN, (UWORD)g_gt_down_code,
                                        qualifier, gad, relX, relY);
                 }
 
@@ -3780,18 +3800,27 @@ static VOID _intuition_handle_mouse_button_event(struct IntuitionBase *Intuition
 
                     if (inside)
                     {
+                        LONG up_code = 0;
+                        if (_gadtools_IsGadTools(gad) && !(gad->Activation & GACT_IMMEDIATE))
+                        {
+                            LONG gbl, gbt, gbw, gbh;
+                            _calculate_gadget_box(activeWin, NULL, gad, &gbl, &gbt, &gbw, &gbh);
+                            up_code = _gadtools_HandleClick(gad, activeRelX - gbl, activeRelY - gbt);
+                            if (up_code < 0)
+                                up_code = 0;
+                        }
                         if (gad->GadgetType & GTYP_SYSGADGET)
                         {
                             _handle_sys_gadget_verify(activeWin, gad);
                         }
                         else if (gad->Activation & GACT_RELVERIFY)
                         {
-                            _post_idcmp_message(activeWin, IDCMP_GADGETUP, 0,
+                            _post_idcmp_message(activeWin, IDCMP_GADGETUP, (UWORD)up_code,
                                                qualifier, gad, activeRelX, activeRelY);
                         }
                     }
 
-                    if (_gadtools_IsCheckbox(gad) || _gadtools_IsCycle(gad))
+                    if (_gadtools_IsGadTools(gad))
                     {
                         _render_gadget(activeWin, NULL, gad);
                     }
@@ -6322,11 +6351,9 @@ static void _render_screen_title_bar(struct Screen *screen)
     lxa_sysi_dims(SDEPTHIMAGE, _screen_sysi_size(screen), &dw, NULL);
     if (screen->Title)
     {
-        struct TextExtent te;
         WORD len = strlen((const char *)screen->Title);
         WORD avail = screen->Width - dw - screen->BarHBorder;
-        WORD fit = (avail > 0) ? TextFit(rp, (STRPTR)screen->Title, len, &te, NULL, 1,
-                                         avail, rp->TxHeight + 1) : 0;
+        WORD fit = (avail > 0) ? lxa_text_fit(rp, (STRPTR)screen->Title, len, avail) : 0;
 
         SetAPen(rp, pens[BARDETAILPEN]);
         SetDrMd(rp, JAM1);
@@ -7690,8 +7717,18 @@ VOID _intuition_ProcessInputEvents(struct Screen *hint_screen)
                             /* Set gadget as selected */
                             gad->Flags |= GFLG_SELECTED;
 
-                            if (_gadtools_IsCheckbox(gad) || _gadtools_IsCycle(gad))
+                            if (_gadtools_IsGadTools(gad))
+                            {
+                                if (gad->Activation & GACT_IMMEDIATE)
+                                {
+                                    LONG gbl, gbt, gbw, gbh;
+                                    _calculate_gadget_box(window, NULL, gad, &gbl, &gbt, &gbw, &gbh);
+                                    g_gt_down_code = _gadtools_HandleClick(gad, relX - gbl, relY - gbt);
+                                    if (g_gt_down_code < 0)
+                                        g_gt_down_code = 0;
+                                }
                                 _render_gadget(window, NULL, gad);
+                            }
                             
                             /* For sizing system gadget, start resize drag immediately */
                             if ((gad->GadgetType & GTYP_SYSGADGET) &&
@@ -7792,7 +7829,7 @@ VOID _intuition_ProcessInputEvents(struct Screen *hint_screen)
                             /* Post IDCMP_GADGETDOWN if it's a GADGIMMEDIATE gadget */
                             if (gad->Activation & GACT_IMMEDIATE)
                             {
-                                _post_idcmp_message(window, IDCMP_GADGETDOWN, 0,
+                                _post_idcmp_message(window, IDCMP_GADGETDOWN, (UWORD)g_gt_down_code,
                                                    qualifier, gad, relX, relY);
                             }
                             
@@ -7944,7 +7981,15 @@ VOID _intuition_ProcessInputEvents(struct Screen *hint_screen)
                                 
                                 if (inside)
                                 {
-                                    /* Handle system gadget verification */
+                                    LONG up_code = 0;
+                                    if (_gadtools_IsGadTools(gad) && !(gad->Activation & GACT_IMMEDIATE))
+                                    {
+                                        LONG gbl, gbt, gbw, gbh;
+                                        _calculate_gadget_box(activeWin, NULL, gad, &gbl, &gbt, &gbw, &gbh);
+                                        up_code = _gadtools_HandleClick(gad, activeRelX - gbl, activeRelY - gbt);
+                                        if (up_code < 0)
+                                            up_code = 0;
+                                    }
                                     if (gad->GadgetType & GTYP_SYSGADGET)
                                     {
                                         _handle_sys_gadget_verify(activeWin, gad);
@@ -7952,13 +7997,13 @@ VOID _intuition_ProcessInputEvents(struct Screen *hint_screen)
                                     /* Post IDCMP_GADGETUP for RELVERIFY gadgets */
                                     else if (gad->Activation & GACT_RELVERIFY)
                                     {
-                                        _post_idcmp_message(activeWin, IDCMP_GADGETUP, 0,
+                                        _post_idcmp_message(activeWin, IDCMP_GADGETUP, (UWORD)up_code,
                                                            qualifier, gad, activeRelX, activeRelY);
                                     }
                                 }
                                 
                                 /* Render normal state - undo GADGHCOMP highlight */
-                                if (_gadtools_IsCheckbox(gad) || _gadtools_IsCycle(gad))
+                                if (_gadtools_IsGadTools(gad))
                                 {
                                     _render_gadget(activeWin, NULL, gad);
                                 }
@@ -9607,12 +9652,10 @@ static void _render_window_frame(struct Window *window)
     /* title */
     if (window->Title && bt > 0)
     {
-        struct TextExtent te;
         WORD tx = (title_left > 1) ? title_left + 11 : 5;
         WORD avail = title_right - tx + 1;
         WORD len = strlen((const char *)window->Title);
-        WORD fit = (avail > 0) ? TextFit(rp, (STRPTR)window->Title, len, &te, NULL, 1,
-                                         avail, rp->TxHeight + 1) : 0;
+        WORD fit = (avail > 0) ? lxa_text_fit(rp, (STRPTR)window->Title, len, avail) : 0;
 
         if (fit > 0)
         {
@@ -11780,6 +11823,10 @@ static void _render_gadget(struct Window *window, struct Requester *req, struct 
     }
     
     _calculate_gadget_box(window, req, gad, &left, &top, &width, &height);
+
+    /* GadTools draws its own gadgets (frames, labels, images) */
+    if (_gadtools_IsGadTools(gad) && _gadtools_RenderGadget(window, gad, rp, left, top))
+        return;
     
     /* Add window border offset if not using a layer that handles it?
      * Standard Gfx: RPort is usually window's UserPort or similar.

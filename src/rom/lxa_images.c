@@ -23,6 +23,8 @@
 
 #include <graphics/gfx.h>
 #include <graphics/rastport.h>
+#include <graphics/clip.h>
+#include <graphics/gfxmacros.h>
 #include <clib/graphics_protos.h>
 #include <inline/graphics.h>
 
@@ -219,9 +221,9 @@ void lxa_draw_frame(struct RastPort *rp, ULONG type, BOOL recessed, WORD x, WORD
     switch (type)
     {
         case FRAME_BUTTON:
-            if (selected && !edges_only)
+            if (!edges_only)
             {
-                SetAPen(rp, pens[FILLPEN]);
+                SetAPen(rp, selected ? pens[FILLPEN] : pens[BACKGROUNDPEN]);
                 if (w > 4 && h > 2)
                     RectFill(rp, x + 2, y + 1, x + w - 3, y + h - 2);
             }
@@ -229,9 +231,9 @@ void lxa_draw_frame(struct RastPort *rp, ULONG type, BOOL recessed, WORD x, WORD
             break;
 
         case FRAME_RIDGE:
-            if (selected && !edges_only)
+            if (!edges_only)
             {
-                SetAPen(rp, pens[FILLPEN]);
+                SetAPen(rp, selected ? pens[FILLPEN] : pens[BACKGROUNDPEN]);
                 if (w > 8 && h > 4)
                     RectFill(rp, x + 4, y + 2, x + w - 5, y + h - 3);
             }
@@ -240,9 +242,9 @@ void lxa_draw_frame(struct RastPort *rp, ULONG type, BOOL recessed, WORD x, WORD
             break;
 
         case FRAME_ICONDROPBOX:
-            if (selected && !edges_only)
+            if (!edges_only)
             {
-                SetAPen(rp, pens[FILLPEN]);
+                SetAPen(rp, selected ? pens[FILLPEN] : pens[BACKGROUNDPEN]);
                 if (w > 12 && h > 6)
                     RectFill(rp, x + 6, y + 3, x + w - 7, y + h - 4);
             }
@@ -251,9 +253,9 @@ void lxa_draw_frame(struct RastPort *rp, ULONG type, BOOL recessed, WORD x, WORD
             break;
 
         default:    /* FRAME_DEFAULT */
-            if (selected && !edges_only)
+            if (!edges_only)
             {
-                SetAPen(rp, pens[FILLPEN]);
+                SetAPen(rp, selected ? pens[FILLPEN] : pens[BACKGROUNDPEN]);
                 if (w > 2 && h > 2)
                     RectFill(rp, x + 1, y + 1, x + w - 2, y + h - 2);
             }
@@ -266,6 +268,59 @@ void lxa_draw_frame(struct RastPort *rp, ULONG type, BOOL recessed, WORD x, WORD
             break;
     }
     SetAPen(rp, oldpen);
+}
+
+/*
+ * Ghosting of disabled gadgets: AmigaOS 3.1 overlays a sparse dot pattern
+ * in BLOCKPEN (one dot every four pixels, alternate rows offset by two),
+ * aligned to the screen bitmap: 0x1111 on even, 0x4444 on odd screen rows.
+ */
+void lxa_ghost_rect(struct RastPort *rp, WORD x0, WORD y0, WORD x1, WORD y1, const UWORD *pens)
+{
+    UWORD pat[1];
+    UWORD *oldpat;
+    BYTE oldsz;
+    UBYTE oldpen, olddm;
+    WORD y, oy;
+
+    if (!rp || x1 < x0 || y1 < y0)
+        return;
+    if (!pens)
+        pens = g_default_pens;
+    oldpat = rp->AreaPtrn;
+    oldsz = rp->AreaPtSz;
+    oldpen = rp->FgPen;
+    olddm = rp->DrawMode;
+    oy = rp->Layer ? rp->Layer->bounds.MinY - rp->Layer->Scroll_Y : 0;
+    SetAPen(rp, pens[BLOCKPEN]);
+    SetDrMd(rp, JAM1);
+    for (y = y0; y <= y1; y++)
+    {
+        pat[0] = ((y + oy) & 1) ? 0x4444 : 0x1111;
+        SetAfPt(rp, pat, 0);
+        RectFill(rp, x0, y, x1, y);
+    }
+    SetAfPt(rp, oldpat, oldsz);
+    SetAPen(rp, oldpen);
+    SetDrMd(rp, olddm);
+}
+
+/* number of characters of s (len) that fit into width pixels */
+WORD lxa_text_fit(struct RastPort *rp, CONST_STRPTR s, WORD len, WORD width)
+{
+    WORD n = 0, w = 0;
+
+    if (!rp || !s)
+        return 0;
+    while (n < len)
+    {
+        WORD cw = TextLength(rp, (STRPTR)s + n, 1);
+        if (w + cw > width)
+            break;
+        w += cw;
+        n++;
+    }
+    return n;
 }
 
 /* frame thickness (horizontal, vertical) per FRAME_* type */

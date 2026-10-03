@@ -129,7 +129,7 @@ int main(int argc, char **argv)
     gad = CreateGadget(TEXT_KIND, gad, &ng, GTTX_Text, (ULONG)"No border", TAG_END);
 
     /* vertical slider/scroller */
-    ng.ng_LeftEdge = x2 + 190; ng.ng_TopEdge = top + 3 * (fh + 2) + 6; ng.ng_Width = 18; ng.ng_Height = 60;
+    ng.ng_LeftEdge = x2 - 28; ng.ng_TopEdge = top + 3 * (fh + 2) + 6; ng.ng_Width = 18; ng.ng_Height = 60;
     ng.ng_GadgetText = NULL; ng.ng_GadgetID = 29;
     gad = CreateGadget(SCROLLER_KIND, gad, &ng, GTSC_Top, 3, GTSC_Total, 10, GTSC_Visible, 4,
                        GTSC_Arrows, 10, PGA_Freedom, LORIENT_VERT, TAG_END);
@@ -154,9 +154,9 @@ int main(int argc, char **argv)
         WA_Title, (ULONG)"GT Gallery",
         WA_Gadgets, (ULONG)glist,
         WA_DragBar, TRUE, WA_DepthGadget, TRUE, WA_CloseGadget, TRUE, WA_Activate, TRUE,
-        WA_IDCMP, IDCMP_CLOSEWINDOW | IDCMP_REFRESHWINDOW | BUTTONIDCMP | CHECKBOXIDCMP |
-                  INTEGERIDCMP | CYCLEIDCMP | MXIDCMP | SLIDERIDCMP | SCROLLERIDCMP |
-                  LISTVIEWIDCMP | PALETTEIDCMP,
+        /* no INTUITICKS (ARROWIDCMP): the reference agent waits for an
+         * empty window port */
+        WA_IDCMP, IDCMP_CLOSEWINDOW | IDCMP_REFRESHWINDOW | IDCMP_GADGETUP | IDCMP_GADGETDOWN,
         WA_PubScreen, (ULONG)scr,
         TAG_END);
     if (!win)
