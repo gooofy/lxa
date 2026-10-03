@@ -1,0 +1,254 @@
+setup = TRUE
+-- AvailFonts disk
+disk.result = 0
+disk.num = 7
+disk: type=0x0002 name="lxbroken.font" ysize=12 style=0x00 flags=0x62
+disk: type=0x0002 name="lxcolor.font" ysize=7 style=0x40 flags=0x62
+disk: type=0x0002 name="lxfixed.font" ysize=10 style=0x00 flags=0x42
+disk: type=0x0002 name="lxprop.font" ysize=8 style=0x00 flags=0x62
+disk: type=0x0002 name="lxprop.font" ysize=11 style=0x00 flags=0x62
+disk: type=0x0002 name="lxtag.font" ysize=6 style=0x00 flags=0x62
+disk: type=0x0002 name="lxtag.font" ysize=9 style=0x00 flags=0x62
+disk_scaled.result = 0
+disk_scaled.num = 7
+disk_scaled: type=0x0002 name="lxbroken.font" ysize=12 style=0x00 flags=0x62
+disk_scaled: type=0x0002 name="lxcolor.font" ysize=7 style=0x40 flags=0x62
+disk_scaled: type=0x0002 name="lxfixed.font" ysize=10 style=0x00 flags=0x42
+disk_scaled: type=0x0002 name="lxprop.font" ysize=8 style=0x00 flags=0x62
+disk_scaled: type=0x0002 name="lxprop.font" ysize=11 style=0x00 flags=0x62
+disk_scaled: type=0x0002 name="lxtag.font" ysize=6 style=0x00 flags=0x62
+disk_scaled: type=0x0002 name="lxtag.font" ysize=9 style=0x00 flags=0x62
+disk_tagged.result = 0
+disk_tagged.num = 7
+disk_tagged: type=0x0002 name="lxbroken.font" ysize=12 style=0x00 flags=0x62 tags=0x00000000:0x00000000 
+disk_tagged: type=0x0002 name="lxcolor.font" ysize=7 style=0x40 flags=0x62 tags=0x00000000:0x00000000 
+disk_tagged: type=0x0002 name="lxfixed.font" ysize=10 style=0x00 flags=0x42 tags=0x00000000:0x00000000 
+disk_tagged: type=0x0002 name="lxprop.font" ysize=8 style=0x00 flags=0x62 tags=0x00000000:0x00000000 
+disk_tagged: type=0x0002 name="lxprop.font" ysize=11 style=0x00 flags=0x62 tags=0x00000000:0x00000000 
+disk_tagged: type=0x0002 name="lxtag.font" ysize=6 style=0x80 flags=0x62 tags=NULL
+disk_tagged: type=0x0002 name="lxtag.font" ysize=9 style=0x80 flags=0x62 tags=NULL
+disk_bitmap.result = 0
+disk_bitmap.num = 7
+disk_bitmap: type=0x0002 name="lxbroken.font" ysize=12 style=0x00 flags=0x62
+disk_bitmap: type=0x0002 name="lxcolor.font" ysize=7 style=0x40 flags=0x62
+disk_bitmap: type=0x0002 name="lxfixed.font" ysize=10 style=0x00 flags=0x42
+disk_bitmap: type=0x0002 name="lxprop.font" ysize=8 style=0x00 flags=0x62
+disk_bitmap: type=0x0002 name="lxprop.font" ysize=11 style=0x00 flags=0x62
+disk_bitmap: type=0x0002 name="lxtag.font" ysize=6 style=0x00 flags=0x62
+disk_bitmap: type=0x0002 name="lxtag.font" ysize=9 style=0x00 flags=0x62
+none.result = 0
+none.num = 0
+-- AvailFonts small buffers
+disk_0.result = 158
+disk_0.untouched = 0x00007777
+disk_2.result = 156
+disk_2.untouched = 0x00000000
+disk_20.result = 138
+disk_20.untouched = 0x00000000
+disk_min_ok = 136
+disk_need = 158
+disk_need.result = 0
+tagged_0.result = 186
+tagged_0.untouched = 0x00007777
+tagged_min_ok = 164
+three.setup = TRUE
+three 0: result=71 num=0xa5a5
+three 1: result=70 num=0xa5a5
+three 2: result=69 num=0x0000
+three 3: result=68 num=0x0000
+three 4: result=67 num=0x0000
+three 5: result=66 num=0x0000
+three 6: result=65 num=0x0000
+three 7: result=64 num=0x0000
+three 8: result=63 num=0x0000
+three 9: result=62 num=0x0000
+three 10: result=61 num=0x0000
+three 11: result=60 num=0x0000
+three 12: result=59 num=0x0000
+three 13: result=58 num=0x0000
+three 14: result=57 num=0x0000
+three 15: result=56 num=0x0000
+three 16: result=55 num=0x0000
+three 17: result=54 num=0x0000
+three 18: result=53 num=0x0000
+three 19: result=52 num=0x0000
+three 20: result=51 num=0x0000
+three 21: result=50 num=0x0000
+three 22: result=49 num=0x0000
+three 23: result=48 num=0x0000
+three 24: result=47 num=0x0000
+three 25: result=20 num=0x0001
+three 26: result=19 num=0x0001
+three 27: result=18 num=0x0001
+three 28: result=17 num=0x0001
+three 29: result=16 num=0x0001
+three 30: result=15 num=0x0001
+three 31: result=14 num=0x0001
+three 32: result=13 num=0x0001
+three 33: result=12 num=0x0001
+three 34: result=11 num=0x0001
+three 35: result=10 num=0x0002
+three 36: result=9 num=0x0002
+three 37: result=8 num=0x0002
+three 38: result=7 num=0x0002
+three 39: result=6 num=0x0002
+three 40: result=5 num=0x0002
+three 41: result=4 num=0x0002
+three 42: result=3 num=0x0002
+three 43: result=2 num=0x0002
+three 44: result=1 num=0x0002
+three 45: result=0 num=0x0003
+three 46: result=0 num=0x0003
+three 47: result=0 num=0x0003
+three 48: result=0 num=0x0003
+three 49: result=0 num=0x0003
+three 50: result=0 num=0x0003
+three 51: result=0 num=0x0003
+three 52: result=0 num=0x0003
+three 53: result=0 num=0x0003
+three 54: result=0 num=0x0003
+three 55: result=0 num=0x0003
+three 56: result=0 num=0x0003
+three 57: result=0 num=0x0003
+three 58: result=0 num=0x0003
+three 59: result=0 num=0x0003
+three 60: result=0 num=0x0003
+three 61: result=0 num=0x0003
+three 62: result=0 num=0x0003
+three 63: result=0 num=0x0003
+three 64: result=0 num=0x0003
+three_tagged 0: result=83 num=0xa5a5
+three_tagged 1: result=82 num=0xa5a5
+three_tagged 2: result=81 num=0x0000
+three_tagged 3: result=80 num=0x0000
+three_tagged 4: result=79 num=0x0000
+three_tagged 5: result=78 num=0x0000
+three_tagged 6: result=77 num=0x0000
+three_tagged 7: result=76 num=0x0000
+three_tagged 8: result=75 num=0x0000
+three_tagged 9: result=74 num=0x0000
+three_tagged 10: result=73 num=0x0000
+three_tagged 11: result=72 num=0x0000
+three_tagged 12: result=71 num=0x0000
+three_tagged 13: result=70 num=0x0000
+three_tagged 14: result=69 num=0x0000
+three_tagged 15: result=68 num=0x0000
+three_tagged 16: result=67 num=0x0000
+three_tagged 17: result=66 num=0x0000
+three_tagged 18: result=65 num=0x0000
+three_tagged 19: result=64 num=0x0000
+three_tagged 20: result=63 num=0x0000
+three_tagged 21: result=62 num=0x0000
+three_tagged 22: result=61 num=0x0000
+three_tagged 23: result=60 num=0x0000
+three_tagged 24: result=59 num=0x0000
+three_tagged 25: result=58 num=0x0000
+three_tagged 26: result=57 num=0x0000
+three_tagged 27: result=56 num=0x0000
+three_tagged 28: result=55 num=0x0000
+three_tagged 29: result=28 num=0x0001
+three_tagged 30: result=27 num=0x0001
+three_tagged 31: result=26 num=0x0001
+three_tagged 32: result=25 num=0x0001
+three_tagged 33: result=24 num=0x0001
+three_tagged 34: result=23 num=0x0001
+three_tagged 35: result=22 num=0x0001
+three_tagged 36: result=21 num=0x0001
+three_tagged 37: result=20 num=0x0001
+three_tagged 38: result=19 num=0x0001
+three_tagged 39: result=18 num=0x0001
+three_tagged 40: result=17 num=0x0001
+three_tagged 41: result=16 num=0x0001
+three_tagged 42: result=15 num=0x0001
+three_tagged 43: result=14 num=0x0002
+three_tagged 44: result=13 num=0x0002
+three_tagged 45: result=12 num=0x0002
+three_tagged 46: result=11 num=0x0002
+three_tagged 47: result=10 num=0x0002
+three_tagged 48: result=9 num=0x0002
+three_tagged 49: result=8 num=0x0002
+three_tagged 50: result=7 num=0x0002
+three_tagged 51: result=6 num=0x0002
+three_tagged 52: result=5 num=0x0002
+three_tagged 53: result=4 num=0x0002
+three_tagged 54: result=3 num=0x0002
+three_tagged 55: result=2 num=0x0002
+three_tagged 56: result=1 num=0x0002
+three_tagged 57: result=0 num=0x0003
+three_tagged 58: result=0 num=0x0003
+three_tagged 59: result=0 num=0x0003
+three_tagged 60: result=0 num=0x0003
+three_tagged 61: result=0 num=0x0003
+three_tagged 62: result=0 num=0x0003
+three_tagged 63: result=0 num=0x0003
+three_tagged 64: result=0 num=0x0003
+three.restore = TRUE
+-- AvailFonts memory
+mem_before.result = 0
+mem_before: type=0x0001 name="topaz.font" ysize=8 style=0x00 flags=0x41
+open8 = non-NULL
+open16 = non-NULL
+opentag9 = non-NULL
+mem.result = 0
+mem: type=0x0001 name="lxprop.font" ysize=8 style=0x00 flags=0x62
+mem: type=0x0001 name="lxtag.font" ysize=9 style=0x00 flags=0x62
+mem: type=0x0001 name="topaz.font" ysize=8 style=0x00 flags=0x41
+mem_scaled.result = 0
+mem_scaled: type=0x0001 name="lxprop.font" ysize=8 style=0x00 flags=0x62
+mem_scaled: type=0x0004 name="lxprop.font" ysize=16 style=0x00 flags=0x20
+mem_scaled: type=0x0001 name="lxtag.font" ysize=9 style=0x00 flags=0x62
+mem_scaled: type=0x0001 name="topaz.font" ysize=8 style=0x00 flags=0x41
+mem_tagged.result = 0
+mem_tagged: type=0x0001 name="lxprop.font" ysize=8 style=0x80 flags=0x62 tags=NULL
+mem_tagged: type=0x0004 name="lxprop.font" ysize=16 style=0x80 flags=0x20 tags=NULL
+mem_tagged: type=0x0001 name="lxtag.font" ysize=9 style=0x80 flags=0x62 tags=NULL
+mem_tagged: type=0x0001 name="topaz.font" ysize=8 style=0x80 flags=0x41 tags=NULL
+all.result = 0
+all: type=0x0002 name="lxbroken.font" ysize=12 style=0x00 flags=0x62
+all: type=0x0002 name="lxcolor.font" ysize=7 style=0x40 flags=0x62
+all: type=0x0002 name="lxfixed.font" ysize=10 style=0x00 flags=0x42
+all: type=0x0001 name="lxprop.font" ysize=8 style=0x00 flags=0x62
+all: type=0x0002 name="lxprop.font" ysize=8 style=0x00 flags=0x62
+all: type=0x0002 name="lxprop.font" ysize=11 style=0x00 flags=0x62
+all: type=0x0004 name="lxprop.font" ysize=16 style=0x00 flags=0x20
+all: type=0x0002 name="lxtag.font" ysize=6 style=0x00 flags=0x62
+all: type=0x0001 name="lxtag.font" ysize=9 style=0x00 flags=0x62
+all: type=0x0002 name="lxtag.font" ysize=9 style=0x00 flags=0x62
+all: type=0x0001 name="topaz.font" ysize=8 style=0x00 flags=0x41
+mem_0.result = TRUE
+mem_closed.result = 0
+mem_closed: type=0x0001 name="lxprop.font" ysize=8 style=0x00 flags=0x62
+mem_closed: type=0x0004 name="lxprop.font" ysize=16 style=0x00 flags=0x20
+mem_closed: type=0x0001 name="lxtag.font" ysize=9 style=0x00 flags=0x62
+mem_closed: type=0x0001 name="topaz.font" ysize=8 style=0x00 flags=0x41
+-- NewFontContents
+prop.result = non-NULL
+prop.id = 0x00000f00
+prop.num = 2
+prop: file="lxprop/11" ysize=11 style=0x00 flags=0x62
+prop: file="lxprop/8" ysize=8 style=0x00 flags=0x62
+fixed.result = non-NULL
+fixed.id = 0x00000f00
+fixed.num = 1
+fixed: file="lxfixed/10" ysize=10 style=0x00 flags=0x42
+tag.result = non-NULL
+tag.id = 0x00000f00
+tag.num = 2
+tag: file="lxtag/6" ysize=6 style=0x00 flags=0x62
+tag: file="lxtag/9" ysize=9 style=0x80 flags=0x62
+color.result = non-NULL
+color.id = 0x00000f00
+color.num = 1
+color: file="lxcolor/7" ysize=7 style=0x40 flags=0x62
+empty.result = non-NULL
+empty.id = 0x00000f00
+empty.num = 0
+broken.result = non-NULL
+broken.id = 0x00000f00
+broken.num = 0
+none.result = NULL
+none.ioerr = 0
+nosuffix.result = NULL
+nosuffix.ioerr = 0
+upper.result = NULL
+upper.ioerr = 0
