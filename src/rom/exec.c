@@ -5628,9 +5628,14 @@ void _bootstrap(void)
         /* a5 is gcc's frame pointer and cannot be named as clobbered:
          * programs that return with a5 changed (Fred Fish LaceTogl & co.,
          * Phase 237) would corrupt this frame - save it around the call */
+        /* pr_ReturnAddr points at the stack size slot, as RunCommand's
+         * does: exit code unwinds with sp = pr_ReturnAddr - 4; rts (Fred
+         * Fish IconX, StartScript, Arq - Phase 237) */
+        register APTR *a3 __asm("a3") = &((struct Process *)me)->pr_ReturnAddr;
         __asm__ __volatile__ (
             "move.l  %%a5, -(%%sp)\n\t"
             "move.l  %1, -(%%sp)\n\t"
+            "move.l  %%sp, (%4)\n\t"
             "move.l  %1, %%d2\n\t"
             "move.l  %2, %%d3\n\t"
             "move.l  %0, %%d4\n\t"
@@ -5638,9 +5643,9 @@ void _bootstrap(void)
             "jsr     (%3)\n\t"
             "addq.l  #4, %%sp\n\t"
             "move.l  (%%sp)+, %%a5"
-            : "+r" (d0), "+r" (d1), "+r" (a0), "+r" (a1)
+            : "+r" (d0), "+r" (d1), "+r" (a0), "+r" (a1), "+r" (a3)
             :
-            : "d2", "d3", "d4", "d5", "d6", "d7", "a2", "a3", "a4", "a6", "cc", "memory");
+            : "d2", "d3", "d4", "d5", "d6", "d7", "a2", "a4", "a6", "cc", "memory");
         rv = d0;
         
         /* Clobber all callee-saved registers to force gcc to reload them */

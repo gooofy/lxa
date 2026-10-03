@@ -870,16 +870,17 @@ TEST_F(AppsMiscScreenTest, DISABLED_DirectoryOpusCopiesFile) {
     /* Give DOpus time to finish reading both listers from the patched config. */
     settle(200);
 
-    /* Select the first visible file in the active source lister. */
-    Click(dopus_info.x + 40, dopus_info.y + 40);
+    /* Select the first file of the left lister (its first row is at
+     * screen y 48 on the canonical PAL screen: window y + 37). */
+    Click(dopus_info.x + 40, dopus_info.y + 37);
     settle(40);
 
     bool copied = WaitForHostFile(dest_file.string(), 500);
     ASSERT_FALSE(copied) << "Destination file should not exist before invoking copy";
 
-    /* Click the first custom button in the lower bank, which is Copy in the
-     * default DOpus 4 layout documented in the bundled manual. */
-    Click(dopus_info.x + 30, dopus_info.y + 220);
+    /* Copy is the first button of the second column of the lower bank
+     * (screen 145..225 x 184..192: window x + 185, y + 177). */
+    Click(dopus_info.x + 185, dopus_info.y + 177);
     settle(80);
 
     copied = WaitForHostFile(dest_file.string(), 1500);
