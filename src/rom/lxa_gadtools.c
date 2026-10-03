@@ -913,12 +913,12 @@ static void gt_position_slider_level_text(struct GTGadgetData *data,
     if (place & PLACETEXT_LEFT)
     {
         level_text->LeftEdge = -((WORD)data->max_pixel_len) - 8 + text_left;
-        level_text->TopEdge  = (H - fh + 1) / 2;
+        level_text->TopEdge  = (H - fh + 1) >> 1;
     }
     else if (place & PLACETEXT_RIGHT)
     {
-        level_text->LeftEdge = W + 8 + text_left;
-        level_text->TopEdge  = (H - fh + 1) / 2;
+        level_text->LeftEdge = W + 7 + text_left;
+        level_text->TopEdge  = (H - fh + 1) >> 1;
     }
     else if (place & PLACETEXT_ABOVE)
     {
@@ -1004,6 +1004,27 @@ static WORD gt_text_width(struct TextFont *font, CONST_STRPTR s, WORD len)
     if (font)
         SetFont(&rp, font);
     return TextLength(&rp, (STRPTR)s, len);
+}
+
+/* Width of a gadget label as AmigaOS 3.1 GadTools places it (gallery
+ * goldens, helvetica 13): the larger of TextLength() and the ink extent
+ * (TextExtent() MaxX + 1), which differ for kerned proportional fonts. */
+static WORD gt_label_text_width(struct TextFont *font, CONST_STRPTR s, WORD len)
+{
+    struct RastPort rp;
+    struct TextExtent te;
+    WORD w;
+
+    if (!s || len <= 0)
+        return 0;
+    InitRastPort(&rp);
+    if (font)
+        SetFont(&rp, font);
+    w = TextLength(&rp, (STRPTR)s, len);
+    TextExtent(&rp, (STRPTR)s, len, &te);
+    if (te.te_Extent.MaxX + 1 > w)
+        w = (WORD)(te.te_Extent.MaxX + 1);
+    return w;
 }
 
 static WORD gt_font_ysize(struct TextFont *font)
@@ -1164,7 +1185,7 @@ static struct IntuiText * gt_create_label(CONST_STRPTR text, ULONG flags,
     it->IText     = displayText;
     it->NextText  = NULL;
 
-    textWidth = gt_text_width(font, displayText, gt_strlen(displayText));
+    textWidth = gt_label_text_width(font, displayText, gt_strlen(displayText));
     fh = gt_font_ysize(font);
     gt_label_pos(gt_label_place(flags, defaultPlace), gadWidth, gadHeight, textWidth, fh,
                  &it->LeftEdge, &it->TopEdge);
@@ -1376,7 +1397,7 @@ static void gt_label(struct gt_build *b, struct Gadget *gad, ULONG defplace, WOR
         gad->GadgetText = it;
         data->label_gad = gad;
         data->underline_pos = ul;
-        tw = gt_text_width(data->font, it->IText, gt_strlen(it->IText));
+        tw = gt_label_text_width(data->font, it->IText, gt_strlen(it->IText));
     }
     gt_set_bounds(gad, more, bx, by, bw, bh, place, tw, gt_font_ysize(data->font),
                   ng->ng_GadgetText != NULL);
@@ -1456,7 +1477,7 @@ struct Gadget * _gadtools_CreateGadgetA ( register struct GadToolsBase *GadTools
             data->label = gt_strip_underscore(ng->ng_GadgetText, us, &ul_pos);
             data->label_pen = (ng->ng_Flags & NG_HIGHLABEL) ? HIGHLIGHTTEXTPEN : TEXTPEN;
             data->underline_pos = ul_pos;
-            tw = data->label ? gt_text_width(font, data->label, gt_strlen(data->label)) : 0;
+            tw = data->label ? gt_label_text_width(font, data->label, gt_strlen(data->label)) : 0;
             gt_label_pos(place, W, H, tw, fh, &data->label_x, &data->label_y);
             data->label_in = (place & (PLACETEXT_LEFT | PLACETEXT_RIGHT | PLACETEXT_ABOVE | PLACETEXT_BELOW)) == 0;
             if (mg)
@@ -2198,9 +2219,12 @@ static void gt_draw_text(struct RastPort *rp, WORD x, WORD y, CONST_STRPTR s, WO
     Text(rp, (STRPTR)s, len);
     if (ul >= 0 && ul < len)
     {
-        WORD ux = x + TextLength(rp, (STRPTR)s, ul);
-        WORD uw = TextLength(rp, (STRPTR)s + ul, 1);
-        RectFill(rp, ux, y + rp->TxBaseline + 1, ux + uw - 1, y + rp->TxBaseline + 1);
+        /* AmigaOS 3.1 draws the character again in the underlined style */
+        ULONG old = AskSoftStyle(rp) & rp->AlgoStyle;
+        SetSoftStyle(rp, FSF_UNDERLINED, FSF_UNDERLINED);
+        Move(rp, x + TextLength(rp, (STRPTR)s, ul), y + rp->TxBaseline);
+        Text(rp, (STRPTR)s + ul, 1);
+        SetSoftStyle(rp, old, FSF_UNDERLINED);
     }
 }
 
@@ -2419,7 +2443,7 @@ BOOL _gadtools_RenderGadget(register struct Window *win __asm("a0"),
                 if (data->label_in)
                 {
                     WORD tl = TextLength(rp, data->label, len);
-                    gt_draw_text(rp, L + (W - tl) / 2, T + (H - fh + 1) / 2, data->label, len,
+                    gt_draw_text(rp, L + ((W - tl + 1) >> 1), T + ((H - fh + 1) >> 1), data->label, len,
                                  sel ? pens[FILLTEXTPEN] : pens[data->label_pen], data->underline_pos);
                 }
                 else
@@ -2505,7 +2529,7 @@ BOOL _gadtools_RenderGadget(register struct Window *win __asm("a0"),
             {
                 WORD len = gt_strlen(s);
                 WORD tl = TextLength(rp, s, len);
-                gt_draw_text(rp, L + 22 + (W - 22 - tl) / 2, T + (H - fh + 1) / 2, s, len,
+                gt_draw_text(rp, L + 20 + ((W - 20 - tl) >> 1), T + ((H - fh + 1) >> 1), s, len,
                              sel ? pens[FILLTEXTPEN] : pens[TEXTPEN], -1);
             }
             gt_draw_label_chain(rp, mg, mgl, mgt, data, pens);
