@@ -8071,6 +8071,10 @@ LONG _dos_CheckSignal ( register struct DosLibrary * DOSBase __asm("a6"),
     return sigs;
 }
 
+LONG _dos_StrToLong ( register struct DosLibrary * DOSBase __asm("a6"),
+                      register CONST_STRPTR string __asm("d1"),
+                      register LONG * value __asm("d2"));
+
 /* Template item flags */
 #define TEMPLATE_REQUIRED  0x01  /* /A */
 #define TEMPLATE_KEYWORD   0x02  /* /K */
@@ -8084,65 +8088,57 @@ LONG _dos_CheckSignal ( register struct DosLibrary * DOSBase __asm("a6"),
 #define RDAF_ALLOCATED_BY_READARGS 0x80
 #endif
 
-/* Internal structure for tracking allocations made by ReadArgs */
+/* Allocations made by ReadArgs(), freed by FreeArgs(): each DANode is
+ * either followed by its data (memory == NULL) or points to a block. */
 typedef struct DANode {
     struct DANode *next;
     APTR memory;
 } DANode;
 
+#define RA_MAX_ITEMS   MAX_TEMPLATE_ITEMS
+#define RA_MAX_MULTI   MAX_MULTIARGS
+#define RA_NAMES_LEN   64
+#define RA_ITEM_LEN    1024
+
 typedef struct {
-    char name[32];       /* Primary name - most keywords are short */
-    char alias[32];      /* Alias name (for AS=TO syntax) */
+    char  names[RA_NAMES_LEN];  /* "NAME=ALIAS=..." without blanks */
     ULONG flags;
-    LONG index;
 } TemplateItem;
 
-static LONG _parse_template(CONST_STRPTR tmpl, TemplateItem *items)
+static LONG _parse_template(CONST_STRPTR tmpl, TemplateItem *items, LONG max_items)
 {
     /* "NAME=ALIAS/A/K,..." - items are separated by single commas (an
-     * empty item has an empty name), modifiers are case-insensitive. */
+     * empty item has an empty name and "" is a template of one such item),
+     * any number of '='-separated names, modifiers case-insensitive and
+     * unknown ones ignored (AmigaOS 3.1, Tests/Probes/dos/readargs). */
     LONG num_items = 0;
     CONST_STRPTR p = tmpl;
 
-    while (*p && num_items < 32) {
+    for (;;) {
+        TemplateItem *it;
         LONG i = 0;
-        char *dst = items[num_items].name;
 
-        while (*p == ' ' || *p == '\t')
-            p++;
-        items[num_items].name[0] = '\0';
-        items[num_items].alias[0] = '\0';
-        items[num_items].flags = 0;
-        items[num_items].index = num_items;
-
+        if (num_items >= max_items)
+            break;
+        it = &items[num_items];
+        it->flags = 0;
         while (*p && *p != ',' && *p != '/') {
-            if (*p == '=') {
-                dst[i] = '\0';
-                if (dst == items[num_items].alias)
-                    break;      /* only one alias is kept */
-                dst = items[num_items].alias;
-                i = 0;
-                p++;
-                continue;
-            }
-            if (*p != ' ' && *p != '\t' && i < 31)
-                dst[i++] = *p;
+            if (*p != ' ' && *p != '\t' && i < RA_NAMES_LEN - 1)
+                it->names[i++] = *p;
             p++;
         }
-        dst[i] = '\0';
-        while (*p && *p != ',' && *p != '/')
-            p++;
+        it->names[i] = '\0';
 
         while (*p == '/') {
             p++;
             switch (*p) {
-                case 'A': case 'a': items[num_items].flags |= TEMPLATE_REQUIRED; break;
-                case 'K': case 'k': items[num_items].flags |= TEMPLATE_KEYWORD; break;
-                case 'S': case 's': items[num_items].flags |= TEMPLATE_SWITCH; break;
-                case 'N': case 'n': items[num_items].flags |= TEMPLATE_NUMERIC; break;
-                case 'M': case 'm': items[num_items].flags |= TEMPLATE_MULTIPLE; break;
-                case 'F': case 'f': items[num_items].flags |= TEMPLATE_REST; break;
-                case 'T': case 't': items[num_items].flags |= TEMPLATE_TOGGLE; break;
+                case 'A': case 'a': it->flags |= TEMPLATE_REQUIRED; break;
+                case 'K': case 'k': it->flags |= TEMPLATE_KEYWORD; break;
+                case 'S': case 's': it->flags |= TEMPLATE_SWITCH; break;
+                case 'N': case 'n': it->flags |= TEMPLATE_NUMERIC; break;
+                case 'M': case 'm': it->flags |= TEMPLATE_MULTIPLE; break;
+                case 'F': case 'f': it->flags |= TEMPLATE_REST; break;
+                case 'T': case 't': it->flags |= TEMPLATE_TOGGLE; break;
             }
             if (*p) p++;
             while (*p && *p != ',' && *p != '/')
@@ -8150,53 +8146,19 @@ static LONG _parse_template(CONST_STRPTR tmpl, TemplateItem *items)
         }
 
         num_items++;
-        if (*p == ',')
-            p++;
-        else
+        if (*p != ',')
             break;
+        p++;
     }
 
     return num_items;
 }
 
-static LONG _str_to_long(CONST_STRPTR str, LONG *val)
-{
-    LONG v = 0;
-    BOOL negative = FALSE;
-    CONST_STRPTR p = str;
-
-    if (!p || !*p)
-        return -1;
-
-    if (*p == '-') {
-        negative = TRUE;
-        p++;
-    } else if (*p == '+') {
-        p++;
-    }
-
-    if (!*p || *p < '0' || *p > '9')
-        return -1;
-
-    while (*p >= '0' && *p <= '9') {
-        v = v * 10 + (*p - '0');
-        p++;
-    }
-
-    if (*p != '\0')
-        return -1;
-
-    *val = negative ? -v : v;
-    return 0;
-}
-
-/* Simple string comparison helper */
 static int _stricmp(const char *s1, const char *s2)
 {
     while (*s1 && *s2) {
         char c1 = *s1;
         char c2 = *s2;
-        /* Convert to lowercase */
         if (c1 >= 'A' && c1 <= 'Z') c1 += 32;
         if (c2 >= 'A' && c2 <= 'Z') c2 += 32;
         if (c1 != c2)
@@ -8207,203 +8169,365 @@ static int _stricmp(const char *s1, const char *s2)
     return *s1 - *s2;
 }
 
+/* does 'kw' equal one of the '='-separated names (case-insensitive)? */
+static BOOL _ra_name_match(const char *names, const char *kw)
+{
+    const char *n = names;
+
+    if (!*kw)
+        return FALSE;
+    while (*n) {
+        const char *k = kw;
+        while (*n && *n != '=' && *k) {
+            char c1 = *n, c2 = *k;
+            if (c1 >= 'A' && c1 <= 'Z') c1 += 32;
+            if (c2 >= 'A' && c2 <= 'Z') c2 += 32;
+            if (c1 != c2)
+                break;
+            n++;
+            k++;
+        }
+        if (!*k && (!*n || *n == '='))
+            return TRUE;
+        while (*n && *n != '=')
+            n++;
+        if (*n == '=')
+            n++;
+    }
+    return FALSE;
+}
+
+/* Character source of ReadItem()/ReadArgs(): a CSource, else buffered
+ * Input() (ReadChar/UnReadChar).  As in the NDK's CS_ReadChar /
+ * CS_UnReadChar: reading at the end returns ENDSTREAMCHAR without
+ * advancing, and unreading never goes below 0 - so an unquoted item at the
+ * very end of a buffer without '\n' is read again (AmigaOS 3.1). */
+struct ra_src {
+    struct DosLibrary *dosbase;
+    struct CSource *cs;
+    BPTR fh;
+};
+
+static LONG _ra_getc(struct ra_src *s)
+{
+    if (s->cs) {
+        if (s->cs->CS_CurChr >= s->cs->CS_Length)
+            return -1;
+        return (UBYTE)s->cs->CS_Buffer[s->cs->CS_CurChr++];
+    }
+    if (!s->fh)
+        return -1;
+    return _dos_FGetC(s->dosbase, s->fh);
+}
+
+static void _ra_ungetc(struct ra_src *s)
+{
+    if (s->cs) {
+        if (s->cs->CS_CurChr > 0)
+            s->cs->CS_CurChr--;
+    } else if (s->fh) {
+        _dos_UnGetC(s->dosbase, s->fh, -1);
+    }
+}
+
+/* ReadItem() on a source; *term is the character that ended an unquoted
+ * item if it was consumed (' ', '\t', '='), else 0 */
+static LONG _ra_read_item(struct ra_src *s, STRPTR buffer, LONG maxchars, LONG *term)
+{
+    STRPTR cursor = buffer;
+    LONG ch;
+
+    if (term)
+        *term = 0;
+
+    do {
+        ch = _ra_getc(s);
+    } while (ch == ' ' || ch == '\t');
+
+    if (!ch || ch == '\n' || ch == -1 || ch == ';') {
+        *cursor = '\0';
+        _ra_ungetc(s);
+        return ITEM_NOTHING;
+    }
+    if (ch == '=') {
+        *cursor = '\0';
+        return ITEM_EQUAL;
+    }
+    if (ch == '"') {
+        for (;;) {
+            if (!maxchars) {
+                if (cursor > buffer) cursor[-1] = '\0'; else *cursor = '\0';
+                return ITEM_NOTHING;
+            }
+            maxchars--;
+            ch = _ra_getc(s);
+            if (ch == '*') {
+                ch = _ra_getc(s);
+                if (!ch || ch == '\n' || ch == -1) {
+                    _ra_ungetc(s);
+                    *cursor = '\0';
+                    return ITEM_ERROR;
+                } else if (ch == 'n' || ch == 'N') {
+                    ch = '\n';
+                } else if (ch == 'e' || ch == 'E') {
+                    ch = 0x1b;
+                }
+            } else if (!ch || ch == '\n' || ch == -1) {
+                _ra_ungetc(s);
+                *cursor = '\0';
+                return ITEM_ERROR;
+            } else if (ch == '"') {
+                *cursor = '\0';
+                return ITEM_QUOTED;
+            }
+            *cursor++ = (UBYTE)ch;
+        }
+    }
+
+    if (!maxchars) {
+        if (cursor > buffer) cursor[-1] = '\0'; else *cursor = '\0';
+        return ITEM_ERROR;
+    }
+    maxchars--;
+    *cursor++ = (UBYTE)ch;
+    for (;;) {
+        if (!maxchars) {
+            if (cursor > buffer) cursor[-1] = '\0'; else *cursor = '\0';
+            return ITEM_ERROR;
+        }
+        maxchars--;
+        ch = _ra_getc(s);
+        if (!ch || ch == ' ' || ch == '\t' || ch == '\n' || ch == '=' || ch == ';' || ch == -1) {
+            if (ch == '=' || ch == ' ' || ch == '\t') {
+                if (term)
+                    *term = ch;
+            } else {
+                _ra_ungetc(s);
+            }
+            *cursor = '\0';
+            return ITEM_UNQUOTED;
+        }
+        *cursor++ = (UBYTE)ch;
+    }
+}
+
+/* the rest of the line (up to '\n', which is left unread) appended to
+ * buf[len..]; returns the new length */
+static LONG _ra_read_rest(struct ra_src *s, STRPTR buf, LONG len, LONG max)
+{
+    for (;;) {
+        LONG c = _ra_getc(s);
+        if (c == -1 || c == 0 || c == '\n') {
+            if (c != -1)
+                _ra_ungetc(s);
+            break;
+        }
+        if (len < max - 1)
+            buf[len++] = (char)c;
+    }
+    while (len > 0 && (buf[len - 1] == ' ' || buf[len - 1] == '\t'))
+        len--;
+    buf[len] = '\0';
+    return len;
+}
+
+/* string space for ReadArgs(): RDA_Buffer first, then DANode blocks */
+struct ra_mem {
+    DANode *list;
+    STRPTR ubuf;
+    LONG ufree;
+    BOOL noalloc;
+};
+
+static APTR _ra_alloc(struct ra_mem *m, LONG size)
+{
+    DANode *node;
+
+    size = (size + 3) & ~3;
+    if (m->ubuf && m->ufree >= size) {
+        APTR p = m->ubuf;
+        m->ubuf += size;
+        m->ufree -= size;
+        return p;
+    }
+    if (m->noalloc)
+        return NULL;
+    node = (DANode *)AllocVec(sizeof(DANode) + size, MEMF_ANY | MEMF_CLEAR);
+    if (!node)
+        return NULL;
+    node->memory = NULL;
+    node->next = m->list;
+    m->list = node;
+    return (APTR)(node + 1);
+}
+
+static void _ra_free_list(DANode *node)
+{
+    while (node) {
+        DANode *next = node->next;
+        if (node->memory)
+            FreeVec(node->memory);
+        FreeVec(node);
+        node = next;
+    }
+}
+
+static STRPTR _ra_strdup(struct ra_mem *m, CONST_STRPTR str)
+{
+    LONG n = strlen((const char *)str);
+    STRPTR d = (STRPTR)_ra_alloc(m, n + 1);
+    if (d)
+        CopyMem((APTR)str, d, n + 1);
+    return d;
+}
+
+/* /N value: the whole item must be a number (StrToLong) */
+static LONG *_ra_number(struct DosLibrary *DOSBase, struct ra_mem *m, CONST_STRPTR str, LONG *err)
+{
+    LONG v = 0, n = _dos_StrToLong(DOSBase, str, &v);
+    LONG *p;
+    if (n <= 0 || n != (LONG)strlen((const char *)str)) {
+        *err = ERROR_BAD_NUMBER;
+        return NULL;
+    }
+    p = (LONG *)_ra_alloc(m, sizeof(LONG));
+    if (!p) {
+        *err = ERROR_NO_FREE_STORE;
+        return NULL;
+    }
+    *p = v;
+    return p;
+}
+
+static void _ra_prompt(struct DosLibrary *DOSBase, CONST_STRPTR text)
+{
+    BPTR out = Output();
+    if (!out)
+        return;
+    FPuts(out, (STRPTR)text);
+    FPuts(out, (STRPTR)": ");
+    Flush(out);
+}
+
 struct RDArgs * _dos_ReadArgs ( register struct DosLibrary * DOSBase __asm("a6"),
                                                          register CONST_STRPTR arg_template __asm("d1"),
                                                          register LONG * array __asm("d2"),
                                                          register struct RDArgs * args __asm("d3"))
 {
+    /*
+     * AmigaOS 3.1 semantics (reference-verified, Tests/Probes/dos/readargs):
+     *  - items are read with ReadItem() from the RDArgs' CSource, else from
+     *    buffered Input() (where a command's argument line is);
+     *  - ITEM_NOTHING ends the line, and the character that ended it ('\n'
+     *    or ';' - a comment) is consumed; ITEM_EQUAL or ITEM_ERROR where an
+     *    item is expected fails with ERROR_LINE_TOO_LONG;
+     *  - an unquoted item equal to a name of an item is a keyword, unless
+     *    that item already has a value (switches excepted); "KEY=v",
+     *    "KEY = v" and "KEY v" give values; /S sets DOSTRUE, /T needs a
+     *    value YES/NO/ON/OFF;
+     *  - other items fill the first empty non-keyword item; /M collects
+     *    them; a /F item takes the item plus the rest of the line (quotes
+     *    of the first item removed, its separator becomes a blank, trailing
+     *    blanks dropped); after a /F keyword the rest of the line is raw;
+     *  - /N: the whole item must be a number (StrToLong);
+     *  - at the end, required items after the /M item take the last /M
+     *    values while the /M item keeps at least one (strings, unconverted);
+     *  - /A is satisfied only by a value (a /S item never is).
+     */
+    TemplateItem *items;
+    LONG num_items, err = 0, i;
+    struct ra_src src;
+    struct ra_mem mem;
+    STRPTR tmp;
+    UBYTE *filled;
+    APTR *multi;
+    LONG nmulti = 0, multi_item = -1;
+    BOOL prompted = FALSE;
+    struct Process *me = (struct Process *)FindTask(NULL);
+
     DPRINTF (LOG_DEBUG, "_dos: ReadArgs() called, template='%s'\n", STRORNULL(arg_template));
 
-    if (!arg_template || !array) {
+    if (!arg_template || !array || !me) {
         SetIoErr(ERROR_BAD_NUMBER);
         return NULL;
     }
 
-    /* Get process and arguments */
-    struct Process *me = (struct Process *)FindTask(NULL);
-    if (!me) {
-        SetIoErr(ERROR_BAD_NUMBER);
-        return NULL;
-    }
-
-    /* Parse template */
-    TemplateItem items[32];
-    LONG num_items = _parse_template(arg_template, items);
-
-    if (num_items == 0) {
-        SetIoErr(ERROR_BAD_NUMBER);
-        return NULL;
-    }
-
-    /* Character source: the RDArgs' CSource buffer if one is given, else the
-     * command line (lxa keeps it in pr_Arguments; AmigaOS has the shell put
-     * it into Input()'s buffer).  The source is never modified: parse a
-     * private copy (up to the end of the line) that lives until FreeArgs(). */
-    CONST_STRPTR src_str;
-    LONG src_len;
-    if (args && args->RDA_Source.CS_Buffer) {
-        LONG cur = args->RDA_Source.CS_CurChr;
-        if (cur < 0 || cur > args->RDA_Source.CS_Length)
-            cur = args->RDA_Source.CS_Length;
-        src_str = (CONST_STRPTR)args->RDA_Source.CS_Buffer + cur;
-        src_len = args->RDA_Source.CS_Length - cur;
-    } else {
-        src_str = me->pr_Arguments ? (CONST_STRPTR)me->pr_Arguments : (CONST_STRPTR)"";
-        src_len = strlen((const char *)src_str);
-    }
-    {
-        LONG n;
-        for (n = 0; n < src_len && src_str[n] && src_str[n] != '\n'; n++)
-            ;
-        src_len = n;
-    }
-    DANode *src_node = (DANode *)AllocVec(sizeof(DANode), MEMF_ANY | MEMF_CLEAR);
-    STRPTR arg_str = (STRPTR)AllocVec(src_len + 1, MEMF_ANY);
-    if (!src_node || !arg_str) {
-        if (src_node) FreeVec(src_node);
-        if (arg_str) FreeVec(arg_str);
+    items = (TemplateItem *)AllocVec(RA_MAX_ITEMS * sizeof(TemplateItem) + RA_ITEM_LEN +
+                                     RA_MAX_ITEMS + (RA_MAX_MULTI + 1) * sizeof(APTR),
+                                     MEMF_ANY | MEMF_CLEAR);
+    if (!items) {
         SetIoErr(ERROR_NO_FREE_STORE);
         return NULL;
     }
-    CopyMem((APTR)src_str, arg_str, src_len);
-    arg_str[src_len] = '\0';
-    src_node->memory = arg_str;
-    if (args && args->RDA_Source.CS_Buffer)
-        args->RDA_Source.CS_CurChr = args->RDA_Source.CS_Length;
+    tmp = (STRPTR)(items + RA_MAX_ITEMS);
+    filled = (UBYTE *)(tmp + RA_ITEM_LEN);
+    multi = (APTR *)(((ULONG)(filled + RA_MAX_ITEMS) + 3) & ~3UL);
 
-    /* "?" alone: show the template and read the arguments from Input()
-     * (AmigaOS 3.1), unless prompting is disabled */
-    {
-        STRPTR q = arg_str;
-        while (*q == ' ' || *q == '\t')
-            q++;
-        if (q[0] == '?' && (q[1] == '\0' || q[1] == ' ' || q[1] == '\t') &&
-            !(args && (args->RDA_Flags & RDAF_NOPROMPT))) {
-            LONG k = 1;
-            while (q[k] == ' ' || q[k] == '\t')
-                k++;
-            if (!q[k]) {
-                BPTR out = Output(), in = Input();
-                STRPTR qline;
-                LONG n = 0, c;
-                FPuts(out, (STRPTR)arg_template);
-                FPuts(out, (STRPTR)": ");
-                Flush(out);
-                qline = (STRPTR)AllocVec(512, MEMF_ANY);
-                if (!qline) {
-                    FreeVec(arg_str);
-                    FreeVec(src_node);
-                    SetIoErr(ERROR_NO_FREE_STORE);
-                    return NULL;
-                }
-                while (in && n < 511 && (c = FGetC(in)) >= 0 && c != '\n')
-                    qline[n++] = (char)c;
-                qline[n] = '\0';
-                FreeVec(arg_str);
-                arg_str = qline;
-                src_node->memory = arg_str;
-                src_len = n;
-            }
-        }
-    }
-
-    for (LONG i = 0; i < num_items; i++)
-        array[i] = 0;
-
-    /*
-     * Parse the line (AmigaOS ReadArgs() semantics):
-     *  - items are words or quoted strings; inside quotes *" *N *E **
-     *    are escapes; "KEY=value" and "KEY value" give keyword values;
-     *  - an unquoted word matching an item name (or alias) is a keyword;
-     *    /S and /T items are switches;
-     *  - other items fill the non-keyword items in template order; /M
-     *    collects all of them; /F takes the rest of the line;
-     *  - at the end, values of a /M item are moved to required items that
-     *    follow it in the template (Copy FROM/M/A TO/A: "Copy a b c");
-     *  - errors: ERROR_BAD_NUMBER, ERROR_KEY_NEEDS_ARG, ERROR_TOO_MANY_ARGS,
-     *    ERROR_REQUIRED_ARG_MISSING, ERROR_UNMATCHED_QUOTES (IoErr()).
-     */
-    #define RA_MAX_MULTI 128
-    LONG err = 0;
-    STRPTR strbuf = (STRPTR)AllocVec(2 * src_len + 2 * num_items + 16, MEMF_ANY | MEMF_CLEAR);
-    STRPTR *multi = (STRPTR *)AllocVec((RA_MAX_MULTI + 1) * sizeof(STRPTR), MEMF_ANY | MEMF_CLEAR);
-    LONG *numeric_storage = (LONG *)AllocVec((num_items + RA_MAX_MULTI) * sizeof(LONG), MEMF_CLEAR);
-    LONG nmulti = 0, multi_item = -1;
-    LONG sb = 0;
-    LONG pos = 0;
-    STRPTR line = arg_str;
-
-    if (!strbuf || !multi || !numeric_storage) {
-        if (strbuf) FreeVec(strbuf);
-        if (multi) FreeVec(multi);
-        if (numeric_storage) FreeVec(numeric_storage);
-        FreeVec(arg_str);
-        FreeVec(src_node);
-        SetIoErr(ERROR_NO_FREE_STORE);
-        return NULL;
-    }
-
-    for (LONG i = 0; i < num_items; i++)
+    num_items = _parse_template(arg_template, items, RA_MAX_ITEMS);
+    for (i = 0; i < num_items; i++)
         if (items[i].flags & TEMPLATE_MULTIPLE) {
             multi_item = i;
             break;
         }
 
-    for (;;) {
-        LONG start, n0;
-        BOOL quoted = FALSE, equal = FALSE;
-        STRPTR tok;
-        LONG kw = -1;
-        (void)equal;
-        LONG target;
+    mem.list = NULL;
+    mem.ubuf = (args && args->RDA_Buffer && args->RDA_BufSiz > 0) ? args->RDA_Buffer : NULL;
+    mem.ufree = mem.ubuf ? args->RDA_BufSiz : 0;
+    mem.noalloc = (args && (args->RDA_Flags & RDAF_NOALLOC)) ? TRUE : FALSE;
 
-        while (line[pos] == ' ' || line[pos] == '\t')
-            pos++;
-        if (!line[pos] || line[pos] == '\n')
+    src.dosbase = DOSBase;
+    src.cs = (args && args->RDA_Source.CS_Buffer) ? &args->RDA_Source : NULL;
+    src.fh = src.cs ? 0 : Input();
+    struct CSource tmpcs;
+    if (!src.cs) {
+        tmpcs.CS_Buffer = me->pr_Arguments ? me->pr_Arguments : (STRPTR)"\n";
+        tmpcs.CS_Length = strlen((const char *)tmpcs.CS_Buffer);
+        tmpcs.CS_CurChr = 0;
+        src.cs = &tmpcs;
+    }
+
+restart:
+    for (i = 0; i < num_items; i++) {
+        array[i] = 0;
+        filled[i] = 0;
+    }
+    nmulti = 0;
+
+    for (BOOL first = TRUE;; first = FALSE) {
+        LONG term, r, kw = -1, target;
+
+        r = _ra_read_item(&src, tmp, RA_ITEM_LEN, &term);
+        if (r == ITEM_NOTHING) {
+            _ra_getc(&src);         /* the '\n' (or ';') that ended the line */
             break;
-
-        /* read one item into strbuf */
-        start = pos;
-        tok = strbuf + sb;
-        n0 = sb;
-        if (line[pos] == '"') {
-            quoted = TRUE;
-            pos++;
-            for (;;) {
-                char c = line[pos];
-                if (!c || c == '\n') {
-                    err = ERROR_UNMATCHED_QUOTES;
-                    break;
-                }
-                pos++;
-                if (c == '"')
-                    break;
-                if (c == '*' && line[pos] && line[pos] != '\n') {
-                    c = line[pos++];
-                    if (c == 'N' || c == 'n')
-                        c = '\n';
-                    else if (c == 'E' || c == 'e')
-                        c = 0x1b;
-                }
-                strbuf[sb++] = c;
-            }
-            if (err)
-                break;
-        } else {
-            while (line[pos] && line[pos] != ' ' && line[pos] != '\t' &&
-                   line[pos] != '\n' && line[pos] != '=')
-                strbuf[sb++] = line[pos++];
-            if (line[pos] == '=') {
-                equal = TRUE;
-                pos++;
-            }
         }
-        strbuf[sb++] = '\0';
+        if (r == ITEM_ERROR || r == ITEM_EQUAL) {
+            err = ERROR_LINE_TOO_LONG;
+            break;
+        }
 
-        if (!quoted) {
-            for (LONG i = 0; i < num_items; i++) {
-                if ((items[i].name[0] && _stricmp((const char *)tok, items[i].name) == 0) ||
-                    (items[i].alias[0] && _stricmp((const char *)tok, items[i].alias) == 0)) {
+        /* "?" alone: show the template (then RDA_ExtHelp) and read the
+         * arguments from Input() */
+        if (first && r == ITEM_UNQUOTED && tmp[0] == '?' && !tmp[1] && !term &&
+            !(args && (args->RDA_Flags & RDAF_NOPROMPT)) &&
+            !(src.cs && src.cs->CS_CurChr < src.cs->CS_Length &&
+              src.cs->CS_Buffer[src.cs->CS_CurChr] != '\n')) {
+            BPTR in = Input();
+            _ra_getc(&src);
+            if (!in)
+                break;
+            _ra_prompt(DOSBase, (prompted && args && args->RDA_ExtHelp)
+                       ? (CONST_STRPTR)args->RDA_ExtHelp : arg_template);
+            prompted = TRUE;
+            src.cs = NULL;
+            src.fh = in;
+            goto restart;
+        }
+
+        if (r == ITEM_UNQUOTED) {
+            for (i = 0; i < num_items; i++) {
+                if (_ra_name_match(items[i].names, (const char *)tmp) &&
+                    (!filled[i] || (items[i].flags & (TEMPLATE_SWITCH | TEMPLATE_MULTIPLE)))) {
                     kw = i;
                     break;
                 }
@@ -8412,74 +8536,65 @@ struct RDArgs * _dos_ReadArgs ( register struct DosLibrary * DOSBase __asm("a6")
 
         if (kw >= 0) {
             ULONG f = items[kw].flags;
-            sb = n0;        /* the keyword itself is not kept */
-            if (f & (TEMPLATE_SWITCH | TEMPLATE_TOGGLE)) {
-                /* "SWITCH=x": the text after '=' is the next item
-                 * (AmigaOS 3.1: List DIRS=x lists "x") */
-                if (f & TEMPLATE_TOGGLE)
-                    array[kw] = array[kw] ? 0 : (LONG)TRUE;
-                else
-                    array[kw] = (LONG)TRUE;
+            STRPTR val;
+
+            if (f & TEMPLATE_SWITCH) {
+                array[kw] = DOSTRUE;
                 continue;
             }
             if (f & TEMPLATE_REST) {
-                LONG e;
-                while (line[pos] == ' ' || line[pos] == '\t')
-                    pos++;
-                tok = strbuf + sb;
-                for (e = pos; line[e] && line[e] != '\n'; e++)
-                    strbuf[sb++] = line[e];
-                while (sb > (tok - strbuf) && (strbuf[sb - 1] == ' ' || strbuf[sb - 1] == '\t'))
-                    sb--;
-                strbuf[sb++] = '\0';
-                array[kw] = (LONG)tok;
-                pos = e;
+                LONG c, len;
+                do {
+                    c = _ra_getc(&src);
+                } while (c == ' ' || c == '\t');
+                if (c != -1)
+                    _ra_ungetc(&src);
+                len = _ra_read_rest(&src, tmp, 0, RA_ITEM_LEN);
+                if (!len) {
+                    err = ERROR_KEY_NEEDS_ARG;
+                    break;
+                }
+                val = _ra_strdup(&mem, tmp);
+                if (!val) {
+                    err = ERROR_NO_FREE_STORE;
+                    break;
+                }
+                array[kw] = (LONG)val;
+                filled[kw] = 1;
                 continue;
             }
-            /* the value */
-            while (line[pos] == ' ' || line[pos] == '\t')
-                pos++;
-            if (!line[pos] || line[pos] == '\n') {
+
+            r = _ra_read_item(&src, tmp, RA_ITEM_LEN, &term);
+            if (r == ITEM_EQUAL)
+                r = _ra_read_item(&src, tmp, RA_ITEM_LEN, &term);
+            if (r == ITEM_ERROR) {
+                err = ERROR_LINE_TOO_LONG;
+                break;
+            }
+            if (r != ITEM_QUOTED && r != ITEM_UNQUOTED) {
                 err = ERROR_KEY_NEEDS_ARG;
                 break;
             }
-            tok = strbuf + sb;
-            if (line[pos] == '"') {
-                pos++;
-                for (;;) {
-                    char c = line[pos];
-                    if (!c || c == '\n') {
-                        err = ERROR_UNMATCHED_QUOTES;
-                        break;
-                    }
-                    pos++;
-                    if (c == '"')
-                        break;
-                    if (c == '*' && line[pos] && line[pos] != '\n') {
-                        c = line[pos++];
-                        if (c == 'N' || c == 'n')
-                            c = '\n';
-                        else if (c == 'E' || c == 'e')
-                            c = 0x1b;
-                    }
-                    strbuf[sb++] = c;
-                }
-                if (err)
+            if (f & TEMPLATE_TOGGLE) {
+                if (!_stricmp((const char *)tmp, "yes") || !_stricmp((const char *)tmp, "on"))
+                    array[kw] = DOSTRUE;
+                else if (!_stricmp((const char *)tmp, "no") || !_stricmp((const char *)tmp, "off"))
+                    array[kw] = 0;
+                else {
+                    err = ERROR_KEY_NEEDS_ARG;
                     break;
-            } else {
-                while (line[pos] && line[pos] != ' ' && line[pos] != '\t' && line[pos] != '\n')
-                    strbuf[sb++] = line[pos++];
+                }
+                filled[kw] = 1;
+                continue;
             }
-            strbuf[sb++] = '\0';
             target = kw;
         } else {
-            /* positional: the first free non-keyword item */
             target = -1;
-            for (LONG i = 0; i < num_items; i++) {
+            for (i = 0; i < num_items; i++) {
                 ULONG f = items[i].flags;
                 if (f & (TEMPLATE_KEYWORD | TEMPLATE_SWITCH | TEMPLATE_TOGGLE))
                     continue;
-                if ((f & TEMPLATE_MULTIPLE) || !array[i]) {
+                if ((f & TEMPLATE_MULTIPLE) || !filled[i]) {
                     target = i;
                     break;
                 }
@@ -8489,137 +8604,113 @@ struct RDArgs * _dos_ReadArgs ( register struct DosLibrary * DOSBase __asm("a6")
                 break;
             }
             if (items[target].flags & TEMPLATE_REST) {
-                LONG e;
-                sb = n0;
-                tok = strbuf + sb;
-                for (e = start; line[e] && line[e] != '\n'; e++)
-                    strbuf[sb++] = line[e];
-                while (sb > (tok - strbuf) && (strbuf[sb - 1] == ' ' || strbuf[sb - 1] == '\t'))
-                    sb--;
-                strbuf[sb++] = '\0';
-                array[target] = (LONG)tok;
-                pos = e;
+                LONG len = strlen((const char *)tmp);
+                STRPTR val;
+                if (term && len < RA_ITEM_LEN - 1)
+                    tmp[len++] = ' ';
+                _ra_read_rest(&src, tmp, len, RA_ITEM_LEN);
+                val = _ra_strdup(&mem, tmp);
+                if (!val) {
+                    err = ERROR_NO_FREE_STORE;
+                    break;
+                }
+                array[target] = (LONG)val;
+                filled[target] = 1;
                 continue;
             }
         }
 
-        /* store tok in item 'target' */
+        /* store the value in item 'target' */
         {
             ULONG f = items[target].flags;
+            APTR v;
+            if (f & TEMPLATE_NUMERIC)
+                v = _ra_number(DOSBase, &mem, (CONST_STRPTR)tmp, &err);
+            else {
+                v = _ra_strdup(&mem, tmp);
+                if (!v)
+                    err = ERROR_NO_FREE_STORE;
+            }
+            if (err)
+                break;
             if (f & TEMPLATE_MULTIPLE) {
                 if (target != multi_item || nmulti >= RA_MAX_MULTI) {
                     err = ERROR_LINE_TOO_LONG;
                     break;
                 }
-                multi[nmulti++] = tok;
-                array[target] = (LONG)TRUE;     /* marks "has values" for now */
-            } else if (f & TEMPLATE_NUMERIC) {
-                LONG v;
-                if (_str_to_long((CONST_STRPTR)tok, &v) != 0) {
-                    err = ERROR_BAD_NUMBER;
-                    break;
-                }
-                numeric_storage[target] = v;
-                array[target] = (LONG)&numeric_storage[target];
+                multi[nmulti++] = v;
             } else {
-                array[target] = (LONG)tok;
+                array[target] = (LONG)v;
             }
+            filled[target] = 1;
         }
     }
 
-    /* /M values go to the required items that follow the /M item */
     if (!err && multi_item >= 0) {
-        for (LONG i = num_items - 1; i > multi_item; i--) {
+        /* required items after the /M item take its last values */
+        for (i = multi_item + 1; i < num_items && nmulti > 1; i++) {
             ULONG f = items[i].flags;
-            if ((f & TEMPLATE_REQUIRED) && !array[i] &&
-                !(f & (TEMPLATE_KEYWORD | TEMPLATE_SWITCH | TEMPLATE_TOGGLE | TEMPLATE_MULTIPLE)) &&
-                nmulti > 0) {
-                STRPTR v = multi[--nmulti];
-                if (f & TEMPLATE_NUMERIC) {
-                    LONG n;
-                    if (_str_to_long((CONST_STRPTR)v, &n) != 0) {
-                        err = ERROR_BAD_NUMBER;
-                        break;
-                    }
-                    numeric_storage[i] = n;
-                    array[i] = (LONG)&numeric_storage[i];
-                } else {
-                    array[i] = (LONG)v;
-                }
+            if ((f & TEMPLATE_REQUIRED) && !filled[i] &&
+                !(f & (TEMPLATE_KEYWORD | TEMPLATE_SWITCH | TEMPLATE_TOGGLE | TEMPLATE_MULTIPLE))) {
+                array[i] = (LONG)multi[--nmulti];
+                filled[i] = 1;
             }
         }
-        if (!err) {
-            if (nmulti) {
-                if (items[multi_item].flags & TEMPLATE_NUMERIC) {
-                    LONG **arr = (LONG **)multi;
-                    for (LONG k = 0; k < nmulti && !err; k++) {
-                        LONG v = 0;
-                        if (_str_to_long((CONST_STRPTR)multi[k], &v) != 0)
-                            err = ERROR_BAD_NUMBER;
-                        numeric_storage[num_items + k] = v;
-                        arr[k] = &numeric_storage[num_items + k];
-                    }
-                }
-                multi[nmulti] = NULL;
-                array[multi_item] = (LONG)multi;
-            } else {
-                array[multi_item] = 0;
+        if (nmulti) {
+            APTR *m = (APTR *)_ra_alloc(&mem, (nmulti + 1) * sizeof(APTR));
+            if (!m)
+                err = ERROR_NO_FREE_STORE;
+            else {
+                for (i = 0; i < nmulti; i++)
+                    m[i] = multi[i];
+                m[nmulti] = NULL;
+                array[multi_item] = (LONG)m;
+                filled[multi_item] = 1;
             }
         }
     }
 
     if (!err) {
-        for (LONG i = 0; i < num_items; i++)
-            if ((items[i].flags & TEMPLATE_REQUIRED) && !array[i]) {
+        for (i = 0; i < num_items; i++)
+            if ((items[i].flags & TEMPLATE_REQUIRED) && !filled[i]) {
                 err = ERROR_REQUIRED_ARG_MISSING;
                 break;
             }
     }
 
+    FreeVec(items);
+
     if (err) {
-        FreeVec(strbuf);
-        FreeVec(multi);
-        FreeVec(numeric_storage);
-        FreeVec(arg_str);
-        FreeVec(src_node);
-        for (LONG i = 0; i < num_items; i++)
+        _ra_free_list(mem.list);
+        for (i = 0; i < num_items; i++)
             array[i] = 0;
         SetIoErr(err);
         return NULL;
     }
-    #undef RA_MAX_MULTI
 
-    /* the RDArgs owns the buffers (freed by FreeArgs()) */
-    struct RDArgs *result = args;
-    if (!result) {
-        result = (struct RDArgs *)AllocVec(sizeof(struct RDArgs), MEMF_ANY | MEMF_CLEAR);
-        if (result)
-            result->RDA_Flags |= RDAF_ALLOCATED_BY_READARGS;
-    }
+    /* the RDArgs owns the string space (freed by FreeArgs()) */
     {
-        APTR mem[4];
-        mem[0] = strbuf;
-        mem[1] = multi;
-        mem[2] = numeric_storage;
-        mem[3] = arg_str;
-        FreeVec(src_node);
+        struct RDArgs *result = args;
         if (!result) {
-            for (LONG k = 0; k < 4; k++)
-                FreeVec(mem[k]);
-            SetIoErr(ERROR_NO_FREE_STORE);
-            return NULL;
-        }
-        for (LONG k = 0; k < 4; k++) {
-            DANode *node = (DANode *)AllocVec(sizeof(DANode), MEMF_ANY);
-            if (node) {
-                node->memory = mem[k];
-                node->next = (DANode *)result->RDA_DAList;
-                result->RDA_DAList = (LONG)node;
+            result = (struct RDArgs *)AllocVec(sizeof(struct RDArgs), MEMF_ANY | MEMF_CLEAR);
+            if (!result) {
+                _ra_free_list(mem.list);
+                for (i = 0; i < num_items; i++)
+                    array[i] = 0;
+                SetIoErr(ERROR_NO_FREE_STORE);
+                return NULL;
             }
+            result->RDA_Flags |= RDAF_ALLOCATED_BY_READARGS;
         }
+        if (mem.list) {
+            DANode *last = mem.list;
+            while (last->next)
+                last = last->next;
+            last->next = (DANode *)result->RDA_DAList;
+            result->RDA_DAList = (LONG)mem.list;
+        }
+        return result;
     }
-
-    return result;
 }
 
 LONG _dos_FindArg ( register struct DosLibrary * DOSBase __asm("a6"),
@@ -8630,20 +8721,32 @@ LONG _dos_FindArg ( register struct DosLibrary * DOSBase __asm("a6"),
      * keyword)"; the NDK fd names them the other way round).  A keyword
      * matches any of an item's '='-separated names, case-insensitively and
      * never abbreviated (AmigaOS 3.1, Tests/Probes/dos/argparse). */
+    CONST_STRPTR p = arg_template;
+    LONG index = 0;
+
     DPRINTF (LOG_DEBUG, "_dos: FindArg() called, template='%s', keyword='%s'\n",
              STRORNULL(arg_template), STRORNULL(keyword));
 
     if (!keyword || !arg_template)
         return -1;
 
-    TemplateItem items[32];
-    LONG num_items = _parse_template(arg_template, items);
-
-    for (LONG i = 0; i < num_items; i++) {
-        if (_stricmp(items[i].name, (char *)keyword) == 0 ||
-            (items[i].alias[0] && _stricmp(items[i].alias, (char *)keyword) == 0)) {
-            return items[i].index;
+    for (;;) {
+        char names[RA_NAMES_LEN];
+        LONG i = 0;
+        while (*p && *p != ',' && *p != '/') {
+            if (*p != ' ' && *p != '\t' && i < RA_NAMES_LEN - 1)
+                names[i++] = *p;
+            p++;
         }
+        names[i] = '\0';
+        if (_ra_name_match(names, (const char *)keyword))
+            return index;
+        while (*p && *p != ',')
+            p++;
+        if (!*p)
+            break;
+        p++;
+        index++;
     }
 
     return -1;
@@ -8654,148 +8757,25 @@ LONG _dos_ReadItem ( register struct DosLibrary * DOSBase __asm("a6"),
                                                          register LONG maxchars __asm("d2"),
                                                          register struct CSource * cSource __asm("d3"))
 {
-    STRPTR buffer = (STRPTR)name;
-    STRPTR cursor = buffer;
-    LONG ch;
-    BPTR input_fh = 0;
+    /* maxchars == 0 is not special-cased: AmigaOS 3.1 consumes the first
+     * character of an item and reports ITEM_ERROR with an empty buffer.
+     * ';' ends an unquoted item (a comment follows), and reading past the
+     * end of a CSource is undone by the unread that follows it
+     * (Tests/Probes/dos/argparse). */
+    struct ra_src src;
 
     maxchars = (LONG)(WORD)maxchars; /* sign-extend: GCC m68k move.w workaround */
 
     DPRINTF (LOG_DEBUG, "_dos: ReadItem(buffer=%p, maxchars=%ld, cSource=%p) called.\n",
-             buffer, maxchars, cSource);
+             name, maxchars, cSource);
 
-    if (!buffer)
+    if (!name)
         return ITEM_NOTHING;
 
-    /* maxchars == 0 is not special-cased: AmigaOS 3.1 consumes the first
-     * character of an item and reports ITEM_ERROR with an empty buffer. */
-    if (!cSource)
-        input_fh = Input();
-
-#define READITEM_GET(c)                                                        \
-    do                                                                         \
-    {                                                                          \
-        if (cSource)                                                           \
-        {                                                                      \
-            if (cSource->CS_CurChr >= cSource->CS_Length)                      \
-                (c) = -1;                                                      \
-            else                                                               \
-                (c) = (UBYTE)cSource->CS_Buffer[cSource->CS_CurChr++];         \
-        }                                                                      \
-        else                                                                   \
-        {                                                                      \
-            (c) = _dos_FGetC(DOSBase, input_fh);                               \
-        }                                                                      \
-    } while (0)
-
-#define READITEM_UNGET(c)                                                      \
-    do                                                                         \
-    {                                                                          \
-        if (cSource)                                                           \
-            cSource->CS_CurChr--;                                              \
-        else if ((c) != -1)                                                    \
-            _dos_UnGetC(DOSBase, input_fh, (c));                               \
-    } while (0)
-
-    do
-    {
-        READITEM_GET(ch);
-    } while (ch == ' ' || ch == '\t');
-
-    if (!ch || ch == '\n' || ch == -1 || ch == ';')
-    {
-        *cursor = '\0';
-        if (ch != -1)
-            READITEM_UNGET(ch);
-        return ITEM_NOTHING;
-    }
-    else if (ch == '=')
-    {
-        *cursor = '\0';
-        return ITEM_EQUAL;
-    }
-    else if (ch == '"')
-    {
-        for (;;)
-        {
-            if (!maxchars)
-            {
-                if (cursor > buffer) cursor[-1] = '\0'; else *cursor = '\0';
-                return ITEM_NOTHING;
-            }
-
-            maxchars--;
-            READITEM_GET(ch);
-
-            if (ch == '*')
-            {
-                READITEM_GET(ch);
-                if (!ch || ch == '\n' || ch == -1)
-                {
-                    READITEM_UNGET(ch);
-                    *cursor = '\0';
-                    return ITEM_ERROR;
-                }
-                else if (ch == 'n' || ch == 'N')
-                {
-                    ch = '\n';
-                }
-                else if (ch == 'e' || ch == 'E')
-                {
-                    ch = 0x1b;
-                }
-            }
-            else if (!ch || ch == '\n' || ch == -1)
-            {
-                READITEM_UNGET(ch);
-                *cursor = '\0';
-                return ITEM_ERROR;
-            }
-            else if (ch == '"')
-            {
-                *cursor = '\0';
-                return ITEM_QUOTED;
-            }
-
-            *cursor++ = (UBYTE)ch;
-        }
-    }
-    else
-    {
-        if (!maxchars)
-        {
-            if (cursor > buffer) cursor[-1] = '\0'; else *cursor = '\0';
-            return ITEM_ERROR;
-        }
-
-        maxchars--;
-        *cursor++ = (UBYTE)ch;
-
-        for (;;)
-        {
-            if (!maxchars)
-            {
-                if (cursor > buffer) cursor[-1] = '\0'; else *cursor = '\0';
-                return ITEM_ERROR;
-            }
-
-            maxchars--;
-            READITEM_GET(ch);
-
-            if (!ch || ch == ' ' || ch == '\t' || ch == '\n' || ch == '=' || ch == -1)
-            {
-                if (ch != '=' && ch != ' ' && ch != '\t')
-                    READITEM_UNGET(ch);
-                *cursor = '\0';
-                return ITEM_UNQUOTED;
-            }
-
-            *cursor++ = (UBYTE)ch;
-        }
-    }
-
-#undef READITEM_GET
-#undef READITEM_UNGET
+    src.dosbase = DOSBase;
+    src.cs = cSource;
+    src.fh = cSource ? 0 : Input();
+    return _ra_read_item(&src, (STRPTR)name, maxchars, NULL);
 }
 
 LONG _dos_StrToLong ( register struct DosLibrary * DOSBase __asm("a6"),

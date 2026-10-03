@@ -1,0 +1,188 @@
+-- ReadArgs basics
+[FROM,TO] "a b\n" -> OK CurChr 4 | "a" | "b"
+[FROM,TO] "a\n" -> OK CurChr 2 | "a" | -
+[FROM,TO] "\n" -> OK CurChr 1 | - | -
+[FROM,TO] "a b c\n" -> FAIL IoErr 118
+[FROM,TO] "TO x y\n" -> OK CurChr 7 | "y" | "x"
+[FROM,TO] "to=x from=y\n" -> OK CurChr 12 | "y" | "x"
+[FROM,TO] "TO=x FROM y\n" -> OK CurChr 12 | "y" | "x"
+[FROM,TO] ""quoted arg" "with ""escapes"""\n" -> FAIL IoErr 118
+[FROM,TO] ""a*"b*n" c\n" -> OK CurChr 11 | "a"b
+" | "c"
+[FROM,TO] "a ; comment\n" -> OK CurChr 3 | "a" | -
+[FROM,TO] "  a   b  \n" -> OK CurChr 10 | "a" | "b"
+[FROM,TO] "a b" -> FAIL IoErr 118
+[FROM,TO] "a	b\n" -> OK CurChr 4 | "a" | "b"
+[FROM,TO] "=x\n" -> FAIL IoErr 120
+[FROM,TO] "TO\n" -> FAIL IoErr 117
+[FROM,TO] """ b\n" -> OK CurChr 5 | "" | "b"
+[FROM,TO] "a" -> FAIL IoErr 118
+[FROM,TO] "" -> OK CurChr 0 | - | -
+[FROM,TO] ""a"" -> OK CurChr 3 | "a" | -
+[FROM] "a" -> FAIL IoErr 118
+[FROM,TO,X] "a b" -> FAIL IoErr 118
+[FROM,TO,X,Y] "a" -> FAIL IoErr 118
+[FROM,TO] "a;b\n" -> OK CurChr 2 | "a" | -
+[FROM,TO] "a ;b\n" -> OK CurChr 3 | "a" | -
+[FROM,TO] ""a";x\n" -> OK CurChr 4 | "a" | -
+[FROM,TO] ";\n" -> OK CurChr 1 | - | -
+[FROM,TO] "a=b\n" -> OK CurChr 4 | "a" | "b"
+[FROM,TO] "a= b\n" -> OK CurChr 5 | "a" | "b"
+[FROM,TO] "TO= x\n" -> OK CurChr 6 | - | "x"
+[FROM,TO] "TO =x\n" -> OK CurChr 6 | - | "x"
+[FROM,TO] "TO = x\n" -> OK CurChr 7 | - | "x"
+[FROM,TO] "x=\n" -> OK CurChr 3 | "x" | -
+[FROM,TO] "a\nb\n" -> OK CurChr 2 | "a" | -
+[FROM,TO] "a b\nc\n" -> OK CurChr 4 | "a" | "b"
+[FROM,TO] "?\n" -> OK CurChr 2 | "?" | -
+[FROM,TO] "a"b c\n" -> OK CurChr 6 | "a"b" | "c"
+[FROM,TO] ""a"b c\n" -> FAIL IoErr 118
+[FROM,TO] ""unterminated\n" -> FAIL IoErr 120
+-- /A /K /S /T /N /F
+[FILE/A] "\n" -> FAIL IoErr 116
+[FILE/A] "x\n" -> OK CurChr 2 | "x"
+[FILE/A,OPT/S] "OPT\n" -> FAIL IoErr 116
+[FILE/A,OPT/S] "x OPT\n" -> OK CurChr 6 | "x" | T
+[FILE/A,OPT/S] "OPT x\n" -> OK CurChr 6 | "x" | T
+[FILE/A,OPT/S] "x opt=1\n" -> FAIL IoErr 118
+[NAME/K] "x\n" -> FAIL IoErr 118
+[NAME/K] "NAME x\n" -> OK CurChr 7 | "x"
+[NAME/K] "NAME=x\n" -> OK CurChr 7 | "x"
+[NAME/K] "NAME\n" -> FAIL IoErr 117
+[NAME/K/A] "\n" -> FAIL IoErr 116
+[ON/T] "ON\n" -> FAIL IoErr 117
+[ON/T] "ON=yes\n" -> OK CurChr 7 | T
+[ON/T] "ON=no\n" -> OK CurChr 6 | F
+[ON/T] "ON=OFF\n" -> OK CurChr 7 | F
+[ON/T] "ON=1\n" -> FAIL IoErr 117
+[ON/T] "\n" -> OK CurChr 1 | F
+[NUM/N] "42\n" -> OK CurChr 3 | 42
+[NUM/N] "-17\n" -> OK CurChr 4 | -17
+[NUM/N] "+5\n" -> FAIL IoErr 115
+[NUM/N] "12abc\n" -> FAIL IoErr 115
+[NUM/N] "abc\n" -> FAIL IoErr 115
+[NUM/N] "0x10\n" -> FAIL IoErr 115
+[NUM/N] "\n" -> OK CurChr 1 | -
+[NUM/N] "2147483648\n" -> OK CurChr 11 | -2147483648
+[NUM/N/A] "\n" -> FAIL IoErr 116
+[NUM/K/N] "NUM 7\n" -> OK CurChr 6 | 7
+[NUM/K/N] "NUM=-3\n" -> OK CurChr 7 | -3
+[REST/F] "a b c\n" -> OK CurChr 6 | "a b c"
+[REST/F] "  "a" b ; c\n" -> OK CurChr 12 | "a b ; c"
+[X,REST/F] "a b c\n" -> OK CurChr 6 | "a" | "b c"
+[REST/F,X] "a b c\n" -> OK CurChr 6 | "a b c" | -
+[X/K,REST/F] "X=1 a b\n" -> OK CurChr 8 | "1" | "a b"
+[X/K,REST/F] "a b X=1\n" -> OK CurChr 8 | - | "a b X=1"
+[FILE/A,OPT/S] "x OPT OPT\n" -> OK CurChr 10 | "x" | T
+[FILE/A,OPT/S] "x OPT=\n" -> OK CurChr 7 | "x" | T
+[NAME/K] "NAME="x y"\n" -> OK CurChr 11 | "x y"
+[NAME/K] "NAME= x\n" -> OK CurChr 8 | "x"
+[NAME/K] "NAME=\n" -> FAIL IoErr 117
+[NAME/K] "NAME=x NAME=y\n" -> FAIL IoErr 118
+[ON/T] "ON=TRUE\n" -> FAIL IoErr 117
+[ON/T] "ON=FALSE\n" -> FAIL IoErr 117
+[ON/T] "ON yes\n" -> OK CurChr 7 | T
+[ON/T] "ON=Yes\n" -> OK CurChr 7 | T
+[ON/T] "ON=on\n" -> OK CurChr 6 | T
+[ON/T] "ON=y\n" -> FAIL IoErr 117
+[ON/T] "ON="yes"\n" -> OK CurChr 9 | T
+[ON/T] "ON=yes ON=no\n" -> FAIL IoErr 118
+[ON/T] "yes\n" -> FAIL IoErr 118
+[ON/T,X] "ON=no x\n" -> FAIL IoErr 117
+[NUM/N] "007\n" -> OK CurChr 4 | 7
+[NUM/N] "-0\n" -> OK CurChr 3 | 0
+[NUM/N] "-\n" -> FAIL IoErr 115
+[NUM/N] "+\n" -> FAIL IoErr 115
+[NUM/N] "1 2\n" -> FAIL IoErr 118
+[NUM/N] "-2147483648\n" -> OK CurChr 12 | -2147483648
+[NUM/N] "4294967296\n" -> FAIL IoErr 115
+[NUM/N] ""42"\n" -> OK CurChr 5 | 42
+[NUM/N] """\n" -> FAIL IoErr 115
+[NUM/N] " 42 \n" -> OK CurChr 5 | 42
+[REST/F] "a "b c" d\n" -> OK CurChr 10 | "a "b c" d"
+[REST/F] ""a b" c\n" -> OK CurChr 8 | "a b c"
+[REST/F] "a*"b c\n" -> OK CurChr 7 | "a*"b c"
+[REST/F] ""a*nb" c\n" -> OK CurChr 9 | "a
+b c"
+[REST/F] "a ; c\n" -> OK CurChr 6 | "a ; c"
+[REST/F] ""a"\n" -> OK CurChr 4 | "a"
+[REST/F] "a  b   c\n" -> OK CurChr 9 | "a  b   c"
+[REST/F] "a "b\n" -> OK CurChr 5 | "a "b"
+[REST/F] "a=b c\n" -> OK CurChr 6 | "a b c"
+[REST/F] "\n" -> OK CurChr 1 | -
+[REST/F] "  \n" -> OK CurChr 3 | -
+[REST/F/A] "\n" -> FAIL IoErr 116
+[X,REST/F] "x "y" ; z\n" -> OK CurChr 7 | "y" | -
+[X/K,REST/F] "X="1" a\n" -> OK CurChr 8 | "1" | "a"
+[REST/F,X/K] "a X=1\n" -> OK CurChr 6 | "a X=1" | -
+[REST/F,X/S] "X a\n" -> OK CurChr 4 | "a" | T
+[REST/F] "a b=c\n" -> OK CurChr 6 | "a b=c"
+[REST/F] "a	b\n" -> OK CurChr 4 | "a b"
+[REST/F] "a=b=c\n" -> OK CurChr 6 | "a b=c"
+[REST/F] ""a"  b\n" -> OK CurChr 7 | "a  b"
+[REST/F] ""a"=b\n" -> OK CurChr 6 | "a=b"
+[REST/F] "a b  \n" -> OK CurChr 6 | "a b"
+[REST/F] "a	 b\n" -> OK CurChr 5 | "a  b"
+[REST/F] "=a b\n" -> FAIL IoErr 120
+[REST/F] """ a\n" -> OK CurChr 5 | " a"
+[REST/F] "REST a b\n" -> OK CurChr 9 | "a b"
+[REST/F] "REST=a b\n" -> OK CurChr 9 | "a b"
+[REST/F] "REST "a" b\n" -> OK CurChr 11 | ""a" b"
+[X,REST/F] "1 "a" b\n" -> OK CurChr 8 | "1" | "a b"
+[ON/T/A] "\n" -> FAIL IoErr 116
+[ON/T/A] "ON=no\n" -> OK CurChr 6 | F
+[OPT/S/A] "OPT\n" -> FAIL IoErr 116
+-- /M
+[FILES/M] "a b c\n" -> OK CurChr 6 | {"a","b","c"}
+[FILES/M] "\n" -> OK CurChr 1 | -
+[FILES/M/A] "\n" -> FAIL IoErr 116
+[FILES/M,TO/A] "a b c\n" -> OK CurChr 6 | {"a","b"} | "c"
+[FILES/M,TO/A] "a\n" -> FAIL IoErr 116
+[FILES/M,TO/K] "a b TO c\n" -> OK CurChr 9 | {"a","b"} | "c"
+[FILES/M,TO/K] "a TO c b\n" -> OK CurChr 9 | {"a","b"} | "c"
+[FILES/M,ALL/S] "a ALL b\n" -> OK CurChr 8 | {"a","b"} | T
+[FILES/M/N] "1 2 3\n" -> OK CurChr 6 | {1,2,3}
+[FILES/M/N] "1 x 3\n" -> FAIL IoErr 115
+[A/A,FILES/M,B/A] "1 2 3 4\n" -> OK CurChr 8 | "1" | {"2","3"} | "4"
+[A/A,FILES/M,B/A] "1 2\n" -> FAIL IoErr 116
+[FILES/M,A/A,B/A] "a b\n" -> FAIL IoErr 116
+[FILES/M,A/A,B/A] "a b c\n" -> FAIL IoErr 116
+[FILES/M,A/A,B/A] "a\n" -> FAIL IoErr 117
+[FILES/M,TO/A] "a b\n" -> OK CurChr 4 | {"a"} | "b"
+[FILES/M/A,TO/A] "a\n" -> FAIL IoErr 116
+[FILES/M/A,TO/A] "a b\n" -> OK CurChr 4 | {"a"} | "b"
+[FILES/M,P/A,Q/A] "1 2 3\n" -> OK CurChr 6 | {"1"} | "3" | "2"
+[FILES/M,P/A,Q/A] "1 2 3 4\n" -> OK CurChr 8 | {"1","2"} | "4" | "3"
+[FILES/M,P/A,Q/A] "1 2\n" -> FAIL IoErr 116
+[FILES/M,P/A,Q] "1 2 3\n" -> OK CurChr 6 | {"1","2"} | "3" | -
+[FILES/M,Q,P/A] "1 2 3\n" -> OK CurChr 6 | {"1","2"} | - | "3"
+[FILES/M,TO] "FILES a b\n" -> OK CurChr 10 | {"a","b"} | -
+[FILES/M,TO] "a FILES b\n" -> OK CurChr 10 | {"a","b"} | -
+[FILES/M,TO] "a TO b c\n" -> OK CurChr 9 | {"a","c"} | "b"
+[FILES/M,TO/A,X/K] "a b X 1\n" -> OK CurChr 8 | {"a"} | "b" | "1"
+[FILES/M/N,TO/A] "1 x\n" -> FAIL IoErr 115
+[A/A,FILES/M,B/A] "1 2 3\n" -> OK CurChr 6 | "1" | {"2"} | "3"
+[FILES/M,TO/K,DEST/A] "a b\n" -> OK CurChr 4 | {"a"} | - | "b"
+[FILES/M,TO] "a b\n" -> OK CurChr 4 | {"a","b"} | -
+[X,FILES/M,TO/A] "a b\n" -> FAIL IoErr 116
+[FILES/M] ""a b" c\n" -> OK CurChr 8 | {"a b","c"}
+[FILES/M] "a;b\n" -> OK CurChr 2 | {"a"}
+-- aliases and errors
+[Q=QUIET/S,F=FILE] "Q x\n" -> OK CurChr 4 | T | "x"
+[Q=QUIET/S,F=FILE] "quiet f=x\n" -> OK CurChr 10 | T | "x"
+[Q=QUIET/S,F=FILE] "FILE x\n" -> OK CurChr 7 | F | "x"
+[FROM,TO] "a b c d\n" -> FAIL IoErr 118
+[A/S,B/S] "A A\n" -> OK CurChr 4 | T | F
+[FILE] "FILE=\n" -> FAIL IoErr 117
+[A/X] "a\n" -> FAIL IoErr 117
+[A,,B] "1 2\n" -> OK CurChr 4 | "1" | "2" | -
+[] "\n" -> OK CurChr 1
+[] "x\n" -> OK CurChr 2
+[] "x y\n" -> FAIL IoErr 118
+[] "=\n" -> FAIL IoErr 120
+[] ""x\n" -> FAIL IoErr 120
+[] "x=y\n" -> FAIL IoErr 118
+[] "" -> OK CurChr 0
+[A=B=C] "c 1\n" -> OK CurChr 4 | "1"
+[A/K/S] "A\n" -> OK CurChr 2 | T
+[FROM,TO/A/S] "TO\n" -> FAIL IoErr 116
