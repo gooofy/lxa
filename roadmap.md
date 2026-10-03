@@ -115,7 +115,7 @@ M0 and M1 are on the critical path: nothing in M2 and later is efficient without
 
 ## Next Phase
 
-> **Phase 222 — API conformance probes** (222d/e and 222f running), then **Phase 225 — ROM font fidelity**, then M3 (237, 238, 234, 236).
+> **Phase 222 — API conformance probes** (222a, 222b remainder, 222g), **Phase 225 — ROM font fidelity** (incl. the missing ROM topaz 9), then M3 (237 in progress, 238, 234, 236).
 
 ---
 
@@ -140,23 +140,15 @@ Complete (Phases 210–216, v0.11.9); see the summary table.
   - Open from Phase 221: `OpenLibrary("exec.library")` fails on lxa; `CacheControl()` is partial; C:Copy onto itself does not report "object in use"; C:Sort NUMERIC/COLSTART are not order-stable on equal keys on 3.1 (lxa is); lxa's graphics/intuition report revision 40.1 (3.1: 40.24/40.85) and differ in their `$VER` date strings.
   - Open from the Phase 220 dos triage: `ReadArgs()` must read the command line from `Input()`'s buffer, not `pr_Arguments`; `Output()` buffering differs from AmigaOS (visible when stdio and dos output are mixed); `NameFromLock()` returns `SYS:` instead of the volume name; RawDoFmt's stray NUL after zero-padded negative numbers (`%05ld`) is not emulated.
 - [x] **222b/c** done (v0.11.18): probes `graphics/{lines,areas,blits,text}`, `layers/{cliprects,refresh}` equal the reference.
+- [x] **222d/e/f** done (v0.11.22): probes `intuition/{windows,screens,requesters,reqlayout,strgad}`, `gadtools/{gadgets_topaz8,menus}`, `locale/*`, `keymap/*`, `iffparse/*`, `icon/*`, `diskfont/*`, `clipboard` equal the reference; RequesterBasic, IDCMPDeltaMove and keymap_unit validated on 3.1 by scenario.
 - [ ] **222b** remainder: `tests/exec/library_lxa` sections that still differ from 3.1 (GEL animation `AddAnimOb`/`RemIBob`, `CMove`, `CalcIVG` beyond 40 copper instructions, sprite allocation, `VTAG_IMMEDIATE` and unset `VTAG_*_GET` values); PaletteExtra keeps 16-bit refcount/allocation arrays where 3.1 has 8-bit ones; `IEEESPMul`/`IEEESPDiv` never return on the reference (check FS-UAE's FPU emulation before trusting it: `Tests/Exec/MathIeeeSingBasMulDiv` is lxa_only until then). Not emulated yet: the accumulator values `BitMapScale` writes back, `WritePixelArray8` destroying its input, exact ClipRect order (only the covered areas are compared).
-- [ ] **222d** (from Phase 224) requesters get their own layer on 3.1 (`ReqLayer` != `WLayer`); `EndRequest()` clears `ReqLayer` but not `RWindow` - fix, then validate `tests/scenarios/interactive/RequesterBasic.yaml`.
-- [ ] **222d** (from Phase 224) `IDCMP_DELTAMOVE` reports deltas and positions in Intuition's internal pointer resolution on 3.1 (a 10/5 pixel move on a 640x256 hires screen reports 20/10; lxa reports pixels) - then validate `tests/scenarios/interactive/IDCMPDeltaMove.yaml` on both systems and promote it.
-- [ ] **222d** (from Phase 223) `AutoRequest()` requester sizing rule; where a requester opens when the pointer is not at 0,0; minimum gap between requester buttons; whether `SHOWTITLE` defaults on for NewScreen-opened screens (DirectoryOpus golden).
-- [ ] **222d** intuition geometry: border sizes per flag combination, `WA_*` tag effects, requester layout, `EasyRequest` layout, screen title bar. Includes the `OpenWindowTags` defaults seen in the `simplegad`/`simplegtgadget` goldens: untitled window `Title` is `""` not NULL, `MaxWidth`/`MaxHeight` default to the window size (not 65535) without a sizing gadget, `WFLG_VISITOR` on public screens, system gadget type bits (close gadget `0x8085`).
-- [ ] **222e** (from Phase 224) the `dpaintv-startup` golden (Screen Format dialog) records 130 gadget tree diffs and the mode list under Phase 240: re-promote once 222e lands and move what remains to 240/241.
-- [ ] **222d** (from Phase 224) 3.1 sets `GACT_BORDERSNIFF` (0x8000) in `Activation` of border gadgets (DOpus, Devpac goldens); the Typeface golden shows a gadget with ID 0 in both windows that lxa lacks.
-- [ ] **222d** (from Phase 224) string gadgets: `RefreshGList` after the application changed `StringInfo->Buffer` draws nothing on lxa (stale `NumChars`, `DispPos` ignored, text at left+2 / centred instead of left / baseline) - DOpus path fields stay empty.
-- [ ] **222e** (from Phase 223) GadTools gadget internals still differ in the tree (label gadgets, `GFLG_IMAGEDISABLE`/extended flags, frame images as gadget render) - known diffs of the gallery-gt-* and GadToolsGadgets goldens.
-- [ ] **222e** gadtools: `CreateGadget` resulting geometry for every kind, font and flag combination; `CreateMenus`/`LayoutMenus` item geometry. Includes finding starter-4: GadTools gadgets lack `GTYP_GADTOOLS` (0x0100) and the zero-size context gadget.
-- [ ] **222f** clipboard.device holds off writes while a read is unfinished (3.1) - lxa does not.
-- [ ] **222f** locale, keymap (`MapRawKey`/`MapANSI` over all keys and qualifiers), iffparse, icon, diskfont. Includes re-enabling `ConsoleTest.DISABLED_KeymapUnit` (`console_gtest.cpp`): `keymap_unit` terminates silently (rc 0, no output) inside `CD_ASKDEFAULTKEYMAP` on a `CONU_LIBRARY` open.
-
+- [ ] **222g** known tree diffs still recorded in goldens under phase 222: `WFLG_WINDOWTICKED` on windows with a pending tick (DevPac, Typeface), menu/item drawn-state flags (DevPac settings, Typeface preview), `GA_RelWidth`/`GA_RelHeight` flags (setting them stops BGUI drawing Typeface's character buttons - find out why first). Requester buttons are BOOPSI gadgets plus a frame gadget on 3.1 (see 252). Unverified on the reference: GadTools vertical prop drag, scroller-arrow repeat.
+- [ ] **222g** from the 222f probes: `CMD_RESET` on clipboard.device never replies on 3.1; `OpenLocale()` does not parse locale prefs files yet (also 236); a diskfont scaled from an already scaled font in memory; the iffparse probes print non-printable bytes as `~` because the lxa side of `suite-ref` cuts output at the first NUL (make the harness binary-safe).
 **Test gate per sub-phase**: probe outputs equal the reference goldens.
 
 ### Phase 225 — ROM font fidelity
 **Class**: Compatibility. Every gallery page (Phase 223) still differs from AmigaOS 3.1 only in text: lxa's built-in topaz 8/9 glyphs are not the 3.1 ROM font's, and disk fonts render 1 px wider in places.
+- [ ] lxa's ROM has no topaz 9 at all: 3.1 returns it for `OpenFont(topaz 9)` and for unknown topaz sizes without disk fonts (diskfont probes); the DPaint golden's remaining listview diffs come from it.
 - [ ] Make lxa's ROM topaz 8 and topaz 9 bitmaps (glyph data, kerning/spacing tables, `tf_*` fields) identical to what AmigaOS 3.1 reports and draws - derive them by rendering every glyph on the reference (`Text()` into a bitmap, `TextExtent()`), never from Kickstart images (clean-room).
 - [ ] Disk fonts (`OpenDiskFont`): fix the 1 px text-width differences against the reference (spacing/kerning tables, `TextLength`/`TextExtent`).
 - [ ] Algorithmic styles (bold/italic/underline) pixel-identical to the reference.
