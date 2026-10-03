@@ -22,6 +22,10 @@ A scenario is one YAML file, executed unchanged on both backends:
       - type: "hello"
       - key: {rawkey: 0x44, qualifier: 0}
       - snapshot: startup               # or {name: x, window: "title"}
+      - press: {anchor: size_gadget, window: "x", button: L}   # mouse button down
+      - move: {anchor: size_gadget, window: "x", xy: [40, 20]} # (anchor: title|inside|
+      - release: {xy: [300, 200], button: L}                    #  size_gadget|center)
+      - wait_output: "READY"            # until stdout contains the text ({text, timeout})
       - menus                           # open every menu of the window (RMB held on
                                         # its title), snapshot "menu<N>", cancel
                                         # (or {window: "title"}) - Phase 231
@@ -46,7 +50,8 @@ APPS_META = os.path.join(ROOT, "apps")
 APPS_DIR = os.environ.get("LXA_APPS", os.path.normpath(os.path.join(ROOT, "..", "lxa-apps")))
 
 STEP_KINDS = {"launch", "wait_window", "wait_idle", "frames", "click", "menu", "type",
-              "key", "snapshot", "quit", "trace", "menus"}
+              "key", "snapshot", "quit", "trace", "menus", "move", "press", "release",
+              "wait_output"}
 
 # assigns that exist on a stock system and are extended, not replaced
 SYSTEM_ASSIGNS = {"LIBS", "FONTS", "DEVS", "S", "L", "C", "KEYMAPS", "LOCALE", "HELP",
@@ -85,6 +90,8 @@ def normalise_step(step):
         args = {"rawkey": int(arg)}
     elif kind == "trace":
         args = {"spec": str(arg)}
+    elif kind == "wait_output":
+        args = {"text": str(arg)}
     else:
         raise ScenarioError("step %s takes a mapping, got %r" % (kind, arg))
     return kind, args

@@ -1,0 +1,12 @@
+Testing IDCMP_SIZEVERIFY...
+OK: Screen opened
+OK: Window opened with SIZEVERIFY|NEWSIZE
+READY: click sizing gadget
+  OK: IDCMP_SIZEVERIFY received
+Test 2: No SIZEVERIFY without flag...
+READY: click sizing gadget again
+  OK: Got only NEWSIZE (no SIZEVERIFY)
+  OK: No SIZEVERIFY without flag
+OK: Window closed
+OK: Screen closed
+PASS: idcmp_sizeverify all tests passed

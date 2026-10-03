@@ -1,0 +1,14 @@
+# Phase 224: Tests/Console/setmode validated on AmigaOS 3.1 with the input console_gtest
+# injects; stdout must match on both systems.
+name: interactive-setmode
+app:
+  sample: Tests/Console/setmode
+steps:
+  - launch
+  - wait_output: "Waiting for RAW input: a"
+  - click: {anchor: inside, xy: [10, 4]}
+  - type: "a"
+  - wait_output: "Waiting for RAW input after CON mode: b"
+  - type: "b"
+  - frames: 50
+  - snapshot: {name: end, screen: false}

@@ -1,0 +1,12 @@
+# Phase 224: Tests/Intuition/IDCMPMenuVerify validated on AmigaOS 3.1 with the input intuition_gtest
+# injects; stdout must match on both systems.
+name: interactive-IDCMPMenuVerify
+app:
+  sample: Tests/Intuition/IDCMPMenuVerify
+steps:
+  - launch
+  - wait_output: "READY: press RMB"
+  - press: {anchor: menubar, button: R}
+  - release: {anchor: menubar, button: R}
+  - frames: 50
+  - snapshot: {name: end, screen: false}

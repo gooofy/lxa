@@ -1,0 +1,24 @@
+SetMode Test
+============
+
+Test 1: SetMode(1) switches to RAW mode
+Waiting for RAW input: a
+  PASS: Raw mode immediate read
+
+Test 2: SetMode(0) returns to CON mode
+  PASS: SetMode to CON mode
+
+Test 3: SetMode(1) can restore RAW mode after CON mode
+Waiting for RAW input after CON mode: b
+  PASS: Raw mode restored after CON mode
+
+Test 4: SetMode(2) is accepted
+  PASS: Medium mode accepted
+
+Test 5: Other mode values are accepted
+  PASS: Other mode value accepted
+
+Test 6: Regular files reject SetMode
+  PASS: Regular file SetMode rejection
+
+Failed: 0

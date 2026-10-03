@@ -1,0 +1,12 @@
+# Phase 224: Tests/Console/kp2_test validated on AmigaOS 3.1 with the input console_gtest
+# injects; stdout must match on both systems.
+name: interactive-kp2_test
+app:
+  sample: Tests/Console/kp2_test
+steps:
+  - launch
+  - wait_output: "Injecting '1', '0', '0', Return"
+  - click: {anchor: inside, xy: [10, 4]}
+  - type: "100\n"
+  - frames: 50
+  - snapshot: {name: end, screen: false}

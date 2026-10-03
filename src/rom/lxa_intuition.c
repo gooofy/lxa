@@ -13715,7 +13715,10 @@ LONG _intuition_SysReqHandler ( register struct IntuitionBase * IntuitionBase __
             
             ReplyMsg((struct Message *)msg);
             
-            if (idcmpFlags) *idcmpFlags = class;
+            /* AmigaOS 3.1: the class is stored only for an event the caller
+             * has to handle - a gadget that ends the requester leaves it
+             * untouched (reference: RequesterBasic) */
+            if (idcmpFlags && class != IDCMP_GADGETUP) *idcmpFlags = class;
             
             if (class == IDCMP_GADGETUP)
             {

@@ -819,6 +819,11 @@ static void button(char b, BOOL down)
     send_event(&ie);
 }
 
+/* the keyboard's key-down history: real RAWKEY events carry the previous
+ * two key downs (ie_Prev1Down*, ie_Prev2Down*; IntuiMessage IAddress
+ * points at them) - injected events must too */
+static UBYTE kb_p1c, kb_p1q, kb_p2c, kb_p2q;
+
 static void rawkey(UWORD code, UWORD qual)
 {
     struct InputEvent ie;
@@ -826,9 +831,21 @@ static void rawkey(UWORD code, UWORD qual)
     ie.ie_Class = IECLASS_RAWKEY;
     ie.ie_Code = code;
     ie.ie_Qualifier = qual;
+    ie.ie_Prev1DownCode = kb_p1c;
+    ie.ie_Prev1DownQual = kb_p1q;
+    ie.ie_Prev2DownCode = kb_p2c;
+    ie.ie_Prev2DownQual = kb_p2q;
     send_event(&ie);
+    kb_p2c = kb_p1c;
+    kb_p2q = kb_p1q;
+    kb_p1c = (UBYTE)code;
+    kb_p1q = (UBYTE)qual;
     delay_ticks(1);
     ie.ie_Code = code | IECODE_UP_PREFIX;
+    ie.ie_Prev1DownCode = kb_p1c;
+    ie.ie_Prev1DownQual = kb_p1q;
+    ie.ie_Prev2DownCode = kb_p2c;
+    ie.ie_Prev2DownQual = kb_p2q;
     send_event(&ie);
     delay_ticks(1);
 }

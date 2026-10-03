@@ -1,0 +1,12 @@
+# Phase 224: Tests/Console/input_inject validated on AmigaOS 3.1 with the input console_gtest
+# injects; stdout must match on both systems.
+name: interactive-input_inject
+app:
+  sample: Tests/Console/input_inject
+steps:
+  - launch
+  - wait_output: "Waiting for RAWKEY"
+  - click: {anchor: inside, xy: [10, 4]}
+  - type: "ABC"
+  - frames: 50
+  - snapshot: {name: end, screen: false}

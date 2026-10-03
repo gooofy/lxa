@@ -11,5 +11,5 @@
 - {match: '^window\.(border|count|flags|min_|max_|title)', phase: 222, why: "222d: OpenWindowTags defaults and border geometry"}
 - {match: '^(menu|item)[ .]', phase: 222, why: "222e/222d: menu and item layout (LayoutMenusA, SetMenuStrip)"}
 - {match: '^gadget[ .]', phase: 222, why: "222e: GadTools gadget creation and geometry"}
-- {match: 'Text\(\) strings missing in lxa', phase: 231, why: "per-app missing content, triaged per app"}
-- {match: 'stdout differs', phase: 231, why: "per-app output, triaged per app"}
+- {match: 'Text\(\) strings missing in lxa', phase: 238, why: "per-app missing content, triaged per app"}
+- {match: 'stdout differs', phase: 238, why: "per-app output, triaged per app"}

@@ -627,14 +627,14 @@ LONG _console_SetMode(struct IOStdReq *iostd, LONG mode)
             break;
 
         case 1:
+        default:
+            /* AmigaOS 3.1 accepts any other mode as well (reference: SetMode
+             * with 99 succeeds) - like RAW, as for 1 */
             if (unit->line_mode) {
                 input_buf_clear(unit);
             }
             unit->line_mode = FALSE;
             break;
-
-        default:
-            return FALSE;
     }
 
     return TRUE;

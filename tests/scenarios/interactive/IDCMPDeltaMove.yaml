@@ -1,0 +1,14 @@
+# Phase 224: Tests/Intuition/IDCMPDeltaMove validated on AmigaOS 3.1 with the input intuition_gtest
+# injects; stdout must match on both systems.
+name: interactive-IDCMPDeltaMove
+app:
+  sample: Tests/Intuition/IDCMPDeltaMove
+steps:
+  - launch
+  - wait_output: "READY: inject mouse moves"
+  - move: {anchor: inside, xy: [96, 39]}
+  - move: {anchor: inside, xy: [106, 44]}
+  - wait_output: "READY: inject absolute moves"
+  - move: {anchor: inside, xy: [126, 59]}
+  - frames: 50
+  - snapshot: {name: end, screen: false}
