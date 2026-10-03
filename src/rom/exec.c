@@ -4104,7 +4104,11 @@ struct Library * _exec_OpenLibrary ( register struct ExecBase *SysBase __asm("a6
 
     if (lib)
     {
-        if (lib->lib_Version < version)
+        /* AmigaOS 3.1 compares the versions as signed words: the high word
+         * of the requested version is ignored and 0x8000.. 0xffff mean
+         * "any" (tests/probes/exec/openlibver.c; Fred Fish AddPower asks
+         * for version -1) */
+        if ((WORD)lib->lib_Version < (WORD)version)
         {
             DPRINTF (LOG_DEBUG, "_exec: OpenLibrary version is too old: lib->lib_Version=%ld, version=%ld\n", lib->lib_Version, version);
             return NULL;
@@ -4245,7 +4249,7 @@ struct Library * _exec_OpenLibrary ( register struct ExecBase *SysBase __asm("a6
                 /* Initialize the library using InitResident */
                 lib = (struct Library *)InitResident(res, segList);
 
-                if (lib && lib->lib_Version >= version)
+                if (lib && (WORD)lib->lib_Version >= (WORD)version)
                 {
                     /* Call the library's Open function */
                     struct JumpVec *jv = &(((struct JumpVec *)(lib))[-1]);
@@ -4254,7 +4258,7 @@ struct Library * _exec_OpenLibrary ( register struct ExecBase *SysBase __asm("a6
 
                     DPRINTF (LOG_DEBUG, "_exec: OpenLibrary: successfully loaded %s from disk, lib=0x%08lx\n", libName, lib);
                 }
-                else if (lib && lib->lib_Version < version)
+                else if (lib && (WORD)lib->lib_Version < (WORD)version)
                 {
                     DPRINTF (LOG_DEBUG, "_exec: OpenLibrary: loaded library version %ld < requested %ld\n",
                              lib->lib_Version, version);
