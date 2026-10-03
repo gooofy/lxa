@@ -2529,7 +2529,7 @@ BOOL _gadtools_RenderGadget(register struct Window *win __asm("a0"),
             {
                 WORD len = gt_strlen(s);
                 WORD tl = TextLength(rp, s, len);
-                gt_draw_text(rp, L + 20 + ((W - 20 - tl) >> 1), T + ((H - fh + 1) >> 1), s, len,
+                gt_draw_text(rp, L + 20 + ((W - 20 - tl + 1) >> 1), T + ((H - fh + 1) >> 1), s, len,
                              sel ? pens[FILLTEXTPEN] : pens[TEXTPEN], -1);
             }
             gt_draw_label_chain(rp, mg, mgl, mgt, data, pens);
