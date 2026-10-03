@@ -598,28 +598,39 @@ static struct Library *exec_register_resident_node(struct ExecBase *SysBase,
     struct InitTable *init_tab = (struct InitTable *)resident->rt_Init;
     struct Library *lib_base = MakeLibrary(init_tab->FunctionTable,
                                            init_tab->DataTable,
-                                           init_tab->InitLibFn,
+                                           NULL,
                                            init_tab->LibBaseSize,
                                            seg_list);
 
     if (lib_base)
     {
         /*
-         * Copy standard fields from the Resident structure into the
-         * Library node. Real AmigaOS / AROS does this in InitResident
-         * regardless of whether the InitLibFn already touched them.
-         * The library's own InitLibFn may have set some of these via
-         * its DataTable, but the Resident is the canonical source for
-         * Type, Pri, Name, IdString, and Version.
+         * AmigaOS 3.1 (probe exec/initresident): after the data table,
+         * before the init function, the Resident sets ln_Type, ln_Name,
+         * lib_Version and lib_IdString (overriding the data table) and
+         * lib_Flags = LIBF_SUMUSED|LIBF_CHANGED; ln_Pri stays as the data
+         * table left it.  The init function may change any of them (the
+         * 3.1 mathieeesingbas clears its IdString) or fail (NULL); then the
+         * library is added with AddLibrary/AddDevice/AddResource.
          */
         lib_base->lib_Node.ln_Type = resident->rt_Type;
-        lib_base->lib_Node.ln_Pri  = resident->rt_Pri;
         lib_base->lib_Node.ln_Name = resident->rt_Name;
-        lib_base->lib_IdString     = (APTR)resident->rt_IdString;
+        lib_base->lib_Flags        = LIBF_SUMUSED | LIBF_CHANGED;
         lib_base->lib_Version      = resident->rt_Version;
+        lib_base->lib_IdString     = (APTR)resident->rt_IdString;
 
-        if (target_list)
-            AddTail(target_list, (struct Node *)lib_base);
+        if (init_tab->InitLibFn)
+            lib_base = ((libInitFn_t)init_tab->InitLibFn)(lib_base, seg_list, SysBase);
+
+        if (lib_base && target_list)
+        {
+            if (target_list == &SysBase->LibList)
+                AddLibrary(lib_base);
+            else if (target_list == &SysBase->DeviceList)
+                AddDevice((struct Device *)lib_base);
+            else
+                AddResource(lib_base);
+        }
     }
 
     return lib_base;

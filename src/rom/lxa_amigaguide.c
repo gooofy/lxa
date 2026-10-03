@@ -24,9 +24,9 @@
 #include "util.h"
 
 #define VERSION    40
-#define REVISION   1
+#define REVISION   4
 #define EXLIBNAME  "amigaguide"
-#define EXLIBVER   " 40.1 (2026/03/21)"
+#define EXLIBVER   " 40.4 (10.6.93)\r\n"
 
 char __aligned _g_amigaguide_ExLibName [] = EXLIBNAME ".library";
 char __aligned _g_amigaguide_ExLibID   [] = EXLIBNAME EXLIBVER;
