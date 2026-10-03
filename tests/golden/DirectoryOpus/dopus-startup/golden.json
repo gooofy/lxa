@@ -11,7 +11,7 @@
    "ignore_regions": [
     {
      "h": 140,
-     "phase": 224,
+     "phase": 238,
      "w": 80,
      "why": "lxa lists a host directory there (file sizes and free space change with every build); the reference shows the pane empty ('Directory not available' finding)",
      "x": 560,
@@ -31,7 +31,7 @@
      "field": "activation",
      "kind": "gadget",
      "lxa": 1,
-     "phase": 224,
+     "phase": 222,
      "ref": 32769,
      "where": "screen[DOPUS.1]/window[DOPUS.1]/gadget[6 id=53]"
     },
@@ -39,7 +39,7 @@
      "field": "activation",
      "kind": "gadget",
      "lxa": 1,
-     "phase": 224,
+     "phase": 222,
      "ref": 32769,
      "where": "screen[DOPUS.1]/window[DOPUS.1]/gadget[7 id=54]"
     },
@@ -47,7 +47,7 @@
      "field": "activation",
      "kind": "gadget",
      "lxa": 3,
-     "phase": 224,
+     "phase": 222,
      "ref": 32771,
      "where": "screen[DOPUS.1]/window[DOPUS.1]/gadget[30 id=65000]"
     },
@@ -55,13 +55,13 @@
      "field": "activation",
      "kind": "gadget",
      "lxa": 3,
-     "phase": 224,
+     "phase": 222,
      "ref": 32771,
      "where": "screen[DOPUS.1]/window[DOPUS.1]/gadget[31 id=65000]"
     }
    ],
    "pixel_budget": 25245,
-   "pixel_phase": 224,
+   "pixel_phase": 222,
    "stdout_known_diff": null
   }
  }

@@ -1,0 +1,18 @@
+# Phase 224: the strongest Devpac assertions of devpac_gtest / devpac_settings_gtest
+# (editor visible, typed text appears, Project/About, Settings window) as a reference golden.
+name: devpac-edit
+app:
+  manifest: DevPac
+steps:
+  - launch
+  - wait_window: {title: "Untitled", timeout: 30000}
+  - frames: 100
+  - snapshot: startup
+  - click: {anchor: inside, xy: [20, 10], window: "Untitled"}
+  - type: "\tmove.l\t#1,d0\n"
+  - frames: 50
+  - snapshot: typed
+  - menu: "Settings/Settings..."
+  - wait_window: {title: "Settings", timeout: 10000}
+  - frames: 50
+  - snapshot: settings

@@ -1,0 +1,16 @@
+raw_events_unit: testing console raw input reports
+Waiting for special key report
+OK: special key report returned expected sequence
+Waiting for raw special-key report
+OK: raw special key report returned compatible sequence
+Waiting for RAWKEY report
+OK: raw key report returned expected prefix
+Waiting for raw mouse-button report
+OK: raw mouse-button report returned expected prefix
+Waiting for raw gadget-down report
+OK: raw gadget-down report returned expected prefix
+Checking size-window raw event report
+size-window raw event report: class 12 subclass 0 code 0 x;y = window
+Waiting for ASCII after raw reset
+OK: raw event reset restored ASCII stream
+PASS: raw_events_unit all tests passed

@@ -11,7 +11,8 @@ Tests/Console/con_handler:      {interactive: "reads keys injected by console_gt
 Tests/Console/input_console:    {interactive: "reads keys injected by console_gtest", validated_by: tests/scenarios/interactive/input_console.yaml}
 Tests/Console/input_inject:     {interactive: "waits for RAWKEY events injected by console_gtest", validated_by: tests/scenarios/interactive/input_inject.yaml}
 Tests/Console/kp2_test:         {interactive: "reads keys injected by console_gtest", validated_by: tests/scenarios/interactive/kp2_test.yaml}
-Tests/Console/raw_events_unit:  {interactive: "waits for special-key reports injected by console_gtest", phase: 224}
+Tests/Console/raw_events_unit:  {interactive: "waits for special-key reports injected by console_gtest", validated_by: tests/scenarios/interactive/raw_events_unit.yaml}
+Tests/Console/idcmp_console:    {interactive: "waits for keys injected by its scenario", validated_by: tests/scenarios/interactive/idcmp_console.yaml}
 Tests/Console/setmode:          {interactive: "reads RAW input injected by console_gtest", validated_by: tests/scenarios/interactive/setmode.yaml}
 Tests/Devices/Keyboard:         {lxa_only: "keyboard.device KBD_READEVENT delivers hardware key events; the reference agent injects through input.device, which never reaches keyboard.device, so the test cannot be driven on the reference"}
 Tests/Intuition/DisplayAlert:   {lxa_only: "the AmigaOS 3.1 alert takes over the display and reads the mouse buttons from the hardware, so the reference agent cannot answer it; the dead-end case (returns FALSE) is lxa-only behaviour - a dead-end alert never returns on AmigaOS"}
@@ -25,7 +26,7 @@ Tests/Devices/Narrator: {lxa_only: "narrator.device is not part of AmigaOS 3.1 (
 Tests/Devices/Serial: {lxa_only: "the reference agent (lxaprobe) owns serial.device unit 0 as its control channel, so the test cannot open it there; I/O goes through lxa's loopback peer"}
 Tests/Devices/Scsi: {lxa_only: "lxa's scsi.device emulates in-memory disks on its units; the reference A4000 has no IDE/SCSI drive attached, so every unit fails to open there"}
 Tests/Devices/Trackdisk: {lxa_only: "needs disks in DF0:/DF1: (host ADF images set up by devices_gtest); the reference floppy drives are empty"}
-Tests/Console/keymap_unit: {interactive: "reads a key remapped by CD_SETKEYMAP, injected by console_gtest", phase: 224}
+Tests/Console/keymap_unit: {interactive: "reads a key remapped by CD_SETKEYMAP, injected by console_gtest", phase: 222}
 Tests/Console/scrollback_unit: {lxa_only: "tests lxa's CD_SETUPSCROLLBACK/CD_SETSCROLLBACKPOSITION, V47 (AmigaOS 3.2) console commands; the 3.1 console.device answers IOERR_NOCMD"}
 Tests/Layers/VisibilityV45: {lxa_only: "HideLayer/ShowLayer/LayerOccluded/SetLayerInfoBounds are V45 layers.library functions that the AmigaOS 3.1 (V40) layers.library does not have"}
 Tests/Layers/TagLayers: {lxa_only: "AddLayerInfoTag/CreateLayerTagList are layers.library extensions (AROS-style tag API) beyond the AmigaOS 3.1 (V40) function table"}

@@ -1,0 +1,17 @@
+{
+ "app": "raw_events_unit",
+ "disabled": null,
+ "lxa_version": "0.11.18",
+ "promoted": "2026-10-03",
+ "reference": "AmigaOS 3.1 (KS 40.70), profile aga",
+ "requires_apps": false,
+ "scenario": "interactive-raw_events_unit",
+ "snapshots": {
+  "end": {
+   "known_tree_diffs": [],
+   "pixel_budget": 0,
+   "pixel_phase": null,
+   "stdout_known_diff": null
+  }
+ }
+}

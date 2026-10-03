@@ -229,7 +229,8 @@ def run(scn, out_dir, build=None, use_cache=True):
                         agent.cmd("DELAY 5")
                         waited += 100
                     else:
-                        raise AgentError("output never contained %r" % args["text"])
+                        tail = open(stdout_path, encoding="latin-1").read()[-300:] if os.path.exists(stdout_path) else ""
+                        raise AgentError("output never contained %r (output ends: %r)" % (args["text"], tail))
                 elif kind == "menu":
                     agent.cmd("MENU %s" % args["path"])
                     settle()
