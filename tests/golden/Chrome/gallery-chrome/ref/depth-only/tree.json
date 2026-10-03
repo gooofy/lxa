@@ -1,0 +1,1231 @@
+{
+ "backend": "ref",
+ "schema": "lxa-tree/1",
+ "screens": [
+  {
+   "bar_hborder": 5,
+   "bar_height": 10,
+   "bar_vborder": 1,
+   "default_title": "Workbench Screen",
+   "depth": 2,
+   "display_id": 32768,
+   "flags": 1553,
+   "font": {
+    "baseline": 6,
+    "name": "topaz.font",
+    "xsize": 8,
+    "ysize": 8
+   },
+   "height": 256,
+   "left": 0,
+   "menu_hborder": 4,
+   "menu_vborder": 2,
+   "title": "Workbench Screen",
+   "top": 0,
+   "wbor": [
+    4,
+    2,
+    4,
+    2
+   ],
+   "width": 640,
+   "windows": [
+    {
+     "app": true,
+     "block_pen": 1,
+     "border": [
+      4,
+      11,
+      18,
+      2
+     ],
+     "detail_pen": 0,
+     "flags": 671100943,
+     "font": {
+      "baseline": 6,
+      "name": "topaz.font",
+      "xsize": 8,
+      "ysize": 8
+     },
+     "gadgets": [
+      {
+       "activation": 32769,
+       "flags": 32788,
+       "height": 11,
+       "id": 0,
+       "left": -22,
+       "text": [],
+       "top": 0,
+       "type": 32837,
+       "width": 24
+      },
+      {
+       "activation": 32769,
+       "flags": 32788,
+       "height": 11,
+       "id": 0,
+       "left": -45,
+       "text": [],
+       "top": 0,
+       "type": 32869,
+       "width": 24
+      },
+      {
+       "activation": 32769,
+       "flags": 32796,
+       "height": 10,
+       "id": 0,
+       "left": -17,
+       "text": [],
+       "top": -9,
+       "type": 32789,
+       "width": 18
+      },
+      {
+       "activation": 32769,
+       "flags": 32772,
+       "height": 11,
+       "id": 0,
+       "left": 0,
+       "text": [],
+       "top": 0,
+       "type": 32901,
+       "width": 20
+      },
+      {
+       "activation": 32768,
+       "flags": 32804,
+       "height": 10,
+       "id": 0,
+       "left": 0,
+       "text": [],
+       "top": 0,
+       "type": 32805,
+       "width": 0
+      }
+     ],
+     "height": 70,
+     "idcmp": 516,
+     "left": 6,
+     "max_height": 65535,
+     "max_width": 65535,
+     "menus": [],
+     "min_height": 30,
+     "min_width": 40,
+     "screen_title": "Workbench Screen",
+     "title": "CA Full",
+     "top": 14,
+     "width": 150
+    },
+    {
+     "app": true,
+     "block_pen": 1,
+     "border": [
+      0,
+      9,
+      0,
+      0
+     ],
+     "detail_pen": 0,
+     "flags": 134219776,
+     "font": {
+      "baseline": 6,
+      "name": "topaz.font",
+      "xsize": 8,
+      "ysize": 8
+     },
+     "gadgets": [],
+     "height": 70,
+     "idcmp": 516,
+     "left": 322,
+     "max_height": 65535,
+     "max_width": 65535,
+     "menus": [],
+     "min_height": 30,
+     "min_width": 40,
+     "screen_title": "Workbench Screen",
+     "title": "CK Borderless",
+     "top": 166,
+     "width": 150
+    },
+    {
+     "app": true,
+     "block_pen": 1,
+     "border": [
+      4,
+      11,
+      18,
+      2
+     ],
+     "detail_pen": 0,
+     "flags": 134217747,
+     "font": {
+      "baseline": 6,
+      "name": "topaz.font",
+      "xsize": 8,
+      "ysize": 8
+     },
+     "gadgets": [
+      {
+       "activation": 32769,
+       "flags": 32796,
+       "height": 10,
+       "id": 0,
+       "left": -17,
+       "text": [],
+       "top": -9,
+       "type": 32789,
+       "width": 18
+      },
+      {
+       "activation": 32768,
+       "flags": 32804,
+       "height": 10,
+       "id": 0,
+       "left": 0,
+       "text": [],
+       "top": 0,
+       "type": 32805,
+       "width": 0
+      }
+     ],
+     "height": 70,
+     "idcmp": 516,
+     "left": 164,
+     "max_height": 65535,
+     "max_width": 65535,
+     "menus": [],
+     "min_height": 30,
+     "min_width": 40,
+     "screen_title": "Workbench Screen",
+     "title": "CJ SizeOnly",
+     "top": 166,
+     "width": 150
+    },
+    {
+     "app": true,
+     "block_pen": 1,
+     "border": [
+      4,
+      11,
+      4,
+      2
+     ],
+     "detail_pen": 0,
+     "flags": 134217728,
+     "font": {
+      "baseline": 6,
+      "name": "topaz.font",
+      "xsize": 8,
+      "ysize": 8
+     },
+     "gadgets": [],
+     "height": 70,
+     "idcmp": 516,
+     "left": 6,
+     "max_height": 65535,
+     "max_width": 65535,
+     "menus": [],
+     "min_height": 30,
+     "min_width": 40,
+     "screen_title": "Workbench Screen",
+     "title": "CI Plain",
+     "top": 166,
+     "width": 150
+    },
+    {
+     "app": true,
+     "block_pen": 1,
+     "border": [
+      4,
+      11,
+      4,
+      2
+     ],
+     "detail_pen": 0,
+     "flags": 134217740,
+     "font": {
+      "baseline": 6,
+      "name": "topaz.font",
+      "xsize": 8,
+      "ysize": 8
+     },
+     "gadgets": [
+      {
+       "activation": 32769,
+       "flags": 32788,
+       "height": 11,
+       "id": 0,
+       "left": -22,
+       "text": [],
+       "top": 0,
+       "type": 32837,
+       "width": 24
+      },
+      {
+       "activation": 32769,
+       "flags": 32772,
+       "height": 11,
+       "id": 0,
+       "left": 0,
+       "text": [],
+       "top": 0,
+       "type": 32901,
+       "width": 20
+      }
+     ],
+     "height": 70,
+     "idcmp": 516,
+     "left": 480,
+     "max_height": 65535,
+     "max_width": 65535,
+     "menus": [],
+     "min_height": 30,
+     "min_width": 40,
+     "screen_title": "Workbench Screen",
+     "title": "CH NoDrag",
+     "top": 90,
+     "width": 150
+    },
+    {
+     "app": true,
+     "block_pen": 1,
+     "border": [
+      4,
+      11,
+      4,
+      10
+     ],
+     "detail_pen": 0,
+     "flags": 671088687,
+     "font": {
+      "baseline": 6,
+      "name": "topaz.font",
+      "xsize": 8,
+      "ysize": 8
+     },
+     "gadgets": [
+      {
+       "activation": 32769,
+       "flags": 32788,
+       "height": 11,
+       "id": 0,
+       "left": -22,
+       "text": [],
+       "top": 0,
+       "type": 32837,
+       "width": 24
+      },
+      {
+       "activation": 32769,
+       "flags": 32788,
+       "height": 11,
+       "id": 0,
+       "left": -45,
+       "text": [],
+       "top": 0,
+       "type": 32869,
+       "width": 24
+      },
+      {
+       "activation": 32769,
+       "flags": 32796,
+       "height": 10,
+       "id": 0,
+       "left": -17,
+       "text": [],
+       "top": -9,
+       "type": 32789,
+       "width": 18
+      },
+      {
+       "activation": 32769,
+       "flags": 32772,
+       "height": 11,
+       "id": 0,
+       "left": 0,
+       "text": [],
+       "top": 0,
+       "type": 32901,
+       "width": 20
+      },
+      {
+       "activation": 32768,
+       "flags": 32804,
+       "height": 10,
+       "id": 0,
+       "left": 0,
+       "text": [],
+       "top": 0,
+       "type": 32805,
+       "width": 0
+      }
+     ],
+     "height": 70,
+     "idcmp": 516,
+     "left": 322,
+     "max_height": 65535,
+     "max_width": 65535,
+     "menus": [],
+     "min_height": 30,
+     "min_width": 40,
+     "screen_title": "Workbench Screen",
+     "title": "CG SizeBB",
+     "top": 90,
+     "width": 150
+    },
+    {
+     "app": true,
+     "block_pen": 1,
+     "border": [
+      4,
+      11,
+      18,
+      2
+     ],
+     "detail_pen": 0,
+     "flags": 671089679,
+     "font": {
+      "baseline": 6,
+      "name": "topaz.font",
+      "xsize": 8,
+      "ysize": 8
+     },
+     "gadgets": [
+      {
+       "activation": 32769,
+       "flags": 32788,
+       "height": 11,
+       "id": 0,
+       "left": -22,
+       "text": [],
+       "top": 0,
+       "type": 41029,
+       "width": 24
+      },
+      {
+       "activation": 32769,
+       "flags": 32788,
+       "height": 11,
+       "id": 0,
+       "left": -45,
+       "text": [],
+       "top": 0,
+       "type": 41061,
+       "width": 24
+      },
+      {
+       "activation": 32769,
+       "flags": 32796,
+       "height": 10,
+       "id": 0,
+       "left": -17,
+       "text": [],
+       "top": -9,
+       "type": 40981,
+       "width": 18
+      },
+      {
+       "activation": 32769,
+       "flags": 32772,
+       "height": 11,
+       "id": 0,
+       "left": 0,
+       "text": [],
+       "top": 0,
+       "type": 41093,
+       "width": 20
+      },
+      {
+       "activation": 32768,
+       "flags": 32804,
+       "height": 10,
+       "id": 0,
+       "left": 0,
+       "text": [],
+       "top": 0,
+       "type": 40997,
+       "width": 0
+      }
+     ],
+     "height": 70,
+     "idcmp": 516,
+     "left": 164,
+     "max_height": 65535,
+     "max_width": 65535,
+     "menus": [],
+     "min_height": 30,
+     "min_width": 40,
+     "screen_title": "Workbench Screen",
+     "title": "CF GZZ",
+     "top": 90,
+     "width": 150
+    },
+    {
+     "app": true,
+     "block_pen": 1,
+     "border": [
+      4,
+      11,
+      18,
+      2
+     ],
+     "detail_pen": 0,
+     "flags": 671088655,
+     "font": {
+      "baseline": 6,
+      "name": "topaz.font",
+      "xsize": 8,
+      "ysize": 8
+     },
+     "gadgets": [
+      {
+       "activation": 32769,
+       "flags": 32788,
+       "height": 11,
+       "id": 0,
+       "left": -22,
+       "text": [],
+       "top": 0,
+       "type": 32837,
+       "width": 24
+      },
+      {
+       "activation": 32769,
+       "flags": 32788,
+       "height": 11,
+       "id": 0,
+       "left": -45,
+       "text": [],
+       "top": 0,
+       "type": 32869,
+       "width": 24
+      },
+      {
+       "activation": 32769,
+       "flags": 32796,
+       "height": 10,
+       "id": 0,
+       "left": -17,
+       "text": [],
+       "top": -9,
+       "type": 32789,
+       "width": 18
+      },
+      {
+       "activation": 32769,
+       "flags": 32772,
+       "height": 11,
+       "id": 0,
+       "left": 0,
+       "text": [],
+       "top": 0,
+       "type": 32901,
+       "width": 20
+      },
+      {
+       "activation": 32768,
+       "flags": 32804,
+       "height": 10,
+       "id": 0,
+       "left": 0,
+       "text": [],
+       "top": 0,
+       "type": 32805,
+       "width": 0
+      }
+     ],
+     "height": 70,
+     "idcmp": 516,
+     "left": 6,
+     "max_height": 65535,
+     "max_width": 65535,
+     "menus": [],
+     "min_height": 30,
+     "min_width": 40,
+     "screen_title": "Workbench Screen",
+     "title": "CE Zoom",
+     "top": 90,
+     "width": 150
+    },
+    {
+     "app": true,
+     "block_pen": 1,
+     "border": [
+      4,
+      11,
+      4,
+      2
+     ],
+     "detail_pen": 0,
+     "flags": 134217738,
+     "font": {
+      "baseline": 6,
+      "name": "topaz.font",
+      "xsize": 8,
+      "ysize": 8
+     },
+     "gadgets": [
+      {
+       "activation": 32769,
+       "flags": 32772,
+       "height": 11,
+       "id": 0,
+       "left": 0,
+       "text": [],
+       "top": 0,
+       "type": 32901,
+       "width": 20
+      },
+      {
+       "activation": 32768,
+       "flags": 32804,
+       "height": 10,
+       "id": 0,
+       "left": 0,
+       "text": [],
+       "top": 0,
+       "type": 32805,
+       "width": 0
+      }
+     ],
+     "height": 70,
+     "idcmp": 516,
+     "left": 480,
+     "max_height": 65535,
+     "max_width": 65535,
+     "menus": [],
+     "min_height": 30,
+     "min_width": 40,
+     "screen_title": "Workbench Screen",
+     "title": "CD Close",
+     "top": 14,
+     "width": 150
+    },
+    {
+     "app": true,
+     "block_pen": 1,
+     "border": [
+      4,
+      11,
+      4,
+      2
+     ],
+     "detail_pen": 0,
+     "flags": 134217734,
+     "font": {
+      "baseline": 6,
+      "name": "topaz.font",
+      "xsize": 8,
+      "ysize": 8
+     },
+     "gadgets": [
+      {
+       "activation": 32769,
+       "flags": 32788,
+       "height": 11,
+       "id": 0,
+       "left": -22,
+       "text": [],
+       "top": 0,
+       "type": 32837,
+       "width": 24
+      },
+      {
+       "activation": 32768,
+       "flags": 32804,
+       "height": 10,
+       "id": 0,
+       "left": 0,
+       "text": [],
+       "top": 0,
+       "type": 32805,
+       "width": 0
+      }
+     ],
+     "height": 70,
+     "idcmp": 516,
+     "left": 322,
+     "max_height": 65535,
+     "max_width": 65535,
+     "menus": [],
+     "min_height": 30,
+     "min_width": 40,
+     "screen_title": "Workbench Screen",
+     "title": "CC Depth",
+     "top": 14,
+     "width": 150
+    },
+    {
+     "app": true,
+     "block_pen": 1,
+     "border": [
+      4,
+      11,
+      18,
+      2
+     ],
+     "detail_pen": 0,
+     "flags": 671088655,
+     "font": {
+      "baseline": 6,
+      "name": "topaz.font",
+      "xsize": 8,
+      "ysize": 8
+     },
+     "gadgets": [
+      {
+       "activation": 32769,
+       "flags": 32788,
+       "height": 11,
+       "id": 0,
+       "left": -22,
+       "text": [],
+       "top": 0,
+       "type": 32837,
+       "width": 24
+      },
+      {
+       "activation": 32769,
+       "flags": 32788,
+       "height": 11,
+       "id": 0,
+       "left": -45,
+       "text": [],
+       "top": 0,
+       "type": 32869,
+       "width": 24
+      },
+      {
+       "activation": 32769,
+       "flags": 32796,
+       "height": 10,
+       "id": 0,
+       "left": -17,
+       "text": [],
+       "top": -9,
+       "type": 32789,
+       "width": 18
+      },
+      {
+       "activation": 32769,
+       "flags": 32772,
+       "height": 11,
+       "id": 0,
+       "left": 0,
+       "text": [],
+       "top": 0,
+       "type": 32901,
+       "width": 20
+      },
+      {
+       "activation": 32768,
+       "flags": 32804,
+       "height": 10,
+       "id": 0,
+       "left": 0,
+       "text": [],
+       "top": 0,
+       "type": 32805,
+       "width": 0
+      }
+     ],
+     "height": 70,
+     "idcmp": 516,
+     "left": 164,
+     "max_height": 65535,
+     "max_width": 65535,
+     "menus": [],
+     "min_height": 30,
+     "min_width": 40,
+     "screen_title": "Workbench Screen",
+     "title": "CB Full",
+     "top": 14,
+     "width": 150
+    },
+    {
+     "app": false,
+     "block_pen": 1,
+     "border": [
+      0,
+      0,
+      0,
+      0
+     ],
+     "detail_pen": 0,
+     "flags": 35658560,
+     "font": {
+      "baseline": 6,
+      "name": "topaz.font",
+      "xsize": 8,
+      "ysize": 8
+     },
+     "gadgets": [],
+     "height": 245,
+     "idcmp": 885614,
+     "left": 0,
+     "max_height": 245,
+     "max_width": 640,
+     "menus": [
+      {
+       "flags": 1,
+       "height": 0,
+       "items": [
+        {
+         "command": 66,
+         "flags": 351,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Backdrop",
+         "top": 0,
+         "width": 186
+        },
+        {
+         "command": 69,
+         "flags": 86,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Execute Command...",
+         "top": 9,
+         "width": 186
+        },
+        {
+         "command": 0,
+         "flags": 82,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Redraw All",
+         "top": 18,
+         "width": 186
+        },
+        {
+         "command": 0,
+         "flags": 82,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Update All",
+         "top": 27,
+         "width": 186
+        },
+        {
+         "command": 0,
+         "flags": 82,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Last Message",
+         "top": 36,
+         "width": 186
+        },
+        {
+         "command": 63,
+         "flags": 86,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "About...",
+         "top": 45,
+         "width": 186
+        },
+        {
+         "command": 81,
+         "flags": 86,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Quit...",
+         "top": 54,
+         "width": 186
+        }
+       ],
+       "left": 2,
+       "title": "Workbench",
+       "top": 0,
+       "width": 80
+      },
+      {
+       "flags": 1,
+       "height": 0,
+       "items": [
+        {
+         "command": 78,
+         "flags": 70,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "New Drawer",
+         "top": 0,
+         "width": 162
+        },
+        {
+         "command": 0,
+         "flags": 66,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Open Parent",
+         "top": 9,
+         "width": 162
+        },
+        {
+         "command": 75,
+         "flags": 70,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Close",
+         "top": 18,
+         "width": 162
+        },
+        {
+         "command": 0,
+         "flags": 66,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Update",
+         "top": 27,
+         "width": 162
+        },
+        {
+         "command": 65,
+         "flags": 86,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Select Contents",
+         "top": 36,
+         "width": 162
+        },
+        {
+         "command": 46,
+         "flags": 86,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Clean Up",
+         "top": 45,
+         "width": 162
+        },
+        {
+         "command": 0,
+         "flags": 82,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [
+          {
+           "command": 0,
+           "flags": 82,
+           "height": 9,
+           "left": 122,
+           "mutualexclude": 0,
+           "sub": [],
+           "text": "Window",
+           "top": -1,
+           "width": 53
+          },
+          {
+           "command": 0,
+           "flags": 82,
+           "height": 9,
+           "left": 122,
+           "mutualexclude": 0,
+           "sub": [],
+           "text": "All",
+           "top": 8,
+           "width": 53
+          }
+         ],
+         "text": "Snapshot",
+         "top": 54,
+         "width": 162
+        },
+        {
+         "command": 0,
+         "flags": 66,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [
+          {
+           "command": 0,
+           "flags": 339,
+           "height": 9,
+           "left": 122,
+           "mutualexclude": -2,
+           "sub": [],
+           "text": "Only Icons",
+           "top": -1,
+           "width": 100
+          },
+          {
+           "command": 0,
+           "flags": 83,
+           "height": 9,
+           "left": 122,
+           "mutualexclude": -3,
+           "sub": [],
+           "text": "All Files",
+           "top": 8,
+           "width": 100
+          }
+         ],
+         "text": "Show",
+         "top": 63,
+         "width": 162
+        },
+        {
+         "command": 0,
+         "flags": 66,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [
+          {
+           "command": 0,
+           "flags": 339,
+           "height": 9,
+           "left": 122,
+           "mutualexclude": -2,
+           "sub": [],
+           "text": "Icon",
+           "top": -1,
+           "width": 52
+          },
+          {
+           "command": 0,
+           "flags": 83,
+           "height": 9,
+           "left": 122,
+           "mutualexclude": -3,
+           "sub": [],
+           "text": "Name",
+           "top": 8,
+           "width": 52
+          },
+          {
+           "command": 0,
+           "flags": 83,
+           "height": 9,
+           "left": 122,
+           "mutualexclude": -5,
+           "sub": [],
+           "text": "Date",
+           "top": 17,
+           "width": 52
+          },
+          {
+           "command": 0,
+           "flags": 83,
+           "height": 9,
+           "left": 122,
+           "mutualexclude": -9,
+           "sub": [],
+           "text": "Size",
+           "top": 26,
+           "width": 52
+          }
+         ],
+         "text": "View By",
+         "top": 72,
+         "width": 162
+        }
+       ],
+       "left": 90,
+       "title": "Window",
+       "top": 0,
+       "width": 56
+      },
+      {
+       "flags": 0,
+       "height": 0,
+       "items": [
+        {
+         "command": 79,
+         "flags": 86,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Open",
+         "top": 0,
+         "width": 154
+        },
+        {
+         "command": 67,
+         "flags": 86,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Copy",
+         "top": 9,
+         "width": 154
+        },
+        {
+         "command": 82,
+         "flags": 86,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Rename...",
+         "top": 18,
+         "width": 154
+        },
+        {
+         "command": 73,
+         "flags": 86,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Information...",
+         "top": 27,
+         "width": 154
+        },
+        {
+         "command": 83,
+         "flags": 86,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Snapshot",
+         "top": 36,
+         "width": 154
+        },
+        {
+         "command": 85,
+         "flags": 86,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "UnSnapshot",
+         "top": 45,
+         "width": 154
+        },
+        {
+         "command": 76,
+         "flags": 86,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Leave Out",
+         "top": 54,
+         "width": 154
+        },
+        {
+         "command": 80,
+         "flags": 86,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Put Away",
+         "top": 63,
+         "width": 154
+        },
+        {
+         "command": 0,
+         "flags": 192,
+         "height": 6,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": null,
+         "top": 72,
+         "width": 154
+        },
+        {
+         "command": 0,
+         "flags": 82,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Delete...",
+         "top": 78,
+         "width": 154
+        },
+        {
+         "command": 0,
+         "flags": 82,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Format Disk...",
+         "top": 87,
+         "width": 154
+        },
+        {
+         "command": 0,
+         "flags": 82,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Empty Trash",
+         "top": 96,
+         "width": 154
+        }
+       ],
+       "left": 154,
+       "title": "Icons",
+       "top": 0,
+       "width": 48
+      },
+      {
+       "flags": 1,
+       "height": 0,
+       "items": [
+        {
+         "command": 0,
+         "flags": 82,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "ResetWB",
+         "top": 0,
+         "width": 61
+        }
+       ],
+       "left": 210,
+       "title": "Tools",
+       "top": 0,
+       "width": 48
+      }
+     ],
+     "min_height": 245,
+     "min_width": 640,
+     "screen_title": "Copyright \u00a9 1985-1993 Commodore-Amiga, Inc. All Rights Reserved.",
+     "title": "",
+     "top": 11,
+     "width": 640
+    }
+   ]
+  }
+ ]
+}

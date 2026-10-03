@@ -1,0 +1,13 @@
+# Rendering conformance gallery (Phase 223): every GadTools kind x state with the
+# proportional Workbench 3.1 disk font helvetica 13.
+name: gallery-gt-helvetica13
+fonts: wb31
+app:
+  sample: Tests/Gallery/GT
+  args: "helvetica.font 13"
+steps:
+  - launch
+  - wait_window: "GT Gallery"
+  - wait_idle
+  - snapshot: {name: page, window: "GT Gallery"}
+  - quit

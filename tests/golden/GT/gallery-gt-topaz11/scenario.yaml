@@ -1,0 +1,13 @@
+# Rendering conformance gallery (Phase 223): every GadTools kind x state with the
+# Workbench 3.1 disk font topaz 11 (FONTS:topaz/11).
+name: gallery-gt-topaz11
+fonts: wb31
+app:
+  sample: Tests/Gallery/GT
+  args: "topaz.font 11"
+steps:
+  - launch
+  - wait_window: "GT Gallery"
+  - wait_idle
+  - snapshot: {name: page, window: "GT Gallery"}
+  - quit

@@ -1,7 +1,7 @@
 {
  "app": "SimpleGad",
  "disabled": null,
- "lxa_version": "0.11.12",
+ "lxa_version": "0.11.14",
  "promoted": "2026-10-03",
  "reference": "AmigaOS 3.1 (KS 40.70), profile aga",
  "requires_apps": false,
@@ -16,18 +16,10 @@
      "phase": 222,
      "ref": "",
      "where": "screen[Workbench Screen]/window[0]"
-    },
-    {
-     "field": "top",
-     "kind": "window",
-     "lxa": 0,
-     "phase": 223,
-     "ref": 11,
-     "where": "screen[Workbench Screen]/window[0]"
     }
    ],
-   "pixel_budget": 10843,
-   "pixel_phase": 223,
+   "pixel_budget": 1057,
+   "pixel_phase": 264,
    "stdout_known_diff": null
   }
  }

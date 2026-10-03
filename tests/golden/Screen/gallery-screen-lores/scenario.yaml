@@ -1,0 +1,11 @@
+# Rendering conformance gallery (Phase 223): a lores custom screen with SA_Pens.
+name: gallery-screen-lores
+app:
+  sample: Tests/Gallery/Screen
+  args: "lores"
+steps:
+  - launch
+  - wait_window: "Screen Win"
+  - wait_idle
+  - snapshot: screen
+  - quit

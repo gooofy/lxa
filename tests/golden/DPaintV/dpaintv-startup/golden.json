@@ -1,7 +1,7 @@
 {
  "app": "DPaintV",
  "disabled": null,
- "lxa_version": "0.11.12",
+ "lxa_version": "0.11.14",
  "promoted": "2026-10-03",
  "reference": "AmigaOS 3.1 (KS 40.70), profile aga",
  "requires_apps": true,

@@ -1,0 +1,82 @@
+{
+ "app": "Req",
+ "disabled": null,
+ "lxa_version": "0.11.14",
+ "promoted": "2026-10-03",
+ "reference": "AmigaOS 3.1 (KS 40.70), profile aga",
+ "requires_apps": false,
+ "scenario": "gallery-easyrequest",
+ "snapshots": {
+  "requester": {
+   "known_tree_diffs": [
+    {
+     "field": "idcmp",
+     "kind": "window",
+     "lxa": 64,
+     "phase": 222,
+     "ref": 2097216,
+     "where": "screen[Workbench Screen]/window[Gallery Request]"
+    },
+    {
+     "field": "count",
+     "kind": "gadget",
+     "lxa": 5,
+     "phase": 252,
+     "ref": 6,
+     "where": "screen[Workbench Screen]/window[Gallery Request]"
+    },
+    {
+     "field": "type",
+     "kind": "gadget",
+     "lxa": 1,
+     "phase": 252,
+     "ref": 5,
+     "where": "screen[Workbench Screen]/window[Gallery Request]/gadget[0 id=1]"
+    },
+    {
+     "field": "flags",
+     "kind": "gadget",
+     "lxa": 0,
+     "phase": 252,
+     "ref": 32772,
+     "where": "screen[Workbench Screen]/window[Gallery Request]/gadget[0 id=1]"
+    },
+    {
+     "field": "type",
+     "kind": "gadget",
+     "lxa": 1,
+     "phase": 252,
+     "ref": 5,
+     "where": "screen[Workbench Screen]/window[Gallery Request]/gadget[1 id=2]"
+    },
+    {
+     "field": "flags",
+     "kind": "gadget",
+     "lxa": 0,
+     "phase": 252,
+     "ref": 32772,
+     "where": "screen[Workbench Screen]/window[Gallery Request]/gadget[1 id=2]"
+    },
+    {
+     "field": "type",
+     "kind": "gadget",
+     "lxa": 1,
+     "phase": 252,
+     "ref": 5,
+     "where": "screen[Workbench Screen]/window[Gallery Request]/gadget[2 id=0]"
+    },
+    {
+     "field": "flags",
+     "kind": "gadget",
+     "lxa": 0,
+     "phase": 252,
+     "ref": 32772,
+     "where": "screen[Workbench Screen]/window[Gallery Request]/gadget[2 id=0]"
+    }
+   ],
+   "pixel_budget": 662,
+   "pixel_phase": 223,
+   "stdout_known_diff": null
+  }
+ }
+}

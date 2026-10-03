@@ -1,0 +1,150 @@
+{
+ "app": "Req",
+ "disabled": null,
+ "lxa_version": "0.11.14",
+ "promoted": "2026-10-03",
+ "reference": "AmigaOS 3.1 (KS 40.70), profile aga",
+ "requires_apps": false,
+ "scenario": "gallery-autorequest",
+ "snapshots": {
+  "requester": {
+   "known_lxa_size": [
+    282,
+    65
+   ],
+   "known_tree_diffs": [
+    {
+     "field": "width",
+     "kind": "window",
+     "lxa": 282,
+     "phase": 222,
+     "ref": 306,
+     "where": "screen[Workbench Screen]/window[System Request]"
+    },
+    {
+     "field": "height",
+     "kind": "window",
+     "lxa": 65,
+     "phase": 222,
+     "ref": 64,
+     "where": "screen[Workbench Screen]/window[System Request]"
+    },
+    {
+     "field": "min_width",
+     "kind": "window",
+     "lxa": 282,
+     "phase": 222,
+     "ref": 306,
+     "where": "screen[Workbench Screen]/window[System Request]"
+    },
+    {
+     "field": "min_height",
+     "kind": "window",
+     "lxa": 65,
+     "phase": 222,
+     "ref": 64,
+     "where": "screen[Workbench Screen]/window[System Request]"
+    },
+    {
+     "field": "max_width",
+     "kind": "window",
+     "lxa": 282,
+     "phase": 222,
+     "ref": 306,
+     "where": "screen[Workbench Screen]/window[System Request]"
+    },
+    {
+     "field": "max_height",
+     "kind": "window",
+     "lxa": 65,
+     "phase": 222,
+     "ref": 64,
+     "where": "screen[Workbench Screen]/window[System Request]"
+    },
+    {
+     "field": "flags",
+     "kind": "window",
+     "lxa": 208966,
+     "phase": 222,
+     "ref": 134426694,
+     "where": "screen[Workbench Screen]/window[System Request]"
+    },
+    {
+     "field": "idcmp",
+     "kind": "window",
+     "lxa": 64,
+     "phase": 222,
+     "ref": 2097216,
+     "where": "screen[Workbench Screen]/window[System Request]"
+    },
+    {
+     "field": "count",
+     "kind": "gadget",
+     "lxa": 4,
+     "phase": 252,
+     "ref": 5,
+     "where": "screen[Workbench Screen]/window[System Request]"
+    },
+    {
+     "field": "type",
+     "kind": "gadget",
+     "lxa": 1,
+     "phase": 252,
+     "ref": 5,
+     "where": "screen[Workbench Screen]/window[System Request]/gadget[0 id=1]"
+    },
+    {
+     "field": "flags",
+     "kind": "gadget",
+     "lxa": 0,
+     "phase": 252,
+     "ref": 32772,
+     "where": "screen[Workbench Screen]/window[System Request]/gadget[0 id=1]"
+    },
+    {
+     "field": "top",
+     "kind": "gadget",
+     "lxa": 47,
+     "phase": 252,
+     "ref": 46,
+     "where": "screen[Workbench Screen]/window[System Request]/gadget[0 id=1]"
+    },
+    {
+     "field": "type",
+     "kind": "gadget",
+     "lxa": 1,
+     "phase": 252,
+     "ref": 5,
+     "where": "screen[Workbench Screen]/window[System Request]/gadget[1 id=0]"
+    },
+    {
+     "field": "flags",
+     "kind": "gadget",
+     "lxa": 0,
+     "phase": 252,
+     "ref": 32772,
+     "where": "screen[Workbench Screen]/window[System Request]/gadget[1 id=0]"
+    },
+    {
+     "field": "left",
+     "kind": "gadget",
+     "lxa": 202,
+     "phase": 252,
+     "ref": 226,
+     "where": "screen[Workbench Screen]/window[System Request]/gadget[1 id=0]"
+    },
+    {
+     "field": "top",
+     "kind": "gadget",
+     "lxa": 47,
+     "phase": 252,
+     "ref": 46,
+     "where": "screen[Workbench Screen]/window[System Request]/gadget[1 id=0]"
+    }
+   ],
+   "pixel_budget": 3534,
+   "pixel_phase": 222,
+   "stdout_known_diff": null
+  }
+ }
+}

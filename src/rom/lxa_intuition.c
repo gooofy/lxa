@@ -11177,7 +11177,8 @@ struct Window * _intuition_BuildSysRequest ( register struct IntuitionBase * Int
 
     easy.es_StructSize = sizeof(easy);
     easy.es_Flags = 0;
-    easy.es_Title = (UBYTE *)"System Request";
+    /* NULL: the reference window's title, else "System Request" */
+    easy.es_Title = NULL;
     easy.es_TextFormat = (UBYTE *)body_buf;
     easy.es_GadgetFormat = (UBYTE *)gad_buf;
 
@@ -11249,7 +11250,12 @@ VOID _intuition_FreeSysRequest ( register struct IntuitionBase * IntuitionBase _
         {
             /* Clear UserData before freeing to avoid double-free */
             window->UserData = NULL;
-            window->FirstGadget = NULL;
+            /* unlink the requester's buttons, keep the system gadgets for
+             * CloseWindow() */
+            if (erd->gadget_mem)
+                _intuition_RemoveGList(IntuitionBase, window,
+                                       (struct Gadget *)erd->gadget_mem,
+                                       erd->num_gadgets);
 
             if (erd->gadget_mem)
                 FreeMem(erd->gadget_mem, erd->gadget_mem_size);
@@ -13345,86 +13351,93 @@ struct Window * _intuition_BuildEasyRequestArgs ( register struct IntuitionBase 
         }
     }
 
-    /* ---- Step 4: Calculate layout ---- */
-    /* Font is fixed 8x8 topaz */
-    WORD char_w = 8;
-    WORD char_h = 8;
-    WORD font_baseline = 6;
-
-    /* Measure body text: split on \n, find max width and line count */
-    WORD body_lines = 1;
-    WORD max_body_width = 0;
-    {
-        WORD cur_width = 0;
-        char *p = body_buf;
-        while (*p)
-        {
-            if (*p == '\n')
-            {
-                if (cur_width > max_body_width) max_body_width = cur_width;
-                cur_width = 0;
-                body_lines++;
-            }
-            else
-            {
-                cur_width++;
-            }
-            p++;
-        }
-        if (cur_width > max_body_width) max_body_width = cur_width;
-    }
-    WORD body_pixel_w = max_body_width * char_w;
-    WORD body_pixel_h = body_lines * (char_h + 2); /* 2px line spacing */
-
-    /* Measure gadget labels and calculate button sizes */
-    WORD gad_padding_x = 16;  /* horizontal padding inside button */
-    WORD gad_padding_y = 4;   /* vertical padding inside button */
-    WORD gad_spacing = 8;     /* spacing between buttons */
-    WORD gad_height = char_h + gad_padding_y * 2; /* button height */
-    WORD total_gad_width = 0;
-    WORD gad_widths[10];
-
-    for (i = 0; i < num_gadgets && i < 10; i++)
-    {
-        WORD label_len = 0;
-        char *lp = gad_labels[i];
-        while (*lp) { label_len++; lp++; }
-        gad_widths[i] = label_len * char_w + gad_padding_x;
-        if (gad_widths[i] < 60) gad_widths[i] = 60; /* minimum button width */
-        total_gad_width += gad_widths[i];
-    }
-    total_gad_width += (num_gadgets - 1) * gad_spacing;
-
-    /* Window dimensions */
-    WORD border_left = 4;
-    WORD border_right = 4;
-    WORD border_top = 11; /* title bar */
-    WORD border_bottom = 2;
-    WORD text_margin = 16;  /* margin around text area */
-    WORD gad_margin = 12;   /* margin around gadget row */
-
-    WORD content_w = body_pixel_w + text_margin * 2;
-    if (total_gad_width + gad_margin * 2 > content_w)
-        content_w = total_gad_width + gad_margin * 2;
-
-    WORD win_w = content_w + border_left + border_right;
-    WORD win_h = border_top + text_margin + body_pixel_h + text_margin
-                 + gad_height + gad_margin + border_bottom;
-
-    /* Minimum window size */
-    if (win_w < 150) win_w = 150;
-    if (win_h < 60) win_h = 60;
-
-    /* ---- Step 5: Determine screen and center window ---- */
+    /* ---- Step 4: Calculate layout ----
+     * AmigaOS 3.1 reference (tests/scenarios/gallery-easyrequest.yaml):
+     *   - the window is filled with a SHINEPEN/BACKGROUNDPEN dither
+     *   - the body text sits in a recessed one-pixel frame 4 pixels inside
+     *     the window borders and 2 below the title bar; the text block is
+     *     centred, 24 pixels from the frame sides and fontY-1 above and
+     *     below, lines fontY+1 apart, left aligned within the block
+     *   - one row below the frame follow the buttons: raised one-pixel
+     *     frames, label width + 24 wide, fontY + 6 high, label centred; the
+     *     first button is left aligned with the text frame, the last one
+     *     right aligned, the others spread evenly in between
+     *   - 2 dither rows separate the buttons from the bottom border */
     struct Screen *scr = NULL;
     if (window && window->WScreen)
         scr = window->WScreen;
-    /* If no screen, we'll use the Workbench screen (default) */
+    if (!scr)
+        scr = _intuition_find_workbench_screen(IntuitionBase);
+    if (!scr && _intuition_OpenWorkBench(IntuitionBase))
+        scr = _intuition_find_workbench_screen(IntuitionBase);
+    if (!scr)
+    {
+        FreeMem(body_buf, body_len + 1);
+        FreeMem(gad_buf, gad_len + 1);
+        return NULL;
+    }
 
-    WORD scr_w = scr ? scr->Width : 640;
-    WORD scr_h = scr ? scr->Height : 256;
-    WORD win_x = (scr_w - win_w) / 2;
-    WORD win_y = (scr_h - win_h) / 2;
+    struct RastPort *srp = &scr->RastPort;
+    WORD char_h = srp->TxHeight ? (WORD)srp->TxHeight : 8;
+    WORD line_h = char_h + 1;
+
+    /* Measure body text: split on \n, find max width and line count */
+    WORD body_lines = 1;
+    WORD body_pixel_w = 0;
+    {
+        char *p = body_buf;
+        char *ls = p;
+        for (;;)
+        {
+            if (*p == '\n' || *p == '\0')
+            {
+                WORD w = (WORD)TextLength(srp, (STRPTR)ls, (UWORD)(p - ls));
+                if (w > body_pixel_w) body_pixel_w = w;
+                if (*p == '\0')
+                    break;
+                body_lines++;
+                ls = p + 1;
+            }
+            p++;
+        }
+    }
+    WORD body_pixel_h = body_lines * line_h - 1;
+
+    WORD gad_height = char_h + 6;
+    WORD total_gad_width = 0;
+    WORD gad_widths[10];
+    WORD gad_text_w[10];
+
+    for (i = 0; i < num_gadgets && i < 10; i++)
+    {
+        gad_text_w[i] = (WORD)TextLength(srp, (STRPTR)gad_labels[i], (UWORD)strlen(gad_labels[i]));
+        gad_widths[i] = gad_text_w[i] + 24;
+        total_gad_width += gad_widths[i];
+    }
+
+    WORD border_left = scr->WBorLeft;
+    WORD border_right = scr->WBorRight;
+    WORD border_top = scr->WBorTop + char_h + 1;
+    WORD border_bottom = scr->WBorBottom;
+
+    WORD box_w = body_pixel_w + 50;
+    /* not verified on the reference: keep at least 8 pixels between buttons */
+    if (box_w < total_gad_width + (num_gadgets - 1) * 8)
+        box_w = total_gad_width + (num_gadgets - 1) * 8;
+    WORD box_h = body_pixel_h + 2 * char_h;
+    WORD box_x = border_left + 4;
+    WORD box_y = border_top + 2;
+    WORD gad_row_y = box_y + box_h + 1;
+
+    WORD win_w = border_left + 4 + box_w + 4 + border_right;
+    WORD win_h = gad_row_y + gad_height + 2 + border_bottom;
+
+    /* ---- Step 5: Position: the reference opens the requester at the
+     * mouse pointer (top-left corner, clamped to the screen) ---- */
+    WORD win_x = scr->MouseX;
+    WORD win_y = scr->MouseY;
+    if (win_x + win_w > scr->Width) win_x = scr->Width - win_w;
+    if (win_y + win_h > scr->Height) win_y = scr->Height - win_h;
     if (win_x < 0) win_x = 0;
     if (win_y < 0) win_y = 0;
 
@@ -13439,11 +13452,9 @@ struct Window * _intuition_BuildEasyRequestArgs ( register struct IntuitionBase 
     }
 
     /* ---- Step 7: Allocate gadgets, borders, and IntuiText ---- */
-    /* Each gadget needs: struct Gadget + 2 Borders (raised bevel = top+bottom lines) + IntuiText for label */
     LONG gadget_alloc = num_gadgets * sizeof(struct Gadget);
-    LONG border_alloc = num_gadgets * 2 * sizeof(struct Border); /* 2 borders per gadget (shine + shadow) */
+    LONG border_alloc = num_gadgets * 2 * sizeof(struct Border);
     LONG itext_alloc = num_gadgets * sizeof(struct IntuiText);
-    /* Border XY data: each border needs 10 SHORTs (5 points x 2 coords) */
     LONG border_xy_alloc = num_gadgets * 2 * 10 * sizeof(SHORT);
 
     struct Gadget *gadgets = (struct Gadget *)AllocMem(gadget_alloc, MEMF_PUBLIC | MEMF_CLEAR);
@@ -13462,91 +13473,72 @@ struct Window * _intuition_BuildEasyRequestArgs ( register struct IntuitionBase 
         return NULL;
     }
 
+    const UWORD *rpens = _intuition_screen_pens(scr);
+
     /* ---- Step 8: Set up gadgets ---- */
-    /* Gadget IDs: rightmost (last) = 0, others = 1,2,3... from left */
-    /* Center gadgets in the gadget row */
-    WORD gad_row_y = border_top + text_margin + body_pixel_h + text_margin;
-    WORD gad_start_x = border_left + (content_w - total_gad_width) / 2;
-    WORD gad_x = gad_start_x;
-
-    for (i = 0; i < num_gadgets; i++)
     {
-        struct Gadget *g = &gadgets[i];
-        struct Border *b_shine = &borders[i * 2];
-        struct Border *b_shadow = &borders[i * 2 + 1];
-        struct IntuiText *it = &itexts[i];
-        SHORT *xy_shine = &border_xy[i * 2 * 10];
-        SHORT *xy_shadow = &border_xy[(i * 2 + 1) * 10];
-        WORD bw = gad_widths[i];
-        WORD bh = gad_height;
+        WORD free_w = box_w - total_gad_width;
+        WORD used = 0;
 
-        /* Gadget ID: last gadget = 0, others count from 1 left-to-right */
-        if (i == num_gadgets - 1)
-            g->GadgetID = 0;
-        else
-            g->GadgetID = i + 1;
-
-        g->LeftEdge = gad_x;
-        g->TopEdge = gad_row_y;
-        g->Width = bw;
-        g->Height = bh;
-        g->Flags = GFLG_GADGHCOMP;   /* complement highlight */
-        g->Activation = GACT_RELVERIFY;
-        g->GadgetType = GTYP_BOOLGADGET;
-        g->GadgetRender = (APTR)b_shine;
-        g->GadgetText = it;
-        g->NextGadget = (i < num_gadgets - 1) ? &gadgets[i + 1] : NULL;
-
-        /* Shine border (top-left): pen 2.
-         * DrawBorder() connects every point in sequence, so keep this as a
-         * simple L shape; extra points would draw a diagonal across the label.
-         */
-        xy_shine[0] = 0;        xy_shine[1] = bh - 1;
-        xy_shine[2] = 0;        xy_shine[3] = 0;
-        xy_shine[4] = bw - 1;   xy_shine[5] = 0;
-
-        b_shine->LeftEdge = 0;
-        b_shine->TopEdge = 0;
-        b_shine->FrontPen = 2; /* SHINEPEN */
-        b_shine->DrawMode = JAM1;
-        b_shine->Count = 3;
-        b_shine->XY = xy_shine;
-        b_shine->NextBorder = b_shadow;
-
-        /* Shadow border (bottom-right): pen 1. Keep this as the matching L
-         * shape so the bevel stays on the frame edges only.
-         */
-        xy_shadow[0] = bw - 1;  xy_shadow[1] = 0;
-        xy_shadow[2] = bw - 1;  xy_shadow[3] = bh - 1;
-        xy_shadow[4] = 0;       xy_shadow[5] = bh - 1;
-
-        b_shadow->LeftEdge = 0;
-        b_shadow->TopEdge = 0;
-        b_shadow->FrontPen = 1; /* SHADOWPEN */
-        b_shadow->DrawMode = JAM1;
-        b_shadow->Count = 3;
-        b_shadow->XY = xy_shadow;
-        b_shadow->NextBorder = NULL;
-
-        /* IntuiText for label: centered in gadget */
-        WORD label_len = 0;
+        for (i = 0; i < num_gadgets; i++)
         {
-            char *lp = gad_labels[i];
-            while (*lp) { label_len++; lp++; }
+            struct Gadget *g = &gadgets[i];
+            struct Border *b_shine = &borders[i * 2];
+            struct Border *b_shadow = &borders[i * 2 + 1];
+            struct IntuiText *it = &itexts[i];
+            SHORT *xy_shine = &border_xy[i * 2 * 10];
+            SHORT *xy_shadow = &border_xy[(i * 2 + 1) * 10];
+            WORD bw = gad_widths[i];
+            WORD bh = gad_height;
+            WORD gx;
+
+            if (num_gadgets == 1)
+                gx = box_x + free_w / 2;
+            else
+                gx = box_x + used + (WORD)(((LONG)free_w * i) / (num_gadgets - 1));
+            used += bw;
+
+            /* Gadget ID: last gadget = 0, others count from 1 left-to-right */
+            g->GadgetID = (i == num_gadgets - 1) ? 0 : i + 1;
+            g->LeftEdge = gx;
+            g->TopEdge = gad_row_y;
+            g->Width = bw;
+            g->Height = bh;
+            g->Flags = GFLG_GADGHCOMP;
+            g->Activation = GACT_RELVERIFY;
+            g->GadgetType = GTYP_BOOLGADGET;
+            g->GadgetRender = (APTR)b_shine;
+            g->GadgetText = it;
+            g->NextGadget = (i < num_gadgets - 1) ? &gadgets[i + 1] : NULL;
+
+            /* raised one-pixel frame, corners left out */
+            xy_shine[0] = 0;        xy_shine[1] = bh - 2;
+            xy_shine[2] = 0;        xy_shine[3] = 0;
+            xy_shine[4] = bw - 2;   xy_shine[5] = 0;
+            b_shine->FrontPen = (UBYTE)rpens[SHINEPEN];
+            b_shine->DrawMode = JAM1;
+            b_shine->Count = 3;
+            b_shine->XY = xy_shine;
+            b_shine->NextBorder = b_shadow;
+
+            xy_shadow[0] = bw - 1;  xy_shadow[1] = 1;
+            xy_shadow[2] = bw - 1;  xy_shadow[3] = bh - 1;
+            xy_shadow[4] = 1;       xy_shadow[5] = bh - 1;
+            b_shadow->FrontPen = (UBYTE)rpens[SHADOWPEN];
+            b_shadow->DrawMode = JAM1;
+            b_shadow->Count = 3;
+            b_shadow->XY = xy_shadow;
+            b_shadow->NextBorder = NULL;
+
+            it->FrontPen = (UBYTE)rpens[TEXTPEN];
+            it->BackPen = (UBYTE)rpens[BACKGROUNDPEN];
+            it->DrawMode = JAM1;
+            it->LeftEdge = (bw - gad_text_w[i]) / 2;
+            it->TopEdge = (bh - char_h) / 2;
+            it->ITextFont = NULL;
+            it->IText = (UBYTE *)gad_labels[i];
+            it->NextText = NULL;
         }
-        WORD text_x = (bw - label_len * char_w) / 2;
-        WORD text_y = (bh - char_h) / 2 + font_baseline;
-
-        it->FrontPen = 1;
-        it->BackPen = 0;
-        it->DrawMode = JAM1;
-        it->LeftEdge = text_x;
-        it->TopEdge = text_y;
-        it->ITextFont = NULL; /* use default screen font */
-        it->IText = (UBYTE *)gad_labels[i];
-        it->NextText = NULL;
-
-        gad_x += bw + gad_spacing;
     }
 
     /* ---- Step 9: Allocate EasyReqData for cleanup ---- */
@@ -13584,19 +13576,12 @@ struct Window * _intuition_BuildEasyRequestArgs ( register struct IntuitionBase 
     nw.DetailPen = 0;
     nw.BlockPen = 1;
     nw.Title = (UBYTE *)title;
-    nw.Flags = WFLG_DRAGBAR | WFLG_DEPTHGADGET | WFLG_ACTIVATE | WFLG_RMBTRAP;
+    nw.Flags = WFLG_DRAGBAR | WFLG_DEPTHGADGET | WFLG_ACTIVATE | WFLG_RMBTRAP |
+               WFLG_SIMPLE_REFRESH | WFLG_NOCAREREFRESH;
     nw.IDCMPFlags = IDCMP_GADGETUP | idcmp;
-    nw.FirstGadget = gadgets;
-
-    if (scr)
-    {
-        nw.Type = CUSTOMSCREEN;
-        nw.Screen = scr;
-    }
-    else
-    {
-        nw.Type = WBENCHSCREEN;
-    }
+    nw.FirstGadget = NULL;
+    nw.Type = CUSTOMSCREEN;
+    nw.Screen = scr;
 
     reqWindow = _intuition_OpenWindow(IntuitionBase, &nw);
     if (!reqWindow)
@@ -13614,21 +13599,58 @@ struct Window * _intuition_BuildEasyRequestArgs ( register struct IntuitionBase 
     /* Store cleanup data in UserData */
     reqWindow->UserData = (BYTE *)erd;
 
-    /* ---- Step 11: Render body text ---- */
+    /* ---- Step 11: Render the requester body ---- */
     {
         struct RastPort *rp = reqWindow->RPort;
-        WORD text_x = border_left + text_margin;
-        WORD text_y = border_top + text_margin;
+        WORD ix0 = border_left, iy0 = border_top;
+        WORD ix1 = win_w - border_right - 1, iy1 = win_h - border_bottom - 1;
+        WORD y;
+        UWORD row_pat;
+        UWORD *old_pat = rp->AreaPtrn;
+        BYTE old_sz = rp->AreaPtSz;
+        WORD text_x = box_x + (box_w - body_pixel_w) / 2;
+        WORD text_y = box_y + char_h;
         char *p = body_buf;
         WORD line = 0;
 
-        SetAPen(rp, 1); /* TEXTPEN */
-        SetBPen(rp, 0); /* BACKGROUNDPEN */
-        SetDrMd(rp, JAM1);
+        /* SHINEPEN/BACKGROUNDPEN dither, (x + y) odd -> SHINEPEN in window
+         * coordinates; the pattern bits are aligned to bitmap columns */
+        SetAPen(rp, rpens[SHINEPEN]);
+        SetBPen(rp, rpens[BACKGROUNDPEN]);
+        SetDrMd(rp, JAM2);
+        for (y = iy0; y <= iy1; y++)
+        {
+            /* bit 15 of the pattern is bitmap column 0 (even) */
+            BOOL shine_even = (((reqWindow->LeftEdge + y + 1) & 1) == 0);
+            row_pat = shine_even ? 0xAAAA : 0x5555;
+            rp->AreaPtrn = &row_pat; rp->AreaPtSz = 0;
+            RectFill(rp, ix0, y, ix1, y);
+        }
+        rp->AreaPtrn = old_pat; rp->AreaPtSz = old_sz;
 
+        /* recessed text frame with a BACKGROUNDPEN interior */
+        SetAPen(rp, rpens[BACKGROUNDPEN]);
+        RectFill(rp, box_x + 1, box_y + 1, box_x + box_w - 2, box_y + box_h - 2);
+        SetAPen(rp, rpens[SHADOWPEN]);
+        Move(rp, box_x, box_y + box_h - 2);
+        Draw(rp, box_x, box_y);
+        Draw(rp, box_x + box_w - 2, box_y);
+        SetAPen(rp, rpens[SHINEPEN]);
+        Move(rp, box_x + box_w - 1, box_y + 1);
+        Draw(rp, box_x + box_w - 1, box_y + box_h - 1);
+        Draw(rp, box_x + 1, box_y + box_h - 1);
+
+        /* button interiors */
+        SetAPen(rp, rpens[BACKGROUNDPEN]);
+        for (i = 0; i < num_gadgets; i++)
+            RectFill(rp, gadgets[i].LeftEdge + 1, gadgets[i].TopEdge + 1,
+                     gadgets[i].LeftEdge + gadgets[i].Width - 2,
+                     gadgets[i].TopEdge + gadgets[i].Height - 2);
+
+        SetAPen(rp, rpens[TEXTPEN]);
+        SetDrMd(rp, JAM1);
         while (*p)
         {
-            /* Find end of line */
             char *line_start = p;
             WORD line_len = 0;
             while (*p && *p != '\n')
@@ -13639,8 +13661,7 @@ struct Window * _intuition_BuildEasyRequestArgs ( register struct IntuitionBase 
 
             if (line_len > 0)
             {
-                WORD y = text_y + line * (char_h + 2) + font_baseline;
-                Move(rp, text_x, y);
+                Move(rp, text_x, text_y + line * line_h + rp->TxBaseline);
                 Text(rp, (STRPTR)line_start, line_len);
             }
 
@@ -13649,8 +13670,9 @@ struct Window * _intuition_BuildEasyRequestArgs ( register struct IntuitionBase 
         }
     }
 
-    /* ---- Step 12: Render gadgets (borders + text) ---- */
-    _intuition_RefreshGList(IntuitionBase, gadgets, reqWindow, NULL, -1);
+    /* ---- Step 12: Add and render the buttons ---- */
+    _intuition_AddGList(IntuitionBase, reqWindow, gadgets, (UWORD)~0, num_gadgets, NULL);
+    _intuition_RefreshGList(IntuitionBase, gadgets, reqWindow, NULL, num_gadgets);
 
     DPRINTF(LOG_DEBUG, "_intuition: BuildEasyRequestArgs() created window 0x%08lx (%dx%d) with %d gadgets\n",
             (ULONG)reqWindow, win_w, win_h, num_gadgets);
@@ -14113,6 +14135,8 @@ struct Window * _intuition_OpenWindowTagList ( register struct IntuitionBase * I
         struct Screen *def_screen = nw.Screen;
 
         if (!def_screen)
+            def_screen = _intuition_find_workbench_screen(IntuitionBase);
+        if (!def_screen && _intuition_OpenWorkBench(IntuitionBase))
             def_screen = _intuition_find_workbench_screen(IntuitionBase);
         if (def_screen && nw.Height > 0 &&
             def_screen->BarHeight + 1 + nw.Height <= def_screen->Height)

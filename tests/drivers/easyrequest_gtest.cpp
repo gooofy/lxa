@@ -11,6 +11,9 @@
 
 #include "lxa_test.h"
 
+#include <algorithm>
+#include <vector>
+
 using namespace lxa::testing;
 
 namespace {
@@ -19,28 +22,24 @@ constexpr int PEN_BLACK = 1;
 constexpr int PEN_WHITE = 2;
 }
 
-/* Layout constants matching BuildEasyRequestArgs calculation:
- * border_left=4, border_top=11, text_margin=16
- * body: 3 lines * (8+2)px = 30px
- * gad_row_y = 11 + 16 + 30 + 16 = 73
- * gad_height = 16 (8px font + 4px padding top + 4px padding bottom)
- * gad_spacing = 8
- * 3 gadgets: Yes(60px) | 3125794(72px) | No(60px)
- * total_gad_width = 60 + 72 + 60 + 2*8 = 208
- * content_w = max(35*8+32, 208+24) = max(312, 232) = 312
- * gad_start_x = 4 + (312 - 208)/2 = 56
- */
-constexpr int GAD_ROW_Y = 73;
-constexpr int GAD_HEIGHT = 16;
-constexpr int GAD_START_X = 56;
-/* Yes button: x=56, w=60 -> center_x=86 */
-constexpr int YES_CENTER_X = 86;
-/* Middle button: x=56+60+8=124, w=72 -> center_x=160 */
-constexpr int MID_CENTER_X = 160;
-/* No button: x=124+72+8=204, w=60 -> center_x=234 */
-constexpr int NO_CENTER_X = 234;
-/* Gadget center Y */
-constexpr int GAD_CENTER_Y = GAD_ROW_Y + GAD_HEIGHT / 2;
+/* AmigaOS 3.1 EasyRequest layout (gallery-easyrequest reference): the
+ * buttons are raised one-pixel frames, label width + 24 wide and font
+ * height + 6 high, the first left aligned and the last right aligned with
+ * the body text frame. Their positions are taken from the live gadget list
+ * (screen coordinates); the system gadgets come first and are skipped. */
+static std::vector<lxa_gadget_info_t> RequesterButtons(int window_index = 0)
+{
+    std::vector<lxa_gadget_info_t> result;
+    int count = lxa_get_gadget_count(window_index);
+    for (int i = 0; i < count; i++) {
+        lxa_gadget_info_t g;
+        if (lxa_get_gadget_info(window_index, i, &g) && !(g.gadget_type & 0x8000))
+            result.push_back(g);
+    }
+    std::sort(result.begin(), result.end(),
+              [](const lxa_gadget_info_t &x, const lxa_gadget_info_t &y) { return x.left < y.left; });
+    return result;
+}
 
 /* ============================================================================
  * Behavioral tests — verify requester opens and responds to clicks
@@ -67,6 +66,9 @@ protected:
         /* Critical: let the task settle into WaitPort() inside SysReqHandler.
          * The Intuition input handler chain needs time to initialize. */
         WaitForEventLoop(100, 10000);
+        /* the buttons are added once the requester body is drawn */
+        for (int i = 0; i < 200 && RequesterButtons().size() < 3; i++)
+            RunFrames(1);
 
         return true;
     }
@@ -99,8 +101,11 @@ TEST_F(EasyRequestTest, ClickRightmostButton) {
     lxa_window_info_t info;
     ASSERT_TRUE(GetWindowInfo(0, &info));
 
+    auto buttons = RequesterButtons();
+    ASSERT_EQ(buttons.size(), 3u);
+    const auto &no = buttons.back();
     ClearOutput();
-    Click(info.x + NO_CENTER_X, info.y + GAD_CENTER_Y);
+    Click(no.left + no.width / 2, no.top + no.height / 2);
     RunCyclesWithVBlank(40, 50000);
 
     /* Wait for program to exit after requester is dismissed */
@@ -120,7 +125,10 @@ TEST_F(EasyRequestTest, ClickLeftmostButton) {
     ASSERT_TRUE(GetWindowInfo(0, &info));
 
     ClearOutput();
-    Click(info.x + YES_CENTER_X, info.y + GAD_CENTER_Y);
+    auto buttons = RequesterButtons();
+    ASSERT_EQ(buttons.size(), 3u);
+    const auto &yes = buttons.front();
+    Click(yes.left + yes.width / 2, yes.top + yes.height / 2);
     RunCyclesWithVBlank(40, 50000);
 
     EXPECT_TRUE(lxa_wait_exit(10000))
@@ -139,7 +147,10 @@ TEST_F(EasyRequestTest, ProgramExitsCleanly) {
     ASSERT_TRUE(GetWindowInfo(0, &info));
 
     /* Click any button to dismiss */
-    Click(info.x + NO_CENTER_X, info.y + GAD_CENTER_Y);
+    auto buttons = RequesterButtons();
+    ASSERT_FALSE(buttons.empty());
+    Click(buttons.back().left + buttons.back().width / 2,
+          buttons.back().top + buttons.back().height / 2);
     RunCyclesWithVBlank(40, 50000);
 
     EXPECT_TRUE(lxa_wait_exit(10000))
@@ -204,29 +215,39 @@ TEST_F(EasyRequestPixelTest, BodyTextVisible) {
 TEST_F(EasyRequestPixelTest, GadgetButtonsVisible) {
     /* The gadget row near the bottom should have visible button borders/text */
     lxa_flush_display();
+    auto buttons = RequesterButtons();
+    ASSERT_EQ(buttons.size(), 3u);
 
     int gadget_pixels = CountContentPixels(
-        window_info.x + GAD_START_X,
-        window_info.y + GAD_ROW_Y,
-        window_info.x + GAD_START_X + 208,  /* total gadget row width */
-        window_info.y + GAD_ROW_Y + GAD_HEIGHT,
+        buttons.front().left,
+        buttons.front().top,
+        buttons.back().left + buttons.back().width - 1,
+        buttons.back().top + buttons.back().height - 1,
         0  /* background pen */
     );
     EXPECT_GT(gadget_pixels, 15)
         << "Gadget row should have visible button borders and text";
 }
 
-TEST_F(EasyRequestPixelTest, YesButtonBevelStaysOnBorder) {
-    constexpr int YES_LEFT = GAD_START_X;
-    constexpr int YES_TOP = GAD_ROW_Y;
-    constexpr int YES_WIDTH = 60;
-
+TEST_F(EasyRequestPixelTest, YesButtonFrameMatchesReference) {
+    /* AmigaOS 3.1: thin raised frame without corner pixels (shine top row
+     * and left column, shadow bottom row and right column), BACKGROUNDPEN
+     * interior, label width + 24 wide, font height + 6 high */
     lxa_flush_display();
+    auto buttons = RequesterButtons();
+    ASSERT_EQ(buttons.size(), 3u);
+    const auto &g = buttons.front();
 
-    EXPECT_EQ(ReadPixel(window_info.x + YES_LEFT + 46, window_info.y + YES_TOP + 4), PEN_GREY)
-        << "EasyRequest bevel should not draw a diagonal across the upper-right button interior";
-    EXPECT_EQ(ReadPixel(window_info.x + YES_LEFT + 12, window_info.y + YES_TOP + 12), PEN_GREY)
-        << "EasyRequest bevel should not draw a diagonal across the lower-left button interior";
+    EXPECT_EQ(g.width, 3 * 8 + 24) << "'Yes' button width";
+    EXPECT_EQ(g.height, 8 + 6) << "button height";
+    EXPECT_EQ(ReadPixel(g.left + 1, g.top), PEN_WHITE);
+    EXPECT_EQ(ReadPixel(g.left, g.top + 1), PEN_WHITE);
+    EXPECT_EQ(ReadPixel(g.left + g.width - 1, g.top + 1), PEN_BLACK);
+    EXPECT_EQ(ReadPixel(g.left + 1, g.top + g.height - 1), PEN_BLACK);
+    EXPECT_NE(ReadPixel(g.left + g.width - 1, g.top), PEN_BLACK)
+        << "top-right corner is not part of the frame";
+    EXPECT_EQ(ReadPixel(g.left + 2, g.top + 2), PEN_GREY)
+        << "button interior is BACKGROUNDPEN";
 }
 
 int main(int argc, char **argv) {

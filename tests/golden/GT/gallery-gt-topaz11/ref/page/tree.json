@@ -1,0 +1,1311 @@
+{
+ "backend": "ref",
+ "schema": "lxa-tree/1",
+ "screens": [
+  {
+   "bar_hborder": 5,
+   "bar_height": 10,
+   "bar_vborder": 1,
+   "default_title": "Workbench Screen",
+   "depth": 2,
+   "display_id": 32768,
+   "flags": 1553,
+   "font": {
+    "baseline": 6,
+    "name": "topaz.font",
+    "xsize": 8,
+    "ysize": 8
+   },
+   "height": 256,
+   "left": 0,
+   "menu_hborder": 4,
+   "menu_vborder": 2,
+   "title": "Workbench Screen",
+   "top": 0,
+   "wbor": [
+    4,
+    2,
+    4,
+    2
+   ],
+   "width": 640,
+   "windows": [
+    {
+     "app": true,
+     "block_pen": 1,
+     "border": [
+      4,
+      11,
+      4,
+      2
+     ],
+     "detail_pen": 0,
+     "flags": 134230030,
+     "font": {
+      "baseline": 6,
+      "name": "topaz.font",
+      "xsize": 8,
+      "ysize": 8
+     },
+     "gadgets": [
+      {
+       "activation": 32769,
+       "flags": 32788,
+       "height": 11,
+       "id": 0,
+       "left": -22,
+       "text": [],
+       "top": 0,
+       "type": 32837,
+       "width": 24
+      },
+      {
+       "activation": 32769,
+       "flags": 32772,
+       "height": 11,
+       "id": 0,
+       "left": 0,
+       "text": [],
+       "top": 0,
+       "type": 32901,
+       "width": 20
+      },
+      {
+       "activation": 32768,
+       "flags": 32804,
+       "height": 10,
+       "id": 0,
+       "left": 0,
+       "text": [],
+       "top": 0,
+       "type": 32805,
+       "width": 0
+      },
+      {
+       "activation": 0,
+       "flags": 3,
+       "height": 0,
+       "id": 0,
+       "left": 0,
+       "text": [],
+       "top": 0,
+       "type": 256,
+       "width": 0
+      },
+      {
+       "activation": 1,
+       "flags": 32774,
+       "height": 17,
+       "id": 1,
+       "left": 82,
+       "text": [],
+       "top": 15,
+       "type": 257,
+       "width": 100
+      },
+      {
+       "activation": 1,
+       "flags": 32774,
+       "height": 17,
+       "id": 2,
+       "left": 82,
+       "text": [],
+       "top": 35,
+       "type": 257,
+       "width": 100
+      },
+      {
+       "activation": 1,
+       "flags": 32902,
+       "height": 17,
+       "id": 3,
+       "left": 82,
+       "text": [],
+       "top": 55,
+       "type": 257,
+       "width": 100
+      },
+      {
+       "activation": 1,
+       "flags": 33030,
+       "height": 17,
+       "id": 4,
+       "left": 82,
+       "text": [],
+       "top": 75,
+       "type": 257,
+       "width": 100
+      },
+      {
+       "activation": 257,
+       "flags": 32774,
+       "height": 11,
+       "id": 5,
+       "left": 82,
+       "text": [
+        {
+         "bpen": 0,
+         "drawmode": 0,
+         "fpen": 1,
+         "left": -48,
+         "text": "Check",
+         "top": 0
+        }
+       ],
+       "top": 97,
+       "type": 257,
+       "width": 26
+      },
+      {
+       "activation": 257,
+       "flags": 32902,
+       "height": 11,
+       "id": 6,
+       "left": 122,
+       "text": [],
+       "top": 95,
+       "type": 257,
+       "width": 26
+      },
+      {
+       "activation": 257,
+       "flags": 33158,
+       "height": 11,
+       "id": 7,
+       "left": 162,
+       "text": [],
+       "top": 95,
+       "type": 257,
+       "width": 26
+      },
+      {
+       "activation": 10241,
+       "flags": 33284,
+       "height": 11,
+       "id": 8,
+       "left": 88,
+       "text": [
+        {
+         "bpen": 0,
+         "drawmode": 0,
+         "fpen": 1,
+         "left": -70,
+         "text": "Integer",
+         "top": 0
+        }
+       ],
+       "top": 112,
+       "type": 260,
+       "width": 88
+      },
+      {
+       "activation": 8193,
+       "flags": 33284,
+       "height": 11,
+       "id": 9,
+       "left": 88,
+       "text": [
+        {
+         "bpen": 0,
+         "drawmode": 0,
+         "fpen": 1,
+         "left": -62,
+         "text": "String",
+         "top": 0
+        }
+       ],
+       "top": 132,
+       "type": 260,
+       "width": 88
+      },
+      {
+       "activation": 8193,
+       "flags": 33540,
+       "height": 11,
+       "id": 10,
+       "left": 88,
+       "text": [
+        {
+         "bpen": 0,
+         "drawmode": 0,
+         "fpen": 1,
+         "left": -70,
+         "text": "Str Off",
+         "top": 0
+        }
+       ],
+       "top": 152,
+       "type": 260,
+       "width": 88
+      },
+      {
+       "activation": 1,
+       "flags": 32774,
+       "height": 17,
+       "id": 11,
+       "left": 82,
+       "text": [
+        {
+         "bpen": 0,
+         "drawmode": 0,
+         "fpen": 1,
+         "left": -48,
+         "text": "Cycle",
+         "top": 3
+        }
+       ],
+       "top": 169,
+       "type": 257,
+       "width": 100
+      },
+      {
+       "activation": 1,
+       "flags": 33030,
+       "height": 17,
+       "id": 12,
+       "left": 82,
+       "text": [
+        {
+         "bpen": 0,
+         "drawmode": 0,
+         "fpen": 1,
+         "left": -64,
+         "text": "Cyc Off",
+         "top": 3
+        }
+       ],
+       "top": 189,
+       "type": 257,
+       "width": 100
+      },
+      {
+       "activation": 2,
+       "flags": 6,
+       "height": 9,
+       "id": 0,
+       "left": 230,
+       "text": [
+        {
+         "bpen": 0,
+         "drawmode": 0,
+         "fpen": 1,
+         "left": 24,
+         "text": "Alpha",
+         "top": -1
+        }
+       ],
+       "top": 17,
+       "type": 257,
+       "width": 17
+      },
+      {
+       "activation": 2,
+       "flags": 134,
+       "height": 9,
+       "id": 1,
+       "left": 230,
+       "text": [
+        {
+         "bpen": 0,
+         "drawmode": 0,
+         "fpen": 1,
+         "left": 24,
+         "text": "Beta",
+         "top": -1
+        }
+       ],
+       "top": 30,
+       "type": 257,
+       "width": 17
+      },
+      {
+       "activation": 2,
+       "flags": 6,
+       "height": 9,
+       "id": 2,
+       "left": 230,
+       "text": [
+        {
+         "bpen": 0,
+         "drawmode": 0,
+         "fpen": 1,
+         "left": 24,
+         "text": "Gamma",
+         "top": -1
+        }
+       ],
+       "top": 43,
+       "type": 257,
+       "width": 17
+      },
+      {
+       "activation": 0,
+       "flags": 32771,
+       "height": 39,
+       "id": 20,
+       "left": 230,
+       "text": [],
+       "top": 15,
+       "type": 256,
+       "width": 65
+      },
+      {
+       "activation": 2,
+       "flags": 262,
+       "height": 9,
+       "id": 0,
+       "left": 320,
+       "text": [
+        {
+         "bpen": 0,
+         "drawmode": 0,
+         "fpen": 1,
+         "left": 24,
+         "text": "Alpha",
+         "top": -1
+        }
+       ],
+       "top": 17,
+       "type": 257,
+       "width": 17
+      },
+      {
+       "activation": 2,
+       "flags": 262,
+       "height": 9,
+       "id": 1,
+       "left": 320,
+       "text": [
+        {
+         "bpen": 0,
+         "drawmode": 0,
+         "fpen": 1,
+         "left": 24,
+         "text": "Beta",
+         "top": -1
+        }
+       ],
+       "top": 30,
+       "type": 257,
+       "width": 17
+      },
+      {
+       "activation": 2,
+       "flags": 390,
+       "height": 9,
+       "id": 2,
+       "left": 320,
+       "text": [
+        {
+         "bpen": 0,
+         "drawmode": 0,
+         "fpen": 1,
+         "left": 24,
+         "text": "Gamma",
+         "top": -1
+        }
+       ],
+       "top": 43,
+       "type": 257,
+       "width": 17
+      },
+      {
+       "activation": 0,
+       "flags": 32771,
+       "height": 39,
+       "id": 21,
+       "left": 320,
+       "text": [],
+       "top": 15,
+       "type": 256,
+       "width": 65
+      },
+      {
+       "activation": 11,
+       "flags": 7,
+       "height": 7,
+       "id": 22,
+       "left": 284,
+       "text": [],
+       "top": 62,
+       "type": 259,
+       "width": 112
+      },
+      {
+       "activation": 0,
+       "flags": 32775,
+       "height": 11,
+       "id": 22,
+       "left": 280,
+       "text": [
+        {
+         "bpen": 0,
+         "drawmode": 0,
+         "fpen": 1,
+         "left": -32,
+         "text": "Sld",
+         "top": 0
+        }
+       ],
+       "top": 60,
+       "type": 256,
+       "width": 120
+      },
+      {
+       "activation": 11,
+       "flags": 263,
+       "height": 7,
+       "id": 23,
+       "left": 284,
+       "text": [],
+       "top": 76,
+       "type": 259,
+       "width": 112
+      },
+      {
+       "activation": 0,
+       "flags": 32775,
+       "height": 11,
+       "id": 23,
+       "left": 280,
+       "text": [
+        {
+         "bpen": 0,
+         "drawmode": 0,
+         "fpen": 1,
+         "left": -32,
+         "text": "Off",
+         "top": 0
+        }
+       ],
+       "top": 74,
+       "type": 256,
+       "width": 120
+      },
+      {
+       "activation": 11,
+       "flags": 7,
+       "height": 7,
+       "id": 24,
+       "left": 284,
+       "text": [],
+       "top": 90,
+       "type": 259,
+       "width": 80
+      },
+      {
+       "activation": 3,
+       "flags": 32774,
+       "height": 11,
+       "id": 24,
+       "left": 368,
+       "text": [],
+       "top": 88,
+       "type": 257,
+       "width": 16
+      },
+      {
+       "activation": 3,
+       "flags": 32774,
+       "height": 11,
+       "id": 24,
+       "left": 384,
+       "text": [],
+       "top": 88,
+       "type": 257,
+       "width": 16
+      },
+      {
+       "activation": 0,
+       "flags": 32775,
+       "height": 11,
+       "id": 24,
+       "left": 280,
+       "text": [
+        {
+         "bpen": 0,
+         "drawmode": 0,
+         "fpen": 1,
+         "left": -32,
+         "text": "Scr",
+         "top": 0
+        }
+       ],
+       "top": 88,
+       "type": 256,
+       "width": 120
+      },
+      {
+       "activation": 3,
+       "flags": 32775,
+       "height": 20,
+       "id": 25,
+       "left": 280,
+       "text": [
+        {
+         "bpen": 0,
+         "drawmode": 0,
+         "fpen": 1,
+         "left": -32,
+         "text": "Pal",
+         "top": 5
+        }
+       ],
+       "top": 102,
+       "type": 261,
+       "width": 117
+      },
+      {
+       "activation": 0,
+       "flags": 32775,
+       "height": 17,
+       "id": 26,
+       "left": 280,
+       "text": [
+        {
+         "bpen": 0,
+         "drawmode": 0,
+         "fpen": 1,
+         "left": -32,
+         "text": "Txt",
+         "top": 3
+        }
+       ],
+       "top": 125,
+       "type": 256,
+       "width": 120
+      },
+      {
+       "activation": 0,
+       "flags": 32775,
+       "height": 17,
+       "id": 27,
+       "left": 280,
+       "text": [
+        {
+         "bpen": 0,
+         "drawmode": 0,
+         "fpen": 1,
+         "left": -32,
+         "text": "Num",
+         "top": 3
+        }
+       ],
+       "top": 145,
+       "type": 256,
+       "width": 120
+      },
+      {
+       "activation": 0,
+       "flags": 32775,
+       "height": 17,
+       "id": 28,
+       "left": 280,
+       "text": [
+        {
+         "bpen": 0,
+         "drawmode": 0,
+         "fpen": 1,
+         "left": -32,
+         "text": "Txt",
+         "top": 3
+        }
+       ],
+       "top": 165,
+       "type": 256,
+       "width": 120
+      },
+      {
+       "activation": 11,
+       "flags": 7,
+       "height": 36,
+       "id": 29,
+       "left": 206,
+       "text": [],
+       "top": 62,
+       "type": 259,
+       "width": 10
+      },
+      {
+       "activation": 3,
+       "flags": 32774,
+       "height": 10,
+       "id": 29,
+       "left": 202,
+       "text": [],
+       "top": 100,
+       "type": 257,
+       "width": 18
+      },
+      {
+       "activation": 3,
+       "flags": 32774,
+       "height": 10,
+       "id": 29,
+       "left": 202,
+       "text": [],
+       "top": 110,
+       "type": 257,
+       "width": 18
+      },
+      {
+       "activation": 0,
+       "flags": 32775,
+       "height": 60,
+       "id": 29,
+       "left": 202,
+       "text": [],
+       "top": 60,
+       "type": 256,
+       "width": 18
+      },
+      {
+       "activation": 11,
+       "flags": 7,
+       "height": 55,
+       "id": 30,
+       "left": 442,
+       "text": [],
+       "top": 32,
+       "type": 257,
+       "width": 130
+      },
+      {
+       "activation": 11,
+       "flags": 7,
+       "height": 33,
+       "id": 30,
+       "left": 578,
+       "text": [],
+       "top": 32,
+       "type": 259,
+       "width": 8
+      },
+      {
+       "activation": 3,
+       "flags": 32774,
+       "height": 11,
+       "id": 30,
+       "left": 574,
+       "text": [],
+       "top": 67,
+       "type": 257,
+       "width": 16
+      },
+      {
+       "activation": 3,
+       "flags": 32774,
+       "height": 11,
+       "id": 30,
+       "left": 574,
+       "text": [],
+       "top": 78,
+       "type": 257,
+       "width": 16
+      },
+      {
+       "activation": 0,
+       "flags": 32775,
+       "height": 59,
+       "id": 30,
+       "left": 574,
+       "text": [],
+       "top": 30,
+       "type": 256,
+       "width": 16
+      },
+      {
+       "activation": 0,
+       "flags": 32775,
+       "height": 59,
+       "id": 30,
+       "left": 440,
+       "text": [
+        {
+         "bpen": 0,
+         "drawmode": 0,
+         "fpen": 1,
+         "left": 59,
+         "text": "List",
+         "top": -15
+        }
+       ],
+       "top": 30,
+       "type": 256,
+       "width": 150
+      },
+      {
+       "activation": 11,
+       "flags": 7,
+       "height": 55,
+       "id": 31,
+       "left": 442,
+       "text": [],
+       "top": 111,
+       "type": 257,
+       "width": 130
+      },
+      {
+       "activation": 11,
+       "flags": 7,
+       "height": 33,
+       "id": 31,
+       "left": 578,
+       "text": [],
+       "top": 111,
+       "type": 259,
+       "width": 8
+      },
+      {
+       "activation": 3,
+       "flags": 32774,
+       "height": 11,
+       "id": 31,
+       "left": 574,
+       "text": [],
+       "top": 146,
+       "type": 257,
+       "width": 16
+      },
+      {
+       "activation": 3,
+       "flags": 32774,
+       "height": 11,
+       "id": 31,
+       "left": 574,
+       "text": [],
+       "top": 157,
+       "type": 257,
+       "width": 16
+      },
+      {
+       "activation": 0,
+       "flags": 32775,
+       "height": 59,
+       "id": 31,
+       "left": 574,
+       "text": [],
+       "top": 109,
+       "type": 256,
+       "width": 16
+      },
+      {
+       "activation": 0,
+       "flags": 32775,
+       "height": 59,
+       "id": 31,
+       "left": 440,
+       "text": [
+        {
+         "bpen": 0,
+         "drawmode": 0,
+         "fpen": 1,
+         "left": 43,
+         "text": "ReadOnly",
+         "top": -15
+        }
+       ],
+       "top": 109,
+       "type": 256,
+       "width": 150
+      }
+     ],
+     "height": 240,
+     "idcmp": 612,
+     "left": 10,
+     "max_height": 240,
+     "max_width": 620,
+     "menus": [],
+     "min_height": 240,
+     "min_width": 620,
+     "screen_title": "Workbench Screen",
+     "title": "GT Gallery",
+     "top": 12,
+     "width": 620
+    },
+    {
+     "app": false,
+     "block_pen": 1,
+     "border": [
+      0,
+      0,
+      0,
+      0
+     ],
+     "detail_pen": 0,
+     "flags": 35658560,
+     "font": {
+      "baseline": 6,
+      "name": "topaz.font",
+      "xsize": 8,
+      "ysize": 8
+     },
+     "gadgets": [],
+     "height": 245,
+     "idcmp": 885614,
+     "left": 0,
+     "max_height": 245,
+     "max_width": 640,
+     "menus": [
+      {
+       "flags": 1,
+       "height": 0,
+       "items": [
+        {
+         "command": 66,
+         "flags": 351,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Backdrop",
+         "top": 0,
+         "width": 186
+        },
+        {
+         "command": 69,
+         "flags": 86,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Execute Command...",
+         "top": 9,
+         "width": 186
+        },
+        {
+         "command": 0,
+         "flags": 82,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Redraw All",
+         "top": 18,
+         "width": 186
+        },
+        {
+         "command": 0,
+         "flags": 82,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Update All",
+         "top": 27,
+         "width": 186
+        },
+        {
+         "command": 0,
+         "flags": 82,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Last Message",
+         "top": 36,
+         "width": 186
+        },
+        {
+         "command": 63,
+         "flags": 86,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "About...",
+         "top": 45,
+         "width": 186
+        },
+        {
+         "command": 81,
+         "flags": 86,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Quit...",
+         "top": 54,
+         "width": 186
+        }
+       ],
+       "left": 2,
+       "title": "Workbench",
+       "top": 0,
+       "width": 80
+      },
+      {
+       "flags": 1,
+       "height": 0,
+       "items": [
+        {
+         "command": 78,
+         "flags": 70,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "New Drawer",
+         "top": 0,
+         "width": 162
+        },
+        {
+         "command": 0,
+         "flags": 66,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Open Parent",
+         "top": 9,
+         "width": 162
+        },
+        {
+         "command": 75,
+         "flags": 70,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Close",
+         "top": 18,
+         "width": 162
+        },
+        {
+         "command": 0,
+         "flags": 66,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Update",
+         "top": 27,
+         "width": 162
+        },
+        {
+         "command": 65,
+         "flags": 86,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Select Contents",
+         "top": 36,
+         "width": 162
+        },
+        {
+         "command": 46,
+         "flags": 86,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Clean Up",
+         "top": 45,
+         "width": 162
+        },
+        {
+         "command": 0,
+         "flags": 82,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [
+          {
+           "command": 0,
+           "flags": 82,
+           "height": 9,
+           "left": 122,
+           "mutualexclude": 0,
+           "sub": [],
+           "text": "Window",
+           "top": -1,
+           "width": 53
+          },
+          {
+           "command": 0,
+           "flags": 82,
+           "height": 9,
+           "left": 122,
+           "mutualexclude": 0,
+           "sub": [],
+           "text": "All",
+           "top": 8,
+           "width": 53
+          }
+         ],
+         "text": "Snapshot",
+         "top": 54,
+         "width": 162
+        },
+        {
+         "command": 0,
+         "flags": 66,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [
+          {
+           "command": 0,
+           "flags": 339,
+           "height": 9,
+           "left": 122,
+           "mutualexclude": -2,
+           "sub": [],
+           "text": "Only Icons",
+           "top": -1,
+           "width": 100
+          },
+          {
+           "command": 0,
+           "flags": 83,
+           "height": 9,
+           "left": 122,
+           "mutualexclude": -3,
+           "sub": [],
+           "text": "All Files",
+           "top": 8,
+           "width": 100
+          }
+         ],
+         "text": "Show",
+         "top": 63,
+         "width": 162
+        },
+        {
+         "command": 0,
+         "flags": 66,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [
+          {
+           "command": 0,
+           "flags": 339,
+           "height": 9,
+           "left": 122,
+           "mutualexclude": -2,
+           "sub": [],
+           "text": "Icon",
+           "top": -1,
+           "width": 52
+          },
+          {
+           "command": 0,
+           "flags": 83,
+           "height": 9,
+           "left": 122,
+           "mutualexclude": -3,
+           "sub": [],
+           "text": "Name",
+           "top": 8,
+           "width": 52
+          },
+          {
+           "command": 0,
+           "flags": 83,
+           "height": 9,
+           "left": 122,
+           "mutualexclude": -5,
+           "sub": [],
+           "text": "Date",
+           "top": 17,
+           "width": 52
+          },
+          {
+           "command": 0,
+           "flags": 83,
+           "height": 9,
+           "left": 122,
+           "mutualexclude": -9,
+           "sub": [],
+           "text": "Size",
+           "top": 26,
+           "width": 52
+          }
+         ],
+         "text": "View By",
+         "top": 72,
+         "width": 162
+        }
+       ],
+       "left": 90,
+       "title": "Window",
+       "top": 0,
+       "width": 56
+      },
+      {
+       "flags": 0,
+       "height": 0,
+       "items": [
+        {
+         "command": 79,
+         "flags": 86,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Open",
+         "top": 0,
+         "width": 154
+        },
+        {
+         "command": 67,
+         "flags": 86,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Copy",
+         "top": 9,
+         "width": 154
+        },
+        {
+         "command": 82,
+         "flags": 86,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Rename...",
+         "top": 18,
+         "width": 154
+        },
+        {
+         "command": 73,
+         "flags": 86,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Information...",
+         "top": 27,
+         "width": 154
+        },
+        {
+         "command": 83,
+         "flags": 86,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Snapshot",
+         "top": 36,
+         "width": 154
+        },
+        {
+         "command": 85,
+         "flags": 86,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "UnSnapshot",
+         "top": 45,
+         "width": 154
+        },
+        {
+         "command": 76,
+         "flags": 86,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Leave Out",
+         "top": 54,
+         "width": 154
+        },
+        {
+         "command": 80,
+         "flags": 86,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Put Away",
+         "top": 63,
+         "width": 154
+        },
+        {
+         "command": 0,
+         "flags": 192,
+         "height": 6,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": null,
+         "top": 72,
+         "width": 154
+        },
+        {
+         "command": 0,
+         "flags": 82,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Delete...",
+         "top": 78,
+         "width": 154
+        },
+        {
+         "command": 0,
+         "flags": 82,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Format Disk...",
+         "top": 87,
+         "width": 154
+        },
+        {
+         "command": 0,
+         "flags": 82,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Empty Trash",
+         "top": 96,
+         "width": 154
+        }
+       ],
+       "left": 154,
+       "title": "Icons",
+       "top": 0,
+       "width": 48
+      },
+      {
+       "flags": 1,
+       "height": 0,
+       "items": [
+        {
+         "command": 0,
+         "flags": 82,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "ResetWB",
+         "top": 0,
+         "width": 61
+        }
+       ],
+       "left": 210,
+       "title": "Tools",
+       "top": 0,
+       "width": 48
+      }
+     ],
+     "min_height": 245,
+     "min_width": 640,
+     "screen_title": "Copyright \u00a9 1985-1993 Commodore-Amiga, Inc. All Rights Reserved.",
+     "title": "",
+     "top": 11,
+     "width": 640
+    }
+   ]
+  }
+ ]
+}

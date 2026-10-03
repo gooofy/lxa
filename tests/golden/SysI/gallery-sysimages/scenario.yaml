@@ -1,0 +1,11 @@
+# Rendering conformance gallery (Phase 223): sysiclass images, every SYSIA_Which
+# x size x state.
+name: gallery-sysimages
+app:
+  sample: Tests/Gallery/SysI
+steps:
+  - launch
+  - wait_window: "SysI Gallery"
+  - wait_idle
+  - snapshot: {name: page, window: "SysI Gallery"}
+  - quit

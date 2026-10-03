@@ -194,13 +194,19 @@ TEST_F(SimpleGadTest, RootlessWindowShowsGadgetBorder) {
     int left_edge_pixels = 0;
     int right_edge_pixels = 0;
     int bottom_edge_pixels = 0;
-    int bx0 = 19;
-    int by0 = 19;
-    int bx1 = 19 + BUTTON_WIDTH + 1;
-    int by1 = 19 + BUTTON_HEIGHT + 1;
-
     ASSERT_TRUE(WaitForWindowDrawn(0, 5000))
         << "Rootless SimpleGad window did not draw";
+
+    /* A rootless Workbench window's host buffer starts at screen row 0
+     * (rootless_layout_host_origin_y); AmigaOS 3.1 opens this window
+     * below the screen title bar, so add its TopEdge */
+    lxa_window_info_t wi;
+    ASSERT_TRUE(lxa_get_window_info(0, &wi));
+    const int origin_y = wi.y > 0 ? wi.y : 0;
+    int bx0 = 19;
+    int by0 = origin_y + 19;
+    int bx1 = 19 + BUTTON_WIDTH + 1;
+    int by1 = origin_y + 19 + BUTTON_HEIGHT + 1;
     RunCyclesWithVBlank(20, 50000);
 
     ASSERT_TRUE(CaptureWindow(capture_path.c_str(), 0))

@@ -1,7 +1,7 @@
 {
  "app": "SimpleGTGadget",
  "disabled": null,
- "lxa_version": "0.11.12",
+ "lxa_version": "0.11.14",
  "promoted": "2026-10-03",
  "reference": "AmigaOS 3.1 (KS 40.70), profile aga",
  "requires_apps": false,
@@ -9,14 +9,6 @@
  "snapshots": {
   "startup": {
    "known_tree_diffs": [
-    {
-     "field": "top",
-     "kind": "window",
-     "lxa": 0,
-     "phase": 223,
-     "ref": 11,
-     "where": "screen[Workbench Screen]/window[GadTools Gadget Demo]"
-    },
     {
      "field": "flags",
      "kind": "gadget",

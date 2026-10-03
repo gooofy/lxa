@@ -1,0 +1,21 @@
+{
+ "backend": "ref",
+ "files": [
+  "screen.png",
+  "palette.json",
+  "tree.json",
+  "text.jsonl",
+  "stdout.txt"
+ ],
+ "profile": "aga",
+ "refsys_checksum": "3c156b79be0fb51d-d3092425337c",
+ "scenario": "gallery-menus-topaz11",
+ "schema": "lxa-bundle/1",
+ "screen": {
+  "depth": 2,
+  "height": 256,
+  "width": 640
+ },
+ "snapshot": "menu1",
+ "window": null
+}

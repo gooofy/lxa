@@ -1,0 +1,12 @@
+# Rendering conformance gallery (Phase 223): NewLook menus with checkmarks,
+# sub-items, COMMSEQ, bars and ghosted items, on a Workbench-like screen.
+name: gallery-menus
+app:
+  sample: Tests/Gallery/Menus
+steps:
+  - launch
+  - wait_window: "Menu Gallery"
+  - wait_idle
+  - snapshot: screen
+  - menus
+  - quit
