@@ -26,6 +26,10 @@ def run(scn, out_dir, build=None):
     result = {"backend": "lxa", "scenario": scn.name, "ok": True, "steps": [], "snapshots": []}
     t0 = time.time()
     tmp = tempfile.mkdtemp(prefix="rdd-lxa-")
+    # the reference runner starts programs as `RUN >rdd-stdout.txt prog`:
+    # stdout is a file and stdin NIL: there, so IsInteractive() of both
+    # must be FALSE here
+    os.environ["LXA_STDIO_FILE"] = "1"
     lxa = Lxa(build=build)
     try:
         fonts = scn.lxa_fonts_dir()

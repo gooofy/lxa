@@ -171,7 +171,6 @@ Complete (Phases 210–216, v0.11.9); see the summary table.
 
 ### Phase 238 — Corpus app failures (from the Phase 231 sweep)
 **Class**: Compatibility. Worst ratings of `doc/sweeps/2026-10-03-sweep.md`, per app (use the compat-sweep skill's parallel triage; tracediff before hypotheses).
-- [ ] vim-5.3: lxa's snapshot fails ("indexed capture failed").
 - [ ] No window where AmigaOS 3.1 shows one: ADPro (crashed after loading `adpro.library` in Phase 230), Asm-One and GadToolsBox3 (screen-mode requester), Oberon, Scout (MUI).
 - [ ] The five `untested` apps: the reference never shows the expected window for AmiBlitz3/AQB/BTII/SIGMAth/SIGMAth2 - fix the scenarios (DSL: stack size for the launched program - AQB needs 64 KB; a writable copy of the app directory - AmiBlitz3 writes into its own folder; BTII/SIGMAth crash on the reference itself with #80000006/#8000000B: find the configuration they need).
 - [ ] Give the lxa backend a `SYS:` laid out like the reference's system root (pylxa's `SYS:` is the samples directory first): the dopus-startup golden's right pane lists different directories (ignore region, Phase 224).

@@ -1866,7 +1866,10 @@ BPTR _dos_Open ( register struct DosLibrary * DOSBase        __asm("a6"),
      * 3.1: object not found, or wrong type for an existing directory) */
     {
         LONG n = strlen((const char *)___name);
-        if (n > 1 && ___name[n - 1] == '/' && ___name[n - 2] != '/' && ___name[n - 2] != ':')
+        /* not for handler specifications: "con:0/0/640/200/" is a CON:
+         * window with an empty title (vim's NewCLI re-launch) */
+        BOOL handler = !_strnicmp_prefix((const char *)___name, "CON:", 4) || !_strnicmp_prefix((const char *)___name, "RAW:", 4);
+        if (!handler && n > 1 && ___name[n - 1] == '/' && ___name[n - 2] != '/' && ___name[n - 2] != ':')
         {
             BPTR l = Lock(___name, SHARED_LOCK);
             if (l)
@@ -3192,7 +3195,11 @@ LONG _dos_IsInteractive ( register struct DosLibrary *DOSBase __asm("a6"),
     DPRINTF (LOG_DEBUG, "_dos: IsInteractive() called, file=0x%08lx\n", file);
     struct FileHandle *fh = (struct FileHandle *) BADDR(file);
     ULONG kind = fh->fh_Func3;
-    return kind == FILE_KIND_CONSOLE;
+    if (kind == FILE_KIND_CON)
+        return 1;           /* CON:/RAW: windows */
+    if (kind != FILE_KIND_CONSOLE)
+        return 0;
+    return emucall1(EMU_CALL_DOS_ISINTERACTIVE, fh->fh_Args) ? 1 : 0;
 }
 
 void _dos_Delay ( register struct DosLibrary * __libBase __asm("a6"),
