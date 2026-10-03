@@ -115,7 +115,7 @@ M0 and M1 are on the critical path: nothing in M2 and later is efficient without
 
 ## Next Phase
 
-> **Phase 222 — API conformance probes** (222a running; 222b remainder, 222g), then M3: **237** (in progress), **238** (running), 234, 236.
+> **Phase 222** (222b remainder, 222g), then M3: **237** (in progress), **238** and **236** (running), 234.
 
 ---
 
@@ -135,14 +135,12 @@ Complete (Phases 210–216, v0.11.9); see the summary table.
 
 ### Phase 222 — API conformance probes ("WINE tests")
 **Class**: Compatibility. Small generated probe programs call each function with normal and edge-case inputs and print the results. The reference output is the golden. Sub-phases are prioritised by stub telemetry and app traces:
-- [ ] **222a** (open) `ReadArgs()` still differs from 3.1 in ~15 probe cases (`;` comments, input without trailing newline, `=x`, /T values, `+5` for /N, quotes inside /F, /M followed by required items, empty template, /S returning 1 instead of -1); `tests/probes/dos/readargs.c` has no `.ref.out` yet (capture with `--capture-ref` once it matches). FGetC reads a block ahead on 3.1 so a following Read() continues after it; Output() buffering. RemNamedObject while in use.
-- [ ] **222a** utility, exec (lists, memory, semaphores, signals, ports), dos (paths, `ReadArgs`, pattern matching, locks, `ExAll`, `SetVBuf`, error codes).
-  - Open from Phase 221: `OpenLibrary("exec.library")` fails on lxa; `CacheControl()` is partial; C:Copy onto itself does not report "object in use"; C:Sort NUMERIC/COLSTART are not order-stable on equal keys on 3.1 (lxa is); lxa's graphics/intuition report revision 40.1 (3.1: 40.24/40.85) and differ in their `$VER` date strings.
-  - Open from the Phase 220 dos triage: `ReadArgs()` must read the command line from `Input()`'s buffer, not `pr_Arguments`; `Output()` buffering differs from AmigaOS (visible when stdio and dos output are mixed); `NameFromLock()` returns `SYS:` instead of the volume name; RawDoFmt's stray NUL after zero-padded negative numbers (`%05ld`) is not emulated.
+- [x] **222a** done (v0.11.25): probes `dos/{readargs,cmdline,bufblock,...}`, `exec/romversions`, `utility/*`, shell parity scripts equal the reference (ReadArgs over ~180 cases, command line through `Input()`'s buffer, 196-byte dos buffering, CacheControl, 3.1 library revisions, RemNamedObject in use).
 - [x] **222b/c** done (v0.11.18): probes `graphics/{lines,areas,blits,text}`, `layers/{cliprects,refresh}` equal the reference.
 - [x] **222d/e/f** done (v0.11.22): probes `intuition/{windows,screens,requesters,reqlayout,strgad}`, `gadtools/{gadgets_topaz8,menus}`, `locale/*`, `keymap/*`, `iffparse/*`, `icon/*`, `diskfont/*`, `clipboard` equal the reference; RequesterBasic, IDCMPDeltaMove and keymap_unit validated on 3.1 by scenario.
 - [ ] **222b** remainder: `tests/exec/library_lxa` sections that still differ from 3.1 (GEL animation `AddAnimOb`/`RemIBob`, `CMove`, `CalcIVG` beyond 40 copper instructions, sprite allocation, `VTAG_IMMEDIATE` and unset `VTAG_*_GET` values); PaletteExtra keeps 16-bit refcount/allocation arrays where 3.1 has 8-bit ones; `IEEESPMul`/`IEEESPDiv` never return on the reference (check FS-UAE's FPU emulation before trusting it: `Tests/Exec/MathIeeeSingBasMulDiv` is lxa_only until then). Not emulated yet: the accumulator values `BitMapScale` writes back, `WritePixelArray8` destroying its input, exact ClipRect order (only the covered areas are compared).
 - [ ] **222g** known tree diffs still recorded in goldens under phase 222: `WFLG_WINDOWTICKED` on windows with a pending tick (DevPac, Typeface), menu/item drawn-state flags (DevPac settings, Typeface preview), `GA_RelWidth`/`GA_RelHeight` flags (setting them stops BGUI drawing Typeface's character buttons - find out why first). Requester buttons are BOOPSI gadgets plus a frame gadget on 3.1 (see 252). Unverified on the reference: GadTools vertical prop drag, scroller-arrow repeat.
+- [ ] **222g** from 222a: CON: windows on 3.1 have no close gadget, simple refresh and a minimum height of 50 (conbuf golden); iffparse (39.2) and commodities (39.1) report lower versions than 3.1 (40.1/40.2) - an application asking for version 40 fails; `exec/tasks` prints "subtask has not run yet" timing-dependently on the reference (make the probe deterministic); unverified: whether `CreateNewProc()` with an empty `NP_Arguments` or `SYS_Asynch` injects an argument line.
 - [ ] **222g** from the 222f probes: `CMD_RESET` on clipboard.device never replies on 3.1; `OpenLocale()` does not parse locale prefs files yet (also 236); a diskfont scaled from an already scaled font in memory; the iffparse probes print non-printable bytes as `~` because the lxa side of `suite-ref` cuts output at the first NUL (make the harness binary-safe).
 **Test gate per sub-phase**: probe outputs equal the reference goldens.
 
@@ -166,6 +164,7 @@ Complete (Phases 210–216, v0.11.9); see the summary table.
 **Class**: Compatibility. Worst ratings of `doc/sweeps/2026-10-03-sweep.md`, per app (use the compat-sweep skill's parallel triage; tracediff before hypotheses).
 - [ ] No window where AmigaOS 3.1 shows one: ADPro (crashed after loading `adpro.library` in Phase 230), Asm-One and GadToolsBox3 (screen-mode requester), Oberon, Scout (MUI).
 - [ ] The five `untested` apps: the reference never shows the expected window for AmiBlitz3/AQB/BTII/SIGMAth/SIGMAth2 - fix the scenarios (DSL: stack size for the launched program - AQB needs 64 KB; a writable copy of the app directory - AmiBlitz3 writes into its own folder; BTII/SIGMAth crash on the reference itself with #80000006/#8000000B: find the configuration they need).
+- [ ] `NameFromLock()` returns `SYS:`/`T:`/`RAM:` where 3.1 returns volume names (`Ram Disk:`, `System:C`; probe `tests/probes/dos/volnames.c` has no `.ref.out` yet) - give lxa a "System" boot volume and a "Ram Disk" volume for RAM:, then capture the probe.
 - [ ] Give the lxa backend a `SYS:` laid out like the reference's system root (pylxa's `SYS:` is the samples directory first): the dopus-startup golden's right pane lists different directories (ignore region, Phase 224).
 - [ ] Re-run `python3 -m rdd sweep run` after each fix; the rating in `apps/compat.yaml` must not drop (`rdd loop`).
 
