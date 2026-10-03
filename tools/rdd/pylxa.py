@@ -232,9 +232,8 @@ class Lxa:
                 info = LxaWindowInfo()
                 if self.lib.lxa_get_window_info(i, ctypes.byref(info)) and substr.encode() in info.title:
                     return i
-            # the tracked title is the one passed to OpenWindow; a title set
-            # later (SetWindowTitles) is only visible in the Intuition tree,
-            # which is also what lxaprobe's WAIT_WINDOW searches
+            # also search the Intuition tree, as lxaprobe's WAIT_WINDOW does
+            # (e.g. windows liblxa does not track)
             if polls % 5 == 0 and self._tree_has_title(substr):
                 return 0
             polls += 1

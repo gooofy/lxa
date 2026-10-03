@@ -175,7 +175,6 @@ Complete (Phases 210–216, v0.11.9); see the summary table.
 - [ ] No window where AmigaOS 3.1 shows one: ADPro (crashed after loading `adpro.library` in Phase 230), Asm-One and GadToolsBox3 (screen-mode requester), Oberon, Scout (MUI).
 - [ ] The five `untested` apps: the reference never shows the expected window for AmiBlitz3/AQB/BTII/SIGMAth/SIGMAth2 - fix the scenarios (DSL: stack size for the launched program - AQB needs 64 KB; a writable copy of the app directory - AmiBlitz3 writes into its own folder; BTII/SIGMAth crash on the reference itself with #80000006/#8000000B: find the configuration they need).
 - [ ] Give the lxa backend a `SYS:` laid out like the reference's system root (pylxa's `SYS:` is the samples directory first): the dopus-startup golden's right pane lists different directories (ignore region, Phase 224).
-- [ ] liblxa's tracked window title does not follow `SetWindowTitles()` after the window opened (the runner works around it).
 - [ ] Re-run `python3 -m rdd sweep run` after each fix; the rating in `apps/compat.yaml` must not drop (`rdd loop`).
 
 **Test gate**: no corpus app rated `garbage` or `untested` for a reason inside lxa or the scenarios.
