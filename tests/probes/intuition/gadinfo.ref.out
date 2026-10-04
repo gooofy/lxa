@@ -1,0 +1,98 @@
+-- window
+gadget id=1 flags=0x8000 type=0x0005 box=10,20,50x20
+gadget id=2 flags=0x8060 type=0x0005 box=4,11,-22x-13
+gadget id=3 flags=0xc000 type=0x0005 box=70,20,30x10
+gadget id=4 flags=0x8018 type=0x0005 box=-40,-30,20x10
+gadget id=5 flags=0x8010 type=0x0005 box=-15,20,12x10
+NewObject:
+AddGList:
+  GM_LAYOUT id=2 box=0,0,300x100 initial=1
+  GM_LAYOUT id=3 box=0,0,300x100 initial=1
+  GM_LAYOUT id=4 box=0,0,300x100 initial=1
+  GM_LAYOUT id=5 box=0,0,300x100 initial=1
+RefreshGList:
+  GM_RENDER id=5 box=0,0,300x100
+  GM_RENDER id=4 box=0,0,300x100
+  GM_RENDER id=3 box=0,0,300x100
+  GM_RENDER id=2 box=0,0,300x100
+  GM_RENDER id=1 box=0,0,300x100
+SetWindowTitles:
+RefreshWindowFrame:
+  GM_RENDER id=5 box=0,0,300x100
+  GM_RENDER id=4 box=0,0,300x100
+  GM_RENDER id=3 box=0,0,300x100
+  GM_RENDER id=2 box=0,0,300x100
+  GM_RENDER id=1 box=0,0,300x100
+other window activated:
+window reactivated:
+  GM_RENDER id=5 box=0,0,300x100
+other window moved over it:
+other window closed:
+SetGadgetAttrs:
+  OM_SET id=1 box=0,0,300x100
+  OM_SET id=2 box=0,0,300x100
+DoGadgetMethod:
+  DoGadgetMethod id=1 box=0,0,300x100
+  DoGadgetMethod id=2 box=0,0,300x100
+ChangeWindowBox:
+  GM_LAYOUT id=2 box=0,0,340x120 initial=0
+  GM_LAYOUT id=3 box=0,0,340x120 initial=0
+  GM_LAYOUT id=4 box=0,0,340x120 initial=0
+  GM_LAYOUT id=5 box=0,0,340x120 initial=0
+  GM_RENDER id=5 box=0,0,340x120
+  GM_RENDER id=4 box=0,0,340x120
+  GM_RENDER id=3 box=0,0,340x120
+  GM_RENDER id=2 box=0,0,340x120
+  GM_RENDER id=1 box=0,0,340x120
+RemoveGList:
+CloseWindow:
+-- gzz window
+gadget id=1 flags=0x8000 type=0x0005 box=10,20,50x20
+gadget id=2 flags=0x8060 type=0x0005 box=4,11,-22x-13
+gadget id=3 flags=0xc000 type=0x0005 box=70,20,30x10
+gadget id=4 flags=0x8018 type=0x0005 box=-40,-30,20x10
+gadget id=5 flags=0x8010 type=0x0005 box=-15,20,12x10
+NewObject:
+AddGList:
+  GM_LAYOUT id=2 box=4,11,278x87 initial=1
+  GM_LAYOUT id=3 box=4,11,278x87 initial=1
+  GM_LAYOUT id=4 box=4,11,278x87 initial=1
+  GM_LAYOUT id=5 box=4,11,278x87 initial=1
+RefreshGList:
+  GM_RENDER id=5 box=4,11,278x87
+  GM_RENDER id=4 box=4,11,278x87
+  GM_RENDER id=3 box=4,11,278x87
+  GM_RENDER id=2 box=4,11,278x87
+  GM_RENDER id=1 box=4,11,278x87
+SetWindowTitles:
+RefreshWindowFrame:
+  GM_RENDER id=5 box=4,11,278x87
+  GM_RENDER id=4 box=4,11,278x87
+  GM_RENDER id=3 box=4,11,278x87
+  GM_RENDER id=2 box=4,11,278x87
+  GM_RENDER id=1 box=4,11,278x87
+SetGadgetAttrs:
+  OM_SET id=1 box=4,11,278x87
+  OM_SET id=2 box=4,11,278x87
+DoGadgetMethod:
+  DoGadgetMethod id=1 box=4,11,278x87
+  DoGadgetMethod id=2 box=4,11,278x87
+ChangeWindowBox:
+  GM_LAYOUT id=2 box=4,11,318x107 initial=0
+  GM_LAYOUT id=3 box=4,11,318x107 initial=0
+  GM_LAYOUT id=4 box=4,11,318x107 initial=0
+  GM_LAYOUT id=5 box=4,11,318x107 initial=0
+  GM_RENDER id=5 box=4,11,318x107
+  GM_RENDER id=4 box=4,11,318x107
+  GM_RENDER id=3 box=4,11,318x107
+  GM_RENDER id=2 box=4,11,318x107
+  GM_RENDER id=1 box=4,11,318x107
+RemoveGList:
+CloseWindow:
+-- WA_Gadgets
+OpenWindow:
+  GM_LAYOUT id=2 box=0,0,300x100 initial=1
+  GM_LAYOUT id=3 box=0,0,300x100 initial=1
+  GM_RENDER id=3 box=0,0,300x100
+  GM_RENDER id=2 box=0,0,300x100
+CloseWindow:

@@ -295,72 +295,42 @@ TEST_F(DevpacBorderTest, RightBorderPropKnob) {
 }
 
 /* ------------------------------------------------------------------ */
-/* Test: Right border PropGadget track shows PROPNEWLOOK stipple       */
+/* Test: Right border PropGadget track equals the reference            */
 /* ------------------------------------------------------------------ */
-TEST_F(DevpacBorderTest, RightBorderPropTrackHasStipple) {
-    /* The PropGadget container should have a stipple background when
-     * PROPNEWLOOK is set.  The stipple mixes pen-0 and pen-1 pixels.
-     * Without PROPNEWLOOK the track is filled solid (all pen 0), so the
-     * presence of ANY pen-1 pixel in the track area proves the stipple.
-     *
-     * Note: the Devpac right-border gadget is only ~6 px wide, so we
-     * check for the presence of both pen-0 and pen-1 pixels rather than
-     * adjacent-pair alternation, which needs at least 2 pixels per row. */
+TEST_F(DevpacBorderTest, RightBorderPropTrackMatchesReference) {
+    /* Reference (AmigaOS 3.1, golden DevPac/devpac-edit startup): Devpac
+     * opens without a file, the knob fills the whole container and the
+     * container interior (excluding its 1-px frame) is pen 3 throughout -
+     * no PROPNEWLOOK stipple shows.  lxa used to redraw the track over the
+     * knob when the window was (re)activated, which 3.1 does not do. */
     lxa_gadget_info_t prop;
     ASSERT_TRUE(lxa_get_gadget_info(0, 0, &prop))
         << "Could not read gadget 0 (PropGadget)";
 
-    /* Track area: the container interior excluding the 1-pixel border.
-     * Devpac opens without a file, so VertBody=0xFFFF (knob fills the
-     * whole container).  In that case there is no exposed track, and
-     * the stipple pixels are completely overdrawn by the knob.
-     *
-     * We scan the interior (excluding the 1-px frame).  If ALL interior
-     * pixels are pen-2 (SHINEPEN / knob interior) the knob covers the
-     * full container — skip the stipple check (the knob-rendering test
-     * already proved correct rendering).
-     * Otherwise we expect both pen-0 and pen-1 in the exposed track area. */
     int x1 = prop.left + 2;
     int x2 = prop.left + prop.width - 3;
     int y1 = prop.top + 2;
     int y2 = prop.top + prop.height - 3;
+    ASSERT_LT(y1, y2);
+    ASSERT_LE(x1, x2);
 
-    if (y1 >= y2 || x1 > x2) {
-        GTEST_SKIP() << "PropGadget too small to check stipple track area";
-    }
-
-    bool found_pen0 = false;
-    bool found_pen1 = false;
-    bool found_non_pen2 = false;   /* any non-SHINEPEN pixel in interior */
+    int other = 0;
     for (int y = y1; y <= y2; ++y) {
         for (int x = x1; x <= x2; ++x) {
             int pen = -1;
-            if (lxa_read_pixel(x, y, &pen)) {
-                if (pen != 2) found_non_pen2 = true;
-                if (pen == 0) found_pen0 = true;
-                if (pen == 1) found_pen1 = true;
-            }
+            if (lxa_read_pixel(x, y, &pen) && pen != 3)
+                other++;
         }
     }
 
-    if (!found_non_pen2) {
-        GTEST_SKIP() << "Knob covers entire container (VertBody=0xFFFF) — "
-                        "no exposed track to verify stipple; knob rendering "
-                        "verified by RightBorderPropKnob test";
-    }
-
-    const std::string cap = s_ram_dir + "/devpac-propstipple.png";
+    const std::string cap = s_ram_dir + "/devpac-proptrack.png";
     lxa_capture_screen(cap.c_str());
-    EXPECT_TRUE(found_pen0 && found_pen1)
-        << "PropGadget PROPNEWLOOK track should contain both pen-0 and pen-1 "
-           "pixels (stipple). "
-        << "found_pen0=" << found_pen0 << " found_pen1=" << found_pen1 << ". "
+    EXPECT_EQ(other, 0)
+        << "PropGadget container interior should be pen 3 as on the reference. "
         << "Region: x=" << x1 << ".." << x2 << " y=" << y1 << ".." << y2
         << ". Capture: " << cap;
 }
 
-/* ------------------------------------------------------------------ */
-/* Test C: Scroll arrow BOOL gadgets render non-background pixels      */
 /* ------------------------------------------------------------------ */
 TEST_F(DevpacBorderTest, RightBorderScrollArrows) {
     /* Gadgets 1 and 2 are BOOLGADGET scroll arrows at the bottom of the
