@@ -7256,9 +7256,16 @@ void lxa_notify_window_refresh(APTR win)
     if (!window)
         return;
 
-    /* Only send if the app asked for REFRESHWINDOW events */
+    /* Only send if the app asked for REFRESHWINDOW events, or to the
+     * console.device unit attached to the window (it repairs CON: windows,
+     * which are simple refresh) */
     if (!(window->IDCMPFlags & IDCMP_REFRESHWINDOW))
-        return;
+    {
+        struct LXAWindowState *state =
+            _intuition_find_window_state((struct LXAIntuitionBase *)IntuitionBase, window);
+        if (!state || !state->console_port)
+            return;
+    }
 
     /* Do not send for SuperBitMap or NoCareRefresh windows */
     if (window->Flags & (WFLG_SUPER_BITMAP | WFLG_NOCAREREFRESH))
