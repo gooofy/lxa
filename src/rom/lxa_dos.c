@@ -1084,86 +1084,139 @@ struct ConHandle {
     struct MsgPort   *ch_MsgPort;     /* Reply port for console I/O */
     BOOL              ch_RawMode;     /* TRUE for RAW:, FALSE for CON: */
     char              ch_Title[128];  /* window title (Intuition keeps the pointer) */
+    WORD              ch_Zoom[4];     /* WA_Zoom box (Intuition keeps the pointer) */
+    LONG              ch_LineLen;     /* cooked mode: typed input not read yet */
+    char              ch_Line[256];
 };
 
 /*
- * Parse CON: path syntax: CON:x/y/w/h/title/options
- * Returns TRUE on success, FALSE on error
+ * A parsed CON:/RAW: specification: "CON:x/y/w/h/title/option/option...".
+ * AmigaOS 3.1 behaviour (probe dos/conwindow): empty or missing numbers are
+ * 0; "CON:" alone is 0/0/<screen width>/100 titled "AmigaDOS"; options
+ * are case-insensitive, unknown ones are ignored; ALT takes the next four
+ * fields as the zoom box ("ALTx/y/w/h").
  */
-static BOOL parse_con_path(const char *path, WORD *x, WORD *y, WORD *w, WORD *h, 
-                           char *title, ULONG title_size, BOOL *is_raw)
+struct ConSpec {
+    WORD  x, y, w, h;
+    BOOL  is_raw;
+    BOOL  close, simple, nosize, nodrag, nodepth, backdrop, noborder, inactive;
+    BOOL  has_alt;
+    WORD  alt[4];
+    char  title[128];
+};
+
+/* next '/'-separated field of p into buf (upper-cased if 'upper');
+ * returns the position after the field and its separator, or NULL at the end */
+static const char *con_field(const char *p, char *buf, ULONG size, BOOL upper)
+{
+    ULONG i = 0;
+
+    if (!p || !*p)
+        return NULL;
+    while (*p && *p != '/') {
+        char c = *p++;
+        if (upper && c >= 'a' && c <= 'z')
+            c -= 32;
+        if (i < size - 1)
+            buf[i++] = c;
+    }
+    buf[i] = '\0';
+    if (*p == '/')
+        p++;
+    return p;
+}
+
+static WORD con_number(const char *s)
+{
+    LONG v = 0;
+    while (*s >= '0' && *s <= '9') {
+        v = v * 10 + (*s++ - '0');
+        if (v > 0x7fff)
+            v = 0x7fff;
+    }
+    return (WORD)v;
+}
+
+static BOOL con_option(const char *field, const char *name)
+{
+    return strcmp(field, name) == 0;
+}
+
+static BOOL parse_con_path(const char *path, struct ConSpec *cs)
 {
     const char *p = path;
-    
-    /* Default values */
-    *x = 0;
-    *y = 11;  /* Below title bar */
-    *w = 640;
-    *h = 200;
-    title[0] = '\0';
-    *is_raw = FALSE;
-    
-    /* Skip CON: or RAW: prefix */
-    if (!_strnicmp_prefix(p, "RAW:", 4)) {
-        *is_raw = TRUE;
-        p += 4;
-    } else if (!_strnicmp_prefix(p, "CON:", 4)) {
-        p += 4;
-    } else {
+    char field[128];
+    WORD *num[4];
+    int i;
+
+    memset(cs, 0, sizeof(*cs));
+    cs->simple = TRUE;
+
+    if (!_strnicmp_prefix(p, "RAW:", 4))
+        cs->is_raw = TRUE;
+    else if (_strnicmp_prefix(p, "CON:", 4))
         return FALSE;
+    p += 4;
+
+    if (!*p) {
+        cs->h = 100;
+        strcpy(cs->title, "AmigaDOS");
+        return TRUE;
     }
-    
-    /* Parse x/y/w/h/title - all optional */
-    if (*p && *p != '/') {
-        *x = 0;
-        while (*p >= '0' && *p <= '9') {
-            *x = *x * 10 + (*p - '0');
-            p++;
+
+    num[0] = &cs->x;
+    num[1] = &cs->y;
+    num[2] = &cs->w;
+    num[3] = &cs->h;
+    for (i = 0; i < 4; i++) {
+        p = con_field(p, field, sizeof(field), FALSE);
+        if (!p)
+            return TRUE;
+        *num[i] = con_number(field);
+    }
+
+    p = con_field(p, cs->title, sizeof(cs->title), FALSE);
+
+    while ((p = con_field(p, field, sizeof(field), TRUE)) != NULL) {
+        if (con_option(field, "CLOSE"))
+            cs->close = TRUE;
+        else if (con_option(field, "NOCLOSE"))
+            cs->close = FALSE;
+        else if (con_option(field, "SIMPLE"))
+            cs->simple = TRUE;
+        else if (con_option(field, "SMART"))
+            cs->simple = FALSE;
+        else if (con_option(field, "NOSIZE"))
+            cs->nosize = TRUE;
+        else if (con_option(field, "NODRAG"))
+            cs->nodrag = TRUE;
+        else if (con_option(field, "NODEPTH"))
+            cs->nodepth = TRUE;
+        else if (con_option(field, "BACKDROP"))
+            cs->backdrop = TRUE;
+        else if (con_option(field, "NOBORDER"))
+            cs->noborder = TRUE;
+        else if (con_option(field, "INACTIVE"))
+            cs->inactive = TRUE;
+        else if (field[0] == 'A' && field[1] == 'L' && field[2] == 'T') {
+            cs->has_alt = TRUE;
+            cs->alt[0] = con_number(field + 3);
+            for (i = 1; i < 4 && p; i++) {
+                p = con_field(p, field, sizeof(field), FALSE);
+                if (p)
+                    cs->alt[i] = con_number(field);
+            }
+            if (!p)
+                break;
+        } else if (con_option(field, "AUTO") || con_option(field, "WAIT") ||
+                   (field[0] == 'S' && field[1] == 'C' && field[2] == 'R' && field[3] == 'E' &&
+                    field[4] == 'E' && field[5] == 'N')) {
+            LXA_UNIMPLEMENTED("dos", "CON:", "partial: AUTO, WAIT and SCREEN options are ignored");
         }
     }
-    if (*p == '/') p++;
-    
-    if (*p && *p != '/') {
-        *y = 0;
-        while (*p >= '0' && *p <= '9') {
-            *y = *y * 10 + (*p - '0');
-            p++;
-        }
-    }
-    if (*p == '/') p++;
-    
-    if (*p && *p != '/') {
-        *w = 0;
-        while (*p >= '0' && *p <= '9') {
-            *w = *w * 10 + (*p - '0');
-            p++;
-        }
-    }
-    if (*p == '/') p++;
-    
-    if (*p && *p != '/') {
-        *h = 0;
-        while (*p >= '0' && *p <= '9') {
-            *h = *h * 10 + (*p - '0');
-            p++;
-        }
-    }
-    if (*p == '/') p++;
-    
-    /* Rest is title (until next / or end) */
-    if (*p && *p != '/') {
-        ULONG i = 0;
-        while (*p && *p != '/' && i < title_size - 1) {
-            title[i++] = *p++;
-        }
-        title[i] = '\0';
-    }
-    
-    /* Skip any options (we don't handle them yet) */
-    
-    DPRINTF(LOG_DEBUG, "_dos: parse_con_path: x=%d y=%d w=%d h=%d title='%s' raw=%d\n",
-            *x, *y, *w, *h, title, *is_raw);
-    
+
+    DPRINTF(LOG_DEBUG, "_dos: parse_con_path: %d/%d/%d/%d title='%s' raw=%d\n",
+            cs->x, cs->y, cs->w, cs->h, cs->title, cs->is_raw);
     return TRUE;
 }
 
@@ -1178,34 +1231,36 @@ static struct ConHandle *open_con_window(const char *path)
     struct IntuitionBase *IntuitionBase;
     struct ConHandle *ch;
     struct NewWindow nw;
-    WORD x, y, w, h;
-    char title[128];
-    BOOL is_raw;
-    
+    struct ConSpec cs;
+    struct Screen *scr;
+    struct TagItem tags[2];
+    WORD sw = 640, sh = 256;
+
     DPRINTF(LOG_DEBUG, "_dos: open_con_window: path='%s'\n", path);
-    
+
     /* Parse the CON: path */
-    if (!parse_con_path(path, &x, &y, &w, &h, title, sizeof(title), &is_raw)) {
+    if (!parse_con_path(path, &cs)) {
         DPRINTF(LOG_DEBUG, "_dos: open_con_window: parse failed\n");
         return NULL;
     }
-    
+
     /* Open Intuition */
     IntuitionBase = (struct IntuitionBase *)OpenLibrary((STRPTR)"intuition.library", 0);
     if (!IntuitionBase) {
         DPRINTF(LOG_DEBUG, "_dos: open_con_window: can't open intuition\n");
         return NULL;
     }
-    
+
     /* Allocate ConHandle */
     ch = (struct ConHandle *)AllocMem(sizeof(struct ConHandle), MEMF_PUBLIC | MEMF_CLEAR);
     if (!ch) {
         CloseLibrary((struct Library *)IntuitionBase);
         return NULL;
     }
-    ch->ch_RawMode = is_raw;
-    strcpy(ch->ch_Title, title[0] ? title : "CON:");
-    
+    ch->ch_RawMode = cs.is_raw;
+    /* a borderless window gets an empty title (AmigaOS 3.1) */
+    strcpy(ch->ch_Title, cs.noborder ? "" : cs.title);
+
     /* Create message port */
     ch->ch_MsgPort = CreateMsgPort();
     if (!ch->ch_MsgPort) {
@@ -1213,30 +1268,89 @@ static struct ConHandle *open_con_window(const char *path)
         CloseLibrary((struct Library *)IntuitionBase);
         return NULL;
     }
-    
-    /* Set up NewWindow structure */
-    nw.LeftEdge = x;
-    nw.TopEdge = y;
-    nw.Width = w > 0 ? w : 640;
-    nw.Height = h > 0 ? h : 200;
+
+    scr = LockPubScreen(NULL);
+    if (scr) {
+        sw = scr->Width;
+        sh = scr->Height;
+        UnlockPubScreen(NULL, scr);
+    }
+
+    /* Geometry as the AmigaOS 3.1 CON: handler (probe dos/conwindow): no
+     * width means the screen width, the height is at least 50, a window
+     * wider than 80 can shrink to 80, and the window is moved (then
+     * shrunk) to fit on the screen. */
+    if (cs.w <= 0)
+        cs.w = sw;
+    if (cs.h < 50)
+        cs.h = 50;
+    nw.MinWidth = cs.w < 80 ? cs.w : 80;
+    nw.MinHeight = 50;
+    if (cs.w > sw)
+        cs.w = sw;
+    if (cs.h > sh)
+        cs.h = sh;
+    if (cs.x + cs.w > sw)
+        cs.x = sw - cs.w;
+    if (cs.y + cs.h > sh)
+        cs.y = sh - cs.h;
+
+    nw.LeftEdge = cs.x;
+    nw.TopEdge = cs.y;
+    nw.Width = cs.w;
+    nw.Height = cs.h;
     nw.DetailPen = 0;
     nw.BlockPen = 1;
     nw.IDCMPFlags = 0;      /* console.device gets the window's input */
-    nw.Flags = WFLG_CLOSEGADGET | WFLG_DRAGBAR | WFLG_DEPTHGADGET | 
-               WFLG_SIZEGADGET | WFLG_ACTIVATE | WFLG_SMART_REFRESH;
+    /* default: drag, depth and size gadget, no close gadget, simple
+     * refresh, activated */
+    nw.Flags = cs.simple ? WFLG_SIMPLE_REFRESH : (WFLG_SMART_REFRESH | WFLG_NOCAREREFRESH);
+    if (!cs.inactive)
+        nw.Flags |= WFLG_ACTIVATE;
+    if (cs.backdrop) {
+        nw.Flags |= WFLG_BACKDROP;          /* and no gadgets at all */
+    } else {
+        if (!cs.nosize)
+            nw.Flags |= WFLG_SIZEGADGET;
+        if (!cs.nodrag)
+            nw.Flags |= WFLG_DRAGBAR;
+        if (!cs.nodepth)
+            nw.Flags |= WFLG_DEPTHGADGET;
+        if (cs.close)
+            nw.Flags |= WFLG_CLOSEGADGET;
+    }
+    if (cs.noborder)
+        nw.Flags |= WFLG_BORDERLESS;
     nw.FirstGadget = NULL;
     nw.CheckMark = NULL;
     nw.Title = (UBYTE *)ch->ch_Title;
     nw.Screen = NULL;  /* Use default public screen (Workbench) */
     nw.BitMap = NULL;
-    nw.MinWidth = 80;
-    nw.MinHeight = 40;
     nw.MaxWidth = (UWORD)~0;
     nw.MaxHeight = (UWORD)~0;
     nw.Type = WBENCHSCREEN;
-    
+
+    /* a sizeable window has a zoom gadget: the ALT box, else the screen */
+    tags[0].ti_Tag = TAG_IGNORE;
+    tags[1].ti_Tag = TAG_DONE;
+    if (nw.Flags & WFLG_SIZEGADGET) {
+        if (cs.has_alt) {
+            ch->ch_Zoom[0] = cs.alt[0];
+            ch->ch_Zoom[1] = cs.alt[1];
+            ch->ch_Zoom[2] = cs.alt[2];
+            ch->ch_Zoom[3] = cs.alt[3];
+        } else {
+            ch->ch_Zoom[0] = 0;
+            ch->ch_Zoom[1] = 0;
+            ch->ch_Zoom[2] = sw;
+            ch->ch_Zoom[3] = sh;
+        }
+        tags[0].ti_Tag = WA_Zoom;
+        tags[0].ti_Data = (ULONG)ch->ch_Zoom;
+    }
+
     /* Open window */
-    ch->ch_Window = OpenWindow(&nw);
+    ch->ch_Window = OpenWindowTagList(&nw, tags);
     if (!ch->ch_Window) {
         DPRINTF(LOG_DEBUG, "_dos: open_con_window: OpenWindow failed\n");
         DeleteMsgPort(ch->ch_MsgPort);
@@ -1319,15 +1433,52 @@ static void close_con_window(struct ConHandle *ch)
  */
 static LONG con_read(struct ConHandle *ch, APTR buffer, LONG length)
 {
+    LONG n, i;
+    BOOL line = FALSE;
+
     if (!ch || !ch->ch_IORequest) return -1;
-    
-    ch->ch_IORequest->io_Command = CMD_READ;
-    ch->ch_IORequest->io_Data = buffer;
-    ch->ch_IORequest->io_Length = length;
-    
-    DoIO((struct IORequest *)ch->ch_IORequest);
-    
-    return ch->ch_IORequest->io_Actual;
+
+    if (ch->ch_RawMode) {
+        ch->ch_IORequest->io_Command = CMD_READ;
+        ch->ch_IORequest->io_Data = buffer;
+        ch->ch_IORequest->io_Length = length;
+        DoIO((struct IORequest *)ch->ch_IORequest);
+        return ch->ch_IORequest->io_Actual;
+    }
+
+    /* cooked (CON:): a read returns only once a whole line was typed, as
+     * with the AmigaOS 3.1 CON: handler (conbuf golden: the Return is
+     * echoed before FGetC() returns); Return reads as '\n' */
+    for (i = 0; i < ch->ch_LineLen; i++)
+        if (ch->ch_Line[i] == '\n')
+            line = TRUE;
+    while (!line && ch->ch_LineLen < (LONG)sizeof(ch->ch_Line)) {
+        ch->ch_IORequest->io_Command = CMD_READ;
+        ch->ch_IORequest->io_Data = ch->ch_Line + ch->ch_LineLen;
+        ch->ch_IORequest->io_Length = sizeof(ch->ch_Line) - ch->ch_LineLen;
+        DoIO((struct IORequest *)ch->ch_IORequest);
+        n = ch->ch_IORequest->io_Actual;
+        if (n <= 0)
+            break;
+        for (i = ch->ch_LineLen; i < ch->ch_LineLen + n; i++) {
+            if (ch->ch_Line[i] == '\r')
+                ch->ch_Line[i] = '\n';
+            if (ch->ch_Line[i] == '\n')
+                line = TRUE;
+        }
+        ch->ch_LineLen += n;
+    }
+
+    for (n = 0; n < length && n < ch->ch_LineLen; ) {
+        char c = ch->ch_Line[n];
+        ((char *)buffer)[n++] = c;
+        if (c == '\n')
+            break;
+    }
+    for (i = n; i < ch->ch_LineLen; i++)
+        ch->ch_Line[i - n] = ch->ch_Line[i];
+    ch->ch_LineLen -= n;
+    return n;
 }
 
 /*

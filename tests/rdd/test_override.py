@@ -39,8 +39,10 @@ class Override(unittest.TestCase):
         own, _ = run("SYS:Tests/Exec/LibIdent", "iffparse.library")
         wb, err = run("SYS:Tests/Exec/LibIdent", "iffparse.library", "iffparse")
         self.assertIn("LXA_OVERRIDE: iffparse.library from", err)
+        # lxa reports the 3.1 version too: tell them apart by where the code is
         self.assertIn("iffparse.library 40.1", wb)
-        self.assertNotIn("iffparse.library 40.1", own)
+        self.assertIn("code=ram", wb)
+        self.assertIn("code=rom", own)
 
     def test_app_runs_with_overridden_library(self):
         out, _ = run("SYS:Tests/IffParse/Basic", "", "iffparse")

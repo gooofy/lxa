@@ -309,8 +309,9 @@ class Lxa:
     # -- observation ---------------------------------------------------------
     def output(self):
         buf = ctypes.create_string_buffer(1 << 20)
-        self.lib.lxa_get_output(buf, len(buf))
-        return buf.value.decode("latin-1")
+        n = self.lib.lxa_get_output(buf, len(buf))
+        # binary-safe: programs may print NUL bytes (buf.value stops there)
+        return buf.raw[:max(0, n)].decode("latin-1")
 
     def clear_output(self):
         self.lib.lxa_clear_output()

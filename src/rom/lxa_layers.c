@@ -1999,7 +1999,9 @@ static LONG _layers_BeginUpdate ( register struct LayersBase *LayersBase __asm("
         return TRUE;
     }
 
-    /* Even with no explicit damage, return TRUE to allow drawing */
+    /* No damage: rendering until EndUpdate() reaches nothing (AmigaOS 3.1,
+     * tests/probes/intuition/openrefresh) */
+    layer->ClipRect = NULL;
     return TRUE;
 }
 

@@ -1,0 +1,184 @@
+-- CON:10/20/300/100/CW plain
+title "CW plain"
+Flags = 0x28001047
+IDCMPFlags = 0x00000000
+box 10/20/300/100 min 80/50 max 65535/65535 borders 4/11/18/2
+gadgets depth zoom size drag
+zipped 0/0/640/256
+-- CON:10/20/300/100/CW close/CLOSE
+title "CW close"
+Flags = 0x2800104f
+IDCMPFlags = 0x00000000
+box 10/20/300/100 min 80/50 max 65535/65535 borders 4/11/18/2
+gadgets depth zoom size close drag
+-- CON:10/20/300/100/CW noclose/NOCLOSE
+title "CW noclose"
+Flags = 0x28001047
+IDCMPFlags = 0x00000000
+box 10/20/300/100 min 80/50 max 65535/65535 borders 4/11/18/2
+gadgets depth zoom size drag
+-- CON:10/20/300/100/CW simple/SIMPLE
+title "CW simple"
+Flags = 0x28001047
+IDCMPFlags = 0x00000000
+box 10/20/300/100 min 80/50 max 65535/65535 borders 4/11/18/2
+gadgets depth zoom size drag
+-- CON:10/20/300/100/CW smart/SMART
+title "CW smart"
+Flags = 0x28021007
+IDCMPFlags = 0x00000000
+box 10/20/300/100 min 80/50 max 65535/65535 borders 4/11/18/2
+gadgets depth zoom size drag
+-- CON:10/20/300/100/CW nosize/NOSIZE
+title "CW nosize"
+Flags = 0x08001046
+IDCMPFlags = 0x00000000
+box 10/20/300/100 min 80/50 max 65535/65535 borders 4/11/4/2
+gadgets depth drag
+-- CON:10/20/300/100/CW nodrag/NODRAG
+title "CW nodrag"
+Flags = 0x28001045
+IDCMPFlags = 0x00000000
+box 10/20/300/100 min 80/50 max 65535/65535 borders 4/11/18/2
+gadgets depth zoom size
+-- CON:10/20/300/100/CW nodepth/NODEPTH
+title "CW nodepth"
+Flags = 0x28001043
+IDCMPFlags = 0x00000000
+box 10/20/300/100 min 80/50 max 65535/65535 borders 4/11/18/2
+gadgets zoom size drag
+zipped 0/0/640/256
+-- CON:10/20/300/100/CW backdrop/BACKDROP
+title "CW backdrop"
+Flags = 0x08001140
+IDCMPFlags = 0x00000000
+box 10/20/300/100 min 80/50 max 65535/65535 borders 4/11/4/2
+gadgets
+-- CON:10/20/300/100/CW noborder/NOBORDER
+title ""
+Flags = 0x28001847
+IDCMPFlags = 0x00000000
+box 10/20/300/100 min 80/50 max 65535/65535 borders 0/9/18/0
+gadgets depth zoom size drag
+  depth flags 0x8014 box -22/0/24/11
+  zoom flags 0x8014 box -45/0/24/11
+  size flags 0x801c box -17/-9/18/10
+  drag flags 0x8024 box 0/0/0/8
+-- CON:10/20/300/100/CW inactive/INACTIVE
+title "CW inactive"
+Flags = 0x28000047
+IDCMPFlags = 0x00000000
+box 10/20/300/100 min 80/50 max 65535/65535 borders 4/11/18/2
+gadgets depth zoom size drag
+-- CON:10/20/300/100/CW alt/ALT30/40/200/60
+title "CW alt"
+Flags = 0x28001047
+IDCMPFlags = 0x00000000
+box 10/20/300/100 min 80/50 max 65535/65535 borders 4/11/18/2
+gadgets depth zoom size drag
+zipped 30/40/200/60
+-- CON:10/20/300/100/CW alt nodepth/NODEPTH/ALT30/40/200/60
+title "CW alt nodepth"
+Flags = 0x28001043
+IDCMPFlags = 0x00000000
+box 10/20/300/100 min 80/50 max 65535/65535 borders 4/11/18/2
+gadgets zoom size drag
+zipped 30/40/200/60
+-- CON:10/20/300/100/CW many/CLOSE/SMART/NOSIZE/INACTIVE
+title "CW many"
+Flags = 0x0802000e
+IDCMPFlags = 0x00000000
+box 10/20/300/100 min 80/50 max 65535/65535 borders 4/11/4/2
+gadgets depth close drag
+-- CON:10/20/300/100/CW lower/close/simple
+title "CW lower"
+Flags = 0x2800104f
+IDCMPFlags = 0x00000000
+box 10/20/300/100 min 80/50 max 65535/65535 borders 4/11/18/2
+gadgets depth zoom size close drag
+-- CON:10/20/30/20/CW tiny
+title "CW tiny"
+Flags = 0x28001047
+IDCMPFlags = 0x00000000
+box 10/20/30/50 min 30/50 max 65535/65535 borders 4/11/18/2
+gadgets depth zoom size drag
+zipped 0/0/640/256
+-- RAW:10/20/300/100/CW raw
+title "CW raw"
+Flags = 0x28001047
+IDCMPFlags = 0x00000000
+box 10/20/300/100 min 80/50 max 65535/65535 borders 4/11/18/2
+gadgets depth zoom size drag
+-- CON:////CW nogeometry
+title "CW nogeometry"
+Flags = 0x28001047
+IDCMPFlags = 0x00000000
+box 0/0/640/50 min 80/50 max 65535/65535 borders 4/11/18/2
+gadgets depth zoom size drag
+-- CON:0/0/0/0/CW zero
+title "CW zero"
+Flags = 0x28001047
+IDCMPFlags = 0x00000000
+box 0/0/640/50 min 80/50 max 65535/65535 borders 4/11/18/2
+gadgets depth zoom size drag
+-- CON:10/20/300//CW noheight
+title "CW noheight"
+Flags = 0x28001047
+IDCMPFlags = 0x00000000
+box 10/20/300/50 min 80/50 max 65535/65535 borders 4/11/18/2
+gadgets depth zoom size drag
+-- CON:10/20//100/CW nowidth
+title "CW nowidth"
+Flags = 0x28001047
+IDCMPFlags = 0x00000000
+box 0/20/640/100 min 80/50 max 65535/65535 borders 4/11/18/2
+gadgets depth zoom size drag
+-- CON:10/20/79/49/CW 79x49
+title "CW 79x49"
+Flags = 0x28001047
+IDCMPFlags = 0x00000000
+box 10/20/79/50 min 79/50 max 65535/65535 borders 4/11/18/2
+gadgets depth zoom size drag
+-- CON:10/20/81/51/CW 81x51
+title "CW 81x51"
+Flags = 0x28001047
+IDCMPFlags = 0x00000000
+box 10/20/81/51 min 80/50 max 65535/65535 borders 4/11/18/2
+gadgets depth zoom size drag
+-- CON:10/20/2000/1000/CW huge
+title "CW huge"
+Flags = 0x28001047
+IDCMPFlags = 0x00000000
+box 0/0/640/256 min 80/50 max 65535/65535 borders 4/11/18/2
+gadgets depth zoom size drag
+-- CON:500/200/300/100/CW offscreen
+title "CW offscreen"
+Flags = 0x28001047
+IDCMPFlags = 0x00000000
+box 340/156/300/100 min 80/50 max 65535/65535 borders 4/11/18/2
+gadgets depth zoom size drag
+-- CON:10/20/300/100
+title ""
+Flags = 0x28001047
+IDCMPFlags = 0x00000000
+box 10/20/300/100 min 80/50 max 65535/65535 borders 4/11/18/2
+gadgets depth zoom size drag
+-- CON:10/20/300/100/
+title ""
+Flags = 0x28001047
+IDCMPFlags = 0x00000000
+box 10/20/300/100 min 80/50 max 65535/65535 borders 4/11/18/2
+gadgets depth zoom size drag
+-- CON:
+title "AmigaDOS"
+Flags = 0x28001047
+IDCMPFlags = 0x00000000
+box 0/0/640/100 min 80/50 max 65535/65535 borders 4/11/18/2
+gadgets depth zoom size drag
+zipped 0/0/640/256
+-- CON:10/20/300/100/CW unknown/FOO
+title "CW unknown"
+Flags = 0x28001047
+IDCMPFlags = 0x00000000
+box 10/20/300/100 min 80/50 max 65535/65535 borders 4/11/18/2
+gadgets depth zoom size drag

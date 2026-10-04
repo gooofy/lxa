@@ -689,8 +689,15 @@ static BPTR __g_lxa_clipboard_BeginIO ( register struct Library   *dev   __asm("
         }
 
         case CMD_RESET:
-            /* AmigaOS 3.1 never replies to CMD_RESET; lxa completes it as a no-op */
-            break;
+            /* AmigaOS 3.1 (probe clipboard/reset): BeginIO() returns at
+             * once, the request is marked in progress (IOF_QUICK cleared,
+             * io_Flags bit 7, NT_MESSAGE) with io_Error IOERR_NOCMD and is
+             * never replied - not after AbortIO() or later traffic either,
+             * so DoIO(CMD_RESET) never returns there. */
+            ioreq->io_Error = IOERR_NOCMD;
+            ioreq->io_Flags = (ioreq->io_Flags & ~IOF_QUICK) | 0x80;
+            ioreq->io_Message.mn_Node.ln_Type = NT_MESSAGE;
+            return 0;
 
         default:
             /* CMD_INVALID, CMD_CLEAR, CMD_STOP, CMD_START, CMD_FLUSH, ... (3.1) */

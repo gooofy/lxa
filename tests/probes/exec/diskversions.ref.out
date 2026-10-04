@@ -1,0 +1,8 @@
+-- disk libraries
+asl.library: 40.6 "asl 40.6 (7.5.93)\r\n"
+commodities.library: 40.2 "commodities 40.2 (11.2.93)\r\n"
+datatypes.library: 40.6 "DataTypes 40.6 (25.8.93)\r\n"
+iffparse.library: 40.1 "iffparse 40.1 (9.2.93)\r\n"
+mathieeesingbas.library: 40.4 ""
+amigaguide.library: 40.4 "amigaguide 40.4 (10.6.93)\r\n"
+mathieeesingbas.library resident: rt_Version 40 rt_IdString "mathieeesingbas 40.4 (16.3.93)\r\n"

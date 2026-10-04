@@ -617,6 +617,14 @@
  },
  {
   "lib": "dos",
+  "function": "CON:",
+  "kind": "partial",
+  "detail": "partial: AUTO, WAIT and SCREEN options are ignored",
+  "file": "src/rom/lxa_dos.c",
+  "symbol": "parse_con_path"
+ },
+ {
+  "lib": "dos",
   "function": "AbortPkt",
   "kind": "stub",
   "detail": "stub: packet not aborted (Phase 255)",

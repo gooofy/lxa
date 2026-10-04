@@ -1,9 +1,13 @@
 /*
  * Test for mathieeesingbas.library IEEESPMul / IEEESPDiv (lxa only)
  *
- * Phase 220: on the AmigaOS 3.1 reference machine (FS-UAE A4000/040,
- * KS 40.70) IEEESPMul and IEEESPDiv never return, so these checks cannot
- * be validated there; the rest of the library is covered by the
+ * On the AmigaOS 3.1 reference machine (FS-UAE A4000 with a 68040 and
+ * Workbench 3.1's 68040.library) the ROM IEEESPMul and IEEESPDiv raise a
+ * Line-F exception (Software Failure #8000000B, the task is held), while
+ * FPU code of our own - including instructions the 68040 FPSP emulates -
+ * works there.  On the same ROM with a 68030+68882 FS-UAE configuration
+ * both functions return and this test passes unchanged (Phase 222b), so
+ * the checks stay lxa only; the rest of the library is covered by the
  * reference-validated Tests/Exec/MathIeeeSingBas.
  */
 

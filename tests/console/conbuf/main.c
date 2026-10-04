@@ -63,7 +63,7 @@ int main(void)
     FGetC(con);
     FPuts(out, (STRPTR)"DONE\n");
     Flush(out);
-    Delay(500);
+    Delay(3000);     /* keep the window while the scenario looks at it */
     Close(con);
     return 0;
 }

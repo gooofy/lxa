@@ -16,7 +16,7 @@ implementing the function, never by deleting the macro.
 | commodities | 26 | 0 | 4 |
 | console | 1 | 0 | 0 |
 | datatypes | 5 | 0 | 0 |
-| dos | 18 | 1 | 10 |
+| dos | 18 | 2 | 10 |
 | exec | 7 | 3 | 0 |
 | gadtools | 0 | 1 | 6 |
 | graphics | 0 | 7 | 7 |
@@ -26,7 +26,7 @@ implementing the function, never by deleting the macro.
 | translator | 1 | 0 | 0 |
 | utility | 0 | 0 | 7 |
 | workbench | 0 | 0 | 3 |
-| **total** | **96** | **31** | **47** |
+| **total** | **96** | **32** | **47** |
 
 ## amigaguide
 
@@ -96,6 +96,7 @@ implementing the function, never by deleting the macro.
 
 ## dos
 
+- `CON:` — partial: AUTO, WAIT and SCREEN options are ignored (`src/rom/lxa_dos.c`)
 - `UnLockDosList` — partial: DosList locking is simulated (Phase 255) (`src/rom/lxa_dos.c`)
 - `ClearVec` — private/reserved slot (`src/rom/lxa_dos.c`)
 - `NoReqLoadSeg` — private/reserved slot (`src/rom/lxa_dos.c`)

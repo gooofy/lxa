@@ -180,6 +180,7 @@ TEST_F(ConsoleTest, ConsoleAsync) {
     EXPECT_NE(output.find("PASS"), std::string::npos);
 }
 TEST_F(ConsoleTest, ConHandler) { RunConsoleTest("con_handler"); }
+TEST_F(ConsoleTest, ConRepair) { RunConsoleTest("ConRepair"); }
 TEST_F(ConsoleTest, SetMode) { RunConsoleTest("setmode"); }
 TEST_F(ConsoleTest, KP2Test) { RunConsoleTest("kp2_test"); }
 TEST_F(ConsoleTest, InputInject) { RunConsoleTest("input_inject"); }
