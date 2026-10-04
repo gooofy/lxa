@@ -440,6 +440,7 @@ set(GALLERY_LIST
     "sysimages|SysI"
     "frames|Frames"
     "screen|Screen"
+    "prefs|Prefs"
 )
 file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/Samples/Tests/Gallery")
 foreach(gallery_info ${GALLERY_LIST})

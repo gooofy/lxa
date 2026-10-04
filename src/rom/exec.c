@@ -5507,6 +5507,27 @@ void _bootstrap(void)
 
     OpenLibrary ((STRPTR)"dos.library", 0);
     OpenLibrary ((STRPTR)"utility.library", 0);
+
+    /* Phase 236: install the preferences in ENV:Sys before the program
+     * starts, as the AmigaOS Startup-Sequence does with C:IPrefs (without
+     * ENV:Sys there is nothing to install) */
+    {
+        BPTR envsys = Lock ((STRPTR)"ENV:Sys", SHARED_LOCK);
+
+        if (envsys)
+        {
+            BPTR iprefs;
+
+            UnLock (envsys);
+            iprefs = LoadSeg ((STRPTR)"C:IPrefs");
+            if (iprefs)
+            {
+                RunCommand (iprefs, 16384, (STRPTR)"\n", 1);
+                UnLoadSeg (iprefs);
+            }
+        }
+    }
+
     BPTR segs = LoadSeg ((STRPTR)binfn);
 
     DPRINTF (LOG_INFO, "_exec: _bootstrap(): segs=0x%08lx\n", segs);

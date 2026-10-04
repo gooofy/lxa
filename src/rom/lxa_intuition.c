@@ -456,6 +456,8 @@ struct LXAPubScreenNode {
     BOOL has_custom_pens;         /* TRUE if SA_Pens was provided */
     struct MinNode all_node;      /* ScreenDataList link */
     BOOL is_public;               /* pub.psn_Node is in PubScreenList */
+    BOOL default_font;            /* no NewScreen.Font/SA_Font: windows draw in
+                                   * the system default font */
 };
 
 /* AmigaOS 3.1 reference: a custom screen opened without SA_Pens keeps the
@@ -9605,6 +9607,12 @@ struct Screen * _intuition_OpenScreen ( register struct IntuitionBase * Intuitio
     screen->NextScreen = IntuitionBase->FirstScreen;
     IntuitionBase->FirstScreen = screen;
     _intuition_register_pubscreen(IntuitionBase, screen);
+    {
+        struct PubScreenNode *pub = _intuition_find_pubscreen_by_screen(
+            (struct LXAIntuitionBase *)IntuitionBase, screen);
+        if (pub)
+            ((struct LXAPubScreenNode *)pub)->default_font = newScreen->Font ? FALSE : TRUE;
+    }
 
     _create_screen_sys_gadgets(screen);
 
@@ -10078,8 +10086,14 @@ static void _render_window_frame_impl(struct Window *window)
         WORD tx = (title_left > 1) ? title_left + 10 : 4;
         WORD avail = title_right - tx - 1;
         WORD len = strlen((const char *)window->Title);
-        WORD fit = (avail > 0) ? lxa_text_fit(rp, (STRPTR)window->Title, len, avail) : 0;
+        WORD fit;
+        /* the title is in the screen font (window->IFont), which may
+         * differ from the window's own font (Phase 236) */
+        struct TextFont *rpfont = rp->Font;
 
+        if (window->IFont && window->IFont != rpfont)
+            SetFont(rp, window->IFont);
+        fit = (avail > 0) ? lxa_text_fit(rp, (STRPTR)window->Title, len, avail) : 0;
         if (fit > 0)
         {
             SetAPen(rp, active ? pens[FILLTEXTPEN] : pens[TEXTPEN]);
@@ -10087,6 +10101,8 @@ static void _render_window_frame_impl(struct Window *window)
             Move(rp, tx, 1 + rp->TxBaseline);
             Text(rp, (STRPTR)window->Title, fit);
         }
+        if (rpfont && rp->Font != rpfont)
+            SetFont(rp, rpfont);
     }
 
     /* system gadget imagery */
@@ -10475,10 +10491,20 @@ struct Window * _intuition_OpenWindow ( register struct IntuitionBase * Intuitio
         {
             window->WLayer = content_layer;
             window->RPort = content_layer->rp;
-            /* windows render in the screen font (AmigaOS 3.1) */
+            /* windows render in the screen font when the screen was
+             * opened with one, else in the system default font - also on
+             * the Workbench and SA_SysFont 1 screens, whose font is the
+             * screen font of the preferences (AmigaOS 3.1 reference:
+             * gallery-menus-topaz11, gallery-prefs-fontpal) */
             if (screen->RastPort.Font)
             {
-                SetFont(window->RPort, screen->RastPort.Font);
+                struct PubScreenNode *pub = _intuition_find_pubscreen_by_screen(
+                    (struct LXAIntuitionBase *)IntuitionBase, screen);
+                struct TextFont *wfont = screen->RastPort.Font;
+
+                if (pub && ((struct LXAPubScreenNode *)pub)->default_font && GfxBase->DefaultFont)
+                    wfont = GfxBase->DefaultFont;
+                SetFont(window->RPort, wfont);
                 if (border_layer)
                     SetFont(border_layer->rp, screen->RastPort.Font);
                 window->IFont = screen->RastPort.Font;
@@ -10713,6 +10739,8 @@ ULONG _intuition_OpenWorkBench ( register struct IntuitionBase * IntuitionBase _
             ns.Height = (WORD)sm->smp_Height;
         if (sm->smp_Depth)
             ns.Depth = sm->smp_Depth;
+        if (sm->smp_Control & 1)        /* SMF_AUTOSCROLL */
+            ns.Type |= AUTOSCROLL;
         g_screen_display_id = sm->smp_DisplayID + 1;
     }
 
@@ -10745,6 +10773,9 @@ ULONG _intuition_OpenWorkBench ( register struct IntuitionBase * IntuitionBase _
         if (stale_pub)
             _intuition_unregister_pubscreen(IntuitionBase, wbscreen);
         _intuition_register_pubscreen(IntuitionBase, wbscreen);
+        stale_pub = _intuition_find_pubscreen_by_screen(base, wbscreen);
+        if (stale_pub)
+            ((struct LXAPubScreenNode *)stale_pub)->default_font = TRUE;
         _render_screen_title_bar(wbscreen);
 
         DPRINTF (LOG_DEBUG, "_intuition: OpenWorkBench() - opened at 0x%08lx, Width=%d Height=%d\n", 

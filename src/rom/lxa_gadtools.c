@@ -4231,7 +4231,8 @@ APTR _gadtools_GetVisualInfoA ( register struct GadToolsBase *GadToolsBase __asm
         return NULL;
 
     vi->vi_Screen = screen;
-    vi->vi_DrawInfo = NULL;  /* Would get from GetScreenDrawInfo() */
+    /* the screen's pens - preferences pens on the Workbench (Phase 236) */
+    vi->vi_DrawInfo = screen ? GetScreenDrawInfo(screen) : NULL;
 
     DPRINTF (LOG_DEBUG, "_gadtools: GetVisualInfoA() -> 0x%08lx\n", (ULONG)vi);
     return vi;
@@ -4243,6 +4244,9 @@ void _gadtools_FreeVisualInfo ( register struct GadToolsBase *GadToolsBase __asm
 {
     DPRINTF (LOG_DEBUG, "_gadtools: FreeVisualInfo() vi=0x%08lx\n", (ULONG)vi);
     if (vi) {
+        struct VisualInfo *v = (struct VisualInfo *)vi;
+        if (v->vi_DrawInfo && v->vi_Screen)
+            FreeScreenDrawInfo(v->vi_Screen, v->vi_DrawInfo);
         FreeMem(vi, sizeof(struct VisualInfo));
     }
 }

@@ -195,6 +195,13 @@ class Lxa:
     def assign_add(self, name, path):
         return self.lib.lxa_add_assign_path(name.encode(), path.encode())
 
+    def install_prefs(self, path):
+        """Copy a prefs file to ENV:Sys/ (applied by C:IPrefs when the next
+        program is started)."""
+        d = os.path.join(self._tmp, "ENV", "Sys")
+        os.makedirs(d, exist_ok=True)
+        shutil.copy2(path, d)
+
     def trace_start(self, spec, path):
         """Relay trace (Phase 233): spec "graphics.library:-60,-66;dos.library:*"."""
         return self.lib.lxa_trace_start(spec.encode(), path.encode())
