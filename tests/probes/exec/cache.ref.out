@@ -1,0 +1,19 @@
+-- CacheControl
+initial enables = 0x00000101
+initial action/unknown bits clear = TRUE
+(0,0): old 0x0101 now 0x0101
+clear EnableD: old 0x0101 now 0x0001
+set EnableD: old 0x0001 now 0x0101
+clear EnableI: old 0x0101 now 0x0100
+set EnableI: old 0x0100 now 0x0101
+ClearI: old 0x0101 now 0x0101
+ClearD: old 0x0101 now 0x0101
+EnableE: old 0x0101 now 0x0101
+bit 2: old 0x0101 now 0x0101
+bit 30: old 0x0101 now 0x0101
+all bits, mask 0: old 0x0101 now 0x0101
+no bits, mask without enables: old 0x0101 now 0x0101
+clear both: old 0x0101 now 0x0000
+set EnableD only: old 0x0000 now 0x0100
+restore: old 0x0100 now 0x0101
+restored = TRUE

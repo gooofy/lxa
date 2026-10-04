@@ -34,6 +34,7 @@ int main(void)
         static const char *const srcs[] = {
             "word rest\n", "  spaced\n", "\"quoted text\" x\n", "\"esc*\"aped*n\"\n", "key=value\n",
             "=x\n", "\n", "", ";comment\n", "\"unterminated\n", "a\"b\" c\n", "tab\tx\n",
+            "ab", "\"q\"", "a;b\n", "x =y\n", "\"q\"x y\n",
         };
         int i;
         for (i = 0; i < (int)(sizeof(srcs) / sizeof(srcs[0])); i++) {

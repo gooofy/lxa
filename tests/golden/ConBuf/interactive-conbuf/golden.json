@@ -1,0 +1,73 @@
+{
+ "app": "ConBuf",
+ "disabled": null,
+ "lxa_version": "0.11.22",
+ "promoted": "2026-10-03",
+ "reference": "AmigaOS 3.1 (KS 40.70), profile aga",
+ "requires_apps": false,
+ "scenario": "interactive-conbuf",
+ "snapshots": {
+  "read": {
+   "known_tree_diffs": [
+    {
+     "field": "min_height",
+     "kind": "window",
+     "lxa": 40,
+     "phase": 222,
+     "ref": 50,
+     "where": "screen[Workbench Screen]/window[ConBuf]"
+    },
+    {
+     "field": "flags",
+     "kind": "window",
+     "lxa": 671100943,
+     "phase": 222,
+     "ref": 671100999,
+     "where": "screen[Workbench Screen]/window[ConBuf]"
+    },
+    {
+     "field": "count",
+     "kind": "gadget",
+     "lxa": 5,
+     "phase": 222,
+     "ref": 4,
+     "where": "screen[Workbench Screen]/window[ConBuf]"
+    }
+   ],
+   "pixel_budget": 3836,
+   "pixel_phase": 222,
+   "stdout_known_diff": null
+  },
+  "window": {
+   "known_tree_diffs": [
+    {
+     "field": "min_height",
+     "kind": "window",
+     "lxa": 40,
+     "phase": 222,
+     "ref": 50,
+     "where": "screen[Workbench Screen]/window[ConBuf]"
+    },
+    {
+     "field": "flags",
+     "kind": "window",
+     "lxa": 671100943,
+     "phase": 222,
+     "ref": 671100999,
+     "where": "screen[Workbench Screen]/window[ConBuf]"
+    },
+    {
+     "field": "count",
+     "kind": "gadget",
+     "lxa": 5,
+     "phase": 222,
+     "ref": 4,
+     "where": "screen[Workbench Screen]/window[ConBuf]"
+    }
+   ],
+   "pixel_budget": 1509,
+   "pixel_phase": 222,
+   "stdout_known_diff": null
+  }
+ }
+}

@@ -106,7 +106,7 @@ static BOOL inter(BPTR lock, const char *name, BOOL isdir, int indent)
                 char data[256];
                 LONG k;
                 while ((k = Read(fh, data, sizeof(data))) > 0)
-                    Write(Output(), data, k);
+                    FWrite(Output(), data, 1, k);
                 Close(fh);
             }
             CurrentDir(old);

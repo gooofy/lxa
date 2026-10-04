@@ -73,8 +73,8 @@ int main(void)
     P_LONG("FGetC", FGetC(fh));
     P_LONG("Seek(0, CURRENT) (buffered position)", Seek(fh, 0, OFFSET_CURRENT));
     P_LONG("FGetC after Seek", FGetC(fh));
-    /* not probed: Read() after buffered reads (3.1 FGetC() pre-reads a
-     * block, so Read() continues behind it; lxa reads through) */
+    /* Read() after buffered reads (FGetC() pre-reads a block, so Read()
+     * continues behind it): bufblock.c */
     P_LONG("FGetC", FGetC(fh));
     for (i = 0; i < 4; i++)
         P_LONG("FGetC (to EOF)", FGetC(fh));

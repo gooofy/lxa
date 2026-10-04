@@ -39,13 +39,13 @@ extern struct ExecBase *SysBase;
 /* Helper: output a string */
 static void out_str(BPTR fh, const char *str)
 {
-    Write(fh, (STRPTR)str, strlen(str));
+    FWrite(fh, (STRPTR)str, 1, strlen(str));
 }
 
 /* Helper: output newline */
 static void out_nl(BPTR fh)
 {
-    Write(fh, (STRPTR)"\n", 1);
+    FWrite(fh, (STRPTR)"\n", 1, 1);
 }
 
 /* List all environment variables by reading ENV: directory */
@@ -86,7 +86,7 @@ static void list_all_env_vars(void)
                               GVF_GLOBAL_ONLY | LV_VAR);
             if (len > 0)
             {
-                Write(out, (STRPTR)buffer, len);
+                FWrite(out, (STRPTR)buffer, 1, len);
             }
             out_nl(out);
         }
@@ -112,7 +112,7 @@ static BOOL display_env_var(CONST_STRPTR name)
     out_str(out, "  ");
     if (len > 0)
     {
-        Write(out, (STRPTR)buffer, len);
+        FWrite(out, (STRPTR)buffer, 1, len);
     }
     out_nl(out);
     return TRUE;

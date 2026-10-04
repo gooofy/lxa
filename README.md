@@ -231,6 +231,10 @@ Built-in C: commands with full AmigaDOS template support:
 
 ## Current Status
 
+**Version 0.11.26** - Fred Fish compatibility (Phase 237): exec returns sign-extended results and keeps a1/d1 like AmigaOS 3.1 across device I/O, `ParentDir()` stops at assign roots; the mass-run harness now recognises crashes on the reference (Software Failure requester). 241 of the 299 programs that crashed only on lxa now behave as on 3.1 (`doc/sweeps/2026-10-04-fish-crashlist.md`).
+
+**Version 0.11.25** - dos.library conformance (Phase 222a): ReadArgs matches AmigaOS 3.1 over ~180 probe cases, commands read their argument line from `Input()`'s buffer, buffered I/O reads and writes in 3.1's block sizes, CacheControl is complete, and libraries report 3.1's revisions.
+
 **Version 0.11.24** - ROM font fidelity (Phase 225): topaz 8 and a new topaz 9 are generated from a dump of AmigaOS 3.1's fonts and match it glyph for glyph, soft styles included; 15 rendering goldens are now identical to the reference. Fred Fish compatibility (Phase 237): dos.library works with any a6, `OpenLibrary()` compares versions like 3.1, bootstrapped programs get the 3.1 shell's stack and `pr_ReturnAddr`.
 
 **Version 0.11.23** - `C:NewShell`/`C:NewCLI` (WINDOW, FROM), CON: windows are interactive, CON: specifications with an empty title open; the twin runner's lxa side starts programs with non-interactive stdin/stdout like the reference's `RUN >file` (`LXA_STDIO_FILE`): vim 5.3 re-launches itself in its own console window as on AmigaOS 3.1.

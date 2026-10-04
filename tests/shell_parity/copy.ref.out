@@ -4,6 +4,20 @@ rc=0 r2=0
 one
 Can't open newdir/ for output - object not found
 rc=5 r2=0
+Can't open f1 for output - object is in use
+rc=5 r2=0
+one
+Can't open /work-copy/F1 for output - object is in use
+rc=5 r2=0
+one
+Can't open  for output - object is in use
+rc=5 r2=0
+one
+Can't open /work-copy for output - object is in use
+rc=5 r2=0
+Can't open /work-copy/ for output - object is in use
+rc=5 r2=0
+one
    dst3   [created]
         d2 (Dir)
 rc=0

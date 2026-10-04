@@ -1,0 +1,5 @@
+OpenDevice d1=0 a0=other a1=ioreq
+DoIO d1=other a0=other a1=ioreq
+SendIO d1=other a0=other a1=ioreq
+WaitIO d1=other a0=other a1=ioreq
+CloseDevice d1=0 a0=other a1=ioreq

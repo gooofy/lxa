@@ -156,10 +156,41 @@ int main(void)
         P_LONG("freed gamma", 1);
     }
 
-    /* RemNamedObject() while the object is in use is not probed: on 3.1
-     * the object leaves the namespace at once but the message is not
-     * replied when the last user releases it, and the machine crashes
-     * later (see Phase 222a report). */
+    /* RemNamedObject() while the object is in use: it leaves the name
+     * space at once, the message is replied when the last user releases
+     * it.  The object is not freed afterwards (freeing a removed object
+     * that was in use has crashed AmigaOS 3.1 in earlier probe runs). */
+    P_SECTION("RemNamedObject while in use");
+    {
+        struct NamedObject *u = mk("inuse", 0, 0, 0, 0), *o1, *o2, *o;
+        struct MsgPort *port = CreateMsgPort();
+        static struct Message msg;
+        struct Message *got;
+
+        msg.mn_ReplyPort = port;
+        msg.mn_Length = sizeof(msg);
+        P_BOOL("add inuse", AddNamedObject(ns, u));
+        o1 = FindNamedObject(ns, (STRPTR)"inuse", NULL);
+        o2 = FindNamedObject(ns, (STRPTR)"inuse", NULL);
+        P_BOOL("found twice", o1 == u && o2 == u);
+        P_LONG("AttemptRem while used twice", AttemptRemNamedObject(u));
+        RemNamedObject(u, &msg);
+        P_NULL("replied after Rem", GetMsg(port));
+        o = FindNamedObject(ns, (STRPTR)"inuse", NULL);
+        P_NULL("Find after Rem", o);
+        if (o)
+            ReleaseNamedObject(o);
+        list_ns("space after Rem", ns);
+        P_STR("NamedObjectName after Rem", (char *)NamedObjectName(u));
+        ReleaseNamedObject(u);
+        P_NULL("replied after first release", GetMsg(port));
+        ReleaseNamedObject(u);
+        got = GetMsg(port);
+        P_NULL("replied after second release", got);
+        if (got)
+            P_BOOL("reply ln_Name == object", got->mn_Node.ln_Name == (char *)u);
+        DeleteMsgPort(port);
+    }
 
     P_SECTION("GetUniqueID");
     id1 = GetUniqueID();

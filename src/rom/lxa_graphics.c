@@ -2015,9 +2015,9 @@ static LONG BltBitMapCoreMode(CONST struct BitMap *srcBitMap,
 
 
 #define VERSION    40
-#define REVISION   1
+#define REVISION   24
 #define EXLIBNAME  "graphics"
-#define EXLIBVER   " 40.1 (2022/03/20)"
+#define EXLIBVER   " 40.24 (18.5.93)\r\n"
 
 char __aligned _g_graphics_ExLibName [] = EXLIBNAME ".library";
 char __aligned _g_graphics_ExLibID   [] = EXLIBNAME EXLIBVER;
