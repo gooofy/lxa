@@ -9463,6 +9463,12 @@ struct Screen * _intuition_OpenScreen ( register struct IntuitionBase * Intuitio
     screen->ViewPort.ColorMap = GetColorMap(num_colors);
     if (screen->ViewPort.ColorMap)
     {
+        /* attached to the screen ViewPort, as by VTAG_ATTACH_CM_SET:
+         * VideoControl() changes then happen immediately (reference) */
+        screen->ViewPort.ColorMap->cm_vp = &screen->ViewPort;
+    }
+    if (screen->ViewPort.ColorMap)
+    {
         /* AmigaOS 3.1 reference: GetVPModeID() of a screen is the mode the
          * application asked for, without a monitor ID unless it asked for one
          * (Workbench and a ViewModes HIRES screen: 0x8000; SA_DisplayID

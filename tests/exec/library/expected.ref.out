@@ -178,6 +178,58 @@ OK: FilterTagChanges() no longer behaves like a stub
 --- Test: utility ApplyTagChanges entry point ---
 OK: ApplyTagChanges() no longer behaves like a stub
 
+--- Test: graphics AddAnimOb entry point ---
+OK: AddAnimOb() no longer behaves like a stub
+
+--- Test: graphics RemIBob entry point ---
+OK: RemIBob() no longer behaves like a stub
+
+--- Test: graphics DoCollision entry point ---
+OK: DoCollision() no longer behaves like a stub
+OK: SetCollision() no longer behaves like a stub
+
+--- Test: graphics Animate entry point ---
+OK: Animate() no longer behaves like a stub
+
+--- Test: graphics GetGBuffers/FreeGBuffers entry points ---
+OK: InitGMasks() no longer behaves like a stub
+OK: GetGBuffers() no longer behaves like a stub
+OK: FreeGBuffers() no longer behaves like a stub
+
+--- Test: graphics CBump entry point ---
+OK: CBump() no longer behaves like a stub
+
+--- Test: graphics CMove entry point ---
+OK: CMove() no longer behaves like a stub
+
+--- Test: graphics CWait entry point ---
+OK: CWait() no longer behaves like a stub
+
+--- Test: graphics CalcIVG entry point ---
+OK: CalcIVG() no longer behaves like a stub
+
+--- Test: graphics SetChipRev entry point ---
+OK: SetChipRev() no longer behaves like a stub
+
+--- Test: graphics SyncSBitMap entry point ---
+OK: SyncSBitMap() no longer behaves like a stub
+
+--- Test: graphics CopySBitMap entry point ---
+OK: CopySBitMap() no longer behaves like a stub
+
+--- Test: graphics GetExtSpriteA entry point ---
+OK: GetExtSpriteA() allocates a free single sprite
+OK: GetExtSpriteA() rejects attached sprite requests
+
+--- Test: graphics AllocSpriteDataA entry point ---
+OK: AllocSpriteDataA() allocates converted sprite data
+OK: ChangeExtSpriteA() adopts old sprite state
+OK: ChangeExtSpriteA() hands over the sprite
+
+--- Test: graphics FreeSpriteData entry point ---
+OK: FreeSpriteData() frees sprite data without disturbing IoErr
+OK: FreeSpriteData(NULL) is a no-op
+
 
 === Test Results ===
 PASS: All tests passed
