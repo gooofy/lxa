@@ -9,6 +9,7 @@
 #include "lxa_test.h"
 
 #include <cmath>
+#include <cstring>
 #include <filesystem>
 
 using namespace lxa::testing;
@@ -139,6 +140,43 @@ protected:
         ASSERT_TRUE(GetWindowInfo(0, &window_info));
         printf("SetUp: initial window title='%s' w=%d h=%d\n",
                window_info.title, window_info.width, window_info.height);
+
+        /* Without ENVARC:ASM-One.Pref ASM-One first tries its default RTG
+         * screen mode; on a machine without RTG (AmigaOS 3.1 reference and
+         * lxa) that OpenScreenTagList() fails and reqtools' screen-mode
+         * requester asks for a mode (Phase 238).  Accept the preselected
+         * mode with the requester's Ok button (bottom-left gadget). */
+        if (strncmp(window_info.title, "Select a Screen Mode", 20) == 0) {
+            ASSERT_TRUE(WaitForWindowDrawn(0, 5000));
+            WaitForEventLoop(50, 10000);
+            int gc = GetGadgetCount(0);
+            int ok = -1, ok_top = -1, ok_left = 1 << 30;
+            for (int i = 0; i < gc; i++) {
+                lxa_gadget_info_t gi;
+                if (!GetGadgetInfo(i, &gi, 0) || (gi.gadget_type & 0x8000 /* GTYP_SYSGADGET */))
+                    continue;
+                if (gi.top > ok_top || (gi.top == ok_top && gi.left < ok_left)) {
+                    ok_top = gi.top;
+                    ok_left = gi.left;
+                    ok = i;
+                }
+            }
+            ASSERT_GE(ok, 0) << "no Ok gadget in the screen-mode requester";
+            ClickGadget(ok, 0);
+            RunCyclesWithVBlank(20, 50000);
+            for (int tries = 0; tries < 200; tries++) {
+                lxa_window_info_t wi = {};
+                if (lxa_get_window_count() > 0 && GetWindowInfo(0, &wi) &&
+                    strncmp(wi.title, "Select a Screen Mode", 20) != 0)
+                    break;
+                RunCyclesWithVBlank(5, 50000);
+            }
+            ASSERT_TRUE(WaitForWindows(1, 10000)) << "ASM-One editor window did not open";
+            ASSERT_TRUE(GetWindowInfo(0, &window_info));
+            ASSERT_STRNE(window_info.title, "Select a Screen Mode....");
+            printf("SetUp: after screen-mode requester title='%s' w=%d h=%d\n",
+                   window_info.title, window_info.width, window_info.height);
+        }
         
         ASSERT_TRUE(WaitForWindowDrawn(0, 5000))
             << "ASM-One window did not draw";

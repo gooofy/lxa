@@ -34,6 +34,10 @@ static void try_mode(const char *label, ULONG id, ULONG w, ULONG h, ULONG depth)
     P_HEX("ModeNotAvailable", ModeNotAvailable(id));
     if (dh && GetDisplayInfoData(dh, (UBYTE *)&di, sizeof(di), DTAG_DISP, INVALID_ID) > 0)
         P_HEX("DisplayInfo.NotAvailable", di.NotAvailable);
+    if (dh) {
+        struct NameInfo ni;
+        P_LONG("GetDisplayInfoData(DTAG_NAME)", GetDisplayInfoData(dh, (UBYTE *)&ni, sizeof(ni), DTAG_NAME, INVALID_ID));
+    }
     s = OpenScreenTags(NULL, SA_Width, w, SA_Height, h, SA_Depth, depth, SA_DisplayID, id,
                        SA_Title, (ULONG)"Probe", SA_ErrorCode, (ULONG)&err, SA_Quiet, TRUE, TAG_END);
     P_NULL("OpenScreenTags", s);
@@ -52,6 +56,18 @@ int main(void)
     GfxBase = (struct GfxBase *)OpenLibrary((CONST_STRPTR)"graphics.library", 39);
     if (!IntuitionBase || !GfxBase)
         return 20;
+
+    P_SECTION("NextDisplayInfo order");
+    {
+        ULONG id = INVALID_ID;
+        int n = 0;
+        while ((id = NextDisplayInfo(id)) != INVALID_ID && n < 200) {
+            probe_hex(id, 8);
+            probe_ch(++n % 6 ? ' ' : '\n');
+        }
+        probe_ch('\n');
+        P_LONG("modes", n);
+    }
 
     try_mode("PAL HIRES", PAL_MONITOR_ID | HIRES_KEY, 640, 256, 2);
     try_mode("default HIRES", HIRES_KEY, 640, 256, 2);

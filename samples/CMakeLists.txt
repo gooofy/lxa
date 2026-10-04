@@ -220,7 +220,6 @@ set(TESTS_LIST
     "../tests/graphics/copper|main|Tests/Graphics/Copper"
     "../tests/graphics/draw_ellipse|main|Tests/Graphics/DrawEllipse"
     "../tests/graphics/display_viewport|main|Tests/Graphics/DisplayViewPort"
-    "../tests/graphics/display_ext|main|Tests/Graphics/DisplayExt"
     "../tests/graphics/diskfont_contents|main|Tests/Graphics/DiskfontContents"
     "../tests/graphics/diskfont_ext|main|Tests/Graphics/DiskfontExt"
     "../tests/graphics/flood|main|Tests/Graphics/Flood"

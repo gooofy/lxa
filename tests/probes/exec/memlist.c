@@ -22,34 +22,30 @@ int main(void)
     APTR p;
     int n = 0;
 
-    P_SECTION("MemList");
-    Forbid();
-    for (mh = (struct MemHeader *)SysBase->MemList.lh_Head; mh->mh_Node.ln_Succ && n < 8;
-         mh = (struct MemHeader *)mh->mh_Node.ln_Succ, n++) {
-        static ULONG attr[8];
-        static LONG pri[8];
-        static ULONG lower[8];
-        attr[n] = mh->mh_Attributes;
-        pri[n] = mh->mh_Node.ln_Pri;
-        lower[n] = (ULONG)mh->mh_Lower;
-        if (mh->mh_Node.ln_Succ->ln_Succ == NULL || n == 7) {
-            int i;
-            Permit();
-            for (i = 0; i <= n; i++) {
-                probe_s("region ");
-                probe_dec(i);
-                probe_s(": attributes ");
-                probe_hex(attr[i], 4);
-                probe_s(" pri ");
-                probe_dec(pri[i]);
-                probe_s(lower[i] < 0x200000 ? " (below 2 MB)" : " (above 2 MB)");
-                probe_ch('\n');
+    P_SECTION("MemList (lxa has one fast region, the reference two)");
+    {
+        ULONG chip_attr = 0, first_attr = 0;
+        LONG chip_pri = 999, min_fast_pri = 999, first_pri = 0;
+        Forbid();
+        for (mh = (struct MemHeader *)SysBase->MemList.lh_Head; mh->mh_Node.ln_Succ;
+             mh = (struct MemHeader *)mh->mh_Node.ln_Succ, n++) {
+            if (n == 0) {
+                first_attr = mh->mh_Attributes;
+                first_pri = mh->mh_Node.ln_Pri;
             }
-            Forbid();
+            if (mh->mh_Attributes & MEMF_CHIP) {
+                chip_attr = mh->mh_Attributes;
+                chip_pri = mh->mh_Node.ln_Pri;
+            } else if (mh->mh_Node.ln_Pri < min_fast_pri)
+                min_fast_pri = mh->mh_Node.ln_Pri;
         }
+        Permit();
+        P_HEX("first region attributes", first_attr);
+        P_LONG("first region pri", first_pri);
+        P_HEX("chip region attributes", chip_attr);
+        P_LONG("chip region pri", chip_pri);
+        P_BOOL("fast regions before chip", min_fast_pri != 999 && min_fast_pri > chip_pri);
     }
-    Permit();
-    P_LONG("regions", n);
 
     P_SECTION("where allocations come from");
     p = AllocMem(4096, MEMF_ANY);

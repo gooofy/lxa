@@ -29,6 +29,8 @@
 #include <graphics/layers.h>
 #include <graphics/layersext.h>
 #include <clib/graphics_protos.h>
+#include <graphics/videocontrol.h>
+#include <graphics/gfxnodes.h>
 #include <inline/graphics.h>
 #include <clib/layers_protos.h>
 #include <inline/layers.h>
@@ -774,6 +776,34 @@ static struct Screen *_intuition_find_workbench_screen(struct IntuitionBase *Int
 }
 
 /* per-screen record of any screen (public or not) */
+/* AmigaOS 3.1 reference (tests/probes/graphics/vpextra): every screen's
+ * ColorMap has a ViewPortExtra whose DisplayClip is the OSCAN_TEXT
+ * rectangle of the screen's mode (reqtools sizes its requesters from it) */
+static void _intuition_update_display_clip(struct Screen *screen)
+{
+    struct ColorMap *cm = screen->ViewPort.ColorMap;
+    struct ViewPortExtra *vpe;
+    struct DimensionInfo dims;
+
+    if (!cm)
+        return;
+    vpe = cm->cm_vpe;
+    if (!vpe)
+    {
+        struct TagItem tags[2];
+
+        vpe = (struct ViewPortExtra *)GfxNew(VIEWPORT_EXTRA_TYPE);
+        if (!vpe)
+            return;
+        tags[0].ti_Tag = VTAG_VIEWPORTEXTRA_SET;
+        tags[0].ti_Data = (ULONG)vpe;
+        tags[1].ti_Tag = TAG_END;
+        VideoControl(cm, tags);
+    }
+    if (GetDisplayInfoData(NULL, (UBYTE *)&dims, sizeof(dims), DTAG_DIMS, GetVPModeID(&screen->ViewPort)))
+        vpe->DisplayClip = dims.TxtOScan;
+}
+
 static struct PubScreenNode *_intuition_find_pubscreen_by_screen(struct LXAIntuitionBase *base,
                                                                   const struct Screen *screen)
 {
@@ -4725,6 +4755,8 @@ BOOL _intuition_CloseScreen ( register struct IntuitionBase * IntuitionBase __as
 
     if (screen->ViewPort.ColorMap)
     {
+        if (screen->ViewPort.ColorMap->cm_vpe)
+            GfxFree((struct ExtendedNode *)screen->ViewPort.ColorMap->cm_vpe);
         FreeColorMap(screen->ViewPort.ColorMap);
     }
 
@@ -9208,6 +9240,7 @@ struct Screen * _intuition_OpenScreen ( register struct IntuitionBase * Intuitio
                          ((r * 17) << 16) | ((g * 17) << 8) | (b * 17));
             }
         }
+        _intuition_update_display_clip(screen);
     }
 
     /* Bar height: font height + 2 (AmigaOS 3.1 reference: 10 for topaz 8,
@@ -12917,37 +12950,26 @@ LONG _intuition_QueryOverscan ( register struct IntuitionBase * IntuitionBase __
     if (!rect)
         return FALSE;
     
-    /* Return standard PAL hires dimensions for all modes
-     * oScanType: 1=TEXT (visible), 2=STANDARD (past edges), 3=MAX, 4=VIDEO
-     */
-    switch (oScanType) {
-        case 1:  /* OSCAN_TEXT - entirely visible */
-            rect->MinX = 0;
-            rect->MinY = 0;
-            rect->MaxX = 639;
-            rect->MaxY = 255;
-            break;
-        case 2:  /* OSCAN_STANDARD - just past edges */
-            rect->MinX = 0;
-            rect->MinY = 0;
-            rect->MaxX = 703;
-            rect->MaxY = 283;
-            break;
-        case 3:  /* OSCAN_MAX - as much as possible */
-        case 4:  /* OSCAN_VIDEO - even more */
-            rect->MinX = 0;
-            rect->MinY = 0;
-            rect->MaxX = 719;
-            rect->MaxY = 283;
-            break;
-        default:
-            rect->MinX = 0;
-            rect->MinY = 0;
-            rect->MaxX = 639;
-            rect->MaxY = 255;
-            break;
+    /* The rectangle comes from the mode's DimensionInfo (AmigaOS 3.1
+     * reference, tests/probes/graphics/vpextra: TEXT and STANDARD are the
+     * mode's nominal size without overscan preferences). */
+    {
+        struct DimensionInfo dims;
+        struct Rectangle *r;
+
+        if (GetDisplayInfoData(NULL, (UBYTE *)&dims, sizeof(dims), DTAG_DIMS, displayID) == 0)
+            return FALSE;
+        switch (oScanType)
+        {
+            case OSCAN_TEXT:     r = &dims.TxtOScan;   break;
+            case OSCAN_STANDARD: r = &dims.StdOScan;   break;
+            case OSCAN_MAX:      r = &dims.MaxOScan;   break;
+            case OSCAN_VIDEO:    r = &dims.VideoOScan; break;
+            default:             return FALSE;
+        }
+        *rect = *r;
     }
-    
+
     return TRUE;
 }
 
@@ -14920,6 +14942,7 @@ struct Screen * _intuition_OpenScreenTagList ( register struct IntuitionBase * I
         DPRINTF(LOG_DEBUG, "_intuition: OpenScreenTagList() overriding VPModeID 0x%08lx -> 0x%08lx\n",
                 (ULONG)screen->ViewPort.ColorMap->VPModeID, sa_display_id);
         screen->ViewPort.ColorMap->VPModeID = sa_display_id;
+        _intuition_update_display_clip(screen);
     }
 
     /* Second pass: apply tags that require a live screen */

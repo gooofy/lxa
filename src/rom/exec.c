@@ -98,6 +98,7 @@ struct JumpVec
 
 #define RAM_START                    0x00010000
 #define RAM_END                      0x009fffff
+#define LXA_CHIP_END                 0x00200000   /* 2 MB chip RAM, fast RAM above */
 
 extern struct Resident *__lxa_dos_ROMTag;
 extern struct Resident *__lxa_utility_ROMTag;
@@ -137,7 +138,8 @@ extern struct Resident *__lxa_trackdisk_ROMTag;
 
 static struct JumpVec   g_ExecJumpTable[NUM_EXEC_FUNCS];
 static struct ExecBase  g_SysBase;
-static struct MemHeader g_MemHeader;
+static struct MemHeader g_MemHeader;       /* chip RAM */
+static struct MemHeader g_FastMemHeader;   /* fast RAM */
 
 struct ExecIntVectorState
 {
@@ -6102,27 +6104,40 @@ void coldstart (void)
     NEWLIST (&SysBase->MemList);
     SysBase->MemList.lh_Type = NT_MEMORY;
 
+    /* Memory layout as on the reference A4000 (tests/probes/exec/memlist):
+     * 2 MB chip RAM (MEMF_PUBLIC|CHIP|LOCAL|24BITDMA|KICK, priority -10)
+     * and fast RAM above it (MEMF_PUBLIC|FAST|LOCAL|KICK, priority 30) that
+     * MEMF_ANY allocations come from.  lxa's RAM is one flat region; its
+     * fast part is smaller than the reference's 16 MB. */
     struct MemChunk *mc = (struct MemChunk *) RAM_START;
 
     mc->mc_Next  = NULL;
-    mc->mc_Bytes = RAM_END-RAM_START+1;
+    mc->mc_Bytes = LXA_CHIP_END-RAM_START;
 
     g_MemHeader.mh_Node.ln_Type = NT_MEMORY;
-    g_MemHeader.mh_Node.ln_Pri  = 0;
-    g_MemHeader.mh_Node.ln_Name = NULL;
-    g_MemHeader.mh_Attributes   = MEMF_CHIP | MEMF_PUBLIC;
+    g_MemHeader.mh_Node.ln_Pri  = -10;
+    g_MemHeader.mh_Node.ln_Name = (char *)"chip memory";
+    g_MemHeader.mh_Attributes   = MEMF_CHIP | MEMF_PUBLIC | MEMF_LOCAL | MEMF_24BITDMA | MEMF_KICK;
     g_MemHeader.mh_First        = mc;
     g_MemHeader.mh_Lower        = (APTR) RAM_START;
-    g_MemHeader.mh_Upper        = (APTR) (RAM_END + 1);
-    g_MemHeader.mh_Free         = RAM_END-RAM_START+1;
+    g_MemHeader.mh_Upper        = (APTR) LXA_CHIP_END;
+    g_MemHeader.mh_Free         = LXA_CHIP_END-RAM_START;
 
-    DPRINTF (LOG_DEBUG, "coldstart: setting up first struct MemHeader at 0x%08lx:\n", &g_MemHeader);
-    DPRINTF (LOG_DEBUG, "           g_MemHeader.mh_First=0x%08lx, g_MemHeader.mh_Lower=0x%08lx, g_MemHeader.mh_Upper=0x%08lx,\n",
-             g_MemHeader.mh_First, g_MemHeader.mh_Lower, g_MemHeader.mh_Upper);
-    DPRINTF (LOG_DEBUG, "           g_MemHeader.mh_Free=%ld, g_MemHeader.mh_Attributes=0x%08lx\n",
-             g_MemHeader.mh_Free, g_MemHeader.mh_Attributes);
+    mc = (struct MemChunk *) LXA_CHIP_END;
+    mc->mc_Next  = NULL;
+    mc->mc_Bytes = RAM_END+1-LXA_CHIP_END;
 
-    AddTail (&SysBase->MemList, &g_MemHeader.mh_Node);
+    g_FastMemHeader.mh_Node.ln_Type = NT_MEMORY;
+    g_FastMemHeader.mh_Node.ln_Pri  = 30;
+    g_FastMemHeader.mh_Node.ln_Name = (char *)"expansion memory";
+    g_FastMemHeader.mh_Attributes   = MEMF_FAST | MEMF_PUBLIC | MEMF_LOCAL | MEMF_KICK;
+    g_FastMemHeader.mh_First        = mc;
+    g_FastMemHeader.mh_Lower        = (APTR) LXA_CHIP_END;
+    g_FastMemHeader.mh_Upper        = (APTR) (RAM_END + 1);
+    g_FastMemHeader.mh_Free         = RAM_END+1-LXA_CHIP_END;
+
+    Enqueue (&SysBase->MemList, &g_FastMemHeader.mh_Node);
+    Enqueue (&SysBase->MemList, &g_MemHeader.mh_Node);
 
     // init and register built-in libraries
 
@@ -6284,7 +6299,7 @@ void coldstart (void)
     SysBase->AttnFlags           = AFF_68010 | AFF_68020 | AFF_68030;
     SysBase->VBlankFrequency     = 50;
     SysBase->PowerSupplyFrequency = 50;
-    SysBase->MaxLocMem           = (ULONG)(RAM_END + 1);
+    SysBase->MaxLocMem           = (ULONG)LXA_CHIP_END;
     SysBase->ex_EClockFrequency  = 709379;  /* PAL */
 
     // create a bootstrap process

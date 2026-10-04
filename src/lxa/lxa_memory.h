@@ -13,6 +13,7 @@
 #define LXA_MEMORY_H
 
 #include "lxa_internal.h"
+#include "lxa_vclock.h"
 #include <string.h>  /* memcpy */
 
 /*
@@ -135,12 +136,23 @@ static inline uint8_t mread8(uint32_t address)
         
         /* Return sensible defaults for common read registers */
         switch (reg & ~1) {  /* Use even address for word-aligned registers */
-            case CUSTOM_REG_VPOSR:    /* Vertical position - return 0 (line 0, PAL long frame) */
-                result = (reg & 1) ? 0x00 : 0x00;
+            case CUSTOM_REG_VPOSR:    /* Vertical position: V8 in bit 0 */
+            case CUSTOM_REG_VHPOSR:   /* V7-V0 / H8-H1 */
+            {
+                /* The beam follows the emulated clock: 313 PAL lines of 227
+                 * colour clocks per frame (SysInfo waits for line 1 before
+                 * timing its memory speed test). */
+                uint64_t cpf = vclock_cycles_per_frame();
+                uint64_t pos = cpf ? (vclock_cycles() % cpf) * 313 : 0;
+                uint32_t line = cpf ? (uint32_t)(pos / cpf) : 0;
+                uint32_t hclk = cpf ? (uint32_t)((pos % cpf) * 227 / cpf) : 0;
+
+                if ((reg & ~1) == CUSTOM_REG_VPOSR)
+                    result = (reg & 1) ? (uint8_t)((line >> 8) & 1) : 0x00;
+                else
+                    result = (reg & 1) ? (uint8_t)hclk : (uint8_t)line;
                 break;
-            case CUSTOM_REG_VHPOSR:   /* Horiz/vert position - return 0 */
-                result = 0;
-                break;
+            }
             case CUSTOM_REG_JOY0DAT:  /* Joystick 0 - no movement */
                 result = 0;
                 break;
