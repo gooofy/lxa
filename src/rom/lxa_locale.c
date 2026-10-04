@@ -2,7 +2,8 @@
  * lxa locale.library implementation
  *
  * Provides internationalization and localization support.
- * This is a stub implementation with basic US English defaults.
+ * Locales come from the built-in AmigaOS 3.1 defaults or from locale prefs
+ * files (OpenLocale(), LocalePrefsUpdate() - Phase 236).
  */
 
 #include <exec/types.h>
@@ -20,6 +21,8 @@
 
 #include <libraries/locale.h>
 #include <libraries/iffparse.h>
+#include <prefs/prefhdr.h>
+#include <prefs/locale.h>
 #include <utility/tagitem.h>
 #include <utility/hooks.h>
 #include <clib/utility_protos.h>
@@ -46,7 +49,9 @@ extern struct UtilityBase *UtilityBase;
 struct MyLocaleBase {
     struct LocaleBase lb;
     BPTR              SegList;
-    struct Locale    *cached_locale;
+    struct Locale    *cached_locale;    /* the default locale (OpenLocale(NULL)):
+                                         * built in, or installed by IPrefs
+                                         * with LocalePrefsUpdate() */
     struct Catalog   *cached_catalog;
     STRPTR            cached_locale_name;
     STRPTR            cached_catalog_name;
@@ -250,22 +255,6 @@ static BOOL _loc_strieq_ascii(CONST_STRPTR lhs, CONST_STRPTR rhs)
     }
 
     return *lhs == *rhs;
-}
-
-static CONST_STRPTR _loc_effective_locale_name(CONST_STRPTR name)
-{
-    if (!name || !*name)
-        return (CONST_STRPTR)g_DefaultLocaleName;
-
-    return name;
-}
-
-static BOOL _loc_is_default_locale_name(CONST_STRPTR name)
-{
-    CONST_STRPTR effective_name = _loc_effective_locale_name(name);
-
-    return _loc_strieq_ascii(effective_name, (CONST_STRPTR)g_DefaultLocaleName) ||
-           _loc_strieq_ascii(effective_name, (CONST_STRPTR)g_DefaultLanguageName);
 }
 
 static BOOL _loc_catalog_cache_matches(struct MyLocaleBase *LocaleBase,
@@ -994,6 +983,213 @@ ULONG __g_lxa_locale_ExtFuncLib(void)
 static ULONG _locale_Reserved(void) { PRIVATE_FUNCTION_ERROR("_locale", "Reserved"); return 0; }
 
 /****************************************************************************/
+/* Locale preferences (Phase 236)                                            */
+/****************************************************************************/
+
+/*
+ * A locale opened from a locale prefs file (prefs/locale.h: FORM PREF with
+ * an LCLE chunk holding struct LocalePrefs).  As on AmigaOS 3.1 (reference:
+ * tests/scenarios/gallery-prefs-sys.yaml) loc_LocaleName is the file name,
+ * the country fields come from the file's CountryPrefs, loc_GMTOffset is
+ * lp_GMTOffset and the preferred languages are the file's list.  Language
+ * strings stay English: languages other than the built-in english need the
+ * LOCALE:Languages libraries (Phase 257).
+ */
+#define LXA_LOCALE_MAGIC 0x4c4f434cUL   /* 'LOCL' */
+
+struct LXALocale
+{
+    struct Locale       loc;
+    ULONG               magic;
+    LONG                opencnt;
+    UBYTE               name[32];
+    UBYTE               langname[40];
+    UBYTE               preflang[10][30];
+    struct CountryPrefs cp;
+};
+
+static BOOL _loc_is_lxa_locale(struct Locale *locale)
+{
+    return locale && locale != &g_DefaultLocale &&
+           ((struct LXALocale *)locale)->magic == LXA_LOCALE_MAGIC;
+}
+
+static void _loc_copy_str(UBYTE *dst, CONST UBYTE *src, LONG max)
+{
+    LONG i;
+
+    for (i = 0; i < max - 1 && src[i]; i++)
+        dst[i] = src[i];
+    dst[i] = 0;
+}
+
+static ULONG _loc_get_long(CONST UBYTE *p)
+{
+    return ((ULONG)p[0] << 24) | ((ULONG)p[1] << 16) | ((ULONG)p[2] << 8) | (ULONG)p[3];
+}
+
+/* Read the LCLE chunk of a locale prefs file into *lp; FALSE when the file
+ * is not a locale prefs file. */
+static BOOL _loc_read_prefs(CONST_STRPTR name, struct LocalePrefs *lp)
+{
+    BPTR fh = Open((STRPTR)name, MODE_OLDFILE);
+    UBYTE hdr[12];
+    BOOL ok = FALSE;
+
+    if (!fh)
+        return FALSE;
+    if (Read(fh, hdr, 12) == 12 && _loc_get_long(hdr) == ID_FORM && _loc_get_long(hdr + 8) == ID_PREF)
+    {
+        for (;;)
+        {
+            ULONG id, len;
+
+            if (Read(fh, hdr, 8) != 8)
+                break;
+            id = _loc_get_long(hdr);
+            len = _loc_get_long(hdr + 4);
+            if (id == ID_LCLE)
+            {
+                ULONG want = len < sizeof(*lp) ? len : sizeof(*lp);
+                memset(lp, 0, sizeof(*lp));
+                ok = Read(fh, lp, want) == (LONG)want && want >= sizeof(*lp) - sizeof(lp->lp_CountryData) / 2;
+                break;
+            }
+            if (Seek(fh, (len + 1) & ~1UL, OFFSET_CURRENT) < 0)
+                break;
+        }
+    }
+    Close(fh);
+    return ok;
+}
+
+static struct Locale *_loc_open_prefs_locale(CONST_STRPTR name)
+{
+    struct LocalePrefs *lp;
+    struct LXALocale *ll;
+    struct CountryPrefs *cp;
+    UWORD i, n;
+
+    lp = AllocVec(sizeof(*lp), MEMF_CLEAR);
+    if (!lp)
+    {
+        SetIoErr(ERROR_NO_FREE_STORE);
+        return NULL;
+    }
+    if (!_loc_read_prefs(name, lp))
+    {
+        FreeVec(lp);
+        SetIoErr(ERROR_OBJECT_WRONG_TYPE);
+        return NULL;
+    }
+    ll = AllocVec(sizeof(*ll), MEMF_CLEAR | MEMF_PUBLIC);
+    if (!ll)
+    {
+        FreeVec(lp);
+        SetIoErr(ERROR_NO_FREE_STORE);
+        return NULL;
+    }
+    ll->magic = LXA_LOCALE_MAGIC;
+    ll->opencnt = 1;
+    CopyMem(&lp->lp_CountryData, &ll->cp, sizeof(ll->cp));
+    cp = &ll->cp;
+
+    _loc_copy_str(ll->name, (CONST UBYTE *)FilePart((STRPTR)name), sizeof(ll->name));
+    _loc_copy_str(ll->langname, (CONST UBYTE *)"english.language", sizeof(ll->langname));
+    for (i = 0, n = 0; i < 10; i++)
+    {
+        if (!lp->lp_PreferredLanguages[i][0])
+            continue;
+        _loc_copy_str(ll->preflang[n], (CONST UBYTE *)lp->lp_PreferredLanguages[i], 30);
+        ll->loc.loc_PrefLanguages[n] = (STRPTR)ll->preflang[n];
+        n++;
+    }
+    if (n == 0)
+    {
+        _loc_copy_str(ll->preflang[0], g_DefaultLanguageName, 30);
+        ll->loc.loc_PrefLanguages[0] = (STRPTR)ll->preflang[0];
+    }
+    ll->loc.loc_GMTOffset = lp->lp_GMTOffset;
+    ll->loc.loc_Flags = (UBYTE)lp->lp_Flags;
+    FreeVec(lp);
+
+    ll->loc.loc_LocaleName = (STRPTR)ll->name;
+    ll->loc.loc_LanguageName = (STRPTR)ll->langname;
+    ll->loc.loc_CodeSet = 0;
+    ll->loc.loc_CountryCode = cp->cp_CountryCode;
+    ll->loc.loc_TelephoneCode = cp->cp_TelephoneCode;
+    ll->loc.loc_MeasuringSystem = cp->cp_MeasuringSystem;
+    ll->loc.loc_CalendarType = cp->cp_CalendarType;
+    ll->loc.loc_DateTimeFormat = (STRPTR)cp->cp_DateTimeFormat;
+    ll->loc.loc_DateFormat = (STRPTR)cp->cp_DateFormat;
+    ll->loc.loc_TimeFormat = (STRPTR)cp->cp_TimeFormat;
+    ll->loc.loc_ShortDateTimeFormat = (STRPTR)cp->cp_ShortDateTimeFormat;
+    ll->loc.loc_ShortDateFormat = (STRPTR)cp->cp_ShortDateFormat;
+    ll->loc.loc_ShortTimeFormat = (STRPTR)cp->cp_ShortTimeFormat;
+    ll->loc.loc_DecimalPoint = (STRPTR)cp->cp_DecimalPoint;
+    ll->loc.loc_GroupSeparator = (STRPTR)cp->cp_GroupSeparator;
+    ll->loc.loc_FracGroupSeparator = (STRPTR)cp->cp_FracGroupSeparator;
+    ll->loc.loc_Grouping = cp->cp_Grouping;
+    ll->loc.loc_FracGrouping = cp->cp_FracGrouping;
+    ll->loc.loc_MonDecimalPoint = (STRPTR)cp->cp_MonDecimalPoint;
+    ll->loc.loc_MonGroupSeparator = (STRPTR)cp->cp_MonGroupSeparator;
+    ll->loc.loc_MonFracGroupSeparator = (STRPTR)cp->cp_MonFracGroupSeparator;
+    ll->loc.loc_MonGrouping = cp->cp_MonGrouping;
+    ll->loc.loc_MonFracGrouping = cp->cp_MonFracGrouping;
+    ll->loc.loc_MonFracDigits = cp->cp_MonFracDigits;
+    ll->loc.loc_MonIntFracDigits = cp->cp_MonIntFracDigits;
+    ll->loc.loc_MonCS = (STRPTR)cp->cp_MonCS;
+    ll->loc.loc_MonSmallCS = (STRPTR)cp->cp_MonSmallCS;
+    ll->loc.loc_MonIntCS = (STRPTR)cp->cp_MonIntCS;
+    ll->loc.loc_MonPositiveSign = (STRPTR)cp->cp_MonPositiveSign;
+    ll->loc.loc_MonPositiveSpaceSep = cp->cp_MonPositiveSpaceSep;
+    ll->loc.loc_MonPositiveSignPos = cp->cp_MonPositiveSignPos;
+    ll->loc.loc_MonPositiveCSPos = cp->cp_MonPositiveCSPos;
+    ll->loc.loc_MonNegativeSign = (STRPTR)cp->cp_MonNegativeSign;
+    ll->loc.loc_MonNegativeSpaceSep = cp->cp_MonNegativeSpaceSep;
+    ll->loc.loc_MonNegativeSignPos = cp->cp_MonNegativeSignPos;
+    ll->loc.loc_MonNegativeCSPos = cp->cp_MonNegativeCSPos;
+    SetIoErr(0);
+    return &ll->loc;
+}
+
+static void _loc_release(struct Locale *locale)
+{
+    struct LXALocale *ll = (struct LXALocale *)locale;
+
+    if (!_loc_is_lxa_locale(locale))
+        return;
+    if (--ll->opencnt <= 0)
+    {
+        ll->magic = 0;
+        FreeVec(ll);
+    }
+}
+
+/* LocalePrefsUpdate() (-168, private): IPrefs makes a locale opened from
+ * ENV:Sys/locale.prefs the default locale.  The library keeps the caller's
+ * reference; the previous default is returned for the caller to close. */
+struct Locale * _locale_LocalePrefsUpdate ( register struct MyLocaleBase *LocaleBase __asm("a6"),
+                                            register struct Locale       *locale     __asm("a0"))
+{
+    struct Locale *old;
+
+    DPRINTF (LOG_DEBUG, "_locale: LocalePrefsUpdate() locale=0x%08lx\n", (ULONG)locale);
+    if (!locale)
+        return NULL;
+    Forbid();
+    old = LocaleBase->cached_locale;
+    LocaleBase->cached_locale = locale;
+    if (LocaleBase->cached_locale_name)
+    {
+        FreeVec(LocaleBase->cached_locale_name);
+        LocaleBase->cached_locale_name = NULL;
+    }
+    Permit();
+    return (old == &g_DefaultLocale) ? NULL : old;
+}
+
+/****************************************************************************/
 /* Main functions                                                            */
 /****************************************************************************/
 
@@ -1013,21 +1209,10 @@ VOID _locale_CloseLocale ( register struct MyLocaleBase *LocaleBase __asm("a6"),
                            register struct Locale       *locale     __asm("a0"))
 {
     DPRINTF (LOG_DEBUG, "_locale: CloseLocale() called\n");
-    /* Don't free the default locale */
-    if (locale && locale != &g_DefaultLocale)
-    {
-        if (LocaleBase && LocaleBase->cached_locale == locale)
-        {
-            LocaleBase->cached_locale = &g_DefaultLocale;
-            if (LocaleBase->cached_locale_name)
-            {
-                FreeVec(LocaleBase->cached_locale_name);
-                LocaleBase->cached_locale_name = NULL;
-            }
-        }
-
-        FreeMem(locale, sizeof(struct Locale));
-    }
+    /* the built-in locale is never freed; a prefs locale when its last
+     * user closes it (the default locale holds a reference of its own) */
+    (void)LocaleBase;
+    _loc_release(locale);
 }
 
 ULONG _locale_ConvToLower ( register struct MyLocaleBase *LocaleBase __asm("a6"),
@@ -1814,24 +1999,25 @@ struct Catalog * _locale_OpenCatalogA ( register struct MyLocaleBase    *LocaleB
 struct Locale * _locale_OpenLocale ( register struct MyLocaleBase *LocaleBase __asm("a6"),
                                      register CONST_STRPTR         name       __asm("a0"))
 {
-    CONST_STRPTR effective_name;
+    struct Locale *locale;
 
     DPRINTF (LOG_DEBUG, "_locale: OpenLocale() called name='%s'\n", name ? (char *)name : "(null)");
 
-    effective_name = _loc_effective_locale_name(name);
-
-    if (LocaleBase &&
-        LocaleBase->cached_locale &&
-        LocaleBase->cached_locale_name &&
-        _loc_strieq_ascii(LocaleBase->cached_locale_name, effective_name))
+    /* the default locale (Phase 236: installed by IPrefs from
+     * ENV:Sys/locale.prefs, else the built-in one) */
+    if (!name || !*name)
     {
+        Forbid();
+        locale = LocaleBase ? LocaleBase->cached_locale : &g_DefaultLocale;
+        if (_loc_is_lxa_locale(locale))
+            ((struct LXALocale *)locale)->opencnt++;
+        Permit();
         SetIoErr(0);
-        return LocaleBase->cached_locale;
+        return locale ? locale : &g_DefaultLocale;
     }
 
     /* a name is a locale prefs file: a missing file yields NULL (AmigaOS
      * 3.1, reference-verified) */
-    if (name && *name)
     {
         BPTR lock = Lock((STRPTR)name, SHARED_LOCK);
 
@@ -1841,28 +2027,8 @@ struct Locale * _locale_OpenLocale ( register struct MyLocaleBase *LocaleBase __
             return NULL;
         }
         UnLock(lock);
-        LXA_UNIMPLEMENTED("locale", "OpenLocale", "partial: locale prefs files are not parsed, the default locale is returned");
-        SetIoErr(0);
-        return &g_DefaultLocale;
+        return _loc_open_prefs_locale(name);
     }
-
-    if (_loc_is_default_locale_name(name))
-    {
-        if (LocaleBase)
-        {
-            if (LocaleBase->cached_locale_name)
-                FreeVec(LocaleBase->cached_locale_name);
-            LocaleBase->cached_locale_name = _loc_dup_bytes((const UBYTE *)effective_name,
-                                                            _loc_strlen(effective_name));
-            LocaleBase->cached_locale = &g_DefaultLocale;
-        }
-
-        SetIoErr(0);
-        return &g_DefaultLocale;
-    }
-
-    SetIoErr(ERROR_OBJECT_NOT_FOUND);
-    return NULL;
 }
 
 /****************************************************************************/
@@ -2339,7 +2505,7 @@ APTR __g_lxa_locale_FuncTab [] =
     _locale_OpenCatalogA,             // -150 (0x96) pos 24
     _locale_OpenLocale,               // -156 (0x9c) pos 25
     _locale_ParseDate,                // -162 (0xa2) pos 26
-    _locale_Reserved,                 // -168 (0xa8) pos 27 - reserved
+    _locale_LocalePrefsUpdate,        // -168 (0xa8) pos 27 - private (IPrefs)
     _locale_StrConvert,               // -174 (0xae) pos 28
     _locale_StrnCmp,                  // -180 (0xb4) pos 29
     (APTR) ((LONG)-1)

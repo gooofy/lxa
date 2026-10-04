@@ -113,6 +113,7 @@ set(C_COMMANDS
     Filenote
     GetEnv
     IconX
+    IPrefs
     Info
     Join
     List

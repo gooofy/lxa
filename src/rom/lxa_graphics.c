@@ -871,6 +871,61 @@ static UWORD graphics_display_nominal_height(ULONG display_id)
     return height;
 }
 
+/* Overscan preferences (Phase 236): the text and standard overscan of a
+ * monitor, written through SetDisplayInfoData(DTAG_DIMS) - by IPrefs from
+ * ENV:Sys/overscan.prefs.  Kept per monitor in hires non-interlaced pixels
+ * and scaled to each mode's resolution. */
+struct GfxOscanPrefs
+{
+    BOOL             valid;
+    struct Rectangle txt;
+    struct Rectangle std;
+};
+
+#define GFX_OSCAN_MONITORS 2    /* 0: PAL (and the default monitor), 1: NTSC */
+static struct GfxOscanPrefs *g_oscan_prefs;     /* AllocMem'd on first use */
+
+static int graphics_oscan_slot(ULONG display_id)
+{
+    return ((display_id & MONITOR_ID_MASK) == NTSC_MONITOR_ID) ? 1 : 0;
+}
+
+/* one coordinate between mode pixels and hires non-interlaced pixels */
+static WORD graphics_oscan_conv(WORD v, WORD xscale, BOOL is_max, BOOL is_x, BOOL lace, BOOL to_mode)
+{
+    LONG r = v;
+    BOOL halve, twice;
+
+    if (is_x)
+    {
+        halve = (xscale == 1) == to_mode;
+        twice = (xscale == 4) == to_mode;
+        if (xscale == 2)
+            return v;
+    }
+    else
+    {
+        if (!lace)
+            return v;
+        halve = !to_mode;
+        twice = to_mode;
+    }
+    if (halve && !twice)
+        r = is_max ? ((r + 1) / 2) - 1 : r / 2;
+    else if (twice && !halve)
+        r = is_max ? (r + 1) * 2 - 1 : r * 2;
+    return (WORD)r;
+}
+
+static VOID graphics_oscan_rect(struct Rectangle *dst, const struct Rectangle *src,
+                                WORD xscale, BOOL lace, BOOL to_mode)
+{
+    dst->MinX = graphics_oscan_conv(src->MinX, xscale, FALSE, TRUE, lace, to_mode);
+    dst->MinY = graphics_oscan_conv(src->MinY, xscale, FALSE, FALSE, lace, to_mode);
+    dst->MaxX = graphics_oscan_conv(src->MaxX, xscale, TRUE, TRUE, lace, to_mode);
+    dst->MaxY = graphics_oscan_conv(src->MaxY, xscale, TRUE, FALSE, lace, to_mode);
+}
+
 static UWORD graphics_display_total_rows(ULONG display_id)
 {
     if ((display_id & MONITOR_ID_MASK) == PAL_MONITOR_ID)
@@ -7595,12 +7650,26 @@ static struct ColorMap * _graphics_GetColorMap ( register struct GfxBase * GfxBa
     cm->SpriteBase_Odd = 0x0001;
     cm->Bp_1_base = 0x0008;
     
-    /* Initialize with default Amiga Workbench colors for first 4 entries */
-    if (entries > 0) colorTable[0] = 0x0AAA;  /* Light gray background */
-    if (entries > 1) colorTable[1] = 0x0000;  /* Black text */
-    if (entries > 2) colorTable[2] = 0x0FFF;  /* White */
-    if (entries > 3) colorTable[3] = 0x068B;  /* Blue highlights */
-    
+    /* The default palette of a fresh ColorMap (AmigaOS 3.1 reference,
+     * tests/probes/graphics/colormap): the classic 16 colours followed by
+     * a grey ramp.  All values are 4-bit exact (LowColorBits = ColorTable).
+     * Intuition puts the preferences colours into a screen's ColorMap. */
+    {
+        static const UWORD default_colors[32] = {
+            0x000, 0xf00, 0x0f0, 0xff0, 0x00f, 0xf0f, 0x0ff, 0xfff,
+            0x620, 0xe50, 0x9f1, 0xeb0, 0x55f, 0x92f, 0x0f8, 0xccc,
+            0x000, 0x111, 0x222, 0x333, 0x444, 0x555, 0x666, 0x777,
+            0x888, 0x999, 0xaaa, 0xbbb, 0xccc, 0xddd, 0xeee, 0xfff
+        };
+        LONG i;
+
+        for (i = 0; i < entries && i < 32; i++)
+        {
+            colorTable[i] = default_colors[i];
+            lowColorBits[i] = default_colors[i];
+        }
+    }
+
     return cm;
 }
 
@@ -9194,9 +9263,70 @@ static VOID _graphics_private3 ( register struct GfxBase * GfxBase __asm("a6"))
     PRIVATE_FUNCTION_ERROR("_graphics", "private3");
 }
 
-static VOID _graphics_private4 ( register struct GfxBase * GfxBase __asm("a6"))
+static ULONG _graphics_GetDisplayInfoData ( register struct GfxBase * GfxBase __asm("a6"),
+                                                        register CONST DisplayInfoHandle handle __asm("a0"),
+                                                        register APTR buf __asm("a1"),
+                                                        register ULONG size __asm("d0"),
+                                                        register ULONG tagID __asm("d1"),
+                                                        register ULONG displayID __asm("d2"));
+
+static VOID graphics_clip_rect(struct Rectangle *r, const struct Rectangle *max)
 {
-    PRIVATE_FUNCTION_ERROR("_graphics", "private4");
+    if (r->MinX < max->MinX) r->MinX = max->MinX;
+    if (r->MinY < max->MinY) r->MinY = max->MinY;
+    if (r->MaxX > max->MaxX) r->MaxX = max->MaxX;
+    if (r->MaxY > max->MaxY) r->MaxY = max->MaxY;
+}
+
+/* SetDisplayInfoData() (-750, system private in AmigaOS 3.1): writes data
+ * back to the display database.  lxa keeps the text and standard overscan
+ * of DTAG_DIMS (Phase 236: overscan preferences, applied by IPrefs through
+ * intuition); both are clipped to the mode's maximum overscan, as on the
+ * reference.  Returns the size used, 0 for data it does not keep. */
+static ULONG _graphics_SetDisplayInfoData ( register struct GfxBase * GfxBase __asm("a6"),
+                                            register CONST DisplayInfoHandle handle __asm("a0"),
+                                            register APTR buf __asm("a1"),
+                                            register ULONG size __asm("d0"),
+                                            register ULONG tagID __asm("d1"),
+                                            register ULONG displayID __asm("d2"))
+{
+    const struct DimensionInfo *in = (const struct DimensionInfo *)buf;
+    struct DimensionInfo cur;
+    struct GfxOscanPrefs *op;
+    struct Rectangle txt, std;
+    ULONG id;
+    WORD xscale;
+    BOOL lace;
+
+    if (displayID == INVALID_ID)
+        displayID = handle ? ((ULONG)handle) - 1 : INVALID_ID;
+    if (!buf || tagID != DTAG_DIMS || displayID == INVALID_ID ||
+        size < (ULONG)((UBYTE *)&in->VideoOScan - (UBYTE *)in))
+        return 0;
+    if (!_graphics_GetDisplayInfoData(GfxBase, NULL, (APTR)&cur, sizeof(cur), DTAG_DIMS, displayID))
+        return 0;
+    if (!g_oscan_prefs)
+    {
+        g_oscan_prefs = AllocMem(sizeof(struct GfxOscanPrefs) * GFX_OSCAN_MONITORS, MEMF_PUBLIC | MEMF_CLEAR);
+        if (!g_oscan_prefs)
+            return 0;
+    }
+
+    txt = in->TxtOScan;
+    std = in->StdOScan;
+    graphics_clip_rect(&txt, &cur.MaxOScan);
+    graphics_clip_rect(&std, &cur.MaxOScan);
+    if (txt.MaxX <= txt.MinX || txt.MaxY <= txt.MinY || std.MaxX <= std.MinX || std.MaxY <= std.MinY)
+        return 0;
+
+    id = cur.Header.DisplayID;
+    xscale = graphics_display_xscale(id);
+    lace = (id & LACE) ? TRUE : FALSE;
+    op = &g_oscan_prefs[graphics_oscan_slot(id)];
+    graphics_oscan_rect(&op->txt, &txt, xscale, lace, FALSE);
+    graphics_oscan_rect(&op->std, &std, xscale, lace, FALSE);
+    op->valid = TRUE;
+    return size;
 }
 
 static ULONG _graphics_GetDisplayInfoData ( register struct GfxBase * GfxBase __asm("a6"),
@@ -9324,11 +9454,24 @@ static ULONG _graphics_GetDisplayInfoData ( register struct GfxBase * GfxBase __
             dims.TxtOScan = dims.Nominal;
             dims.StdOScan = dims.Nominal;
             dims.MaxOScan.MinX = (WORD)(-36 * xscale);
-            dims.MaxOScan.MinY = (WORD)(-15 * yscale);
+            /* AmigaOS 3.1 reference (tests/probes/graphics/colormap):
+             * PAL -15..+12 lines, NTSC -23..+18 lines */
+            {
+                BOOL ntsc = ((actualDisplayID & MONITOR_ID_MASK) == NTSC_MONITOR_ID);
+                dims.MaxOScan.MinY = (WORD)((ntsc ? -23 : -15) * yscale);
+                dims.MaxOScan.MaxY = (WORD)(height - 1 + (ntsc ? 18 : 12) * yscale);
+            }
             dims.MaxOScan.MaxX = (WORD)(width - 1 + 6 * xscale);
-            dims.MaxOScan.MaxY = (WORD)(height - 1 + 12 * yscale);
             dims.VideoOScan = dims.MaxOScan;
             dims.VideoOScan.MaxX = (WORD)(width - 1 + 12 * xscale);
+            if (g_oscan_prefs && g_oscan_prefs[graphics_oscan_slot(actualDisplayID)].valid)
+            {
+                const struct GfxOscanPrefs *op = &g_oscan_prefs[graphics_oscan_slot(actualDisplayID)];
+                BOOL lace = (actualDisplayID & LACE) ? TRUE : FALSE;
+
+                graphics_oscan_rect(&dims.TxtOScan, &op->txt, xscale, lace, TRUE);
+                graphics_oscan_rect(&dims.StdOScan, &op->std, xscale, lace, TRUE);
+            }
 
             return graphics_copy_query(buf, size, &dims, 66);
         }
@@ -11792,7 +11935,7 @@ APTR __g_lxa_graphics_FuncTab [] =
     _graphics_NextDisplayInfo, // offset = -732
     _graphics_private2, // offset = -738
     _graphics_private3, // offset = -744
-    _graphics_private4, // offset = -750
+    _graphics_SetDisplayInfoData, // offset = -750
     _graphics_GetDisplayInfoData, // offset = -756
     _graphics_FontExtent, // offset = -762
     _graphics_ReadPixelLine8, // offset = -768
