@@ -179,7 +179,7 @@ Complete (Phases 210–216, v0.11.9); see the summary table.
 **Class**: Compatibility. Carried over from the legacy roadmap; each one must now end with a reference golden.
 - [ ] BlitzBasic 2 ted editor shows no text (legacy 160). Start with a tracediff and a reference capture, not with hypotheses.
 - [ ] SysInfo hardware fields and the Cluster2 EXIT button (legacy 162). SysInfo needs the battclock/CIA resources from Phase 255.
-- [ ] DOpus button pages beyond the default (Move/Rename), and re-enable `AppsMiscScreenTest.DISABLED_DirectoryOpusCopiesFile` (`apps_misc_gtest.cpp`): the lister now shows the file and the paths, but a click on the file row (window y + 37) does not select it, so Copy does nothing. Replay the same clicks on the reference with a scenario first.
+- [ ] DOpus button pages beyond the default (Move/Rename), and re-enable `AppsMiscScreenTest.DISABLED_DirectoryOpusCopiesFile` (`apps_misc_gtest.cpp`): the test now waits until the lister shows the file; a click on the file row (window y + 37) still does not select it with the test's generated configuration, while with the default configuration a click on a lister row selects it on lxa as on 3.1 (twin scenario). Run the generated configuration on the reference next.
 - [ ] SysInfo gadgets: re-enable `SysInfoTest.DISABLED_{Memory,Boards,Libraries,Speed}Gadget…` (`sysinfo_gtest.cpp`). Phase 201 showed they only passed while the slow wall-clock startup paint was still running; after full startup a click on MEMORY/BOARDS/LIBRARIES/SPEED repaints nothing. Start with a reference capture of the same clicks.
 
 **Test gate**: each item has a passing golden scenario.
