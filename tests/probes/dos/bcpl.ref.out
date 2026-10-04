@@ -1,0 +1,14 @@
+-- RunCommand
+BCPL writes
+2 + 3 = 5
+42
+14 2
+-42Q
+rc = 3
+-- System
+BCPL writes
+2 + 3 = 5
+42
+14 2
+-42Q
+rc = 3

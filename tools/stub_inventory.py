@@ -34,7 +34,7 @@ def enclosing_function(src, pos):
 
 def scan():
     sites = []
-    for path in sorted(glob.glob(os.path.join(ROOT, "src", "rom", "*.c"))):
+    for path in sorted(glob.glob(os.path.join(ROOT, "src", "rom", "**", "*.c"), recursive=True)):
         src = open(path, errors="replace").read()
         rel = os.path.relpath(path, ROOT)
         for m in MACRO.finditer(src):
