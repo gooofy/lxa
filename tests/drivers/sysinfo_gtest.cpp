@@ -424,10 +424,10 @@ TEST_F(SysInfoTest, ExecBaseMaxLocMemReportsChipMemTop)
 
     uint32_t max_loc_mem = lxa_peek32(sysbase + EXECBASE_OFF_MAXLOCMEM);
 
-    /* lxa provides 10MB chip memory: 0x00010000 .. 0x009FFFFF,
-     * so MaxLocMem should be 0x00A00000 (top of chip memory). */
-    EXPECT_EQ(max_loc_mem, 0x00A00000u)
-        << "MaxLocMem should report top of chip memory (10MB)";
+    /* 2 MB chip memory as on the reference A4000 (fast RAM above it,
+     * tests/probes/exec/memlist): MaxLocMem is the top of chip memory. */
+    EXPECT_EQ(max_loc_mem, 0x00200000u)
+        << "MaxLocMem should report top of chip memory (2MB)";
 }
 
 TEST_F(SysInfoTest, ExecBaseEClockFrequencyIsPAL)
