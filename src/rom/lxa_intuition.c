@@ -9638,21 +9638,25 @@ static void _render_sys_gadget(struct Window *window, struct Gadget *gad)
                               _window_image_state(window, gad), NULL);
 }
 
-static void _render_window_frame_impl(struct Window *window);
+#define LXA_FRAME_NO_GADGETS      0
+#define LXA_FRAME_BORDER_GADGETS  1
+#define LXA_FRAME_ALL_GADGETS     2
+static void _render_window_frame_impl(struct Window *window, UBYTE user_gadgets);
+static void _render_window_user_gadgets_ex(struct Window *window, BOOL border_only);
 
 /*
  * Intuition renders the frame without leaving traces in the window's
  * RastPort: on AmigaOS 3.1 a window's RPort keeps its InitRastPort()
  * attributes (FgPen -1, BgPen 0, JAM2) - verified in Phase 220.
  */
-static void _render_window_frame(struct Window *window)
+static void _render_window_frame_ex(struct Window *window, UBYTE user_gadgets)
 {
     struct RastPort *rp = window ? (window->BorderRPort ? window->BorderRPort : window->RPort) : NULL;
     UBYTE fg, bg, ol, dm;
 
     if (!rp)
     {
-        _render_window_frame_impl(window);
+        _render_window_frame_impl(window, user_gadgets);
         return;
     }
 
@@ -9660,14 +9664,19 @@ static void _render_window_frame(struct Window *window)
     bg = rp->BgPen;
     ol = rp->AOlPen;
     dm = rp->DrawMode;
-    _render_window_frame_impl(window);
+    _render_window_frame_impl(window, user_gadgets);
     SetAPen(rp, fg);
     SetBPen(rp, bg);
     rp->AOlPen = ol;    /* not SetOPen(): that also sets AREAOUTLINE */
     SetDrMd(rp, dm);
 }
 
-static void _render_window_frame_impl(struct Window *window)
+static void _render_window_frame(struct Window *window)
+{
+    _render_window_frame_ex(window, LXA_FRAME_ALL_GADGETS);
+}
+
+static void _render_window_frame_impl(struct Window *window, UBYTE user_gadgets)
 {
     struct RastPort *rp;
     const UWORD *pens;
@@ -9785,23 +9794,53 @@ static void _render_window_frame_impl(struct Window *window)
     SetDrMd(rp, olddm);
 
     /* Render user gadgets after the frame/system gadgets. */
-    _render_window_user_gadgets(window);
+    if (user_gadgets != LXA_FRAME_NO_GADGETS)
+        _render_window_user_gadgets_ex(window, user_gadgets == LXA_FRAME_BORDER_GADGETS);
 }
 
-static void _render_window_user_gadgets(struct Window *window)
+/*
+ * Render n gadgets starting at first, last one first: AmigaOS 3.1 draws a
+ * gadget list back to front, so the first gadget ends up on top
+ * (tests/probes/intuition/gadinfo).  border_only: only GACT_*BORDER
+ * gadgets (window activation, tests/probes/intuition/gadinfo); sys_too:
+ * system gadgets are drawn as well.
+ */
+static void _render_gadget_range_reverse(struct Window *window, struct Requester *req,
+                                         struct Gadget *first, WORD n,
+                                         BOOL border_only, BOOL sys_too)
 {
+    WORD count = 0, i, k;
     struct Gadget *gad;
 
+    for (gad = first; gad && (n == -1 || count < n); gad = gad->NextGadget)
+        count++;
+    for (i = count - 1; i >= 0; i--)
+    {
+        gad = first;
+        for (k = 0; k < i; k++)
+            gad = gad->NextGadget;
+        if (!sys_too && (gad->GadgetType & GTYP_SYSGADGET))
+            continue;
+        if (border_only &&
+            !(gad->Activation & (GACT_RIGHTBORDER | GACT_LEFTBORDER | GACT_TOPBORDER | GACT_BOTTOMBORDER)))
+            continue;
+        _render_gadget(window, req, gad);
+    }
+}
+
+static void _render_window_user_gadgets_ex(struct Window *window, BOOL border_only)
+{
     if (!window)
         return;
 
     _gadtools_RefreshPass(TRUE);
-    for (gad = window->FirstGadget; gad; gad = gad->NextGadget)
-    {
-        if (!(gad->GadgetType & GTYP_SYSGADGET))
-            _render_gadget(window, NULL, gad);
-    }
+    _render_gadget_range_reverse(window, NULL, window->FirstGadget, -1, border_only, FALSE);
     _gadtools_RefreshPass(FALSE);
+}
+
+static void _render_window_user_gadgets(struct Window *window)
+{
+    _render_window_user_gadgets_ex(window, FALSE);
 }
 
 /* Phase 147a: Decide whether a window should get its own native host SDL
@@ -10262,7 +10301,7 @@ struct Window * _intuition_OpenWindow ( register struct IntuitionBase * Intuitio
         if (prevActive && prevActive != window)
         {
             prevActive->Flags &= ~WFLG_WINDOWACTIVE;
-            _render_window_frame(prevActive);
+            _render_window_frame_ex(prevActive, LXA_FRAME_BORDER_GADGETS);
             _post_idcmp_message(prevActive, IDCMP_INACTIVEWINDOW, 0, 0,
                                 prevActive, 0, 0);
         }
@@ -10327,20 +10366,9 @@ struct Window * _intuition_OpenWindow ( register struct IntuitionBase * Intuitio
         _render_window_user_gadgets(window);
     }
 
-    /* Send initial REFRESHWINDOW for all non-NOCAREREFRESH windows that
-     * requested it.  WFLG_SMART_REFRESH is 0, so the old bit-test against
-     * (WFLG_SIMPLE_REFRESH | WFLG_SMART_REFRESH) never matched SMART
-     * windows.  The correct test is: "not Super-BitMap and not NoCare". */
-    if ((window->IDCMPFlags & IDCMP_REFRESHWINDOW) &&
-        !(window->Flags & WFLG_SUPER_BITMAP) &&
-        !(window->Flags & WFLG_NOCAREREFRESH))
-    {
-        if (window->WLayer)
-            window->WLayer->Flags |= LAYERREFRESH;
-
-        _post_idcmp_message(window, IDCMP_REFRESHWINDOW, 0, 0, NULL,
-                            window->MouseX, window->MouseY);
-    }
+    /* No initial IDCMP_REFRESHWINDOW and no LAYERREFRESH: a new window has
+     * no damage on AmigaOS 3.1, smart or simple refresh
+     * (tests/probes/intuition/openrefresh) */
 
     DPRINTF (LOG_DEBUG, "_intuition: OpenWindow() -> 0x%08lx\n", (ULONG)window);
 
@@ -10843,7 +10871,9 @@ VOID _intuition_SetWindowTitles ( register struct IntuitionBase * IntuitionBase 
     if (windowTitle != (CONST_STRPTR)-1) {
         ULONG handle = _intuition_get_host_window_handle((struct LXAIntuitionBase *)IntuitionBase, window);
         window->Title = (UBYTE *)windowTitle;
-        _render_window_frame(window);
+        /* AmigaOS 3.1 redraws no application gadget here, not even a
+         * border gadget (tests/probes/intuition/gadinfo) */
+        _render_window_frame_ex(window, LXA_FRAME_NO_GADGETS);
         /* the host (rootless window, liblxa's tracked title) follows */
         if (handle)
             emucall2(EMU_CALL_INT_SET_TITLE, handle, (ULONG)windowTitle);
@@ -12589,7 +12619,6 @@ VOID _intuition_RefreshGList ( register struct IntuitionBase * IntuitionBase __a
                                                         register WORD numGad __asm("d0"))
 {
     struct Gadget *gad = gadgets;
-    WORD count = 0;
     
     DPRINTF (LOG_DEBUG, "_intuition: RefreshGList() gadgets=0x%08lx win=0x%08lx req=0x%08lx num=%d\n",
              (ULONG)gadgets, (ULONG)window, (ULONG)requester, numGad);
@@ -12597,22 +12626,7 @@ VOID _intuition_RefreshGList ( register struct IntuitionBase * IntuitionBase __a
     if (!window || !gadgets) return;
 
     _gadtools_RefreshPass(TRUE);
-    while (gad && (numGad == -1 || count < numGad))
-    {
-        /* Don't render if disabled (unless we want to render disabled state - which we should) 
-         * But if GFLG_DISABLED is toggled, we probably render ghosted.
-         * For now, just render.
-         */
-         
-        /* Only render if it belongs to the window/requester context?
-         * Usually caller ensures valid list.
-         */
-         
-        _render_gadget(window, requester, gad);
-        
-        gad = gad->NextGadget;
-        count++;
-    }
+    _render_gadget_range_reverse(window, requester, gad, numGad, FALSE, TRUE);
     _gadtools_RefreshPass(FALSE);
 }
 
@@ -12750,8 +12764,10 @@ VOID _intuition_ActivateWindow ( register struct IntuitionBase * IntuitionBase _
         prevActive->Flags &= ~WFLG_WINDOWACTIVE;
         _post_idcmp_message(prevActive, IDCMP_INACTIVEWINDOW, 0, 0,
                             prevActive, 0, 0);
-        /* Re-render frame to show inactive title bar colors */
-        _render_window_frame(prevActive);
+        /* Re-render frame to show inactive title bar colors; of the
+         * application's gadgets 3.1 redraws only border gadgets
+         * (tests/probes/intuition/gadinfo) */
+        _render_window_frame_ex(prevActive, LXA_FRAME_BORDER_GADGETS);
     }
 
     /* Activate the new window; ActiveScreen is the screen of the active
@@ -12763,7 +12779,7 @@ VOID _intuition_ActivateWindow ( register struct IntuitionBase * IntuitionBase _
     _post_idcmp_message(window, IDCMP_ACTIVEWINDOW, 0, 0,
                         window, 0, 0);
     /* Re-render frame to show active title bar colors */
-    _render_window_frame(window);
+    _render_window_frame_ex(window, LXA_FRAME_BORDER_GADGETS);
 }
 
 VOID _intuition_RefreshWindowFrame ( register struct IntuitionBase * IntuitionBase __asm("a6"),
@@ -15263,6 +15279,22 @@ static struct IClass *_intuition_find_class(struct LXAIntuitionBase *base, CONST
     return NULL;
 }
 
+/* TRUE if cl is, or is derived from, one of the ROM's gadget classes
+ * that draw themselves on OM_SET on AmigaOS 3.1 (buttongclass, propgclass,
+ * strgclass) */
+static BOOL _intuition_is_builtin_gadget_class(struct IClass *cl)
+{
+    for (; cl; cl = cl->cl_Super)
+    {
+        ULONG (*entry)() = cl->cl_Dispatcher.h_Entry;
+        if (entry == (ULONG (*)())buttongclass_dispatch ||
+            entry == (ULONG (*)())propgclass_dispatch ||
+            entry == (ULONG (*)())strgclass_dispatch)
+            return TRUE;
+    }
+    return FALSE;
+}
+
 static ULONG _intuition_dispatch_method(struct IClass *cl, Object *obj, Msg msg)
 {
     if (!cl || !cl->cl_Dispatcher.h_Entry) {
@@ -15463,11 +15495,12 @@ ULONG _intuition_SetGadgetAttrsA ( register struct IntuitionBase * IntuitionBase
     
     ULONG result = _intuition_dispatch_method(cl, (Object *)gadget, (Msg)&ops);
 
-    /* Re-render the gadget if attrs changed and we have a window.  The
-     * gadget is then up to date, so (like the AmigaOS 3.1 classes, which
-     * render themselves when they get a GadgetInfo) report no further
-     * refresh need to the caller. */
-    if (result && window)
+    /* SetGadgetAttrsA() itself renders nothing on AmigaOS 3.1: a class
+     * redraws itself in OM_SET when it gets a GadgetInfo
+     * (tests/probes/intuition/gadinfo: a gadgetclass subclass sees no
+     * GM_RENDER).  lxa's built-in classes do not, so they are re-rendered
+     * here on their behalf (and then report no further refresh need). */
+    if (result && window && _intuition_is_builtin_gadget_class(cl))
     {
         struct RastPort *rp = window->RPort;
         if (rp)

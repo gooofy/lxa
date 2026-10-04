@@ -4,7 +4,8 @@
  * in a normal and a GIMMEZEROZERO window, which gadgets get GM_LAYOUT
  * (GA_RelWidth/GA_RelHeight, GA_RelRight/GA_RelBottom, GA_RelSpecial) and
  * when (AddGList, OpenWindow with WA_Gadgets, window resize), and the
- * gadget flags the GA_Rel* tags set.
+ * gadget flags the GA_Rel* tags set; which gadgets SetWindowTitles() and
+ * RefreshWindowFrame() redraw.
  */
 #include <exec/memory.h>
 #include <intuition/classes.h>
@@ -143,6 +144,11 @@ static struct Gadget *make(struct Window *w, int kind, struct Gadget *prev)
                                        GA_Width, 20, GA_Height, 10, GA_ID, 4,
                                        GA_Previous, (ULONG)prev, TAG_END);
         break;
+    case 5:
+        g = (struct Gadget *)NewObject(g_cl, NULL, GA_RelRight, -15, GA_Top, 20, GA_Width, 12,
+                                       GA_Height, 10, GA_RightBorder, TRUE, GA_ID, 5,
+                                       GA_Previous, (ULONG)prev, TAG_END);
+        break;
     }
     return g;
 }
@@ -160,7 +166,7 @@ static void flags(struct Gadget *g)
 static void run(const char *name, ULONG gzz)
 {
     struct Window *w;
-    struct Gadget *g[5];
+    struct Gadget *g[6];
     int i;
 
     P_SECTION(name);
@@ -171,15 +177,39 @@ static void run(const char *name, ULONG gzz)
     if (!w)
         return;
     g[0] = NULL;
-    for (i = 1; i <= 4; i++)
+    for (i = 1; i <= 5; i++)
         g[i] = make(w, i, g[i - 1]);
-    for (i = 1; i <= 4; i++)
+    for (i = 1; i <= 5; i++)
         flags(g[i]);
     flush_log("NewObject");
-    AddGList(w, g[1], -1, 4, NULL);
+    AddGList(w, g[1], -1, 5, NULL);
     flush_log("AddGList");
-    RefreshGList(g[1], w, NULL, 4);
+    RefreshGList(g[1], w, NULL, 5);
     flush_log("RefreshGList");
+    SetWindowTitles(w, (STRPTR)"Other", (STRPTR)-1);
+    flush_log("SetWindowTitles");
+    RefreshWindowFrame(w);
+    flush_log("RefreshWindowFrame");
+    /* (not for the GZZ window: on 3.1 another window moving off its border
+     * redraws all its gadgets, which lxa does not emulate yet) */
+    if (!gzz) {
+        struct Window *o = OpenWindowTags(NULL, WA_Left, 400, WA_Top, 30, WA_Width, 100,
+                                          WA_Height, 50, WA_Title, (ULONG)"Other",
+                                          WA_Activate, TRUE, TAG_END);
+        Delay(10);
+        flush_log("other window activated");
+        ActivateWindow(w);
+        Delay(10);
+        flush_log("window reactivated");
+        if (o) {
+            MoveWindow(o, -390, 0);
+            Delay(10);
+            flush_log("other window moved over it");
+            CloseWindow(o);
+            Delay(10);
+            flush_log("other window closed");
+        }
+    }
     SetGadgetAttrs(g[1], w, NULL, GA_ID, 1, TAG_END);
     SetGadgetAttrs(g[2], w, NULL, GA_ID, 2, TAG_END);
     flush_log("SetGadgetAttrs");
@@ -189,10 +219,10 @@ static void run(const char *name, ULONG gzz)
     ChangeWindowBox(w, 40, 30, 340, 120);
     Delay(25);
     flush_log("ChangeWindowBox");
-    RemoveGList(w, g[1], 4);
+    RemoveGList(w, g[1], 5);
     flush_log("RemoveGList");
     CloseWindow(w);
-    for (i = 1; i <= 4; i++)
+    for (i = 1; i <= 5; i++)
         DisposeObject(g[i]);
     flush_log("CloseWindow");
 }
