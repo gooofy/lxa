@@ -29,6 +29,10 @@
 #define OFF_SCR_BM        184  /* struct Screen.BitMap */
 #define OFF_VP_CM           4  /* struct ViewPort.ColorMap */
 #define OFF_CM_MODEID      36  /* struct ColorMap.VPModeID */
+#define OFF_CM_COUNT        2  /* struct ColorMap.Count */
+#define OFF_CM_TABLE        4  /* struct ColorMap.ColorTable */
+#define OFF_CM_LOWBITS     12  /* struct ColorMap.LowColorBits */
+#define OFF_CM_TYPE         1  /* struct ColorMap.Type */
 #define OFF_RP_FONT        52  /* struct RastPort.Font */
 #define OFF_RP_BITMAP       4  /* struct RastPort.BitMap */
 #define OFF_BM_BPR          0  /* struct BitMap.BytesPerRow */

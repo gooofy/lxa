@@ -1,0 +1,6 @@
+OpenDevice(timer) d0 = 0x00000000
+DoIO d0 = 0x00000000
+DoIO(invalid) d0 = 0xfffffffd
+WaitIO d0 = 0xfffffffd
+OpenDevice(timer unit 99) d0 = 0xffffffff
+OpenDevice(no.device) d0 = 0xffffffff

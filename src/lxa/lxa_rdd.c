@@ -291,9 +291,22 @@ static bool capture_indexed(uint32_t scr, int x0, int y0, int w, int h, const ch
     if (!f)
         return false;
     fprintf(f, "LXASNAP1 %d %d %d %d\n", w, h, depth, ncolors);
+    /* the palette of the screen's ColorMap, as GetRGB32() reports it (the
+     * agent's SNAP); the host display palette only as a fallback */
+    uint32_t cm = rd32(scr + OFF_SCR_VP + OFF_VP_CM);
+    uint32_t table = cm ? rd32(cm + OFF_CM_TABLE) : 0;
+    uint32_t low = (cm && rd8(cm + OFF_CM_TYPE) > 0) ? rd32(cm + OFF_CM_LOWBITS) : 0;
+    int count = cm ? rd16(cm + OFF_CM_COUNT) : 0;
     for (i = 0; i < ncolors; i++) {
         uint8_t rgb[3] = {0, 0, 0};
-        lxa_get_palette_rgb(i, &rgb[0], &rgb[1], &rgb[2]);
+        if (table && i < count) {
+            uint16_t hi = rd16(table + i * 2), lo = low ? rd16(low + i * 2) : hi;
+            rgb[0] = (uint8_t)(((hi >> 4) & 0xf0) | ((lo >> 8) & 0x0f));
+            rgb[1] = (uint8_t)((hi & 0xf0) | ((lo >> 4) & 0x0f));
+            rgb[2] = (uint8_t)(((hi << 4) & 0xf0) | (lo & 0x0f));
+        } else {
+            lxa_get_palette_rgb(i, &rgb[0], &rgb[1], &rgb[2]);
+        }
         fwrite(rgb, 1, 3, f);
     }
     line = malloc((size_t)w);

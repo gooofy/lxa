@@ -37,6 +37,13 @@ def run(scn, out_dir, build=None):
             if not os.path.isdir(fonts):
                 raise RuntimeError("fonts: %s missing (build the reference system)" % fonts)
             lxa.assign("FONTS", fonts)
+        if scn.keymaps:
+            if not os.path.isdir(scn.keymaps_dir()):
+                raise RuntimeError("keymaps: %s missing (build the reference system)" % scn.keymaps_dir())
+            lxa.assign("KEYMAPS", scn.keymaps_dir())
+        for f in scn.prefs_files():
+            # ENV:Sys/*.prefs - applied by C:IPrefs when the program boots
+            lxa.install_prefs(os.path.join(scn.prefs_dir(), f))
         for name, rel, add in scn.assigns():
             path = os.path.join(scn.app_host_dir(), rel)
             (lxa.assign_add if add else lxa.assign)(name, path)

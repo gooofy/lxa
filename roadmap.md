@@ -150,13 +150,11 @@ Complete (Phases 210–216, v0.11.9); see the summary table.
 
 ### Phase 237 — Fred Fish divergence classes
 **Class**: Compatibility. The Phase 232 mass run (`doc/sweeps/2026-10-03-fish-massrun.md`; reference results for 1338 programs) leaves these lxa-only failures. Work them in order of size; for each, pick a representative, run it on both systems with a relay trace (`python3 -m rdd massrun ...` + `LXA_TRACE`, or a scenario with `trace:`; `python3 -m rdd tracediff`) and fix the root cause; then re-run the class (`python3 -m rdd massrun lxa --ids-file ...`).
-- [x] Fixed so far (v0.11.21-v0.11.24, verified with probes on 3.1): command entry registers (`dos/entryregs`: Lattice 3.03's false stack overflow, the PC = -348 class), dos.library with any a6 (`dos/a6base`), `OpenLibrary()` signed-word version compare (`exec/openlibver`), the bootstrap's `pr_ReturnAddr` and saved a5, the 3.1 default stack (4096) reported to bootstrapped programs, harness calibration (300 frames = 6 s on both, non-interactive stdio like `RUN >file`). Re-run of the 299 former lxa-only crashes with reference results: 147 still crash on lxa only (was 299).
-- [ ] Bus error to a data/garbage address (33; DD, FHSpread, flist, JukeBox; SKsh jumps to "bert" after opening the real arp.library).
-- [ ] Line-F (25; MoonTool .030/.040 need an FPU - see Phase 240 - and libraries/keymaps executed as programs).
-- [ ] CHK (12; Wangle Stack, DeliTracker c/EndCLI|Echo|Copy run without a shell), TheWeb modules (-252, 9), privilege violation (8; ILBM_Killer, GadToolsBox), divide by zero (8), PC = -1 (6; EnvTool, ISAM, Csh), line-A (5), NULL base -198 (7; DRAFU, IntuiSup examples) and -30 (5; BootJob, SerLib).
-- [ ] Classify non-programs (libraries, devices, keymaps, modules, fonts executed as commands) separately in `massrun report`: their outcome depends on memory contents and is not a compatibility signal.
-- [ ] AddPower exits on lxa where 3.1 opens its window (no crash any more).
-- [ ] 8 programs time out the emulator wall-clock guard where the reference opens a window; triage the remaining hangs (176 in the original run) with the calibrated harness.
+- [x] Fixed so far (v0.11.21-v0.11.26, each verified with a probe on 3.1): command entry registers (`dos/entryregs`), dos.library with any a6 (`dos/a6base`), `OpenLibrary()` signed-word version compare (`exec/openlibver`), sign-extended returns of OpenDevice/DoIO/WaitIO (`exec/ioreturn`), a1/d1 left by the exec I/O calls (`exec/scratchregs`), the bootstrap's `pr_ReturnAddr` (`dos/returnaddr`), saved a5 and 3.1 default stack, ParentDir() stopping at assign roots; harness: equal run time, non-interactive stdio like `RUN >file`, the reference's "Software Failure" requester counted as a crash (it had been counted as a window), non-programs listed apart. Report `doc/sweeps/2026-10-04-fish-crashlist.md`: of the 299 Phase 232 lxa-only crashes, 58 still crash on lxa only (22 open a window on 3.1, 28 exit, 8 keep running).
+- [ ] Generic bus errors (17): FontEdit and Cycles (Manx, jump to 0 after an unbalanced stack), JbSpool and ColorSaver (detach, return slot overwritten with 0x1b), MicroEmacs, A-Gene, JukeBox, FHSpread, DirWork, VMK, GoWB, PowerVisor scripts.
+- [ ] CHK (11): BCPL programs - Phase 239. Line-F (5): FPU code (MoonTool .030/.040, SManCP, SafeBoot) - Phase 240.
+- [ ] Calls through NULL bases (LVO -540 x4, -1 x3, ...), privilege violation (3).
+- [ ] Re-run the whole mass run (all 9932 programs, both sides) with the calibrated harness and publish the report; triage the hangs and missing windows it lists.
 
 **Test gate**: every class has a fix or a narrower owning phase; the mass-run report shows no lxa-only crash class with >= 5 programs.
 
@@ -170,11 +168,18 @@ Complete (Phases 210–216, v0.11.9); see the summary table.
 
 **Test gate**: no corpus app rated `garbage` or `untested` for a reason inside lxa or the scenarios.
 
+### Phase 239 — BCPL programs
+**Class**: Compatibility. AmigaOS 3.1 still runs BCPL programs (1.x C: commands such as the copies in DeliTracker's `c/`, Wangle `Stack`): they start with `movea.l n(a2),a4; moveq #k,d0; jsr (a5)` - a2 the BCPL global vector, a5/a6 the BCPL call/return routines. lxa provides none of them, so these programs take a CHK exception at once (11 programs of the Phase 237 crash list; `Stack` prints "current stack size is 32768 bytes" on 3.1).
+- [ ] Port the m68k BCPL support from AROS (global vector with the dos entries BCPL code calls, BCPL call/return/stack-frame routines, BSTR/BPTR argument conventions; keep the licence header, record it in the third-party code notes) and set a2/a5/a6 at command entry for BCPL segments (verify with `tests/probes/dos/entryregs.c` which registers 3.1 sets).
+- [ ] Probe on the reference: run a 1.3 BCPL command (from the Fish disks) through RunCommand and System(), compare output and return code.
+
+**Test gate**: the BCPL programs of the Phase 237 crash list exit like on 3.1 (`python3 -m rdd massrun lxa --ids-file`), and a probe or shell parity script runs one BCPL command.
+
 ### Phase 234 — Legacy app items, re-validated
 **Class**: Compatibility. Carried over from the legacy roadmap; each one must now end with a reference golden.
 - [ ] BlitzBasic 2 ted editor shows no text (legacy 160). Start with a tracediff and a reference capture, not with hypotheses.
 - [ ] SysInfo hardware fields and the Cluster2 EXIT button (legacy 162). SysInfo needs the battclock/CIA resources from Phase 255.
-- [ ] DOpus button pages beyond the default (Move/Rename), and re-enable `AppsMiscScreenTest.DISABLED_DirectoryOpusCopiesFile` (`apps_misc_gtest.cpp`): the lister now shows the file and the paths, but a click on the file row (window y + 37) does not select it, so Copy does nothing. Replay the same clicks on the reference with a scenario first.
+- [ ] DOpus button pages beyond the default (Move/Rename), and re-enable `AppsMiscScreenTest.DISABLED_DirectoryOpusCopiesFile` (`apps_misc_gtest.cpp`): the test now waits until the lister shows the file; a click on the file row (window y + 37) still does not select it with the test's generated configuration, while with the default configuration a click on a lister row selects it on lxa as on 3.1 (twin scenario). Run the generated configuration on the reference next.
 - [ ] SysInfo gadgets: re-enable `SysInfoTest.DISABLED_{Memory,Boards,Libraries,Speed}Gadget…` (`sysinfo_gtest.cpp`). Phase 201 showed they only passed while the slow wall-clock startup paint was still running; after full startup a click on MEMORY/BOARDS/LIBRARIES/SPEED repaints nothing. Start with a reference capture of the same clicks.
 
 **Test gate**: each item has a passing golden scenario.
@@ -194,7 +199,7 @@ Complete (Phases 210–216, v0.11.9); see the summary table.
 **Reclassified from "new feature" to "compatibility"**: PPaint and FinalWriter fail without it, and so does DPaint's "Choose Display Mode" list. The reference profile `rtg` provides the ground truth.
 
 ### Phase 240 — Machine identity: 68040 + AGA + RTG mode database
-- [ ] Present a 68040 with FPU. Switch the Musashi CPU type, set `AttnFlags` (`exec.c:5898`), and ship a `68040.library`-compatible `SYS:Libs` entry, since apps probe for it.
+- [ ] Present a 68040 with FPU (Fred Fish MoonTool .030/.040 and other FPU programs take a line-F exception on lxa's 68030 without FPU, Phase 237). Switch the Musashi CPU type, set `AttnFlags` (`exec.c:5898`), and ship a `68040.library`-compatible `SYS:Libs` entry, since apps probe for it.
 - [ ] Report AGA everywhere (`ChipRevBits0`, `GetChipRev`-style code at `lxa_graphics.c:9314`, `exec.c:5765`). Add AGA display modes, 256-colour planar screens and `LoadRGB32`/`SetRGB32` 24-bit palettes.
 - [ ] Cross-check GfxBase, ExecBase and display-info fields one by one against a reference `aga` dump.
 - [ ] Memory layout of the reference: 2 MB chip RAM plus fast RAM (lxa has one 10 MB `MEMF_CHIP` region). Directory Opus shows `MEMORY:` instead of `CHIP: FAST: TOTAL:` (dopus-startup golden pixel budget).

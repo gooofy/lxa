@@ -1,5 +1,109 @@
 [
  {
+  "lib": "dos",
+  "function": "BCPL sysRequest",
+  "kind": "stub",
+  "detail": "stub: BCPL system requester (GV -0x84)",
+  "file": "src/rom/bcpl/bcpl_support.c",
+  "symbol": "lxa_bcpl_stub_sysRequest"
+ },
+ {
+  "lib": "dos",
+  "function": "BCPL makeGVarea",
+  "kind": "stub",
+  "detail": "stub: BCPL makeGVarea (GV 0x34)",
+  "file": "src/rom/bcpl/bcpl_support.c",
+  "symbol": "lxa_bcpl_stub_makeGVarea"
+ },
+ {
+  "lib": "dos",
+  "function": "BCPL longjump",
+  "kind": "stub",
+  "detail": "stub: BCPL longjump (GV 0x50)",
+  "file": "src/rom/bcpl/bcpl_support.c",
+  "symbol": "lxa_bcpl_stub_longjump"
+ },
+ {
+  "lib": "dos",
+  "function": "BCPL createco",
+  "kind": "stub",
+  "detail": "stub: BCPL coroutines (GV 0x5c)",
+  "file": "src/rom/bcpl/bcpl_support.c",
+  "symbol": "lxa_bcpl_stub_createco"
+ },
+ {
+  "lib": "dos",
+  "function": "BCPL deleteco",
+  "kind": "stub",
+  "detail": "stub: BCPL coroutines (GV 0x60)",
+  "file": "src/rom/bcpl/bcpl_support.c",
+  "symbol": "lxa_bcpl_stub_deleteco"
+ },
+ {
+  "lib": "dos",
+  "function": "BCPL callco",
+  "kind": "stub",
+  "detail": "stub: BCPL coroutines (GV 0x64)",
+  "file": "src/rom/bcpl/bcpl_support.c",
+  "symbol": "lxa_bcpl_stub_callco"
+ },
+ {
+  "lib": "dos",
+  "function": "BCPL cowait",
+  "kind": "stub",
+  "detail": "stub: BCPL coroutines (GV 0x68)",
+  "file": "src/rom/bcpl/bcpl_support.c",
+  "symbol": "lxa_bcpl_stub_cowait"
+ },
+ {
+  "lib": "dos",
+  "function": "BCPL resumeco",
+  "kind": "stub",
+  "detail": "stub: BCPL coroutines (GV 0x6c)",
+  "file": "src/rom/bcpl/bcpl_support.c",
+  "symbol": "lxa_bcpl_stub_resumeco"
+ },
+ {
+  "lib": "dos",
+  "function": "BCPL holdTask",
+  "kind": "stub",
+  "detail": "stub: BCPL holdTask (GV 0xb8)",
+  "file": "src/rom/bcpl/bcpl_support.c",
+  "symbol": "lxa_bcpl_stub_holdTask"
+ },
+ {
+  "lib": "dos",
+  "function": "BCPL systemRequest",
+  "kind": "stub",
+  "detail": "stub: BCPL system requester (GV 0xd0)",
+  "file": "src/rom/bcpl/bcpl_support.c",
+  "symbol": "lxa_bcpl_stub_systemRequest"
+ },
+ {
+  "lib": "dos",
+  "function": "BCPL tidyup",
+  "kind": "stub",
+  "detail": "stub: BCPL tidyup (GV 0x150)",
+  "file": "src/rom/bcpl/bcpl_support.c",
+  "symbol": "lxa_bcpl_stub_tidyup"
+ },
+ {
+  "lib": "dos",
+  "function": "BCPL openDevInfo",
+  "kind": "stub",
+  "detail": "stub: BCPL handler start-up (GV 0x1c0)",
+  "file": "src/rom/bcpl/bcpl_support.c",
+  "symbol": "lxa_bcpl_stub_openDevInfo"
+ },
+ {
+  "lib": "dos",
+  "function": "BCPL compareTime",
+  "kind": "stub",
+  "detail": "stub: BCPL compareTime (GV 0x1f8)",
+  "file": "src/rom/bcpl/bcpl_support.c",
+  "symbol": "lxa_bcpl_stub_compareTime"
+ },
+ {
   "lib": "exec",
   "function": "<lvo_name>",
   "kind": "stub",
@@ -777,14 +881,6 @@
  },
  {
   "lib": "graphics",
-  "function": "private4",
-  "kind": "private",
-  "detail": "private/reserved slot",
-  "file": "src/rom/lxa_graphics.c",
-  "symbol": "_graphics_private4"
- },
- {
-  "lib": "graphics",
   "function": "private5",
   "kind": "private",
   "detail": "private/reserved slot",
@@ -971,7 +1067,7 @@
   "lib": "intuition",
   "function": "OpenScreenTagList",
   "kind": "partial",
-  "detail": "partial: ignores SA_DClip, SA_Overscan, SA_Colors, SA_SysFont, SA_ErrorCode (Phase 256)",
+  "detail": "partial: ignores SA_DClip, SA_Overscan, SA_Colors, SA_ErrorCode (Phase 256)",
   "file": "src/rom/lxa_intuition.c",
   "symbol": "_intuition_OpenScreenTagList"
  },
@@ -1006,14 +1102,6 @@
   "detail": "private/reserved slot",
   "file": "src/rom/lxa_intuition.c",
   "symbol": "_intuition_private0"
- },
- {
-  "lib": "intuition",
-  "function": "private1",
-  "kind": "private",
-  "detail": "private/reserved slot",
-  "file": "src/rom/lxa_intuition.c",
-  "symbol": "_intuition_private1"
  },
  {
   "lib": "intuition",
@@ -1086,14 +1174,6 @@
   "detail": "private/reserved slot",
   "file": "src/rom/lxa_intuition.c",
   "symbol": "_intuition_private10"
- },
- {
-  "lib": "locale",
-  "function": "OpenLocale",
-  "kind": "partial",
-  "detail": "partial: locale prefs files are not parsed, the default locale is returned",
-  "file": "src/rom/lxa_locale.c",
-  "symbol": "_locale_OpenLocale"
  },
  {
   "lib": "rexxsyslib",
