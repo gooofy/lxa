@@ -39,6 +39,7 @@
 
 //#define ENABLE_DEBUG
 #include "util.h"
+#include "bcpl/bcpl_support.h"
 
 #define FILE_KIND_REGULAR    42
 #define FILE_KIND_CONSOLE    23
@@ -978,6 +979,10 @@ struct DosLibrary * __g_lxa_dos_InitLib    ( register struct DosLibrary *dosb   
     dosb->dl_IntuitionBase = NULL;
 
     if (!initRootNode())
+        return NULL;
+
+    /* the BCPL global vector (Phase 239) */
+    if (!lxa_bcpl_init(dosb))
         return NULL;
 
     if (!lxa_dos_host_console_port())
@@ -6048,16 +6053,22 @@ struct Process * _dos_CreateNewProc ( register struct DosLibrary * __dos_a6 __as
  * In-process command call used by RunCommand() (AmigaOS semantics: the
  * command runs on a new stack in the *calling* process).
  *
- *   lxa_dos_rc_call(entry, stack_top, stack_size, args, len, &pr_ReturnAddr)
+ *   lxa_dos_rc_call(entry, stack_top, stack_size, args, len, &pr_ReturnAddr,
+ *                   globvec, stack_lower)
  *
  * The new stack holds [caller sp][stack size][return address]; at entry
  * the command sees the stack size at 4(sp) and in d2, the arguments in
  * a0/d0 and d3/d4 (AmigaOS 3.1, tests/probes/dos/entryregs.c).
  * pr_ReturnAddr points at the stack size slot, so Exit() can unwind with
  * sp = pr_ReturnAddr - 4; rts (see _dos_Exit).
+ * Every command also gets the BCPL environment (Phase 239): a2 = the
+ * global vector, a5/a6 = the BCPL call/return routines and a1 = the stack
+ * bottom, where BCPL frames grow upwards - BCPL commands (1.x C:) start
+ * with "movea.l n(a2),a4; moveq #k,d0; jsr (a5)".
  */
 LONG lxa_dos_rc_call(APTR entry, APTR stack_top, ULONG stack_size,
-                     CONST_STRPTR args, LONG len, APTR *return_addr);
+                     CONST_STRPTR args, LONG len, APTR *return_addr,
+                     APTR globvec, APTR stack_lower);
 
 asm(
 "        .text                                                                              \n"
@@ -6076,11 +6087,15 @@ asm(
 "        move.l     56(a1), d2                      | d2 = stack size (as on 3.1)           \n"
 "        move.l     a0, d3                          | d3 = args                             \n"
 "        move.l     d0, d4                          | d4 = length                           \n"
+"        move.l     a3, d5                          | no caller frame pointers in d5        \n"
+"        move.l     a3, d1                          | d1: no leftover argument value         \n"
+"        move.l     72(a1), a6                      | global vector                         \n"
+"        move.l     76(a1), a1                      | a1 = stack bottom: BCPL frames        \n"
 "        move.l     a2, sp                                                                  \n"
 "        move.l     sp, a4                          | a4 near sp                            \n"
-"        move.l     a3, a2                          | no caller frame pointers in a2/d5     \n"
-"        move.l     a3, d5                                                                  \n"
-"        move.l     a3, d1                          | d1: no leftover argument value         \n"
+"        move.l     a6, a2                          | a2 = global vector                    \n"
+"        lea        _BCPL_jsr, a5                   | a5 = BCPL call                        \n"
+"        lea        _BCPL_rts, a6                   | a6 = BCPL return                      \n"
 "        jsr        (a3)                                                                    \n"
 "        move.l     4(sp), sp                       | back to the caller stack              \n"
 "        movem.l    (sp)+, d2-d7/a2-a6                                                      \n"
@@ -6164,7 +6179,8 @@ LONG _dos_RunCommand ( register struct DosLibrary * __dos_a6 __asm("a6"),
     /* a0 is the caller's own buffer on 3.1; pr_Arguments keeps the copy */
     result = lxa_dos_rc_call(BADDR(seg) + sizeof(BPTR), stack_mem + stack, req_stack,
                              (paramptr && len) ? paramptr : (CONST_STRPTR)args, len,
-                             &me->pr_ReturnAddr);
+                             &me->pr_ReturnAddr,
+                             me->pr_GlobVec ? me->pr_GlobVec : DOSBase->dl_GV, stack_mem);
 
     me->pr_Task.tc_SPLower = old_lower;
     me->pr_Task.tc_SPUpper = old_upper;
