@@ -164,6 +164,7 @@ void *g_text_hook_userdata = NULL;
 #define MAX_ARGS_LEN 4096
 char     g_args[MAX_ARGS_LEN]            = {0};
 int      g_args_len                      = 0;
+uint32_t g_program_stack                 = 0;   /* lxa_set_program_stack() */
 
 static uint32_t g_breakpoints[MAX_BREAKPOINTS];
 static int      g_num_breakpoints               = 0;
@@ -399,6 +400,7 @@ void lxa_reset_host_state(void)
     g_text_hook_userdata  = NULL;
     memset(g_args, 0, sizeof(g_args));
     g_args_len = 0;
+    g_program_stack = 0;
     memset(g_breakpoints, 0, sizeof(g_breakpoints));
     g_num_breakpoints = 0;
     g_rv = 0;

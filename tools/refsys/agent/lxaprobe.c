@@ -8,8 +8,9 @@
  * Bulk data (trees, snapshots, logs) is written to files in LXAREF:.
  *
  *   PING                         -> PONG
- *   RUN [>file] <cmdline>        start a program asynchronously (CLI process,
- *                                current dir = the program's directory);
+ *   RUN [>file] [STACK n] <cmdline>  start a program asynchronously (CLI
+ *                                process, current dir = the program's
+ *                                directory, stack n bytes, default 32768);
  *                                >file sends its output to LXAREF:file
  *   ASSIGN <name> <path> [ADD]   create or extend a logical assign
  *   DELAY <ticks>                let <ticks> frames (1/50 s) pass
@@ -334,6 +335,7 @@ static void cmd_run(char *args)
     char *p = args, *d = prog;
     BPTR seg, lock, dir, outfh;
     char *slash;
+    LONG stack = 32768;
 
     while (*p == ' ')
         p++;
@@ -345,6 +347,15 @@ static void cmd_run(char *args)
         while (*p && *p != ' ' && k < (int)sizeof(outname) - 1)
             outname[k++] = *p++;
         outname[k] = 0;
+        while (*p == ' ')
+            p++;
+    }
+    if (!strncmp(p, "STACK ", 6))
+    {
+        p += 6;
+        stack = strtol(p, &p, 10);
+        if (stack < 4096)
+            stack = 4096;
         while (*p == ' ')
             p++;
     }
@@ -418,7 +429,7 @@ static void cmd_run(char *args)
                                       * agent (DPaint reads its own executable) */
                                      NP_CommandName, (ULONG)prog,
                                      NP_Arguments, (ULONG)argline,
-                                     NP_StackSize, 32768,
+                                     NP_StackSize, stack,
                                      NP_ExitCode, (ULONG)exit_hook,
                                      TAG_DONE);
     }

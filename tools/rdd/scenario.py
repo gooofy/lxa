@@ -11,6 +11,12 @@ A scenario is one YAML file, executed unchanged on both backends:
       sample: SimpleGTGadget            # lxa sample/test binary (SYS:<path>)
       # manifest: DPaintV               # or an app from apps/<App>.json
       args: ""
+      # stack: 65536                    # stack size of the program (as the
+      #                                 # STACK command sets it; Phase 238)
+      # writable: true                  # run from a private copy of the app
+      #                                 # directory (RDDAPP:<dir>) because the
+      #                                 # program writes into it (APPS: is
+      #                                 # read-only on the reference)
     steps:
       - launch
       - wait_window: "GadTools"         # or {title: ..., timeout: ms}
@@ -110,6 +116,8 @@ class Scenario:
             raise ScenarioError("%s: fonts must be wb31" % path)
         app = doc.get("app") or {}
         self.args = app.get("args", "")
+        self.stack = int(app.get("stack", 0))
+        self.writable = bool(app.get("writable", False))
         self.sample = app.get("sample")
         self.manifest_name = app.get("manifest")
         if bool(self.sample) == bool(self.manifest_name):
@@ -127,16 +135,21 @@ class Scenario:
             raise ScenarioError("%s: the first step must be launch (trace may precede it)" % path)
 
     # -- what to run on each backend ----------------------------------------------
+    def app_amiga_dir(self):
+        """The app directory as both backends see it: APPS:<dir>, or the
+        private writable copy RDDAPP:<dir> (`writable: true`)."""
+        return "%s:%s" % ("RDDAPP" if self.writable else "APPS", self.manifest["dir"])
+
     def lxa_program(self):
         if self.sample:
             return "SYS:" + self.sample
-        return "APPS:%s/%s" % (self.manifest["dir"], self.manifest["executable"])
+        return "%s/%s" % (self.app_amiga_dir(), self.manifest["executable"])
 
     def ref_program(self):
         """Samples are copied to LXAREF:bin/ by the reference backend."""
         if self.sample:
             return "LXAREF:bin/" + os.path.basename(self.sample)
-        return "APPS:%s/%s" % (self.manifest["dir"], self.manifest["executable"])
+        return "%s/%s" % (self.app_amiga_dir(), self.manifest["executable"])
 
     def sample_host_path(self, build):
         return os.path.join(build, "target", "samples", "Samples", self.sample) if self.sample else None

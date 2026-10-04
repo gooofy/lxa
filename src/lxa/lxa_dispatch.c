@@ -556,6 +556,13 @@ int op_illg(int level)
             break;
         }
 
+        case EMU_CALL_GETSTACK:
+        {
+            extern uint32_t g_program_stack;
+            m68k_set_reg(M68K_REG_D0, g_program_stack);
+            break;
+        }
+
         case EMU_CALL_GETARGS:
         {
             uint32_t d1 = m68k_get_reg(NULL, M68K_REG_D1);

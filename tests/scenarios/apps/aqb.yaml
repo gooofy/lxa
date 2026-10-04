@@ -1,7 +1,7 @@
 # Phase 230 launch scenario: the compat DB (apps/compat.yaml) derives the
 # rating of AQB from it.  Window title from the discovery twin run.
 name: app-aqb
-app: {manifest: AQB}
+app: {manifest: AQB, stack: 65536}
 steps:
   - launch
   - wait_window: {title: "AQB", timeout: 30000}

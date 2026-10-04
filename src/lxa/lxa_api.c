@@ -578,6 +578,13 @@ void lxa_shutdown(void)
     g_api_initialized = false;
 }
 
+extern uint32_t g_program_stack;
+
+void lxa_set_program_stack(uint32_t bytes)
+{
+    g_program_stack = bytes;
+}
+
 int lxa_load_program(const char *program, const char *args)
 {
     if (!g_api_initialized) return -1;

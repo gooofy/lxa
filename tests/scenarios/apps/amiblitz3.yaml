@@ -1,7 +1,7 @@
 # Phase 230 launch scenario: the compat DB (apps/compat.yaml) derives the
 # rating of AmiBlitz3 from it.  Window title from the discovery twin run.
 name: app-amiblitz3
-app: {manifest: AmiBlitz3}
+app: {manifest: AmiBlitz3, writable: true}
 steps:
   - launch
   - wait_window: {title: "AmiBlitz", timeout: 30000}

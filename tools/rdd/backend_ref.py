@@ -125,6 +125,10 @@ def run(scn, out_dir, build=None, use_cache=True):
         os.makedirs(os.path.join(exch, "bin"), exist_ok=True)
         if scn.sample:
             shutil.copy2(scn.sample_host_path(build), os.path.join(exch, "bin"))
+        if scn.writable:
+            # APPS: is read-only: the program runs from a copy in LXAREF:
+            shutil.copytree(scn.app_host_dir(), os.path.join(exch, "rddapp", scn.manifest["dir"]),
+                            symlinks=True)
         r = subprocess.run([REFCTL, "boot", "--id", str(inst), "--profile", scn.profile],
                            capture_output=True, text=True)
         if r.returncode:
@@ -184,14 +188,17 @@ def run(scn, out_dir, build=None, use_cache=True):
                         agent.cmd("TRACE %s %s" % (lib, ",".join(str(-v) for v in lvos)))
                     tracing = True
                 elif kind == "launch":
+                    if scn.writable:
+                        agent.cmd("ASSIGN RDDAPP LXAREF:rddapp")
                     for name, rel, add in scn.assigns():
-                        path = "APPS:%s" % scn.manifest["dir"] + ("/" + rel if rel not in ("", ".") else "")
+                        path = scn.app_amiga_dir() + ("/" + rel if rel not in ("", ".") else "")
                         agent.cmd("ASSIGN %s %s%s" % (name, path, " ADD" if add else ""))
                     agent.cmd("TEXT_START")
                     prog = scn.ref_program()
                     if " " in prog:
                         prog = '"%s"' % prog
-                    agent.cmd(("RUN >rdd-stdout.txt %s %s" % (prog, scn.args)).rstrip())
+                    stack = (" STACK %d" % scn.stack) if scn.stack else ""
+                    agent.cmd(("RUN >rdd-stdout.txt%s %s %s" % (stack, prog, scn.args)).rstrip())
                     agent.cmd("DELAY 1")
                 elif kind == "wait_window":
                     agent.cmd("WAIT_WINDOW %s %d" % (args.get("title", ""), args.get("timeout", 10000)),

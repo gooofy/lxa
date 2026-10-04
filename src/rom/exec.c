@@ -5661,7 +5661,10 @@ void _bootstrap(void)
     {
         struct Task *me = SysBase->ThisTask;
         ULONG stacksize = (ULONG)me->tc_SPUpper - (ULONG)me->tc_SPLower;
+        ULONG requested = emucall0(EMU_CALL_GETSTACK);    /* scenario `stack:` */
 
+        if (requested > stacksize)
+            stacksize = requested;
         rv = RunCommand(segs, stacksize, (STRPTR)args_buf, args_len);
     }
 
