@@ -1,0 +1,665 @@
+{
+ "backend": "ref",
+ "schema": "lxa-tree/1",
+ "screens": [
+  {
+   "bar_hborder": 5,
+   "bar_height": 15,
+   "bar_vborder": 1,
+   "default_title": "Workbench Screen",
+   "depth": 2,
+   "display_id": 32768,
+   "flags": 1553,
+   "font": {
+    "baseline": 9,
+    "name": "helvetica.font",
+    "xsize": 7,
+    "ysize": 13
+   },
+   "height": 256,
+   "left": 0,
+   "menu_hborder": 4,
+   "menu_vborder": 2,
+   "title": "Workbench Screen",
+   "top": 0,
+   "wbor": [
+    4,
+    2,
+    4,
+    2
+   ],
+   "width": 640,
+   "windows": [
+    {
+     "app": true,
+     "block_pen": 1,
+     "border": [
+      4,
+      16,
+      4,
+      2
+     ],
+     "detail_pen": 0,
+     "flags": 134230030,
+     "font": {
+      "baseline": 6,
+      "name": "topaz.font",
+      "xsize": 10,
+      "ysize": 9
+     },
+     "gadgets": [
+      {
+       "activation": 32769,
+       "flags": 32788,
+       "height": 16,
+       "id": 0,
+       "left": -22,
+       "text": [],
+       "top": 0,
+       "type": 32837,
+       "width": 24
+      },
+      {
+       "activation": 32769,
+       "flags": 32772,
+       "height": 16,
+       "id": 0,
+       "left": 0,
+       "text": [],
+       "top": 0,
+       "type": 32901,
+       "width": 20
+      },
+      {
+       "activation": 32768,
+       "flags": 32804,
+       "height": 15,
+       "id": 0,
+       "left": 0,
+       "text": [],
+       "top": 0,
+       "type": 32805,
+       "width": 0
+      },
+      {
+       "activation": 0,
+       "flags": 3,
+       "height": 0,
+       "id": 0,
+       "left": 0,
+       "text": [],
+       "top": 0,
+       "type": 256,
+       "width": 0
+      },
+      {
+       "activation": 1,
+       "flags": 32774,
+       "height": 19,
+       "id": 1,
+       "left": 100,
+       "text": [],
+       "top": 22,
+       "type": 257,
+       "width": 120
+      },
+      {
+       "activation": 257,
+       "flags": 32902,
+       "height": 11,
+       "id": 2,
+       "left": 100,
+       "text": [
+        {
+         "bpen": 0,
+         "drawmode": 0,
+         "fpen": 1,
+         "left": -44,
+         "text": "Check",
+         "top": -1
+        }
+       ],
+       "top": 48,
+       "type": 257,
+       "width": 26
+      },
+      {
+       "activation": 1,
+       "flags": 32774,
+       "height": 19,
+       "id": 3,
+       "left": 100,
+       "text": [
+        {
+         "bpen": 0,
+         "drawmode": 0,
+         "fpen": 1,
+         "left": -41,
+         "text": "Cycle",
+         "top": 3
+        }
+       ],
+       "top": 68,
+       "type": 257,
+       "width": 120
+      },
+      {
+       "activation": 8193,
+       "flags": 33284,
+       "height": 13,
+       "id": 4,
+       "left": 106,
+       "text": [
+        {
+         "bpen": 0,
+         "drawmode": 0,
+         "fpen": 1,
+         "left": -46,
+         "text": "String",
+         "top": 0
+        }
+       ],
+       "top": 94,
+       "type": 260,
+       "width": 108
+      }
+     ],
+     "height": 191,
+     "idcmp": 580,
+     "left": 10,
+     "max_height": 191,
+     "max_width": 360,
+     "menus": [],
+     "min_height": 191,
+     "min_width": 360,
+     "screen_title": "Workbench Screen",
+     "title": "Prefs Gallery",
+     "top": 20,
+     "width": 360
+    },
+    {
+     "app": false,
+     "block_pen": 1,
+     "border": [
+      0,
+      0,
+      0,
+      0
+     ],
+     "detail_pen": 0,
+     "flags": 35658560,
+     "font": {
+      "baseline": 7,
+      "name": "times.font",
+      "xsize": 5,
+      "ysize": 11
+     },
+     "gadgets": [],
+     "height": 240,
+     "idcmp": 885614,
+     "left": 0,
+     "max_height": 240,
+     "max_width": 640,
+     "menus": [
+      {
+       "flags": 1,
+       "height": 0,
+       "items": [
+        {
+         "command": 66,
+         "flags": 351,
+         "height": 14,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Backdrop",
+         "top": 0,
+         "width": 158
+        },
+        {
+         "command": 69,
+         "flags": 86,
+         "height": 14,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Execute Command...",
+         "top": 14,
+         "width": 158
+        },
+        {
+         "command": 0,
+         "flags": 82,
+         "height": 14,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Redraw All",
+         "top": 28,
+         "width": 158
+        },
+        {
+         "command": 0,
+         "flags": 82,
+         "height": 14,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Update All",
+         "top": 42,
+         "width": 158
+        },
+        {
+         "command": 0,
+         "flags": 82,
+         "height": 14,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Last Message",
+         "top": 56,
+         "width": 158
+        },
+        {
+         "command": 63,
+         "flags": 86,
+         "height": 14,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "About...",
+         "top": 70,
+         "width": 158
+        },
+        {
+         "command": 81,
+         "flags": 86,
+         "height": 14,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Quit...",
+         "top": 84,
+         "width": 158
+        }
+       ],
+       "left": 2,
+       "title": "Workbench",
+       "top": 0,
+       "width": 71
+      },
+      {
+       "flags": 1,
+       "height": 0,
+       "items": [
+        {
+         "command": 78,
+         "flags": 70,
+         "height": 14,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "New Drawer",
+         "top": 0,
+         "width": 132
+        },
+        {
+         "command": 0,
+         "flags": 66,
+         "height": 14,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Open Parent",
+         "top": 14,
+         "width": 132
+        },
+        {
+         "command": 75,
+         "flags": 70,
+         "height": 14,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Close",
+         "top": 28,
+         "width": 132
+        },
+        {
+         "command": 0,
+         "flags": 66,
+         "height": 14,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Update",
+         "top": 42,
+         "width": 132
+        },
+        {
+         "command": 65,
+         "flags": 86,
+         "height": 14,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Select Contents",
+         "top": 56,
+         "width": 132
+        },
+        {
+         "command": 46,
+         "flags": 86,
+         "height": 14,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Clean Up",
+         "top": 70,
+         "width": 132
+        },
+        {
+         "command": 0,
+         "flags": 82,
+         "height": 14,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [
+          {
+           "command": 0,
+           "flags": 82,
+           "height": 14,
+           "left": 99,
+           "mutualexclude": 0,
+           "sub": [],
+           "text": "Window",
+           "top": -1,
+           "width": 49
+          },
+          {
+           "command": 0,
+           "flags": 82,
+           "height": 14,
+           "left": 99,
+           "mutualexclude": 0,
+           "sub": [],
+           "text": "All",
+           "top": 13,
+           "width": 49
+          }
+         ],
+         "text": "Snapshot",
+         "top": 84,
+         "width": 132
+        },
+        {
+         "command": 0,
+         "flags": 66,
+         "height": 14,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [
+          {
+           "command": 0,
+           "flags": 339,
+           "height": 14,
+           "left": 99,
+           "mutualexclude": -2,
+           "sub": [],
+           "text": "Only Icons",
+           "top": -1,
+           "width": 82
+          },
+          {
+           "command": 0,
+           "flags": 83,
+           "height": 14,
+           "left": 99,
+           "mutualexclude": -3,
+           "sub": [],
+           "text": "All Files",
+           "top": 13,
+           "width": 82
+          }
+         ],
+         "text": "Show",
+         "top": 98,
+         "width": 132
+        },
+        {
+         "command": 0,
+         "flags": 66,
+         "height": 14,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [
+          {
+           "command": 0,
+           "flags": 339,
+           "height": 14,
+           "left": 99,
+           "mutualexclude": -2,
+           "sub": [],
+           "text": "Icon",
+           "top": -1,
+           "width": 53
+          },
+          {
+           "command": 0,
+           "flags": 83,
+           "height": 14,
+           "left": 99,
+           "mutualexclude": -3,
+           "sub": [],
+           "text": "Name",
+           "top": 13,
+           "width": 53
+          },
+          {
+           "command": 0,
+           "flags": 83,
+           "height": 14,
+           "left": 99,
+           "mutualexclude": -5,
+           "sub": [],
+           "text": "Date",
+           "top": 27,
+           "width": 53
+          },
+          {
+           "command": 0,
+           "flags": 83,
+           "height": 14,
+           "left": 99,
+           "mutualexclude": -9,
+           "sub": [],
+           "text": "Size",
+           "top": 41,
+           "width": 53
+          }
+         ],
+         "text": "View By",
+         "top": 112,
+         "width": 132
+        }
+       ],
+       "left": 80,
+       "title": "Window",
+       "top": 0,
+       "width": 52
+      },
+      {
+       "flags": 0,
+       "height": 0,
+       "items": [
+        {
+         "command": 79,
+         "flags": 86,
+         "height": 14,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Open",
+         "top": 0,
+         "width": 120
+        },
+        {
+         "command": 67,
+         "flags": 86,
+         "height": 14,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Copy",
+         "top": 14,
+         "width": 120
+        },
+        {
+         "command": 82,
+         "flags": 86,
+         "height": 14,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Rename...",
+         "top": 28,
+         "width": 120
+        },
+        {
+         "command": 73,
+         "flags": 86,
+         "height": 14,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Information...",
+         "top": 42,
+         "width": 120
+        },
+        {
+         "command": 83,
+         "flags": 86,
+         "height": 14,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Snapshot",
+         "top": 56,
+         "width": 120
+        },
+        {
+         "command": 85,
+         "flags": 86,
+         "height": 14,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "UnSnapshot",
+         "top": 70,
+         "width": 120
+        },
+        {
+         "command": 76,
+         "flags": 86,
+         "height": 14,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Leave Out",
+         "top": 84,
+         "width": 120
+        },
+        {
+         "command": 80,
+         "flags": 86,
+         "height": 14,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Put Away",
+         "top": 98,
+         "width": 120
+        },
+        {
+         "command": 0,
+         "flags": 192,
+         "height": 6,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": null,
+         "top": 112,
+         "width": 120
+        },
+        {
+         "command": 0,
+         "flags": 82,
+         "height": 14,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Delete...",
+         "top": 118,
+         "width": 120
+        },
+        {
+         "command": 0,
+         "flags": 82,
+         "height": 14,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Format Disk...",
+         "top": 132,
+         "width": 120
+        },
+        {
+         "command": 0,
+         "flags": 82,
+         "height": 14,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Empty Trash",
+         "top": 146,
+         "width": 120
+        }
+       ],
+       "left": 139,
+       "title": "Icons",
+       "top": 0,
+       "width": 38
+      },
+      {
+       "flags": 1,
+       "height": 0,
+       "items": [
+        {
+         "command": 0,
+         "flags": 82,
+         "height": 14,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "ResetWB",
+         "top": 0,
+         "width": 55
+        }
+       ],
+       "left": 184,
+       "title": "Tools",
+       "top": 0,
+       "width": 38
+      }
+     ],
+     "min_height": 240,
+     "min_width": 640,
+     "screen_title": "Copyright \u00a9 1985-1993 Commodore-Amiga, Inc. All Rights Reserved.",
+     "title": "",
+     "top": 16,
+     "width": 640
+    }
+   ]
+  }
+ ]
+}

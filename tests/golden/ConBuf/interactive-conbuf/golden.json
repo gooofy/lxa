@@ -1,8 +1,8 @@
 {
  "app": "ConBuf",
  "disabled": null,
- "lxa_version": "0.11.22",
- "promoted": "2026-10-03",
+ "lxa_version": "0.11.26",
+ "promoted": "2026-10-04",
  "reference": "AmigaOS 3.1 (KS 40.70), profile aga",
  "requires_apps": false,
  "scenario": "interactive-conbuf",
@@ -34,7 +34,7 @@
      "where": "screen[Workbench Screen]/window[ConBuf]"
     }
    ],
-   "pixel_budget": 3836,
+   "pixel_budget": 3558,
    "pixel_phase": 222,
    "stdout_known_diff": null
   },
@@ -65,7 +65,7 @@
      "where": "screen[Workbench Screen]/window[ConBuf]"
     }
    ],
-   "pixel_budget": 1509,
+   "pixel_budget": 1223,
    "pixel_phase": 222,
    "stdout_known_diff": null
   }

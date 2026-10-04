@@ -2,7 +2,8 @@
  * lxa locale.library implementation
  *
  * Provides internationalization and localization support.
- * This is a stub implementation with basic US English defaults.
+ * Locales come from the built-in AmigaOS 3.1 defaults or from locale prefs
+ * files (OpenLocale(), LocalePrefsUpdate() - Phase 236).
  */
 
 #include <exec/types.h>

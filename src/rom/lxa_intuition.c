@@ -9957,8 +9957,27 @@ static void _render_sys_gadget(struct Window *window, struct Gadget *gad)
         return;
     im = (struct Image *)gad->GadgetRender;
     _calculate_gadget_box(window, NULL, gad, &x, &y, &w, &h);
-    _intuition_DrawImageState(IntuitionBase, rp, im, (WORD)x, (WORD)y,
-                              _window_image_state(window, gad), NULL);
+    {
+        /* the screen's pens (preferences pens on the Workbench, Phase 236) */
+        struct DrawInfo dri;
+
+        memset(&dri, 0, sizeof(dri));
+        dri.dri_Version = 2;
+        dri.dri_NumPens = NUMDRIPENS;
+        dri.dri_Pens = (UWORD *)_intuition_screen_pens(window->WScreen);
+        dri.dri_Font = window->WScreen ? window->WScreen->RastPort.Font : NULL;
+        dri.dri_Depth = window->WScreen ? window->WScreen->BitMap.Depth : 2;
+        dri.dri_Flags = DRIF_NEWLOOK;
+        {
+            /* old-look screens keep the built-in imagery (Phase 252) */
+            struct PubScreenNode *pub = window->WScreen ? _intuition_find_pubscreen_by_screen(
+                (struct LXAIntuitionBase *)IntuitionBase, window->WScreen) : NULL;
+            BOOL newlook = pub && (((struct LXAPubScreenNode *)pub)->drawInfo.dri_Flags & DRIF_NEWLOOK);
+
+            _intuition_DrawImageState(IntuitionBase, rp, im, (WORD)x, (WORD)y,
+                                      _window_image_state(window, gad), newlook ? &dri : NULL);
+        }
+    }
 }
 
 static void _render_window_frame_impl(struct Window *window);

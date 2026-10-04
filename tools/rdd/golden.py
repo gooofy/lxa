@@ -193,8 +193,9 @@ def check(gdir, build=None, keep=None):
     cmd = [sys.executable, "-m", "rdd.backend_lxa", scn.path, out]
     if build:
         cmd += ["--build", build]
+    # the emulator log carries the program's Latin-1 output
     proc = subprocess.run(cmd, env=env, cwd=ROOT, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                          universal_newlines=True)
+                          universal_newlines=True, errors="replace")
     try:
         with open(os.path.join(out, "result.json")) as f:
             result = json.load(f)

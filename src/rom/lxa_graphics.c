@@ -9454,9 +9454,14 @@ static ULONG _graphics_GetDisplayInfoData ( register struct GfxBase * GfxBase __
             dims.TxtOScan = dims.Nominal;
             dims.StdOScan = dims.Nominal;
             dims.MaxOScan.MinX = (WORD)(-36 * xscale);
-            dims.MaxOScan.MinY = (WORD)(-15 * yscale);
+            /* AmigaOS 3.1 reference (tests/probes/graphics/colormap):
+             * PAL -15..+12 lines, NTSC -23..+18 lines */
+            {
+                BOOL ntsc = ((actualDisplayID & MONITOR_ID_MASK) == NTSC_MONITOR_ID);
+                dims.MaxOScan.MinY = (WORD)((ntsc ? -23 : -15) * yscale);
+                dims.MaxOScan.MaxY = (WORD)(height - 1 + (ntsc ? 18 : 12) * yscale);
+            }
             dims.MaxOScan.MaxX = (WORD)(width - 1 + 6 * xscale);
-            dims.MaxOScan.MaxY = (WORD)(height - 1 + 12 * yscale);
             dims.VideoOScan = dims.MaxOScan;
             dims.VideoOScan.MaxX = (WORD)(width - 1 + 12 * xscale);
             if (g_oscan_prefs && g_oscan_prefs[graphics_oscan_slot(actualDisplayID)].valid)

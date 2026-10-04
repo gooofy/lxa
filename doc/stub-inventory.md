@@ -19,15 +19,14 @@ implementing the function, never by deleting the macro.
 | dos | 5 | 1 | 10 |
 | exec | 7 | 3 | 0 |
 | gadtools | 0 | 1 | 6 |
-| graphics | 0 | 7 | 8 |
+| graphics | 0 | 7 | 7 |
 | icon | 0 | 2 | 0 |
-| intuition | 3 | 17 | 11 |
-| locale | 0 | 1 | 0 |
+| intuition | 3 | 17 | 10 |
 | rexxsyslib | 17 | 0 | 0 |
 | translator | 1 | 0 | 0 |
 | utility | 0 | 0 | 7 |
 | workbench | 0 | 0 | 3 |
-| **total** | **83** | **32** | **49** |
+| **total** | **83** | **31** | **47** |
 
 ## amigaguide
 
@@ -148,7 +147,6 @@ implementing the function, never by deleting the macro.
 - `UnlockLayerRom` — partial: no-op, layer is not locked (Phase 256) (`src/rom/lxa_graphics.c`)
 - `private2` — private/reserved slot (`src/rom/lxa_graphics.c`)
 - `private3` — private/reserved slot (`src/rom/lxa_graphics.c`)
-- `private4` — private/reserved slot (`src/rom/lxa_graphics.c`)
 - `private5` — private/reserved slot (`src/rom/lxa_graphics.c`)
 - `private6` — private/reserved slot (`src/rom/lxa_graphics.c`)
 - `private7` — private/reserved slot (`src/rom/lxa_graphics.c`)
@@ -170,7 +168,7 @@ implementing the function, never by deleting the macro.
 - `NextPubScreen` — partial: only ever reports Workbench (Phase 256) (`src/rom/lxa_intuition.c`)
 - `ObtainGIRPort` — partial: returns the shared gadget RastPort instead of a clone (Phase 256) (`src/rom/lxa_intuition.c`)
 - `OpenScreen` — partial: fixed bar/border sizes, screen font height ignored (Phase 256) (`src/rom/lxa_intuition.c`)
-- `OpenScreenTagList` — partial: ignores SA_DClip, SA_Overscan, SA_Colors, SA_SysFont, SA_ErrorCode (Phase 256) (`src/rom/lxa_intuition.c`)
+- `OpenScreenTagList` — partial: ignores SA_DClip, SA_Overscan, SA_Colors, SA_ErrorCode (Phase 256) (`src/rom/lxa_intuition.c`)
 - `OpenWindow` — partial: title bar height ignores screen font height (Phase 256) (`src/rom/lxa_intuition.c`)
 - `OpenWindowTagList` — partial: ignores WA_BackFill, WA_RptQueue, WA_Pointer, WA_BusyPointer, WA_Checkmark, WA_HelpGroup (Phase 256) (`src/rom/lxa_intuition.c`)
 - `PrintIText` — partial: ignores IntuiText ITextFont, uses RastPort font (Phase 256) (`src/rom/lxa_intuition.c`)
@@ -180,7 +178,6 @@ implementing the function, never by deleting the macro.
 - `SetPubScreenModes` — partial: modes stored but SHANGHAI/POPPUBSCREEN ignored (Phase 256) (`src/rom/lxa_intuition.c`)
 - `UnlockPubScreenList` — partial: no-op, list is never locked (Phase 256) (`src/rom/lxa_intuition.c`)
 - `private0` — private/reserved slot (`src/rom/lxa_intuition.c`)
-- `private1` — private/reserved slot (`src/rom/lxa_intuition.c`)
 - `private10` — private/reserved slot (`src/rom/lxa_intuition.c`)
 - `private2` — private/reserved slot (`src/rom/lxa_intuition.c`)
 - `private3` — private/reserved slot (`src/rom/lxa_intuition.c`)
@@ -193,10 +190,6 @@ implementing the function, never by deleting the macro.
 - `DisplayBeep` — stub: no screen flash or bell (Phase 256) (`src/rom/lxa_intuition.c`)
 - `PointInImage` — stub: always TRUE (Phase 256) (`src/rom/lxa_intuition.c`)
 - `SetDefaultPubScreen` — stub: default public screen not changed (Phase 256) (`src/rom/lxa_intuition.c`)
-
-## locale
-
-- `OpenLocale` — partial: locale prefs files are not parsed, the default locale is returned (`src/rom/lxa_locale.c`)
 
 ## rexxsyslib
 

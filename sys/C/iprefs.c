@@ -248,7 +248,9 @@ static void device_cmd(const char *dev, LONG unit, UWORD cmd, APTR data, ULONG l
                        const struct timeval *tv)
 {
     struct MsgPort *port = CreateMsgPort();
-    struct timerequest *io = port ? (struct timerequest *)CreateIORequest(port, sizeof(*io)) : NULL;
+    /* big enough for both a timerequest and an IOStdReq */
+    ULONG iosize = sizeof(struct IOStdReq) > sizeof(struct timerequest) ? sizeof(struct IOStdReq) : sizeof(struct timerequest);
+    struct timerequest *io = port ? (struct timerequest *)CreateIORequest(port, iosize) : NULL;
 
     if (io && !OpenDevice((STRPTR)dev, unit, (struct IORequest *)io, 0)) {
         io->tr_node.io_Command = cmd;
