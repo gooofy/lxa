@@ -355,14 +355,29 @@ static ULONG _graphics_ObtainPen ( register struct GfxBase * GfxBase __asm("a6")
 
 static VOID graphics_cm_store_rgb32(struct ColorMap *cm, ULONG n, ULONG r, ULONG g, ULONG b);
 
+/*
+ * PaletteExtra as AmigaOS 3.1 keeps it (reference, Phase 222b): pe_RefCnt
+ * is an array of UWORD reference counts, pe_AllocList an array of UBYTE
+ * links (255 ends a list) whatever view.h declares.  pe_FirstFree and
+ * pe_FirstShared head the free and shared lists; an empty list reads as
+ * 255 (from a link) or 0xFFFF (never used).  Exclusive pens are in no
+ * list; their links are left as they were.
+ */
+#define GRAPHICS_PEN_END 0xFF
+
 static UWORD *graphics_palette_ref_counts(struct PaletteExtra *pe)
 {
     return (UWORD *)pe->pe_RefCnt;
 }
 
-static UWORD *graphics_palette_alloc_list(struct PaletteExtra *pe)
+static UBYTE *graphics_palette_alloc_list(struct PaletteExtra *pe)
 {
-    return (UWORD *)pe->pe_AllocList;
+    return (UBYTE *)pe->pe_AllocList;
+}
+
+static BOOL graphics_palette_list_end(UWORD pen)
+{
+    return (pen & 0xFF) == GRAPHICS_PEN_END;
 }
 
 static VOID graphics_color_get(CONST struct ColorMap *cm,
@@ -417,24 +432,24 @@ static ULONG graphics_color_distance(CONST struct ColorMap *cm,
     return (ULONG)(dr * dr) + (ULONG)(dg * dg) + (ULONG)(db * db);
 }
 
+/* unlink pen from the list at *head; FALSE if it is not in it */
 static BOOL graphics_palette_remove_pen(struct PaletteExtra *pe,
                                         UWORD *head,
                                         UWORD pen)
 {
-    UWORD *alloc_list = graphics_palette_alloc_list(pe);
-    UWORD prev = GRAPHICS_PEN_NONE;
+    UBYTE *alloc_list = graphics_palette_alloc_list(pe);
+    UWORD prev = 0xFFFF;
     UWORD cur = *head;
+    UWORD guard = 0;
 
-    while (cur != GRAPHICS_PEN_NONE)
+    while (!graphics_palette_list_end(cur) && guard++ < 256)
     {
         if (cur == pen)
         {
-            if (prev == GRAPHICS_PEN_NONE)
+            if (prev == 0xFFFF)
                 *head = alloc_list[cur];
             else
                 alloc_list[prev] = alloc_list[cur];
-
-            alloc_list[cur] = GRAPHICS_PEN_NONE;
             return TRUE;
         }
 
@@ -445,31 +460,13 @@ static BOOL graphics_palette_remove_pen(struct PaletteExtra *pe,
     return FALSE;
 }
 
-static BOOL graphics_palette_pen_in_list(struct PaletteExtra *pe,
-                                         UWORD head,
-                                         UWORD pen)
-{
-    UWORD *alloc_list = graphics_palette_alloc_list(pe);
-    UWORD cur = head;
-
-    while (cur != GRAPHICS_PEN_NONE)
-    {
-        if (cur == pen)
-            return TRUE;
-
-        cur = alloc_list[cur];
-    }
-
-    return FALSE;
-}
-
 static VOID graphics_palette_push_pen(struct PaletteExtra *pe,
                                       UWORD *head,
                                       UWORD pen)
 {
-    UWORD *alloc_list = graphics_palette_alloc_list(pe);
+    UBYTE *alloc_list = graphics_palette_alloc_list(pe);
 
-    alloc_list[pen] = *head;
+    alloc_list[pen] = (UBYTE)*head;
     *head = pen;
 }
 
@@ -7716,8 +7713,8 @@ static struct ColorMap * _graphics_GetColorMap ( register struct GfxBase * GfxBa
     cm->SpriteResolution = SPRITERESN_DEFAULT;
     cm->SpriteResDefault = SPRITERESN_ECS;
     cm->VPModeID = (ULONG)-1;
-    cm->SpriteBase_Even = 0x0001;
-    cm->SpriteBase_Odd = 0x0001;
+    cm->SpriteBase_Even = 0x0010;       /* AmigaOS 3.1 (reference) */
+    cm->SpriteBase_Odd = 0x0010;
     cm->Bp_1_base = 0x0008;
     
     /* Initialize with default Amiga Workbench colors for first 4 entries */
@@ -7747,6 +7744,19 @@ static VOID _graphics_FreeColorMap ( register struct GfxBase * GfxBase __asm("a6
     /* Free the LowColorBits */
     if (colorMap->LowColorBits)
         FreeMem(colorMap->LowColorBits, colorMap->Count * sizeof(UWORD));
+
+    /* and the PalExtra of AttachPalExtra() (autodoc) */
+    if (colorMap->PalExtra)
+    {
+        struct PaletteExtra *pe = colorMap->PalExtra;
+
+        if (pe->pe_RefCnt)
+            FreeMem(pe->pe_RefCnt, colorMap->Count * sizeof(UWORD));
+        if (pe->pe_AllocList)
+            FreeMem(pe->pe_AllocList, colorMap->Count);
+        FreeMem(pe, sizeof(struct PaletteExtra));
+        colorMap->PalExtra = NULL;
+    }
     
     /* Free the ColorMap structure itself */
     FreeMem(colorMap, sizeof(struct ColorMap));
@@ -9026,10 +9036,12 @@ static BOOL _graphics_VideoControl ( register struct GfxBase * GfxBase __asm("a6
             case VTAG_NORMAL_DISP_GET: tag->ti_Tag = VTAG_NORMAL_DISP_SET; tag->ti_Data = (ULONG)colorMap->NormalDisplayInfo; break;
             case VTAG_COERCE_DISP_SET: colorMap->CoerceDisplayInfo = (APTR)tag->ti_Data; break;
             case VTAG_COERCE_DISP_GET: tag->ti_Tag = VTAG_COERCE_DISP_SET; tag->ti_Data = (ULONG)colorMap->CoerceDisplayInfo; break;
-            case VTAG_PF1_BASE_SET: colorMap->Bp_0_base = (UWORD)tag->ti_Data; break;
-            case VTAG_PF1_BASE_GET: tag->ti_Tag = VTAG_PF1_BASE_SET; tag->ti_Data = colorMap->Bp_0_base; break;
-            case VTAG_PF2_BASE_SET: colorMap->Bp_1_base = (UWORD)tag->ti_Data; break;
-            case VTAG_PF2_BASE_GET: tag->ti_Tag = VTAG_PF2_BASE_SET; tag->ti_Data = colorMap->Bp_1_base; break;
+            /* playfield 1 is Bp_1_base, playfield 2 Bp_0_base (AmigaOS 3.1,
+             * reference) */
+            case VTAG_PF1_BASE_SET: colorMap->Bp_1_base = (UWORD)tag->ti_Data; break;
+            case VTAG_PF1_BASE_GET: tag->ti_Tag = VTAG_PF1_BASE_SET; tag->ti_Data = colorMap->Bp_1_base; break;
+            case VTAG_PF2_BASE_SET: colorMap->Bp_0_base = (UWORD)tag->ti_Data; break;
+            case VTAG_PF2_BASE_GET: tag->ti_Tag = VTAG_PF2_BASE_SET; tag->ti_Data = colorMap->Bp_0_base; break;
             case VTAG_SPEVEN_BASE_SET: colorMap->SpriteBase_Even = (UWORD)tag->ti_Data; break;
             case VTAG_SPEVEN_BASE_GET: tag->ti_Tag = VTAG_SPEVEN_BASE_SET; tag->ti_Data = colorMap->SpriteBase_Even; break;
             case VTAG_SPODD_BASE_SET: colorMap->SpriteBase_Odd = (UWORD)tag->ti_Data; break;
@@ -9060,8 +9072,9 @@ static BOOL _graphics_VideoControl ( register struct GfxBase * GfxBase __asm("a6
             case VTAG_FULLPALETTE_SET: colorMap->AuxFlags |= CMAF_FULLPALETTE; break;
             case VTAG_FULLPALETTE_CLR: colorMap->AuxFlags &= ~CMAF_FULLPALETTE; break;
             case VTAG_FULLPALETTE_GET:
-                /* the state is reported in the tag only (reference) */
-                tag->ti_Tag = (colorMap->AuxFlags & CMAF_FULLPALETTE) ? VTAG_FULLPALETTE_SET : VTAG_FULLPALETTE_CLR;
+                /* VTAG_FULLPALETTE_SET with the state as a boolean (reference) */
+                tag->ti_Tag = VTAG_FULLPALETTE_SET;
+                tag->ti_Data = (colorMap->AuxFlags & CMAF_FULLPALETTE) ? (ULONG)-1 : 0;
                 break;
             case VC_IntermediateCLUpdate:
                 if (tag->ti_Data) colorMap->AuxFlags &= ~CMAF_NO_INTERMED_UPDATE;
@@ -9096,7 +9109,8 @@ static BOOL _graphics_VideoControl ( register struct GfxBase * GfxBase __asm("a6
             case VTAG_VPMODEID_SET: colorMap->VPModeID = tag->ti_Data; break;
             case VTAG_VPMODEID_CLR: colorMap->VPModeID = INVALID_ID; break;
             case VTAG_VPMODEID_GET:
-                tag->ti_Tag = (colorMap->VPModeID == INVALID_ID) ? VTAG_VPMODEID_CLR : VTAG_VPMODEID_SET;
+                /* always VTAG_VPMODEID_SET, INVALID_ID when cleared (reference) */
+                tag->ti_Tag = VTAG_VPMODEID_SET;
                 tag->ti_Data = colorMap->VPModeID;
                 break;
             default:
@@ -9105,8 +9119,11 @@ static BOOL _graphics_VideoControl ( register struct GfxBase * GfxBase __asm("a6
         }
     }
 
+    /* the changes take effect at once only for a ColorMap attached to a
+     * ViewPort; otherwise the flag tells the caller to remake the display
+     * (AmigaOS 3.1, reference) */
     if (immediate)
-        *immediate = 0;
+        *immediate = colorMap->cm_vp ? 0 : 1;
 
     return result;
 }
@@ -9880,63 +9897,46 @@ static VOID _graphics_StripFont ( register struct GfxBase * GfxBase __asm("a6"),
     FreeMem(tfe, sizeof(struct TextFontExtension));
 }
 
-static ULONG graphics_calcivg_instruction_cycles(CONST struct CopIns *cop_ins)
+static ULONG graphics_calcivg_count(CONST struct CopList *cop_list)
 {
-    if (!cop_ins)
-        return 0;
-
-    switch (cop_ins->OpCode)
-    {
-        case CPRNXTBUF:
-            return 0;
-
-        case COPPER_WAIT:
-            return 3;
-
-        case COPPER_MOVE:
-        default:
-            return 2;
-    }
-}
-
-static ULONG graphics_calcivg_total_cycles(CONST struct CopList *cop_list)
-{
-    ULONG total_cycles = 0;
+    ULONG count = 0;
 
     while (cop_list)
     {
         if (cop_list->CopIns && cop_list->Count > 0)
-        {
-            UWORD i;
-
-            for (i = 0; i < (UWORD)cop_list->Count; i++)
-                total_cycles += graphics_calcivg_instruction_cycles(&cop_list->CopIns[i]);
-        }
-
+            count += (UWORD)cop_list->Count;
         cop_list = cop_list->Next;
     }
 
-    return total_cycles;
+    return count;
 }
 
 static UWORD _graphics_CalcIVG ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct View * v __asm("a0"),
                                                         register struct ViewPort * vp __asm("a1"))
 {
+    ULONG count;
+    ULONG lines;
+
     /*
      * Number of blank lines needed in front of a ViewPort for its copper
-     * instructions.  Measured on AmigaOS 3.1 (reference machine, 1 to 40
-     * instructions, any depth/width): 0 without instructions, else 1 line,
-     * 2 lines for an interlaced View/ViewPort.
+     * instructions.  Measured on AmigaOS 3.1 (reference, Phase 222b, 0 to
+     * 300 instructions): it depends only on the Count of the DspIns
+     * blocks - every instruction, MOVE or WAIT, takes 4 of the 226 colour
+     * clocks of a line (56 per line, 57 need two) - and doubles for an
+     * interlaced View/ViewPort; width and depth do not matter.
      */
     (void)GfxBase;
 
     DPRINTF (LOG_DEBUG, "_graphics: CalcIVG(view=0x%08lx, vp=0x%08lx)\n", (ULONG)v, (ULONG)vp);
 
-    if (!v || !vp || !vp->DspIns || graphics_calcivg_total_cycles(vp->DspIns) == 0)
+    if (!v || !vp || !vp->DspIns)
         return 0;
 
-    return ((v->Modes | vp->Modes) & LACE) ? 2 : 1;
+    count = graphics_calcivg_count(vp->DspIns);
+    lines = (count * 4 + 225) / 226;
+
+    return (UWORD)(((v->Modes | vp->Modes) & LACE) ? lines * 2 : lines);
 }
 
 static LONG _graphics_AttachPalExtra ( register struct GfxBase * GfxBase __asm("a6"),
@@ -9945,8 +9945,8 @@ static LONG _graphics_AttachPalExtra ( register struct GfxBase * GfxBase __asm("
 {
     struct PaletteExtra *pe;
     UWORD *ref_counts;
-    UWORD *alloc_list;
-    ULONG sharablecolors;
+    UBYTE *alloc_list;
+    ULONG colors;
     ULONG i;
 
     DPRINTF (LOG_DEBUG, "_graphics: AttachPalExtra() cm=0x%08lx vp=0x%08lx\n",
@@ -9963,59 +9963,43 @@ static LONG _graphics_AttachPalExtra ( register struct GfxBase * GfxBase __asm("
         return 1;
 
     ref_counts = (UWORD *)AllocMem(cm->Count * sizeof(UWORD), MEMF_PUBLIC | MEMF_CLEAR);
-    alloc_list = (UWORD *)AllocMem(cm->Count * sizeof(UWORD), MEMF_PUBLIC);
+    alloc_list = (UBYTE *)AllocMem(cm->Count, MEMF_PUBLIC);
     if (!ref_counts || !alloc_list)
     {
         if (ref_counts)
             FreeMem(ref_counts, cm->Count * sizeof(UWORD));
         if (alloc_list)
-            FreeMem(alloc_list, cm->Count * sizeof(UWORD));
+            FreeMem(alloc_list, cm->Count);
         FreeMem(pe, sizeof(struct PaletteExtra));
         return 1;
     }
 
     InitSemaphore(&pe->pe_Semaphore);
     pe->pe_RefCnt = (UBYTE *)ref_counts;
-    pe->pe_AllocList = (UBYTE *)alloc_list;
+    pe->pe_AllocList = alloc_list;
     pe->pe_ViewPort = vp;
 
-    /* Without a ViewPort BitMap AmigaOS 3.1 makes no pen available
-     * (verified on the reference machine) */
-    sharablecolors = 0;
+    /* The colors of the ViewPort's BitMap are available; without a BitMap
+     * AmigaOS 3.1 makes no pen available (reference) */
+    colors = 0;
     if (vp && vp->RasInfo && vp->RasInfo->BitMap)
     {
-        sharablecolors = (ULONG)cm->Count;
-
         ULONG bmdepth = (ULONG)vp->RasInfo->BitMap->Depth;
 
-        if (bmdepth < 8)
-        {
-            ULONG depth_colors = 1UL << bmdepth;
-
-            if (depth_colors < sharablecolors)
-                sharablecolors = depth_colors;
-        }
+        colors = (ULONG)cm->Count;
+        if (bmdepth < 8 && (1UL << bmdepth) < colors)
+            colors = 1UL << bmdepth;
     }
 
+    /* every pen is linked to the one below it, the free list starts at
+     * the highest available pen (reference) */
     for (i = 0; i < (ULONG)cm->Count; i++)
-        alloc_list[i] = GRAPHICS_PEN_NONE;
+        alloc_list[i] = (i == 0) ? GRAPHICS_PEN_END : (UBYTE)(i - 1);
 
-    if (sharablecolors > 0)
-    {
-        for (i = 0; i < sharablecolors; i++)
-            alloc_list[i] = (i == 0) ? GRAPHICS_PEN_NONE : (UWORD)(i - 1);
-
-        pe->pe_FirstFree = (UWORD)(sharablecolors - 1);
-        pe->pe_SharableColors = (UWORD)(sharablecolors - 1);
-    }
-    else
-    {
-        pe->pe_FirstFree = GRAPHICS_PEN_NONE;
-        pe->pe_SharableColors = 0;
-    }
-
-    pe->pe_NFree = (UWORD)sharablecolors;
-    pe->pe_FirstShared = GRAPHICS_PEN_NONE;
+    pe->pe_NFree = (UWORD)colors;
+    pe->pe_FirstFree = colors ? (UWORD)(colors - 1) : 0;
+    pe->pe_SharableColors = colors ? (UWORD)(colors - 1) : 0;
+    pe->pe_FirstShared = 0xFFFF;
     pe->pe_NShared = 0;
 
     cm->PalExtra = pe;
@@ -10030,22 +10014,27 @@ static LONG _graphics_ObtainBestPenA ( register struct GfxBase * GfxBase __asm("
                                                         register CONST struct TagItem * tags __asm("a1"))
 {
     struct PaletteExtra *pe;
+    UBYTE *alloc_list;
     LONG retval = -1;
     ULONG best_distance = (ULONG)-1;
-    ULONG precision;
+    LONG precision;
     ULONG fail_if_bad;
+    BOOL good;
     UWORD pen;
+    UWORD guard = 0;
 
     if (!cm || !cm->PalExtra)
         return -1;
 
-    precision = GetTagData(OBP_Precision, PRECISION_IMAGE, (struct TagItem *)tags);
+    precision = (LONG)GetTagData(OBP_Precision, PRECISION_IMAGE, (struct TagItem *)tags);
     fail_if_bad = GetTagData(OBP_FailIfBad, FALSE, (struct TagItem *)tags);
     pe = cm->PalExtra;
+    alloc_list = graphics_palette_alloc_list(pe);
     ObtainSemaphore(&pe->pe_Semaphore);
 
+    /* the closest shared pen (sum of the squared 8 bit differences) */
     pen = pe->pe_FirstShared;
-    while (pen != GRAPHICS_PEN_NONE)
+    while (!graphics_palette_list_end(pen) && guard++ < 256)
     {
         ULONG distance = graphics_color_distance(cm, r, g, b, pen);
 
@@ -10055,30 +10044,46 @@ static LONG _graphics_ObtainBestPenA ( register struct GfxBase * GfxBase __asm("
             retval = pen;
         }
 
-        pen = graphics_palette_alloc_list(pe)[pen];
+        pen = alloc_list[pen];
     }
 
-    if ((retval == -1) ||
-        ((LONG)precision == PRECISION_EXACT && best_distance != 0) ||
-        (best_distance * pe->pe_NFree > (precision * precision) * pe->pe_SharableColors))
+    /*
+     * Is it good enough?  Measured on AmigaOS 3.1 (reference, Phase 222b,
+     * 4400 samples over depths 3-5, 1-31 free pens, all precisions): with
+     * Q = 8 * (precision + pe_SharableColors) / pe_NFree, a pen at squared
+     * distance S is shared when S * 256 <= Q^4; PRECISION_EXACT needs S 0.
+     */
+    good = FALSE;
+    if (retval != -1)
     {
-        LONG tmp = _graphics_ObtainPen(GfxBase, cm, (ULONG)-1, r, g, b, 0);
-
-        if (tmp == -1)
-        {
-            if (fail_if_bad)
-                retval = -1;
-            else if (retval != -1)
-                graphics_palette_ref_counts(pe)[retval]++;
-        }
+        if (precision == PRECISION_EXACT)
+            good = best_distance == 0;
+        else if (pe->pe_NFree == 0)
+            good = TRUE;
         else
         {
-            retval = tmp;
+            LONG num = 8 * (precision + (LONG)pe->pe_SharableColors);
+            ULONG q = num > 0 ? (ULONG)num / pe->pe_NFree : 0;
+
+            /* 3 * 255^2 * 256 < 85^4: beyond that every pen is good */
+            good = (q >= 85) || (best_distance * 256 <= q * q * q * q);
         }
+    }
+
+    if (good)
+    {
+        graphics_palette_ref_counts(pe)[retval]++;
     }
     else
     {
-        graphics_palette_ref_counts(pe)[retval]++;
+        LONG tmp = _graphics_ObtainPen(GfxBase, cm, (ULONG)-1, r, g, b, 0);
+
+        if (tmp != -1)
+            retval = tmp;
+        else if (fail_if_bad || retval == -1)
+            retval = -1;
+        else
+            graphics_palette_ref_counts(pe)[retval]++;
     }
 
     ReleaseSemaphore(&pe->pe_Semaphore);
@@ -10574,31 +10579,15 @@ static VOID _graphics_ReleasePen ( register struct GfxBase * GfxBase __asm("a6")
     ref_counts = graphics_palette_ref_counts(pe);
     pen = (UWORD)n;
 
+    /* AmigaOS 3.1 (reference): the count is decremented unconditionally
+     * (a pen that was not obtained wraps to 0xFFFF); at zero the pen
+     * leaves the shared list and goes to the head of the free list */
     ObtainSemaphore(&pe->pe_Semaphore);
 
-    if (graphics_palette_pen_in_list(pe, pe->pe_FirstFree, pen))
+    if (--ref_counts[pen] == 0)
     {
-        ReleaseSemaphore(&pe->pe_Semaphore);
-        return;
-    }
-
-    if (ref_counts[pen] != 0)
-    {
-        ref_counts[pen]--;
-
-        if (ref_counts[pen] == 0)
-        {
-            if (graphics_palette_remove_pen(pe, &pe->pe_FirstShared, pen))
-            {
-                if (pe->pe_NShared > 0)
-                    pe->pe_NShared--;
-                graphics_palette_push_pen(pe, &pe->pe_FirstFree, pen);
-                pe->pe_NFree++;
-            }
-        }
-    }
-    else
-    {
+        if (graphics_palette_remove_pen(pe, &pe->pe_FirstShared, pen) && pe->pe_NShared > 0)
+            pe->pe_NShared--;
         graphics_palette_push_pen(pe, &pe->pe_FirstFree, pen);
         pe->pe_NFree++;
     }
@@ -10615,9 +10604,7 @@ static ULONG _graphics_ObtainPen ( register struct GfxBase * GfxBase __asm("a6")
                                                         register LONG f __asm("d4"))
 {
     struct PaletteExtra *pe;
-    UWORD *ref_counts;
-    ULONG retval = (ULONG)-1;
-    BOOL was_shared = FALSE;
+    UWORD pen;
 
     f = (LONG)(WORD)f;  /* sign-extend: GCC m68k move.w workaround */
 
@@ -10628,90 +10615,59 @@ static ULONG _graphics_ObtainPen ( register struct GfxBase * GfxBase __asm("a6")
         return (ULONG)-1;
 
     pe = cm->PalExtra;
-    ref_counts = graphics_palette_ref_counts(pe);
 
-    if ((pe->pe_SharableColors == GRAPHICS_PEN_NONE) ||
-        ((n != (ULONG)-1) && (n > (ULONG)pe->pe_SharableColors)))
-    {
+    if ((n != (ULONG)-1) && (n > (ULONG)pe->pe_SharableColors))
         return (ULONG)-1;
-    }
 
     ObtainSemaphore(&pe->pe_Semaphore);
 
-    if (n != (ULONG)-1)
+    /*
+     * AmigaOS 3.1 (reference): a pen comes from the free list - its head
+     * for n = -1, else pen n if it is free (an allocated pen cannot be
+     * obtained by number, even with a matching colour).  A shared pen goes
+     * to the head of the shared list; every obtained pen gets its count
+     * incremented.
+     */
+    if (n == (ULONG)-1)
     {
-        UWORD pen = (UWORD)n;
-
-        if (f & PENF_EXCLUSIVE)
+        if (pe->pe_NFree == 0 || graphics_palette_list_end(pe->pe_FirstFree))
         {
-            if (graphics_palette_remove_pen(pe, &pe->pe_FirstFree, pen))
-            {
-                if (pe->pe_NFree > 0)
-                    pe->pe_NFree--;
-                retval = pen;
-            }
+            ReleaseSemaphore(&pe->pe_Semaphore);
+            return (ULONG)-1;
         }
-        else
-        {
-            /* A pen that is already allocated (shared or exclusive) cannot
-             * be obtained by number, even with a matching colour: only
-             * ObtainBestPenA() shares pens (verified on the reference) */
-            if (graphics_palette_remove_pen(pe, &pe->pe_FirstFree, pen))
-            {
-                if (pe->pe_NFree > 0)
-                    pe->pe_NFree--;
-                graphics_palette_push_pen(pe, &pe->pe_FirstShared, pen);
-                pe->pe_NShared++;
-                ref_counts[pen] = 1;
-                retval = pen;
-            }
-        }
-    }
-    else if (f & PENF_EXCLUSIVE)
-    {
-        if (pe->pe_FirstFree != GRAPHICS_PEN_NONE)
-        {
-            UWORD pen = pe->pe_FirstFree;
-
-            if (graphics_palette_remove_pen(pe, &pe->pe_FirstFree, pen))
-            {
-                if (pe->pe_NFree > 0)
-                    pe->pe_NFree--;
-                retval = pen;
-            }
-        }
+        pen = pe->pe_FirstFree;
+        pe->pe_FirstFree = graphics_palette_alloc_list(pe)[pen];
     }
     else
     {
-        /* ObtainPen(-1) always allocates a new free pen; it does not reuse
-         * a shared pen of the same colour (verified on the reference) */
-        UWORD pen;
-
-        if (pe->pe_FirstFree != GRAPHICS_PEN_NONE)
+        pen = (UWORD)n;
+        if (!graphics_palette_remove_pen(pe, &pe->pe_FirstFree, pen))
         {
-            pen = pe->pe_FirstFree;
-            if (graphics_palette_remove_pen(pe, &pe->pe_FirstFree, pen))
-            {
-                if (pe->pe_NFree > 0)
-                    pe->pe_NFree--;
-                graphics_palette_push_pen(pe, &pe->pe_FirstShared, pen);
-                pe->pe_NShared++;
-                ref_counts[pen] = 1;
-                retval = pen;
-            }
+            ReleaseSemaphore(&pe->pe_Semaphore);
+            return (ULONG)-1;
         }
     }
 
-    if ((retval != (ULONG)-1) && !(f & PENF_NO_SETCOLOR) && !was_shared)
+    if (pe->pe_NFree > 0)
+        pe->pe_NFree--;
+
+    if (!(f & PENF_EXCLUSIVE))
+    {
+        graphics_palette_push_pen(pe, &pe->pe_FirstShared, pen);
+        pe->pe_NShared++;
+    }
+    graphics_palette_ref_counts(pe)[pen]++;
+
+    if (!(f & PENF_NO_SETCOLOR))
     {
         if (pe->pe_ViewPort)
-            _graphics_SetRGB32(GfxBase, pe->pe_ViewPort, retval, r, g, b);
+            _graphics_SetRGB32(GfxBase, pe->pe_ViewPort, pen, r, g, b);
         else
-            graphics_cm_store_rgb32(cm, retval, r, g, b);
+            graphics_cm_store_rgb32(cm, pen, r, g, b);
     }
 
     ReleaseSemaphore(&pe->pe_Semaphore);
-    return retval;
+    return pen;
 }
 
 static ULONG _graphics_GetBitMapAttr ( register struct GfxBase * GfxBase __asm("a6"),
@@ -11010,7 +10966,7 @@ static LONG _graphics_FindColor ( register struct GfxBase * GfxBase __asm("a6"),
 
     if (maxcolor < 0)
     {
-        if (cm->PalExtra && (cm->PalExtra->pe_SharableColors != GRAPHICS_PEN_NONE))
+        if (cm->PalExtra && (cm->PalExtra->pe_SharableColors != 0xFFFF))
             limit = cm->PalExtra->pe_SharableColors;
         else
             limit = (ULONG)cm->Count - 1;
