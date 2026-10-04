@@ -1,0 +1,5 @@
+LayoutMenusA d0 = 0x00000001
+SetMenuStrip d0 = 0x00000001
+ResetMenuStrip d0 = 0x00000001
+ActivateGadget(none) d0 = 0x00000000
+PutDiskObject(fail) d0 = 0x00000000

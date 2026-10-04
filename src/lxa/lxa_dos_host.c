@@ -2691,8 +2691,11 @@ uint32_t _dos_parentdir(uint32_t lock_id)
         /* Path is like "SYS:dir" - parent is "SYS:" */
         colon[1] = '\0';
     } else if (!vfs_path_to_amiga(parent_path, parent_amiga, sizeof(parent_amiga))) {
-        /* "ASSIGN:" itself: name the parent by its host location */
-        strncpy(parent_amiga, lock->amiga_path, sizeof(parent_amiga) - 1);
+        /* "ASSIGN:" itself, on a host directory outside every volume: it
+         * is the root of its own namespace.  Walking on into the host file
+         * system exposed host paths (Fred Fish ARPTools L built a 300-byte
+         * path from them and overwrote its IORequest - Phase 237). */
+        return 0;
     }
     
     /* Create lock for parent */

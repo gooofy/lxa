@@ -150,13 +150,11 @@ Complete (Phases 210–216, v0.11.9); see the summary table.
 
 ### Phase 237 — Fred Fish divergence classes
 **Class**: Compatibility. The Phase 232 mass run (`doc/sweeps/2026-10-03-fish-massrun.md`; reference results for 1338 programs) leaves these lxa-only failures. Work them in order of size; for each, pick a representative, run it on both systems with a relay trace (`python3 -m rdd massrun ...` + `LXA_TRACE`, or a scenario with `trace:`; `python3 -m rdd tracediff`) and fix the root cause; then re-run the class (`python3 -m rdd massrun lxa --ids-file ...`).
-- [x] Fixed so far (v0.11.21-v0.11.24, verified with probes on 3.1): command entry registers (`dos/entryregs`: Lattice 3.03's false stack overflow, the PC = -348 class), dos.library with any a6 (`dos/a6base`), `OpenLibrary()` signed-word version compare (`exec/openlibver`), the bootstrap's `pr_ReturnAddr` and saved a5, the 3.1 default stack (4096) reported to bootstrapped programs, harness calibration (300 frames = 6 s on both, non-interactive stdio like `RUN >file`). Re-run of the 299 former lxa-only crashes with reference results: 147 still crash on lxa only (was 299).
-- [ ] Bus error to a data/garbage address (33; DD, FHSpread, flist, JukeBox; SKsh jumps to "bert" after opening the real arp.library).
-- [ ] Line-F (25; MoonTool .030/.040 need an FPU - see Phase 240 - and libraries/keymaps executed as programs).
-- [ ] CHK (12; BCPL programs: Wangle Stack, DeliTracker c/EndCLI|Echo|Copy - Phase 239), TheWeb modules (-252, 9), privilege violation (8; ILBM_Killer, GadToolsBox), divide by zero (8), PC = -1 (6; EnvTool, ISAM, Csh), line-A (5), NULL base -198 (7; DRAFU, IntuiSup examples) and -30 (5; BootJob, SerLib).
-- [ ] Classify non-programs (libraries, devices, keymaps, modules, fonts executed as commands) separately in `massrun report`: their outcome depends on memory contents and is not a compatibility signal.
-- [ ] AddPower exits on lxa where 3.1 opens its window (no crash any more).
-- [ ] 8 programs time out the emulator wall-clock guard where the reference opens a window; triage the remaining hangs (176 in the original run) with the calibrated harness.
+- [x] Fixed so far (v0.11.21-v0.11.26, each verified with a probe on 3.1): command entry registers (`dos/entryregs`), dos.library with any a6 (`dos/a6base`), `OpenLibrary()` signed-word version compare (`exec/openlibver`), sign-extended returns of OpenDevice/DoIO/WaitIO (`exec/ioreturn`), a1/d1 left by the exec I/O calls (`exec/scratchregs`), the bootstrap's `pr_ReturnAddr` (`dos/returnaddr`), saved a5 and 3.1 default stack, ParentDir() stopping at assign roots; harness: equal run time, non-interactive stdio like `RUN >file`, the reference's "Software Failure" requester counted as a crash (it had been counted as a window), non-programs listed apart. Report `doc/sweeps/2026-10-04-fish-crashlist.md`: of the 299 Phase 232 lxa-only crashes, 58 still crash on lxa only (22 open a window on 3.1, 28 exit, 8 keep running).
+- [ ] Generic bus errors (17): FontEdit and Cycles (Manx, jump to 0 after an unbalanced stack), JbSpool and ColorSaver (detach, return slot overwritten with 0x1b), MicroEmacs, A-Gene, JukeBox, FHSpread, DirWork, VMK, GoWB, PowerVisor scripts.
+- [ ] CHK (11): BCPL programs - Phase 239. Line-F (5): FPU code (MoonTool .030/.040, SManCP, SafeBoot) - Phase 240.
+- [ ] Calls through NULL bases (LVO -540 x4, -1 x3, ...), privilege violation (3).
+- [ ] Re-run the whole mass run (all 9932 programs, both sides) with the calibrated harness and publish the report; triage the hangs and missing windows it lists.
 
 **Test gate**: every class has a fix or a narrower owning phase; the mass-run report shows no lxa-only crash class with >= 5 programs.
 
