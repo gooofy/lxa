@@ -231,6 +231,8 @@ Built-in C: commands with full AmigaDOS template support:
 
 ## Current Status
 
+**Version 0.11.28** - Milestone M2 complete (Phase 222 closed): GELs, copper lists, PaletteExtra, VideoControl, CON: window options, InitResident and library versions now match AmigaOS 3.1; about 60 reference probes and 40 goldens guard the system libraries.
+
 **Version 0.11.27** - BCPL programs run (Phase 239, AROS m68k BCPL support): 1.x C: commands behave as on AmigaOS 3.1. Prefs fidelity (Phase 236): `C:IPrefs` applies `ENV:Sys/*.prefs` (screen mode, fonts, palette, input, locale, overscan, pointer) and lxa's defaults equal 3.1's.
 
 **Version 0.11.26** - Fred Fish compatibility (Phase 237): exec returns sign-extended results and keeps a1/d1 like AmigaOS 3.1 across device I/O, `ParentDir()` stops at assign roots; the mass-run harness now recognises crashes on the reference (Software Failure requester). 241 of the 299 programs that crashed only on lxa now behave as on 3.1 (`doc/sweeps/2026-10-04-fish-crashlist.md`).

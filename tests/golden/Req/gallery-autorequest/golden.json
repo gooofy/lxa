@@ -13,7 +13,7 @@
      "field": "flags",
      "kind": "window",
      "lxa": 208966,
-     "phase": 222,
+     "phase": 256,
      "ref": 134426694,
      "where": "screen[Workbench Screen]/window[System Request]"
     },
@@ -59,7 +59,7 @@
     }
    ],
    "pixel_budget": 378,
-   "pixel_phase": 222,
+   "pixel_phase": 256,
    "stdout_known_diff": null
   }
  }

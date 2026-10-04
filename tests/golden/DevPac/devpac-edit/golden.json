@@ -15,7 +15,7 @@
      "lxa": [
       ""
      ],
-     "phase": 222,
+     "phase": 256,
      "ref": [
       "",
       ""
@@ -24,19 +24,19 @@
     }
    ],
    "pixel_budget": 2524,
-   "pixel_phase": 222,
+   "pixel_phase": 256,
    "stdout_known_diff": null
   },
   "startup": {
    "known_tree_diffs": [],
    "pixel_budget": 524,
-   "pixel_phase": 222,
+   "pixel_phase": 256,
    "stdout_known_diff": null
   },
   "typed": {
    "known_tree_diffs": [],
    "pixel_budget": 524,
-   "pixel_phase": 222,
+   "pixel_phase": 256,
    "stdout_known_diff": null
   }
  }

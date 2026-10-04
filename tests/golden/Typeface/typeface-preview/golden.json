@@ -10,13 +10,13 @@
   "preview": {
    "known_tree_diffs": [],
    "pixel_budget": 816,
-   "pixel_phase": 222,
+   "pixel_phase": 256,
    "stdout_known_diff": null
   },
   "startup": {
    "known_tree_diffs": [],
    "pixel_budget": 272,
-   "pixel_phase": 222,
+   "pixel_phase": 256,
    "stdout_known_diff": null
   }
  }

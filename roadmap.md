@@ -115,7 +115,7 @@ M0 and M1 are on the critical path: nothing in M2 and later is efficient without
 
 ## Next Phase
 
-> **Phase 222** (222b remainder, 222g), then M3: **237** (in progress), **238** (running), 234.
+> M3: **237**, **238** and **234** (agents running).
 
 ---
 
@@ -132,19 +132,6 @@ Complete (Phases 210–216, v0.11.9); see the summary table.
 ---
 
 ## M2 — Ground-Truth the Existing Suite
-
-### Phase 222 — API conformance probes ("WINE tests")
-**Class**: Compatibility. Small generated probe programs call each function with normal and edge-case inputs and print the results. The reference output is the golden. Sub-phases are prioritised by stub telemetry and app traces:
-- [x] **222a** done (v0.11.25): probes `dos/{readargs,cmdline,bufblock,...}`, `exec/romversions`, `utility/*`, shell parity scripts equal the reference (ReadArgs over ~180 cases, command line through `Input()`'s buffer, 196-byte dos buffering, CacheControl, 3.1 library revisions, RemNamedObject in use).
-- [x] **222b/c** done (v0.11.18): probes `graphics/{lines,areas,blits,text}`, `layers/{cliprects,refresh}` equal the reference.
-- [x] **222d/e/f** done (v0.11.22): probes `intuition/{windows,screens,requesters,reqlayout,strgad}`, `gadtools/{gadgets_topaz8,menus}`, `locale/*`, `keymap/*`, `iffparse/*`, `icon/*`, `diskfont/*`, `clipboard` equal the reference; RequesterBasic, IDCMPDeltaMove and keymap_unit validated on 3.1 by scenario.
-- [ ] **222b** remainder: `tests/exec/library_lxa` sections that still differ from 3.1 (GEL animation `AddAnimOb`/`RemIBob`, `CMove`, `CalcIVG` beyond 40 copper instructions, sprite allocation, `VTAG_IMMEDIATE` and unset `VTAG_*_GET` values); PaletteExtra keeps 16-bit refcount/allocation arrays where 3.1 has 8-bit ones; `IEEESPMul`/`IEEESPDiv` never return on the reference (check FS-UAE's FPU emulation before trusting it: `Tests/Exec/MathIeeeSingBasMulDiv` is lxa_only until then). Not emulated yet: the accumulator values `BitMapScale` writes back, `WritePixelArray8` destroying its input, exact ClipRect order (only the covered areas are compared).
-- [ ] **222g** known tree diffs still recorded in goldens under phase 222: `WFLG_WINDOWTICKED` on windows with a pending tick (DevPac, Typeface), menu/item drawn-state flags (DevPac settings, Typeface preview), `GA_RelWidth`/`GA_RelHeight` flags (setting them stops BGUI drawing Typeface's character buttons - find out why first). Requester buttons are BOOPSI gadgets plus a frame gadget on 3.1 (see 252). Unverified on the reference: GadTools vertical prop drag, scroller-arrow repeat.
-- [ ] **222g** from 222a: CON: windows on 3.1 have no close gadget, simple refresh and a minimum height of 50 (conbuf golden); iffparse (39.2) and commodities (39.1) report lower versions than 3.1 (40.1/40.2) - an application asking for version 40 fails; `exec/tasks` prints "subtask has not run yet" timing-dependently on the reference (make the probe deterministic); unverified: whether `CreateNewProc()` with an empty `NP_Arguments` or `SYS_Asynch` injects an argument line.
-- [ ] **222g** from the 222f probes: `CMD_RESET` on clipboard.device never replies on 3.1; `OpenLocale()` does not parse locale prefs files yet (also 236); a diskfont scaled from an already scaled font in memory; the iffparse probes print non-printable bytes as `~` because the lxa side of `suite-ref` cuts output at the first NUL (make the harness binary-safe).
-**Test gate per sub-phase**: probe outputs equal the reference goldens.
-
----
 
 ## M3 — Breadth: Corpus, Compat DB, Sweeps
 
@@ -166,6 +153,7 @@ Complete (Phases 210–216, v0.11.9); see the summary table.
 - [ ] Give the lxa backend a `SYS:` laid out like the reference's system root (pylxa's `SYS:` is the samples directory first): the dopus-startup golden's right pane lists different directories (ignore region, Phase 224).
 - [ ] Re-run `python3 -m rdd sweep run` after each fix; the rating in `apps/compat.yaml` must not drop (`rdd loop`).
 
+- [ ] (from Phase 222) lxaprobe's `MENU` command cannot reach sub-items on 3.1 (the menus golden uses coordinates).
 **Test gate**: no corpus app rated `garbage` or `untested` for a reason inside lxa or the scenarios.
 
 ### Phase 234 — Legacy app items, re-validated
@@ -242,11 +230,14 @@ The order below is provisional. After Phase 231/232 it is re-sorted by how often
 - [ ] dos: `FindSegment`, `AbortPkt`, the remaining `AllocDosObject` types, and a real `LockDosList`.
 - [ ] bullet.library (outline fonts) as a separately scoped sub-phase.
 
+- [ ] (from Phase 222) CON:/RAW: options AUTO, WAIT and SCREEN are ignored (`LXA_UNIMPLEMENTED`).
 ### Phase 256 — intuition / graphics / gadtools remaining stubs
 - [ ] `DisplayBeep` (screen flash plus optional host bell), `MoveScreen`/`ScreenPosition`, `ModifyProp` refresh, `RethinkDisplay`, `GT_FilterIMsg`/`GT_PostFilterIMsg`, `LoadView`, `RPTAG_DrawBounds`, layers SuperBitMap sync.
 - [ ] Whatever else is in the stub inventory (Phase 203) for these libraries.
 - [ ] Gate: the stub inventory for intuition, graphics, gadtools and layers is empty.
 
+- [ ] (from Phase 222) residual divergences recorded in goldens and sweep clusters (`doc/sweeps/owners.yaml`): SimpleGad window title, DevPac Settings gadget texts, AutoRequest `WFLG_VISITOR`, Typeface's BGUI scroller knob, DirectoryOpus pixels; re-promote as they are fixed.
+- [ ] (from Phase 222) `BitMapScale()` leaves its own DDA values in `bsa_XDDA`/`bsa_YDDA` on 3.1 (X 1:2 -> -3, 3:5 -> -5, 300:301 -> -342; Y 3:1 -> -5, 7:4 -> -8); another window moving off a GimmeZeroZero window's border redraws all its gadgets on 3.1, not on lxa.
 ### Phase 257 — Locale catalogs & non-English apps
 - [ ] Real `OpenCatalog` with `LOCALE:` catalogs and language prefs, verified with German-language apps (MaxonBASIC, FinalWriter_D) on a reference with a German locale.
 
@@ -294,6 +285,7 @@ The order below is provisional. After Phase 231/232 it is re-sorted by how often
 - [ ] Decide one rule for post-3.1 (V44-V47) extensions lxa already has: Phase 220 removed input.device `IND_ADDEVENT` (V47) to match 3.1, but kept console scrollback, icon/workbench V44, layers V45 and diskfont V45 calls as `lxa_only` tests. Either all stay (gated by version) or all go.
 - [ ] Per-version reference profiles. Decide which V44+/V47 functions lxa exposes; the gadtools V47 stubs are an early instance.
 
+- [ ] (from Phase 222) diskfont, locale, icon and workbench report V44-V47 where 3.1 has V40; 3.1 ships older mathtrans/mathieeedoub*/rexxsyslib (V36-V38): decide per API level.
 ### Phase 274 — Performance (was legacy 163)
 - [ ] With deterministic time, wall time becomes measurable per scenario. Profile host overhead with `--profile` and set budgets per scenario.
 - [ ] **Emulated-cycle cost of ROM rendering** (found in Phase 201; every ROM cycle is now emulated time): an open menu re-renders all items on every VBlank (~80–500 K cycles per item); `RectFill`/`SetPixelDirect` and `Text()` still work pixel by pixel (~37 K cycles per character including menu overhead). Make rendering row/word based and repaint only the changed highlight. Measure with `lxa_get_idle_cycles()` and PC sampling (`tools/rom_symbolize.py`).
@@ -351,6 +343,7 @@ The order below is provisional. After Phase 231/232 it is re-sorted by how often
 | 216 | RDD skills & loop: skills `rdd-reference`, `compat-sweep` (parallel per-app triage in worktrees, coordinator clustering); `python3 -m rdd cluster` (mechanical tree-diff clusters with bit-level flag signatures and folded geometry + reviewed findings; owners from golden ratchets, findings and roadmap text; phase stubs for unowned clusters in ≥ 2 scenarios); `python3 -m rdd loop` (run → report → goldens → cluster → sweep report, non-zero on golden regression or unowned cluster). First loop: `doc/sweeps/2026-10-02-loop.md`, 6 scenarios, 6/6 goldens pass, 0 unowned multi-app clusters (no stubs). Compat-DB refresh moved to Phase 230. | v0.11.9 |
 | 220 | All m68k test programs run on real AmigaOS 3.1 (`python3 -m rdd suite-ref`: batched reference runs with `WAIT_EXIT`, `SYS:Tests` overlay, crash/hang detection, per-binary cache): 236 programs → 197 identical on both, 26 `lxa_only` and 13 `interactive` (owned by Phase 224) in `tests/ref_suite.yaml`; 196 `expected.ref.out` captured from the reference and checked by CTest `ref_expected_outputs_*`. Six parallel triage agents fixed the tests that encoded lxa guesses and the lxa behaviour they hid (dos: error codes, locks, Seek/Close, ParsePattern, ReadArgs, IoErr rules, Execute/C:Execute, AddSegment; exec: signals, RawDoFmt, vblank servers, CIA, trap convention + held tasks; graphics: InitBitMap/RastPort flags, draw modes, regions, sprites/GELs, display database; intuition/gadtools/BOOPSI/icon/iffparse/datatypes; devices: timer, clipboard, gameport, ramdrive, parallel/printer, console CSI/SGR, layers scrolling/damage). | v0.11.13 |
 | 221 | C: commands & Shell parity: 11 shell scripts (`tests/shell_parity/`, runner `SYS:Tests/ShellParity/Run`) produce output identical to WB 3.1's commands (`.ref.out` from the reference, checked by `ref_expected_outputs`). Shell rewritten after the 3.1 shell (commands run in-process via `RunCommand`, vars/backticks/aliases/redirection, internal commands, If/Skip/Lab/FailAt); dos `ReadArgs` rewrite, in-process `RunCommand`/`System`, `MatchFirst` recursion, date strings, 3.1 fault texts, `NameFromLock` volume names, protection bits in xattrs; List/Dir/Type/Copy/Delete/Rename/Protect/Filenote/MakeDir/Join/Search/Sort/Eval/Wait/Date/Version/Status/Avail/Info/Assign/Execute rewritten to 3.1 output; new Which, SetDate, AddBuffers, CPU, DiskChange, IconX, LoadResource, Lock, Relabel, RequestFile, SetFont, SetKeyboard, SetPatch, version.library 40.42. Decision table `doc/c-commands.md` (Ed/Edit/hardware tools out of scope; ConClip/AddDataTypes/Mount/IPrefs/LoadWB owned by Phases 261/253/255/236/264). | v0.11.14 |
+| 222 | API conformance probes ("WINE tests"): ~60 reference probes over exec, dos, utility, graphics, layers, intuition, gadtools, locale, keymap, iffparse, icon, diskfont, clipboard (ReadArgs, dos buffering, GELs/copper, PaletteExtra, VideoControl, Text/areas/blits/flood, ClipRects/damage/backfill, window/screen/requester geometry, every GadTools kind, CON: options, InitResident, library versions), interactive programs validated by scenario; `rdd suite-ref` binary-safe. Leftovers owned by 238/255/256/273. | v0.11.28 |
 | 223 | Rendering conformance gallery: starter cluster fixed (Workbench `WBorTop` 2, pen 3 = 102,136,187, FILLPEN title bars with full borders, display ID = requested mode, MenuH/VBorder 4/2, system gadget types/order/geometry/imagery incl. drag gadget, menu drop-down position and rendering, EasyRequest layout, sysiclass/frameiclass/DrawBevelBox imagery, GadTools 3.1 geometry/imagery per kind, NewScreen/NewWindow extension tags, public-screen and visitor rules, default window placement); 7 gallery samples (`tests/gallery/`), 15 gallery goldens, `python3 -m rdd gallery`; existing goldens re-promoted (DirectoryOpus 64157→25245 px with an owned ignore region, SimpleGad 10843→1057). Remaining text-only diffs owned by Phase 225, internals by 222d/e, old-look images by 252. | v0.11.15 |
 | 224 | Legacy app tests reference-validated: goldens for DPaint (startup after its 4 s ownership splash, Screen Format), Devpac (startup, typing, Settings), DOpus, Typeface (main + Preview); five pixel-count heuristic tests retired; interactive test programs replayed on AmigaOS 3.1 through lxaprobe input (console key/raw-event input incl. new `idcmp_console`, IDCMP Menu/SizeVerify) - findings fixed: `pr_SegList` segment array (DOpus detach), console.device no longer takes over the window's IDCMP; remaining findings moved to 222d/222e/222f/238/240. Suite: 121 tests, 24 s wall at -j16. | v0.11.20 |
 | 225 | ROM font fidelity: topaz 8 (all 224 glyphs, strip layout, TextFont fields) and a new ROM topaz 9 generated from a reference dump (`tests/probes/graphics/romfont.c` → `tools/gen_romfont.py` → `src/rom/romfont_data.h`, ctest `romfont_data_check`, `doc/rom-fonts.md`); OpenFont nearest-size rules; soft styles and Workbench disk fonts identical (`diskfont/wbfonts`); layout offsets the old glyphs hid fixed (window titles, GadTools labels, menu shortcut and ghost pattern). 15 goldens now at 0 diffs; remaining owners moved to 222/252. | v0.11.24 |

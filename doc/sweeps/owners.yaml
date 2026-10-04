@@ -4,12 +4,12 @@
 # `golden_lint`-style rule: every phase named here must exist in roadmap.md.
 # Keep entries specific - a cluster that no rule matches is reported as
 # unowned and gets a phase stub.
-- {match: '^screen\.(display_id|wbor|menu_hborder|menu_vborder|bar_)', phase: 222, why: "222d: screen chrome / Workbench geometry (cluster fixed in Phase 223; residue)"}
-- {match: '^screen\.flags', phase: 222, why: "222d: Workbench screen flags"}
+- {match: '^screen\.(display_id|wbor|menu_hborder|menu_vborder|bar_)', phase: 256, why: "(was 222d) screen chrome / Workbench geometry (cluster fixed in Phase 223; residue)"}
+- {match: '^screen\.flags', phase: 256, why: "(was 222d) Workbench screen flags"}
 - {match: '^palette pen', phase: 240, why: "Workbench palette and prefs fixed in Phases 223/236; remaining: apps' AGA 24-bit palettes (LoadRGB32/SetRGB32)"}
-- {match: '^sysgadget ', phase: 222, why: "222d: system gadget set (fixed in Phase 223; residue)"}
-- {match: '^window\.(border|count|flags|min_|max_|title)', phase: 222, why: "222d: OpenWindowTags defaults and border geometry"}
-- {match: '^(menu|item)[ .]', phase: 222, why: "222e/222d: menu and item layout (LayoutMenusA, SetMenuStrip)"}
-- {match: '^gadget[ .]', phase: 222, why: "222e: GadTools gadget creation and geometry"}
+- {match: '^sysgadget ', phase: 256, why: "(was 222d) system gadget set (fixed in Phase 223; residue)"}
+- {match: '^window\.(border|count|flags|min_|max_|title)', phase: 256, why: "(was 222d) OpenWindowTags defaults and border geometry"}
+- {match: '^(menu|item)[ .]', phase: 256, why: "(was 222e/222d) menu and item layout (LayoutMenusA, SetMenuStrip)"}
+- {match: '^gadget[ .]', phase: 256, why: "(was 222e) GadTools gadget creation and geometry"}
 - {match: 'Text\(\) strings missing in lxa', phase: 238, why: "per-app missing content, triaged per app"}
 - {match: 'stdout differs', phase: 238, why: "per-app output, triaged per app"}
