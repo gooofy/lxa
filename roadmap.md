@@ -115,7 +115,7 @@ M0 and M1 are on the critical path: nothing in M2 and later is efficient without
 
 ## Next Phase
 
-> **Phase 222** (222b remainder, 222g), then M3: **237** (in progress), **238** and **236** (running), 234.
+> **Phase 222** (222b remainder, 222g), then M3: **237** (in progress), **238** (running), 234.
 
 ---
 
@@ -152,7 +152,7 @@ Complete (Phases 210–216, v0.11.9); see the summary table.
 **Class**: Compatibility. The Phase 232 mass run (`doc/sweeps/2026-10-03-fish-massrun.md`; reference results for 1338 programs) leaves these lxa-only failures. Work them in order of size; for each, pick a representative, run it on both systems with a relay trace (`python3 -m rdd massrun ...` + `LXA_TRACE`, or a scenario with `trace:`; `python3 -m rdd tracediff`) and fix the root cause; then re-run the class (`python3 -m rdd massrun lxa --ids-file ...`).
 - [x] Fixed so far (v0.11.21-v0.11.26, each verified with a probe on 3.1): command entry registers (`dos/entryregs`), dos.library with any a6 (`dos/a6base`), `OpenLibrary()` signed-word version compare (`exec/openlibver`), sign-extended returns of OpenDevice/DoIO/WaitIO (`exec/ioreturn`), a1/d1 left by the exec I/O calls (`exec/scratchregs`), the bootstrap's `pr_ReturnAddr` (`dos/returnaddr`), saved a5 and 3.1 default stack, ParentDir() stopping at assign roots; harness: equal run time, non-interactive stdio like `RUN >file`, the reference's "Software Failure" requester counted as a crash (it had been counted as a window), non-programs listed apart. Report `doc/sweeps/2026-10-04-fish-crashlist.md`: of the 299 Phase 232 lxa-only crashes, 58 still crash on lxa only (22 open a window on 3.1, 28 exit, 8 keep running).
 - [ ] Generic bus errors (17): FontEdit and Cycles (Manx, jump to 0 after an unbalanced stack), JbSpool and ColorSaver (detach, return slot overwritten with 0x1b), MicroEmacs, A-Gene, JukeBox, FHSpread, DirWork, VMK, GoWB, PowerVisor scripts.
-- [ ] CHK (11): BCPL programs - Phase 239. Line-F (5): FPU code (MoonTool .030/.040, SManCP, SafeBoot) - Phase 240.
+- [x] CHK (11): BCPL programs - fixed by Phase 239. Line-F (5): FPU code (MoonTool .030/.040, SManCP, SafeBoot) - owned by Phase 240.
 - [ ] Calls through NULL bases (LVO -540 x4, -1 x3, ...), privilege violation (3).
 - [ ] Re-run the whole mass run (all 9932 programs, both sides) with the calibrated harness and publish the report; triage the hangs and missing windows it lists.
 
@@ -168,13 +168,6 @@ Complete (Phases 210–216, v0.11.9); see the summary table.
 
 **Test gate**: no corpus app rated `garbage` or `untested` for a reason inside lxa or the scenarios.
 
-### Phase 239 — BCPL programs
-**Class**: Compatibility. AmigaOS 3.1 still runs BCPL programs (1.x C: commands such as the copies in DeliTracker's `c/`, Wangle `Stack`): they start with `movea.l n(a2),a4; moveq #k,d0; jsr (a5)` - a2 the BCPL global vector, a5/a6 the BCPL call/return routines. lxa provides none of them, so these programs take a CHK exception at once (11 programs of the Phase 237 crash list; `Stack` prints "current stack size is 32768 bytes" on 3.1).
-- [ ] Port the m68k BCPL support from AROS (global vector with the dos entries BCPL code calls, BCPL call/return/stack-frame routines, BSTR/BPTR argument conventions; keep the licence header, record it in the third-party code notes) and set a2/a5/a6 at command entry for BCPL segments (verify with `tests/probes/dos/entryregs.c` which registers 3.1 sets).
-- [ ] Probe on the reference: run a 1.3 BCPL command (from the Fish disks) through RunCommand and System(), compare output and return code.
-
-**Test gate**: the BCPL programs of the Phase 237 crash list exit like on 3.1 (`python3 -m rdd massrun lxa --ids-file`), and a probe or shell parity script runs one BCPL command.
-
 ### Phase 234 — Legacy app items, re-validated
 **Class**: Compatibility. Carried over from the legacy roadmap; each one must now end with a reference golden.
 - [ ] BlitzBasic 2 ted editor shows no text (legacy 160). Start with a tracediff and a reference capture, not with hypotheses.
@@ -183,14 +176,6 @@ Complete (Phases 210–216, v0.11.9); see the summary table.
 - [ ] SysInfo gadgets: re-enable `SysInfoTest.DISABLED_{Memory,Boards,Libraries,Speed}Gadget…` (`sysinfo_gtest.cpp`). Phase 201 showed they only passed while the slow wall-clock startup paint was still running; after full startup a click on MEMORY/BOARDS/LIBRARIES/SPEED repaints nothing. Start with a reference capture of the same clicks.
 
 **Test gate**: each item has a passing golden scenario.
-
-### Phase 236 — Prefs fidelity
-**Class**: Compatibility.
-- [ ] C:IPrefs (deferred from Phase 221) - the prefs reader below is its core.
-- [ ] Read the `ENV:Sys/*.prefs` files the way IPrefs does: screenmode, font, palette, wbpattern, input, pointer, overscan, locale.
-- [ ] lxa's defaults equal the reference defaults. Verify with goldens taken under non-default prefs, such as a different font or palette.
-
-**Test gate**: goldens under two prefs configurations pass.
 
 ---
 
@@ -374,3 +359,5 @@ The order below is provisional. After Phase 231/232 it is re-sorted by how often
 | 232 | Fred Fish mass run: `python3 -m rdd massrun crawl|lxa|ref|report` (9932 executables from 993 disks; lxa side in a private system copy; reference batched per instance with crash/hang detection). Emulator-level failures (host segfaults, Musashi `exit()`, wall-clock stalls) driven to zero: 32-bit address wrap in RAM/ROM fast paths, copper self-jump recursion, FPU/PMMU fatal errors, Read/Write buffer clamping, `WaitForChar` real-time select, runaway PCs (now a bus error), AmigaOS trap convention with held tasks / Guru for faulting interrupt code, sane stack for held tasks, bounded fault logging, console handles never close host fds; `Open("*")` and the CLI stack-size entry convention fixed. Report `doc/sweeps/2026-10-03-fish-massrun.md`; remaining lxa-only crash classes owned by Phase 237. | v0.11.16 |
 | 233 | Relay-trace differential: `src/lxa/lxa_relay.c` traces calls through library jump tables (`LXA_TRACE`, `lxa_trace_start`, return detection by return address + SP, library list refreshed after `OpenLibrary`, ROM-internal calls skipped, `LXA_TRACE_INJECT` fault injection); scenario step `trace:`; reference side via lxaprobe `TRACE`; `python3 -m rdd tracediff` (NDK .fd names, clib-prototype typing, top-level calls only, first divergence in order or return value). Gate: an injected `Seek` return bug is located (`tests/rdd/test_tracediff.py`). Found and fixed: `Close()` returned 1 instead of DOSTRUE, `Seek()` returned the new position and allowed seeking past EOF; `ExecBase->ChkBase` was never set. | v0.11.10 |
 | 235 | Library override mode: `LXA_OVERRIDE=asl,iffparse` (+ `LXA_OVERRIDE_DIR`, default the reference system's `Libs/`) keeps the built-in library private to the ROM and maps `LIBS:<name>` to the user's AmigaOS 3.1 binary (`src/lxa/lxa_override.c`, `EMU_CALL_LIB_OVERRIDDEN`); only 3.1 disk libraries accepted; `tests/exec/libident`; gate `tests/rdd/test_override.py` (Tests/IffParse/Basic runs on the real iffparse 40.1). Debug-only workflow: AGENTS §6.26. | v0.11.12 |
+| 236 | Prefs fidelity: `C:IPrefs` (input, locale, overscan, font, palette, pointer, icontrol, screenmode from `ENV:Sys/*.prefs`, run at boot), `OpenLocale()` reads locale prefs, 3.1 defaults (ColorMap, overscan, Preferences, Workbench/pointer colours), fonts/palette/pens applied as on 3.1; goldens `Prefs/gallery-prefs-{default,fontpal,sys}` (scenario keys `prefs:`, `keymaps: wb31`). Open: wbpattern and icon font (264), live prefs changes, pointer image drawing. | v0.11.27 |
+| 239 | BCPL programs: AROS m68k BCPL support ported (`src/rom/bcpl/`, `doc/third-party-code.md`); every command gets a2 = global vector, a5/a6 = BCPL call/return, a1 = BCPL stack (as 3.1, verified with `dos/entryregs`); ROM console segment for 1.3 Run/NewCLI; probe `dos/bcpl`. All six BCPL programs of the Fish corpus exit like on 3.1. Remaining BCPL stubs (coroutines, longjump, requesters) are in the stub inventory. | v0.11.27 |
