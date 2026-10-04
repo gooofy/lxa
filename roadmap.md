@@ -133,6 +133,10 @@ Complete (Phases 210–216, v0.11.9); see the summary table.
 
 ## M2 — Ground-Truth the Existing Suite
 
+Complete (Phases 220–225, v0.11.28); see the summary table.
+
+---
+
 ## M3 — Breadth: Corpus, Compat DB, Sweeps
 
 ### Phase 237 — Fred Fish divergence classes
