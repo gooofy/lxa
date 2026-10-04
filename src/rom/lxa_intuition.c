@@ -1658,13 +1658,10 @@ static ULONG _gadgetclass_set_attrs(Object *obj, struct Gadget *gadget, struct T
             case GA_Top:       gadget->TopEdge = (WORD)tag->ti_Data; gadget->Flags &= ~GFLG_RELBOTTOM; break;
             case GA_RelBottom: gadget->TopEdge = (WORD)tag->ti_Data; gadget->Flags |= GFLG_RELBOTTOM; break;
             case GA_Width:     gadget->Width = (WORD)tag->ti_Data; gadget->Flags &= ~GFLG_RELWIDTH; break;
-            /* GA_RelWidth/GA_RelHeight: AmigaOS 3.1 also sets GFLG_RELWIDTH/
-             * RELHEIGHT (typeface-preview golden); lxa does not yet, because
-             * BGUI's group class then stops drawing its members here (its
-             * relative layout needs Intuition's GM_LAYOUT protocol in full) */
-            case GA_RelWidth:  gadget->Width = (WORD)tag->ti_Data; break;
+            case GA_RelWidth:  gadget->Width = (WORD)tag->ti_Data; gadget->Flags |= GFLG_RELWIDTH; break;
             case GA_Height:    gadget->Height = (WORD)tag->ti_Data; gadget->Flags &= ~GFLG_RELHEIGHT; break;
-            case GA_RelHeight: gadget->Height = (WORD)tag->ti_Data; break;
+            case GA_RelHeight: gadget->Height = (WORD)tag->ti_Data; gadget->Flags |= GFLG_RELHEIGHT; break;
+            case GA_RelSpecial: GC_FLAG(Flags, GFLG_RELSPECIAL); break;
             case GA_ID:        gadget->GadgetID = (UWORD)tag->ti_Data; break;
             case GA_UserData:  gadget->UserData = (APTR)tag->ti_Data; break;
             case GA_SpecialInfo: gadget->SpecialInfo = (APTR)tag->ti_Data; break;
@@ -5920,6 +5917,30 @@ static VOID _init_string_gadget_info(struct Gadget *gadget)
 }
 
 /*
+ * gi_Domain of the GadgetInfo Intuition passes to BOOPSI gadgets (AmigaOS
+ * 3.1, tests/probes/intuition/gadinfo): the whole window, or the inner
+ * area of a GIMMEZEROZERO window - for every method (GM_LAYOUT, GM_RENDER,
+ * SetGadgetAttrsA's OM_SET, DoGadgetMethodA).
+ */
+static VOID _intuition_gadget_domain(struct Window *window, struct IBox *domain)
+{
+    if (window->Flags & WFLG_GIMMEZEROZERO)
+    {
+        domain->Left = window->BorderLeft;
+        domain->Top = window->BorderTop;
+        domain->Width = window->Width - window->BorderLeft - window->BorderRight;
+        domain->Height = window->Height - window->BorderTop - window->BorderBottom;
+    }
+    else
+    {
+        domain->Left = 0;
+        domain->Top = 0;
+        domain->Width = window->Width;
+        domain->Height = window->Height;
+    }
+}
+
+/*
  * GM_LAYOUT for BOOPSI gadgets whose size depends on the window
  * (GFLG_REL*): sent when the gadget joins a window and after every size
  * change (gpl_Initial FALSE), as Intuition V39 does.
@@ -5944,18 +5965,7 @@ static VOID _layout_custom_gadget(struct Window *window, struct Requester *req, 
     gi.gi_Requester = req;
     gi.gi_RastPort = window->RPort;
     gi.gi_Layer = window->WLayer;
-    if (window->Flags & WFLG_GIMMEZEROZERO)
-    {
-        gi.gi_Domain.Left = window->BorderLeft;
-        gi.gi_Domain.Top = window->BorderTop;
-        gi.gi_Domain.Width = window->Width - window->BorderLeft - window->BorderRight;
-        gi.gi_Domain.Height = window->Height - window->BorderTop - window->BorderBottom;
-    }
-    else
-    {
-        gi.gi_Domain.Width = window->Width;
-        gi.gi_Domain.Height = window->Height;
-    }
+    _intuition_gadget_domain(window, &gi.gi_Domain);
     gi.gi_DrInfo = _intuition_GetScreenDrawInfo(IntuitionBase, window->WScreen);
     gpl.MethodID = GM_LAYOUT;
     gpl.gpl_GInfo = &gi;
@@ -10272,6 +10282,25 @@ struct Window * _intuition_OpenWindow ( register struct IntuitionBase * Intuitio
     /* Create system gadgets based on window flags (in front of the list) */
     _create_window_sys_gadgets(window);
 
+    /* Clear the window interior to pen 0 before rendering gadgets/chrome.
+     * Real AmigaOS Intuition always clears a new window's background — this
+     * prevents ghost pixels from previously-rendered content at the same
+     * screen coordinates from showing through (Phase 150 backfill fix).
+     * We use RectFill on the full window area (including borders) at pen 0
+     * so even the border region starts clean; _render_window_frame will
+     * overdraw it correctly afterwards.  It comes before GM_LAYOUT: a
+     * BOOPSI gadget may draw while it lays itself out (BGUI's groups do). */
+    if (window->RPort)
+    {
+        UBYTE save_fg = window->RPort->FgPen;
+
+        SetAPen(window->RPort, 0);
+        RectFill(window->RPort, window->LeftEdge, window->TopEdge,
+                 window->LeftEdge + window->Width - 1,
+                 window->TopEdge  + window->Height - 1);
+        SetAPen(window->RPort, save_fg);
+    }
+
     /* Initialize string gadget NumChars for user gadgets (per RKRM, Intuition does this) */
     {
         struct Gadget *gad = window->FirstGadget;
@@ -10284,24 +10313,6 @@ struct Window * _intuition_OpenWindow ( register struct IntuitionBase * Intuitio
         }
     }
     
-    /* Clear the window interior to pen 0 before rendering gadgets/chrome.
-     * Real AmigaOS Intuition always clears a new window's background — this
-     * prevents ghost pixels from previously-rendered content at the same
-     * screen coordinates from showing through (Phase 150 backfill fix).
-     * We use RectFill on the full window area (including borders) at pen 0
-     * so even the border region starts clean; _render_window_frame will
-     * overdraw it correctly afterwards. */
-    if (window->RPort)
-    {
-        UBYTE save_fg = window->RPort->FgPen;
-
-        SetAPen(window->RPort, 0);
-        RectFill(window->RPort, window->LeftEdge, window->TopEdge,
-                 window->LeftEdge + window->Width - 1,
-                 window->TopEdge  + window->Height - 1);
-        SetAPen(window->RPort, save_fg);
-    }
-
     /* Render initial visuals.
      * Windows that use a native host SDL window let the host render the
      * outer frame; we still draw user gadgets into the backing bitmap.
@@ -10922,6 +10933,15 @@ VOID _intuition_SizeWindow ( register struct IntuitionBase * IntuitionBase __asm
         {
             emucall3(EMU_CALL_INT_SIZE_WINDOW, window_handle, (ULONG)new_w, (ULONG)new_h);
         }
+    }
+
+    /* GM_LAYOUT (gpl_Initial FALSE) to the window's GREL_ gadgets before
+     * the window is redrawn (AmigaOS 3.1, tests/probes/intuition/gadinfo) */
+    {
+        struct Gadget *gad;
+
+        for (gad = window->FirstGadget; gad; gad = gad->NextGadget)
+            _layout_custom_gadget(window, NULL, gad, FALSE);
     }
 
     _clear_relative_gadget_trails(window, dx, dy);
@@ -11991,20 +12011,7 @@ static void _render_gadget(struct Window *window, struct Requester *req, struct 
              * Using the inner dimensions for non-GZZ windows causes BGUI to
              * double-subtract the border widths when resolving GA_RelWidth /
              * GA_RelHeight on the master group gadget, resulting in collapsed layout. */
-            if (window->Flags & WFLG_GIMMEZEROZERO)
-            {
-                gi.gi_Domain.Left   = window->BorderLeft;
-                gi.gi_Domain.Top    = window->BorderTop;
-                gi.gi_Domain.Width  = window->Width  - window->BorderLeft - window->BorderRight;
-                gi.gi_Domain.Height = window->Height - window->BorderTop  - window->BorderBottom;
-            }
-            else
-            {
-                gi.gi_Domain.Left   = 0;
-                gi.gi_Domain.Top    = 0;
-                gi.gi_Domain.Width  = window->Width;
-                gi.gi_Domain.Height = window->Height;
-            }
+            _intuition_gadget_domain(window, &gi.gi_Domain);
             gi.gi_DrInfo = _intuition_GetScreenDrawInfo((struct IntuitionBase *)NULL, window->WScreen);
 
             struct gpRender gpr;
@@ -15439,10 +15446,8 @@ ULONG _intuition_SetGadgetAttrsA ( register struct IntuitionBase * IntuitionBase
         gi.gi_Window = window;
         gi.gi_Requester = requester;
         gi.gi_RastPort = window->RPort;
-        gi.gi_Domain.Left = window->BorderLeft;
-        gi.gi_Domain.Top = window->BorderTop;
-        gi.gi_Domain.Width = window->Width - window->BorderLeft - window->BorderRight;
-        gi.gi_Domain.Height = window->Height - window->BorderTop - window->BorderBottom;
+        gi.gi_Layer = window->WLayer;
+        _intuition_gadget_domain(window, &gi.gi_Domain);
         gi.gi_DrInfo = _intuition_GetScreenDrawInfo(IntuitionBase, window->WScreen);
     }
     
@@ -16025,10 +16030,7 @@ ULONG _intuition_DoGadgetMethodA ( register struct IntuitionBase * IntuitionBase
             gi.gi_Requester = req;
             gi.gi_RastPort = win->RPort;
             gi.gi_Layer = win->WLayer;
-            gi.gi_Domain.Left = win->BorderLeft;
-            gi.gi_Domain.Top = win->BorderTop;
-            gi.gi_Domain.Width = win->Width - win->BorderLeft - win->BorderRight;
-            gi.gi_Domain.Height = win->Height - win->BorderTop - win->BorderBottom;
+            _intuition_gadget_domain(win, &gi.gi_Domain);
             gi.gi_DrInfo = _intuition_GetScreenDrawInfo(IntuitionBase, win->WScreen);
         }
 
