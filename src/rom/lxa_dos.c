@@ -3622,6 +3622,12 @@ static CONST_STRPTR lxa_dos_shell_path(struct DosLibrary *DOSBase)
     return NULL;
 }
 
+/* the shell binary, for the BCPL console segment (bcpl/bcpl_support.c) */
+CONST_STRPTR lxa_dos_shell_name(void)
+{
+    return lxa_dos_shell_path(DOSBase);
+}
+
 LONG _dos_Execute ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                     register CONST_STRPTR ___string  __asm("d1"),
                                     register BPTR ___file  __asm("d2"),

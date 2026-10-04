@@ -16,7 +16,7 @@ implementing the function, never by deleting the macro.
 | commodities | 26 | 0 | 4 |
 | console | 1 | 0 | 0 |
 | datatypes | 5 | 0 | 0 |
-| dos | 5 | 1 | 10 |
+| dos | 18 | 1 | 10 |
 | exec | 7 | 3 | 0 |
 | gadtools | 0 | 1 | 6 |
 | graphics | 0 | 7 | 8 |
@@ -27,7 +27,7 @@ implementing the function, never by deleting the macro.
 | translator | 1 | 0 | 0 |
 | utility | 0 | 0 | 7 |
 | workbench | 0 | 0 | 3 |
-| **total** | **83** | **32** | **49** |
+| **total** | **96** | **32** | **49** |
 
 ## amigaguide
 
@@ -110,6 +110,19 @@ implementing the function, never by deleting the macro.
 - `private7` — private/reserved slot (`src/rom/lxa_dos.c`)
 - `AbortPkt` — stub: packet not aborted (Phase 255) (`src/rom/lxa_dos.c`)
 - `AttemptLockDosList` — stub: returns a dummy marker, no real DosList or locking (Phase 255) (`src/rom/lxa_dos.c`)
+- `BCPL callco` — stub: BCPL coroutines (GV 0x64) (`src/rom/bcpl/bcpl_support.c`)
+- `BCPL compareTime` — stub: BCPL compareTime (GV 0x1f8) (`src/rom/bcpl/bcpl_support.c`)
+- `BCPL cowait` — stub: BCPL coroutines (GV 0x68) (`src/rom/bcpl/bcpl_support.c`)
+- `BCPL createco` — stub: BCPL coroutines (GV 0x5c) (`src/rom/bcpl/bcpl_support.c`)
+- `BCPL deleteco` — stub: BCPL coroutines (GV 0x60) (`src/rom/bcpl/bcpl_support.c`)
+- `BCPL holdTask` — stub: BCPL holdTask (GV 0xb8) (`src/rom/bcpl/bcpl_support.c`)
+- `BCPL longjump` — stub: BCPL longjump (GV 0x50) (`src/rom/bcpl/bcpl_support.c`)
+- `BCPL makeGVarea` — stub: BCPL makeGVarea (GV 0x34) (`src/rom/bcpl/bcpl_support.c`)
+- `BCPL openDevInfo` — stub: BCPL handler start-up (GV 0x1c0) (`src/rom/bcpl/bcpl_support.c`)
+- `BCPL resumeco` — stub: BCPL coroutines (GV 0x6c) (`src/rom/bcpl/bcpl_support.c`)
+- `BCPL sysRequest` — stub: BCPL system requester (GV -0x84) (`src/rom/bcpl/bcpl_support.c`)
+- `BCPL systemRequest` — stub: BCPL system requester (GV 0xd0) (`src/rom/bcpl/bcpl_support.c`)
+- `BCPL tidyup` — stub: BCPL tidyup (GV 0x150) (`src/rom/bcpl/bcpl_support.c`)
 - `FindDosEntry` — stub: always returns NULL (Phase 255) (`src/rom/lxa_dos.c`)
 - `LockDosList` — stub: returns a dummy marker, no real DosList or locking (Phase 255) (`src/rom/lxa_dos.c`)
 - `NextDosEntry` — stub: always returns NULL (Phase 255) (`src/rom/lxa_dos.c`)

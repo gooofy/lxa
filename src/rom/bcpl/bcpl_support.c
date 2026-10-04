@@ -5,7 +5,8 @@
 
     Ported to lxa (Phase 239) from AROS arch/m68k-all/dos/bcpl_support.c,
     bcpl_patches.c (the system global vector set-up), bcpl_readargs.c,
-    bcpl_putpkt.c and callglobvec.c.  Licence: AROS Public License 1.1,
+    bcpl_putpkt.c, callglobvec.c and rom/dos/newcliproc.c (the BCPL
+    CliInit handling in lxa_bcpl_cli_start).  Licence: AROS Public License 1.1,
     see LICENSE in this directory.
 
     lxa changes:
@@ -45,6 +46,9 @@
 #include "../util.h"
 #include "bcpl.h"
 #include "bcpl_support.h"
+
+extern ULONG lxa_bcpl_cli_seg[];
+CONST_STRPTR lxa_dos_shell_name(void);
 
 extern struct ExecBase      *SysBase;
 extern struct DosLibrary    *DOSBase;
@@ -168,6 +172,10 @@ BOOL lxa_bcpl_init(struct DosLibrary *dosbase)
     dosbase->dl_GV = (APTR)globvec;
     dosbase->dl_A5 = (LONG)BCPL_jsr;
     dosbase->dl_A6 = (LONG)BCPL_rts;
+
+    /* the CLI segment that KS 1.3 Run/NewCLI start (bcpl.S) */
+    if (dosbase->dl_Root)
+        ((struct RootNode *)dosbase->dl_Root)->rn_ConsoleSegment = MKBADDR(lxa_bcpl_cli_seg);
 
     return TRUE;
 }
@@ -521,6 +529,90 @@ LONG lxa_bcpl_settime(BPTR bds)
     }
     DeleteMsgPort(port);
     return ok;
+}
+
+/*
+ * Global 1 of the console segment (lxa): the CLI of a process that KS 1.3
+ * C:Run or C:NewCLI created with createProcBCPL.  Handles the startup
+ * packet as AROS' internal_CliInitAny() does - a dp_Type above 1 is the
+ * caller's own BCPL CliInit routine (KS 1.3), which returns the routine
+ * that replies the packet - and then runs lxa's shell on the CLI's input.
+ * bcpl_free is the BCPL stack above the caller's frame.
+ */
+LONG lxa_bcpl_cli_start(BPTR pkt, APTR bcpl_free)
+{
+    struct Process *me = (struct Process *)FindTask(NULL);
+    struct DosPacket *dp = BADDR(pkt);
+    struct CommandLineInterface *cli;
+    CONST_STRPTR shell;
+    LONG type, flags = 0, rc = RETURN_FAIL;
+    BOOL reply_at_end = FALSE;
+
+    if (!dp)
+        return RETURN_FAIL;
+
+    type = dp->dp_Type;
+    if (type > 1) {
+        APTR old = me->pr_ReturnAddr;
+        LONG ret = lxa_bcpl_call((APTR)type, me->pr_GlobVec, bcpl_free, &me->pr_ReturnAddr,
+                                 (LONG)pkt, 0, 0, 0);
+        if (ret > 0)
+            lxa_bcpl_call((APTR)ret, me->pr_GlobVec, bcpl_free, &me->pr_ReturnAddr,
+                          IoErr(), 0, 0, 0);
+        me->pr_ReturnAddr = old;
+    } else {
+        flags = dp->dp_Res1 ? CliInitNewcli(dp) : CliInitRun(dp);
+        if (!flags) {
+            if (IoErr() == (LONG)me)
+                return RETURN_FAIL;
+        } else if (type == -2) {
+            reply_at_end = TRUE;            /* synchronous System() */
+        }
+        if (!reply_at_end)
+            ReplyPkt(dp, dp->dp_Res1, dp->dp_Res2);
+    }
+
+    cli = Cli();
+    if (cli) {
+        if (!me->pr_CIS)
+            me->pr_CIS = cli->cli_CurrentInput ? cli->cli_CurrentInput : cli->cli_StandardInput;
+        if (!me->pr_COS)
+            me->pr_COS = cli->cli_StandardOutput;
+    }
+
+    shell = lxa_dos_shell_name();
+    if (shell) {
+        BPTR seg = LoadSeg(shell);
+        if (seg) {
+            LONG stack = cli && cli->cli_DefaultStack > 0 ? cli->cli_DefaultStack * 4 : 4096;
+            rc = RunCommand(seg, stack, (STRPTR)"\n", 1);
+            UnLoadSeg(seg);
+        }
+    }
+
+    if (cli && (flags & 0x80000000UL) && (flags & 1) && cli->cli_StandardOutput) {
+        /* CliInit opened the output stream */
+        Close(cli->cli_StandardOutput);
+        cli->cli_StandardOutput = 0;
+        me->pr_COS = 0;
+    }
+
+    /* free our CLI number (KS 1.3 Run entered it in rn_TaskArray) */
+    {
+        struct RootNode *root = (struct RootNode *)DOSBase->dl_Root;
+        ULONG *tasks = root ? BADDR(root->rn_TaskArray) : NULL;
+        ULONG i;
+
+        Forbid();
+        for (i = 1; tasks && i <= tasks[0]; i++)
+            if (tasks[i] == (ULONG)&me->pr_MsgPort)
+                tasks[i] = 0;
+        Permit();
+    }
+
+    if (reply_at_end)
+        ReplyPkt(dp, rc, IoErr());
+    return rc;
 }
 
 /*

@@ -110,6 +110,19 @@ BCPL_\name:
     jmp     (%a6)
     .endm
 
+    /* lxa: the BCPL compiler's code keeps A0 = 0 as the base of its
+     * (a0,dN.l) addressing, but 3.1's system routines do not depend on it
+     * (a command is entered with A0 = its arguments): the routines that
+     * address memory through A0 set it to 0 themselves */
+    .macro  A0Z
+    move.l  %a0,%sp@-
+    sub.l   %a0,%a0
+    .endm
+
+    .macro  A0R
+    move.l  %sp@+,%a0
+    .endm
+
     /* An entry lxa does not implement: a visible stub in bcpl_support.c */
     .macro  BCPLstub name
     BCPL \name
@@ -208,6 +221,7 @@ BCPL NoReqLoadSeg   /* -54, SegList ^, @name */
     BRTS
 
 BCPL clearvec       /* -50, void, @buff, lw_length */
+    A0Z
     tst.l	%d2
     bmi.s	.Lclearmem_end
     lsl.l	#2,%d1
@@ -217,6 +231,7 @@ BCPL clearvec       /* -50, void, @buff, lw_length */
     addq.l	#4,%d1
     dbf		%d2,.Lclearmem_loop
 .Lclearmem_end:
+    A0R
     BRTS
 
 BCPL LoadSeg        /* -4c, SegList ^, &name */
@@ -370,6 +385,7 @@ BCPL mod            /*  14, D1 = D1 % D2 */
     BRTS
 
 BCPL setIO          /*  18, void, @IOStdReq, command, &data, len, offset */
+    A0Z
     lsl.l	#2,%d1
     move.w	%d2,%a0@(28,%d1.l)
     move.l	%d3,%d0
@@ -378,9 +394,11 @@ BCPL setIO          /*  18, void, @IOStdReq, command, &data, len, offset */
     move.l	%d4,%a0@(36,%d1.l)
     /* only first 4 params are in registers */
     move.l	%a1@(4*4),%a0@(44,%d1.l)
+    A0R
     BRTS
 
 BCPL packlw         /*  20, LONG, &data, len */
+    A0Z
 	movem.l	%d2,%sp@-
 	moveq	#0,%d0
 .packlw_loop:
@@ -390,9 +408,11 @@ BCPL packlw         /*  20, LONG, &data, len */
 	subq.b	#1,%d2
 	bne.s	.packlw_loop
 	movem.l	%sp@+,%d2
+    A0R
     BRTS
 
 BCPL unpacklw       /*  24, void, &data, len, LONG */
+    A0Z
 	movem.l	%d2/%d3,%sp@-
 .unpacklw_loop:
 	rol.l	#8,%d3
@@ -401,6 +421,7 @@ BCPL unpacklw       /*  24, void, &data, len, LONG */
 	subq.b	#1,%d2
 	bne.s	.unpacklw_loop
 	movem.l	%sp@+,%d2/%d3
+    A0R
     BRTS
 
 BCPL Res2           /*  28, LONG, is_set_flag, result_code */
@@ -430,16 +451,20 @@ BCPL findtask        /*  38, &Process->MsgPort *, */
     BRTS
 
 BCPL getbyte        /*  3c, BYTE, @lw_addr, bytenum */
+    A0Z
     lsl.l	#2,%d1
     add.l	%d2,%d1
     moveq	#0,%d0
     move.b	%a0@(%d1.l),%d0
+    A0R
     BRTS
 
 BCPL putbyte        /*  40, BYTE, @lw_addr, bytenum, byte */
+    A0Z
 	lsl.l	#2,%d1
 	add.l	%d2,%d1
 	move.b	%d3,%a0@(%d1.l)
+    A0R
     BRTS
 
 BCPL level          /*  44, LONG (or BPTR?) */
@@ -449,7 +474,8 @@ BCPL level          /*  44, LONG (or BPTR?) */
 BCPL longcall       /*  48, LONG, level, label */
     move.l	%d1,%a1
     move.l	%a1@(-4),%a4
-    jmp		%a0@(%d2.l)
+    move.l	%d2,%a3
+    jmp		%a3@
 
 BCPL allocMem       /*  4c, BPTR, lwlength, reqs */
     movem.l	%a0-%a1/%a6,%sp@-
@@ -478,6 +504,7 @@ BCPL doIO           /*  54, LONG, @IORequest */
     BRTS
 
 BCPL sendIO         /*  58, void, @IORequest */
+    A0Z
     movem.l     %a0-%a1/%a6,%sp@-
     lsl.l       #2,%d1
     moveq.l     #0,%d2
@@ -486,6 +513,7 @@ BCPL sendIO         /*  58, void, @IORequest */
     move.l      SysBase,%a6
     jsr         %a6@(77 * -6)   /* Exec/SendIO */
     movem.l     %sp@+,%a0-%a1/%a6
+    A0R
     BRTS
 
     /* Coroutine support:
@@ -624,6 +652,7 @@ BCPL ParentDir      /*  8c, FileLock ^, @FileLock */
     BRTS
 
 BCPL setSignals     /*  90, void, &MsgPort, mask */
+    A0Z
     movem.l	%a0-%a1/%a6,%sp@-
     move.l	SysBase,%a6
     add.l	#OFS_mp_SigTask,%d1
@@ -634,6 +663,7 @@ BCPL setSignals     /*  90, void, &MsgPort, mask */
     and.l	#0xf000,%d0		/* mask only C-F signals */
     jsr		%a6@(54 * -6)	/* Exec/Signal() */
     movem.l	%sp@+,%a0-%a1/%a6
+    A0R
     BRTS
 
 BCPL clearSignals   /* 94, BOOL , mask */
@@ -662,10 +692,12 @@ BCPL DOSAlert       /* 98, void, alertnumber */
     BRTS
 
 BCPL findRootNode   /* 9c, RootNode @,  */
+    A0Z
     move.l	%a2@(GV_DOSBase),%d0
     add.l	#OFS_dl_Root,%d0
     move.l	%a0@(%d0.l),%d0	/* %a0 is always 0 in BCPL */
     lsr.l	#2,%d0
+    A0R
     BRTS
 
 BCPL readinput      /* a0, bytelength , &buf, bytelength */
@@ -815,6 +847,7 @@ BCPL setCurrentDir  /* cc, FileLock @, BOOL, @FileLock */
 BCPLstub systemRequest  /* d0, void, @line1, @line2, @line3 */
 
 BCPL writet         /* d4, void, @string, n */
+    A0Z
     movem.l	%d2-%d4,%sp@-
     move.l	%d1, %d3
     lsl.l	#2, %d3		/* D3 = BADDR(string) */
@@ -851,6 +884,7 @@ BCPL writet         /* d4, void, @string, n */
 
 .LBCPL_writet_exit:
     movem.l	%sp@+,%d2-%d4
+    A0R
     BRTS
 
 BCPL rdch           /* d8, char ,  */
@@ -1470,6 +1504,7 @@ BCPL Close          /* 174, void, @FileHandle */
     BRTS
 
 BCPL getword        /* 178, void, longaddress, wordnumber */
+    A0Z
 	movem.l	%d2,%sp@-
 	lsl.l	#2,%d1
 	add.l	%d2,%d2
@@ -1477,15 +1512,18 @@ BCPL getword        /* 178, void, longaddress, wordnumber */
 	moveq	#0,%d0
     move.w	%a0@(%d2.l),%d0
 	movem.l	%sp@+,%d2
+    A0R
     BRTS
 
 BCPL putword        /* 17c, void, longaddress, wordnumber */
+    A0Z
 	movem.l	%d2,%sp@-
 	lsl.l	#2,%d1
 	add.l	%d2,%d2
 	add.l	%d1,%d2
 	move.w	%d3,%a0@(%d2.l)
 	movem.l	%sp@+,%d2
+    A0R
     BRTS
                      /* 180, ??? */
 
@@ -1609,16 +1647,20 @@ BCPL UnLock         /* 1b4, void, @FileLock */
     BRTS
 
 BCPL getlong        /* 1b8, void, longoffset, &struct */
+    A0Z
     lsl.l	#2,%d1
     add.l	%d2,%d1
     move.l	%a0@(%d1.l),%d0
+    A0R
     BRTS
 
 BCPL putlong        /* 1bc, void, longoffset, &struct, data */
+    A0Z
     lsl.l	#2,%d1
     add.l	%d2,%d1
     move.l	%a0@(%d1.l),%d0
     move.l	%d3,%a0@(%d1.l)
+    A0R
     BRTS
 
 BCPLstub openDevInfo    /* 1c0, FileHandle ^, @DevInfo, @filename/window */
@@ -1647,6 +1689,7 @@ BCPL makesysreq     /* 1c8, BOOL, type, arg, *msgport */
     BRTS
 
 BCPL strcpy         /* 1cc, void, @src, @dest */
+    A0Z
     move.l	%d2,%sp@-
     lsl.l	#2,%d1
     lsl.l	#2,%d2
@@ -1657,6 +1700,7 @@ BCPL strcpy         /* 1cc, void, @src, @dest */
     addq.l	#1,%d2
     dbf		%d0,0b
     move.l	%sp@+,%d2
+    A0R
     BRTS
 
 BCPL runCommand    /* 1e4, ULONG, @codeseg, stacklongs, @cmdline, cmdlinelength */
@@ -1744,6 +1788,7 @@ BCPL settime        /* 200, void, @DateStamp */
      * to the appropriate CliInit* routine.
      */
 BCPL CliInit         /* 214, APTR, @DosPacket */
+    A0Z
     tst.l       %d1
     beq.s       .L_CliInit_exit
 
@@ -1768,6 +1813,7 @@ BCPL CliInit         /* 214, APTR, @DosPacket */
     jsr         %a6@(%d2.l)
     movem.l      %sp@+,%a0-%a1/%a6
 .L_CliInit_exit:
+    A0R
     BRTS
 
 BCPL findCLI        /* 218, CommandLineInterpreter ^,  */
@@ -1806,6 +1852,39 @@ bstr_to_cstr:
     rts
 
 /*
+ * lxa: the console segment (RootNode rn_ConsoleSegment).  KS 1.3 C:Run and
+ * C:NewCLI start a process on it through createProcBCPL: BCPL_RunHandler
+ * installs its global 1 and calls it with the startup packet in D1.  The
+ * segment has the layout of a loaded BCPL hunk: the allocation size in
+ * front, the link, the section length in longs and, at its end, the
+ * global initialisation table (0, global 1, offset, highest global).
+ */
+    .balign 4
+lxa_bcpl_cli_seg_size:
+    .long   lxa_bcpl_cli_seg_end - lxa_bcpl_cli_seg_size
+    .globl  _lxa_bcpl_cli_seg
+_lxa_bcpl_cli_seg:
+    .long   0                           /* next segment */
+lxa_bcpl_cli_seg_code:
+    .long   (lxa_bcpl_cli_seg_tbl - lxa_bcpl_cli_seg_code) / 4 + 1  /* &segment[n] = table */
+lxa_bcpl_cli_start:                     /* global 1: start(packet) */
+    movem.l %a0-%a1,%sp@-
+    pea.l   %a1@(64)                    /* free BCPL stack above this frame */
+    move.l  %d1,%sp@-
+    jsr     _lxa_bcpl_cli_start
+    addq.l  #8,%sp
+    movem.l %sp@+,%a0-%a1
+    move.l  %d0,%d1
+    jmp     (%a6)
+    .balign 4
+    .long   0                           /* end of the table */
+    .long   1                           /* global 1 ... */
+    .long   lxa_bcpl_cli_start - lxa_bcpl_cli_seg_code    /* ... = start */
+lxa_bcpl_cli_seg_tbl:
+    .long   1                           /* highest global */
+lxa_bcpl_cli_seg_end:
+
+/*
  * BCPL writef (AROS bcpl_writef.S)
  */
 #define MAXARGS	(1 + 26)	/* Up to 26 arguments to the format */
@@ -1833,6 +1912,7 @@ BCPL writef
 	 *   A6      - BCPL RTS
 	 *   A7      - C stack pointer
 	 */
+	A0Z
 	movem.l	%d2-%d7,%sp@-
 
 	move.l	%d1, %d6	/* D6 = Format pointer - 1 */
@@ -1980,6 +2060,7 @@ BCPL writef
 
 .Lformat_exit:
 	movem.l	%sp@+,%d2-%d7
+	A0R
 	jmp	(%a6)
 
 
