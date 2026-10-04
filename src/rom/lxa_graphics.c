@@ -8678,9 +8678,12 @@ static VOID _graphics_BitMapScale ( register struct GfxBase * GfxBase __asm("a6"
     destWidth = gfx_scale_count(srcWidth, bsa->bsa_XSrcFactor, bsa->bsa_XDestFactor);
     destHeight = gfx_scale_count(srcHeight, bsa->bsa_YSrcFactor, bsa->bsa_YDestFactor);
     
-    /* Store calculated results back in structure */
+    /* Store calculated results back in structure; AmigaOS 3.1 also notes
+     * in bsa_Flags which axes shrink (bit 0 X, bit 1 Y; reference) */
     bsa->bsa_DestWidth = destWidth;
     bsa->bsa_DestHeight = destHeight;
+    bsa->bsa_Flags = ((bsa->bsa_XSrcFactor > bsa->bsa_XDestFactor) ? 1 : 0) |
+                     ((bsa->bsa_YSrcFactor > bsa->bsa_YDestFactor) ? 2 : 0);
     
     if (destWidth == 0 || destHeight == 0)
         return;
@@ -9645,6 +9648,40 @@ static void gfx_chunky_read(struct GfxBase *GfxBase, struct RastPort *rp, WORD x
 }
 
 /*
+ * AmigaOS 3.1 goes through the caller's temporary RastPort (reference):
+ * a written row is converted into line 0 of temprp->BitMap for the whole
+ * padded width, and a read row is copied there (width pixels) and
+ * converted back for the whole padded width - so the padding of a read
+ * row holds what the line held before.
+ */
+static BOOL gfx_temprp_usable(struct RastPort *temprp, UWORD stride)
+{
+    return temprp && temprp->BitMap && temprp->BitMap->Planes[0] &&
+           (ULONG)temprp->BitMap->BytesPerRow * 8 >= stride;
+}
+
+static void gfx_temprp_store(struct GfxBase *GfxBase, struct RastPort *temprp,
+                             const UBYTE *src, UWORD stride)
+{
+    struct RastPort t = *temprp;
+
+    t.Layer = NULL;
+    gfx_chunky_write(GfxBase, &t, 0, 0, src, stride);
+}
+
+static void gfx_temprp_read_row(struct GfxBase *GfxBase, struct RastPort *rp,
+                                struct RastPort *temprp, WORD x, WORD y,
+                                UBYTE *dst, UWORD width, UWORD stride)
+{
+    struct RastPort t = *temprp;
+
+    t.Layer = NULL;
+    gfx_chunky_read(GfxBase, rp, x, y, dst, width);
+    gfx_chunky_write(GfxBase, &t, 0, 0, dst, width);
+    gfx_chunky_read(GfxBase, &t, 0, 0, dst, stride);
+}
+
+/*
  * ReadPixelLine8 - Read a horizontal line of chunky pen values (offset -768)
  */
 static LONG _graphics_ReadPixelLine8 ( register struct GfxBase * GfxBase __asm("a6"),
@@ -9661,7 +9698,11 @@ static LONG _graphics_ReadPixelLine8 ( register struct GfxBase * GfxBase __asm("
     if (!rp || !rp->BitMap || !array || !width)
         return 0;
 
-    gfx_chunky_read(GfxBase, rp, (WORD)xstart, (WORD)ystart, array, gfx_chunky_stride(width));
+    if (gfx_temprp_usable(tempRP, gfx_chunky_stride(width)))
+        gfx_temprp_read_row(GfxBase, rp, tempRP, (WORD)xstart, (WORD)ystart, array, width,
+                            gfx_chunky_stride(width));
+    else
+        gfx_chunky_read(GfxBase, rp, (WORD)xstart, (WORD)ystart, array, gfx_chunky_stride(width));
     return (LONG)width;
 }
 
@@ -9691,7 +9732,14 @@ static LONG _graphics_ReadPixelArray8 ( register struct GfxBase * GfxBase __asm(
     width = (UWORD)(xstop - xstart + 1);
     stride = gfx_chunky_stride(width);
     for (y = ystart; y <= ystop; y++)
-        gfx_chunky_read(GfxBase, rp, (WORD)xstart, (WORD)y, array + (ULONG)(y - ystart) * stride, stride);
+    {
+        UBYTE *row = array + (ULONG)(y - ystart) * stride;
+
+        if (gfx_temprp_usable(temprp, stride))
+            gfx_temprp_read_row(GfxBase, rp, temprp, (WORD)xstart, (WORD)y, row, width, stride);
+        else
+            gfx_chunky_read(GfxBase, rp, (WORD)xstart, (WORD)y, row, stride);
+    }
 
     return (LONG)width * (LONG)(ystop - ystart + 1);
 }
@@ -9722,7 +9770,16 @@ static LONG _graphics_WritePixelArray8 ( register struct GfxBase * GfxBase __asm
     width = (UWORD)(xstop - xstart + 1);
     stride = gfx_chunky_stride(width);
     for (y = ystart; y <= ystop; y++)
-        gfx_chunky_write(GfxBase, rp, (WORD)xstart, (WORD)y, array + (ULONG)(y - ystart) * stride, width);
+    {
+        UBYTE *row = array + (ULONG)(y - ystart) * stride;
+
+        if (gfx_temprp_usable(temprp, stride))
+            gfx_temprp_store(GfxBase, temprp, row, stride);
+        gfx_chunky_write(GfxBase, rp, (WORD)xstart, (WORD)y, row, width);
+        /* AmigaOS 3.1 converts in place and leaves the array cleared,
+         * padding included (reference) */
+        lxa_memset(row, 0, stride);
+    }
 
     return (LONG)width * (LONG)(ystop - ystart + 1);
 }
@@ -9744,7 +9801,11 @@ static LONG _graphics_WritePixelLine8 ( register struct GfxBase * GfxBase __asm(
     if (!rp || !rp->BitMap || !array)
         return 0;
 
+    if (gfx_temprp_usable(tempRP, gfx_chunky_stride(width)))
+        gfx_temprp_store(GfxBase, tempRP, array, gfx_chunky_stride(width));
     gfx_chunky_write(GfxBase, rp, (WORD)xstart, (WORD)ystart, array, width);
+    /* the array is left cleared, as by WritePixelArray8() (reference) */
+    lxa_memset(array, 0, gfx_chunky_stride(width));
     return (LONG)width;
 }
 
