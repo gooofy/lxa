@@ -129,6 +129,7 @@ struct LxaConUnit {
     UWORD  text_cols;            /* Visible text columns */
     UWORD  text_rows;            /* Visible text rows */
     char   *visible_text;        /* Visible text cell buffer */
+    UWORD  *visible_attr;        /* per cell: fg pen | bg pen << 8 | style << 12 (repaint) */
     char   *scrollback_text;     /* Scrollback text cell buffer */
     struct MsgPort *input_port;  /* input events Intuition passes on (not the window's IDCMP) */
     WORD   known_width;          /* window size the console geometry was computed for */
@@ -382,6 +383,7 @@ static struct LxaConUnit *console_create_unit(struct Window *window)
     unit->text_cols = 0;
     unit->text_rows = 0;
     unit->visible_text = NULL;
+    unit->visible_attr = NULL;
     unit->scrollback_text = NULL;
     /* The console reads the window's input from its own port: Intuition
      * delivers there what the window's IDCMP does not take.  It never
@@ -421,6 +423,9 @@ static void console_destroy_unit(struct LxaConUnit *unit)
         }
         if (unit->visible_text) {
             FreeMem(unit->visible_text, unit->text_cols * unit->text_rows);
+        }
+        if (unit->visible_attr) {
+            FreeMem(unit->visible_attr, unit->text_cols * unit->text_rows * sizeof(UWORD));
         }
         if (unit->scrollback_text) {
             FreeMem(unit->scrollback_text, unit->text_cols * unit->scrollback_max_lines);
@@ -730,6 +735,18 @@ static ULONG console_line_width(const struct LxaConUnit *unit)
     return unit->text_cols;
 }
 
+/* text is drawn on the font's baseline, the top of a cell row is the
+ * top of the glyphs (AmigaOS 3.1, conbuf golden: topaz 8 text starts in
+ * the first row below the window's top border) */
+static WORD console_baseline(struct LxaConUnit *unit)
+{
+    struct RastPort *rp = unit->cu.cu_Window ? unit->cu.cu_Window->RPort : NULL;
+
+    if (rp && rp->Font)
+        return rp->Font->tf_Baseline;
+    return unit->cu.cu_YRSize - 2;
+}
+
 static char *console_visible_line_ptr(struct LxaConUnit *unit, ULONG row)
 {
     ULONG width = console_line_width(unit);
@@ -778,6 +795,36 @@ static void console_copy_chars(char *dst, const char *src, ULONG count)
     }
 }
 
+static UWORD *console_attr_line_ptr(struct LxaConUnit *unit, ULONG row)
+{
+    ULONG width = console_line_width(unit);
+
+    if (!unit || !unit->visible_attr || width == 0 || row >= unit->text_rows) {
+        return NULL;
+    }
+
+    return unit->visible_attr + (row * width);
+}
+
+/* the attribute of a cell written now (or cleared now: bg is what counts) */
+static UWORD console_current_attr(struct LxaConUnit *unit)
+{
+    return (UWORD)((unit->cu.cu_FgPen & 0xff) | ((unit->cu.cu_BgPen & 0x0f) << 8) |
+                   ((unit->cu.cu_AlgoStyle & 0x07) << 12));
+}
+
+static void console_fill_attrs(UWORD *dst, ULONG count, UWORD value)
+{
+    ULONG i;
+
+    if (!dst) {
+        return;
+    }
+    for (i = 0; i < count; i++) {
+        dst[i] = value;
+    }
+}
+
 static void console_clear_visible_line(struct LxaConUnit *unit, ULONG row)
 {
     char *line = console_visible_line_ptr(unit, row);
@@ -788,17 +835,36 @@ static void console_clear_visible_line(struct LxaConUnit *unit, ULONG row)
     }
 
     console_fill_chars(line, width, ' ');
+    console_fill_attrs(console_attr_line_ptr(unit, row), width, console_current_attr(unit));
 }
 
 static void console_set_cell(struct LxaConUnit *unit, ULONG row, ULONG col, char value)
 {
     char *line = console_visible_line_ptr(unit, row);
+    UWORD *attr = console_attr_line_ptr(unit, row);
 
     if (!line || col >= unit->text_cols) {
         return;
     }
 
     line[col] = value;
+    if (attr) {
+        attr[col] = console_current_attr(unit);
+    }
+}
+
+static void console_copy_attr_line(struct LxaConUnit *unit, ULONG dst_row, ULONG src_row)
+{
+    UWORD *dst = console_attr_line_ptr(unit, dst_row);
+    UWORD *src = console_attr_line_ptr(unit, src_row);
+    ULONG i, width = console_line_width(unit);
+
+    if (!dst || !src) {
+        return;
+    }
+    for (i = 0; i < width; i++) {
+        dst[i] = src[i];
+    }
 }
 
 static void console_shift_visible_region_up(struct LxaConUnit *unit, ULONG top, ULONG bottom)
@@ -814,6 +880,7 @@ static void console_shift_visible_region_up(struct LxaConUnit *unit, ULONG top, 
         console_copy_chars(console_visible_line_ptr(unit, row),
                            console_visible_line_ptr(unit, row + 1),
                            width);
+        console_copy_attr_line(unit, row, row + 1);
     }
 
     console_clear_visible_line(unit, bottom);
@@ -833,6 +900,7 @@ static void console_shift_visible_region_down(struct LxaConUnit *unit, ULONG top
         console_copy_chars(console_visible_line_ptr(unit, row),
                            console_visible_line_ptr(unit, row - 1),
                            width);
+        console_copy_attr_line(unit, row, row - 1);
         row--;
     }
 
@@ -906,6 +974,10 @@ static void console_sync_text_geometry(struct LxaConUnit *unit)
         FreeMem(unit->visible_text, unit->text_cols * unit->text_rows);
         unit->visible_text = NULL;
     }
+    if (unit->visible_attr) {
+        FreeMem(unit->visible_attr, unit->text_cols * unit->text_rows * sizeof(UWORD));
+        unit->visible_attr = NULL;
+    }
 
     if (unit->scrollback_text) {
         FreeMem(unit->scrollback_text, unit->text_cols * unit->scrollback_max_lines);
@@ -919,6 +991,10 @@ static void console_sync_text_geometry(struct LxaConUnit *unit)
     unit->visible_text = AllocMem(visible_size, MEMF_PUBLIC | MEMF_CLEAR);
     if (unit->visible_text) {
         console_fill_chars(unit->visible_text, visible_size, ' ');
+    }
+    unit->visible_attr = AllocMem(visible_size * sizeof(UWORD), MEMF_PUBLIC | MEMF_CLEAR);
+    if (unit->visible_attr) {
+        console_fill_attrs(unit->visible_attr, visible_size, console_current_attr(unit));
     }
 
     if (unit->scrollback_max_lines != 0) {
@@ -1061,7 +1137,7 @@ static void console_refresh_scrollback_view(struct LxaConUnit *unit)
             }
 
             x = unit->cu.cu_XROrigin + (col * unit->cu.cu_XRSize);
-            y = unit->cu.cu_YROrigin + (row * unit->cu.cu_YRSize) + unit->cu.cu_YRSize - 1;
+            y = unit->cu.cu_YROrigin + (row * unit->cu.cu_YRSize) + console_baseline(unit);
             Move(rp, x, y);
             Text(rp, (CONST_STRPTR)ch, 1);
         }
@@ -1629,6 +1705,75 @@ static BOOL console_handle_raw_event_message(struct LxaConUnit *unit,
 }
 
 /*
+ * Repair a damaged window: the CON: handler opens simple-refresh windows
+ * (AmigaOS 3.1), so uncovered parts must be redrawn from the character
+ * map.  Cells keep their pens and soft style.
+ */
+static void console_repair_damage(struct LxaConUnit *unit)
+{
+    struct Window *window = unit ? unit->cu.cu_Window : NULL;
+    struct Library *IntuitionBase;
+    struct RastPort *rp;
+    ULONG row, col;
+    UBYTE fg, bg, st;
+    char ch[2];
+
+    if (!window || !window->RPort) {
+        return;
+    }
+    rp = window->RPort;
+    Forbid();
+    IntuitionBase = (struct Library *)FindName(&SysBase->LibList, (STRPTR)"intuition.library");
+    Permit();
+    if (!IntuitionBase) {
+        return;
+    }
+
+    BeginRefresh(window);
+    if (window->Flags & WFLG_SIMPLE_REFRESH) {
+        if (unit->scrollback_position != unit->scrollback_line_count || !unit->visible_attr) {
+            console_refresh_scrollback_view(unit);
+        } else {
+            console_hide_cursor(unit);
+            SetAPen(rp, unit->cu.cu_BgPen);
+            SetDrMd(rp, JAM2);
+            RectFill(rp, window->BorderLeft, window->BorderTop,
+                     window->Width - window->BorderRight - 1,
+                     window->Height - window->BorderBottom - 1);
+            ch[1] = '\0';
+            for (row = 0; row < unit->text_rows; row++) {
+                char *line = console_visible_line_ptr(unit, row);
+                UWORD *attr = console_attr_line_ptr(unit, row);
+                if (!line || !attr) {
+                    continue;
+                }
+                for (col = 0; col < unit->text_cols; col++) {
+                    fg = attr[col] & 0xff;
+                    bg = (attr[col] >> 8) & 0x0f;
+                    st = (attr[col] >> 12) & 0x07;
+                    if (line[col] == ' ' && bg == unit->cu.cu_BgPen && !(st & FSF_UNDERLINED)) {
+                        continue;       /* already the background */
+                    }
+                    SetAPen(rp, fg);
+                    SetBPen(rp, bg);
+                    SetDrMd(rp, JAM2);
+                    SetSoftStyle(rp, st, FSF_BOLD | FSF_ITALIC | FSF_UNDERLINED);
+                    ch[0] = line[col];
+                    Move(rp, unit->cu.cu_XROrigin + col * unit->cu.cu_XRSize,
+                         unit->cu.cu_YROrigin + row * unit->cu.cu_YRSize + console_baseline(unit));
+                    Text(rp, (CONST_STRPTR)ch, 1);
+                }
+            }
+            SetSoftStyle(rp, unit->cu.cu_AlgoStyle, FSF_BOLD | FSF_ITALIC | FSF_UNDERLINED);
+            SetAPen(rp, unit->cu.cu_FgPen);
+            SetBPen(rp, unit->cu.cu_BgPen);
+            SetDrMd(rp, unit->cu.cu_DrawMode);
+        }
+    }
+    EndRefresh(window, TRUE);
+}
+
+/*
  * Process keyboard input from IDCMP
  * Called when reading from console to check for new input
  */
@@ -1653,6 +1798,13 @@ static void console_process_input(struct LxaConUnit *unit)
     
     /* Process all pending IDCMP messages */
     while ((imsg = (struct IntuiMessage *)GetMsg(port)) != NULL) {
+        if (imsg->Class == IDCMP_REFRESHWINDOW) {
+            console_repair_damage(unit);
+            console_handle_raw_event_message(unit, imsg);
+            redraw_cursor = TRUE;
+            ReplyMsg((struct Message *)imsg);
+            continue;
+        }
         if (imsg->Class == IDCMP_NEWSIZE) {
             console_hide_cursor(unit);
             console_update_window_geometry(unit);
@@ -1864,6 +2016,19 @@ VOID _console_VBlankHook(void)
         if (unit && unit->pending_read) {
             /* This unit has a pending async read - process input */
             console_process_input(unit);
+        } else if (unit && unit->input_port) {
+            /* no read pending: still repair damage (simple refresh) at
+             * once; other input waits for the next read */
+            struct Node *n, *next;
+            for (n = unit->input_port->mp_MsgList.lh_Head; (next = n->ln_Succ) != NULL; n = next) {
+                struct IntuiMessage *imsg = (struct IntuiMessage *)n;
+                if (imsg->Class == IDCMP_REFRESHWINDOW) {
+                    Remove(n);
+                    console_repair_damage(unit);
+                    console_handle_raw_event_message(unit, imsg);
+                    ReplyMsg((struct Message *)imsg);
+                }
+            }
         }
     }
 }
@@ -1891,7 +2056,7 @@ static void console_write_char(struct LxaConUnit *unit, char c)
     
     /* Calculate pixel position from character position */
     x = unit->cu.cu_XROrigin + (unit->cu.cu_XCP * unit->cu.cu_XRSize);
-    y = unit->cu.cu_YROrigin + (unit->cu.cu_YCP * unit->cu.cu_YRSize) + unit->cu.cu_YRSize - 1;  /* Baseline */
+    y = unit->cu.cu_YROrigin + (unit->cu.cu_YCP * unit->cu.cu_YRSize) + console_baseline(unit);  /* Baseline */
     
     /* Set up rastport for drawing */
     SetAPen(rp, unit->cu.cu_FgPen);
@@ -2359,6 +2524,8 @@ static void console_clear_display(struct LxaConUnit *unit)
         console_fill_chars(unit->visible_text,
                            (ULONG)unit->text_cols * unit->text_rows,
                            ' ');
+        console_fill_attrs(unit->visible_attr, (ULONG)unit->text_cols * unit->text_rows,
+                           console_current_attr(unit));
     }
      
     /* Reset cursor to home */

@@ -9377,7 +9377,11 @@ static void _window_compute_borders(struct Screen *screen, ULONG flags, const UB
         r = screen->WBorRight;
         b = screen->WBorBottom;
         t = screen->WBorTop + (titlebar ? _screen_font_height(screen) + 1 : 0);
+    }
 
+    /* the sizing gadget widens the border, borderless or not (AmigaOS
+     * 3.1, probe dos/conwindow: a borderless CON: window has 0/9/18/0) */
+    {
         if (flags & WFLG_SIZEGADGET)
         {
             UWORD sw = 18, sh = 10;
@@ -9469,7 +9473,7 @@ static void _create_window_sys_gadgets(struct Window *window)
     struct Gadget *list[5];
     WORD n = 0, i;
     UWORD size = _screen_sysi_size(window->WScreen);
-    UWORD dw = 24, zw = 24, sw = 18, sh = 10, cw = 20, h;
+    UWORD dw = 24, zw = 24, sw = 18, sh = 10, cw = 20, h, gh;
     WORD right_left = 0;
     BOOL borderless = (window->Flags & WFLG_BORDERLESS) != 0;
 
@@ -9478,34 +9482,37 @@ static void _create_window_sys_gadgets(struct Window *window)
     lxa_sysi_dims(SIZEIMAGE, size, &sw, &sh);
     lxa_sysi_dims(CLOSEIMAGE, size, &cw, NULL);
     h = window->BorderTop;
+    /* a borderless window keeps its system gadgets; depth, zoom and close
+     * are as high as on a bordered window, the drag bar spans the
+     * (thinner) title bar (AmigaOS 3.1, probe dos/conwindow) */
+    gh = borderless ? window->WScreen->WBorTop + _screen_font_height(window->WScreen) + 1 : h;
 
-    /* a borderless window keeps only its drag bar (AmigaOS 3.1) */
-    if ((window->Flags & WFLG_DEPTHGADGET) && !borderless)
+    if (window->Flags & WFLG_DEPTHGADGET)
     {
         right_left = -(WORD)(dw - 2);
-        list[n] = _create_sys_gadget(window, GTYP_WDEPTH, right_left, 0, dw, h,
+        list[n] = _create_sys_gadget(window, GTYP_WDEPTH, right_left, 0, dw, gh,
                                      GFLG_EXTENDED | GFLG_RELRIGHT | GFLG_GADGIMAGE,
                                      GACT_BORDERSNIFF | GACT_RELVERIFY, DEPTHIMAGE);
         if (list[n]) n++;
     }
-    if ((window->Flags & WFLG_HASZOOM) && !borderless)
+    if (window->Flags & WFLG_HASZOOM)
     {
         right_left = right_left ? right_left - (WORD)(zw - 1) : -(WORD)(zw - 2);
-        list[n] = _create_sys_gadget(window, GTYP_WZOOM, right_left, 0, zw, h,
+        list[n] = _create_sys_gadget(window, GTYP_WZOOM, right_left, 0, zw, gh,
                                      GFLG_EXTENDED | GFLG_RELRIGHT | GFLG_GADGIMAGE,
                                      GACT_BORDERSNIFF | GACT_RELVERIFY, ZOOMIMAGE);
         if (list[n]) n++;
     }
-    if ((window->Flags & WFLG_SIZEGADGET) && !borderless)
+    if (window->Flags & WFLG_SIZEGADGET)
     {
         list[n] = _create_sys_gadget(window, GTYP_SIZING, -(WORD)(sw - 1), -(WORD)(sh - 1), sw, sh,
                                      GFLG_EXTENDED | GFLG_RELRIGHT | GFLG_RELBOTTOM | GFLG_GADGIMAGE,
                                      GACT_BORDERSNIFF | GACT_RELVERIFY, SIZEIMAGE);
         if (list[n]) n++;
     }
-    if ((window->Flags & WFLG_CLOSEGADGET) && !borderless)
+    if (window->Flags & WFLG_CLOSEGADGET)
     {
-        list[n] = _create_sys_gadget(window, GTYP_CLOSE, 0, 0, cw, h,
+        list[n] = _create_sys_gadget(window, GTYP_CLOSE, 0, 0, cw, gh,
                                      GFLG_EXTENDED | GFLG_GADGIMAGE,
                                      GACT_BORDERSNIFF | GACT_RELVERIFY, CLOSEIMAGE);
         if (list[n]) n++;
