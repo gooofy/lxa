@@ -1,14 +1,12 @@
 /*
  * Probe (Phase 222a): dos.library ReadArgs (CSource input) - every
  * template modifier, error codes (IoErr) and the resulting argument array.
- * FindArg/ReadItem/StrToLong: argparse.c.
+ * FindArg/ReadItem/StrToLong: argparse.c.  The command line read from
+ * Input(): cmdline.c.
  *
- * No readargs.ref.out is checked in yet: the Phase 221 ReadArgs() still
- * differs from 3.1 in ~15 cases (';' comments, input without '\n', "=x",
- * /S value DOSTRUE, /T values, "+5" for /N, quotes in /F, /M with
- * trailing /A items, empty template).  Capture it with
- * `python3 -m rdd suite-ref --filter Probes/dos/readargs --capture-ref`
- * once ReadArgs matches.
+ * Input without a trailing '\n' is only given to templates without /M:
+ * the last unquoted item is read again and again (CS_UnReadChar after the
+ * end), which a /M item would collect forever.
  */
 #include <exec/types.h>
 #include <exec/memory.h>
@@ -80,6 +78,8 @@ static void run(const char *tmpl, const char *input)
     if (!res) {
         probe_s("FAIL IoErr ");
         probe_dec(IoErr());
+        probe_s(" CurChr ");
+        probe_dec(rda->RDA_Source.CS_CurChr);
     } else {
         probe_s("OK CurChr ");
         probe_dec(rda->RDA_Source.CS_CurChr);
@@ -153,6 +153,28 @@ int main(void)
     run("FROM,TO", "=x\n");
     run("FROM,TO", "TO\n");
     run("FROM,TO", "\"\" b\n");
+    run("FROM,TO", "a");
+    run("FROM,TO", "");
+    run("FROM,TO", "\"a\"");
+    run("FROM", "a");
+    run("FROM,TO,X", "a b");
+    run("FROM,TO,X,Y", "a");
+    run("FROM,TO", "a;b\n");
+    run("FROM,TO", "a ;b\n");
+    run("FROM,TO", "\"a\";x\n");
+    run("FROM,TO", ";\n");
+    run("FROM,TO", "a=b\n");
+    run("FROM,TO", "a= b\n");
+    run("FROM,TO", "TO= x\n");
+    run("FROM,TO", "TO =x\n");
+    run("FROM,TO", "TO = x\n");
+    run("FROM,TO", "x=\n");
+    run("FROM,TO", "a\nb\n");
+    run("FROM,TO", "a b\nc\n");
+    run("FROM,TO", "?\n");
+    run("FROM,TO", "a\"b c\n");
+    run("FROM,TO", "\"a\"b c\n");
+    run("FROM,TO", "\"unterminated\n");
 
     P_SECTION("/A /K /S /T /N /F");
     run("FILE/A", "\n");
@@ -189,6 +211,64 @@ int main(void)
     run("REST/F,X", "a b c\n");
     run("X/K,REST/F", "X=1 a b\n");
     run("X/K,REST/F", "a b X=1\n");
+    run("FILE/A,OPT/S", "x OPT OPT\n");
+    run("FILE/A,OPT/S", "x OPT=\n");
+    run("NAME/K", "NAME=\"x y\"\n");
+    run("NAME/K", "NAME= x\n");
+    run("NAME/K", "NAME=\n");
+    run("NAME/K", "NAME=x NAME=y\n");
+    run("ON/T", "ON=TRUE\n");
+    run("ON/T", "ON=FALSE\n");
+    run("ON/T", "ON yes\n");
+    run("ON/T", "ON=Yes\n");
+    run("ON/T", "ON=on\n");
+    run("ON/T", "ON=y\n");
+    run("ON/T", "ON=\"yes\"\n");
+    run("ON/T", "ON=yes ON=no\n");
+    run("ON/T", "yes\n");
+    run("ON/T,X", "ON=no x\n");
+    run("NUM/N", "007\n");
+    run("NUM/N", "-0\n");
+    run("NUM/N", "-\n");
+    run("NUM/N", "+\n");
+    run("NUM/N", "1 2\n");
+    run("NUM/N", "-2147483648\n");
+    run("NUM/N", "4294967296\n");
+    run("NUM/N", "\"42\"\n");
+    run("NUM/N", "\"\"\n");
+    run("NUM/N", " 42 \n");
+    run("REST/F", "a \"b c\" d\n");
+    run("REST/F", "\"a b\" c\n");
+    run("REST/F", "a*\"b c\n");
+    run("REST/F", "\"a*nb\" c\n");
+    run("REST/F", "a ; c\n");
+    run("REST/F", "\"a\"\n");
+    run("REST/F", "a  b   c\n");
+    run("REST/F", "a \"b\n");
+    run("REST/F", "a=b c\n");
+    run("REST/F", "\n");
+    run("REST/F", "  \n");
+    run("REST/F/A", "\n");
+    run("X,REST/F", "x \"y\" ; z\n");
+    run("X/K,REST/F", "X=\"1\" a\n");
+    run("REST/F,X/K", "a X=1\n");
+    run("REST/F,X/S", "X a\n");
+    run("REST/F", "a b=c\n");
+    run("REST/F", "a\tb\n");
+    run("REST/F", "a=b=c\n");
+    run("REST/F", "\"a\"  b\n");
+    run("REST/F", "\"a\"=b\n");
+    run("REST/F", "a b  \n");
+    run("REST/F", "a\t b\n");
+    run("REST/F", "=a b\n");
+    run("REST/F", "\"\" a\n");
+    run("REST/F", "REST a b\n");
+    run("REST/F", "REST=a b\n");
+    run("REST/F", "REST \"a\" b\n");
+    run("X,REST/F", "1 \"a\" b\n");
+    run("ON/T/A", "\n");
+    run("ON/T/A", "ON=no\n");
+    run("OPT/S/A", "OPT\n");
 
     P_SECTION("/M");
     run("FILES/M", "a b c\n");
@@ -203,6 +283,31 @@ int main(void)
     run("FILES/M/N", "1 x 3\n");
     run("A/A,FILES/M,B/A", "1 2 3 4\n");
     run("A/A,FILES/M,B/A", "1 2\n");
+    run("FILES/M,A/A,B/A", "a b\n");
+    run("FILES/M,A/A,B/A", "a b c\n");
+    run("FILES/M,A/A,B/A", "a\n");
+    run("FILES/M,TO/A", "a b\n");
+    run("FILES/M/A,TO/A", "a\n");
+    run("FILES/M/A,TO/A", "a b\n");
+    /* not probed: "FILES/M,TO/A/N" "a 5" - 3.1 moves the string pointer
+     * into the /N item unconverted, so *array[1] is "5\0" plus whatever
+     * follows in its buffer (address dependent) */
+    run("FILES/M,P/A,Q/A", "1 2 3\n");
+    run("FILES/M,P/A,Q/A", "1 2 3 4\n");
+    run("FILES/M,P/A,Q/A", "1 2\n");
+    run("FILES/M,P/A,Q", "1 2 3\n");
+    run("FILES/M,Q,P/A", "1 2 3\n");
+    run("FILES/M,TO", "FILES a b\n");
+    run("FILES/M,TO", "a FILES b\n");
+    run("FILES/M,TO", "a TO b c\n");
+    run("FILES/M,TO/A,X/K", "a b X 1\n");
+    run("FILES/M/N,TO/A", "1 x\n");
+    run("A/A,FILES/M,B/A", "1 2 3\n");
+    run("FILES/M,TO/K,DEST/A", "a b\n");
+    run("FILES/M,TO", "a b\n");
+    run("X,FILES/M,TO/A", "a b\n");
+    run("FILES/M", "\"a b\" c\n");
+    run("FILES/M", "a;b\n");
 
     P_SECTION("aliases and errors");
     run("Q=QUIET/S,F=FILE", "Q x\n");
@@ -215,6 +320,14 @@ int main(void)
     run("A,,B", "1 2\n");
     run("", "\n");
     run("", "x\n");
+    run("", "x y\n");
+    run("", "=\n");
+    run("", "\"x\n");
+    run("", "x=y\n");
+    run("", "");
+    run("A=B=C", "c 1\n");
+    run("A/K/S", "A\n");
+    run("FROM,TO/A/S", "TO\n");
 
     return 0;
 }

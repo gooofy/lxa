@@ -125,6 +125,7 @@ set(TESTS_LIST
     "../tests/exec/traps|main|Tests/Exec/Traps"
     "../tests/exec/libident|main|Tests/Exec/LibIdent"
     "../tests/dos/chario|main|Tests/Dos/CharIO"
+    "../tests/console/conbuf|main|Tests/Console/ConBuf"
     "../tests/dos/stdin_eof|main|Tests/Dos/StdinEOF"
     "../tests/dos/createdir|main|Tests/Dos/CreateDir"
     "../tests/dos/fhutils|main|Tests/Dos/FHUtils"

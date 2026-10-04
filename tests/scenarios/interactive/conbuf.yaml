@@ -1,0 +1,15 @@
+# Phase 222a: order in which buffered dos output and Write() reach a
+# console window (Tests/Console/ConBuf) on AmigaOS 3.1 and lxa.
+name: interactive-conbuf
+app:
+  sample: Tests/Console/ConBuf
+steps:
+  - launch
+  - wait_output: "READY"
+  - frames: 25
+  - snapshot: window
+  - click: {anchor: inside, window: "ConBuf", xy: [20, 20]}
+  - type: "x\n"
+  - wait_output: "DONE"
+  - frames: 25
+  - snapshot: read

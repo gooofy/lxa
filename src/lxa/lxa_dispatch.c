@@ -384,6 +384,13 @@ int op_illg(int level)
                     lxa_note_held_task(task);
                 break;
             }
+            {
+                /* user stack of the faulting task: after a jump through a NULL
+                 * or garbage pointer, (usp) is the caller's return address */
+                uint32_t usp = m68k_get_reg(NULL, M68K_REG_USP);
+                LPRINTF (LOG_WARNING, "*** EXCEPTION CAUGHT: usp=0x%08x (usp)=0x%08x\n", usp,
+                         usp < RAM_END ? m68k_read_memory_32(usp) : 0);
+            }
             LPRINTF (LOG_WARNING, "*** EXCEPTION CAUGHT: pc=0x%08x #%2d ", pc, excn);
             {
                 uint32_t sysbase = m68k_read_memory_32(4);

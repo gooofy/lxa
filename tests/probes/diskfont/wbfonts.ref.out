@@ -1,0 +1,630 @@
+-- helvetica.font 13
+tf_YSize = 13
+tf_XSize = 7
+tf_Baseline = 9
+tf_Flags = 0x00000062
+tf_Style = 0x00000000
+tf_BoldSmear = 1
+tf_LoChar = 32
+tf_HiChar = 255
+tf_CharSpace = non-NULL
+tf_CharKern = non-NULL
+width/space/kern 32: 0/4/0 1/2/1 3/4/1 6/7/0 5/6/0 9/10/1 7/8/1 2/2/1 3/4/0 3/4/0 3/4/1 5/6/1
+width/space/kern 44: 2/3/1 6/8/0 1/2/1 4/4/0 5/6/1 2/4/3 5/6/1 5/6/1 6/7/0 5/6/1 5/6/1 5/6/1
+width/space/kern 56: 5/6/1 5/6/1 1/2/1 2/3/0 6/7/0 5/6/1 6/6/1 5/6/1 10/11/1 7/8/1 6/7/1 7/8/1
+width/space/kern 68: 7/8/1 6/7/1 6/7/1 7/8/1 7/8/1 1/2/1 5/6/1 7/7/1 5/6/1 9/10/1 7/8/1 8/9/1
+width/space/kern 80: 6/7/1 8/9/1 6/7/1 6/7/1 7/7/0 6/7/1 7/8/1 9/10/1 7/8/1 7/8/1 7/8/1 2/2/1
+width/space/kern 92: 4/4/0 2/3/0 5/6/0 7/7/0 2/2/0 6/6/1 5/6/1 5/6/1 5/6/1 5/6/1 4/3/0 5/6/1
+width/space/kern 104: 5/6/1 1/2/1 2/3/0 5/5/1 1/2/1 7/8/1 5/6/1 5/6/1 5/6/1 5/6/1 3/3/1 4/5/1
+width/space/kern 116: 3/3/0 5/6/1 5/6/1 9/9/0 6/6/0 5/6/1 4/5/1 4/4/0 1/2/1 4/4/0 6/7/0 7/8/1
+width/space/kern 128: 7/8/1 7/8/1 7/8/1 7/8/1 7/8/1 7/8/1 7/8/1 7/8/1 7/8/1 7/8/1 7/8/1 7/8/1
+width/space/kern 140: 7/8/1 7/8/1 7/8/1 7/8/1 7/8/1 7/8/1 7/8/1 7/8/1 7/8/1 7/8/1 7/8/1 7/8/1
+width/space/kern 152: 7/8/1 7/8/1 7/8/1 7/8/1 7/8/1 7/8/1 7/8/1 7/8/1 0/4/0 1/2/1 5/6/1 5/6/1
+width/space/kern 164: 6/7/0 5/6/1 1/2/1 5/6/0 3/3/0 9/10/1 3/4/1 5/6/1 6/7/1 4/5/0 9/10/1 4/4/0
+width/space/kern 176: 4/5/0 5/6/1 4/4/0 3/4/0 2/2/0 5/6/1 6/7/0 3/4/1 3/3/0 2/3/1 3/4/1 5/6/1
+width/space/kern 188: 9/10/0 9/10/0 9/10/0 5/6/1 7/8/1 7/8/1 7/8/1 7/8/1 7/8/1 7/8/1 9/10/1 7/8/1
+width/space/kern 200: 6/7/1 6/7/1 6/7/1 6/7/1 2/3/0 2/2/1 3/3/0 3/3/0 8/9/0 7/8/1 8/9/1 8/9/1
+width/space/kern 212: 8/9/1 8/9/1 8/9/1 5/6/1 10/10/0 6/7/1 6/7/1 6/7/1 6/7/1 7/8/1 6/7/1 5/6/1
+width/space/kern 224: 6/6/1 6/6/1 6/6/1 6/6/1 6/6/1 6/6/1 9/10/1 5/6/1 5/6/1 5/6/1 5/6/1 5/6/1
+width/space/kern 236: 2/2/1 2/2/1 3/3/0 3/3/0 5/6/1 5/6/1 5/6/1 5/6/1 5/6/1 5/6/1 5/6/1 5/6/1
+width/space/kern 248: 7/7/0 5/6/1 5/6/1 5/6/1 5/6/1 5/6/1 5/6/1 5/6/1 7/8/1
+style 0 "Normal" len 39 ext 39 0,-9 38,3 cp_x 47 = p0 0x52323030
+style 0 "Under" len 33 ext 33 0,-9 32,3 cp_x 41 = p0 0x27b92d29
+style 0 "Selected" len 49 ext 49 0,-9 48,3 cp_x 57 = p0 0x0e09eb23
+style 0 "Disabled" len 49 ext 49 0,-9 48,3 cp_x 57 = p0 0x525ff4ae
+style 0 "Cyc Off" len 43 ext 43 0,-9 43,3 cp_x 51 = p0 0x62df286f
+style 0 "Str Off" len 35 ext 35 0,-9 35,3 cp_x 43 = p0 0x4d4163d7
+style 0 "Off" len 16 ext 16 0,-9 16,3 cp_x 24 = p0 0x9c216e89
+style 0 "First" len 24 ext 24 0,-9 23,3 cp_x 32 = p0 0x2caace87
+style 0 "Second" len 43 ext 43 0,-9 42,3 cp_x 51 = p0 0xe2648cc1
+style 0 " 5" len 11 ext 11 0,-9 10,3 cp_x 19 = p0 0x45986b6c
+style 0 "Workbench" len 63 ext 63 0,-9 62,3 cp_x 71 = p0 0x887c09c2
+style 0 "AVAWAy" len 54 ext 54 0,-9 53,3 cp_x 62 = p0 0x8d1e7803
+style 0 "jfff,;" len 19 ext 19 0,-9 18,3 cp_x 27 = p0 0xead02a79
+style 0 "Label" len 31 ext 31 0,-9 30,3 cp_x 39 = p0 0xa3446981
+style 0 "If you {j}" len 46 ext 46 0,-9 45,3 cp_x 54 = p0 0xe4282615
+style 2 "Normal" len 39 ext 39 0,-9 39,3 cp_x 47 = p0 0xf05a95e1
+style 2 "Under" len 33 ext 33 0,-9 33,3 cp_x 41 = p0 0x810dbc6b
+style 2 "Selected" len 49 ext 49 0,-9 49,3 cp_x 57 = p0 0x17eb9ec9
+style 2 "Disabled" len 49 ext 49 0,-9 49,3 cp_x 57 = p0 0xda65f785
+style 2 "Cyc Off" len 43 ext 43 0,-9 44,3 cp_x 51 = p0 0x79582ff3
+style 2 "Str Off" len 35 ext 35 0,-9 36,3 cp_x 43 = p0 0x6dbce65b
+style 2 "Off" len 16 ext 16 0,-9 17,3 cp_x 24 = p0 0x4a360d96
+style 2 "First" len 24 ext 24 0,-9 24,3 cp_x 32 = p0 0x7bacfa76
+style 2 "Second" len 43 ext 43 0,-9 43,3 cp_x 51 = p0 0x298e3c65
+style 2 " 5" len 11 ext 11 0,-9 11,3 cp_x 19 = p0 0x5625152c
+style 2 "Workbench" len 63 ext 63 0,-9 63,3 cp_x 71 = p0 0xd120f857
+style 2 "AVAWAy" len 54 ext 54 0,-9 54,3 cp_x 62 = p0 0x2ea1a01a
+style 2 "jfff,;" len 19 ext 19 0,-9 19,3 cp_x 27 = p0 0x0e5cadbc
+style 2 "Label" len 31 ext 31 0,-9 31,3 cp_x 39 = p0 0x47c0d6ab
+style 2 "If you {j}" len 46 ext 46 0,-9 46,3 cp_x 54 = p0 0xc870ce01
+style 4 "Normal" len 39 ext 39 -2,-9 42,3 cp_x 47 = p0 0xedae9c92
+style 4 "Under" len 33 ext 33 -2,-9 36,3 cp_x 41 = p0 0xd8447e43
+style 4 "Selected" len 49 ext 49 -2,-9 52,3 cp_x 57 = p0 0x7c39a487
+style 4 "Disabled" len 49 ext 49 -2,-9 52,3 cp_x 57 = p0 0x0a7f6343
+style 4 "Cyc Off" len 43 ext 43 -2,-9 47,3 cp_x 51 = p0 0xef9a339a
+style 4 "Str Off" len 35 ext 35 -2,-9 39,3 cp_x 43 = p0 0x2ad1a5b6
+style 4 "Off" len 16 ext 16 -2,-9 20,3 cp_x 24 = p0 0x2271f362
+style 4 "First" len 24 ext 24 -2,-9 27,3 cp_x 32 = p0 0x3a01f19a
+style 4 "Second" len 43 ext 43 -2,-9 46,3 cp_x 51 = p0 0x23329380
+style 4 " 5" len 11 ext 11 -2,-9 14,3 cp_x 19 = p0 0x9effd0ce
+style 4 "Workbench" len 63 ext 63 -2,-9 66,3 cp_x 71 = p0 0x14f587db
+style 4 "AVAWAy" len 54 ext 54 -2,-9 57,3 cp_x 62 = p0 0x903bd3e7
+style 4 "jfff,;" len 19 ext 19 -2,-9 22,3 cp_x 27 = p0 0xf90faeed
+style 4 "Label" len 31 ext 31 -2,-9 34,3 cp_x 39 = p0 0xa616c88e
+style 4 "If you {j}" len 46 ext 46 -2,-9 49,3 cp_x 54 = p0 0xb9b25aad
+style 1 "Normal" len 39 ext 39 0,-9 38,3 cp_x 47 = p0 0x20097576
+style 1 "Under" len 33 ext 33 0,-9 32,3 cp_x 41 = p0 0x5552a47d
+style 1 "Selected" len 49 ext 49 0,-9 48,3 cp_x 57 = p0 0xc0026229
+style 1 "Disabled" len 49 ext 49 0,-9 48,3 cp_x 57 = p0 0x401782b4
+style 1 "Cyc Off" len 43 ext 43 0,-9 43,3 cp_x 51 = p0 0xf59bb5de
+style 1 "Str Off" len 35 ext 35 0,-9 35,3 cp_x 43 = p0 0xb60c52db
+style 1 "Off" len 16 ext 16 0,-9 16,3 cp_x 24 = p0 0x76a29ddb
+style 1 "First" len 24 ext 24 0,-9 23,3 cp_x 32 = p0 0x701ed22c
+style 1 "Second" len 43 ext 43 0,-9 42,3 cp_x 51 = p0 0x5bbd58c8
+style 1 " 5" len 11 ext 11 0,-9 10,3 cp_x 19 = p0 0xada08e01
+style 1 "Workbench" len 63 ext 63 0,-9 62,3 cp_x 71 = p0 0x45a9c813
+style 1 "AVAWAy" len 54 ext 54 0,-9 53,3 cp_x 62 = p0 0xaec9d4dd
+style 1 "jfff,;" len 19 ext 19 0,-9 18,3 cp_x 27 = p0 0x02ae89d0
+style 1 "Label" len 31 ext 31 0,-9 30,3 cp_x 39 = p0 0x79f524dc
+style 1 "If you {j}" len 46 ext 46 0,-9 45,3 cp_x 54 = p0 0x747791ed
+style 7 "Normal" len 39 ext 39 -2,-9 43,3 cp_x 47 = p0 0xf94a0ae5
+style 7 "Under" len 33 ext 33 -2,-9 37,3 cp_x 41 = p0 0x760ca5eb
+style 7 "Selected" len 49 ext 49 -2,-9 53,3 cp_x 57 = p0 0xbe62364e
+style 7 "Disabled" len 49 ext 49 -2,-9 53,3 cp_x 57 = p0 0x1f9a08c1
+style 7 "Cyc Off" len 43 ext 43 -2,-9 48,3 cp_x 51 = p0 0xefcf168f
+style 7 "Str Off" len 35 ext 35 -2,-9 40,3 cp_x 43 = p0 0x37528ca3
+style 7 "Off" len 16 ext 16 -2,-9 21,3 cp_x 24 = p0 0x3067cbe7
+style 7 "First" len 24 ext 24 -2,-9 28,3 cp_x 32 = p0 0x505f5222
+style 7 "Second" len 43 ext 43 -2,-9 47,3 cp_x 51 = p0 0x9e26dad7
+style 7 " 5" len 11 ext 11 -2,-9 15,3 cp_x 19 = p0 0x6322039e
+style 7 "Workbench" len 63 ext 63 -2,-9 67,3 cp_x 71 = p0 0x51feddc9
+style 7 "AVAWAy" len 54 ext 54 -2,-9 58,3 cp_x 62 = p0 0x8545ef53
+style 7 "jfff,;" len 19 ext 19 -2,-9 23,3 cp_x 27 = p0 0x4709c6ae
+style 7 "Label" len 31 ext 31 -2,-9 35,3 cp_x 39 = p0 0x0817aabb
+style 7 "If you {j}" len 46 ext 46 -2,-9 50,3 cp_x 54 = p0 0xbf323dff
+-- helvetica.font 11
+tf_YSize = 11
+tf_XSize = 6
+tf_Baseline = 8
+tf_Flags = 0x00000062
+tf_Style = 0x00000000
+tf_BoldSmear = 1
+tf_LoChar = 32
+tf_HiChar = 255
+tf_CharSpace = non-NULL
+tf_CharKern = non-NULL
+width/space/kern 32: 0/3/0 1/2/1 3/3/1 6/6/0 5/6/0 8/9/0 6/7/1 2/2/1 3/4/0 3/3/1 3/4/0 5/6/0
+width/space/kern 44: 2/3/0 5/6/1 1/2/1 3/3/0 5/6/0 2/5/1 5/6/0 5/6/0 5/6/0 5/6/0 5/6/0 5/6/0
+width/space/kern 56: 5/6/0 5/6/0 1/2/1 2/3/0 3/5/1 4/5/0 3/5/1 4/5/1 10/11/0 7/7/0 5/6/1 6/7/1
+width/space/kern 68: 6/7/1 5/6/1 5/5/1 6/7/1 6/7/1 1/2/1 4/5/0 5/6/1 4/5/1 7/8/1 6/7/1 6/7/1
+width/space/kern 80: 5/6/1 7/7/1 5/6/1 5/6/1 5/5/0 6/7/1 7/7/0 9/9/0 5/6/1 7/7/0 5/6/1 2/2/1
+width/space/kern 92: 3/3/0 2/3/0 5/6/0 6/6/0 2/3/0 5/5/0 5/6/0 4/5/0 5/6/0 4/5/0 4/4/0 5/6/0
+width/space/kern 104: 5/6/0 1/2/0 2/3/-1 4/5/0 1/2/0 7/8/0 5/6/0 5/6/0 5/6/0 5/6/0 3/4/0 4/5/0
+width/space/kern 116: 3/4/0 4/5/0 5/6/0 7/8/0 5/6/0 5/6/-1 4/5/0 3/3/0 1/2/1 3/3/0 6/7/0 6/7/1
+width/space/kern 128: 6/7/1 6/7/1 6/7/1 6/7/1 6/7/1 6/7/1 6/7/1 6/7/1 6/7/1 6/7/1 6/7/1 6/7/1
+width/space/kern 140: 6/7/1 6/7/1 6/7/1 6/7/1 6/7/1 6/7/1 6/7/1 6/7/1 6/7/1 6/7/1 6/7/1 6/7/1
+width/space/kern 152: 6/7/1 6/7/1 6/7/1 6/7/1 6/7/1 6/7/1 6/7/1 6/7/1 0/3/0 1/2/1 5/6/0 5/6/0
+width/space/kern 164: 4/5/0 5/6/0 1/2/1 5/6/0 3/3/0 7/8/1 3/4/0 5/6/0 5/6/1 3/4/0 7/8/1 3/3/0
+width/space/kern 176: 4/4/0 5/6/0 3/3/0 3/3/0 2/3/0 4/5/0 6/6/0 2/3/1 2/3/0 2/3/0 3/4/0 5/6/0
+width/space/kern 188: 9/9/0 8/9/0 9/9/0 4/5/1 7/7/0 7/7/0 7/7/0 7/7/0 7/7/0 7/7/0 9/10/0 6/7/1
+width/space/kern 200: 5/6/1 5/6/1 5/6/1 5/6/1 2/3/0 2/2/1 3/3/0 3/3/0 7/8/0 6/7/1 6/7/1 6/7/1
+width/space/kern 212: 6/7/1 6/7/1 6/7/1 5/6/0 6/7/1 6/7/1 6/7/1 6/7/1 6/7/1 5/6/1 5/6/1 4/5/0
+width/space/kern 224: 5/5/0 5/5/0 5/5/0 5/5/0 5/5/0 5/5/0 7/8/0 4/5/0 4/5/0 4/5/0 4/5/0 4/5/0
+width/space/kern 236: 2/2/0 2/2/0 3/3/-1 3/3/-1 5/6/0 4/5/0 5/6/0 5/6/0 5/6/0 5/6/0 5/6/0 5/6/0
+width/space/kern 248: 7/7/-1 4/5/0 4/5/0 4/5/0 4/5/0 5/6/-1 5/6/0 5/6/-1 6/7/1
+style 0 "Normal" len 33 ext 33 0,-8 32,2 cp_x 41 = p0 0x692dfcc7
+style 0 "Under" len 29 ext 29 0,-8 28,2 cp_x 37 = p0 0x2b62cce2
+style 0 "Selected" len 39 ext 39 0,-8 38,2 cp_x 47 = p0 0x3e2785db
+style 0 "Disabled" len 39 ext 39 0,-8 38,2 cp_x 47 = p0 0xc77b0387
+style 0 "Cyc Off" len 37 ext 37 0,-8 36,2 cp_x 45 = p0 0x594ea60c
+style 0 "Str Off" len 34 ext 34 0,-8 33,2 cp_x 42 = p0 0xf997a139
+style 0 "Off" len 16 ext 16 0,-8 15,2 cp_x 24 = p0 0x4bf356b8
+style 0 "First" len 21 ext 21 0,-8 20,2 cp_x 29 = p0 0xec1dbb80
+style 0 "Second" len 35 ext 35 0,-8 34,2 cp_x 43 = p0 0xa81b20e9
+style 0 " 5" len 9 ext 9 0,-8 8,2 cp_x 17 = p0 0x1466bf63
+style 0 "Workbench" len 52 ext 52 0,-8 51,2 cp_x 60 = p0 0x07a7ca9f
+style 0 "AVAWAy" len 42 ext 42 0,-8 41,2 cp_x 50 = p0 0x6b8cf821
+style 0 "jfff,;" len 20 ext 20 -1,-8 19,2 cp_x 28 = p0 0x1154020f
+style 0 "Label" len 24 ext 24 0,-8 23,2 cp_x 32 = p0 0x0900a0ac
+style 0 "If you {j}" len 37 ext 37 0,-8 36,2 cp_x 45 = p0 0x98c9df7c
+style 2 "Normal" len 33 ext 33 0,-8 33,2 cp_x 41 = p0 0x2fcbcbbc
+style 2 "Under" len 29 ext 29 0,-8 29,2 cp_x 37 = p0 0xf96535e3
+style 2 "Selected" len 39 ext 39 0,-8 39,2 cp_x 47 = p0 0x20d12e92
+style 2 "Disabled" len 39 ext 39 0,-8 39,2 cp_x 47 = p0 0x4cceca79
+style 2 "Cyc Off" len 37 ext 37 0,-8 37,2 cp_x 45 = p0 0x93f5a834
+style 2 "Str Off" len 34 ext 34 0,-8 34,2 cp_x 42 = p0 0xf5d1fd81
+style 2 "Off" len 16 ext 16 0,-8 16,2 cp_x 24 = p0 0x3584d515
+style 2 "First" len 21 ext 21 0,-8 21,2 cp_x 29 = p0 0xb6f0343a
+style 2 "Second" len 35 ext 35 0,-8 35,2 cp_x 43 = p0 0x11d5bb31
+style 2 " 5" len 9 ext 9 0,-8 9,2 cp_x 17 = p0 0x4a0e9d27
+style 2 "Workbench" len 52 ext 52 0,-8 52,2 cp_x 60 = p0 0x93dff96a
+style 2 "AVAWAy" len 42 ext 42 0,-8 42,2 cp_x 50 = p0 0x785f413c
+style 2 "jfff,;" len 20 ext 20 -1,-8 20,2 cp_x 28 = p0 0x08f4fcfe
+style 2 "Label" len 24 ext 24 0,-8 24,2 cp_x 32 = p0 0x8f34d8c4
+style 2 "If you {j}" len 37 ext 37 0,-8 37,2 cp_x 45 = p0 0x56c23404
+style 4 "Normal" len 33 ext 33 -2,-8 36,2 cp_x 41 = p0 0xa6252ffb
+style 4 "Under" len 29 ext 29 -2,-8 32,2 cp_x 37 = p0 0x1ac2c157
+style 4 "Selected" len 39 ext 39 -2,-8 42,2 cp_x 47 = p0 0x0b400120
+style 4 "Disabled" len 39 ext 39 -2,-8 42,2 cp_x 47 = p0 0x3574138b
+style 4 "Cyc Off" len 37 ext 37 -2,-8 40,2 cp_x 45 = p0 0xe8903dde
+style 4 "Str Off" len 34 ext 34 -2,-8 37,2 cp_x 42 = p0 0x8ac6e7d0
+style 4 "Off" len 16 ext 16 -2,-8 19,2 cp_x 24 = p0 0xdd826e5a
+style 4 "First" len 21 ext 21 -2,-8 24,2 cp_x 29 = p0 0x23d1ffd1
+style 4 "Second" len 35 ext 35 -2,-8 38,2 cp_x 43 = p0 0x859a801e
+style 4 " 5" len 9 ext 9 -2,-8 12,2 cp_x 17 = p0 0xa0cb8890
+style 4 "Workbench" len 52 ext 52 -2,-8 55,2 cp_x 60 = p0 0x5a60f870
+style 4 "AVAWAy" len 42 ext 42 -2,-8 45,2 cp_x 50 = p0 0x90a6ea25
+style 4 "jfff,;" len 20 ext 20 -3,-8 23,2 cp_x 28 = p0 0x314ea26f
+style 4 "Label" len 24 ext 24 -2,-8 27,2 cp_x 32 = p0 0x79e2bec5
+style 4 "If you {j}" len 37 ext 37 -2,-8 40,2 cp_x 45 = p0 0x8eec58ab
+style 1 "Normal" len 33 ext 33 0,-8 32,2 cp_x 41 = p0 0x5a153b3b
+style 1 "Under" len 29 ext 29 0,-8 28,2 cp_x 37 = p0 0x80583471
+style 1 "Selected" len 39 ext 39 0,-8 38,2 cp_x 47 = p0 0x3b9bdb31
+style 1 "Disabled" len 39 ext 39 0,-8 38,2 cp_x 47 = p0 0xf6a78f85
+style 1 "Cyc Off" len 37 ext 37 0,-8 36,2 cp_x 45 = p0 0xcefe34d8
+style 1 "Str Off" len 34 ext 34 0,-8 33,2 cp_x 42 = p0 0x86474a6d
+style 1 "Off" len 16 ext 16 0,-8 15,2 cp_x 24 = p0 0x5f0e875a
+style 1 "First" len 21 ext 21 0,-8 20,2 cp_x 29 = p0 0x47f3a7aa
+style 1 "Second" len 35 ext 35 0,-8 34,2 cp_x 43 = p0 0x8d6851fd
+style 1 " 5" len 9 ext 9 0,-8 8,2 cp_x 17 = p0 0xc62e8932
+style 1 "Workbench" len 52 ext 52 0,-8 51,2 cp_x 60 = p0 0x485cfde5
+style 1 "AVAWAy" len 42 ext 42 0,-8 41,2 cp_x 50 = p0 0x2b0d4335
+style 1 "jfff,;" len 20 ext 20 -1,-8 19,2 cp_x 28 = p0 0x90079396
+style 1 "Label" len 24 ext 24 0,-8 23,2 cp_x 32 = p0 0xafdc137f
+style 1 "If you {j}" len 37 ext 37 0,-8 36,2 cp_x 45 = p0 0x5566e89f
+style 7 "Normal" len 33 ext 33 -2,-8 37,2 cp_x 41 = p0 0x4c7d2b73
+style 7 "Under" len 29 ext 29 -2,-8 33,2 cp_x 37 = p0 0x4ed0175b
+style 7 "Selected" len 39 ext 39 -2,-8 43,2 cp_x 47 = p0 0x1d3eb455
+style 7 "Disabled" len 39 ext 39 -2,-8 43,2 cp_x 47 = p0 0xc44512f6
+style 7 "Cyc Off" len 37 ext 37 -2,-8 41,2 cp_x 45 = p0 0x5f006914
+style 7 "Str Off" len 34 ext 34 -2,-8 38,2 cp_x 42 = p0 0xfcd1845a
+style 7 "Off" len 16 ext 16 -2,-8 20,2 cp_x 24 = p0 0xeef6d7a3
+style 7 "First" len 21 ext 21 -2,-8 25,2 cp_x 29 = p0 0x98dbfa78
+style 7 "Second" len 35 ext 35 -2,-8 39,2 cp_x 43 = p0 0xc5232a94
+style 7 " 5" len 9 ext 9 -2,-8 13,2 cp_x 17 = p0 0x06780aae
+style 7 "Workbench" len 52 ext 52 -2,-8 56,2 cp_x 60 = p0 0xfd36daed
+style 7 "AVAWAy" len 42 ext 42 -2,-8 46,2 cp_x 50 = p0 0x76203da1
+style 7 "jfff,;" len 20 ext 20 -3,-8 24,2 cp_x 28 = p0 0x33e9a731
+style 7 "Label" len 24 ext 24 -2,-8 28,2 cp_x 32 = p0 0x3af567f3
+style 7 "If you {j}" len 37 ext 37 -2,-8 41,2 cp_x 45 = p0 0x729a6dc8
+-- times.font 13
+tf_YSize = 13
+tf_XSize = 6
+tf_Baseline = 9
+tf_Flags = 0x00000062
+tf_Style = 0x00000000
+tf_BoldSmear = 1
+tf_LoChar = 32
+tf_HiChar = 255
+tf_CharSpace = non-NULL
+tf_CharKern = non-NULL
+width/space/kern 32: 0/3/0 1/2/1 3/4/1 5/5/1 5/5/1 8/8/1 9/10/0 2/3/1 3/4/1 3/4/1 5/6/0 5/6/1
+width/space/kern 44: 2/3/0 6/7/1 1/2/1 3/3/0 5/5/1 4/5/1 5/5/1 5/5/1 5/5/1 5/5/1 5/5/1 5/5/1
+width/space/kern 56: 5/5/1 5/5/1 1/2/1 2/3/0 6/7/1 5/6/1 6/7/1 4/5/0 10/10/1 9/9/0 7/8/0 7/8/0
+width/space/kern 68: 8/9/0 7/8/0 7/8/0 8/9/0 8/9/0 3/4/0 4/4/0 8/8/0 6/7/0 11/11/0 9/9/0 8/9/0
+width/space/kern 80: 7/7/0 8/9/0 8/8/0 6/7/0 7/7/0 8/8/0 9/9/0 12/12/0 8/8/0 9/9/0 7/8/0 3/4/1
+width/space/kern 92: 3/3/0 3/4/1 5/5/1 6/6/0 2/3/1 5/5/1 5/6/0 4/4/1 5/5/1 5/5/1 4/3/0 5/5/1
+width/space/kern 104: 6/6/0 3/3/0 3/4/-1 6/6/0 3/3/0 9/9/0 6/6/0 4/5/1 5/6/0 5/5/1 4/4/0 4/5/1
+width/space/kern 116: 4/4/0 6/6/0 6/6/0 9/9/0 5/5/1 6/6/0 4/5/1 4/5/1 1/2/1 4/5/1 6/6/1 7/8/1
+width/space/kern 128: 7/8/1 7/8/1 7/8/1 7/8/1 7/8/1 7/8/1 7/8/1 7/8/1 7/8/1 7/8/1 7/8/1 7/8/1
+width/space/kern 140: 7/8/1 7/8/1 7/8/1 7/8/1 7/8/1 7/8/1 7/8/1 7/8/1 7/8/1 7/8/1 7/8/1 7/8/1
+width/space/kern 152: 7/8/1 7/8/1 7/8/1 7/8/1 7/8/1 7/8/1 7/8/1 7/8/1 0/3/0 1/3/1 5/5/1 5/5/1
+width/space/kern 164: 6/6/1 5/5/1 1/2/1 4/5/1 3/3/0 9/10/1 3/4/1 5/6/1 6/7/1 4/5/1 9/10/1 4/4/0
+width/space/kern 176: 4/5/0 5/6/1 4/4/0 3/4/0 2/3/1 6/6/0 6/7/0 4/4/0 3/3/0 3/4/0 3/4/1 5/6/1
+width/space/kern 188: 9/9/0 9/9/0 9/9/0 4/5/0 9/9/0 9/9/0 9/9/0 9/9/0 9/9/0 9/9/0 11/12/-1 7/8/0
+width/space/kern 200: 7/8/0 7/8/0 7/8/0 7/8/0 3/4/0 3/4/0 3/4/0 3/4/0 8/9/0 9/9/0 8/9/0 8/9/0
+width/space/kern 212: 8/9/0 8/9/0 8/9/0 5/6/1 10/10/-1 8/8/0 8/8/0 8/8/0 8/8/0 9/9/0 7/7/0 6/6/0
+width/space/kern 224: 5/5/1 5/5/1 5/5/1 5/5/1 5/5/1 5/5/1 8/8/1 4/4/1 5/5/1 5/5/1 5/5/1 5/5/1
+width/space/kern 236: 3/3/0 3/3/0 3/3/0 3/3/0 4/5/1 6/6/0 4/5/1 4/5/1 4/5/1 5/5/1 4/5/1 5/6/1
+width/space/kern 248: 6/6/0 6/6/0 6/6/0 6/6/0 6/6/0 6/6/0 5/6/0 6/6/0 7/8/1
+style 0 "Normal" len 37 ext 37 0,-9 36,3 cp_x 45 = p0 0x9aec58d6
+style 0 "Under" len 30 ext 30 0,-9 29,3 cp_x 38 = p0 0x5e0a5891
+style 0 "Selected" len 43 ext 43 0,-9 42,3 cp_x 51 = p0 0x7da3009e
+style 0 "Disabled" len 45 ext 45 0,-9 44,3 cp_x 53 = p0 0x6afdfe01
+style 0 "Cyc Off" len 37 ext 37 0,-9 37,3 cp_x 45 = p0 0x5853f660
+style 0 "Str Off" len 33 ext 33 0,-9 33,3 cp_x 41 = p0 0xbcbcaa74
+style 0 "Off" len 15 ext 15 0,-9 15,3 cp_x 23 = p0 0xea0af87b
+style 0 "First" len 25 ext 25 0,-9 24,3 cp_x 33 = p0 0x96ea6ebf
+style 0 "Second" len 36 ext 36 0,-9 35,3 cp_x 44 = p0 0xb00a83a9
+style 0 " 5" len 9 ext 9 0,-9 8,3 cp_x 17 = p0 0xa217a750
+style 0 "Workbench" len 57 ext 57 0,-9 56,3 cp_x 65 = p0 0x0d99c45f
+style 0 "AVAWAy" len 54 ext 54 0,-9 53,3 cp_x 62 = p0 0x8a24e7dd
+style 0 "jfff,;" len 18 ext 18 -1,-9 17,3 cp_x 26 = p0 0x90fba3d4
+style 0 "Label" len 28 ext 28 0,-9 27,3 cp_x 36 = p0 0x97d2a632
+style 0 "If you {j}" len 46 ext 46 0,-9 45,3 cp_x 54 = p0 0xb1b91cea
+style 2 "Normal" len 37 ext 37 0,-9 37,3 cp_x 45 = p0 0x2d5a566f
+style 2 "Under" len 30 ext 30 0,-9 30,3 cp_x 38 = p0 0x101e201b
+style 2 "Selected" len 43 ext 43 0,-9 43,3 cp_x 51 = p0 0xf979b20c
+style 2 "Disabled" len 45 ext 45 0,-9 45,3 cp_x 53 = p0 0x11152925
+style 2 "Cyc Off" len 37 ext 37 0,-9 38,3 cp_x 45 = p0 0xab5583dc
+style 2 "Str Off" len 33 ext 33 0,-9 34,3 cp_x 41 = p0 0x2cd1f670
+style 2 "Off" len 15 ext 15 0,-9 16,3 cp_x 23 = p0 0x83a158b8
+style 2 "First" len 25 ext 25 0,-9 25,3 cp_x 33 = p0 0x65c26ba7
+style 2 "Second" len 36 ext 36 0,-9 36,3 cp_x 44 = p0 0x71cd78d7
+style 2 " 5" len 9 ext 9 0,-9 9,3 cp_x 17 = p0 0x0176be4c
+style 2 "Workbench" len 57 ext 57 0,-9 57,3 cp_x 65 = p0 0x90a74b2a
+style 2 "AVAWAy" len 54 ext 54 0,-9 54,3 cp_x 62 = p0 0xacd22d77
+style 2 "jfff,;" len 18 ext 18 -1,-9 18,3 cp_x 26 = p0 0xb4a0855f
+style 2 "Label" len 28 ext 28 0,-9 28,3 cp_x 36 = p0 0x0010fd0e
+style 2 "If you {j}" len 46 ext 46 0,-9 46,3 cp_x 54 = p0 0x232e42d6
+style 4 "Normal" len 37 ext 37 -2,-9 40,3 cp_x 45 = p0 0x53808846
+style 4 "Under" len 30 ext 30 -2,-9 33,3 cp_x 38 = p0 0x1d17ceca
+style 4 "Selected" len 43 ext 43 -2,-9 46,3 cp_x 51 = p0 0xf35c8dbe
+style 4 "Disabled" len 45 ext 45 -2,-9 48,3 cp_x 53 = p0 0x4386302a
+style 4 "Cyc Off" len 37 ext 37 -2,-9 41,3 cp_x 45 = p0 0x8d66fe1f
+style 4 "Str Off" len 33 ext 33 -2,-9 37,3 cp_x 41 = p0 0xdcc893d3
+style 4 "Off" len 15 ext 15 -2,-9 19,3 cp_x 23 = p0 0x619776fe
+style 4 "First" len 25 ext 25 -2,-9 28,3 cp_x 33 = p0 0x52050d34
+style 4 "Second" len 36 ext 36 -2,-9 39,3 cp_x 44 = p0 0xccc7bc84
+style 4 " 5" len 9 ext 9 -2,-9 12,3 cp_x 17 = p0 0x3ef34708
+style 4 "Workbench" len 57 ext 57 -2,-9 60,3 cp_x 65 = p0 0x75a6851d
+style 4 "AVAWAy" len 54 ext 54 -2,-9 57,3 cp_x 62 = p0 0x91456d2c
+style 4 "jfff,;" len 18 ext 18 -3,-9 21,3 cp_x 26 = p0 0x3987a0cc
+style 4 "Label" len 28 ext 28 -2,-9 31,3 cp_x 36 = p0 0xf2e8ef39
+style 4 "If you {j}" len 46 ext 46 -2,-9 49,3 cp_x 54 = p0 0x135ac936
+style 1 "Normal" len 37 ext 37 0,-9 36,3 cp_x 45 = p0 0x39fbd662
+style 1 "Under" len 30 ext 30 0,-9 29,3 cp_x 38 = p0 0x3ef568de
+style 1 "Selected" len 43 ext 43 0,-9 42,3 cp_x 51 = p0 0xf7eb602b
+style 1 "Disabled" len 45 ext 45 0,-9 44,3 cp_x 53 = p0 0x4962fa90
+style 1 "Cyc Off" len 37 ext 37 0,-9 37,3 cp_x 45 = p0 0xccddc030
+style 1 "Str Off" len 33 ext 33 0,-9 33,3 cp_x 41 = p0 0x7e3f1f88
+style 1 "Off" len 15 ext 15 0,-9 15,3 cp_x 23 = p0 0x46cb754d
+style 1 "First" len 25 ext 25 0,-9 24,3 cp_x 33 = p0 0x703fab74
+style 1 "Second" len 36 ext 36 0,-9 35,3 cp_x 44 = p0 0xa9e1b82d
+style 1 " 5" len 9 ext 9 0,-9 8,3 cp_x 17 = p0 0x38e92ebd
+style 1 "Workbench" len 57 ext 57 0,-9 56,3 cp_x 65 = p0 0xd9b8c9d0
+style 1 "AVAWAy" len 54 ext 54 0,-9 53,3 cp_x 62 = p0 0xc884e677
+style 1 "jfff,;" len 18 ext 18 -1,-9 17,3 cp_x 26 = p0 0x8ee01ea0
+style 1 "Label" len 28 ext 28 0,-9 27,3 cp_x 36 = p0 0x99e7ed71
+style 1 "If you {j}" len 46 ext 46 0,-9 45,3 cp_x 54 = p0 0x40f7986e
+style 7 "Normal" len 37 ext 37 -2,-9 41,3 cp_x 45 = p0 0x65121bbd
+style 7 "Under" len 30 ext 30 -2,-9 34,3 cp_x 38 = p0 0x73dc3ea4
+style 7 "Selected" len 43 ext 43 -2,-9 47,3 cp_x 51 = p0 0x4cc1735f
+style 7 "Disabled" len 45 ext 45 -2,-9 49,3 cp_x 53 = p0 0x86f3483a
+style 7 "Cyc Off" len 37 ext 37 -2,-9 42,3 cp_x 45 = p0 0x70d5c920
+style 7 "Str Off" len 33 ext 33 -2,-9 38,3 cp_x 41 = p0 0x96ea07b3
+style 7 "Off" len 15 ext 15 -2,-9 20,3 cp_x 23 = p0 0xc7fc8ea8
+style 7 "First" len 25 ext 25 -2,-9 29,3 cp_x 33 = p0 0xb1a55eea
+style 7 "Second" len 36 ext 36 -2,-9 40,3 cp_x 44 = p0 0xacfe0691
+style 7 " 5" len 9 ext 9 -2,-9 13,3 cp_x 17 = p0 0xf41d8bbe
+style 7 "Workbench" len 57 ext 57 -2,-9 61,3 cp_x 65 = p0 0x9881f105
+style 7 "AVAWAy" len 54 ext 54 -2,-9 58,3 cp_x 62 = p0 0xa874d1f2
+style 7 "jfff,;" len 18 ext 18 -3,-9 22,3 cp_x 26 = p0 0x5fc1bb0b
+style 7 "Label" len 28 ext 28 -2,-9 32,3 cp_x 36 = p0 0xaf59c1d0
+style 7 "If you {j}" len 46 ext 46 -2,-9 50,3 cp_x 54 = p0 0xb7e53555
+-- courier.font 13
+tf_YSize = 13
+tf_XSize = 7
+tf_Baseline = 9
+tf_Flags = 0x00000042
+tf_Style = 0x00000000
+tf_BoldSmear = 1
+tf_LoChar = 32
+tf_HiChar = 255
+tf_CharSpace = non-NULL
+tf_CharKern = non-NULL
+width/space/kern 32: 0/7/0 1/4/3 3/5/2 7/7/0 5/6/1 6/6/1 7/7/0 2/5/2 3/4/3 3/6/1 5/6/1 5/6/1
+width/space/kern 44: 2/6/1 5/6/1 1/5/2 6/6/1 5/6/1 5/6/1 5/6/1 5/6/1 6/7/0 6/7/0 5/6/1 5/6/1
+width/space/kern 56: 5/6/1 5/6/1 1/4/3 2/5/2 4/6/1 5/6/1 4/5/2 5/6/1 5/6/1 7/7/0 6/7/0 5/6/1
+width/space/kern 68: 6/7/0 6/7/0 6/7/0 5/6/1 7/7/0 5/6/1 5/6/1 7/7/0 6/7/0 7/7/0 7/7/0 5/6/1
+width/space/kern 80: 6/7/0 5/6/1 7/7/0 5/6/1 7/7/0 7/7/0 7/7/0 7/7/0 7/7/0 7/7/0 5/6/1 2/4/3
+width/space/kern 92: 6/6/1 2/5/2 5/6/1 7/7/0 2/6/1 6/6/1 6/7/0 5/6/1 6/6/1 5/6/1 5/6/1 6/6/1
+width/space/kern 104: 7/7/0 5/6/1 4/6/1 7/7/0 6/6/1 7/7/0 7/7/0 5/6/1 6/7/0 6/6/1 5/6/1 5/6/1
+width/space/kern 116: 6/6/1 7/7/0 7/7/0 7/7/0 7/7/0 7/7/0 5/6/1 3/5/2 1/4/3 3/5/2 5/6/1 5/6/1
+width/space/kern 128: 5/6/1 5/6/1 5/6/1 5/6/1 5/6/1 5/6/1 5/6/1 5/6/1 5/6/1 5/6/1 5/6/1 5/6/1
+width/space/kern 140: 5/6/1 5/6/1 5/6/1 5/6/1 5/6/1 5/6/1 5/6/1 5/6/1 5/6/1 5/6/1 5/6/1 5/6/1
+width/space/kern 152: 5/6/1 5/6/1 5/6/1 5/6/1 5/6/1 5/6/1 5/6/1 5/6/1 0/7/0 1/4/3 5/6/1 6/7/0
+width/space/kern 164: 6/7/0 7/7/0 1/4/3 5/6/1 3/5/2 7/7/0 4/6/1 6/7/0 5/6/1 5/6/1 7/7/0 5/6/1
+width/space/kern 176: 4/6/1 5/6/1 4/6/1 4/6/1 2/4/3 7/7/0 6/7/0 3/6/1 3/5/2 3/5/2 4/6/1 6/6/1
+width/space/kern 188: 8/7/0 8/7/0 8/7/0 5/6/1 7/7/0 7/7/0 7/7/0 7/7/0 7/7/0 7/7/0 6/7/0 5/6/1
+width/space/kern 200: 6/7/0 6/7/0 6/7/0 6/7/0 5/6/1 5/6/1 5/6/1 5/6/1 6/7/0 7/7/0 5/6/1 5/6/1
+width/space/kern 212: 5/6/1 5/6/1 5/6/1 5/6/1 5/6/1 7/7/0 7/7/0 7/7/0 7/7/0 7/7/0 6/7/0 6/7/0
+width/space/kern 224: 6/6/1 6/6/1 6/6/1 6/6/1 6/6/1 6/6/1 7/7/0 5/6/1 5/6/1 5/6/1 5/6/1 5/6/1
+width/space/kern 236: 5/6/1 5/6/1 5/6/1 5/6/1 6/7/0 7/7/0 5/6/1 5/6/1 5/6/1 5/6/1 5/6/1 5/6/1
+width/space/kern 248: 5/6/1 7/7/0 7/7/0 7/7/0 7/7/0 7/7/0 6/7/0 7/7/0 5/6/1
+style 0 "Normal" len 42 ext 42 0,-9 41,3 cp_x 50 = p0 0xcf8d61f8
+style 0 "Under" len 35 ext 35 0,-9 34,3 cp_x 43 = p0 0x509a9826
+style 0 "Selected" len 56 ext 56 0,-9 55,3 cp_x 64 = p0 0x8efa3a70
+style 0 "Disabled" len 56 ext 56 0,-9 55,3 cp_x 64 = p0 0xb07d8fa5
+style 0 "Cyc Off" len 49 ext 49 0,-9 48,3 cp_x 57 = p0 0xa7942705
+style 0 "Str Off" len 49 ext 49 0,-9 48,3 cp_x 57 = p0 0xe0e9e602
+style 0 "Off" len 21 ext 21 0,-9 20,3 cp_x 29 = p0 0x7f8a61bd
+style 0 "First" len 35 ext 35 0,-9 34,3 cp_x 43 = p0 0xe25687bc
+style 0 "Second" len 42 ext 42 0,-9 41,3 cp_x 50 = p0 0xfa32a9b5
+style 0 " 5" len 14 ext 14 0,-9 13,3 cp_x 22 = p0 0x2d1de8c2
+style 0 "Workbench" len 63 ext 63 0,-9 62,3 cp_x 71 = p0 0x7d3afc04
+style 0 "AVAWAy" len 42 ext 42 0,-9 41,3 cp_x 50 = p0 0xd9b9aecb
+style 0 "jfff,;" len 42 ext 42 0,-9 41,3 cp_x 50 = p0 0x5258e260
+style 0 "Label" len 35 ext 35 0,-9 34,3 cp_x 43 = p0 0xe4f95727
+style 0 "If you {j}" len 70 ext 70 0,-9 69,3 cp_x 78 = p0 0x6ef73ea7
+style 2 "Normal" len 42 ext 42 0,-9 42,3 cp_x 50 = p0 0xdf0c5445
+style 2 "Under" len 35 ext 35 0,-9 35,3 cp_x 43 = p0 0xe9ecf202
+style 2 "Selected" len 56 ext 56 0,-9 56,3 cp_x 64 = p0 0xe12e1c18
+style 2 "Disabled" len 56 ext 56 0,-9 56,3 cp_x 64 = p0 0x8c224267
+style 2 "Cyc Off" len 49 ext 49 0,-9 49,3 cp_x 57 = p0 0x606257d0
+style 2 "Str Off" len 49 ext 49 0,-9 49,3 cp_x 57 = p0 0x5fec3f05
+style 2 "Off" len 21 ext 21 0,-9 21,3 cp_x 29 = p0 0x9a228c55
+style 2 "First" len 35 ext 35 0,-9 35,3 cp_x 43 = p0 0xf304f312
+style 2 "Second" len 42 ext 42 0,-9 42,3 cp_x 50 = p0 0x0ac64049
+style 2 " 5" len 14 ext 14 0,-9 14,3 cp_x 22 = p0 0xf094e28a
+style 2 "Workbench" len 63 ext 63 0,-9 63,3 cp_x 71 = p0 0x6f2f6a7e
+style 2 "AVAWAy" len 42 ext 42 0,-9 42,3 cp_x 50 = p0 0x55f286b4
+style 2 "jfff,;" len 42 ext 42 0,-9 42,3 cp_x 50 = p0 0x11cff193
+style 2 "Label" len 35 ext 35 0,-9 35,3 cp_x 43 = p0 0xd0d319f3
+style 2 "If you {j}" len 70 ext 70 0,-9 70,3 cp_x 78 = p0 0xa2cf4ae7
+style 4 "Normal" len 42 ext 42 -2,-9 45,3 cp_x 50 = p0 0xb33a1bd7
+style 4 "Under" len 35 ext 35 -2,-9 38,3 cp_x 43 = p0 0xbcb4e69b
+style 4 "Selected" len 56 ext 56 -2,-9 59,3 cp_x 64 = p0 0x0cf242a0
+style 4 "Disabled" len 56 ext 56 -2,-9 59,3 cp_x 64 = p0 0x9a067fd2
+style 4 "Cyc Off" len 49 ext 49 -2,-9 52,3 cp_x 57 = p0 0x67168d0e
+style 4 "Str Off" len 49 ext 49 -2,-9 52,3 cp_x 57 = p0 0x58c30ae9
+style 4 "Off" len 21 ext 21 -2,-9 24,3 cp_x 29 = p0 0x8a2be41a
+style 4 "First" len 35 ext 35 -2,-9 38,3 cp_x 43 = p0 0xe0c04f8d
+style 4 "Second" len 42 ext 42 -2,-9 45,3 cp_x 50 = p0 0x88d8beff
+style 4 " 5" len 14 ext 14 -2,-9 17,3 cp_x 22 = p0 0xe00da541
+style 4 "Workbench" len 63 ext 63 -2,-9 66,3 cp_x 71 = p0 0x89f4d7ed
+style 4 "AVAWAy" len 42 ext 42 -2,-9 45,3 cp_x 50 = p0 0x3cc96760
+style 4 "jfff,;" len 42 ext 42 -2,-9 45,3 cp_x 50 = p0 0xc70ebb9b
+style 4 "Label" len 35 ext 35 -2,-9 38,3 cp_x 43 = p0 0x5919e861
+style 4 "If you {j}" len 70 ext 70 -2,-9 73,3 cp_x 78 = p0 0xa0ea196a
+style 1 "Normal" len 42 ext 42 0,-9 41,3 cp_x 50 = p0 0xda4afa31
+style 1 "Under" len 35 ext 35 0,-9 34,3 cp_x 43 = p0 0x5162f35a
+style 1 "Selected" len 56 ext 56 0,-9 55,3 cp_x 64 = p0 0xeeb5de3f
+style 1 "Disabled" len 56 ext 56 0,-9 55,3 cp_x 64 = p0 0xfca80b0a
+style 1 "Cyc Off" len 49 ext 49 0,-9 48,3 cp_x 57 = p0 0xae96655b
+style 1 "Str Off" len 49 ext 49 0,-9 48,3 cp_x 57 = p0 0xc7b97308
+style 1 "Off" len 21 ext 21 0,-9 20,3 cp_x 29 = p0 0x64a1db67
+style 1 "First" len 35 ext 35 0,-9 34,3 cp_x 43 = p0 0xc9a60c70
+style 1 "Second" len 42 ext 42 0,-9 41,3 cp_x 50 = p0 0x6d458374
+style 1 " 5" len 14 ext 14 0,-9 13,3 cp_x 22 = p0 0x55946f77
+style 1 "Workbench" len 63 ext 63 0,-9 62,3 cp_x 71 = p0 0x3e1fc655
+style 1 "AVAWAy" len 42 ext 42 0,-9 41,3 cp_x 50 = p0 0xfa0a746f
+style 1 "jfff,;" len 42 ext 42 0,-9 41,3 cp_x 50 = p0 0xf3b428a1
+style 1 "Label" len 35 ext 35 0,-9 34,3 cp_x 43 = p0 0x581ba95b
+style 1 "If you {j}" len 70 ext 70 0,-9 69,3 cp_x 78 = p0 0xa63e5750
+style 7 "Normal" len 42 ext 42 -2,-9 46,3 cp_x 50 = p0 0x48853bc6
+style 7 "Under" len 35 ext 35 -2,-9 39,3 cp_x 43 = p0 0xef7464a6
+style 7 "Selected" len 56 ext 56 -2,-9 60,3 cp_x 64 = p0 0x9aa7c294
+style 7 "Disabled" len 56 ext 56 -2,-9 60,3 cp_x 64 = p0 0xacf2c3bc
+style 7 "Cyc Off" len 49 ext 49 -2,-9 53,3 cp_x 57 = p0 0x86936ecf
+style 7 "Str Off" len 49 ext 49 -2,-9 53,3 cp_x 57 = p0 0x3d47cfed
+style 7 "Off" len 21 ext 21 -2,-9 25,3 cp_x 29 = p0 0xbaea569c
+style 7 "First" len 35 ext 35 -2,-9 39,3 cp_x 43 = p0 0xceb20ce9
+style 7 "Second" len 42 ext 42 -2,-9 46,3 cp_x 50 = p0 0xc558d852
+style 7 " 5" len 14 ext 14 -2,-9 18,3 cp_x 22 = p0 0xfc208482
+style 7 "Workbench" len 63 ext 63 -2,-9 67,3 cp_x 71 = p0 0x71e58a34
+style 7 "AVAWAy" len 42 ext 42 -2,-9 46,3 cp_x 50 = p0 0x31696afc
+style 7 "jfff,;" len 42 ext 42 -2,-9 46,3 cp_x 50 = p0 0x7022ac41
+style 7 "Label" len 35 ext 35 -2,-9 39,3 cp_x 43 = p0 0x1ecef2d5
+style 7 "If you {j}" len 70 ext 70 -2,-9 74,3 cp_x 78 = p0 0x353e269f
+-- topaz.font 11
+tf_YSize = 11
+tf_XSize = 8
+tf_Baseline = 8
+tf_Flags = 0x00000042
+tf_Style = 0x00000000
+tf_BoldSmear = 1
+tf_LoChar = 32
+tf_HiChar = 255
+tf_CharSpace = NULL
+tf_CharKern = NULL
+width/space/kern 32: 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/-
+width/space/kern 44: 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/-
+width/space/kern 56: 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/-
+width/space/kern 68: 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/-
+width/space/kern 80: 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/-
+width/space/kern 92: 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/-
+width/space/kern 104: 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/-
+width/space/kern 116: 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/-
+width/space/kern 128: 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/-
+width/space/kern 140: 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/-
+width/space/kern 152: 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/-
+width/space/kern 164: 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/-
+width/space/kern 176: 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/-
+width/space/kern 188: 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/-
+width/space/kern 200: 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/-
+width/space/kern 212: 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/-
+width/space/kern 224: 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/-
+width/space/kern 236: 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/-
+width/space/kern 248: 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/- 8/-/-
+style 0 "Normal" len 48 ext 48 0,-8 47,2 cp_x 56 = p0 0x3c01885d
+style 0 "Under" len 40 ext 40 0,-8 39,2 cp_x 48 = p0 0x9edbac97
+style 0 "Selected" len 64 ext 64 0,-8 63,2 cp_x 72 = p0 0xa3892385
+style 0 "Disabled" len 64 ext 64 0,-8 63,2 cp_x 72 = p0 0xc6fb6e25
+style 0 "Cyc Off" len 56 ext 56 0,-8 55,2 cp_x 64 = p0 0x910318a7
+style 0 "Str Off" len 56 ext 56 0,-8 55,2 cp_x 64 = p0 0x2ed182db
+style 0 "Off" len 24 ext 24 0,-8 23,2 cp_x 32 = p0 0x4ce2f9b3
+style 0 "First" len 40 ext 40 0,-8 39,2 cp_x 48 = p0 0x72ccebf7
+style 0 "Second" len 48 ext 48 0,-8 47,2 cp_x 56 = p0 0x51f6a953
+style 0 " 5" len 16 ext 16 0,-8 15,2 cp_x 24 = p0 0xec06ab2b
+style 0 "Workbench" len 72 ext 72 0,-8 71,2 cp_x 80 = p0 0x3fb3d7a0
+style 0 "AVAWAy" len 48 ext 48 0,-8 47,2 cp_x 56 = p0 0x7967a911
+style 0 "jfff,;" len 48 ext 48 0,-8 47,2 cp_x 56 = p0 0x432477dd
+style 0 "Label" len 40 ext 40 0,-8 39,2 cp_x 48 = p0 0xdb72951d
+style 0 "If you {j}" len 80 ext 80 0,-8 79,2 cp_x 88 = p0 0xd740cb47
+style 2 "Normal" len 48 ext 48 0,-8 48,2 cp_x 56 = p0 0x39a83513
+style 2 "Under" len 40 ext 40 0,-8 40,2 cp_x 48 = p0 0x672c617c
+style 2 "Selected" len 64 ext 64 0,-8 64,2 cp_x 72 = p0 0x4c3271d3
+style 2 "Disabled" len 64 ext 64 0,-8 64,2 cp_x 72 = p0 0x400869d1
+style 2 "Cyc Off" len 56 ext 56 0,-8 56,2 cp_x 64 = p0 0xea26c216
+style 2 "Str Off" len 56 ext 56 0,-8 56,2 cp_x 64 = p0 0x1bb81aa4
+style 2 "Off" len 24 ext 24 0,-8 24,2 cp_x 32 = p0 0x3ccc0054
+style 2 "First" len 40 ext 40 0,-8 40,2 cp_x 48 = p0 0x97289728
+style 2 "Second" len 48 ext 48 0,-8 48,2 cp_x 56 = p0 0xe401d292
+style 2 " 5" len 16 ext 16 0,-8 16,2 cp_x 24 = p0 0x7ed9ff7a
+style 2 "Workbench" len 72 ext 72 0,-8 72,2 cp_x 80 = p0 0x6ecec0d8
+style 2 "AVAWAy" len 48 ext 48 0,-8 48,2 cp_x 56 = p0 0xf96323f7
+style 2 "jfff,;" len 48 ext 48 0,-8 48,2 cp_x 56 = p0 0xbdc18349
+style 2 "Label" len 40 ext 40 0,-8 40,2 cp_x 48 = p0 0xcf2ed44f
+style 2 "If you {j}" len 80 ext 80 0,-8 80,2 cp_x 88 = p0 0x3982d58c
+style 4 "Normal" len 48 ext 48 -2,-8 51,2 cp_x 56 = p0 0xa2452236
+style 4 "Under" len 40 ext 40 -2,-8 43,2 cp_x 48 = p0 0x1a211524
+style 4 "Selected" len 64 ext 64 -2,-8 67,2 cp_x 72 = p0 0x7d12ab3b
+style 4 "Disabled" len 64 ext 64 -2,-8 67,2 cp_x 72 = p0 0xe077f371
+style 4 "Cyc Off" len 56 ext 56 -2,-8 59,2 cp_x 64 = p0 0xd58e5610
+style 4 "Str Off" len 56 ext 56 -2,-8 59,2 cp_x 64 = p0 0xa6895121
+style 4 "Off" len 24 ext 24 -2,-8 27,2 cp_x 32 = p0 0xb76b824a
+style 4 "First" len 40 ext 40 -2,-8 43,2 cp_x 48 = p0 0x171c4e35
+style 4 "Second" len 48 ext 48 -2,-8 51,2 cp_x 56 = p0 0xb595c6b7
+style 4 " 5" len 16 ext 16 -2,-8 19,2 cp_x 24 = p0 0x530d99b6
+style 4 "Workbench" len 72 ext 72 -2,-8 75,2 cp_x 80 = p0 0x956918e4
+style 4 "AVAWAy" len 48 ext 48 -2,-8 51,2 cp_x 56 = p0 0x88c03acc
+style 4 "jfff,;" len 48 ext 48 -2,-8 51,2 cp_x 56 = p0 0x932205c1
+style 4 "Label" len 40 ext 40 -2,-8 43,2 cp_x 48 = p0 0x7f4b74b1
+style 4 "If you {j}" len 80 ext 80 -2,-8 83,2 cp_x 88 = p0 0x8ecc06ab
+style 1 "Normal" len 48 ext 48 0,-8 47,2 cp_x 56 = p0 0x989a60d3
+style 1 "Under" len 40 ext 40 0,-8 39,2 cp_x 48 = p0 0xc3f7123a
+style 1 "Selected" len 64 ext 64 0,-8 63,2 cp_x 72 = p0 0xabe71e2d
+style 1 "Disabled" len 64 ext 64 0,-8 63,2 cp_x 72 = p0 0x37b32acd
+style 1 "Cyc Off" len 56 ext 56 0,-8 55,2 cp_x 64 = p0 0x2d21d2a8
+style 1 "Str Off" len 56 ext 56 0,-8 55,2 cp_x 64 = p0 0x53fc74ac
+style 1 "Off" len 24 ext 24 0,-8 23,2 cp_x 32 = p0 0x68d06a78
+style 1 "First" len 40 ext 40 0,-8 39,2 cp_x 48 = p0 0xa4fdf4da
+style 1 "Second" len 48 ext 48 0,-8 47,2 cp_x 56 = p0 0xde60d1c9
+style 1 " 5" len 16 ext 16 0,-8 15,2 cp_x 24 = p0 0x269c69cd
+style 1 "Workbench" len 72 ext 72 0,-8 71,2 cp_x 80 = p0 0xa01a642d
+style 1 "AVAWAy" len 48 ext 48 0,-8 47,2 cp_x 56 = p0 0xc776af4f
+style 1 "jfff,;" len 48 ext 48 0,-8 47,2 cp_x 56 = p0 0xcc301069
+style 1 "Label" len 40 ext 40 0,-8 39,2 cp_x 48 = p0 0x211041b4
+style 1 "If you {j}" len 80 ext 80 0,-8 79,2 cp_x 88 = p0 0x045cfa9b
+style 7 "Normal" len 48 ext 48 -2,-8 52,2 cp_x 56 = p0 0x36d7dfb1
+style 7 "Under" len 40 ext 40 -2,-8 44,2 cp_x 48 = p0 0x04c53d27
+style 7 "Selected" len 64 ext 64 -2,-8 68,2 cp_x 72 = p0 0xe8797689
+style 7 "Disabled" len 64 ext 64 -2,-8 68,2 cp_x 72 = p0 0x4f5f624e
+style 7 "Cyc Off" len 56 ext 56 -2,-8 60,2 cp_x 64 = p0 0x9fcdd2cb
+style 7 "Str Off" len 56 ext 56 -2,-8 60,2 cp_x 64 = p0 0x7cc19bdb
+style 7 "Off" len 24 ext 24 -2,-8 28,2 cp_x 32 = p0 0x2a220f57
+style 7 "First" len 40 ext 40 -2,-8 44,2 cp_x 48 = p0 0x6905a99c
+style 7 "Second" len 48 ext 48 -2,-8 52,2 cp_x 56 = p0 0x18ecc1aa
+style 7 " 5" len 16 ext 16 -2,-8 20,2 cp_x 24 = p0 0x35009328
+style 7 "Workbench" len 72 ext 72 -2,-8 76,2 cp_x 80 = p0 0x8332e38a
+style 7 "AVAWAy" len 48 ext 48 -2,-8 52,2 cp_x 56 = p0 0xdb7e3d17
+style 7 "jfff,;" len 48 ext 48 -2,-8 52,2 cp_x 56 = p0 0x465ec155
+style 7 "Label" len 40 ext 40 -2,-8 44,2 cp_x 48 = p0 0x7ae94ed4
+style 7 "If you {j}" len 80 ext 80 -2,-8 84,2 cp_x 88 = p0 0x36a816b4
+-- garnet.font 16
+tf_YSize = 16
+tf_XSize = 10
+tf_Baseline = 10
+tf_Flags = 0x00000062
+tf_Style = 0x00000000
+tf_BoldSmear = 1
+tf_LoChar = 32
+tf_HiChar = 255
+tf_CharSpace = non-NULL
+tf_CharKern = non-NULL
+width/space/kern 32: 0/0/8 3/4/1 7/8/0 12/13/0 9/7/1 10/11/0 11/12/0 3/5/2 6/7/1 6/7/1 10/10/0 8/8/1
+width/space/kern 44: 3/5/1 8/9/1 3/5/1 11/12/0 7/8/1 3/4/1 7/8/1 6/7/1 8/8/0 7/8/1 7/7/1 7/8/1
+width/space/kern 56: 7/8/1 7/8/1 3/5/1 3/5/1 6/7/1 7/8/1 6/7/1 7/8/0 14/15/1 16/16/0 13/14/0 10/9/1
+width/space/kern 68: 13/14/0 9/10/1 12/13/0 10/11/1 15/15/0 5/6/0 8/9/0 16/15/0 16/13/1 20/20/0 15/15/0 10/11/1
+width/space/kern 80: 13/14/0 10/11/1 17/16/0 9/10/1 13/12/0 11/11/0 12/12/0 20/20/0 14/15/-2 11/12/0 11/10/0 5/6/1
+width/space/kern 92: 10/11/1 5/6/1 7/8/1 9/10/0 4/5/1 9/9/0 7/8/1 7/8/0 10/9/0 7/8/0 9/9/-2 8/10/0
+width/space/kern 104: 9/10/1 5/5/0 5/7/-2 9/10/1 5/4/1 15/15/0 10/10/0 8/9/0 8/9/0 8/9/0 8/9/0 7/9/1
+width/space/kern 116: 7/7/0 10/10/0 9/10/0 14/15/0 10/10/0 8/9/0 9/10/0 7/8/1 2/5/3 7/8/1 9/10/1 20/20/0
+width/space/kern 128: 8/9/1 8/9/1 8/9/1 8/9/1 8/9/1 8/9/1 8/9/1 8/9/1 8/9/1 8/9/1 8/9/1 8/9/1
+width/space/kern 140: 8/9/1 8/9/1 8/9/1 8/9/1 8/9/1 8/9/1 8/9/1 8/9/1 8/9/1 8/9/1 8/9/1 8/9/1
+width/space/kern 152: 8/9/1 8/9/1 8/9/1 8/9/1 8/9/1 8/9/1 8/9/1 8/9/1 0/0/17 3/4/1 9/10/1 14/15/1
+width/space/kern 164: 8/9/1 11/12/1 2/5/3 8/9/1 9/10/1 15/16/1 8/9/1 11/12/1 11/12/1 7/8/1 17/18/1 10/11/1
+width/space/kern 176: 7/8/1 8/9/1 7/8/1 6/7/1 4/5/1 11/12/1 12/13/1 9/10/1 3/5/2 3/5/2 8/9/1 11/12/1
+width/space/kern 188: 12/13/1 14/16/1 14/15/1 7/8/1 16/16/0 16/16/0 16/16/0 16/16/0 16/16/0 16/16/0 18/19/0 10/10/0
+width/space/kern 200: 9/10/0 9/10/0 9/10/0 9/10/0 6/7/1 6/7/1 8/9/1 6/7/0 13/14/1 15/15/0 10/11/1 10/11/1
+width/space/kern 212: 10/11/1 10/11/1 10/11/1 8/10/1 10/11/1 11/11/0 11/11/0 11/11/0 11/11/0 11/12/0 12/13/1 9/11/1
+width/space/kern 224: 9/9/0 9/9/0 9/9/0 9/9/0 9/9/0 9/9/0 12/13/0 7/8/1 7/8/0 7/8/0 8/9/0 7/8/0
+width/space/kern 236: 6/5/0 5/6/0 8/8/0 6/6/0 9/9/0 10/10/0 8/9/0 8/9/0 8/9/0 9/10/0 8/9/0 9/10/1
+width/space/kern 248: 9/10/0 10/10/0 10/11/0 10/10/0 10/10/0 8/9/0 8/9/1 8/9/0 8/9/1
+style 0 "Normal" len 62 ext 62 0,-10 62,5 cp_x 70 = p0 0x826ef4a1
+style 0 "Under" len 47 ext 47 0,-10 46,5 cp_x 55 = p0 0x573dc2b2
+style 0 "Selected" len 64 ext 64 0,-10 64,5 cp_x 72 = p0 0x1846b24e
+style 0 "Disabled" len 69 ext 69 0,-10 69,5 cp_x 77 = p0 0x5d3ee8dc
+style 0 "Cyc Off" len 61 ext 61 0,-10 60,5 cp_x 69 = p0 0x880bd1a9
+style 0 "Str Off" len 61 ext 61 0,-10 60,5 cp_x 69 = p0 0x4db0522c
+style 0 "Off" len 26 ext 26 0,-10 25,5 cp_x 34 = p0 0xaefb2494
+style 0 "First" len 44 ext 44 0,-10 43,5 cp_x 52 = p0 0xf02c7958
+style 0 "Second" len 55 ext 55 0,-10 55,5 cp_x 63 = p0 0x6f07de95
+style 0 " 5" len 17 ext 17 0,-10 16,5 cp_x 25 = p0 0x5db538f5
+style 0 "Workbench" len 95 ext 95 0,-10 94,5 cp_x 103 = p0 0x393dd4ac
+style 0 "AVAWAy" len 89 ext 89 0,-10 88,5 cp_x 97 = p0 0x666a30e6
+style 0 "jfff,;" len 38 ext 38 -2,-10 37,5 cp_x 46 = p0 0xd7e9f739
+style 0 "Label" len 45 ext 45 0,-10 45,5 cp_x 53 = p0 0x5cbc74f2
+style 0 "If you {j}" len 80 ext 80 0,-10 79,5 cp_x 88 = p0 0xdb6cffec
+style 2 "Normal" len 62 ext 62 0,-10 63,5 cp_x 70 = p0 0xcaa5e403
+style 2 "Under" len 47 ext 47 0,-10 47,5 cp_x 55 = p0 0x03812448
+style 2 "Selected" len 64 ext 64 0,-10 65,5 cp_x 72 = p0 0xb9375079
+style 2 "Disabled" len 69 ext 69 0,-10 70,5 cp_x 77 = p0 0x3a13d33f
+style 2 "Cyc Off" len 61 ext 61 0,-10 61,5 cp_x 69 = p0 0xd84d999d
+style 2 "Str Off" len 61 ext 61 0,-10 61,5 cp_x 69 = p0 0x0e6c26ab
+style 2 "Off" len 26 ext 26 0,-10 26,5 cp_x 34 = p0 0x83fbf1ee
+style 2 "First" len 44 ext 44 0,-10 44,5 cp_x 52 = p0 0xc7df1c66
+style 2 "Second" len 55 ext 55 0,-10 56,5 cp_x 63 = p0 0xab616fb4
+style 2 " 5" len 17 ext 17 0,-10 17,5 cp_x 25 = p0 0xe0048055
+style 2 "Workbench" len 95 ext 95 0,-10 95,5 cp_x 103 = p0 0x8e52fb5b
+style 2 "AVAWAy" len 89 ext 89 0,-10 89,5 cp_x 97 = p0 0x610a48bb
+style 2 "jfff,;" len 38 ext 38 -2,-10 38,5 cp_x 46 = p0 0x872d4ee2
+style 2 "Label" len 45 ext 45 0,-10 46,5 cp_x 53 = p0 0x29943a29
+style 2 "If you {j}" len 80 ext 80 0,-10 80,5 cp_x 88 = p0 0x98a25ec5
+style 4 "Normal" len 62 ext 62 -3,-10 67,5 cp_x 70 = p0 0x8653037d
+style 4 "Under" len 47 ext 47 -3,-10 51,5 cp_x 55 = p0 0xb3019f6b
+style 4 "Selected" len 64 ext 64 -3,-10 69,5 cp_x 72 = p0 0x37721b82
+style 4 "Disabled" len 69 ext 69 -3,-10 74,5 cp_x 77 = p0 0x5ba2ce2c
+style 4 "Cyc Off" len 61 ext 61 -3,-10 65,5 cp_x 69 = p0 0xd0de9670
+style 4 "Str Off" len 61 ext 61 -3,-10 65,5 cp_x 69 = p0 0xfee76e48
+style 4 "Off" len 26 ext 26 -3,-10 30,5 cp_x 34 = p0 0x7b7ad0e1
+style 4 "First" len 44 ext 44 -3,-10 48,5 cp_x 52 = p0 0xf515f2b8
+style 4 "Second" len 55 ext 55 -3,-10 60,5 cp_x 63 = p0 0x1c04a2aa
+style 4 " 5" len 17 ext 17 -3,-10 21,5 cp_x 25 = p0 0x585ee88d
+style 4 "Workbench" len 95 ext 95 -3,-10 99,5 cp_x 103 = p0 0x4df387d5
+style 4 "AVAWAy" len 89 ext 89 -3,-10 93,5 cp_x 97 = p0 0x53bd69d4
+style 4 "jfff,;" len 38 ext 38 -5,-10 42,5 cp_x 46 = p0 0xcf8eee5e
+style 4 "Label" len 45 ext 45 -3,-10 50,5 cp_x 53 = p0 0x234d17f2
+style 4 "If you {j}" len 80 ext 80 -3,-10 84,5 cp_x 88 = p0 0xef2c7add
+style 1 "Normal" len 62 ext 62 0,-10 62,5 cp_x 70 = p0 0xea4bb9d0
+style 1 "Under" len 47 ext 47 0,-10 46,5 cp_x 55 = p0 0x1e30a671
+style 1 "Selected" len 64 ext 64 0,-10 64,5 cp_x 72 = p0 0x73a64b81
+style 1 "Disabled" len 69 ext 69 0,-10 69,5 cp_x 77 = p0 0x5e7f2970
+style 1 "Cyc Off" len 61 ext 61 0,-10 60,5 cp_x 69 = p0 0x16467853
+style 1 "Str Off" len 61 ext 61 0,-10 60,5 cp_x 69 = p0 0xdb8fb340
+style 1 "Off" len 26 ext 26 0,-10 25,5 cp_x 34 = p0 0x44232c9a
+style 1 "First" len 44 ext 44 0,-10 43,5 cp_x 52 = p0 0xe29b707f
+style 1 "Second" len 55 ext 55 0,-10 55,5 cp_x 63 = p0 0x0496f409
+style 1 " 5" len 17 ext 17 0,-10 16,5 cp_x 25 = p0 0x995d467c
+style 1 "Workbench" len 95 ext 95 0,-10 94,5 cp_x 103 = p0 0xd79b5239
+style 1 "AVAWAy" len 89 ext 89 0,-10 88,5 cp_x 97 = p0 0x0aea3531
+style 1 "jfff,;" len 38 ext 38 -2,-10 37,5 cp_x 46 = p0 0x796527ee
+style 1 "Label" len 45 ext 45 0,-10 45,5 cp_x 53 = p0 0xd404c4e2
+style 1 "If you {j}" len 80 ext 80 0,-10 79,5 cp_x 88 = p0 0x217887f0
+style 7 "Normal" len 62 ext 62 -3,-10 68,5 cp_x 70 = p0 0xb0ac158e
+style 7 "Under" len 47 ext 47 -3,-10 52,5 cp_x 55 = p0 0x1cbadcd0
+style 7 "Selected" len 64 ext 64 -3,-10 70,5 cp_x 72 = p0 0x7e8d1909
+style 7 "Disabled" len 69 ext 69 -3,-10 75,5 cp_x 77 = p0 0x04d7ad43
+style 7 "Cyc Off" len 61 ext 61 -3,-10 66,5 cp_x 69 = p0 0x8f0ab6b8
+style 7 "Str Off" len 61 ext 61 -3,-10 66,5 cp_x 69 = p0 0x4e6c23fb
+style 7 "Off" len 26 ext 26 -3,-10 31,5 cp_x 34 = p0 0x0e2711d3
+style 7 "First" len 44 ext 44 -3,-10 49,5 cp_x 52 = p0 0xdbf861ba
+style 7 "Second" len 55 ext 55 -3,-10 61,5 cp_x 63 = p0 0xe99d567f
+style 7 " 5" len 17 ext 17 -3,-10 22,5 cp_x 25 = p0 0xa4f081c7
+style 7 "Workbench" len 95 ext 95 -3,-10 100,5 cp_x 103 = p0 0xebc88090
+style 7 "AVAWAy" len 89 ext 89 -3,-10 94,5 cp_x 97 = p0 0x1ee29e31
+style 7 "jfff,;" len 38 ext 38 -5,-10 43,5 cp_x 46 = p0 0x84555b40
+style 7 "Label" len 45 ext 45 -3,-10 51,5 cp_x 53 = p0 0x61e1c0aa
+style 7 "If you {j}" len 80 ext 80 -3,-10 85,5 cp_x 88 = p0 0xe9019bd0

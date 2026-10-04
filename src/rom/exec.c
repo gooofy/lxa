@@ -42,6 +42,8 @@
 extern BOOL lxa_dos_try_handle_special_port(struct MsgPort *port,
                                             struct Message *message);
 extern struct MsgPort *lxa_dos_host_console_port(void);
+BOOL lxa_dos_inject_input(BPTR fh, CONST_STRPTR args, LONG len);
+void lxa_dos_flush_pending(struct DosLibrary *DOSBase, BPTR fh);
 
 #define DEFAULT_SCHED_QUANTUM 4
 
@@ -541,7 +543,7 @@ static struct Resident *g_ResidentModules[37];
 /* exec's own RomTag: FindResident("exec.library") finds it on AmigaOS
  * (reference-verified, Tests/Probes/exec/libraries).  rt_Flags 0: lxa
  * initialises exec in coldstart(), never through InitCode(). */
-static const char g_exec_idstring[] = "exec 40.10 (lxa)\r\n";
+static const char g_exec_idstring[] = "exec 40.10 (15.7.93)\r\n";
 static const struct Resident g_exec_romtag = {
     RTC_MATCHWORD, (struct Resident *)&g_exec_romtag, (APTR)(&g_exec_romtag + 1),
     0, 40, NT_LIBRARY, 105, (char *)"exec.library", (char *)g_exec_idstring, NULL
@@ -2348,7 +2350,7 @@ struct Task * _exec_FindTask ( register struct ExecBase *SysBase __asm("a6"),
     return ret;
 }
 
-ULONG _exec_SetTaskPri ( register struct ExecBase * SysBase __asm("a6"),
+LONG _exec_SetTaskPri ( register struct ExecBase * SysBase __asm("a6"),
                                                         register struct Task * ___task  __asm("a1"),
                                                         register LONG ___priority  __asm("d0"))
 {
@@ -2358,7 +2360,7 @@ ULONG _exec_SetTaskPri ( register struct ExecBase * SysBase __asm("a6"),
              ___task, ___task ? ___task->tc_Node.ln_Name : "NULL", ___priority);
 
     if (!___task) {
-        return 0;
+        return (LONG)(BYTE)(0);
     }
 
     Disable();
@@ -2398,7 +2400,7 @@ ULONG _exec_SetTaskPri ( register struct ExecBase * SysBase __asm("a6"),
     DPRINTF (LOG_DEBUG, "_exec: SetTaskPri() returning old priority %d\n", oldPri);
     /* AmigaOS 3.1 reference (probe exec/byteret): the old priority comes
      * back zero-extended (-5 -> 0x000000fb) */
-    return (ULONG)(UBYTE)oldPri;
+    return (LONG)(UBYTE)oldPri;
 }
 
 ULONG _exec_SetSignal ( register struct ExecBase *SysBase     __asm("a6"),
@@ -2804,7 +2806,7 @@ LONG _exec_AllocSignal ( register struct ExecBase * SysBase    __asm("a6"),
          * AllocSignal(-1) of a fresh process returns 31 (reference-verified,
          * Phase 220). */
         if (oldmask == 0xFFFFFFFFUL)
-            return -1;
+            return (LONG)(BYTE)(-1);
 
         signalNum = 31;
         while ((oldmask >> signalNum) & 1)
@@ -2815,12 +2817,12 @@ LONG _exec_AllocSignal ( register struct ExecBase * SysBase    __asm("a6"),
     }
     else if (signalNum > 31)
     {
-        return -1;
+        return (LONG)(BYTE)(-1);
     }
 
     newmask = 1UL << signalNum;
     if (me->tc_SigAlloc & newmask)
-        return -1;
+        return (LONG)(BYTE)(-1);
 
     me->tc_SigAlloc  |=  newmask;
     me->tc_SigExcept &= ~newmask;
@@ -2830,7 +2832,7 @@ LONG _exec_AllocSignal ( register struct ExecBase * SysBase    __asm("a6"),
     me->tc_SigRecvd  &= ~newmask;
     Enable();
 
-    return signalNum;
+    return (LONG)(BYTE)(signalNum);
 }
 
 void _exec_FreeSignal ( register struct ExecBase *SysBase   __asm("a6"),
@@ -3387,9 +3389,7 @@ LONG _exec_OpenDevice ( register struct ExecBase  *SysBase    __asm("a6"),
 
     Permit();
 
-    /* sign-extended to 32 bits as on AmigaOS 3.1 (probe exec/byteret):
-     * callers test the whole of D0 */
-    return (LONG)ioRequest->io_Error;
+    return (LONG)(BYTE)(ioRequest->io_Error);
 }
 
 void _exec_CloseDevice ( register struct ExecBase  *SysBase   __asm("a6"),
@@ -3426,7 +3426,7 @@ LONG _exec_DoIO ( register struct ExecBase  *SysBase    __asm("a6"),
     DPRINTF (LOG_DEBUG, "_exec: DoIO() called, ioRequest=0x%08lx, command: %d\n", ioRequest, ioRequest->io_Command);
 
     if (!ioRequest || !ioRequest->io_Device)
-        return -1;
+        return (LONG)(BYTE)(-1);
 
     ioRequest->io_Flags                   = IOF_QUICK;
     /*
@@ -3445,7 +3445,7 @@ LONG _exec_DoIO ( register struct ExecBase  *SysBase    __asm("a6"),
     if (! (ioRequest->io_Flags & IOF_QUICK))
         WaitIO(ioRequest);
 
-    return (LONG)ioRequest->io_Error;
+    return (LONG)(BYTE)(ioRequest->io_Error);
 }
 
 /*
@@ -3527,7 +3527,7 @@ LONG _exec_WaitIO ( register struct ExecBase * SysBase __asm("a6"),
     DPRINTF (LOG_DEBUG, "_exec: WaitIO called, ioRequest=0x%08lx\n", ___ioRequest);
 
     if (!___ioRequest)
-        return IOERR_BADADDRESS;
+        return (LONG)(BYTE)(IOERR_BADADDRESS);
 
     /*
      * If IOF_QUICK is set, the I/O completed synchronously in BeginIO
@@ -3555,7 +3555,7 @@ LONG _exec_WaitIO ( register struct ExecBase * SysBase __asm("a6"),
     }
 
     DPRINTF (LOG_DEBUG, "_exec: WaitIO returning error=%d\n", ___ioRequest->io_Error);
-    return (LONG)___ioRequest->io_Error;
+    return (LONG)(BYTE)(___ioRequest->io_Error);
 }
 
 /*
@@ -4154,7 +4154,11 @@ struct Library * _exec_OpenLibrary ( register struct ExecBase *SysBase __asm("a6
 
     if (lib)
     {
-        if (lib->lib_Version < version)
+        /* AmigaOS 3.1 compares the versions as signed words: the high word
+         * of the requested version is ignored and 0x8000.. 0xffff mean
+         * "any" (tests/probes/exec/openlibver.c; Fred Fish AddPower asks
+         * for version -1) */
+        if ((WORD)lib->lib_Version < (WORD)version)
         {
             DPRINTF (LOG_DEBUG, "_exec: OpenLibrary version is too old: lib->lib_Version=%ld, version=%ld\n", lib->lib_Version, version);
             return NULL;
@@ -4295,7 +4299,7 @@ struct Library * _exec_OpenLibrary ( register struct ExecBase *SysBase __asm("a6
                 /* Initialize the library using InitResident */
                 lib = (struct Library *)InitResident(res, segList);
 
-                if (lib && lib->lib_Version >= version)
+                if (lib && (WORD)lib->lib_Version >= (WORD)version)
                 {
                     /* Call the library's Open function */
                     struct JumpVec *jv = &(((struct JumpVec *)(lib))[-1]);
@@ -4304,7 +4308,7 @@ struct Library * _exec_OpenLibrary ( register struct ExecBase *SysBase __asm("a6
 
                     DPRINTF (LOG_DEBUG, "_exec: OpenLibrary: successfully loaded %s from disk, lib=0x%08lx\n", libName, lib);
                 }
-                else if (lib && lib->lib_Version < version)
+                else if (lib && (WORD)lib->lib_Version < (WORD)version)
                 {
                     DPRINTF (LOG_DEBUG, "_exec: OpenLibrary: loaded library version %ld < requested %ld\n",
                              lib->lib_Version, version);
@@ -4897,15 +4901,59 @@ ULONG _exec_CacheControl ( register struct ExecBase * SysBase __asm("a6"),
                                                         register ULONG ___cacheBits  __asm("d0"),
                                                         register ULONG ___cacheMask  __asm("d1"))
 {
-    LXA_UNIMPLEMENTED("exec", "CacheControl", "partial: reports all caches disabled, ignores changes");
-
     /*
-     * CacheControl() sets CPU cache control bits.
-     * On lxa, there's no hardware cache, so we just return 0 (all caches disabled).
+     * CacheControl(bits, mask): the bits selected by 'mask' are set to
+     * 'bits', the previous state is returned.  The emulated CPU has no
+     * caches to flush, so only the reported state is kept, per CPU model
+     * (AttnFlags):
+     *  - 68040 (AmigaOS 3.1 on the A4000/040 reference, Tests/Probes/exec/
+     *    cache): only EnableI and EnableD can be changed; the state reads
+     *    back EnableI|IBE and EnableD|DBE|CopyBack (the burst and copyback
+     *    bits follow the cache enables); every other bit, including
+     *    ClearI/ClearD (actions) and CopyBack itself, is ignored;
+     *  - 68030: EnableI, FreezeI, IBE, EnableD, FreezeD, DBE and
+     *    WriteAllocate are the CACR bits that stay set;
+     *  - 68020: EnableI and FreezeI;
+     *  - 68000/68010: no caches, always 0.
      */
-    DPRINTF (LOG_DEBUG, "_exec: CacheControl() bits=0x%08lx mask=0x%08lx (no-op, returning 0)\n",
-             ___cacheBits, ___cacheMask);
-    return 0;
+    /* kept inverted against the boot state: ROM .bss starts out zero */
+    static ULONG cache_flipped;
+    const ULONG boot_state = CACRF_EnableI | CACRF_IBE | CACRF_EnableD | CACRF_DBE;
+    ULONG cache_state;
+    UWORD attn = SysBase->AttnFlags;
+    ULONG stored, old, now;
+
+    if (attn & AFF_68040)
+        stored = CACRF_EnableI | CACRF_EnableD;
+    else if (attn & AFF_68030)
+        stored = CACRF_EnableI | CACRF_FreezeI | CACRF_IBE | CACRF_EnableD |
+                 CACRF_FreezeD | CACRF_DBE | CACRF_WriteAllocate;
+    else if (attn & AFF_68020)
+        stored = CACRF_EnableI | CACRF_FreezeI;
+    else
+        stored = 0;
+
+    Disable();
+    cache_state = boot_state ^ cache_flipped;
+    old = cache_state & stored;
+    now = (old & ~___cacheMask) | (___cacheBits & ___cacheMask & stored);
+    cache_state = (cache_state & ~stored) | now;
+    cache_flipped = cache_state ^ boot_state;
+    Enable();
+
+    if (attn & AFF_68040)
+    {
+        ULONG r = 0;
+        if (old & CACRF_EnableI)
+            r |= CACRF_EnableI | CACRF_IBE;
+        if (old & CACRF_EnableD)
+            r |= CACRF_EnableD | CACRF_DBE | CACRF_CopyBack;
+        old = r;
+    }
+
+    DPRINTF (LOG_DEBUG, "_exec: CacheControl() bits=0x%08lx mask=0x%08lx -> old 0x%08lx\n",
+             ___cacheBits, ___cacheMask, old);
+    return old;
 }
 
 APTR _exec_CreateIORequest ( register struct ExecBase * SysBase __asm("a6"),
@@ -5643,10 +5691,10 @@ void _bootstrap(void)
     char args_buf[4096];
     emucall1 (EMU_CALL_GETARGS, (ULONG) args_buf);
     int args_len = strlen(args_buf);
-    if (args_len == 0) {
-        args_buf[0] = '\n';
-        args_buf[1] = '\0';
-        args_len = 1;
+    /* the shell ends every argument line with '\n' */
+    if (args_len == 0 || (args_buf[args_len - 1] != '\n' && args_len < (int)sizeof(args_buf) - 1)) {
+        args_buf[args_len++] = '\n';
+        args_buf[args_len] = '\0';
     }
     DPRINTF (LOG_INFO, "_exec: _bootstrap(): args='%s' len=%d\n", args_buf, args_len);
 
@@ -5660,11 +5708,25 @@ void _bootstrap(void)
     ULONG rv;
     {
         struct Task *me = SysBase->ThisTask;
+        /* the program runs on lxa's large bootstrap stack but is told the
+         * AmigaOS 3.1 shell default (cli_DefaultStack, 4096 bytes), as a
+         * command started from a 3.1 shell would be */
         ULONG stacksize = (ULONG)me->tc_SPUpper - (ULONG)me->tc_SPLower;
         ULONG requested = emucall0(EMU_CALL_GETSTACK);    /* scenario `stack:` */
+        extern void lxa_dos_set_next_command_stack(ULONG bytes);
 
         if (requested > stacksize)
             stacksize = requested;
+        /* the program gets lxa's large stack but is told the 3.1 shell
+         * default (cli_DefaultStack), as a command of a 3.1 shell would be */
+        lxa_dos_set_next_command_stack(stacksize);
+        if (((struct Process *)me)->pr_CLI) {
+            struct CommandLineInterface *mycli = (struct CommandLineInterface *)BADDR(((struct Process *)me)->pr_CLI);
+            if (mycli->cli_DefaultStack && mycli->cli_DefaultStack * 4 < stacksize && !requested)
+                stacksize = mycli->cli_DefaultStack * 4;
+        }
+        /* RunCommand() also puts the arguments into Input()'s buffer and
+         * sets pr_ReturnAddr */
         rv = RunCommand(segs, stacksize, (STRPTR)args_buf, args_len);
     }
 
@@ -5695,6 +5757,9 @@ void _bootstrap(void)
     while (TRUE);
     //    DPRINTF (LOG_INFO, "bootstrap() loop, SysBase->TDNestCnt=%d\n", SysBase->TDNestCnt);
 #endif
+
+    /* like the shell after a command: buffered output is written */
+    lxa_dos_flush_pending(DOSBase, ((struct Process *)SysBase->ThisTask)->pr_COS);
 
     DPRINTF (LOG_DEBUG, "_exec: _bootstrap(): calling emu_stop(%ld)...\n", rv);
     
@@ -5732,6 +5797,50 @@ void _exec_TaskHeld(void)
     for (;;)
         Wait(0);
 }
+
+/*
+ * AmigaOS 3.1 leaves a1 = the IORequest after these calls, and d1 = 0
+ * after OpenDevice()/CloseDevice() (tests/probes/exec/scratchregs.c).
+ * 1.x programs rely on it (Fred Fish settime: CloseDevice(a1) right after
+ * DoIO(a1)) - the C implementations clobber both.
+ */
+extern void _exec_OpenDevice_regs(void);
+extern void _exec_CloseDevice_regs(void);
+extern void _exec_DoIO_regs(void);
+extern void _exec_SendIO_regs(void);
+extern void _exec_WaitIO_regs(void);
+asm(
+"        .text                                       \n"
+"        .even                                       \n"
+"__exec_OpenDevice_regs:                             \n"
+"        move.l  a1,-(sp)                            \n"
+"        jsr     __exec_OpenDevice                   \n"
+"        move.l  (sp)+,a1                            \n"
+"        moveq   #0,d1                               \n"
+"        rts                                         \n"
+"__exec_CloseDevice_regs:                            \n"
+"        move.l  a1,-(sp)                            \n"
+"        jsr     __exec_CloseDevice                  \n"
+"        move.l  (sp)+,a1                            \n"
+"        moveq   #0,d1                               \n"
+"        rts                                         \n"
+"__exec_DoIO_regs:                                   \n"
+"        move.l  a1,-(sp)                            \n"
+"        jsr     __exec_DoIO                         \n"
+"        move.l  (sp)+,a1                            \n"
+"        rts                                         \n"
+"__exec_SendIO_regs:                                 \n"
+"        move.l  a1,-(sp)                            \n"
+"        jsr     __exec_SendIO                       \n"
+"        move.l  (sp)+,a1                            \n"
+"        move.l  20(a1),d1                           | io_Device, not the request \n"
+"        rts                                         \n"
+"__exec_WaitIO_regs:                                 \n"
+"        move.l  a1,-(sp)                            \n"
+"        jsr     __exec_WaitIO                       \n"
+"        move.l  (sp)+,a1                            \n"
+"        rts                                         \n"
+);
 
 void coldstart (void)
 {
@@ -5875,12 +5984,12 @@ void coldstart (void)
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-426)].vec = _exec_SumLibrary;
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-432)].vec = _exec_AddDevice;
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-438)].vec = _exec_RemDevice;
-    g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-444)].vec = _exec_OpenDevice;
-    g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-450)].vec = _exec_CloseDevice;
-    g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-456)].vec = _exec_DoIO;
-    g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-462)].vec = _exec_SendIO;
+    g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-444)].vec = _exec_OpenDevice_regs;
+    g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-450)].vec = _exec_CloseDevice_regs;
+    g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-456)].vec = _exec_DoIO_regs;
+    g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-462)].vec = _exec_SendIO_regs;
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-468)].vec = _exec_CheckIO;
-    g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-474)].vec = _exec_WaitIO;
+    g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-474)].vec = _exec_WaitIO_regs;
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-480)].vec = _exec_AbortIO;
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-486)].vec = _exec_AddResource;
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-492)].vec = _exec_RemResource;
@@ -5982,7 +6091,7 @@ void coldstart (void)
     SysBase->LibNode.lib_Node.ln_Name = "exec.library";
     SysBase->LibNode.lib_Version  = VERSION;
     SysBase->LibNode.lib_Revision = REVISION;
-    SysBase->LibNode.lib_IdString = "exec 1.1 (2024/01/01)";
+    SysBase->LibNode.lib_IdString = (char *)g_exec_idstring;
     /* AmigaOS 3.1 exec: 137 public vectors (lib_NegSize 822, reference-
      * verified); lxa's extra private vectors below -822 stay callable */
     SysBase->LibNode.lib_NegSize  = 822;
@@ -6215,7 +6324,7 @@ void coldstart (void)
      * most 78/102/58 characters).  A longer host program path is kept.
      * (Allocated here: utility.library tags are not available this early.) */
     struct CommandLineInterface *cli = (struct CommandLineInterface *) AllocDosObject (DOS_CLI, (struct TagItem *)NULL);
-    cli->cli_DefaultStack = (rootProc->pr_StackSize + 3) / 4;
+    cli->cli_DefaultStack = 4096 / 4;   /* the AmigaOS 3.1 shell default */
 
     {
         LONG name_cap = binlen > 102 ? binlen : 102;

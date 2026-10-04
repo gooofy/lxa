@@ -372,7 +372,7 @@ static uint32_t lxa_api_get_window_gadget(int window_index, int gadget_index)
 
 /* API state */
 static bool g_api_initialized = false;
-static char g_output_buffer[64 * 1024];
+static char g_output_buffer[1024 * 1024];   /* probes print up to ~64 KB (romfont) */
 static int g_output_len = 0;
 
 /*

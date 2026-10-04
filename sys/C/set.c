@@ -37,13 +37,13 @@ extern struct ExecBase *SysBase;
 /* Helper: output a string */
 static void out_str(BPTR fh, const char *str)
 {
-    Write(fh, (STRPTR)str, strlen(str));
+    FWrite(fh, (STRPTR)str, 1, strlen(str));
 }
 
 /* Helper: output newline */
 static void out_nl(BPTR fh)
 {
-    Write(fh, (STRPTR)"\n", 1);
+    FWrite(fh, (STRPTR)"\n", 1, 1);
 }
 
 /* List all local variables */
@@ -85,7 +85,7 @@ static void list_all_vars(void)
                 if (len > 0 && lv->lv_Value[len - 1] == '\0')
                     len--;  /* Don't print the null terminator */
                 if (len > 0)
-                    Write(out, (STRPTR)lv->lv_Value, len);
+                    FWrite(out, (STRPTR)lv->lv_Value, 1, len);
             }
             out_nl(out);
         }
@@ -108,7 +108,7 @@ static BOOL display_var(CONST_STRPTR name)
     out_str(out, "  ");
     if (len > 0)
     {
-        Write(out, (STRPTR)buffer, len);
+        FWrite(out, (STRPTR)buffer, 1, len);
     }
     out_nl(out);
     return TRUE;

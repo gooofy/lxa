@@ -14,6 +14,7 @@ Tests/Console/kp2_test:         {interactive: "reads keys injected by console_gt
 Tests/Console/raw_events_unit:  {interactive: "waits for special-key reports injected by console_gtest", validated_by: tests/scenarios/interactive/raw_events_unit.yaml}
 Tests/Console/idcmp_console:    {interactive: "waits for keys injected by its scenario", validated_by: tests/scenarios/interactive/idcmp_console.yaml}
 Tests/Console/setmode:          {interactive: "reads RAW input injected by console_gtest", validated_by: tests/scenarios/interactive/setmode.yaml}
+Tests/Console/ConBuf:           {interactive: "waits for a key typed into its CON: window", validated_by: tests/scenarios/interactive/conbuf.yaml}
 Tests/Devices/Keyboard:         {lxa_only: "keyboard.device KBD_READEVENT delivers hardware key events; the reference agent injects through input.device, which never reaches keyboard.device, so the test cannot be driven on the reference"}
 Tests/Intuition/DisplayAlert:   {lxa_only: "the AmigaOS 3.1 alert takes over the display and reads the mouse buttons from the hardware, so the reference agent cannot answer it; the dead-end case (returns FALSE) is lxa-only behaviour - a dead-end alert never returns on AmigaOS"}
 Tests/Intuition/IDCMPDeltaMove: {interactive: "waits for mouse moves injected by intuition_gtest", validated_by: tests/scenarios/interactive/IDCMPDeltaMove.yaml}

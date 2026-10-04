@@ -88,6 +88,8 @@ def load_programs(out, filt=None, limit=None, ids_file=None):
 
 def run_lxa_one(rel, root, frames, build=None):
     from rdd.pylxa import Lxa
+    # the reference starts programs with RUN >file (stdin NIL:)
+    os.environ["LXA_STDIO_FILE"] = "1"
     lxa = Lxa(build=build)
     res = {"backend": "lxa"}
     try:
@@ -197,8 +199,15 @@ def run_ref_chunk(chunk, root, rdir, seconds):
                             agent.cmd("DUMP_TREE t.json")
                             with open(os.path.join(exch, "t.json")) as f:
                                 tree = json.load(f)
-                            res["windows"] = sum(1 for s in tree.get("screens", []) for w in s.get("windows", [])
-                                                 if w.get("app", True))
+                            wins = [w for s in tree.get("screens", []) for w in s.get("windows", [])
+                                    if w.get("app", True)]
+                            res["windows"] = len(wins)
+                            res["window_titles"] = [w.get("title") or "" for w in wins]
+                            # a crash on AmigaOS 3.1 shows the "Software Failure"
+                            # requester (Suspend/Reboot): that is not a window of
+                            # the program (Phase 237)
+                            if any(t == "Software Failure" for t in res["window_titles"]):
+                                res["crash"] = "Software Failure requester"
                             res["running"] = True
                             agent.cmd("QUIT 2000", timeout=30)
                         except AgentError:
@@ -257,6 +266,25 @@ def classify(r):
     return "exit"
 
 
+NONPROGRAM_RX = re.compile(r"(\.(library|device|resource|datatype|gadget|image|class|font|keymap|module|mod|pck|dark|ilbm)$)|"
+                           r"(^|/)(libs?|devs?|keymaps|modules|fonts|l|classes|datatypes)/", re.I)
+
+
+def program_kind(rel):
+    """'non-program' for libraries, devices, keymaps, modules ... executed as
+    commands: their outcome depends on memory contents, not on lxa's
+    compatibility (Phase 237)."""
+    return "non-program" if NONPROGRAM_RX.search(rel) else "program"
+
+
+def crash_class(e):
+    """exception class: vector, plus the LVO for calls through a NULL base"""
+    pc = e.get("pc", 0)
+    if e.get("vector") == 2 and pc >= 0xfffff000:
+        return "%s through a NULL library base (LVO %d)" % (VECTORS[2], pc - 0x100000000)
+    return VECTORS.get(e.get("vector"), "vector %s" % e.get("vector"))
+
+
 def build_report(out, md=None):
     progs = load_programs(out)
     rows = []
@@ -272,7 +300,7 @@ def build_report(out, md=None):
                 return json.load(f)
         lx, rf = load("lxa"), load("ref")
         cl, cr = classify(lx), classify(rf)
-        row = {"id": p["id"], "rel": p["rel"], "lxa": cl, "ref": cr,
+        row = {"id": p["id"], "rel": p["rel"], "lxa": cl, "ref": cr, "kind": program_kind(p["rel"]),
                "lxa_rc": (lx or {}).get("rc"), "ref_rc": (rf or {}).get("rc")}
         for u in (lx or {}).get("unimplemented", []):
             k = "%s/%s" % (u["lib"], u["function"])
@@ -291,8 +319,8 @@ def build_report(out, md=None):
     def rank(r):
         if r["lxa"] in ("emulator-crash", "emulator-hang"):
             return 0
-        if r["lxa"] == "crash" and r["ref"] not in ("crash", "noload"):
-            return 1
+        if r["lxa"] == "crash" and r["ref"] not in ("crash", "noload", "missing"):
+            return 1 if r["kind"] == "program" else 6
         if r["lxa"] == "hang" and r["ref"] in ("exit", "window"):
             return 2
         if r["ref"] == "window" and r["lxa"] != "window":
@@ -310,6 +338,8 @@ def build_report(out, md=None):
         "ref": dict(collections.Counter(r["ref"] for r in rows)),
         "pairs": dict(collections.Counter("%s/%s" % (r["lxa"], r["ref"]) for r in rows)),
         "lxa_only_crash": sum(1 for r in rows if rank(r) <= 1),
+        "lxa_only_crash_classes": dict(collections.Counter(crash_class(r.get("exception") or {})
+                                                           for r in rows if rank(r) == 1)),
         "unimplemented_top": [{"function": k, "programs": len(unimpl_progs[k]), "calls_records": v}
                               for k, v in sorted(unimpl.items(), key=lambda kv: -len(unimpl_progs[kv[0]]))[:40]],
         "crash_vectors": {str(k): len(v) for k, v in sorted(crash_sig.items())},
@@ -331,12 +361,20 @@ def _write_md(path, summary, rows, rank):
          summary["programs"], "", "| outcome | lxa | AmigaOS 3.1 |", "|---|---|---|"]
     for k in ("exit", "window", "hang", "crash", "noload", "emulator-crash", "emulator-hang", "missing"):
         L.append("| %s | %d | %d |" % (k, summary["lxa"].get(k, 0), summary["ref"].get(k, 0)))
+    L += ["", "## lxa-only crash classes", "",
+          "Programs that crash on lxa where AmigaOS 3.1 exits, opens a window or keeps running "
+          "(non-programs and programs without a reference result are listed separately).", "",
+          "| class | programs |", "|---|---|"]
+    L += ["| %s | %d |" % kv for kv in sorted(summary["lxa_only_crash_classes"].items(), key=lambda kv: -kv[1])]
     L += ["", "## lxa-only crashes (P0)", "", "| program | exception | reference |", "|---|---|---|"]
     for r in rows:
         if rank(r) <= 1:
             e = r.get("exception") or {}
             L.append("| %s | %s at 0x%08x | %s |" % (r["rel"], VECTORS.get(e.get("vector"), e.get("vector", r["lxa"])),
                                                     e.get("pc", 0), r["ref"]))
+    L += ["", "## Non-programs that crash on lxa only", "",
+          "Libraries, devices, keymaps and modules run as commands: the outcome depends on memory contents.", ""]
+    L += ["- %s (%s)" % (r["rel"], crash_class(r.get("exception") or {})) for r in rows if rank(r) == 6]
     L += ["", "## lxa-only hangs and missing windows", "", "| program | lxa | AmigaOS 3.1 |", "|---|---|---|"]
     L += ["| %s | %s | %s |" % (r["rel"], r["lxa"], r["ref"]) for r in rows if rank(r) in (2, 3)]
     L += ["", "## Exit code and output differences", "",
@@ -356,7 +394,8 @@ def main(argv=None):
     ap.add_argument("--out", default=OUT)
     ap.add_argument("--build")
     ap.add_argument("-j", "--jobs", type=int, default=16)
-    ap.add_argument("--frames", type=int, default=150)
+    # 300 frames = 6 s, the reference's --seconds (equal run time on both)
+    ap.add_argument("--frames", type=int, default=300)
     ap.add_argument("--seconds", type=int, default=6)
     ap.add_argument("--filter")
     ap.add_argument("--limit", type=int)

@@ -73,14 +73,6 @@
  },
  {
   "lib": "exec",
-  "function": "CacheControl",
-  "kind": "partial",
-  "detail": "partial: reports all caches disabled, ignores changes",
-  "file": "src/rom/exec.c",
-  "symbol": "_exec_CacheControl"
- },
- {
-  "lib": "exec",
   "function": "FreePooled",
   "kind": "partial",
   "detail": "partial: memory returns to the system only in DeletePool",

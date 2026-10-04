@@ -12,7 +12,9 @@
  *      "        <dir> (Dir)"        a subdirectory (copied with ALL:
  *                                   "        <dir> (Dir)   [created]")
  *  - "Can't open <from> for input - <fault>" (RC 20),
- *    "Can't open <to> for output - <fault>" (RC 5).
+ *    "Can't open <to> for output - <fault>" (RC 5) - one file into a
+ *    directory names the TO argument as given ("object is in use" when
+ *    that is the source itself).
  * CLONE copies date, protection and comment; DATES the date; COM the
  * comment; NOPRO gives the copy default protection.
  */
@@ -67,7 +69,7 @@ static void fault_line(const char *fmt, const char *name, LONG err)
 }
 
 /* copy the file 'from' to 'to'; fib describes the source */
-static BOOL copy_file(const char *from, const char *to, struct FileInfoBlock *fib, int level,
+static BOOL copy_file(const char *from, const char *to, const char *to_shown, struct FileInfoBlock *fib, int level,
                       const char *shown)
 {
     BPTR in, out;
@@ -94,7 +96,7 @@ static BOOL copy_file(const char *from, const char *to, struct FileInfoBlock *fi
         Close(in);
         if (verbose && !args[A_QUIET])
             PutStr((STRPTR)"\n");
-        fault_line("Can't open %s for output - %s\n", to, err);
+        fault_line("Can't open %s for output - %s\n", to_shown, err);
         SetIoErr(0);
         rc = RETURN_WARN;
         return FALSE;
@@ -195,7 +197,7 @@ static BOOL copy_dir(const char *from, const char *to, int level)
                     PutStr((STRPTR)"\n");
                 }
             } else {
-                ok = copy_file(src, dst, fib, level, (char *)fib->fib_FileName);
+                ok = copy_file(src, dst, dst, fib, level, (char *)fib->fib_FileName);
             }
         }
     }
@@ -290,7 +292,7 @@ int main(void)
                         PutStr((STRPTR)"\n");
                     }
                 } else {
-                    copy_file((char *)ap->ap_Buf, dst, &ap->ap_Info, 0, (char *)ap->ap_Info.fib_FileName);
+                    copy_file((char *)ap->ap_Buf, dst, dst, &ap->ap_Info, 0, (char *)ap->ap_Info.fib_FileName);
                 }
             }
             if (err == ERROR_BREAK)
@@ -321,7 +323,7 @@ int main(void)
                 strcpy(dst, to);
                 if (to_is_dir)
                     AddPart((STRPTR)dst, FilePart(*from), sizeof(dst));
-                copy_file((char *)*from, dst, fib, 0, (char *)FilePart(*from));
+                copy_file((char *)*from, dst, to, fib, 0, (char *)FilePart(*from));
             }
             FreeDosObject(DOS_FIB, fib);
         }
