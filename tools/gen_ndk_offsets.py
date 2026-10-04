@@ -22,7 +22,8 @@ SCR_W Screen Width; SCR_H Screen Height; SCR_TITLE Screen Title; SCR_DEFTITLE Sc
 SCR_BARH Screen BarHeight; SCR_BARVB Screen BarVBorder; SCR_BARHB Screen BarHBorder; SCR_MENUVB Screen MenuVBorder
 SCR_MENUHB Screen MenuHBorder; SCR_WBL Screen WBorLeft; SCR_WBT Screen WBorTop; SCR_WBR Screen WBorRight
 SCR_WBB Screen WBorBottom; SCR_FLAGS Screen Flags; SCR_VP Screen ViewPort; SCR_RP Screen RastPort; SCR_BM Screen BitMap
-VP_CM ViewPort ColorMap; CM_MODEID ColorMap VPModeID
+VP_CM ViewPort ColorMap; CM_MODEID ColorMap VPModeID; CM_COUNT ColorMap Count
+CM_TABLE ColorMap ColorTable; CM_LOWBITS ColorMap LowColorBits; CM_TYPE ColorMap Type
 RP_FONT RastPort Font; RP_BITMAP RastPort BitMap
 BM_BPR BitMap BytesPerRow; BM_ROWS BitMap Rows; BM_DEPTH BitMap Depth; BM_PLANES BitMap Planes
 TF_NAME TextFont tf_Message.mn_Node.ln_Name; TF_YSIZE TextFont tf_YSize; TF_XSIZE TextFont tf_XSize; TF_BASELINE TextFont tf_Baseline

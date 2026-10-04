@@ -5553,6 +5553,27 @@ void _bootstrap(void)
 
     OpenLibrary ((STRPTR)"dos.library", 0);
     OpenLibrary ((STRPTR)"utility.library", 0);
+
+    /* Phase 236: install the preferences in ENV:Sys before the program
+     * starts, as the AmigaOS Startup-Sequence does with C:IPrefs (without
+     * ENV:Sys there is nothing to install) */
+    {
+        BPTR envsys = Lock ((STRPTR)"ENV:Sys", SHARED_LOCK);
+
+        if (envsys)
+        {
+            BPTR iprefs;
+
+            UnLock (envsys);
+            iprefs = LoadSeg ((STRPTR)"C:IPrefs");
+            if (iprefs)
+            {
+                RunCommand (iprefs, 16384, (STRPTR)"\n", 1);
+                UnLoadSeg (iprefs);
+            }
+        }
+    }
+
     BPTR segs = LoadSeg ((STRPTR)binfn);
 
     DPRINTF (LOG_INFO, "_exec: _bootstrap(): segs=0x%08lx\n", segs);
@@ -5671,8 +5692,8 @@ void _bootstrap(void)
          * overflow" at once: Phase 232). */
         struct Task *me = SysBase->ThisTask;
         /* the program runs on lxa's large bootstrap stack but is told the
-         * AmigaOS 3.1 shell default (cli_DefaultStack, 4096 bytes), as a
-         * command started from a 3.1 shell would be */
+         * CLI's default stack (cli_DefaultStack: 32768 bytes, what the
+         * reference runner gives the programs it starts) */
         ULONG stacksize = (ULONG)me->tc_SPUpper - (ULONG)me->tc_SPLower;
         if (((struct Process *)me)->pr_CLI) {
             struct CommandLineInterface *mycli = (struct CommandLineInterface *)BADDR(((struct Process *)me)->pr_CLI);
@@ -5682,7 +5703,11 @@ void _bootstrap(void)
         register ULONG d0 __asm("d0") = args_len;
         register ULONG d1 __asm("d1") = stacksize;
         register STRPTR a0 __asm("a0") = (STRPTR)args_buf;
-        register APTR a1 __asm("a1") = initPC;
+        /* BCPL environment (Phase 239): a1 = stack bottom (BCPL frames grow
+         * upwards), a2 = global vector, a5/a6 = BCPL call/return - BCPL
+         * commands start with "movea.l n(a2),a4; moveq #k,d0; jsr (a5)" */
+        register APTR a1 __asm("a1") = me->tc_SPLower;
+        register APTR a3 __asm("a3") = initPC;
 
         /* and as on AmigaOS 3.1 (tests/probes/dos/entryregs.c): d2 = stack
          * size, d3 = arguments, d4 = argument length, a4 near sp - Lattice
@@ -5693,21 +5718,27 @@ void _bootstrap(void)
         /* pr_ReturnAddr points at the stack size slot, as RunCommand's
          * does: exit code unwinds with sp = pr_ReturnAddr - 4; rts (Fred
          * Fish IconX, StartScript, Arq - Phase 237) */
-        register APTR *a3 __asm("a3") = &((struct Process *)me)->pr_ReturnAddr;
+        register APTR *d5 __asm("d5") = &((struct Process *)me)->pr_ReturnAddr;
+        register APTR d6 __asm("d6") = ((struct Process *)me)->pr_GlobVec
+                                       ? ((struct Process *)me)->pr_GlobVec : DOSBase->dl_GV;
         __asm__ __volatile__ (
             "move.l  %%a5, -(%%sp)\n\t"
             "move.l  %1, -(%%sp)\n\t"
-            "move.l  %%sp, (%4)\n\t"
+            "move.l  %5, %%a2\n\t"
+            "move.l  %%sp, (%%a2)\n\t"
             "move.l  %1, %%d2\n\t"
             "move.l  %2, %%d3\n\t"
             "move.l  %0, %%d4\n\t"
+            "move.l  %6, %%a2\n\t"
             "move.l  %%sp, %%a4\n\t"
-            "jsr     (%3)\n\t"
+            "lea     _BCPL_jsr, %%a5\n\t"
+            "lea     _BCPL_rts, %%a6\n\t"
+            "jsr     (%4)\n\t"
             "addq.l  #4, %%sp\n\t"
             "move.l  (%%sp)+, %%a5"
-            : "+r" (d0), "+r" (d1), "+r" (a0), "+r" (a1), "+r" (a3)
+            : "+r" (d0), "+r" (d1), "+r" (a0), "+r" (a1), "+r" (a3), "+r" (d5), "+r" (d6)
             :
-            : "d2", "d3", "d4", "d5", "d6", "d7", "a2", "a4", "a6", "cc", "memory");
+            : "d2", "d3", "d4", "d7", "a2", "a4", "a6", "cc", "memory");
         rv = d0;
         
         /* Clobber all callee-saved registers to force gcc to reload them */
@@ -6302,7 +6333,7 @@ void coldstart (void)
      * most 78/102/58 characters).  A longer host program path is kept.
      * (Allocated here: utility.library tags are not available this early.) */
     struct CommandLineInterface *cli = (struct CommandLineInterface *) AllocDosObject (DOS_CLI, (struct TagItem *)NULL);
-    cli->cli_DefaultStack = 4096 / 4;   /* the AmigaOS 3.1 shell default */
+    cli->cli_DefaultStack = 32768 / 4;  /* what the reference runner (lxaprobe RUN) gives programs */
 
     {
         LONG name_cap = binlen > 102 ? binlen : 102;

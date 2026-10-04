@@ -1,0 +1,14 @@
+# Prefs fidelity (Phase 236): non-default font prefs (system font topaz 9,
+# screen font helvetica 13) and palette prefs (colours, 4- and 8-colour pens),
+# applied by C:IPrefs at boot (tests/prefs/fontpal, tests/prefs/mkprefs.py).
+name: gallery-prefs-fontpal
+fonts: wb31
+prefs: tests/prefs/fontpal
+app:
+  sample: Tests/Gallery/Prefs
+steps:
+  - launch
+  - wait_window: "Prefs Gallery"
+  - wait_idle
+  - snapshot: {name: window, window: "Prefs Gallery"}
+  - quit

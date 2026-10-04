@@ -185,13 +185,17 @@ def check(gdir, build=None, keep=None):
     if scn.lxa_fonts_dir() and not os.path.isdir(scn.lxa_fonts_dir()):
         print("SKIP %s: reference fonts %s not built" % (scn.name, scn.lxa_fonts_dir()))
         return 77
+    if scn.keymaps_dir() and not os.path.isdir(scn.keymaps_dir()):
+        print("SKIP %s: reference keymaps %s not built" % (scn.name, scn.keymaps_dir()))
+        return 77
     out = keep or tempfile.mkdtemp(prefix="rdd-golden-")
     env = dict(os.environ, PYTHONPATH=os.path.join(ROOT, "tools") + os.pathsep + os.environ.get("PYTHONPATH", ""))
     cmd = [sys.executable, "-m", "rdd.backend_lxa", scn.path, out]
     if build:
         cmd += ["--build", build]
+    # the emulator log carries the program's Latin-1 output
     proc = subprocess.run(cmd, env=env, cwd=ROOT, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                          universal_newlines=True)
+                          universal_newlines=True, errors="replace")
     try:
         with open(os.path.join(out, "result.json")) as f:
             result = json.load(f)
