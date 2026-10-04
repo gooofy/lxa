@@ -136,6 +136,7 @@
 
 /* Core emulator state - exported for lxa_api.c */
 uint8_t  g_ram[RAM_SIZE];
+uint8_t  g_z3ram[Z3RAM_SIZE];
 uint8_t  g_rom[ROM_SIZE];
 bool     g_verbose                       = FALSE;
 bool     g_trace                         = FALSE;
@@ -619,7 +620,7 @@ void cpu_instr_callback(int pc)
     if (__builtin_expect(!g_debug_active, 1))
     {
         uint32_t upc = (uint32_t)pc;
-        if (__builtin_expect(upc < 0x100 || (upc > RAM_END && (upc < ROM_START || upc > ROM_END)), 0))
+        if (__builtin_expect(upc < 0x100 || (upc > RAM_END && (upc < ROM_START || upc > ROM_END) && (upc < Z3RAM_START || upc > Z3RAM_END)), 0))
         {
             /* executing from nowhere: the instruction fetch fails with a bus
              * error, which exec's trap handling turns into a held task

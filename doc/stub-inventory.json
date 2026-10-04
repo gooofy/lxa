@@ -72,14 +72,6 @@
   "symbol": "_exec_FreeTrap"
  },
  {
-  "lib": "exec",
-  "function": "FreePooled",
-  "kind": "partial",
-  "detail": "partial: memory returns to the system only in DeletePool",
-  "file": "src/rom/exec.c",
-  "symbol": "_exec_FreePooled"
- },
- {
   "lib": "amigaguide",
   "function": "LockAmigaGuideBase",
   "kind": "stub",

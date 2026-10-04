@@ -17,7 +17,7 @@ implementing the function, never by deleting the macro.
 | console | 1 | 0 | 0 |
 | datatypes | 5 | 0 | 0 |
 | dos | 5 | 1 | 10 |
-| exec | 7 | 3 | 0 |
+| exec | 7 | 2 | 0 |
 | gadtools | 0 | 1 | 6 |
 | graphics | 0 | 7 | 8 |
 | icon | 0 | 2 | 0 |
@@ -27,7 +27,7 @@ implementing the function, never by deleting the macro.
 | translator | 1 | 0 | 0 |
 | utility | 0 | 0 | 7 |
 | workbench | 0 | 0 | 3 |
-| **total** | **83** | **32** | **49** |
+| **total** | **83** | **31** | **49** |
 
 ## amigaguide
 
@@ -117,7 +117,6 @@ implementing the function, never by deleting the macro.
 ## exec
 
 - `Cause` — partial: runs the handler immediately in caller context, no softint queue/priority (Phase 255) (`src/rom/exec.c`)
-- `FreePooled` — partial: memory returns to the system only in DeletePool (`src/rom/exec.c`)
 - `SetExcept` — partial: pending exception deferred to next task switch instead of immediate (Phase 255) (`src/rom/exec.c`)
 - `<lvo_name>` — stub: empty exec.library vector (Phase 255) (`src/rom/exec.c`)
 - `Alert` — stub: no alert display or recovery (Phase 255) (`src/rom/exec.c`)

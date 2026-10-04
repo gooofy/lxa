@@ -69,7 +69,7 @@ static uint16_t rd16(uint32_t a) { return (uint16_t)((mread8(a) << 8) | mread8(a
 
 static bool valid_addr(uint32_t a)
 {
-    return (a >= 0x400 && a <= RAM_END) || (a >= ROM_START && a <= ROM_END);
+    return (a >= 0x400 && a <= RAM_END) || (a >= Z3RAM_START && a <= Z3RAM_END) || (a >= ROM_START && a <= ROM_END);
 }
 
 static void read_cstr(uint32_t addr, char *dst, int max)

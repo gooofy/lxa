@@ -99,6 +99,8 @@ struct JumpVec
 #define RAM_START                    0x00010000
 #define RAM_END                      0x009fffff
 #define LXA_CHIP_END                 0x00200000   /* 2 MB chip RAM, fast RAM above */
+#define LXA_Z3RAM_START              0x40000000   /* Zorro III fast RAM (host: Z3RAM_*) */
+#define LXA_Z3RAM_SIZE               0x00800000
 
 extern struct Resident *__lxa_dos_ROMTag;
 extern struct Resident *__lxa_utility_ROMTag;
@@ -140,6 +142,7 @@ static struct JumpVec   g_ExecJumpTable[NUM_EXEC_FUNCS];
 static struct ExecBase  g_SysBase;
 static struct MemHeader g_MemHeader;       /* chip RAM */
 static struct MemHeader g_FastMemHeader;   /* fast RAM */
+static struct MemHeader g_Z3MemHeader;     /* Zorro III fast RAM */
 
 struct ExecIntVectorState
 {
@@ -5146,25 +5149,42 @@ void _exec_FreeVec ( register struct ExecBase *SysBase     __asm("a6"),
 }
 
 /*
- * Memory Pool structure (internal to exec)
- * Pools are a way to efficiently allocate many small blocks of memory
- * that can all be freed at once when the pool is deleted.
+ * Memory pools (RKRM Exec "Memory Pools"): allocations up to the threshold
+ * come from puddles - private MemHeaders managed with Allocate() and
+ * Deallocate() - larger ones get a block of their own.  FreePooled()
+ * returns memory to its puddle; a puddle that becomes completely free goes
+ * back to the system, as does every large block.  (AmiBlitz3 allocates and
+ * frees >100000 pooled blocks at startup.)
  */
 struct PoolHeader
 {
-    struct MinList  ph_PuddleList;    /* List of puddles (memory blocks) */
-    ULONG           ph_Requirements;  /* Memory requirements */
-    ULONG           ph_PuddleSize;    /* Size of each puddle */
-    ULONG           ph_ThreshSize;    /* Threshold for large allocations */
+    struct MinList  ph_PuddleList;    /* puddles: struct PoolPuddle */
+    struct MinList  ph_LargeList;     /* blocks above the threshold */
+    ULONG           ph_Requirements;  /* MEMF_ flags of the pool */
+    ULONG           ph_PuddleSize;    /* allocatable bytes of a puddle */
+    ULONG           ph_ThreshSize;    /* larger requests get their own block */
 };
 
 struct PoolPuddle
 {
-    struct MinNode  pp_Node;          /* Node for linking in ph_PuddleList */
-    ULONG           pp_Size;          /* Size of this puddle */
-    ULONG           pp_BytesUsed;     /* Bytes currently allocated from this puddle */
-    UBYTE           pp_Data[0];       /* Start of allocatable memory */
+    struct MemHeader pp_Header;       /* mh_Node links the puddle */
+    ULONG            pp_AllocSize;    /* bytes allocated with AllocMem() */
+    ULONG            pp_Pad;
 };
+
+struct PoolLarge
+{
+    struct MinNode  pl_Node;
+    ULONG           pl_AllocSize;     /* bytes allocated with AllocMem() */
+    ULONG           pl_Pad;
+};
+
+static void pool_newlist(struct MinList *l)
+{
+    l->mlh_Head     = (struct MinNode *)&l->mlh_Tail;
+    l->mlh_Tail     = NULL;
+    l->mlh_TailPred = (struct MinNode *)&l->mlh_Head;
+}
 
 APTR _exec_CreatePool ( register struct ExecBase * SysBase __asm("a6"),
                                                         register ULONG ___requirements  __asm("d0"),
@@ -5174,21 +5194,19 @@ APTR _exec_CreatePool ( register struct ExecBase * SysBase __asm("a6"),
     DPRINTF (LOG_DEBUG, "_exec: CreatePool called requirements=0x%08lx, puddleSize=%ld, threshSize=%ld\n",
              ___requirements, ___puddleSize, ___threshSize);
 
-    /* Allocate pool header */
+    /* the threshold must not exceed the puddle size (autodoc) */
+    if (___threshSize > ___puddleSize)
+        return NULL;
+
     struct PoolHeader *pool = (struct PoolHeader *)AllocMem(sizeof(struct PoolHeader), MEMF_PUBLIC | MEMF_CLEAR);
 
     if (pool)
     {
-        /* Initialize the pool's MinList manually to avoid strict aliasing issues */
-        pool->ph_PuddleList.mlh_Head     = (struct MinNode *)&pool->ph_PuddleList.mlh_Tail;
-        pool->ph_PuddleList.mlh_Tail     = NULL;
-        pool->ph_PuddleList.mlh_TailPred = (struct MinNode *)&pool->ph_PuddleList.mlh_Head;
-
+        pool_newlist(&pool->ph_PuddleList);
+        pool_newlist(&pool->ph_LargeList);
         pool->ph_Requirements = ___requirements;
-        pool->ph_PuddleSize   = ___puddleSize;
+        pool->ph_PuddleSize   = ALIGN(___puddleSize, MEM_BLOCKSIZE);
         pool->ph_ThreshSize   = ___threshSize;
-
-        DPRINTF (LOG_DEBUG, "_exec: CreatePool returning pool=0x%08lx\n", pool);
     }
 
     return pool;
@@ -5203,15 +5221,13 @@ void _exec_DeletePool ( register struct ExecBase * SysBase __asm("a6"),
         return;
 
     struct PoolHeader *pool = (struct PoolHeader *)___poolHeader;
+    struct MinNode *n;
 
-    /* Free all puddles */
-    struct PoolPuddle *puddle;
-    while ((puddle = (struct PoolPuddle *)RemHead((struct List *)&pool->ph_PuddleList)) != NULL)
-    {
-        FreeMem(puddle, puddle->pp_Size + sizeof(struct PoolPuddle));
-    }
+    while ((n = (struct MinNode *)RemHead((struct List *)&pool->ph_PuddleList)) != NULL)
+        FreeMem(n, ((struct PoolPuddle *)n)->pp_AllocSize);
+    while ((n = (struct MinNode *)RemHead((struct List *)&pool->ph_LargeList)) != NULL)
+        FreeMem(n, ((struct PoolLarge *)n)->pl_AllocSize);
 
-    /* Free the pool header */
     FreeMem(pool, sizeof(struct PoolHeader));
 }
 
@@ -5226,66 +5242,65 @@ APTR _exec_AllocPooled ( register struct ExecBase * SysBase __asm("a6"),
         return NULL;
 
     struct PoolHeader *pool = (struct PoolHeader *)___poolHeader;
+    ULONG req = pool->ph_Requirements & ~MEMF_CLEAR;
+    APTR mem = NULL;
 
-    /* Align size to 8 bytes */
-    ULONG alignedSize = ALIGN(___memSize, 8);
-
-    /* For large allocations (above threshold), allocate a dedicated puddle */
-    if (alignedSize >= pool->ph_ThreshSize)
+    if (___memSize > pool->ph_ThreshSize)
     {
-        DPRINTF (LOG_DEBUG, "_exec: AllocPooled large allocation (>= threshSize %ld)\n", pool->ph_ThreshSize);
+        ULONG total = sizeof(struct PoolLarge) + ___memSize;
+        struct PoolLarge *large = (struct PoolLarge *)AllocMem(total, req);
 
-        struct PoolPuddle *puddle = (struct PoolPuddle *)AllocMem(
-            sizeof(struct PoolPuddle) + alignedSize,
-            pool->ph_Requirements);
+        if (!large)
+            return NULL;
+        large->pl_AllocSize = total;
+        AddHead((struct List *)&pool->ph_LargeList, (struct Node *)large);
+        mem = (APTR)(large + 1);
+    }
+    else
+    {
+        ULONG size = ALIGN(___memSize, MEM_BLOCKSIZE);
+        struct MinNode *node;
 
-        if (puddle)
+        for (node = pool->ph_PuddleList.mlh_Head; node->mln_Succ; node = node->mln_Succ)
         {
-            puddle->pp_Size      = alignedSize;
-            puddle->pp_BytesUsed = alignedSize;
-            AddHead((struct List *)&pool->ph_PuddleList, (struct Node *)puddle);
-            return puddle->pp_Data;
+            struct MemHeader *mh = &((struct PoolPuddle *)node)->pp_Header;
+            if (mh->mh_Free >= size && (mem = Allocate(mh, size)))
+                break;
         }
-        return NULL;
-    }
 
-    /* Try to find a puddle with enough free space */
-    for (struct MinNode *node = pool->ph_PuddleList.mlh_Head;
-         node->mln_Succ != NULL;
-         node = node->mln_Succ)
-    {
-        struct PoolPuddle *puddle = (struct PoolPuddle *)node;
-
-        if (puddle->pp_Size - puddle->pp_BytesUsed >= alignedSize)
+        if (!mem)
         {
-            /* Found a puddle with enough space */
-            APTR mem = puddle->pp_Data + puddle->pp_BytesUsed;
-            puddle->pp_BytesUsed += alignedSize;
-            DPRINTF (LOG_DEBUG, "_exec: AllocPooled returning 0x%08lx from existing puddle\n", mem);
-            return mem;
+            ULONG psize = pool->ph_PuddleSize > size ? pool->ph_PuddleSize : size;
+            ULONG total = sizeof(struct PoolPuddle) + psize;
+            struct PoolPuddle *pp = (struct PoolPuddle *)AllocMem(total, req);
+            struct MemHeader *mh;
+            struct MemChunk *mc;
+
+            if (!pp)
+                return NULL;
+            pp->pp_AllocSize = total;
+            mh = &pp->pp_Header;
+            mc = (struct MemChunk *)(pp + 1);
+            mc->mc_Next  = NULL;
+            mc->mc_Bytes = psize;
+            mh->mh_Node.ln_Type = NT_MEMORY;
+            mh->mh_Node.ln_Pri  = 0;
+            mh->mh_Node.ln_Name = NULL;
+            mh->mh_Attributes   = req;
+            mh->mh_First        = mc;
+            mh->mh_Lower        = (APTR)mc;
+            mh->mh_Upper        = (APTR)((UBYTE *)mc + psize);
+            mh->mh_Free         = psize;
+            AddHead((struct List *)&pool->ph_PuddleList, (struct Node *)pp);
+            mem = Allocate(mh, size);
         }
     }
 
-    /* No suitable puddle found, create a new one */
-    ULONG puddleDataSize = pool->ph_PuddleSize;
-    if (alignedSize > puddleDataSize)
-        puddleDataSize = alignedSize;
+    if (mem && (pool->ph_Requirements & MEMF_CLEAR))
+        memset(mem, 0, ___memSize);
 
-    struct PoolPuddle *newPuddle = (struct PoolPuddle *)AllocMem(
-        sizeof(struct PoolPuddle) + puddleDataSize,
-        pool->ph_Requirements);
-
-    if (newPuddle)
-    {
-        newPuddle->pp_Size      = puddleDataSize;
-        newPuddle->pp_BytesUsed = alignedSize;
-        AddHead((struct List *)&pool->ph_PuddleList, (struct Node *)newPuddle);
-        DPRINTF (LOG_DEBUG, "_exec: AllocPooled returning 0x%08lx from new puddle\n", newPuddle->pp_Data);
-        return newPuddle->pp_Data;
-    }
-
-    DPRINTF (LOG_DEBUG, "_exec: AllocPooled failed, out of memory\n");
-    return NULL;
+    DPRINTF (LOG_DEBUG, "_exec: AllocPooled returning 0x%08lx\n", mem);
+    return mem;
 }
 
 void _exec_FreePooled ( register struct ExecBase * SysBase __asm("a6"),
@@ -5293,25 +5308,46 @@ void _exec_FreePooled ( register struct ExecBase * SysBase __asm("a6"),
                                                         register APTR ___memory  __asm("a1"),
                                                         register ULONG ___memSize  __asm("d0"))
 {
-    LXA_UNIMPLEMENTED("exec", "FreePooled", "partial: memory returns to the system only in DeletePool");
-
     DPRINTF (LOG_DEBUG, "_exec: FreePooled called, poolHeader=0x%08lx, memory=0x%08lx, memSize=%ld\n",
              ___poolHeader, ___memory, ___memSize);
 
-    /*
-     * In our simple pool implementation, individual allocations cannot be freed.
-     * Memory is only returned to the system when the entire pool is deleted.
-     * This is a common simplified implementation that works well when all pool
-     * allocations are freed together (which is the typical use case for pools).
-     *
-     * A more sophisticated implementation would track individual allocations
-     * and potentially return unused puddles to the system.
-     */
+    if (!___poolHeader || !___memory || !___memSize)
+        return;
 
-    /* For now, we do nothing - memory will be freed when the pool is deleted */
-    (void)___poolHeader;
-    (void)___memory;
-    (void)___memSize;
+    struct PoolHeader *pool = (struct PoolHeader *)___poolHeader;
+    struct MinNode *node;
+
+    if (___memSize > pool->ph_ThreshSize)
+    {
+        struct PoolLarge *large = ((struct PoolLarge *)___memory) - 1;
+        for (node = pool->ph_LargeList.mlh_Head; node->mln_Succ; node = node->mln_Succ)
+        {
+            if (node == &large->pl_Node)
+            {
+                Remove((struct Node *)node);
+                FreeMem(large, large->pl_AllocSize);
+                return;
+            }
+        }
+        return;
+    }
+
+    for (node = pool->ph_PuddleList.mlh_Head; node->mln_Succ; node = node->mln_Succ)
+    {
+        struct PoolPuddle *pp = (struct PoolPuddle *)node;
+        struct MemHeader *mh = &pp->pp_Header;
+
+        if ((UBYTE *)___memory >= (UBYTE *)mh->mh_Lower && (UBYTE *)___memory < (UBYTE *)mh->mh_Upper)
+        {
+            Deallocate(mh, ___memory, ALIGN(___memSize, MEM_BLOCKSIZE));
+            if (mh->mh_Free == (ULONG)((UBYTE *)mh->mh_Upper - (UBYTE *)mh->mh_Lower))
+            {
+                Remove((struct Node *)node);
+                FreeMem(pp, pp->pp_AllocSize);
+            }
+            return;
+        }
+    }
 }
 
 /*
@@ -6136,7 +6172,23 @@ void coldstart (void)
     g_FastMemHeader.mh_Upper        = (APTR) (RAM_END + 1);
     g_FastMemHeader.mh_Free         = RAM_END+1-LXA_CHIP_END;
 
+    /* a second fast region like the reference's Zorro III RAM
+     * (MEMF_PUBLIC|FAST|KICK, priority 20) */
+    mc = (struct MemChunk *) LXA_Z3RAM_START;
+    mc->mc_Next  = NULL;
+    mc->mc_Bytes = LXA_Z3RAM_SIZE;
+
+    g_Z3MemHeader.mh_Node.ln_Type = NT_MEMORY;
+    g_Z3MemHeader.mh_Node.ln_Pri  = 20;
+    g_Z3MemHeader.mh_Node.ln_Name = (char *)"zorro iii memory";
+    g_Z3MemHeader.mh_Attributes   = MEMF_FAST | MEMF_PUBLIC | MEMF_KICK;
+    g_Z3MemHeader.mh_First        = mc;
+    g_Z3MemHeader.mh_Lower        = (APTR) LXA_Z3RAM_START;
+    g_Z3MemHeader.mh_Upper        = (APTR) (LXA_Z3RAM_START + LXA_Z3RAM_SIZE);
+    g_Z3MemHeader.mh_Free         = LXA_Z3RAM_SIZE;
+
     Enqueue (&SysBase->MemList, &g_FastMemHeader.mh_Node);
+    Enqueue (&SysBase->MemList, &g_Z3MemHeader.mh_Node);
     Enqueue (&SysBase->MemList, &g_MemHeader.mh_Node);
 
     // init and register built-in libraries
