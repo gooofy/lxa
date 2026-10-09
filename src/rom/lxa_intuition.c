@@ -483,6 +483,37 @@ static VOID _intuition_set_oldlook_pens(struct LXAPubScreenNode *entry)
 
 static struct IClass *_intuition_find_class(struct LXAIntuitionBase *base, CONST_STRPTR classID);
 static ULONG _intuition_dispatch_method(struct IClass *cl, Object *obj, Msg msg);
+
+/*
+ * Intuition calls a GTYP_CUSTOMGADGET through the hook in its MutualExclude
+ * field (a0 = hook, a2 = gadget, a1 = message); for a BOOPSI gadget that is
+ * its class (AmigaOS 3.1, probe intuition/customhook).  Programs build custom
+ * gadgets by hand with their own hook and no BOOPSI object header (Fish
+ * JukeBox).  Returns FALSE when the gadget has no hook to call.
+ */
+static BOOL _custom_gadget_call(struct Gadget *gad, Msg msg, ULONG *result)
+{
+    typedef ULONG (*HookEntry)(register struct Hook *h __asm("a0"),
+                               register Object *obj __asm("a2"),
+                               register Msg msg __asm("a1"));
+    struct Hook *h = (struct Hook *)gad->MutualExclude;
+    ULONG r;
+
+    if (!h)
+    {
+        /* gadgets lxa created without the hook: dispatch on the class */
+        struct IClass *cl = OCLASS((Object *)gad);
+        if (!cl)
+            return FALSE;
+        h = &cl->cl_Dispatcher;
+    }
+    if (!h->h_Entry)
+        return FALSE;
+    r = ((HookEntry)h->h_Entry)(h, (Object *)gad, msg);
+    if (result)
+        *result = r;
+    return TRUE;
+}
 VOID _intuition_DrawImageState ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a0"),
                                                         register struct Image * image __asm("a1"),
@@ -2052,6 +2083,9 @@ static ULONG gadgetclass_dispatch(
             
             /* Initialize gadget structure */
             gadget->GadgetType = GTYP_CUSTOMGADGET;
+            /* AmigaOS 3.1: MutualExclude holds the hook Intuition calls for
+             * a custom gadget - the object's class (probe intuition/customhook) */
+            gadget->MutualExclude = (ULONG)OCLASS(obj);
             /* AmigaOS 3.1: gadgetclass objects are ExtGadgets, GADGHCOMP */
             gadget->Flags = GFLG_EXTENDED;
             gadget->Activation = 0;
@@ -6258,9 +6292,7 @@ static VOID _layout_custom_gadget(struct Window *window, struct Requester *req, 
         (gad->GadgetType & GTYP_SYSGADGET) ||
         !(gad->Flags & (GFLG_RELRIGHT | GFLG_RELBOTTOM | GFLG_RELWIDTH | GFLG_RELHEIGHT | GFLG_RELSPECIAL)))
         return;
-    cl = OCLASS((Object *)gad);
-    if (!cl)
-        return;
+    (void)cl;
     memset(&gi, 0, sizeof(gi));
     gi.gi_Screen = window->WScreen;
     gi.gi_Window = window;
@@ -6272,7 +6304,7 @@ static VOID _layout_custom_gadget(struct Window *window, struct Requester *req, 
     gpl.MethodID = GM_LAYOUT;
     gpl.gpl_GInfo = &gi;
     gpl.gpl_Initial = initial;
-    _intuition_dispatch_method(cl, (Object *)gad, (Msg)&gpl);
+    _custom_gadget_call(gad, (Msg)&gpl, NULL);
     if (gi.gi_DrInfo)
         _intuition_FreeScreenDrawInfo(IntuitionBase, window->WScreen, gi.gi_DrInfo);
 }
@@ -12433,8 +12465,8 @@ static void _render_gadget(struct Window *window, struct Requester *req, struct 
      */
     if ((gad->GadgetType & GTYP_GTYPEMASK) == GTYP_CUSTOMGADGET)
     {
-        struct IClass *cl = OCLASS((Object *)gad);
-        if (cl)
+        struct Hook *ch = (struct Hook *)gad->MutualExclude;
+        if (ch ? ch->h_Entry != NULL : OCLASS((Object *)gad) != NULL)
         {
             /* For GZZ windows, route system/gzz gadgets to the border RastPort. */
             struct RastPort *brp = window->RPort;
@@ -12465,7 +12497,7 @@ static void _render_gadget(struct Window *window, struct Requester *req, struct 
             gpr.gpr_RPort = brp;
             gpr.gpr_Redraw = GREDRAW_REDRAW;
 
-            _intuition_dispatch_method(cl, (Object *)gad, (Msg)&gpr);
+            _custom_gadget_call(gad, (Msg)&gpr, NULL);
 
             if (gad->Flags & GFLG_DISABLED)
             {
