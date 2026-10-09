@@ -139,6 +139,12 @@ def apps(manifests):
 def check_schema(manifests):
     errs = []
     dirs = {}
+    stems = {}
+    for name in sorted(manifests):
+        if name.lower() in stems:
+            errs.append("%s: manifest name differs only in case from %s (collides on case-insensitive "
+                        "filesystems; name an alias e.g. <DIR>_alias.json)" % (name, stems[name.lower()]))
+        stems.setdefault(name.lower(), name)
     for name, m in manifests.items():
         if isinstance(m, Exception):
             errs.append("%s: invalid JSON: %s" % (name, m))
