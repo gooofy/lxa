@@ -747,9 +747,10 @@ TEST_F(DOpusTextHookTest, TextHookCapturesDefaultPageButtonLabels)
      * Phase 130 text hook captures them with no further infrastructure.
      *
      * The default startup view of DOpus 4.16 shows these button-bank
-     * labels: "All", "Copy", "Makedir", "Hunt", "Run".  "Move" and
-     * "Rename" live on additional button pages reached by clicking
-     * navigation gadgets — they are asserted in a separate test below. */
+     * labels: "All", "Copy", "Move", "Rename", "Makedir", "Hunt", "Run".
+     * "Move" and "Rename" are on the default page too, on AmigaOS 3.1 as
+     * on lxa (Phase 234, golden tests/golden/DirectoryOpus/dopus-select);
+     * an earlier note placed them on other button pages. */
     bool has_multi_char = false;
     for (const auto &s : text_log_) {
         if (s.size() > 1) { has_multi_char = true; break; }
@@ -758,6 +759,8 @@ TEST_F(DOpusTextHookTest, TextHookCapturesDefaultPageButtonLabels)
     bool has_dopus_title = all.find("DOPUS.1")  != std::string::npos;
     bool has_all         = all.find("All")      != std::string::npos;
     bool has_copy        = all.find("Copy")     != std::string::npos;
+    bool has_move        = all.find("Move")     != std::string::npos;
+    bool has_rename      = all.find("Rename")   != std::string::npos;
     bool has_makedir     = all.find("Makedir")  != std::string::npos;
     bool has_hunt        = all.find("Hunt")     != std::string::npos;
     bool has_run         = all.find("Run")      != std::string::npos;
@@ -775,6 +778,10 @@ TEST_F(DOpusTextHookTest, TextHookCapturesDefaultPageButtonLabels)
         << "DOpus button bank 'All' label missing from rendered text";
     EXPECT_TRUE(has_copy)
         << "DOpus button bank 'Copy' label missing from rendered text";
+    EXPECT_TRUE(has_move)
+        << "DOpus button bank 'Move' label missing from rendered text";
+    EXPECT_TRUE(has_rename)
+        << "DOpus button bank 'Rename' label missing from rendered text";
     EXPECT_TRUE(has_makedir)
         << "DOpus button bank 'Makedir' label missing from rendered text";
     EXPECT_TRUE(has_hunt)
