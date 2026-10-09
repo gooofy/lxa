@@ -4190,6 +4190,16 @@ struct Library * _exec_OpenLibrary ( register struct ExecBase *SysBase __asm("a6
             }
         }
 
+        /* After LIBS: AmigaOS 3.1 tries the plain name, relative to the
+         * caller's current directory (probe exec/libpath; Fish ParM
+         * SetMouse, WhatIs For keep their library next to the program) */
+        if (!segList && !hasPath)
+        {
+            strcpy(libPath, (const char *)libName);
+            DPRINTF (LOG_DEBUG, "_exec: OpenLibrary: trying to load %s (current directory)\n", libPath);
+            segList = LoadSeg((STRPTR)libPath);
+        }
+
         /*
          * BOOPSI gadget class fallback: when an app calls
          * OpenLibrary("gadgets/foo.gadget") (the conventional path on

@@ -1,0 +1,6 @@
+-- OpenLibrary of a library outside LIBS:
+from another directory = NULL
+from its directory = non-NULL
+lib_Version = 1
+ln_Name = "p237probe.library"
+again from another directory = non-NULL
