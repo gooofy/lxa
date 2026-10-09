@@ -1231,24 +1231,50 @@ void _exec_Permit ( register struct ExecBase * SysBase __asm("a6"))
         exec_preempt(SysBase);
 }
 
-APTR _exec_SuperState ( register struct ExecBase * SysBase __asm("a6"))
-{
-    LXA_UNIMPLEMENTED("exec", "SuperState", "stub: does not enter supervisor mode, returns NULL");
-
-    DPRINTF (LOG_DEBUG, "_exec: SuperState() called.\n");
-    /* In emulation, we're always in "supervisor" mode effectively.
-     * Return NULL to indicate we're already in supervisor state. */
-    return NULL;
-}
-
-void _exec_UserState ( register struct ExecBase * SysBase __asm("a6"),
-                                                        register APTR ___sysStack  __asm("d0"))
-{
-    LXA_UNIMPLEMENTED("exec", "UserState", "stub: does not return to user mode");
-
-    DPRINTF (LOG_DEBUG, "_exec: UserState() called, sysStack=0x%08lx\n", ___sysStack);
-    /* In emulation, state switching is a no-op. */
-}
+/*
+ * SuperState(): continue in supervisor mode on the caller's stack and return
+ * the old system stack pointer (NULL when already in supervisor mode);
+ * UserState(sysStack) goes back to user mode (Phase 237, probe
+ * exec/superstate; Fish ILBM_Killer reads the VBR in between).
+ * SuperState enters supervisor mode through Supervisor(): the routine runs
+ * with the exception frame on the system stack and the user stack holding
+ * [return into SuperState][saved a5][caller's return address].
+ */
+extern APTR _exec_SuperState(void);
+extern void _exec_UserState(void);
+asm(
+"        .text                                       \n"
+"        .even                                       \n"
+"        .globl  __exec_SuperState                   \n"
+"__exec_SuperState:                                  \n"
+"        move.l  a5,-(sp)                            \n"
+"        lea     1f(pc),a5                           \n"
+"        jsr     -30(a6)                             | Supervisor() \n"
+"1:      btst    #5,(sp)                             | frame SR: was the caller in supervisor mode? \n"
+"        bne.s   2f                                  \n"
+"        lea     8(sp),a0                            | system stack without the (format 0) frame \n"
+"        move.l  a0,d0                               \n"
+"        move.l  usp,a0                              \n"
+"        lea     4(a0),sp                            | caller's stack, minus the return into SuperState \n"
+"        move.l  (sp)+,a5                            \n"
+"        rts                                         \n"
+"2:      addq.l  #6,sp                               | Supervisor()'s own frame (SR, PC) \n"
+"        addq.l  #4,sp                               | return into SuperState \n"
+"        move.l  (sp)+,a5                            \n"
+"        moveq   #0,d0                               \n"
+"        rts                                         \n"
+"        .globl  __exec_UserState                    \n"
+"__exec_UserState:                                   \n"
+"        tst.l   d0                                  | NULL: SuperState() found supervisor mode \n"
+"        beq.s   3f                                  \n"
+"        move.l  (sp)+,a0                            | return address \n"
+"        move.l  sp,a1                               \n"
+"        move.l  d0,sp                               | system stack back \n"
+"        move.l  a1,usp                              \n"
+"        andi.w  #0xdfff,sr                          | user mode: sp = usp \n"
+"        jmp     (a0)                                \n"
+"3:      rts                                         \n"
+);
 
 struct Interrupt * _exec_SetIntVector ( register struct ExecBase * SysBase __asm("a6"),
                                                         register LONG ___intNumber  __asm("d0"),

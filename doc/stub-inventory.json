@@ -129,22 +129,6 @@
  },
  {
   "lib": "exec",
-  "function": "SuperState",
-  "kind": "stub",
-  "detail": "stub: does not enter supervisor mode, returns NULL",
-  "file": "src/rom/exec.c",
-  "symbol": "_exec_SuperState"
- },
- {
-  "lib": "exec",
-  "function": "UserState",
-  "kind": "stub",
-  "detail": "stub: does not return to user mode",
-  "file": "src/rom/exec.c",
-  "symbol": "_exec_UserState"
- },
- {
-  "lib": "exec",
   "function": "Cause",
   "kind": "partial",
   "detail": "partial: runs the handler immediately in caller context, no softint queue/priority (Phase 255)",

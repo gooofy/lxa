@@ -17,7 +17,7 @@ implementing the function, never by deleting the macro.
 | console | 1 | 0 | 0 |
 | datatypes | 5 | 0 | 0 |
 | dos | 18 | 2 | 10 |
-| exec | 7 | 3 | 0 |
+| exec | 5 | 3 | 0 |
 | gadtools | 0 | 1 | 6 |
 | graphics | 0 | 7 | 7 |
 | icon | 0 | 2 | 0 |
@@ -26,7 +26,7 @@ implementing the function, never by deleting the macro.
 | translator | 1 | 0 | 0 |
 | utility | 0 | 0 | 7 |
 | workbench | 0 | 0 | 3 |
-| **total** | **96** | **32** | **47** |
+| **total** | **94** | **32** | **47** |
 
 ## amigaguide
 
@@ -137,8 +137,6 @@ implementing the function, never by deleting the macro.
 - `AllocTrap` — stub: always fails (`src/rom/exec.c`)
 - `Debug` — stub: no ROM debugger (`src/rom/exec.c`)
 - `FreeTrap` — stub: trap allocation not tracked (`src/rom/exec.c`)
-- `SuperState` — stub: does not enter supervisor mode, returns NULL (`src/rom/exec.c`)
-- `UserState` — stub: does not return to user mode (`src/rom/exec.c`)
 
 ## gadtools
 
