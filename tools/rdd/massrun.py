@@ -90,9 +90,17 @@ def run_lxa_one(rel, root, frames, build=None):
     from rdd.pylxa import Lxa
     # the reference starts programs with RUN >file (stdin NIL:)
     os.environ["LXA_STDIO_FILE"] = "1"
+    # ... from LXAREF:p/<id>/ with nothing assigned to the program's own
+    # S/Libs/C directories (Phase 237)
+    os.environ["LXA_PROGDIR_ASSIGNS"] = "0"
     lxa = Lxa(build=build)
     res = {"backend": "lxa"}
     try:
+        # the reference has the Workbench 3.1 fonts (Fish Evo needs ruby.font)
+        wb31_fonts = os.path.join(os.environ.get("LXA_REFSYS_DIR", os.path.expanduser("~/.cache/lxa/refsys")),
+                                  "SYS-aga", "Fonts")
+        if os.path.isdir(wb31_fonts):
+            lxa.assign("FONTS", wb31_fonts)
         lxa.assign("FISH", root)
         lxa.run("FISH:" + rel.replace(os.sep, "/"), "")
         step = 10

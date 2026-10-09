@@ -594,7 +594,12 @@ int op_illg(int level)
              * standard assigns so programs can find their local config files.
              * This simulates what users typically did on real Amigas via startup
              * scripts: "Assign S: PROGDIR:S ADD"
+             * AmigaOS itself does not do this: LXA_PROGDIR_ASSIGNS=0 turns it
+             * off for runs compared with the reference (Phase 237: Fish
+             * Vdraw, VChess found files 3.1 does not find).
              */
+            const char *pa_env = getenv("LXA_PROGDIR_ASSIGNS");
+            bool progdir_assigns = !(pa_env && !strcmp(pa_env, "0"));
             {
                 char amiga_progdir[PATH_MAX];
                 char linux_progdir[PATH_MAX];
@@ -650,7 +655,7 @@ int op_illg(int level)
                         {NULL, NULL}
                     };
                     
-                    for (int i = 0; subdirs[i].dir; i++) {
+                    for (int i = 0; progdir_assigns && subdirs[i].dir; i++) {
                         snprintf(subdir, sizeof(subdir), "%s/%s", linux_progdir, subdirs[i].dir);
                         if (stat(subdir, &st) == 0 && S_ISDIR(st.st_mode)) {
                             /* Prepend this path to the assign (so it's searched first) */
