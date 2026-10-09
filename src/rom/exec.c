@@ -1236,6 +1236,39 @@ void _exec_Permit ( register struct ExecBase * SysBase __asm("a6"))
         exec_preempt(SysBase);
 }
 
+/*
+ * Disable(), Enable(), Forbid(), Permit(), ObtainSemaphore(),
+ * ObtainSemaphoreShared() and ReleaseSemaphore() are "guaranteed to
+ * preserve all registers" (exec autodocs), and programs rely on it:
+ * AmiBlitz3's linked-list library keeps its list pointer in D0 across
+ * Disable() and its result in D0 across Enable().  The C implementations
+ * may use the scratch registers D0/D1/A0/A1, so the jump table points to
+ * these wrappers.
+ */
+#define EXEC_PRESERVE_ALL(fn)                                  \
+    extern void fn##_PreserveAll(void);                        \
+    asm(".text\n\t.even\n"                                     \
+        "_" #fn "_PreserveAll:\n\t"                            \
+        "movem.l d0-d1/a0-a1,-(sp)\n\t"                        \
+        "jsr _" #fn "\n\t"                                     \
+        "movem.l (sp)+,d0-d1/a0-a1\n\t"                        \
+        "rts\n");
+
+void _exec_ObtainSemaphore ( register struct ExecBase * SysBase __asm("a6"),
+                             register struct SignalSemaphore * ___sigSem __asm("a0"));
+void _exec_ObtainSemaphoreShared ( register struct ExecBase * SysBase __asm("a6"),
+                                   register struct SignalSemaphore * ___sigSem __asm("a0"));
+void _exec_ReleaseSemaphore ( register struct ExecBase * SysBase __asm("a6"),
+                              register struct SignalSemaphore * ___sigSem __asm("a0"));
+
+EXEC_PRESERVE_ALL(_exec_Disable)
+EXEC_PRESERVE_ALL(_exec_Enable)
+EXEC_PRESERVE_ALL(_exec_Forbid)
+EXEC_PRESERVE_ALL(_exec_Permit)
+EXEC_PRESERVE_ALL(_exec_ObtainSemaphore)
+EXEC_PRESERVE_ALL(_exec_ObtainSemaphoreShared)
+EXEC_PRESERVE_ALL(_exec_ReleaseSemaphore)
+
 APTR _exec_SuperState ( register struct ExecBase * SysBase __asm("a6"))
 {
     LXA_UNIMPLEMENTED("exec", "SuperState", "stub: does not enter supervisor mode, returns NULL");
@@ -6017,10 +6050,10 @@ void coldstart (void)
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-102)].vec = _exec_InitResident;
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-108)].vec = _exec_Alert;
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-114)].vec = _exec_Debug;
-    g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-120)].vec = _exec_Disable;
-    g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-126)].vec = _exec_Enable;
-    g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-132)].vec = _exec_Forbid;
-    g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-138)].vec = _exec_Permit;
+    g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-120)].vec = _exec_Disable_PreserveAll;
+    g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-126)].vec = _exec_Enable_PreserveAll;
+    g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-132)].vec = _exec_Forbid_PreserveAll;
+    g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-138)].vec = _exec_Permit_PreserveAll;
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-144)].vec =  exec_SetSR;
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-150)].vec = _exec_SuperState;
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-156)].vec = _exec_UserState;
@@ -6088,8 +6121,8 @@ void coldstart (void)
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-546)].vec = _exec_Vacate;
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-552)].vec = _exec_OpenLibrary;
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-558)].vec = _exec_InitSemaphore;
-    g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-564)].vec = _exec_ObtainSemaphore;
-    g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-570)].vec = _exec_ReleaseSemaphore;
+    g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-564)].vec = _exec_ObtainSemaphore_PreserveAll;
+    g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-570)].vec = _exec_ReleaseSemaphore_PreserveAll;
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-576)].vec = _exec_AttemptSemaphore;
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-582)].vec = _exec_ObtainSemaphoreList;
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-588)].vec = _exec_ReleaseSemaphoreList;
@@ -6107,7 +6140,7 @@ void coldstart (void)
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-660)].vec = _exec_DeleteIORequest;
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-666)].vec = _exec_CreateMsgPort;
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-672)].vec = _exec_DeleteMsgPort;
-    g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-678)].vec = _exec_ObtainSemaphoreShared;
+    g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-678)].vec = _exec_ObtainSemaphoreShared_PreserveAll;
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-684)].vec = _exec_AllocVec;
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-690)].vec = _exec_FreeVec;
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-696)].vec = _exec_CreatePool;

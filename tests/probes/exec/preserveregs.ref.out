@@ -1,0 +1,11 @@
+Disable: d0 kept, d1 kept, a0 kept, a1 kept
+Enable: d0 kept, d1 kept, a0 kept, a1 kept
+Forbid: d0 kept, d1 kept, a0 kept, a1 kept
+Permit: d0 kept, d1 kept, a0 kept, a1 kept
+ObtainSemaphore: d0 kept, d1 kept, a0 kept, a1 kept
+ReleaseSemaphore: d0 kept, d1 kept, a0 kept, a1 kept
+ObtainSemaphoreShared: d0 kept, d1 kept, a0 kept, a1 kept
+ReleaseSemaphore (shared): d0 kept, d1 kept, a0 kept, a1 kept
+Enable (nested): d0 kept, d1 kept, a0 kept, a1 kept
+Enable (last): d0 kept, d1 kept, a0 kept, a1 kept
+Permit (last): d0 kept, d1 kept, a0 kept, a1 kept
