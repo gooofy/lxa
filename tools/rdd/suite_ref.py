@@ -119,7 +119,8 @@ def _flat(name):
     return name.replace("/", "_")
 
 
-# Shell parity: lxa's boot volume is SYS: (the reference's is "System"),
+# Shell parity: the expected outputs were captured with "System:" written as
+# "SYS:" (lxa names its boot volume "System" too since Phase 238),
 # and times of day printed by Date differ (the reference clock runs).
 SHELL_NORMALISE = [
     (re.compile(r"\bSystem:"), "SYS:"),

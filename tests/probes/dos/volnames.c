@@ -2,11 +2,10 @@
  * Probe (Phase 222a): the names NameFromLock()/NameFromFH() give for
  * assigns and volumes.
  *
- * No volnames.ref.out yet: AmigaOS 3.1 names every object by its volume
- * ("Ram Disk:T", "System:C", ENV: is "Ram Disk:ENV"), lxa's boot volume
- * is "SYS", RAM: has no "Ram Disk" volume and T:/ENV: are assigns to host
- * directories outside every volume, so lxa returns "T:", "ENVARC:", ...
- * Capture it once lxa's system volumes are laid out like the reference.
+ * AmigaOS 3.1 names every object by its volume ("Ram Disk:T", "System:C",
+ * ENV: is "Ram Disk:ENV"); since Phase 238 lxa's boot volume is "System",
+ * RAM: is the volume "Ram Disk" with T: and ENV: in it, and the twin
+ * runner's SYS: is laid out like the reference's system partition.
  */
 #include <exec/types.h>
 #include <dos/dos.h>

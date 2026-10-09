@@ -19,6 +19,76 @@ struct drive_map_s {
 };
 
 static drive_map_t *g_drive_maps = NULL;
+
+/*
+ * Volume names (Phase 238).  AmigaOS names every object by the volume it
+ * lives on: the Workbench 3.1 boot partition is "System", RAM: is the volume
+ * "Ram Disk".  lxa's drives and the SYS: assign are device names; this table
+ * gives them their volume name, which NameFromLock()/Examine() report and
+ * which works as a path prefix ("Ram Disk:T").
+ */
+#define MAX_VOLNAMES 16
+static struct { char device[32]; char volume[32]; } g_volnames[MAX_VOLNAMES];
+static int g_nvolnames = -1;   /* -1: defaults not installed yet */
+
+static void volnames_init(void)
+{
+    if (g_nvolnames >= 0)
+        return;
+    g_nvolnames = 0;
+    vfs_set_volume_name("SYS", "System");
+    vfs_set_volume_name("RAM", "Ram Disk");
+}
+
+bool vfs_set_volume_name(const char *device, const char *volume)
+{
+    int i;
+
+    volnames_init();
+    for (i = 0; i < g_nvolnames; i++) {
+        if (!strcasecmp(g_volnames[i].device, device)) {
+            if (!volume || !*volume) {
+                g_volnames[i] = g_volnames[--g_nvolnames];
+                return true;
+            }
+            snprintf(g_volnames[i].volume, sizeof(g_volnames[i].volume), "%s", volume);
+            return true;
+        }
+    }
+    if (!volume || !*volume)
+        return true;
+    if (g_nvolnames >= MAX_VOLNAMES)
+        return false;
+    snprintf(g_volnames[g_nvolnames].device, sizeof(g_volnames[0].device), "%s", device);
+    snprintf(g_volnames[g_nvolnames].volume, sizeof(g_volnames[0].volume), "%s", volume);
+    g_nvolnames++;
+    return true;
+}
+
+/* the volume name of a drive / of SYS: (the device name if it has none) */
+const char *vfs_volume_of(const char *device)
+{
+    int i;
+
+    volnames_init();
+    for (i = 0; i < g_nvolnames; i++)
+        if (!strcasecmp(g_volnames[i].device, device))
+            return g_volnames[i].volume;
+    return device;
+}
+
+/* the device behind a volume name, or NULL */
+const char *vfs_device_of_volume(const char *volume)
+{
+    int i;
+
+    volnames_init();
+    for (i = 0; i < g_nvolnames; i++)
+        if (!strcasecmp(g_volnames[i].volume, volume))
+            return g_volnames[i].device;
+    return NULL;
+}
+
 static char g_lxa_home[PATH_MAX] = "";
 static char g_progdir[PATH_MAX] = "";  /* Program directory for PROGDIR: */
 
@@ -136,6 +206,7 @@ void vfs_reset(void)
     g_lxa_home[0] = '\0';
     g_progdir[0] = '\0';
     g_data_dir[0] = '\0';
+    g_nvolnames = -1;
 }
 
 /* Get the installation data directory */
@@ -455,9 +526,17 @@ bool vfs_resolve_path(const char *amiga_path, char *linux_path, size_t maxlen) {
 
     if (colon) {
         size_t name_len = colon - amiga_path;
-        char drive_name[name_len + 1];
+        char drive_name[name_len + 32];
         strncpy(drive_name, amiga_path, name_len);
         drive_name[name_len] = '\0';
+
+        /* a volume name ("Ram Disk:", "System:") stands for its device,
+         * unless an assign of that name exists */
+        if (!find_assign(drive_name)) {
+            const char *dev = vfs_device_of_volume(drive_name);
+            if (dev)
+                snprintf(drive_name, sizeof(drive_name), "%s", dev);
+        }
 
         /* Phase 7: Check assigns first (they take precedence over drives) */
         assign = find_assign(drive_name);
@@ -1275,11 +1354,15 @@ bool vfs_assign_prepend_path(const char *name, const char *linux_path)
 bool vfs_assign_remove_path(const char *name, const char *linux_path)
 {
     assign_entry_t *entry = find_assign(name);
+    char normalized[PATH_MAX];
     if (!entry) return false;
-    
+    /* assign paths are stored normalized (symlinks resolved) */
+    if (!normalize_host_path(linux_path, normalized, sizeof(normalized)))
+        return false;
+
     assign_path_t *prev = NULL;
     for (assign_path_t *p = entry->paths; p; prev = p, p = p->next) {
-        if (strcmp(p->linux_path, linux_path) == 0) {
+        if (strcmp(p->linux_path, normalized) == 0) {
             if (prev) {
                 prev->next = p->next;
             } else {
@@ -1337,7 +1420,7 @@ bool vfs_volume_root_name(const char *linux_path, char *name, size_t maxlen)
 
     for (drive_map_t *drive = g_drive_maps; drive; drive = drive->next) {
         if (drive->linux_path && drive->amiga_name && strcmp(drive->linux_path, normalized) == 0) {
-            snprintf(name, maxlen, "%s", drive->amiga_name);
+            snprintf(name, maxlen, "%s", vfs_volume_of(drive->amiga_name));
             return true;
         }
     }
@@ -1345,7 +1428,7 @@ bool vfs_volume_root_name(const char *linux_path, char *name, size_t maxlen)
     if (sys) {
         for (assign_path_t *p = sys->paths; p; p = p->next) {
             if (p->linux_path && strcmp(p->linux_path, normalized) == 0) {
-                snprintf(name, maxlen, "%s", sys->name);
+                snprintf(name, maxlen, "%s", vfs_volume_of(sys->name));
                 return true;
             }
         }
@@ -1402,7 +1485,7 @@ bool vfs_path_to_amiga(const char *linux_path, char *amiga_path, size_t maxlen)
      */
     for (int pass = 0; pass < 2 && !best_name; pass++) {
         for (assign_entry_t *a = g_assigns; a; a = a->next) {
-            if ((pass == 0) != (strcasecmp(a->name, "SYS") == 0)) {
+            if ((pass == 0) != (strcasecmp(a->name, "SYS") == 0)) {  /* volumes first */
                 continue;
             }
             for (assign_path_t *p = a->paths; p; p = p->next) {
@@ -1425,7 +1508,7 @@ bool vfs_path_to_amiga(const char *linux_path, char *amiga_path, size_t maxlen)
                 }
             }
         }
-        if (pass != 0) {
+        if (pass != 0) {   /* drives are volumes: pass 0 */
             continue;
         }
         for (drive_map_t *drive = g_drive_maps; drive; drive = drive->next) {
@@ -1458,11 +1541,11 @@ bool vfs_path_to_amiga(const char *linux_path, char *amiga_path, size_t maxlen)
     }
 
     if (!best_remainder || best_remainder[0] == '\0') {
-        written = snprintf(amiga_path, maxlen, "%s:", best_name);
+        written = snprintf(amiga_path, maxlen, "%s:", vfs_volume_of(best_name));
         return written > 0 && (size_t)written < maxlen;
     }
 
-    written = snprintf(amiga_path, maxlen, "%s:%s", best_name, best_remainder);
+    written = snprintf(amiga_path, maxlen, "%s:%s", vfs_volume_of(best_name), best_remainder);
     return written > 0 && (size_t)written < maxlen;
 }
 

@@ -16,6 +16,15 @@ extern struct ExecBase *SysBase;
 #define FNF_RUNOUTPUT   (1 << 0)
 
 static int tests_failed = 0;
+
+/* RAM: is the volume "Ram Disk": its locks are named "Ram Disk:..." (3.1) */
+static int has_prefix(const char *s, const char *p)
+{
+    while (*p)
+        if (*s++ != *p++)
+            return 0;
+    return 1;
+}
 static BPTR report_output = 0;
 
 static void print(const char *s)
@@ -182,8 +191,8 @@ int main(void)
     else
         test_fail("Default Run prompt installed", "Prompt was not reset to %N> ");
 
-    if (GetCurrentDirName((STRPTR)dir_name, sizeof(dir_name)) && dir_name[0] == 'R' && dir_name[1] == 'A' &&
-        dir_name[2] == 'M' && dir_name[3] == ':' && dir_name[4] == '\0')
+    if (GetCurrentDirName((STRPTR)dir_name, sizeof(dir_name)) && has_prefix(dir_name, "Ram Disk:") &&
+        dir_name[9] == '\0')
         test_pass("Current directory name synced from lock");
     else
         test_fail("Current directory name synced from lock", "CLI set name mismatch");
@@ -225,7 +234,7 @@ int main(void)
         test_fail("Parent prompt preserved", "Prompt was not inherited from old CLI");
 
     if (GetCurrentDirName((STRPTR)dir_name, sizeof(dir_name)) &&
-        dir_name[0] == 'R' && dir_name[1] == 'A' && dir_name[2] == 'M' && dir_name[3] == ':')
+        has_prefix(dir_name, "Ram Disk:"))
         test_pass("Run shell keeps a CLI current-dir name");
     else
         test_fail("Run shell keeps a CLI current-dir name", "CLI set name was not populated");

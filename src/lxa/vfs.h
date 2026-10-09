@@ -14,6 +14,12 @@ bool vfs_is_volume_root(const char *linux_path);
 bool vfs_volume_root_name(const char *linux_path, char *name, size_t maxlen);
 bool vfs_path_to_amiga(const char *linux_path, char *amiga_path, size_t maxlen);
 
+/* Volume names of drives and of SYS: (defaults: SYS -> "System", RAM ->
+ * "Ram Disk", as on Workbench 3.1); NULL/"" removes one. */
+bool vfs_set_volume_name(const char *device, const char *volume);
+const char *vfs_volume_of(const char *device);
+const char *vfs_device_of_volume(const char *volume);   /* NULL: not a volume name */
+
 /*
  * Phase 3: Automatic Environment Setup
  * 

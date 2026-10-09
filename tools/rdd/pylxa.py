@@ -88,40 +88,59 @@ class Lxa:
         # LXA_SYSTEM_DIR: a private copy for runs of untrusted programs (mass
         # runs) - installers write into LIBS: and must not touch the repo
         system = os.environ.get("LXA_SYSTEM_DIR") or os.path.join(ROOT, "share", "lxa", "System")
-        self.assign("SYS", samples)
+        sysbuild = os.path.join(self.build, "target", "sys")
+        self._tmp = tempfile.mkdtemp(prefix="pylxa-")
+        # SYS: (the boot volume "System") is laid out like the reference's
+        # Workbench 3.1 partition: a private root directory whose drawers
+        # link to lxa's files (C, Libs, S, System, Tests ...) or are private
+        # (Prefs/Env-Archive = ENVARC:), so nothing writes into the checked-in
+        # share/lxa/System.  The samples, share/lxa/System and the built sys
+        # tree follow as further SYS: paths, so SYS:SimpleGad and the names
+        # of their files (System:C/List) resolve as before.
+        root = os.path.join(self._tmp, "SYS")
+        os.makedirs(root)
+        links = {"C": os.path.join(sysbuild, "C"), "Libs": os.path.join(system, "Libs"),
+                 "S": os.path.join(system, "S"), "System": os.path.join(sysbuild, "System"),
+                 "Fonts": os.path.join(system, "Fonts"), "Tests": os.path.join(samples, "Tests")}
+        for name in ("C", "Classes", "Devs", "Expansion", "Fonts", "L", "Libs", "Locale", "Prefs",
+                     "Rexxc", "S", "Storage", "System", "T", "Tests", "Tools", "Utilities", "WBStartup"):
+            target = links.get(name)
+            if target and os.path.isdir(target):
+                os.symlink(target, os.path.join(root, name))
+            elif name != "Tests":
+                os.makedirs(os.path.join(root, name))
+        envarc = os.path.join(root, "Prefs", "Env-Archive")
+        if os.path.isdir(os.path.join(system, "Prefs", "Env-Archive")):
+            shutil.copytree(os.path.join(system, "Prefs", "Env-Archive"), envarc, symlinks=True)
+        else:
+            os.makedirs(envarc)
+        self.assign("SYS", root)
+        self.assign_add("SYS", samples)
         self.assign_add("SYS", system)
+        if os.path.isdir(sysbuild):
+            self.assign_add("SYS", sysbuild)
         self.assign("LIBS", os.path.join(system, "Libs"))
-        disklibs = os.path.join(self.build, "target", "sys", "Libs")   # lxa's disk libraries
+        disklibs = os.path.join(sysbuild, "Libs")   # lxa's disk libraries
         if os.path.isdir(disklibs):
             self.assign_add("LIBS", disklibs)
-        self.assign("C", os.path.join(self.build, "target", "sys", "C"))
-        # the built sys tree belongs to SYS: as in an installed system
-        # (SYS:C/List, SYS:System/Shell), so names resolve as on AmigaOS
-        if os.path.isdir(os.path.join(self.build, "target", "sys")):
-            self.assign_add("SYS", os.path.join(self.build, "target", "sys"))
+        self.assign("C", os.path.join(sysbuild, "C"))
+        for name, rel in (("S", "S"), ("L", "L"), ("DEVS", "Devs"), ("ENVARC", "Prefs/Env-Archive")):
+            self.assign(name, os.path.join(root, rel))
         apps = apps or os.environ.get("LXA_APPS") or os.path.normpath(os.path.join(ROOT, "..", "lxa-apps"))
         if os.path.isdir(apps):
             self.assign("APPS", apps)
         gadgets = os.path.join(system, "Libs", "gadgets")
         if os.path.isdir(gadgets):
             self.assign("GADGETS", gadgets)
-        sysbin = os.path.join(self.build, "target", "sys", "System")
-        if os.path.isdir(sysbin):
-            self.assign("System", sysbin)
-        # RAM:, T:, ENV:/ENVARC: on fresh temp dirs, as in the GTest fixture
-        self._tmp = tempfile.mkdtemp(prefix="pylxa-")
-        for d in ("RAM", "T", "ENV"):
-            os.makedirs(os.path.join(self._tmp, d))
-        self.drive("RAM", os.path.join(self._tmp, "RAM"))
-        self.assign("T", os.path.join(self._tmp, "T"))
-        self.assign("ENV", os.path.join(self._tmp, "ENV"))
-        self.assign("ENVARC", os.path.join(self._tmp, "ENV"))
+        # RAM: is the volume "Ram Disk"; T: and ENV: are drawers in it (3.1)
+        ram = os.path.join(self._tmp, "RAM")
+        for d in ("T", "ENV"):
+            os.makedirs(os.path.join(ram, d))
+        self.drive("RAM", ram)
+        self.assign("T", os.path.join(ram, "T"))
+        self.assign("ENV", os.path.join(ram, "ENV"))
         # FONTS: always exists on AmigaOS (disk fonts; topaz is in ROM)
-        fonts = os.path.join(system, "Fonts")
-        if not os.path.isdir(fonts):
-            fonts = os.path.join(self._tmp, "Fonts")
-            os.makedirs(fonts)
-        self.assign("FONTS", fonts)
+        self.assign("FONTS", os.path.join(root, "Fonts"))
         for name, path in (extra_assigns or {}).items():
             self.assign(name, path)
         self._text_cb = None
@@ -199,7 +218,7 @@ class Lxa:
     def install_prefs(self, path):
         """Copy a prefs file to ENV:Sys/ (applied by C:IPrefs when the next
         program is started)."""
-        d = os.path.join(self._tmp, "ENV", "Sys")
+        d = os.path.join(self._tmp, "RAM", "ENV", "Sys")
         os.makedirs(d, exist_ok=True)
         shutil.copy2(path, d)
 

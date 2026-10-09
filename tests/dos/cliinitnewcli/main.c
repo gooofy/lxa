@@ -12,6 +12,15 @@ extern struct DosLibrary *DOSBase;
 extern struct ExecBase *SysBase;
 
 static int tests_failed = 0;
+
+/* RAM: is the volume "Ram Disk": its locks are named "Ram Disk:..." (3.1) */
+static int has_prefix(const char *s, const char *p)
+{
+    while (*p)
+        if (*s++ != *p++)
+            return 0;
+    return 1;
+}
 static BPTR g_out;
 
 static void print(const char *s)
@@ -150,8 +159,8 @@ int main(void)
     else
         test_fail("Default prompt installed", "Prompt was not reset to %N> ");
 
-    if (GetCurrentDirName((STRPTR)dir_name, sizeof(dir_name)) && dir_name[0] == 'R' && dir_name[1] == 'A' &&
-        dir_name[2] == 'M' && dir_name[3] == ':' && dir_name[4] == '\0')
+    if (GetCurrentDirName((STRPTR)dir_name, sizeof(dir_name)) && has_prefix(dir_name, "Ram Disk:") &&
+        dir_name[9] == '\0')
         test_pass("Current directory propagated from packet lock");
     else
         test_fail("Current directory propagated from packet lock", "CLI set name mismatch");
