@@ -98,6 +98,9 @@ struct JumpVec
 
 #define RAM_START                    0x00010000
 #define RAM_END                      0x009fffff
+#define LXA_CHIP_END                 0x00200000   /* 2 MB chip RAM, fast RAM above */
+#define LXA_Z3RAM_START              0x40000000   /* Zorro III fast RAM (host: Z3RAM_*) */
+#define LXA_Z3RAM_SIZE               0x00800000
 
 extern struct Resident *__lxa_dos_ROMTag;
 extern struct Resident *__lxa_utility_ROMTag;
@@ -137,7 +140,9 @@ extern struct Resident *__lxa_trackdisk_ROMTag;
 
 static struct JumpVec   g_ExecJumpTable[NUM_EXEC_FUNCS];
 static struct ExecBase  g_SysBase;
-static struct MemHeader g_MemHeader;
+static struct MemHeader g_MemHeader;       /* chip RAM */
+static struct MemHeader g_FastMemHeader;   /* fast RAM */
+static struct MemHeader g_Z3MemHeader;     /* Zorro III fast RAM */
 
 struct ExecIntVectorState
 {
@@ -1581,6 +1586,48 @@ void _exec_Deallocate ( register struct ExecBase  *SysBase     __asm("a6"),
     _exec_dump_memh (freeList);
 }
 
+static APTR exec_alloc_from_memlist (struct ExecBase *SysBase, ULONG byteSize, ULONG requirements)
+{
+    struct MemHeader *mhCur = (struct MemHeader *)SysBase->MemList.lh_Head;
+    UWORD req = (UWORD) requirements;
+
+    while (mhCur->mh_Node.ln_Succ)
+    {
+        if ((mhCur->mh_Attributes & req) == req && mhCur->mh_Free >= byteSize)
+        {
+            APTR mem = Allocate (mhCur, byteSize);
+            if (mem)
+                return mem;
+        }
+        mhCur = (struct MemHeader *)mhCur->mh_Node.ln_Succ;
+    }
+    return NULL;
+}
+
+/* Low-memory handler (AddMemHandler()): A0 = MemHandlerData, A1 = is_Data,
+ * A6 = ExecBase, called under Forbid(); returns MEM_DID_NOTHING,
+ * MEM_ALL_DONE or MEM_TRY_AGAIN in D0. */
+static LONG exec_call_mem_handler (struct ExecBase *SysBase, struct Interrupt *h,
+                                   struct MemHandlerData *mhd)
+{
+    register LONG  result __asm("d0");
+    register APTR  rcode  __asm("a2") = (APTR)h->is_Code;
+    register APTR  rmhd   __asm("a0") = (APTR)mhd;
+    register APTR  rdata  __asm("a1") = h->is_Data;
+    register APTR  rsys   __asm("d2") = (APTR)SysBase;
+
+    __asm volatile (
+        "movem.l d2-d7/a2-a6,-(sp)\n\t"
+        "move.l  d2,a6\n\t"
+        "jsr     (a2)\n\t"
+        "movem.l (sp)+,d2-d7/a2-a6"
+        : "=r" (result), "+r" (rmhd), "+r" (rdata)
+        : "r" (rcode), "r" (rsys)
+        : "d1", "memory", "cc"
+    );
+    return result;
+}
+
 APTR _exec_AllocMem ( register struct ExecBase *SysBase __asm("a6"),
                       register ULONG ___byteSize  __asm("d0"),
                       register ULONG ___requirements  __asm("d1"))
@@ -1593,35 +1640,39 @@ APTR _exec_AllocMem ( register struct ExecBase *SysBase __asm("a6"),
 
     Forbid();
 
-    struct MemHeader *mhCur = (struct MemHeader *)SysBase->MemList.lh_Head;
+    APTR mem = exec_alloc_from_memlist (SysBase, ___byteSize, ___requirements);
 
-    APTR mem = NULL;
-
-    while (mhCur->mh_Node.ln_Succ)
+    /* Out of memory: give the low-memory handlers (AddMemHandler()) a
+     * chance to free something, in priority order, unless the caller asked
+     * for MEMF_NO_EXPUNGE.  MEM_TRY_AGAIN calls the same handler again
+     * (with MEMHF_RECYCLE) as long as the retry fails; MEM_ALL_DONE moves
+     * on to the next handler after a failed retry. */
+    if (!mem && !(___requirements & MEMF_NO_EXPUNGE))
     {
-        DPRINTF (LOG_DEBUG, "                MemHeader mh_Free=%d, mh_Attributes=0x%08lx\n",
-                 mhCur->mh_Free, mhCur->mh_Attributes);
+        struct MemHandlerData mhd;
+        struct Node *n = (struct Node *)SysBase->ex_MemHandlers.mlh_Head;
 
-        UWORD req = (UWORD) ___requirements;
-        if ((mhCur->mh_Attributes & req) == req)
+        mhd.memh_RequestSize  = ___byteSize;
+        mhd.memh_RequestFlags = ___requirements;
+
+        while (!mem && n && n->ln_Succ)
         {
-            if (mhCur->mh_Free >= ___byteSize)
+            struct Node *next = n->ln_Succ;
+            mhd.memh_Flags = 0;
+            for (;;)
             {
-                mem = Allocate (mhCur, ___byteSize);
-                if (mem)
+                SysBase->ex_MemHandler = (APTR)n;
+                LONG r = exec_call_mem_handler (SysBase, (struct Interrupt *)n, &mhd);
+                SysBase->ex_MemHandler = NULL;
+                if (r == MEM_DID_NOTHING)
                     break;
+                mem = exec_alloc_from_memlist (SysBase, ___byteSize, ___requirements);
+                if (mem || r != MEM_TRY_AGAIN)
+                    break;
+                mhd.memh_Flags |= MEMHF_RECYCLE;
             }
-            else
-            {
-                DPRINTF (LOG_DEBUG, "      *** too small ***");
-            }
+            n = next;
         }
-        else
-        {
-            DPRINTF (LOG_DEBUG, "      *** does not meet requirements ***");
-        }
-
-        mhCur = (struct MemHeader *)mhCur->mh_Node.ln_Succ;
     }
 
     if (mem && (___requirements & MEMF_CLEAR))
@@ -2363,7 +2414,9 @@ LONG _exec_SetTaskPri ( register struct ExecBase * SysBase __asm("a6"),
     exec_preempt(SysBase);
 
     DPRINTF (LOG_DEBUG, "_exec: SetTaskPri() returning old priority %d\n", oldPri);
-    return (LONG)(BYTE)(oldPri);
+    /* AmigaOS 3.1 reference (probe exec/byteret): the old priority comes
+     * back zero-extended (-5 -> 0x000000fb) */
+    return (LONG)(UBYTE)oldPri;
 }
 
 ULONG _exec_SetSignal ( register struct ExecBase *SysBase     __asm("a6"),
@@ -4113,6 +4166,19 @@ struct Library * _exec_OpenLibrary ( register struct ExecBase *SysBase __asm("a6
 
     struct Library *lib = (struct Library *) FindName (&SysBase->LibList, libName);
 
+    if (!lib)
+    {
+        /* a library loaded as "gadgets/colorwheel.gadget" is called
+         * "colorwheel.gadget": AmigaOS 3.1 finds it again by the name's
+         * file part (tests/probes/colorwheel/class.c) */
+        CONST_STRPTR part = libName, p;
+        for (p = libName; *p; p++)
+            if (*p == '/' || *p == ':')
+                part = p + 1;
+        if (part != libName && *part)
+            lib = (struct Library *) FindName (&SysBase->LibList, part);
+    }
+
     Permit();
 
     if (lib)
@@ -5107,25 +5173,42 @@ void _exec_FreeVec ( register struct ExecBase *SysBase     __asm("a6"),
 }
 
 /*
- * Memory Pool structure (internal to exec)
- * Pools are a way to efficiently allocate many small blocks of memory
- * that can all be freed at once when the pool is deleted.
+ * Memory pools (RKRM Exec "Memory Pools"): allocations up to the threshold
+ * come from puddles - private MemHeaders managed with Allocate() and
+ * Deallocate() - larger ones get a block of their own.  FreePooled()
+ * returns memory to its puddle; a puddle that becomes completely free goes
+ * back to the system, as does every large block.  (AmiBlitz3 allocates and
+ * frees >100000 pooled blocks at startup.)
  */
 struct PoolHeader
 {
-    struct MinList  ph_PuddleList;    /* List of puddles (memory blocks) */
-    ULONG           ph_Requirements;  /* Memory requirements */
-    ULONG           ph_PuddleSize;    /* Size of each puddle */
-    ULONG           ph_ThreshSize;    /* Threshold for large allocations */
+    struct MinList  ph_PuddleList;    /* puddles: struct PoolPuddle */
+    struct MinList  ph_LargeList;     /* blocks above the threshold */
+    ULONG           ph_Requirements;  /* MEMF_ flags of the pool */
+    ULONG           ph_PuddleSize;    /* allocatable bytes of a puddle */
+    ULONG           ph_ThreshSize;    /* larger requests get their own block */
 };
 
 struct PoolPuddle
 {
-    struct MinNode  pp_Node;          /* Node for linking in ph_PuddleList */
-    ULONG           pp_Size;          /* Size of this puddle */
-    ULONG           pp_BytesUsed;     /* Bytes currently allocated from this puddle */
-    UBYTE           pp_Data[0];       /* Start of allocatable memory */
+    struct MemHeader pp_Header;       /* mh_Node links the puddle */
+    ULONG            pp_AllocSize;    /* bytes allocated with AllocMem() */
+    ULONG            pp_Pad;
 };
+
+struct PoolLarge
+{
+    struct MinNode  pl_Node;
+    ULONG           pl_AllocSize;     /* bytes allocated with AllocMem() */
+    ULONG           pl_Pad;
+};
+
+static void pool_newlist(struct MinList *l)
+{
+    l->mlh_Head     = (struct MinNode *)&l->mlh_Tail;
+    l->mlh_Tail     = NULL;
+    l->mlh_TailPred = (struct MinNode *)&l->mlh_Head;
+}
 
 APTR _exec_CreatePool ( register struct ExecBase * SysBase __asm("a6"),
                                                         register ULONG ___requirements  __asm("d0"),
@@ -5135,21 +5218,19 @@ APTR _exec_CreatePool ( register struct ExecBase * SysBase __asm("a6"),
     DPRINTF (LOG_DEBUG, "_exec: CreatePool called requirements=0x%08lx, puddleSize=%ld, threshSize=%ld\n",
              ___requirements, ___puddleSize, ___threshSize);
 
-    /* Allocate pool header */
+    /* the threshold must not exceed the puddle size (autodoc) */
+    if (___threshSize > ___puddleSize)
+        return NULL;
+
     struct PoolHeader *pool = (struct PoolHeader *)AllocMem(sizeof(struct PoolHeader), MEMF_PUBLIC | MEMF_CLEAR);
 
     if (pool)
     {
-        /* Initialize the pool's MinList manually to avoid strict aliasing issues */
-        pool->ph_PuddleList.mlh_Head     = (struct MinNode *)&pool->ph_PuddleList.mlh_Tail;
-        pool->ph_PuddleList.mlh_Tail     = NULL;
-        pool->ph_PuddleList.mlh_TailPred = (struct MinNode *)&pool->ph_PuddleList.mlh_Head;
-
+        pool_newlist(&pool->ph_PuddleList);
+        pool_newlist(&pool->ph_LargeList);
         pool->ph_Requirements = ___requirements;
-        pool->ph_PuddleSize   = ___puddleSize;
+        pool->ph_PuddleSize   = ALIGN(___puddleSize, MEM_BLOCKSIZE);
         pool->ph_ThreshSize   = ___threshSize;
-
-        DPRINTF (LOG_DEBUG, "_exec: CreatePool returning pool=0x%08lx\n", pool);
     }
 
     return pool;
@@ -5164,15 +5245,13 @@ void _exec_DeletePool ( register struct ExecBase * SysBase __asm("a6"),
         return;
 
     struct PoolHeader *pool = (struct PoolHeader *)___poolHeader;
+    struct MinNode *n;
 
-    /* Free all puddles */
-    struct PoolPuddle *puddle;
-    while ((puddle = (struct PoolPuddle *)RemHead((struct List *)&pool->ph_PuddleList)) != NULL)
-    {
-        FreeMem(puddle, puddle->pp_Size + sizeof(struct PoolPuddle));
-    }
+    while ((n = (struct MinNode *)RemHead((struct List *)&pool->ph_PuddleList)) != NULL)
+        FreeMem(n, ((struct PoolPuddle *)n)->pp_AllocSize);
+    while ((n = (struct MinNode *)RemHead((struct List *)&pool->ph_LargeList)) != NULL)
+        FreeMem(n, ((struct PoolLarge *)n)->pl_AllocSize);
 
-    /* Free the pool header */
     FreeMem(pool, sizeof(struct PoolHeader));
 }
 
@@ -5187,66 +5266,65 @@ APTR _exec_AllocPooled ( register struct ExecBase * SysBase __asm("a6"),
         return NULL;
 
     struct PoolHeader *pool = (struct PoolHeader *)___poolHeader;
+    ULONG req = pool->ph_Requirements & ~MEMF_CLEAR;
+    APTR mem = NULL;
 
-    /* Align size to 8 bytes */
-    ULONG alignedSize = ALIGN(___memSize, 8);
-
-    /* For large allocations (above threshold), allocate a dedicated puddle */
-    if (alignedSize >= pool->ph_ThreshSize)
+    if (___memSize > pool->ph_ThreshSize)
     {
-        DPRINTF (LOG_DEBUG, "_exec: AllocPooled large allocation (>= threshSize %ld)\n", pool->ph_ThreshSize);
+        ULONG total = sizeof(struct PoolLarge) + ___memSize;
+        struct PoolLarge *large = (struct PoolLarge *)AllocMem(total, req);
 
-        struct PoolPuddle *puddle = (struct PoolPuddle *)AllocMem(
-            sizeof(struct PoolPuddle) + alignedSize,
-            pool->ph_Requirements);
+        if (!large)
+            return NULL;
+        large->pl_AllocSize = total;
+        AddHead((struct List *)&pool->ph_LargeList, (struct Node *)large);
+        mem = (APTR)(large + 1);
+    }
+    else
+    {
+        ULONG size = ALIGN(___memSize, MEM_BLOCKSIZE);
+        struct MinNode *node;
 
-        if (puddle)
+        for (node = pool->ph_PuddleList.mlh_Head; node->mln_Succ; node = node->mln_Succ)
         {
-            puddle->pp_Size      = alignedSize;
-            puddle->pp_BytesUsed = alignedSize;
-            AddHead((struct List *)&pool->ph_PuddleList, (struct Node *)puddle);
-            return puddle->pp_Data;
+            struct MemHeader *mh = &((struct PoolPuddle *)node)->pp_Header;
+            if (mh->mh_Free >= size && (mem = Allocate(mh, size)))
+                break;
         }
-        return NULL;
-    }
 
-    /* Try to find a puddle with enough free space */
-    for (struct MinNode *node = pool->ph_PuddleList.mlh_Head;
-         node->mln_Succ != NULL;
-         node = node->mln_Succ)
-    {
-        struct PoolPuddle *puddle = (struct PoolPuddle *)node;
-
-        if (puddle->pp_Size - puddle->pp_BytesUsed >= alignedSize)
+        if (!mem)
         {
-            /* Found a puddle with enough space */
-            APTR mem = puddle->pp_Data + puddle->pp_BytesUsed;
-            puddle->pp_BytesUsed += alignedSize;
-            DPRINTF (LOG_DEBUG, "_exec: AllocPooled returning 0x%08lx from existing puddle\n", mem);
-            return mem;
+            ULONG psize = pool->ph_PuddleSize > size ? pool->ph_PuddleSize : size;
+            ULONG total = sizeof(struct PoolPuddle) + psize;
+            struct PoolPuddle *pp = (struct PoolPuddle *)AllocMem(total, req);
+            struct MemHeader *mh;
+            struct MemChunk *mc;
+
+            if (!pp)
+                return NULL;
+            pp->pp_AllocSize = total;
+            mh = &pp->pp_Header;
+            mc = (struct MemChunk *)(pp + 1);
+            mc->mc_Next  = NULL;
+            mc->mc_Bytes = psize;
+            mh->mh_Node.ln_Type = NT_MEMORY;
+            mh->mh_Node.ln_Pri  = 0;
+            mh->mh_Node.ln_Name = NULL;
+            mh->mh_Attributes   = req;
+            mh->mh_First        = mc;
+            mh->mh_Lower        = (APTR)mc;
+            mh->mh_Upper        = (APTR)((UBYTE *)mc + psize);
+            mh->mh_Free         = psize;
+            AddHead((struct List *)&pool->ph_PuddleList, (struct Node *)pp);
+            mem = Allocate(mh, size);
         }
     }
 
-    /* No suitable puddle found, create a new one */
-    ULONG puddleDataSize = pool->ph_PuddleSize;
-    if (alignedSize > puddleDataSize)
-        puddleDataSize = alignedSize;
+    if (mem && (pool->ph_Requirements & MEMF_CLEAR))
+        memset(mem, 0, ___memSize);
 
-    struct PoolPuddle *newPuddle = (struct PoolPuddle *)AllocMem(
-        sizeof(struct PoolPuddle) + puddleDataSize,
-        pool->ph_Requirements);
-
-    if (newPuddle)
-    {
-        newPuddle->pp_Size      = puddleDataSize;
-        newPuddle->pp_BytesUsed = alignedSize;
-        AddHead((struct List *)&pool->ph_PuddleList, (struct Node *)newPuddle);
-        DPRINTF (LOG_DEBUG, "_exec: AllocPooled returning 0x%08lx from new puddle\n", newPuddle->pp_Data);
-        return newPuddle->pp_Data;
-    }
-
-    DPRINTF (LOG_DEBUG, "_exec: AllocPooled failed, out of memory\n");
-    return NULL;
+    DPRINTF (LOG_DEBUG, "_exec: AllocPooled returning 0x%08lx\n", mem);
+    return mem;
 }
 
 void _exec_FreePooled ( register struct ExecBase * SysBase __asm("a6"),
@@ -5254,25 +5332,46 @@ void _exec_FreePooled ( register struct ExecBase * SysBase __asm("a6"),
                                                         register APTR ___memory  __asm("a1"),
                                                         register ULONG ___memSize  __asm("d0"))
 {
-    LXA_UNIMPLEMENTED("exec", "FreePooled", "partial: memory returns to the system only in DeletePool");
-
     DPRINTF (LOG_DEBUG, "_exec: FreePooled called, poolHeader=0x%08lx, memory=0x%08lx, memSize=%ld\n",
              ___poolHeader, ___memory, ___memSize);
 
-    /*
-     * In our simple pool implementation, individual allocations cannot be freed.
-     * Memory is only returned to the system when the entire pool is deleted.
-     * This is a common simplified implementation that works well when all pool
-     * allocations are freed together (which is the typical use case for pools).
-     *
-     * A more sophisticated implementation would track individual allocations
-     * and potentially return unused puddles to the system.
-     */
+    if (!___poolHeader || !___memory || !___memSize)
+        return;
 
-    /* For now, we do nothing - memory will be freed when the pool is deleted */
-    (void)___poolHeader;
-    (void)___memory;
-    (void)___memSize;
+    struct PoolHeader *pool = (struct PoolHeader *)___poolHeader;
+    struct MinNode *node;
+
+    if (___memSize > pool->ph_ThreshSize)
+    {
+        struct PoolLarge *large = ((struct PoolLarge *)___memory) - 1;
+        for (node = pool->ph_LargeList.mlh_Head; node->mln_Succ; node = node->mln_Succ)
+        {
+            if (node == &large->pl_Node)
+            {
+                Remove((struct Node *)node);
+                FreeMem(large, large->pl_AllocSize);
+                return;
+            }
+        }
+        return;
+    }
+
+    for (node = pool->ph_PuddleList.mlh_Head; node->mln_Succ; node = node->mln_Succ)
+    {
+        struct PoolPuddle *pp = (struct PoolPuddle *)node;
+        struct MemHeader *mh = &pp->pp_Header;
+
+        if ((UBYTE *)___memory >= (UBYTE *)mh->mh_Lower && (UBYTE *)___memory < (UBYTE *)mh->mh_Upper)
+        {
+            Deallocate(mh, ___memory, ALIGN(___memSize, MEM_BLOCKSIZE));
+            if (mh->mh_Free == (ULONG)((UBYTE *)mh->mh_Upper - (UBYTE *)mh->mh_Lower))
+            {
+                Remove((struct Node *)node);
+                FreeMem(pp, pp->pp_AllocSize);
+            }
+            return;
+        }
+    }
 }
 
 /*
@@ -5682,78 +5781,40 @@ void _bootstrap(void)
     }
     DPRINTF (LOG_INFO, "_exec: _bootstrap(): args='%s' len=%d\n", args_buf, args_len);
 
-    /* and puts it into Input()'s buffer, where ReadArgs() reads it */
-    if (((struct Process *)SysBase->ThisTask)->pr_CIS)
-        lxa_dos_inject_input(((struct Process *)SysBase->ThisTask)->pr_CIS, (CONST_STRPTR)args_buf, args_len);
-
-    /* simply JSR() into our child process
-     * 
-     * IMPORTANT: External programs (like BeckerText II) may not preserve the 
-     * callee-saved registers A2-A5 that gcc expects to be preserved across
-     * function calls. We use inline assembly with a register clobber list
-     * to tell gcc that these registers may be modified, forcing it to reload
-     * any cached values after the call.
-     */
+    /* Run the program as the 3.1 shell runs a command: RunCommand() gives
+     * it a stack of its own with tc_SPLower/tc_SPUpper describing exactly
+     * that stack and SP at its top (stack size at 4(sp) and in d2,
+     * arguments in a0/d0 and d3/d4: tests/probes/dos/entryregs.c).
+     * Programs paint or check their stack from tc_SPUpper downwards
+     * (ADPro fills tc_SPLower .. tc_SPUpper-1024 with $ff at startup),
+     * so the bootstrap's own locals must not sit on it. */
     ULONG rv;
     {
-        /* AmigaOS CLI entry convention: d0 = argument length, a0 = arguments,
-         * (sp) = return address and 4(sp) = the stack size in bytes - C
-         * startup code (Lattice/SAS c.o) derives its stack-overflow bound
-         * from it (without it, Fred Fish YachtC & co. hit a false "stack
-         * overflow" at once: Phase 232). */
         struct Task *me = SysBase->ThisTask;
         /* the program runs on lxa's large bootstrap stack but is told the
          * CLI's default stack (cli_DefaultStack: 32768 bytes, what the
          * reference runner gives the programs it starts) */
         ULONG stacksize = (ULONG)me->tc_SPUpper - (ULONG)me->tc_SPLower;
+        ULONG requested = emucall0(EMU_CALL_GETSTACK);    /* scenario `stack:` */
+        extern void lxa_dos_set_next_command_stack(ULONG bytes);
+
+        if (requested > stacksize)
+            stacksize = requested;
+        /* the program gets lxa's large stack but is told the 3.1 shell
+         * default (cli_DefaultStack), as a command of a 3.1 shell would be */
+        lxa_dos_set_next_command_stack(stacksize);
         if (((struct Process *)me)->pr_CLI) {
             struct CommandLineInterface *mycli = (struct CommandLineInterface *)BADDR(((struct Process *)me)->pr_CLI);
-            if (mycli->cli_DefaultStack && mycli->cli_DefaultStack * 4 < stacksize)
+            /* a requested stack (scenario `stack:`) is what the STACK
+             * command would have set: the CLI's default stack too */
+            if (requested)
+                mycli->cli_DefaultStack = (requested + 3) / 4;
+            else if (mycli->cli_DefaultStack && mycli->cli_DefaultStack * 4 < stacksize)
                 stacksize = mycli->cli_DefaultStack * 4;
         }
-        register ULONG d0 __asm("d0") = args_len;
-        register ULONG d1 __asm("d1") = stacksize;
-        register STRPTR a0 __asm("a0") = (STRPTR)args_buf;
-        /* BCPL environment (Phase 239): a1 = stack bottom (BCPL frames grow
-         * upwards), a2 = global vector, a5/a6 = BCPL call/return - BCPL
-         * commands start with "movea.l n(a2),a4; moveq #k,d0; jsr (a5)" */
-        register APTR a1 __asm("a1") = me->tc_SPLower;
-        register APTR a3 __asm("a3") = initPC;
-
-        /* and as on AmigaOS 3.1 (tests/probes/dos/entryregs.c): d2 = stack
-         * size, d3 = arguments, d4 = argument length, a4 near sp - Lattice
-         * 3.03 c.o takes its stack bound from the saved d2 */
-        /* a5 is gcc's frame pointer and cannot be named as clobbered:
-         * programs that return with a5 changed (Fred Fish LaceTogl & co.,
-         * Phase 237) would corrupt this frame - save it around the call */
-        /* pr_ReturnAddr points at the stack size slot, as RunCommand's
-         * does: exit code unwinds with sp = pr_ReturnAddr - 4; rts (Fred
-         * Fish IconX, StartScript, Arq - Phase 237) */
-        register APTR *d5 __asm("d5") = &((struct Process *)me)->pr_ReturnAddr;
-        register APTR d6 __asm("d6") = ((struct Process *)me)->pr_GlobVec
-                                       ? ((struct Process *)me)->pr_GlobVec : DOSBase->dl_GV;
-        __asm__ __volatile__ (
-            "move.l  %%a5, -(%%sp)\n\t"
-            "move.l  %1, -(%%sp)\n\t"
-            "move.l  %5, %%a2\n\t"
-            "move.l  %%sp, (%%a2)\n\t"
-            "move.l  %1, %%d2\n\t"
-            "move.l  %2, %%d3\n\t"
-            "move.l  %0, %%d4\n\t"
-            "move.l  %6, %%a2\n\t"
-            "move.l  %%sp, %%a4\n\t"
-            "lea     _BCPL_jsr, %%a5\n\t"
-            "lea     _BCPL_rts, %%a6\n\t"
-            "jsr     (%4)\n\t"
-            "addq.l  #4, %%sp\n\t"
-            "move.l  (%%sp)+, %%a5"
-            : "+r" (d0), "+r" (d1), "+r" (a0), "+r" (a1), "+r" (a3), "+r" (d5), "+r" (d6)
-            :
-            : "d2", "d3", "d4", "d7", "a2", "a4", "a6", "cc", "memory");
-        rv = d0;
-        
-        /* Clobber all callee-saved registers to force gcc to reload them */
-        __asm__ __volatile__ ("" ::: "a2", "a3", "a4", "d2", "d3", "d4", "d5", "d6", "d7", "memory");
+        /* RunCommand() also puts the arguments into Input()'s buffer and
+         * sets pr_ReturnAddr */
+        rv = RunCommand(segs, stacksize, (STRPTR)args_buf, args_len);
     }
 
     DPRINTF (LOG_DEBUG, "_exec: _bootstrap(): childfn() returned, rv=%ld\n", rv);
@@ -6128,27 +6189,56 @@ void coldstart (void)
     NEWLIST (&SysBase->MemList);
     SysBase->MemList.lh_Type = NT_MEMORY;
 
+    /* Memory layout as on the reference A4000 (tests/probes/exec/memlist):
+     * 2 MB chip RAM (MEMF_PUBLIC|CHIP|LOCAL|24BITDMA|KICK, priority -10)
+     * and fast RAM above it (MEMF_PUBLIC|FAST|LOCAL|KICK, priority 30) that
+     * MEMF_ANY allocations come from.  lxa's RAM is one flat region; its
+     * fast part is smaller than the reference's 16 MB. */
     struct MemChunk *mc = (struct MemChunk *) RAM_START;
 
     mc->mc_Next  = NULL;
-    mc->mc_Bytes = RAM_END-RAM_START+1;
+    mc->mc_Bytes = LXA_CHIP_END-RAM_START;
 
     g_MemHeader.mh_Node.ln_Type = NT_MEMORY;
-    g_MemHeader.mh_Node.ln_Pri  = 0;
-    g_MemHeader.mh_Node.ln_Name = NULL;
-    g_MemHeader.mh_Attributes   = MEMF_CHIP | MEMF_PUBLIC;
+    g_MemHeader.mh_Node.ln_Pri  = -10;
+    g_MemHeader.mh_Node.ln_Name = (char *)"chip memory";
+    g_MemHeader.mh_Attributes   = MEMF_CHIP | MEMF_PUBLIC | MEMF_LOCAL | MEMF_24BITDMA | MEMF_KICK;
     g_MemHeader.mh_First        = mc;
     g_MemHeader.mh_Lower        = (APTR) RAM_START;
-    g_MemHeader.mh_Upper        = (APTR) (RAM_END + 1);
-    g_MemHeader.mh_Free         = RAM_END-RAM_START+1;
+    g_MemHeader.mh_Upper        = (APTR) LXA_CHIP_END;
+    g_MemHeader.mh_Free         = LXA_CHIP_END-RAM_START;
 
-    DPRINTF (LOG_DEBUG, "coldstart: setting up first struct MemHeader at 0x%08lx:\n", &g_MemHeader);
-    DPRINTF (LOG_DEBUG, "           g_MemHeader.mh_First=0x%08lx, g_MemHeader.mh_Lower=0x%08lx, g_MemHeader.mh_Upper=0x%08lx,\n",
-             g_MemHeader.mh_First, g_MemHeader.mh_Lower, g_MemHeader.mh_Upper);
-    DPRINTF (LOG_DEBUG, "           g_MemHeader.mh_Free=%ld, g_MemHeader.mh_Attributes=0x%08lx\n",
-             g_MemHeader.mh_Free, g_MemHeader.mh_Attributes);
+    mc = (struct MemChunk *) LXA_CHIP_END;
+    mc->mc_Next  = NULL;
+    mc->mc_Bytes = RAM_END+1-LXA_CHIP_END;
 
-    AddTail (&SysBase->MemList, &g_MemHeader.mh_Node);
+    g_FastMemHeader.mh_Node.ln_Type = NT_MEMORY;
+    g_FastMemHeader.mh_Node.ln_Pri  = 30;
+    g_FastMemHeader.mh_Node.ln_Name = (char *)"expansion memory";
+    g_FastMemHeader.mh_Attributes   = MEMF_FAST | MEMF_PUBLIC | MEMF_LOCAL | MEMF_KICK;
+    g_FastMemHeader.mh_First        = mc;
+    g_FastMemHeader.mh_Lower        = (APTR) LXA_CHIP_END;
+    g_FastMemHeader.mh_Upper        = (APTR) (RAM_END + 1);
+    g_FastMemHeader.mh_Free         = RAM_END+1-LXA_CHIP_END;
+
+    /* a second fast region like the reference's Zorro III RAM
+     * (MEMF_PUBLIC|FAST|KICK, priority 20) */
+    mc = (struct MemChunk *) LXA_Z3RAM_START;
+    mc->mc_Next  = NULL;
+    mc->mc_Bytes = LXA_Z3RAM_SIZE;
+
+    g_Z3MemHeader.mh_Node.ln_Type = NT_MEMORY;
+    g_Z3MemHeader.mh_Node.ln_Pri  = 20;
+    g_Z3MemHeader.mh_Node.ln_Name = (char *)"zorro iii memory";
+    g_Z3MemHeader.mh_Attributes   = MEMF_FAST | MEMF_PUBLIC | MEMF_KICK;
+    g_Z3MemHeader.mh_First        = mc;
+    g_Z3MemHeader.mh_Lower        = (APTR) LXA_Z3RAM_START;
+    g_Z3MemHeader.mh_Upper        = (APTR) (LXA_Z3RAM_START + LXA_Z3RAM_SIZE);
+    g_Z3MemHeader.mh_Free         = LXA_Z3RAM_SIZE;
+
+    Enqueue (&SysBase->MemList, &g_FastMemHeader.mh_Node);
+    Enqueue (&SysBase->MemList, &g_Z3MemHeader.mh_Node);
+    Enqueue (&SysBase->MemList, &g_MemHeader.mh_Node);
 
     // init and register built-in libraries
 
@@ -6280,6 +6370,12 @@ void coldstart (void)
     NEWLIST (&SysBase->SemaphoreList);
     SysBase->SemaphoreList.lh_Type = NT_SIGNALSEM;
 
+    /* low-memory handlers (AddMemHandler/RemMemHandler, called by AllocMem) */
+    SysBase->ex_MemHandlers.mlh_Head     = (struct MinNode *)&SysBase->ex_MemHandlers.mlh_Tail;
+    SysBase->ex_MemHandlers.mlh_Tail     = NULL;
+    SysBase->ex_MemHandlers.mlh_TailPred = (struct MinNode *)&SysBase->ex_MemHandlers.mlh_Head;
+    SysBase->ex_MemHandler = NULL;
+
     SysBase->TaskExitCode = _defaultTaskExit;
     SysBase->TaskSigAlloc = 0xFFFF;
     SysBase->Quantum      = DEFAULT_SCHED_QUANTUM;
@@ -6304,7 +6400,7 @@ void coldstart (void)
     SysBase->AttnFlags           = AFF_68010 | AFF_68020 | AFF_68030;
     SysBase->VBlankFrequency     = 50;
     SysBase->PowerSupplyFrequency = 50;
-    SysBase->MaxLocMem           = (ULONG)(RAM_END + 1);
+    SysBase->MaxLocMem           = (ULONG)LXA_CHIP_END;
     SysBase->ex_EClockFrequency  = 709379;  /* PAL */
 
     // create a bootstrap process

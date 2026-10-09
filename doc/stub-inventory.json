@@ -176,12 +176,12 @@
   "symbol": "_exec_FreeTrap"
  },
  {
-  "lib": "exec",
-  "function": "FreePooled",
+  "lib": "tapedeck.gadget",
+  "function": "GM_RENDER",
   "kind": "partial",
-  "detail": "partial: memory returns to the system only in DeletePool",
-  "file": "src/rom/exec.c",
-  "symbol": "_exec_FreePooled"
+  "detail": "partial: TDECK_Tape drawn as animation controls",
+  "file": "src/rom/gadgets/tapedeck.c",
+  "symbol": "TapeDeck_RENDER"
  },
  {
   "lib": "amigaguide",
@@ -859,7 +859,7 @@
   "lib": "graphics",
   "function": "ModeNotAvailable",
   "kind": "partial",
-  "detail": "partial: every mode reported available (Phase 240)",
+  "detail": "partial: no chipset check (DI_AVAIL_NOCHIPS), lxa reports all ECS/AGA modes of the PAL monitor available (Phase 240)",
   "file": "src/rom/lxa_graphics.c",
   "symbol": "_graphics_ModeNotAvailable"
  },
@@ -1067,7 +1067,7 @@
   "lib": "intuition",
   "function": "OpenScreenTagList",
   "kind": "partial",
-  "detail": "partial: ignores SA_DClip, SA_Overscan, SA_Colors, SA_ErrorCode (Phase 256)",
+  "detail": "partial: ignores SA_DClip, SA_Overscan, SA_Colors; SA_ErrorCode only for mode errors (Phase 256)",
   "file": "src/rom/lxa_intuition.c",
   "symbol": "_intuition_OpenScreenTagList"
  },

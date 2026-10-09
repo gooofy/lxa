@@ -29,6 +29,8 @@
 #include <graphics/layers.h>
 #include <graphics/layersext.h>
 #include <clib/graphics_protos.h>
+#include <graphics/videocontrol.h>
+#include <graphics/gfxnodes.h>
 #include <inline/graphics.h>
 #include <clib/layers_protos.h>
 #include <inline/layers.h>
@@ -824,6 +826,34 @@ static struct Screen *_intuition_find_workbench_screen(struct IntuitionBase *Int
 }
 
 /* per-screen record of any screen (public or not) */
+/* AmigaOS 3.1 reference (tests/probes/graphics/vpextra): every screen's
+ * ColorMap has a ViewPortExtra whose DisplayClip is the OSCAN_TEXT
+ * rectangle of the screen's mode (reqtools sizes its requesters from it) */
+static void _intuition_update_display_clip(struct Screen *screen)
+{
+    struct ColorMap *cm = screen->ViewPort.ColorMap;
+    struct ViewPortExtra *vpe;
+    struct DimensionInfo dims;
+
+    if (!cm)
+        return;
+    vpe = cm->cm_vpe;
+    if (!vpe)
+    {
+        struct TagItem tags[2];
+
+        vpe = (struct ViewPortExtra *)GfxNew(VIEWPORT_EXTRA_TYPE);
+        if (!vpe)
+            return;
+        tags[0].ti_Tag = VTAG_VIEWPORTEXTRA_SET;
+        tags[0].ti_Data = (ULONG)vpe;
+        tags[1].ti_Tag = TAG_END;
+        VideoControl(cm, tags);
+    }
+    if (GetDisplayInfoData(NULL, (UBYTE *)&dims, sizeof(dims), DTAG_DIMS, GetVPModeID(&screen->ViewPort)))
+        vpe->DisplayClip = dims.TxtOScan;
+}
+
 static struct PubScreenNode *_intuition_find_pubscreen_by_screen(struct LXAIntuitionBase *base,
                                                                   const struct Screen *screen)
 {
@@ -1294,7 +1324,24 @@ static ULONG rootclass_dispatch(
 {
     switch (msg->MethodID) {
         case OM_NEW:
-            return (ULONG)obj;
+        {
+            /* AmigaOS convention (RKRM Libraries, BOOPSI): NewObject()
+             * sends OM_NEW with the *true class* in place of the object.
+             * rootclass allocates the instance for the whole class chain
+             * and returns the new object; subclasses initialise their data
+             * after DoSuperMethod() returned it.  (MUI walks the chain from
+             * that true class itself.) */
+            struct IClass *true_class = (struct IClass *)obj;
+            ULONG size = SIZEOF_INSTANCE(true_class);
+            struct _Object *o = AllocMem(size, MEMF_PUBLIC | MEMF_CLEAR);
+
+            (void)cl;
+            if (!o)
+                return 0;
+            o->o_Class = true_class;
+            true_class->cl_ObjectCount++;
+            return (ULONG)BASEOBJECT(o);
+        }
 
         case OM_ADDTAIL:
         {
@@ -1310,8 +1357,20 @@ static ULONG rootclass_dispatch(
             return 1;
             
         case OM_DISPOSE:
+        {
+            /* rootclass frees the instance that its OM_NEW allocated */
+            struct _Object *o = _OBJECT(obj);
+            struct IClass *true_class = o->o_Class;
+
+            if (true_class)
+            {
+                if (true_class->cl_ObjectCount > 0)
+                    true_class->cl_ObjectCount--;
+                FreeMem(o, SIZEOF_INSTANCE(true_class));
+            }
             return 0;
-            
+        }
+
         case OM_SET:
         case OM_GET:
         case OM_UPDATE:
@@ -1862,9 +1921,12 @@ static ULONG icclass_dispatch(
                                                 register Object *obj __asm("a2"),
                                                 register Msg msg __asm("a1"));
                 DispatchEntry entry = (DispatchEntry)super->cl_Dispatcher.h_Entry;
-                ULONG result = entry(super, obj, msg);
-                if (!result)
+                /* AmigaOS: OM_NEW is sent with the true class as the
+                 * object; rootclass allocates and returns the object */
+                obj = (Object *)entry(super, obj, msg);
+                if (!obj)
                     return 0;
+                ic = (struct ICData *)INST_DATA(cl, obj);
             }
             
             /* Initialize IC data */
@@ -1958,9 +2020,12 @@ static ULONG modelclass_dispatch(
                                                 register Object *obj __asm("a2"),
                                                 register Msg msg __asm("a1"));
                 DispatchEntry entry = (DispatchEntry)super->cl_Dispatcher.h_Entry;
-                ULONG result = entry(super, obj, msg);
-                if (!result)
+                /* AmigaOS: OM_NEW is sent with the true class as the
+                 * object; rootclass allocates and returns the object */
+                obj = (Object *)entry(super, obj, msg);
+                if (!obj)
                     return 0;
+                md = (struct ModelData *)INST_DATA(cl, obj);
             }
             
             /* Initialize member list */
@@ -2200,9 +2265,12 @@ static ULONG gadgetclass_dispatch(
                                                 register Object *obj __asm("a2"),
                                                 register Msg msg __asm("a1"));
                 DispatchEntry entry = (DispatchEntry)super->cl_Dispatcher.h_Entry;
-                ULONG result = entry(super, obj, msg);
-                if (!result)
+                /* AmigaOS: OM_NEW is sent with the true class as the
+                 * object; rootclass allocates and returns the object */
+                obj = (Object *)entry(super, obj, msg);
+                if (!obj)
                     return 0;
+                gadget = (struct Gadget *)obj;
             }
             
             /* Initialize gadget structure */
@@ -2386,9 +2454,12 @@ static ULONG buttongclass_dispatch(
                                                register Object *obj __asm("a2"),
                                                register Msg msg __asm("a1"));
                 DispatchEntry entry = (DispatchEntry)super->cl_Dispatcher.h_Entry;
-                ULONG result = entry(super, obj, msg);
-                if (!result)
+                /* AmigaOS: OM_NEW is sent with the true class as the
+                 * object; rootclass allocates and returns the object */
+                obj = (Object *)entry(super, obj, msg);
+                if (!obj)
                     return 0;
+                gadget = (struct Gadget *)obj;
             }
             
             /* Set button-specific defaults */
@@ -2497,9 +2568,12 @@ static ULONG propgclass_dispatch(
                                                 register Object *obj __asm("a2"),
                                                 register Msg msg __asm("a1"));
                 DispatchEntry entry = (DispatchEntry)super->cl_Dispatcher.h_Entry;
-                ULONG result = entry(super, obj, msg);
-                if (!result)
+                /* AmigaOS: OM_NEW is sent with the true class as the
+                 * object; rootclass allocates and returns the object */
+                obj = (Object *)entry(super, obj, msg);
+                if (!obj)
                     return 0;
+                gadget = (struct Gadget *)obj;
             }
             
             /* Initialize PropGData instance data */
@@ -2948,9 +3022,12 @@ static ULONG strgclass_dispatch(
                                                 register Object *obj __asm("a2"),
                                                 register Msg msg __asm("a1"));
                 DispatchEntry entry = (DispatchEntry)super->cl_Dispatcher.h_Entry;
-                ULONG result = entry(super, obj, msg);
-                if (!result)
+                /* AmigaOS: OM_NEW is sent with the true class as the
+                 * object; rootclass allocates and returns the object */
+                obj = (Object *)entry(super, obj, msg);
+                if (!obj)
                     return 0;
+                gadget = (struct Gadget *)obj;
             }
             
             /* Initialize StrGData instance data */
@@ -5042,6 +5119,8 @@ BOOL _intuition_CloseScreen ( register struct IntuitionBase * IntuitionBase __as
 
     if (screen->ViewPort.ColorMap)
     {
+        if (screen->ViewPort.ColorMap->cm_vpe)
+            GfxFree((struct ExtendedNode *)screen->ViewPort.ColorMap->cm_vpe);
         FreeColorMap(screen->ViewPort.ColorMap);
     }
 
@@ -9504,6 +9583,7 @@ struct Screen * _intuition_OpenScreen ( register struct IntuitionBase * Intuitio
                          ((rgb[0] >> 8) & 0xff0000) | ((rgb[1] >> 16) & 0xff00) | (rgb[2] >> 24));
             }
         }
+        _intuition_update_display_clip(screen);
     }
 
     /* The screen font: NewScreen.Font / SA_Font, else the Workbench and
@@ -13160,9 +13240,14 @@ VOID _intuition_ActivateWindow ( register struct IntuitionBase * IntuitionBase _
 
     struct Window *prevActive = IntuitionBase->ActiveWindow;
 
-    /* Nothing to do if already active */
+    /* AmigaOS 3.1 reference (probe intuition/activate): activating the
+     * already active window still sends it IDCMP_ACTIVEWINDOW (AmigaOberon's
+     * OEd sets its IDCMP after OpenWindow and waits for that message) */
     if (prevActive == window)
+    {
+        _post_idcmp_message(window, IDCMP_ACTIVEWINDOW, 0, 0, window, 0, 0);
         return;
+    }
 
     /* Deactivate the previously active window */
     if (prevActive)
@@ -15046,12 +15131,13 @@ struct Screen * _intuition_OpenScreenTagList ( register struct IntuitionBase * I
                                                         register const struct NewScreen * newScreen __asm("a0"),
                                                         register const struct TagItem * tagList __asm("a1"))
 {
-    LXA_UNIMPLEMENTED("intuition", "OpenScreenTagList", "partial: ignores SA_DClip, SA_Overscan, SA_Colors, SA_ErrorCode (Phase 256)");
+    LXA_UNIMPLEMENTED("intuition", "OpenScreenTagList", "partial: ignores SA_DClip, SA_Overscan, SA_Colors; SA_ErrorCode only for mode errors (Phase 256)");
 
     struct NewScreen ns;
     struct TagItem *tstate;
     struct TagItem *tag;
     ULONG sa_display_id = (ULONG)INVALID_ID;  /* Track SA_DisplayID for VPModeID override */
+    ULONG *sa_error = NULL;
     
     DPRINTF(LOG_DEBUG, "_intuition: OpenScreenTagList() called, newScreen=0x%08lx, tagList=0x%08lx\n",
             (ULONG)newScreen, (ULONG)tagList);
@@ -15215,10 +15301,12 @@ struct Screen * _intuition_OpenScreenTagList ( register struct IntuitionBase * I
                     full_palette = tag->ti_Data ? TRUE : FALSE;
                     break;
                 /* Tags we recognize but don't fully implement yet */
+                case SA_ErrorCode:
+                    sa_error = (ULONG *)tag->ti_Data;
+                    break;
                 case SA_DClip:
                 case SA_Overscan:
                 case SA_Colors:
-                case SA_ErrorCode:
                     DPRINTF(LOG_DEBUG, "_intuition: OpenScreenTagList() ignoring tag 0x%08lx (not yet implemented)\n",
                             tag->ti_Tag);
                     break;
@@ -15230,6 +15318,24 @@ struct Screen * _intuition_OpenScreenTagList ( register struct IntuitionBase * I
         }
     }
     
+    /* AmigaOS 3.1 reference (tests/probes/intuition/screenmodes): a
+     * display ID the machine does not have fails the open - IDs of an
+     * unknown monitor (RTG, DblPAL without DEVS:Monitors) with
+     * OSERR_UNKNOWNMODE, NTSC modes without ntsc.monitor with
+     * OSERR_NOMONITOR.  (ASM-One asks for a screen mode only when its
+     * default RTG screen fails to open.) */
+    if (sa_display_id != (ULONG)INVALID_ID)
+    {
+        ULONG na = (ULONG)ModeNotAvailable(sa_display_id);
+        if (na)
+        {
+            if (sa_error)
+                *sa_error = (na == 0xffffffffUL) ? OSERR_UNKNOWNMODE :
+                            (na & DI_AVAIL_NOMONITOR) ? OSERR_NOMONITOR : OSERR_NOCHIPS;
+            return NULL;
+        }
+    }
+
     /* Call our existing OpenScreen with the assembled NewScreen */
     g_screen_from_tags = TRUE;
     g_screen_display_id = (sa_display_id != (ULONG)INVALID_ID) ? sa_display_id + 1 : 0;
@@ -15241,7 +15347,11 @@ struct Screen * _intuition_OpenScreenTagList ( register struct IntuitionBase * I
     g_screen_sysfont = -1;
     g_screen_full_palette = FALSE;
     if (!screen)
+    {
+        if (sa_error)
+            *sa_error = OSERR_NOMEM;
         return NULL;
+    }
 
     /* AmigaOS 3.1 reference (dopus-startup, gallery-menus): a screen opened
      * with SA_PubName is a PUBLICSCREEN, SA_SharePens sets PENSHARED */
@@ -15262,6 +15372,7 @@ struct Screen * _intuition_OpenScreenTagList ( register struct IntuitionBase * I
         DPRINTF(LOG_DEBUG, "_intuition: OpenScreenTagList() overriding VPModeID 0x%08lx -> 0x%08lx\n",
                 (ULONG)screen->ViewPort.ColorMap->VPModeID, sa_display_id);
         screen->ViewPort.ColorMap->VPModeID = sa_display_id;
+        _intuition_update_display_clip(screen);
     }
 
     /* Second pass: apply tags that require a live screen */
@@ -15728,9 +15839,6 @@ APTR _intuition_NewObjectA ( register struct IntuitionBase * IntuitionBase __asm
 {
     struct LXAIntuitionBase *base = (struct LXAIntuitionBase *)IntuitionBase;
     struct IClass *use_class = classPtr;
-    ULONG size;
-    UBYTE *object_memory;
-    Object *public_obj;
     struct opSet op;
 
     /*
@@ -15746,33 +15854,14 @@ APTR _intuition_NewObjectA ( register struct IntuitionBase * IntuitionBase __asm
         use_class = _intuition_find_class(base, classID);
 
     if (use_class) {
-        size = SIZEOF_INSTANCE(use_class);
-        if (size < sizeof(struct _Object))
-            size = sizeof(struct _Object);
-
-        object_memory = AllocMem(size, MEMF_PUBLIC | MEMF_CLEAR);
-        if (!object_memory)
-            return NULL;
-
-        public_obj = (Object *)(object_memory + sizeof(struct _Object));
-        _OBJECT(public_obj)->o_Class = use_class;
-        use_class->cl_ObjectCount++;
-
+        /* OM_NEW goes to the class with the class itself as the object;
+         * rootclass allocates (see rootclass_dispatch) */
         op.MethodID = OM_NEW;
         op.ops_AttrList = (struct TagItem *)tagList;
         op.ops_GInfo = NULL;
-        if (!_intuition_dispatch_method(use_class, public_obj, (Msg)&op))
-        {
-            /* a class refused the object (e.g. sysiclass with an unknown
-             * SYSIA_Which): NewObject() fails */
-            use_class->cl_ObjectCount--;
-            FreeMem(object_memory, size);
-            return NULL;
-        }
-
-        return (APTR)public_obj;
+        return (APTR)_intuition_dispatch_method(use_class, (Object *)use_class, (Msg)&op);
     }
-    
+
     /* Unknown class - return NULL */
     DPRINTF (LOG_DEBUG, "_intuition: NewObjectA() unknown class, returning NULL\n");
     return NULL;
@@ -15781,38 +15870,17 @@ APTR _intuition_NewObjectA ( register struct IntuitionBase * IntuitionBase __asm
 VOID _intuition_DisposeObject ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register APTR object __asm("a0"))
 {
-    /*
-     * DisposeObject() disposes of a BOOPSI object.
-     * We free the memory allocated by NewObjectA for sysiclass/imageclass.
-     */
+    /* DisposeObject() sends OM_DISPOSE to the object's class; it travels
+     * up the class chain and rootclass frees the instance. */
     DPRINTF (LOG_DEBUG, "_intuition: DisposeObject() object=0x%08lx\n", (ULONG)object);
-    
-    if (!object)
+
+    if (!object || !_OBJECT(object)->o_Class)
         return;
 
     {
-        struct _Object *obj_data = _OBJECT(object);
-        struct IClass *cl = obj_data->o_Class;
-
-        if (cl) {
-            ULONG size = SIZEOF_INSTANCE(cl);
-            struct { ULONG MethodID; } dispose_msg;
-            if (size < sizeof(struct _Object))
-                size = sizeof(struct _Object);
-            dispose_msg.MethodID = OM_DISPOSE;
-            _intuition_dispatch_method(cl, (Object *)object, (Msg)&dispose_msg);
-            if (cl->cl_ObjectCount > 0)
-                cl->cl_ObjectCount--;
-            FreeMem(obj_data, size);
-            return;
-        }
-    }
-
-    /* Stub-image disposal: o_Class==NULL means our sysiclass/imageclass stub.
-     * We allocated sizeof(_Object) + sizeof(Image), so free that block. */
-    {
-        struct _Object *hdr = _OBJECT(object);
-        FreeMem(hdr, sizeof(struct _Object) + sizeof(struct Image));
+        struct { ULONG MethodID; } dispose_msg;
+        dispose_msg.MethodID = OM_DISPOSE;
+        _intuition_dispatch_method(_OBJECT(object)->o_Class, (Object *)object, (Msg)&dispose_msg);
     }
 }
 

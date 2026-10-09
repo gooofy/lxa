@@ -1,0 +1,12 @@
+-- CreateProc() child
+creator has Input() = TRUE
+creator has Output() = TRUE
+CreateProc = non-NULL
+child ran = 1
+child Input() = FALSE
+child Output() = FALSE
+child pr_CIS = FALSE
+child pr_COS = FALSE
+child pr_CurrentDir = FALSE
+child pr_HomeDir = FALSE
+child pr_CLI = FALSE

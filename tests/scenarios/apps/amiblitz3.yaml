@@ -1,10 +1,15 @@
 # Phase 230 launch scenario: the compat DB (apps/compat.yaml) derives the
-# rating of AmiBlitz3 from it.  Window title from the discovery twin run.
+# rating of AmiBlitz3 from it.  From a CLI the IDE needs -PED; it writes
+# into its own directory (writable copy).  On a 4-colour Workbench it first
+# shows an "Info" requester (16 colours recommended) - Phase 238.
 name: app-amiblitz3
-app: {manifest: AmiBlitz3}
+app: {manifest: AmiBlitz3, writable: true, args: "-PED"}
 steps:
   - launch
-  - wait_window: {title: "AmiBlitz", timeout: 30000}
+  - wait_window: {title: "Info", timeout: 60000}
+  - wait_idle
+  - click: {label: "Ok", window: "Info"}
+  - wait_window: {title: "AmiBlitz3 - PED", timeout: 30000}
   - frames: 100
   - snapshot: startup
   - quit

@@ -2948,6 +2948,16 @@ struct MsgPort * _dos_CreateProc ( register struct DosLibrary * __libBase __asm(
         { NP_Priority, (LONG)___pri },
         { NP_StackSize, ___stackSize > 0 ? (ULONG)___stackSize : 4096 },
         { NP_FreeSeglist, FALSE },  /* CreateProc does NOT free seglist on exit */
+        /* AmigaOS 3.1 (probe dos/createproc): the process gets no I/O
+         * streams and no current/home directory of the caller - a
+         * detaching program's child must not share (and later close) the
+         * handles of the process that started it */
+        { NP_Input, 0 },
+        { NP_Output, 0 },
+        { NP_CloseInput, FALSE },
+        { NP_CloseOutput, FALSE },
+        { NP_CurrentDir, 0 },
+        { NP_HomeDir, 0 },
         { TAG_DONE, 0 }
     };
     
@@ -6183,6 +6193,18 @@ struct Process * _dos_CreateNewProc ( register struct DosLibrary * __dos_a6 __as
      */
     {
         struct Task *me = FindTask(NULL);
+
+        /* Never switch while the caller holds Forbid()/Disable(): the
+         * caller relies on finishing the child's setup first (the
+         * AmigaOberon runtime creates its processes at priority 127 inside
+         * Forbid() and only then fills in the child's tc_TrapData).  A
+         * higher-priority child runs at the caller's Permit(). */
+        if (me && (SysBase->TDNestCnt >= 0 || SysBase->IDNestCnt >= 0))
+        {
+            if (process->pr_Task.tc_Node.ln_Pri > me->tc_Node.ln_Pri)
+                SysBase->SysFlags |= (1 << 15);     /* LXA_SFF_SAR: reschedule at Permit() */
+            me = NULL;
+        }
         if (me)
         {
             Disable();
@@ -6259,6 +6281,15 @@ asm(
 "        rts                                                                                \n"
 );
 
+/* exec's bootstrap runs the program like a shell command but on a
+ * larger stack than the one it reports (lxa_dos_set_next_command_stack) */
+static ULONG g_next_command_stack;
+
+void lxa_dos_set_next_command_stack(ULONG bytes)
+{
+    g_next_command_stack = bytes;
+}
+
 LONG _dos_RunCommand ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                         register BPTR seg __asm("d1"),
                                                         register LONG stack __asm("d2"),
@@ -6301,6 +6332,9 @@ LONG _dos_RunCommand ( register struct DosLibrary * __dos_a6 __asm("a6"),
     req_stack = stack;
     if (stack < LXA_MIN_COMMAND_STACK)
         stack = LXA_MIN_COMMAND_STACK;
+    if (stack < (LONG)g_next_command_stack)
+        stack = g_next_command_stack;
+    g_next_command_stack = 0;
     stack = (stack + 3) & ~3;
 
     stack_mem = (UBYTE *)AllocVec(stack, MEMF_PUBLIC);

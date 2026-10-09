@@ -1,0 +1,17 @@
+-- AddMemHandler (B first, then A with a higher priority)
+ex_MemHandlers head is A = 1
+-- AllocMem failure calls the handlers
+did nothing: mem=NULL A.calls=1 B.calls=1 order=AB
+A memh_RequestSize = 0x7f000000
+A memh_RequestFlags = 0x00000001
+A try again once: mem=NULL A.calls=2 B.calls=1 order=AArB
+A memh_RequestFlags = 0x00010001
+A try again, then all done: mem=NULL A.calls=2 B.calls=1 order=AArB
+all done: mem=NULL A.calls=1 B.calls=1 order=AB
+MEMF_NO_EXPUNGE: mem=NULL A.calls=0 B.calls=0 order=-
+successful AllocMem: mem=non-NULL A.calls=0 B.calls=0 order=-
+AllocVec failure: mem=NULL A.calls=1 B.calls=1 order=AB
+A memh_RequestSize = 0x7f000004
+-- RemMemHandler
+A removed: mem=NULL A.calls=0 B.calls=1 order=B
+both removed: mem=NULL A.calls=0 B.calls=0 order=-

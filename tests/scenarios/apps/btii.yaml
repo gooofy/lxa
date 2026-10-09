@@ -1,6 +1,7 @@
 # Phase 230 launch scenario: the compat DB (apps/compat.yaml) derives the
 # rating of BTII from it.  Window title from the discovery twin run.
 name: app-btii
+fonts: wb31        # topaz 11 comes from the Workbench 3.1 FONTS: (Phase 238)
 app: {manifest: BTII}
 steps:
   - launch

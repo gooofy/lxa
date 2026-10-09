@@ -50,6 +50,12 @@ void m68k_write_memory_16(unsigned int address, unsigned int value)
         mwrite16_ram(address - RAM_START, (uint16_t)value);
         return;
     }
+    if ((address >= Z3RAM_START) && (address <= Z3RAM_END - 1))
+    {
+        g_z3ram[address - Z3RAM_START]     = (uint8_t)(value >> 8);
+        g_z3ram[address - Z3RAM_START + 1] = (uint8_t)value;
+        return;
+    }
 
     if ((address >= CUSTOM_START) && (address <= CUSTOM_END))
     {
@@ -70,6 +76,13 @@ void m68k_write_memory_32(unsigned int address, unsigned int value)
     if (__builtin_expect((address >= RAM_START) && (address <= RAM_END - 3), 1))
     {
         mwrite32_ram(address - RAM_START, value);
+        return;
+    }
+    if ((address >= Z3RAM_START) && (address <= Z3RAM_END - 3))
+    {
+        uint8_t *p = &g_z3ram[address - Z3RAM_START];
+        p[0] = (uint8_t)(value >> 24); p[1] = (uint8_t)(value >> 16);
+        p[2] = (uint8_t)(value >> 8);  p[3] = (uint8_t)value;
         return;
     }
 
@@ -110,6 +123,12 @@ unsigned int m68k_read_memory_16(unsigned int address)
     if (__builtin_expect((address >= RAM_START) && (address <= RAM_END - 1), 1))
         return mread16_ram(address - RAM_START);
 
+    if ((address >= Z3RAM_START) && (address <= Z3RAM_END - 1))
+    {
+        const uint8_t *p = &g_z3ram[address - Z3RAM_START];
+        return ((unsigned int)p[0] << 8) | p[1];
+    }
+
     /* Fast path: ROM read (second most common) */
     if (__builtin_expect((address >= ROM_START) && (address <= ROM_END - 1), 0))
         return mread16_rom(address - ROM_START);
@@ -126,6 +145,12 @@ unsigned int m68k_read_memory_32(unsigned int address)
     /* Fast path: RAM read (most common case) */
     if (__builtin_expect((address >= RAM_START) && (address <= RAM_END - 3), 1))
         return mread32_ram(address - RAM_START);
+
+    if ((address >= Z3RAM_START) && (address <= Z3RAM_END - 3))
+    {
+        const uint8_t *p = &g_z3ram[address - Z3RAM_START];
+        return ((unsigned int)p[0] << 24) | ((unsigned int)p[1] << 16) | ((unsigned int)p[2] << 8) | p[3];
+    }
 
     /* Fast path: ROM read (second most common) */
     if (__builtin_expect((address >= ROM_START) && (address <= ROM_END - 3), 0))
@@ -560,6 +585,13 @@ int op_illg(int level)
             for (int i=0; i<=strlen(g_loadfile); i++)
                 m68k_write_memory_8 (d1++, g_loadfile[i]);
 
+            break;
+        }
+
+        case EMU_CALL_GETSTACK:
+        {
+            extern uint32_t g_program_stack;
+            m68k_set_reg(M68K_REG_D0, g_program_stack);
             break;
         }
 

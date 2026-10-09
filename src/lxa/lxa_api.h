@@ -106,6 +106,13 @@ void lxa_shutdown(void);
  */
 int lxa_load_program(const char *program, const char *args);
 
+/**
+ * Stack size for the next program started by lxa_load_program(), as the
+ * shell's STACK command sets it (0: lxa's default of 64 KB).  lxa never
+ * gives a program less than its default.
+ */
+void lxa_set_program_stack(uint32_t bytes);
+
 /*
  * Execute a number of CPU cycles.
  * This is the main emulation driver function.

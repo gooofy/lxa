@@ -17,12 +17,13 @@ implementing the function, never by deleting the macro.
 | console | 1 | 0 | 0 |
 | datatypes | 5 | 0 | 0 |
 | dos | 18 | 2 | 10 |
-| exec | 7 | 3 | 0 |
+| exec | 7 | 2 | 0 |
 | gadtools | 0 | 1 | 6 |
 | graphics | 0 | 7 | 7 |
 | icon | 0 | 2 | 0 |
 | intuition | 3 | 17 | 10 |
 | rexxsyslib | 17 | 0 | 0 |
+| tapedeck.gadget | 0 | 1 | 0 |
 | translator | 1 | 0 | 0 |
 | utility | 0 | 0 | 7 |
 | workbench | 0 | 0 | 3 |
@@ -130,7 +131,6 @@ implementing the function, never by deleting the macro.
 ## exec
 
 - `Cause` — partial: runs the handler immediately in caller context, no softint queue/priority (Phase 255) (`src/rom/exec.c`)
-- `FreePooled` — partial: memory returns to the system only in DeletePool (`src/rom/exec.c`)
 - `SetExcept` — partial: pending exception deferred to next task switch instead of immediate (Phase 255) (`src/rom/exec.c`)
 - `<lvo_name>` — stub: empty exec.library vector (Phase 255) (`src/rom/exec.c`)
 - `Alert` — stub: no alert display or recovery (Phase 255) (`src/rom/exec.c`)
@@ -156,7 +156,7 @@ implementing the function, never by deleting the macro.
 - `LoadView` — partial: only updates GfxBase->ActiView (Phase 256) (`src/rom/lxa_graphics.c`)
 - `LockLayerRom` — partial: no-op, layer is not locked (Phase 256) (`src/rom/lxa_graphics.c`)
 - `MakeVPort` — partial: builds empty placeholder copper list, UCopIns ignored (Phase 256) (`src/rom/lxa_graphics.c`)
-- `ModeNotAvailable` — partial: every mode reported available (Phase 240) (`src/rom/lxa_graphics.c`)
+- `ModeNotAvailable` — partial: no chipset check (DI_AVAIL_NOCHIPS), lxa reports all ECS/AGA modes of the PAL monitor available (Phase 240) (`src/rom/lxa_graphics.c`)
 - `MrgCop` — partial: builds empty placeholder copper lists, UCopLists ignored (Phase 256) (`src/rom/lxa_graphics.c`)
 - `UnlockLayerRom` — partial: no-op, layer is not locked (Phase 256) (`src/rom/lxa_graphics.c`)
 - `private2` — private/reserved slot (`src/rom/lxa_graphics.c`)
@@ -182,7 +182,7 @@ implementing the function, never by deleting the macro.
 - `NextPubScreen` — partial: only ever reports Workbench (Phase 256) (`src/rom/lxa_intuition.c`)
 - `ObtainGIRPort` — partial: returns the shared gadget RastPort instead of a clone (Phase 256) (`src/rom/lxa_intuition.c`)
 - `OpenScreen` — partial: fixed bar/border sizes, screen font height ignored (Phase 256) (`src/rom/lxa_intuition.c`)
-- `OpenScreenTagList` — partial: ignores SA_DClip, SA_Overscan, SA_Colors, SA_ErrorCode (Phase 256) (`src/rom/lxa_intuition.c`)
+- `OpenScreenTagList` — partial: ignores SA_DClip, SA_Overscan, SA_Colors; SA_ErrorCode only for mode errors (Phase 256) (`src/rom/lxa_intuition.c`)
 - `OpenWindow` — partial: title bar height ignores screen font height (Phase 256) (`src/rom/lxa_intuition.c`)
 - `OpenWindowTagList` — partial: ignores WA_BackFill, WA_RptQueue, WA_Pointer, WA_BusyPointer, WA_Checkmark, WA_HelpGroup (Phase 256) (`src/rom/lxa_intuition.c`)
 - `PrintIText` — partial: ignores IntuiText ITextFont, uses RastPort font (Phase 256) (`src/rom/lxa_intuition.c`)
@@ -224,6 +224,10 @@ implementing the function, never by deleting the macro.
 - `LockRexxBase` — stub: rexxsyslib.library not implemented (Phase 250) (`src/rom/lxa_rexxsyslib.c`)
 - `SetRexxVarFromMsg` — stub: rexxsyslib.library not implemented (Phase 250) (`src/rom/lxa_rexxsyslib.c`)
 - `UnlockRexxBase` — stub: rexxsyslib.library not implemented (Phase 250) (`src/rom/lxa_rexxsyslib.c`)
+
+## tapedeck.gadget
+
+- `GM_RENDER` — partial: TDECK_Tape drawn as animation controls (`src/rom/gadgets/tapedeck.c`)
 
 ## translator
 

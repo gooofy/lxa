@@ -1,0 +1,13 @@
+-- CreatePool
+CreatePool(thresh 2048 > puddle 1024) = NULL
+CreatePool(4096, 1024) = non-NULL
+-- alloc/free cycles
+AvailMem unchanged after 7500 pooled allocations = TRUE
+-- large blocks
+AllocPooled(100000) = non-NULL
+AvailMem dropped by about 100000 = TRUE
+AvailMem restored after FreePooled = TRUE
+-- empty puddle returns to the system
+AvailMem grew by the puddle = TRUE
+-- MEMF_CLEAR pool clears reused memory
+byte sum of a reused block = 0

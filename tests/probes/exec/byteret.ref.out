@@ -1,0 +1,21 @@
+-- OpenDevice
+timer.device UNIT_VBLANK = 0x00000000
+io_Error = 0
+-- DoIO / WaitIO
+DoIO TR_ADDREQUEST = 0x00000000
+DoIO unknown command = 0xfffffffd
+io_Error = -3
+WaitIO TR_ADDREQUEST = 0x00000000
+WaitIO unknown command = 0xfffffffd
+timer.device unit 77 = 0xffffffff
+io_Error = -1
+nonexistent.device = 0xffffffff
+io_Error = -1
+-- AllocSignal
+AllocSignal(-1) in 16..31 = 1
+AllocSignal(-1) upper 24 bits = 0x00000000
+AllocSignal(-1) when none free = 0xffffffff
+AllocSignal(taken) = 0xffffffff
+-- SetTaskPri
+SetTaskPri(me, -5) (old pri 0) = 0x00000000
+SetTaskPri(me, 0) (old pri -5) = 0x000000fb

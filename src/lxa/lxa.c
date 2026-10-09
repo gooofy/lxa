@@ -136,6 +136,7 @@
 
 /* Core emulator state - exported for lxa_api.c */
 uint8_t  g_ram[RAM_SIZE];
+uint8_t  g_z3ram[Z3RAM_SIZE];
 uint8_t  g_rom[ROM_SIZE];
 bool     g_verbose                       = FALSE;
 bool     g_trace                         = FALSE;
@@ -164,6 +165,7 @@ void *g_text_hook_userdata = NULL;
 #define MAX_ARGS_LEN 4096
 char     g_args[MAX_ARGS_LEN]            = {0};
 int      g_args_len                      = 0;
+uint32_t g_program_stack                 = 0;   /* lxa_set_program_stack() */
 
 static uint32_t g_breakpoints[MAX_BREAKPOINTS];
 static int      g_num_breakpoints               = 0;
@@ -399,6 +401,7 @@ void lxa_reset_host_state(void)
     g_text_hook_userdata  = NULL;
     memset(g_args, 0, sizeof(g_args));
     g_args_len = 0;
+    g_program_stack = 0;
     memset(g_breakpoints, 0, sizeof(g_breakpoints));
     g_num_breakpoints = 0;
     g_rv = 0;
@@ -617,7 +620,7 @@ void cpu_instr_callback(int pc)
     if (__builtin_expect(!g_debug_active, 1))
     {
         uint32_t upc = (uint32_t)pc;
-        if (__builtin_expect(upc < 0x100 || (upc > RAM_END && (upc < ROM_START || upc > ROM_END)), 0))
+        if (__builtin_expect(upc < 0x100 || (upc > RAM_END && (upc < ROM_START || upc > ROM_END) && (upc < Z3RAM_START || upc > Z3RAM_END)), 0))
         {
             /* executing from nowhere: the instruction fetch fails with a bus
              * error, which exec's trap handling turns into a held task

@@ -8,8 +8,9 @@
  * Bulk data (trees, snapshots, logs) is written to files in LXAREF:.
  *
  *   PING                         -> PONG
- *   RUN [>file] <cmdline>        start a program asynchronously (CLI process,
- *                                current dir = the program's directory);
+ *   RUN [>file] [STACK n] <cmdline>  start a program asynchronously (CLI
+ *                                process, current dir = the program's
+ *                                directory, stack n bytes, default 32768);
  *                                >file sends its output to LXAREF:file
  *   ASSIGN <name> <path> [ADD]   create or extend a logical assign
  *   DELAY <ticks>                let <ticks> frames (1/50 s) pass
@@ -51,6 +52,7 @@
 #include <devices/timer.h>
 #include <dos/dos.h>
 #include <dos/dostags.h>
+#include <dos/dosextens.h>
 #include <graphics/gfx.h>
 #include <graphics/gfxbase.h>
 #include <graphics/rastport.h>
@@ -263,7 +265,19 @@ static volatile BOOL app_exited;
 /* NP_ExitCode: called in the dying process with the return code in d0 */
 static LONG exit_hook(LONG rc __asm("d0"), LONG data __asm("d1"))
 {
+    struct Process *me = (struct Process *)FindTask(NULL);
+
     (void)data;
+    /* the program's segments are the CLI's cli_Module, as when a shell
+     * runs it: a program that detaches (CreateProc() of its own code,
+     * Maxon/SAS "detach" startup) clears cli_Module to keep them */
+    if (me->pr_CLI)
+    {
+        struct CommandLineInterface *cli = (struct CommandLineInterface *)BADDR(me->pr_CLI);
+        if (cli->cli_Module)
+            UnLoadSeg(cli->cli_Module);
+        cli->cli_Module = 0;
+    }
     app_rc = rc;
     app_exited = TRUE;
     return rc;
@@ -334,6 +348,7 @@ static void cmd_run(char *args)
     char *p = args, *d = prog;
     BPTR seg, lock, dir, outfh;
     char *slash;
+    LONG stack = 32768;
 
     while (*p == ' ')
         p++;
@@ -345,6 +360,15 @@ static void cmd_run(char *args)
         while (*p && *p != ' ' && k < (int)sizeof(outname) - 1)
             outname[k++] = *p++;
         outname[k] = 0;
+        while (*p == ' ')
+            p++;
+    }
+    if (!strncmp(p, "STACK ", 6))
+    {
+        p += 6;
+        stack = strtol(p, &p, 10);
+        if (stack < 4096)
+            stack = 4096;
         while (*p == ' ')
             p++;
     }
@@ -404,8 +428,12 @@ static void cmd_run(char *args)
     {
         static char argline[512];
         snprintf(argline, sizeof(argline), "%s\n", p);
+        /* the child must not run before its CLI says how large its
+         * stack is (cli_DefaultStack, as the STACK command sets it):
+         * C startup codes (Maxon, SAS) derive their stack bound from it */
+        Forbid();
         app_proc = CreateNewProcTags(NP_Seglist, (ULONG)seg,
-                                     NP_FreeSeglist, TRUE,
+                                     NP_FreeSeglist, FALSE,   /* cli_Module: see exit_hook */
                                      NP_Name, (ULONG)FilePart((STRPTR)prog),
                                      NP_CurrentDir, (ULONG)dir,
                                      NP_HomeDir, (ULONG)(dir ? DupLock(dir) : 0),
@@ -418,9 +446,16 @@ static void cmd_run(char *args)
                                       * agent (DPaint reads its own executable) */
                                      NP_CommandName, (ULONG)prog,
                                      NP_Arguments, (ULONG)argline,
-                                     NP_StackSize, 32768,
+                                     NP_StackSize, stack,
                                      NP_ExitCode, (ULONG)exit_hook,
                                      TAG_DONE);
+        if (app_proc && app_proc->pr_CLI)
+        {
+            struct CommandLineInterface *cli = (struct CommandLineInterface *)BADDR(app_proc->pr_CLI);
+            cli->cli_DefaultStack = stack / 4;
+            cli->cli_Module = seg;
+        }
+        Permit();
     }
     if (!app_proc)
     {
@@ -1110,7 +1145,7 @@ static void cmd_text(const char *cmd, char *args)
 /* ------------------------------------------------------------------ */
 
 #define TRACE_MAX_FN   64
-#define TRACE_LOG_MAX  4096
+#define TRACE_LOG_MAX  32768
 struct trace_fn { struct Library *lib; WORD lvo; APTR orig; UWORD *stub; char libname[24]; };
 /* str[i]: printable C string that d1, d2, a0, a1 point to (if any) */
 struct trace_rec { UBYTE fn; UBYTE ret; struct Task *task; ULONG regs[15]; char str[4][40]; };

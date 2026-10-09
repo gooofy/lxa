@@ -13,6 +13,7 @@
 #define LXA_MEMORY_H
 
 #include "lxa_internal.h"
+#include "lxa_vclock.h"
 #include <string.h>  /* memcpy */
 
 /*
@@ -78,6 +79,10 @@ static inline uint8_t mread8(uint32_t address)
     {
         uint32_t addr = address - ROM_START;
         return g_rom[addr];
+    }
+    else if ((address >= Z3RAM_START) && (address <= Z3RAM_END))
+    {
+        return g_z3ram[address - Z3RAM_START];
     }
     else if ((address >= EXTROM_START) && (address <= EXTROM_END))
     {
@@ -267,6 +272,10 @@ static inline void mwrite8(uint32_t address, uint8_t value)
     {
         uint32_t addr = address - RAM_START;
         g_ram[addr] = value;
+    }
+    else if ((address >= Z3RAM_START) && (address <= Z3RAM_END))
+    {
+        g_z3ram[address - Z3RAM_START] = value;
     }
     else if ((address >= 0x00A00000) && (address < CUSTOM_START))
     {

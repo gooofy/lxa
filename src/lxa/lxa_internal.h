@@ -56,6 +56,12 @@
 #define RAM_SIZE    10 * 1024 * 1024
 #define RAM_END     RAM_START + RAM_SIZE - 1
 
+/* Zorro III fast RAM, at the base the reference A4000 (FS-UAE
+ * zorro_iii_memory) has it - exec adds it as a second fast region */
+#define Z3RAM_START 0x40000000u
+#define Z3RAM_SIZE  (8u * 1024u * 1024u)
+#define Z3RAM_END   (Z3RAM_START + Z3RAM_SIZE - 1u)
+
 #define DEFAULT_ROM_PATH "../rom/lxa.rom"
 
 #define ROM_SIZE    512 * 1024
@@ -315,6 +321,7 @@ typedef struct notify_entry_s {
  * ========================================================= */
 
 extern uint8_t  g_ram[];
+extern uint8_t  g_z3ram[];
 extern uint8_t  g_rom[];
 extern bool     g_verbose;
 extern bool     g_running;

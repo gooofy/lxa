@@ -10,6 +10,7 @@ bundles and <out_dir>/result.json.
 import argparse
 import json
 import os
+import shutil
 import sys
 import tempfile
 import time
@@ -44,8 +45,15 @@ def run(scn, out_dir, build=None):
         for f in scn.prefs_files():
             # ENV:Sys/*.prefs - applied by C:IPrefs when the program boots
             lxa.install_prefs(os.path.join(scn.prefs_dir(), f))
+        app_dir = scn.app_host_dir()
+        if scn.writable:
+            # a private copy the program may write into (RDDAPP:<dir>)
+            work = os.path.join(tmp, "rddapp")
+            shutil.copytree(app_dir, os.path.join(work, scn.manifest["dir"]), symlinks=True)
+            app_dir = os.path.join(work, scn.manifest["dir"])
+            lxa.assign("RDDAPP", work)
         for name, rel, add in scn.assigns():
-            path = os.path.join(scn.app_host_dir(), rel)
+            path = os.path.join(app_dir, rel)
             (lxa.assign_add if add else lxa.assign)(name, path)
         lxa.text_start()
 
@@ -90,7 +98,7 @@ def run(scn, out_dir, build=None):
                     if not lxa.trace_start(fd.lxa_spec(args["spec"]), os.path.join(out_dir, "trace.jsonl")):
                         raise RuntimeError("cannot start the relay trace")
                 elif kind == "launch":
-                    lxa.run(scn.lxa_program(), scn.args)
+                    lxa.run(scn.lxa_program(), scn.args, stack=scn.stack)
                     lxa.frames(1)
                 elif kind == "wait_window":
                     if lxa.wait_window_title(args.get("title", ""), args.get("timeout", 10000)) < 0:

@@ -1,7 +1,7 @@
 {
  "app": "SysInfo",
  "disabled": null,
- "lxa_version": "0.11.28",
+ "lxa_version": "0.11.29",
  "promoted": "2026-10-09",
  "reference": "AmigaOS 3.1 (KS 40.70), profile aga",
  "requires_apps": true,
@@ -210,7 +210,7 @@
      "where": "screen[0]/window[1]"
     }
    ],
-   "pixel_budget": 56934,
+   "pixel_budget": 56979,
    "pixel_phase": 255,
    "stdout_known_diff": null
   },
@@ -241,7 +241,7 @@
      "where": "screen[0]/window[0]/gadget[7 id=14]"
     }
    ],
-   "pixel_budget": 7334,
+   "pixel_budget": 7019,
    "pixel_phase": 255,
    "stdout_known_diff": null
   },
@@ -464,7 +464,7 @@
      "where": "screen[0]/window[1]"
     }
    ],
-   "pixel_budget": 60390,
+   "pixel_budget": 60441,
    "pixel_phase": 255,
    "stdout_known_diff": null
   },
@@ -495,7 +495,7 @@
      "where": "screen[0]/window[0]/gadget[7 id=14]"
     }
    ],
-   "pixel_budget": 6219,
+   "pixel_budget": 5904,
    "pixel_phase": 255,
    "stdout_known_diff": null
   }

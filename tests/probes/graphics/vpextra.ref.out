@@ -1,0 +1,27 @@
+-- Workbench screen
+GetVPModeID = 0x00008000
+VideoControl(VIEWPORTEXTRA_GET) = 0
+returned tag = 0x80000014
+ViewPortExtra = non-NULL
+DisplayClip = 0,0 - 639,255
+ViewPort points back = FALSE
+QueryOverscan(OSCAN_TEXT) = 0,0 - 639,255
+QueryOverscan(OSCAN_STANDARD) = 0,0 - 639,255
+-- custom PAL HIRES screen
+GetVPModeID = 0x00029000
+VideoControl(VIEWPORTEXTRA_GET) = 0
+returned tag = 0x80000014
+ViewPortExtra = non-NULL
+DisplayClip = 0,0 - 639,255
+ViewPort points back = FALSE
+QueryOverscan(OSCAN_TEXT) = 0,0 - 639,255
+QueryOverscan(OSCAN_STANDARD) = 0,0 - 639,255
+-- custom PAL LORES 320x200 screen
+GetVPModeID = 0x00021000
+VideoControl(VIEWPORTEXTRA_GET) = 0
+returned tag = 0x80000014
+ViewPortExtra = non-NULL
+DisplayClip = 0,0 - 319,255
+ViewPort points back = FALSE
+QueryOverscan(OSCAN_TEXT) = 0,0 - 319,255
+QueryOverscan(OSCAN_STANDARD) = 0,0 - 319,255

@@ -33,6 +33,10 @@ extern bool g_program_exited;      /* lxa_dispatch.c */
 
 /* External declarations for lxa.c globals and functions */
 extern uint8_t g_ram[];
+extern uint8_t g_z3ram[];
+#ifndef Z3RAM_SIZE
+#define Z3RAM_SIZE (8u * 1024u * 1024u)
+#endif
 extern uint8_t g_rom[];
 extern bool g_running;
 extern bool g_verbose;
@@ -455,6 +459,7 @@ int lxa_init(const lxa_config_t *config)
 
     /* Set up initial memory image */
     memset(g_ram, 0, RAM_SIZE);
+    memset(g_z3ram, 0, Z3RAM_SIZE);
     uint32_t initial_sp = RAM_SIZE - 1;
     uint32_t reset_vector = ROM_START + 2;
     m68k_write_memory_32(0, initial_sp);
@@ -579,6 +584,13 @@ void lxa_shutdown(void)
     lxa_profile_reset();
 
     g_api_initialized = false;
+}
+
+extern uint32_t g_program_stack;
+
+void lxa_set_program_stack(uint32_t bytes)
+{
+    g_program_stack = bytes;
 }
 
 int lxa_load_program(const char *program, const char *args)
