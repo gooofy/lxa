@@ -595,7 +595,7 @@ static void parse_fo_tags(struct LXAFontRequester *fo, struct TagItem *tagList)
 /* Display the file requester window and handle interaction */
 static BOOL do_file_request(struct LXAFileRequester *fr)
 {
-    LXA_UNIMPLEMENTED("asl", "AslRequest", "partial: simplified file requester - own drawing instead of 3.1's GadTools layout, no Control menu, at most 100 entries, no volume list/pattern filtering as on 3.1 (Phase 238)");
+    LXA_UNIMPLEMENTED("asl", "AslRequest", "partial: simplified file requester - own drawing instead of 3.1's GadTools layout, no Control menu, at most 100 entries, no volume list/pattern filtering as on 3.1 (Phase 258)");
     struct NewWindow nw;
     struct Window *win;
     struct Screen *scr;
@@ -920,7 +920,7 @@ cleanup:
 /* Display the font requester window and handle interaction */
 static BOOL do_font_request(struct LXAFontRequester *fo)
 {
-    LXA_UNIMPLEMENTED("asl", "AslRequest", "partial: simplified font requester - own drawing instead of 3.1's GadTools layout, no Control menu, no size list/style/pen/draw-mode gadgets as on 3.1 (Phase 238)");
+    LXA_UNIMPLEMENTED("asl", "AslRequest", "partial: simplified font requester - own drawing instead of 3.1's GadTools layout, no Control menu, no size list/style/pen/draw-mode gadgets as on 3.1 (Phase 258)");
     struct NewWindow nw;
     struct Window *win;
     struct Screen *scr;

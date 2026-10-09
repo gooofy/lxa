@@ -103,9 +103,9 @@ AROS is a clean-room, open-source AmigaOS reimplementation, so porting its code 
 | **M0** | Foundations: determinism, measurability, docs | Quality | 200–204 |
 | **M1** | The Reference Oracle: FS-UAE twin harness | Quality (infrastructure) | 210–216 |
 | **M2** | Ground-truth the existing suite + conformance gallery | Quality → Compatibility | 220–224 |
-| **M3** | Breadth: app corpus, compat DB, sweeps, trace diff | Compatibility | 230–236 |
+| **M3** | Breadth: app corpus, compat DB, sweeps, trace diff | Compatibility | 230–239, 244 |
 | **M4** | RTG / Picasso96 | Compatibility (reclassified, see M4) | 240–243 |
-| **M5** | Close the facades: system-library completeness (AROS ports where possible) | Compatibility | 250–257 |
+| **M5** | Close the facades: system-library completeness (AROS ports where possible) | Compatibility | 250–258 |
 | **M6** | WINE-like desktop integration | New features | 260–265 |
 | **M7** | Dev platform, toolkits, performance | New features / Performance | 270–276 |
 
@@ -115,7 +115,7 @@ M0 and M1 are on the critical path: nothing in M2 and later is efficient without
 
 ## Next Phase
 
-> M3: **238** (agent running), then **237b**.
+> M3: **237b** (agent running), then **244**.
 
 ---
 
@@ -143,22 +143,18 @@ Complete (Phases 220–225, v0.11.28); see the summary table.
 **Class**: Compatibility. Phase 237 closed the Phase 232 crash list (`doc/sweeps/2026-10-09-fish-crashlist.md`: 9 lxa-only crashes left of 299, each owned below); the other ~9600 programs were not re-run since Phase 232.
 - [ ] Re-run the whole mass run (all 9943 programs, both sides; `LXA_REF_POOL` picks free reference instances) with the calibrated harness (`LXA_PROGDIR_ASSIGNS=0`, WB 3.1 fonts) and publish the report; cluster new lxa-only crash classes into phases.
 - [ ] Triage the hangs and missing windows it lists, starting with Fish SetMouse (lxa keeps running without its window), DW and VChess (lxa: window/exit, 3.1: exit/hang), Scrambler (emulator hang where 3.1 crashes).
+- [ ] Harness: lxa's `running` is the emulator, the reference's is the launched program (WAIT_EXIT) - Fish ISAM's detached server keeps its window, so lxa reports `window` where 3.1 reports `exit` (no crash since Phase 238's harness Workbench window); compare both on the launched program.
 - [ ] Harness: programs that sleep exactly the run time (Fish DumpWB `Delay(300)`) end as `hang` on lxa because loading takes emulated time - give the lxa side the reference's load-time margin or compare them as equal.
 
 **Test gate**: the full mass-run report shows no lxa-only crash class with >= 5 programs.
 
-### Phase 238 — Corpus app failures (from the Phase 231 sweep)
-**Class**: Compatibility. Worst ratings of `doc/sweeps/2026-10-03-sweep.md`, per app (use the compat-sweep skill's parallel triage; tracediff before hypotheses).
-- [x] (v0.11.30) Scout, Oberon, ADPro, Asm-One, AQB, BTII, SIGMAth, SIGMAth2 reach their window on both systems (memory handlers, BOOPSI OM_NEW class, CreateNewProc under Forbid, ActivateWindow message, programs on their own stack, unknown display IDs refused + ViewPortExtra, scenario `stack:`/`writable:`, lxaprobe RUN keeps detached segments); colorwheel/gradientslider/tapedeck gadgets ported from AROS; exec pools, 2 MB chip + fast RAM.
-- [ ] AmiBlitz3 fails on lxa ("Could not build index cache"): the 2509th `AllocPooled` diverges (reference: 0xC0 bytes from pool 17; lxa: 0x30 bytes from a NULL pool) - find the corrupted list header.
-- [ ] asl.library's screen-mode requester is simplified (6 entries, no "Control" menu; 3.1 lists the display database) and not marked `LXA_UNIMPLEMENTED` - complete it (GadToolsBox3 shows it).
-- [ ] `NameFromLock()` returns `SYS:`/`T:`/`RAM:` where 3.1 returns volume names (`Ram Disk:`, `System:C`; probe `tests/probes/dos/volnames.c` has no `.ref.out` yet) - give lxa a "System" boot volume and a "Ram Disk" volume for RAM:, then capture the probe.
-- [ ] Give the lxa backend a `SYS:` laid out like the reference's system root (pylxa's `SYS:` is the samples directory first): the dopus-startup golden's right pane lists different directories (ignore region, Phase 224).
-- [ ] (from Phase 237) The reference runner's Workbench screen has a window, lxa's headless one has none: Fish ISAM's server takes `GetScreenData(WBENCHSCREEN)->FirstWindow` as its window and exits, then returns to 0xffffffff from SAS/C cback's exit code - give the lxa harness the same Workbench windows, then compare the exit path.
-- [ ] Re-run `python3 -m rdd sweep run` after each fix; the rating in `apps/compat.yaml` must not drop (`rdd loop`).
+### Phase 244 — Corpus residue (from the Phase 238 sweep)
+**Class**: Compatibility. `doc/sweeps/2026-10-09-sweep.md` / `apps/compat.yaml` (v0.11.32): 2 platinum, 15 gold, 19 silver, no bronze/garbage/untested. Raise the silver apps, worst first (use the compat-sweep skill's parallel triage; tracediff before hypotheses).
+- [ ] Per-app divergences owned by this phase in `doc/sweeps/owners.yaml` (`Text() strings missing in lxa`, `stdout differs`): triage ADPro (477 tree diffs), AmiBlitz3 (editor area gray where 3.1 draws it white, missing editor scroller; 494602 px), SnoopDos, MaxonBASIC, DPaintV, ProWrite, Scout, SIGMAth/SIGMAth2, FontView, ReSource, FinalWriter_D, BTII, GFABasic, MaxonCPP into root causes and fix or re-own them.
+- [ ] Cluster2 golden (`cluster2-exit`): the editor's cursor blink phase depends on how long the launch takes on each system (ignore region) - start both runs at the same IntuiTicks phase or compare the cursor after a fixed number of ticks.
+- [ ] Re-run `python3 -m rdd sweep run` after each fix; ratings in `apps/compat.yaml` must not drop (`rdd compat --fail-on-drop`).
 
-- [ ] (from Phase 222) lxaprobe's `MENU` command cannot reach sub-items on 3.1 (the menus golden uses coordinates).
-**Test gate**: no corpus app rated `garbage` or `untested` for a reason inside lxa or the scenarios.
+**Test gate**: no corpus app below gold for a reason inside lxa or the scenarios.
 
 ---
 
@@ -242,6 +238,12 @@ The order below is provisional. After Phase 231/232 it is re-sorted by how often
 ### Phase 257 — Locale catalogs & non-English apps
 - [ ] Real `OpenCatalog` with `LOCALE:` catalogs and language prefs, verified with German-language apps (MaxonBASIC, FinalWriter_D) on a reference with a German locale.
 
+
+### Phase 258 — asl.library file and font requesters as on 3.1
+**Class**: Compatibility. Phase 238 made the screen-mode requester identical to 3.1 (goldens `Asl/gallery-asl-screenmode`, `-info`); the file and font requesters are still lxa's own simplified windows (`LXA_UNIMPLEMENTED` partial in `AslRequest`).
+- [ ] File requester: 3.1's GadTools layout, Control menu, volume list, pattern gadget, unlimited entries, all ASLFR_* tags and results - verified with a gallery scenario and probes on the reference.
+- [ ] Font requester: size list, style/pen/draw-mode gadgets, sample text, Control menu, all ASLFO_* tags and results.
+- [ ] Gate: gallery goldens for both requesters; the stub inventory has no asl entry.
 ---
 
 ## M6 — WINE-like Desktop Integration (New Features)
@@ -263,7 +265,8 @@ The order below is provisional. After Phase 231/232 it is re-sorted by how often
 - [ ] Host window decorations policy, HiDPI integer scaling, AppWindow drag-and-drop from the host file manager, AppIcon → host tray.
 
 ### Phase 264 — Workbench
-- [ ] C:LoadWB (deferred from Phase 221).
+- [ ] C:LoadWB (deferred from Phase 221). The harnesses already open LoadWB's backdrop window (`LXA_WB_WINDOW`, Phase 238); its desktop icons are missing.
+- [ ] Drawer icons (`.info`) for lxa's system partition: the reference's SYS: root holds 8 (DOpus lists them; `dopus-startup`/`dopus-select` scroller-knob ignore regions).
 - [ ] Decide the scope: a hosted `LoadWB` desktop versus relying on the host desktop. If a desktop is in scope, evaluate porting AROS Wanderer or its WB 3.x-style workbench.library parts.
 
 ### Phase 265 — Audio validation (was legacy 169)
@@ -356,4 +359,5 @@ The order below is provisional. After Phase 231/232 it is re-sorted by how often
 | 235 | Library override mode: `LXA_OVERRIDE=asl,iffparse` (+ `LXA_OVERRIDE_DIR`, default the reference system's `Libs/`) keeps the built-in library private to the ROM and maps `LIBS:<name>` to the user's AmigaOS 3.1 binary (`src/lxa/lxa_override.c`, `EMU_CALL_LIB_OVERRIDDEN`); only 3.1 disk libraries accepted; `tests/exec/libident`; gate `tests/rdd/test_override.py` (Tests/IffParse/Basic runs on the real iffparse 40.1). Debug-only workflow: AGENTS §6.26. | v0.11.12 |
 | 236 | Prefs fidelity: `C:IPrefs` (input, locale, overscan, font, palette, pointer, icontrol, screenmode from `ENV:Sys/*.prefs`, run at boot), `OpenLocale()` reads locale prefs, 3.1 defaults (ColorMap, overscan, Preferences, Workbench/pointer colours), fonts/palette/pens applied as on 3.1; goldens `Prefs/gallery-prefs-{default,fontpal,sys}` (scenario keys `prefs:`, `keymaps: wb31`). Open: wbpattern and icon font (264), live prefs changes, pointer image drawing. | v0.11.27 |
 | 237 | Fred Fish crash classes: of the 299 Phase 232 lxa-only crashes 9 remain (owned by 237b/238/240/255; `doc/sweeps/2026-10-09-fish-crashlist.md`). Fixed, each with a 3.1 probe: entry registers, any-a6 dos, signed OpenLibrary versions, exec I/O returns and scratch registers, `pr_ReturnAddr`, ParentDir at assign roots (v0.11.21-26); address 0 = 0 and a full vector table (`exec/lowmem`, `exec/vectors`), CreateNewProc runs only higher-priority children first (`dos/newprocrun`), `dl_UtilityBase`/`dl_IntuitionBase`, OpenLibrary from the current directory (`exec/libpath`), FPU reported and the coprocessor core completed with task-switch context (`exec/fpu`), CIA-A buttons (`exec/buttons`), WaitBlit/OwnBlitter keep registers (`graphics/blitregs`), custom gadgets via the MutualExclude hook (`intuition/customhook`), PRT: (`dos/prt`), SuperState/UserState (`exec/superstate`), DisplayAlert waits for a button, ViewAddress' ViewPort list (`intuition/viewaddress`), console unit font (`console/conunit`), input handlers keep the writer's registers (`input/handlerregs`), InitResident of any type (`exec/initresident`); harness: `LXA_PROGDIR_ASSIGNS=0`, WB 3.1 fonts, `LXA_REF_POOL`, bounded invalid-write logging. | v0.11.31 |
+| 238 | Corpus app failures: every corpus app reaches its window, none `garbage`/`untested` (`doc/sweeps/2026-10-09-sweep.md`, compat 2 platinum / 15 gold / 19 silver, was 6 garbage + 5 untested). Scout, Oberon, ADPro, Asm-One, AQB, BTII, SIGMAth(2) (v0.11.30: memory handlers, pools, 2 MB chip + fast RAM, AROS colorwheel/gradientslider/tapedeck, scenario `stack:`/`writable:`); AmiBlitz3: Disable/Enable/Forbid/Permit and the semaphore calls preserve all registers (`exec/preserveregs`; relay traces record the caller's `ra`); asl screen-mode requester identical to 3.1 (full display database, Control menu, Mode Properties, all ASLSM tags; goldens + probes `asl/smalloc`, `graphics/modedb`); volume names: boot volume "System", RAM: = "Ram Disk" with T:/ENV: (`dos/volnames`), twin-runner SYS: laid out like the 3.1 partition; harness Workbench backdrop window `LXA_WB_WINDOW` (`intuition/wbwindow`, Fish ISAM no longer crashes); ExAll no longer overruns small buffers; lxaprobe `MENU` reaches sub-items. Residue owned by 244/258/264. | v0.11.32 |
 | 239 | BCPL programs: AROS m68k BCPL support ported (`src/rom/bcpl/`, `doc/third-party-code.md`); every command gets a2 = global vector, a5/a6 = BCPL call/return, a1 = BCPL stack (as 3.1, verified with `dos/entryregs`); ROM console segment for 1.3 Run/NewCLI; probe `dos/bcpl`. All six BCPL programs of the Fish corpus exit like on 3.1. Remaining BCPL stubs (coroutines, longjump, requesters) are in the stub inventory. | v0.11.27 |

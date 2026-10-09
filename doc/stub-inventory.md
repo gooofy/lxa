@@ -53,8 +53,8 @@ implementing the function, never by deleting the macro.
 
 ## asl
 
-- `AslRequest` — partial: simplified file requester - own drawing instead of 3.1's GadTools layout, no Control menu, at most 100 entries, no volume list/pattern filtering as on 3.1 (Phase 238) (`src/rom/lxa_asl.c`)
-- `AslRequest` — partial: simplified font requester - own drawing instead of 3.1's GadTools layout, no Control menu, no size list/style/pen/draw-mode gadgets as on 3.1 (Phase 238) (`src/rom/lxa_asl.c`)
+- `AslRequest` — partial: simplified file requester - own drawing instead of 3.1's GadTools layout, no Control menu, at most 100 entries, no volume list/pattern filtering as on 3.1 (Phase 258) (`src/rom/lxa_asl.c`)
+- `AslRequest` — partial: simplified font requester - own drawing instead of 3.1's GadTools layout, no Control menu, no size list/style/pen/draw-mode gadgets as on 3.1 (Phase 258) (`src/rom/lxa_asl.c`)
 
 ## commodities
 

@@ -551,6 +551,12 @@ The built-in library stays private to lxa's ROM and `OpenLibrary()` loads `LIBS:
 - The Workbench screen: `WBorTop` 2, `MenuHBorder`/`MenuVBorder` 4/2, pen 3 = 102,136,187, display ID = the requested mode.
 - `python3 -m rdd gallery` renders every gallery golden next to the reference; text differences there are the ROM font (Phase 225), not layout.
 
+### 6.29 Register Contracts, Volumes and the Harness Workbench (Phase 238)
+
+- **"Preserves all registers" is ABI.** Disable/Enable/Forbid/Permit and ObtainSemaphore/ObtainSemaphoreShared/ReleaseSemaphore go through `EXEC_PRESERVE_ALL` wrappers (`exec.c`); GCC's C code may clobber D0/D1/A0/A1. AmiBlitz3 kept a list pointer in D0 across `Disable()` - the symptom was an `AllocPooled(NULL, …)` thousands of calls later. Relay traces carry `"ra"` (caller's return address): search the app's binaries for the bytes before it to find the call site.
+- **Volumes**: the boot volume is "System", RAM: is "Ram Disk" (`vfs_set_volume_name()`); NameFromLock/Examine use volume names and they work as path prefixes. Never assign a name that is also a volume name (the old `System:` assign). pylxa builds a private SYS: root laid out like the WB 3.1 partition; T:/ENV: live in RAM:.
+- **`LXA_WB_WINDOW=1`** (suite-ref and mass runs) opens LoadWB's backdrop window on the Workbench screen before the program starts, as on the reference; it is `app: false` in tree dumps and not in `lxa_get_window_count()`.
+
 ## 7. Quick Start
 1. Check `roadmap.md`.
 2. Load `lxa-workflow` to understand the process.
