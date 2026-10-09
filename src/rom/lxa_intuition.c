@@ -178,6 +178,7 @@ struct LXAWindowState {
     BOOL zip_valid;
     struct MsgPort *console_port;       /* attached console.device unit's input port */
     struct MsgPort *console_reply_port; /* Intuition-owned reply port for it */
+    struct Window *prev_active;   /* active when this window opened active: active again when it closes */
 };
 
 /* the input events Intuition passes on to an attached console.device unit */
@@ -5063,6 +5064,7 @@ VOID _intuition_CloseWindow ( register struct IntuitionBase * IntuitionBase __as
     struct Layer *border_layer = NULL;
     struct Layer *content_layer = NULL;
     BOOL was_processing_events;
+    struct Window *reactivate = NULL;
 
     DPRINTF (LOG_DEBUG, "_intuition: CloseWindow() window=0x%08lx\n", (ULONG)window);
 
@@ -5078,6 +5080,21 @@ VOID _intuition_CloseWindow ( register struct IntuitionBase * IntuitionBase __as
     _intuition_clear_window_runtime_state(window);
 
     state = _intuition_find_window_state((struct LXAIntuitionBase *)IntuitionBase, window);
+
+    /* AmigaOS 3.1 (tests/probes/intuition/activation): closing the active
+     * window activates the window that was active when it opened (with
+     * WFLG_ACTIVATE), if that one is still open.  Forget this window as
+     * the predecessor of others. */
+    {
+        struct Node *node;
+        struct LXAIntuitionBase *lb = (struct LXAIntuitionBase *)IntuitionBase;
+
+        if (state && IntuitionBase->ActiveWindow == window)
+            reactivate = state->prev_active;
+        for (node = lb->WindowStateList.lh_Head; node && node->ln_Succ; node = node->ln_Succ)
+            if (((struct LXAWindowState *)node)->prev_active == window)
+                ((struct LXAWindowState *)node)->prev_active = NULL;
+    }
 
     /* Close the tracked host window if one exists. */
     if (state && state->host_window_handle)
@@ -5154,6 +5171,10 @@ VOID _intuition_CloseWindow ( register struct IntuitionBase * IntuitionBase __as
 
     /* Free the Window structure */
     FreeMem(window, sizeof(struct Window));
+
+    if (reactivate && reactivate != window && !IntuitionBase->ActiveWindow &&
+        _intuition_find_window_state((struct LXAIntuitionBase *)IntuitionBase, reactivate))
+        _intuition_ActivateWindow(IntuitionBase, reactivate);
 
     g_processing_events = was_processing_events;
 
@@ -10566,6 +10587,7 @@ struct Window * _intuition_OpenWindow ( register struct IntuitionBase * Intuitio
         state->host_window_handle = window_handle;
         state->open_left = window->LeftEdge;
         state->open_top = window->TopEdge;
+        state->prev_active = (newWindow->Flags & WFLG_ACTIVATE) ? IntuitionBase->ActiveWindow : NULL;
         host_window_handle = window_handle;
 
         if (window_handle)
