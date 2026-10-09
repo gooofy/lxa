@@ -326,6 +326,7 @@ extern uint8_t  g_rom[];
 extern bool     g_verbose;
 extern bool     g_running;
 extern char    *g_loadfile;
+extern uint32_t g_wb_window;
 extern char     g_args[];
 extern int      g_args_len;
 extern int      g_rv;

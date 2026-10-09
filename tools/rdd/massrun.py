@@ -93,6 +93,9 @@ def run_lxa_one(rel, root, frames, build=None):
     # ... from LXAREF:p/<id>/ with nothing assigned to the program's own
     # S/Libs/C directories (Phase 237)
     os.environ["LXA_PROGDIR_ASSIGNS"] = "0"
+    # ... and with LoadWB's backdrop window on the Workbench screen (Fish
+    # ISAM opens its window through GetScreenData()->FirstWindow, Phase 238)
+    os.environ.setdefault("LXA_WB_WINDOW", "1")
     lxa = Lxa(build=build)
     res = {"backend": "lxa"}
     try:

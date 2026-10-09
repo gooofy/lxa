@@ -27,6 +27,8 @@
 #include <graphics/monitor.h>
 
 #include <intuition/intuitionbase.h>
+#include <clib/intuition_protos.h>
+#include <inline/intuition.h>
 
 #include <libraries/expansionbase.h>
 
@@ -5710,6 +5712,50 @@ static void _myTestTask(void)
 }
 #endif
 
+/*
+ * Phase 238: the reference's Workbench screen carries LoadWB's backdrop
+ * window (untitled, borderless, simple refresh, below the screen bar, the
+ * active window at boot) - Fish ISAM uses GetScreenData()->FirstWindow as
+ * its own window.  With LXA_WB_WINDOW=1 the harness opens the same window
+ * from a "Workbench" process.  It is registered with the host, which keeps
+ * it out of tree dumps and window counts (lxaprobe likewise ignores windows
+ * that existed before RUN).
+ */
+static struct Task *wb_window_parent;
+
+static void wb_window_task(void)
+{
+    struct Screen *scr = LockPubScreen((CONST_STRPTR)"Workbench");
+    struct Window *w = NULL;
+
+    if (scr)
+    {
+        WORD top = scr->BarHeight + 1;
+        struct TagItem tags[] = {
+            { WA_PubScreen,     (ULONG)scr },
+            { WA_Left,          0 },
+            { WA_Top,           top },
+            { WA_Width,         scr->Width },
+            { WA_Height,        scr->Height - top },
+            { WA_Backdrop,      TRUE },
+            { WA_Borderless,    TRUE },
+            { WA_SimpleRefresh, TRUE },
+            { WA_NoCareRefresh, TRUE },
+            { WA_Activate,      TRUE },
+            { WA_ReportMouse,   TRUE },
+            { TAG_DONE,         0 }
+        };
+        w = OpenWindowTagList(NULL, tags);
+        UnlockPubScreen(NULL, scr);
+    }
+    if (w)
+        emucall1(EMU_CALL_WB_WINDOW, (ULONG)w);
+    Signal(wb_window_parent, SIGBREAKF_CTRL_F);    /* window is open */
+    Wait(SIGBREAKF_CTRL_C);
+    if (w)
+        CloseWindow(w);
+}
+
 typedef ULONG (*cliChildFn_t) ( register ULONG  arglen __asm("d0"),
                                 register STRPTR args   __asm("a0"));
 void _bootstrap(void)
@@ -5746,6 +5792,17 @@ void _bootstrap(void)
                 UnLoadSeg (iprefs);
             }
         }
+    }
+
+    if (emucall1 (EMU_CALL_WB_WINDOW, 0))
+    {
+        wb_window_parent = FindTask (NULL);
+        SetSignal (0, SIGBREAKF_CTRL_F);
+        /* the window is open before the program looks for it */
+        if (CreateNewProcTags (NP_Entry, (ULONG)wb_window_task, NP_Name, (ULONG)"Workbench",
+                               NP_StackSize, 8192, NP_Input, 0, NP_Output, 0, NP_CloseInput, FALSE,
+                               NP_CloseOutput, FALSE, TAG_DONE))
+            Wait (SIGBREAKF_CTRL_F);
     }
 
     BPTR segs = LoadSeg ((STRPTR)binfn);

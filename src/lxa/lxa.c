@@ -154,6 +154,7 @@ static int      g_trace_buf_idx                 = 0;
 static bool     g_debug_active                  = FALSE;
 bool     g_running                       = TRUE;
 char    *g_loadfile                      = NULL;
+uint32_t g_wb_window                     = 0;   /* Phase 238: harness Workbench backdrop */
 
 /* Output capture callback for test drivers */
 void (*g_console_output_hook)(const char *data, int len) = NULL;

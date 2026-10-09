@@ -19,6 +19,7 @@
 
 void lxa_reset_held_tasks(void);   /* lxa_dos_host.c */
 extern bool g_program_exited;      /* lxa_dispatch.c */
+extern uint32_t g_wb_window;       /* lxa.c: harness Workbench backdrop (Phase 238) */
 #include "lxa_unimpl.h"
 
 #include <stdio.h>
@@ -512,6 +513,7 @@ int lxa_init(const lxa_config_t *config)
     lxa_unimpl_reset();
     lxa_reset_held_tasks();
     g_program_exited = false;
+    g_wb_window = 0;
     lxa_unimpl_set_strict(config->strict_unimplemented);
     s_vblank_count = 0;
     s_cycles_since_auto_vblank = 0;
@@ -1281,8 +1283,15 @@ bool lxa_inject_string(const char *str)
 
 int lxa_get_window_count(void)
 {
+    int i, n;
     if (!g_api_initialized) return 0;
-    return display_get_window_count();
+    n = display_get_window_count();
+    /* the harness Workbench backdrop (LXA_WB_WINDOW) is not counted */
+    if (g_wb_window)
+        for (i = 0; i < n; i++)
+            if (lxa_api_get_window_pointer(i) == g_wb_window)
+                return n - 1;
+    return n;
 }
 
 int lxa_get_window_content(int index)

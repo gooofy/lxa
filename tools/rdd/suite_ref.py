@@ -273,6 +273,8 @@ def run_ref(progs, jobs, timeout_ms, use_cache=True, chunk=12):
 
 def run_lxa_one(name, build, timeout_ms, prog=None, args="", fonts=None):
     from rdd.pylxa import Lxa
+    # the reference runs LoadWB: its Workbench screen has the backdrop window
+    os.environ.setdefault("LXA_WB_WINDOW", "1")
     lxa = Lxa(build=build)
     try:
         if fonts:

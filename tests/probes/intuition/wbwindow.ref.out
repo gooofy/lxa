@@ -1,0 +1,10 @@
+screen width = 640
+screen height = 256
+FirstWindow = non-NULL
+title = NULL
+left = 0
+top = 11
+width = 640
+height = 245
+flags & (BACKDROP|BORDERLESS|SIMPLE_REFRESH) = 0x00000940
+FirstGadget = NULL
