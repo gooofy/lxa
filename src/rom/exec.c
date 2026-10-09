@@ -6213,6 +6213,14 @@ void coldstart (void)
     }
     
     IntuitionBase = (struct IntuitionBase *) registerBuiltInLib (sizeof(*IntuitionBase) , __lxa_intuition_ROMTag );
+
+    /* dos.library keeps utility and intuition open in DosLibrary, as on
+     * AmigaOS 3.1 (probe dos/dlbases): SAS/C 6 startup code takes its
+     * UtilityBase from dl_UtilityBase (Fish MeMeter) */
+    DOSBase->dl_UtilityBase = (struct Library *) UtilityBase;
+    ((struct Library *) UtilityBase)->lib_OpenCnt++;
+    DOSBase->dl_IntuitionBase = (struct Library *) IntuitionBase;
+    ((struct Library *) IntuitionBase)->lib_OpenCnt++;
     DPRINTF(LOG_DEBUG, "[exec] IntuitionBase=0x%08lx\n", (ULONG)IntuitionBase);
     LayersBase    = (struct Library       *) registerBuiltInLib (sizeof(*LayersBase)    , __lxa_layers_ROMTag    );
     ExpansionBase = (struct ExpansionBase *) registerBuiltInLib (sizeof(*ExpansionBase) , __lxa_expansion_ROMTag );
