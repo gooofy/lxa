@@ -86,6 +86,43 @@ static void show(const char *name, struct Screen *s)
     CloseScreen(s);
 }
 
+/* the pens of the screen title bar: its fill, the line below it and the
+ * pens of the title text */
+static void show_bar(const char *name, struct Screen *s)
+{
+    struct RastPort *rp;
+    UBYTE seen[256];
+    WORD x, y;
+    int i;
+
+    P_SECTION(name);
+    if (!s)
+    {
+        probe_s("OpenScreen = NULL\n");
+        return;
+    }
+    dump_screen(s, FALSE);
+    Delay(5);
+    rp = &s->RastPort;
+    probe_s(" bar");
+    ps_kv("fill", ReadPixel(rp, 300, 1));
+    ps_kv("line", ReadPixel(rp, 300, s->BarHeight));
+    ps_kv("below", ReadPixel(rp, 300, s->BarHeight + 1));
+    memset(seen, 0, sizeof(seen));
+    for (y = 0; y < s->BarHeight; y++)
+        for (x = 0; x < 48; x++)
+            seen[ReadPixel(rp, x, y) & 255] = 1;
+    probe_s(" titlepens");
+    for (i = 0; i < 256; i++)
+        if (seen[i])
+        {
+            probe_ch(' ');
+            probe_dec(i);
+        }
+    probe_ch('\n');
+    CloseScreen(s);
+}
+
 int main(void)
 {
     struct TextAttr t8 = { (STRPTR)"topaz.font", 8, 0, 0 };
@@ -172,6 +209,26 @@ int main(void)
                                  SA_Behind, TRUE, SA_Quiet, TRUE, TAG_END));
     show("tags draggable no", OpenScreenTags(NULL, SA_Depth, 2, SA_DisplayID, HIRES_KEY, SA_Pens, (ULONG)pens,
                                  SA_Draggable, FALSE, SA_Exclusive, TRUE, TAG_END));
+
+    /* Phase 234: the bar pens of screens with other DetailPen/BlockPen
+     * (BlitzBasic 2 opens its editor screen like this) */
+    memset(&ns, 0, sizeof(ns));
+    ns.Width = 640; ns.Height = 200; ns.Depth = 2;
+    ns.ViewModes = HIRES;
+    ns.Type = CUSTOMSCREEN | SHOWTITLE;
+    ns.DefaultTitle = (UBYTE *)"Pens";
+    ns.DetailPen = 1; ns.BlockPen = 2;
+    show_bar("NewScreen detail 1 block 2", OpenScreen(&ns));
+    ns.DetailPen = 3; ns.BlockPen = 2;
+    show_bar("NewScreen detail 3 block 2", OpenScreen(&ns));
+    ns.DetailPen = 2; ns.BlockPen = 0;
+    show_bar("NewScreen detail 2 block 0", OpenScreen(&ns));
+    show_bar("tags oldlook detail 3 block 1",
+             OpenScreenTags(NULL, SA_Depth, 2, SA_DisplayID, HIRES_KEY, SA_DetailPen, 3, SA_BlockPen, 1,
+                            SA_Title, (ULONG)"Pens", TAG_END));
+    show_bar("tags pens detail 3 block 1",
+             OpenScreenTags(NULL, SA_Depth, 2, SA_DisplayID, HIRES_KEY, SA_DetailPen, 3, SA_BlockPen, 1,
+                            SA_Pens, (ULONG)pens, SA_Title, (ULONG)"Pens", TAG_END));
 
     CloseLibrary(DiskfontBase);
     CloseLibrary(GfxBase);
