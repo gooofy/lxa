@@ -6171,23 +6171,20 @@ struct Process * _dos_CreateNewProc ( register struct DosLibrary * __dos_a6 __as
     Enable();
 
     /*
-     * Yield CPU to allow the newly created process to run its initialisation
-     * (e.g. AddPort, library init) before the calling task continues.
-     *
-     * On a real Amiga the process would eventually get a timeslice when the
-     * calling task calls Delay() or Wait().  Many apps rely on the child
-     * having had at least one timeslice before the parent queries ports
-     * created by the child.  We force one round-trip through the scheduler
-     * by temporarily putting the current task at the back of TaskReady and
-     * switching away.
+     * The new process only preempts the caller when it has a higher
+     * priority (as with AddTask()).  At equal priority AmigaOS 3.1 returns
+     * to the caller first and the child runs when the caller waits or its
+     * quantum ends (Phase 237, probe dos/createproc): SAS/C programs that
+     * detach with CreateProc() on their own seglist share one data hunk
+     * with the child, and the child running first overwrote the parent's
+     * saved stack pointer (Fish JbSpool, ColorSaver).
      */
     {
         struct Task *me = FindTask(NULL);
-        if (me)
+        if (me && process->pr_Task.tc_Node.ln_Pri > me->tc_Node.ln_Pri)
         {
             Disable();
             me->tc_State = TS_READY;
-            /* Put ourselves at the *back* so higher/equal priority tasks run first */
             Enqueue(&SysBase->TaskReady, &me->tc_Node);
             asm volatile (
                 "   move.l  a5, -(a7)               \n"
