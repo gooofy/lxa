@@ -13,6 +13,7 @@
 #include <intuition/intuition.h>
 #include <intuition/intuitionbase.h>
 #include <intuition/screens.h>
+#include <intuition/sghooks.h>
 #include <intuition/preferences.h>
 #include <intuition/classes.h>
 #include <intuition/classusr.h>
@@ -7488,7 +7489,48 @@ static void _exit_menu_mode(struct Window *window, WORD mouseX, WORD mouseY)
  * NOTE: This function may be called from interrupt context (via VBlank hook)
  * so it uses the global IntuitionBase instead of calling OpenLibrary().
  */
-static BOOL _handle_string_gadget_key(struct Gadget *gad, struct Window *window, 
+/* A GACT_LONGINT gadget's StringInfo->LongInt follows its text when the
+ * gadget is left (Return, Tab, a click elsewhere): asl.library reads the
+ * value from LongInt (AmigaOS 3.1, scenario gallery-asl-screenmode). */
+static VOID _string_update_longint(struct Gadget *gad)
+{
+    struct StringInfo *si;
+    LONG v = 0;
+    WORD i = 0;
+    BOOL neg = FALSE;
+
+    if (!gad || !(gad->Activation & GACT_LONGINT) ||
+        (gad->GadgetType & GTYP_GTYPEMASK) != GTYP_STRGADGET)
+        return;
+    si = (struct StringInfo *)gad->SpecialInfo;
+    if (!si || !si->Buffer)
+        return;
+    while (si->Buffer[i] == ' ')
+        i++;
+    if (si->Buffer[i] == '-')
+    {
+        neg = TRUE;
+        i++;
+    }
+    else if (si->Buffer[i] == '+')
+        i++;
+    while (si->Buffer[i] >= '0' && si->Buffer[i] <= '9')
+        v = v * 10 + (si->Buffer[i++] - '0');
+    si->LongInt = neg ? -v : v;
+}
+
+/* the active string gadget loses the input focus (a click elsewhere) */
+static VOID _string_gadget_leave(struct Window *window, struct Gadget *gad)
+{
+    if (!gad || (gad->GadgetType & GTYP_GTYPEMASK) != GTYP_STRGADGET)
+        return;
+    gad->Flags &= ~GFLG_SELECTED;
+    _string_update_longint(gad);
+    if (window && IntuitionBase)
+        _intuition_RefreshGList(IntuitionBase, gad, window, NULL, 1);
+}
+
+static BOOL _handle_string_gadget_key(struct Gadget *gad, struct Window *window,
                                        UWORD rawkey, UWORD qualifier)
 {
     struct StringInfo *si = (struct StringInfo *)gad->SpecialInfo;
@@ -7541,6 +7583,7 @@ static BOOL _handle_string_gadget_key(struct Gadget *gad, struct Window *window,
     switch (code) {
         case 0x44: /* Return key */
             gad->Flags &= ~GFLG_SELECTED;
+            _string_update_longint(gad);
             /* Post IDCMP_GADGETUP */
             if (gad->Activation & GACT_RELVERIFY) {
                 _post_idcmp_message(window, IDCMP_GADGETUP, 0, qualifier, gad,
@@ -7666,6 +7709,7 @@ static BOOL _handle_string_gadget_key(struct Gadget *gad, struct Window *window,
             {
                 /* Deactivate current gadget */
                 gad->Flags &= ~GFLG_SELECTED;
+                _string_update_longint(gad);
                 needsRefresh = TRUE;
 
                 /* Activate the new string gadget.
@@ -8254,6 +8298,14 @@ VOID _intuition_ProcessInputEvents(struct Screen *hint_screen)
                         struct Gadget *gad = _find_gadget_at_pos(window, relX, relY);
                         DPRINTF(LOG_DEBUG, "_intuition: SELECTDOWN relX=%d relY=%d gad=0x%08lx type=0x%04x\n",
                                 relX, relY, (ULONG)gad, gad ? gad->GadgetType : 0xFFFF);
+                        /* a click anywhere else ends the active string gadget */
+                        if (g_active_gadget && g_active_gadget != gad &&
+                            (g_active_gadget->GadgetType & GTYP_GTYPEMASK) == GTYP_STRGADGET)
+                        {
+                            _string_gadget_leave(g_active_window, g_active_gadget);
+                            g_active_gadget = NULL;
+                            g_active_window = NULL;
+                        }
                         if (gad)
                         {
                             DPRINTF(LOG_DEBUG, "_intuition: SELECTDOWN on gadget type=0x%04x\n",
@@ -8301,8 +8353,26 @@ VOID _intuition_ProcessInputEvents(struct Screen *hint_screen)
                                 struct StringInfo *si = (struct StringInfo *)gad->SpecialInfo;
                                 if (si && si->Buffer)
                                 {
-                                    /* Position cursor at end of text */
-                                    si->BufferPos = si->NumChars;
+                                    /* the cursor goes to the character under the
+                                     * pointer, else to the end of the text
+                                     * (AmigaOS 3.1, scenario gallery-asl-screenmode) */
+                                    LONG gbl, gbt, gbw, gbh;
+                                    struct TextFont *tf = window->IFont ? window->IFont : (window->RPort ? window->RPort->Font : NULL);
+                                    WORD cw;
+
+                                    if ((gad->Flags & GFLG_STRINGEXTEND || gad->Activation & GACT_STRINGEXTEND) &&
+                                        si->Extension && si->Extension->Font)
+                                        tf = si->Extension->Font;
+                                    cw = tf && tf->tf_XSize ? tf->tf_XSize : 8;
+                                    LONG pos;
+
+                                    _calculate_gadget_box(window, NULL, gad, &gbl, &gbt, &gbw, &gbh);
+                                    pos = si->DispPos + (relX - gbl) / cw;
+                                    if (pos < 0)
+                                        pos = 0;
+                                    if (pos > si->NumChars)
+                                        pos = si->NumChars;
+                                    si->BufferPos = (WORD)pos;
                                 }
 
                                 _render_gadget(window, NULL, gad);
@@ -13521,6 +13591,10 @@ VOID _intuition_ZipWindow ( register struct IntuitionBase * IntuitionBase __asm(
     if (!window) return;
 
     struct ZoomData *zd = (struct ZoomData *)window->ExtData;
+
+    /* the window is in its alternate (zoomed) box (AmigaOS 3.1: zooming
+     * an asl requester sets WFLG_ZOOMED, scenario gallery-asl-screenmode) */
+    window->Flags ^= WFLG_ZOOMED;
 
     if (zd)
     {
