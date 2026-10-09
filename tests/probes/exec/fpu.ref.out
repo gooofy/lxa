@@ -1,0 +1,36 @@
+-- AttnFlags
+AFF_68881 = TRUE
+AFF_68882 = TRUE
+-- addressing modes
+fmove.d (xxx).L -> (xxx).L hi = 0x40040000
+fmove.d (xxx).L -> (xxx).L lo = 0x00000000
+fmove.l of 7 * 2.5 = 18
+fmovem.x fp1/fp2/fp5,-(a2) slot 0 = 40 00 00 00
+fmovem.x fp1/fp2/fp5,-(a2) slot 1 = 40 00 00 00
+fmovem.x fp1/fp2/fp5,-(a2) slot 2 = 40 01 00 00
+fmovem.x (a2)+ -> fp3 = 2
+fmovem.x (a2)+ -> fp4 = 3
+fmovem.x (a2)+ -> fp6 = 6
+fmove.l fp0,(-4,a0,d2.l*8) = 5
+-- functions (x 1000000)
+fsin(0.5) = 479426
+fetox(1) = 2718282
+flogn(10) = 2302585
+fatan(1) = 785398
+fcos(0.5) = 877583
+ftan(0.5) = 546302
+fsqrt(2) = 1414214
+fsincos(0.5) cos = 877583
+fsincos(0.5) sin = 479426
+-- other operations
+fintrz(1e10+0.75) hi = 0x4202a05f
+fintrz(1e10+0.75) lo = 0x20000000
+fgetexp(-12) = 3
+fgetman(-12) x 1000 = -1500
+fmovecr #0x35 = 10000
+fmovecr #0x33 = 10
+fmovem.l fpcr/fpiar -> fpcr = 0x00000010
+fdbf loop count = 4
+fslt/fsgt bytes = 0xff000000
+fmod(7,3) = 1
+fscale(3,2) = 12

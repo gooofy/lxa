@@ -6323,7 +6323,10 @@ void coldstart (void)
      * AttnFlags: The emulator runs a 68030 CPU (set in lxa.c:
      * m68k_set_cpu_type(M68K_CPU_TYPE_68030)).  Per the RKRM,
      * higher-model flags imply all lower ones, so 68030 sets
-     * AFF_68010 | AFF_68020 | AFF_68030.
+     * AFF_68010 | AFF_68020 | AFF_68030.  The CPU core executes the
+     * 68881/68882 instruction set (m68kfpu.c), and AmigaOS 3.1 on the
+     * reference reports AFF_68881 | AFF_68882 (probe exec/fpu): programs
+     * compiled for the FPU check these bits (Fish Offender).
      *
      * VBlankFrequency / PowerSupplyFrequency: PAL = 50 Hz.
      *
@@ -6331,7 +6334,7 @@ void coldstart (void)
      *
      * ex_EClockFrequency: PAL E-clock = 709379 Hz (per NDK).
      */
-    SysBase->AttnFlags           = AFF_68010 | AFF_68020 | AFF_68030;
+    SysBase->AttnFlags           = AFF_68010 | AFF_68020 | AFF_68030 | AFF_68881 | AFF_68882;
     SysBase->VBlankFrequency     = 50;
     SysBase->PowerSupplyFrequency = 50;
     SysBase->MaxLocMem           = (ULONG)(RAM_END + 1);

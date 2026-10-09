@@ -12007,6 +12007,12 @@ static void m68k_op_cpbcc_32(void)
 
 static void m68k_op_cpdbcc_32(void)
 {
+	/* lxa (Phase 237): FDBcc / FTRAPcc of the FPU (coprocessor 1) */
+	if(CPU_TYPE_IS_030_PLUS(CPU_TYPE) && ((REG_IR >> 9) & 7) == 1)
+	{
+		m68040_fpu_op0();
+		return;
+	}
 	if(CPU_TYPE_IS_EC020_PLUS(CPU_TYPE))
 	{
 		M68K_DO_LOG((M68K_LOG_FILEHANDLE "%s at %08x: called unimplemented instruction %04x (%s)\n",
@@ -12046,6 +12052,12 @@ static void m68k_op_cpscc_32(void)
 
 static void m68k_op_cptrapcc_32(void)
 {
+	/* lxa (Phase 237): FDBcc / FTRAPcc of the FPU (coprocessor 1) */
+	if(CPU_TYPE_IS_030_PLUS(CPU_TYPE) && ((REG_IR >> 9) & 7) == 1)
+	{
+		m68040_fpu_op0();
+		return;
+	}
 	if(CPU_TYPE_IS_EC020_PLUS(CPU_TYPE))
 	{
 		M68K_DO_LOG((M68K_LOG_FILEHANDLE "%s at %08x: called unimplemented instruction %04x (%s)\n",
