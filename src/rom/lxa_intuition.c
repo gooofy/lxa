@@ -5010,6 +5010,16 @@ BOOL _intuition_CloseScreen ( register struct IntuitionBase * IntuitionBase __as
         }
     }
 
+    /* Unlink its ViewPort from Intuition's View */
+    {
+        struct ViewPort **vpp = &IntuitionBase->ViewLord.ViewPort;
+        while (*vpp && *vpp != &screen->ViewPort)
+            vpp = &(*vpp)->Next;
+        if (*vpp)
+            *vpp = screen->ViewPort.Next;
+        screen->ViewPort.Next = NULL;
+    }
+
     /* Unlink screen from IntuitionBase screen list */
     if (IntuitionBase->FirstScreen == screen)
     {
@@ -9686,6 +9696,11 @@ struct Screen * _intuition_OpenScreen ( register struct IntuitionBase * Intuitio
     /* Link screen into IntuitionBase screen list (at front) */
     screen->NextScreen = IntuitionBase->FirstScreen;
     IntuitionBase->FirstScreen = screen;
+    /* ... and its ViewPort into Intuition's View (ViewAddress()): newest
+     * screen first, the order does not follow depth arrangement (AmigaOS
+     * 3.1, probe intuition/viewaddress; Fish EOMS reads ViewPort->ColorMap) */
+    screen->ViewPort.Next = IntuitionBase->ViewLord.ViewPort;
+    IntuitionBase->ViewLord.ViewPort = &screen->ViewPort;
     _intuition_register_pubscreen(IntuitionBase, screen);
     {
         struct PubScreenNode *pub = _intuition_find_pubscreen_by_screen(
