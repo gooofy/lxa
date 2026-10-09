@@ -231,6 +231,8 @@ Built-in C: commands with full AmigaDOS template support:
 
 ## Current Status
 
+**Version 0.11.30** - Corpus apps (Phase 238): Scout (MUI), Oberon, ADPro, Asm-One, AQB, BTII and SIGMAth reach their windows as on AmigaOS 3.1; memory is laid out as on the reference (2 MB chip plus fast RAM), exec memory pools and memory handlers are complete, and the colorwheel, gradientslider and tapedeck gadgets are ported from AROS.
+
 **Version 0.11.29** - Legacy app items validated on AmigaOS 3.1 (Phase 234): BlitzBasic 2's editor, Cluster2's EXIT button, Directory Opus copying and its palette, and SysInfo's startup now end in reference goldens; blitter shifts and masks fixed.
 
 **Version 0.11.28** - Milestone M2 complete (Phase 222 closed): GELs, copper lists, PaletteExtra, VideoControl, CON: window options, InitResident and library versions now match AmigaOS 3.1; about 60 reference probes and 40 goldens guard the system libraries.
