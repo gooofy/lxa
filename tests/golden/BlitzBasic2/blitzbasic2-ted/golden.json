@@ -8,15 +8,35 @@
  "scenario": "blitzbasic2-ted",
  "snapshots": {
   "startup": {
+   "ignore_regions": [
+    {
+     "h": 10,
+     "phase": 240,
+     "w": 56,
+     "why": "the editor's 'Largest Mem (K)' value: the reference has 2 MB chip + fast RAM, lxa one 10 MB chip region (memory layout)",
+     "x": 296,
+     "y": 243
+    }
+   ],
    "known_tree_diffs": [],
-   "pixel_budget": 79,
-   "pixel_phase": 240,
+   "pixel_budget": 0,
+   "pixel_phase": null,
    "stdout_known_diff": null
   },
   "typed": {
+   "ignore_regions": [
+    {
+     "h": 10,
+     "phase": 240,
+     "w": 56,
+     "why": "the editor's 'Largest Mem (K)' value: the reference has 2 MB chip + fast RAM, lxa one 10 MB chip region (memory layout)",
+     "x": 296,
+     "y": 243
+    }
+   ],
    "known_tree_diffs": [],
-   "pixel_budget": 103,
-   "pixel_phase": 240,
+   "pixel_budget": 0,
+   "pixel_phase": null,
    "stdout_known_diff": null
   }
  }

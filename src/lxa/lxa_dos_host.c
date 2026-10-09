@@ -2485,6 +2485,26 @@ int _dos_examine(uint32_t lock_id, uint32_t fib68k)
 }
 
 /* Examine next entry in directory */
+/*
+ * FS-UAE keeps an Amiga file's protection bits, date and comment in a
+ * "<name>.uaem" file next to it; app trees installed through FS-UAE carry
+ * them (lxa-apps).  The emulated Amiga never sees those files, so a
+ * directory scan skips "<name>.uaem" when "<name>" exists (Directory Opus
+ * lists DOpus:s identically on lxa and AmigaOS 3.1: scenario dopus-select).
+ */
+static bool is_uae_sidecar(const char *dir, const char *name)
+{
+    size_t len = strlen(name);
+    char path[PATH_MAX];
+    struct stat st;
+
+    if (len <= 5 || strcmp(name + len - 5, ".uaem") != 0)
+        return false;
+    if (snprintf(path, sizeof(path), "%s/%.*s", dir, (int)(len - 5), name) >= (int)sizeof(path))
+        return false;
+    return lstat(path, &st) == 0;
+}
+
 int _dos_exnext(uint32_t lock_id, uint32_t fib68k)
 {
     DPRINTF(LOG_DEBUG, "lxa: _dos_exnext(): lock_id=%d, fib68k=0x%08x\n", lock_id, fib68k);
@@ -2513,6 +2533,8 @@ int _dos_exnext(uint32_t lock_id, uint32_t fib68k)
     struct dirent *de;
     while ((de = readdir(lock->dir)) != NULL) {
         if (strcmp(de->d_name, ".") == 0 || strcmp(de->d_name, "..") == 0)
+            continue;
+        if (is_uae_sidecar(lock->linux_path, de->d_name))
             continue;
         break;
     }

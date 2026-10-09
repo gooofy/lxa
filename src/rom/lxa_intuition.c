@@ -7426,6 +7426,38 @@ static BOOL _handle_string_gadget_key(struct Gadget *gad, struct Window *window,
     DPRINTF(LOG_DEBUG, "_intuition: _handle_string_gadget_key code=0x%02x qual=0x%04x buf='%s' pos=%d numch=%d\n",
             code, qualifier, si->Buffer ? (char*)si->Buffer : "(null)", (int)si->BufferPos, (int)si->NumChars);
     
+    /* Right-Amiga editing commands (RKRM Libraries, string gadget editing
+     * keys): Amiga-X clears the buffer, Amiga-Q restores the undo buffer;
+     * other Right-Amiga keys insert nothing.  Directory Opus clears its path
+     * gadget with Amiga-X (scenario dopus-select, AmigaOS 3.1). */
+    if (qualifier & IEQUALIFIER_RCOMMAND)
+    {
+        if (code == 0x32) /* X */
+        {
+            si->Buffer[0] = '\0';
+            si->NumChars = 0;
+            si->BufferPos = 0;
+            si->DispPos = 0;
+            needsRefresh = TRUE;
+        }
+        else if (code == 0x10 && si->UndoBuffer) /* Q */
+        {
+            WORD len = 0;
+            while (len < si->MaxChars - 1 && si->UndoBuffer[len])
+            {
+                si->Buffer[len] = si->UndoBuffer[len];
+                len++;
+            }
+            si->Buffer[len] = '\0';
+            si->NumChars = len;
+            si->BufferPos = len;
+            needsRefresh = TRUE;
+        }
+        if (needsRefresh && IntuitionBase)
+            _intuition_RefreshGList(IntuitionBase, gad, window, NULL, 1);
+        return TRUE;
+    }
+
     /* Check for special keys */
     switch (code) {
         case 0x44: /* Return key */
@@ -9176,6 +9208,49 @@ VOID _intuition_OnMenu ( register struct IntuitionBase * IntuitionBase __asm("a6
  */
 static BOOL g_opening_workbench_screen = FALSE;
 
+/*
+ * The screen's PaletteExtra (AmigaOS 3.1, tests/probes/intuition/screenpens):
+ * Intuition attaches one to every screen, obtains the pens its DrawInfo
+ * uses as shared pens (in pen order), and - unless the screen is PENSHARED
+ * (SA_SharePens) - every other pen of the screen exclusively, so that
+ * ObtainBestPenA() only shares the DrawInfo pens.  Called once the screen's
+ * pens are final.
+ */
+static void _intuition_setup_palextra(struct Screen *screen)
+{
+    struct ColorMap *cm = screen->ViewPort.ColorMap;
+    const UWORD *pens = _intuition_screen_pens(screen);
+    UBYTE used[256];
+    ULONG ncol, p;
+    int i;
+
+    if (!cm || cm->PalExtra || AttachPalExtra(cm, &screen->ViewPort) || !cm->PalExtra)
+        return;
+    ncol = 1UL << (screen->BitMap.Depth > 8 ? 8 : screen->BitMap.Depth);
+    if (ncol > (ULONG)cm->Count)
+        ncol = (ULONG)cm->Count;
+    memset(used, 0, sizeof(used));
+    for (i = 0; i < NUMDRIPENS; i++)
+        if (pens[i] < ncol)
+            used[pens[i]] = 1;
+    for (p = 0; p < ncol; p++)
+        if (used[p])
+            ObtainPen(cm, p, 0, 0, 0, PENF_NO_SETCOLOR);
+    /* the other pens are taken by count: 3.1 leaves them linked in the
+     * (then empty, pe_NFree 0) free list - pe_FirstFree keeps its value */
+    if (!(screen->Flags & PENSHARED))
+    {
+        struct PaletteExtra *pe = cm->PalExtra;
+
+        ObtainSemaphore(&pe->pe_Semaphore);
+        for (p = 0; p < ncol; p++)
+            if (!used[p])
+                ((UWORD *)pe->pe_RefCnt)[p]++;
+        pe->pe_NFree = 0;
+        ReleaseSemaphore(&pe->pe_Semaphore);
+    }
+}
+
 struct Screen * _intuition_OpenScreen ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register const struct NewScreen * newScreen __asm("a0"))
 {
@@ -9397,7 +9472,11 @@ struct Screen * _intuition_OpenScreen ( register struct IntuitionBase * Intuitio
      * This is required for GetRGB4(), SetRGB4(), and other color operations.
      * The number of entries is 2^depth (e.g., 4 for 2-bit depth, 32 for 5-bit depth).
      */
+    /* AmigaOS 3.1: at least 32 entries (the sprite colours 16-31 included),
+     * whatever the depth (tests/probes/intuition/screenpens) */
     ULONG num_colors = 1UL << depth;
+    if (num_colors < 32)
+        num_colors = 32;
     screen->ViewPort.ColorMap = GetColorMap(num_colors);
     if (screen->ViewPort.ColorMap)
     {
@@ -9576,9 +9655,13 @@ struct Screen * _intuition_OpenScreen ( register struct IntuitionBase * Intuitio
 
     _create_screen_sys_gadgets(screen);
 
+    /* OpenScreenTagList() does this once SA_Pens/SA_SharePens are applied */
+    if (!g_screen_from_tags)
+        _intuition_setup_palextra(screen);
+
     if (screen->Flags & SHOWTITLE)
         _render_screen_title_bar(screen);
-    
+
     DPRINTF(LOG_DEBUG, "[ROM] OpenScreen: IntuitionBase=0x%08lx, FirstScreen set to 0x%08lx\n",
             (ULONG)IntuitionBase, (ULONG)screen);
     
@@ -15343,6 +15426,8 @@ struct Screen * _intuition_OpenScreenTagList ( register struct IntuitionBase * I
             DPRINTF(LOG_DEBUG, "_intuition: OpenScreenTagList() applied SA_Colors32 palette\n");
         }
     }
+
+    _intuition_setup_palextra(screen);
 
     return screen;
 }

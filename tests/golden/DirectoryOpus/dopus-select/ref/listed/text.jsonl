@@ -1,0 +1,201 @@
+{"text":"DOPUS.1","x":5,"y":7}
+{"text":"Workbench Screen","x":5,"y":7}
+{"text":"DOPUS.1","x":30,"y":7}
+{"text":"DOPUS.1","x":5,"y":7}
+{"text":"B","x":307,"y":157}
+{"text":"R","x":325,"y":157}
+{"text":"S","x":307,"y":169}
+{"text":"A","x":325,"y":169}
+{"text":"?","x":527,"y":240}
+{"text":"E","x":546,"y":240}
+{"text":"F","x":565,"y":240}
+{"text":"C","x":584,"y":240}
+{"text":"I","x":603,"y":240}
+{"text":"Q","x":622,"y":240}
+{"text":"All","x":91,"y":180}
+{"text":"Copy","x":169,"y":180}
+{"text":"Makedir","x":239,"y":180}
+{"text":"Hunt","x":333,"y":180}
+{"text":"Run","x":419,"y":180}
+{"text":"Comment","x":485,"y":180}
+{"text":"Read","x":579,"y":180}
+{"text":"None","x":87,"y":190}
+{"text":"Move","x":169,"y":190}
+{"text":"Assign","x":243,"y":190}
+{"text":"Search","x":325,"y":190}
+{"text":"Datestamp","x":477,"y":190}
+{"text":"Hex Read","x":563,"y":190}
+{"text":"Parent","x":79,"y":200}
+{"text":"Rename","x":161,"y":200}
+{"text":"Check Fit","x":231,"y":200}
+{"text":"Protect","x":485,"y":200}
+{"text":"Show","x":579,"y":200}
+{"text":"Root","x":87,"y":210}
+{"text":"GetSizes","x":235,"y":210}
+{"text":"Icon Info","x":477,"y":210}
+{"text":"Play","x":579,"y":210}
+{"text":"Arc Ext","x":485,"y":220}
+{"text":"Print","x":575,"y":220}
+{"text":"DELETE","x":161,"y":230}
+{"text":"Encrypt","x":485,"y":230}
+{"text":"F","x":565,"y":240}
+{"text":"DF0:","x":17,"y":180}
+{"text":"DF2:","x":17,"y":190}
+{"text":"DH0:","x":17,"y":200}
+{"text":"X","x":29,"y":210}
+{"text":"RAM:","x":17,"y":220}
+{"text":"C:","x":25,"y":230}
+{"text":"                                    ","x":9,"y":41}
+{"text":"                                    ","x":9,"y":49}
+{"text":"                                    ","x":9,"y":57}
+{"text":"                                    ","x":9,"y":65}
+{"text":"                                    ","x":9,"y":73}
+{"text":"                                    ","x":9,"y":81}
+{"text":"                                    ","x":9,"y":89}
+{"text":"                                    ","x":9,"y":97}
+{"text":"                                    ","x":9,"y":105}
+{"text":"                                    ","x":9,"y":113}
+{"text":"                                    ","x":9,"y":121}
+{"text":"                                    ","x":9,"y":129}
+{"text":"                                    ","x":9,"y":137}
+{"text":"                                    ","x":9,"y":145}
+{"text":"                                    ","x":343,"y":41}
+{"text":"                                    ","x":343,"y":49}
+{"text":"                                    ","x":343,"y":57}
+{"text":"                                    ","x":343,"y":65}
+{"text":"                                    ","x":343,"y":73}
+{"text":"                                    ","x":343,"y":81}
+{"text":"                                    ","x":343,"y":89}
+{"text":"                                    ","x":343,"y":97}
+{"text":"                                    ","x":343,"y":105}
+{"text":"                                    ","x":343,"y":113}
+{"text":"                                    ","x":343,"y":121}
+{"text":"                                    ","x":343,"y":129}
+{"text":"                                    ","x":343,"y":137}
+{"text":"                                    ","x":343,"y":145}
+{"text":"Welcome to Directory Opus!","x":216,"y":19}
+{"text":"CHIP:1900K  FAST:23329K  TOTAL:25229K  01-Jan-24  12:00:06A","x":28,"y":240}
+{"text":"SYS:x/","x":24,"y":169}
+{"text":"                                    ","x":9,"y":41}
+{"text":"                                    ","x":9,"y":49}
+{"text":"                                    ","x":9,"y":57}
+{"text":"                                    ","x":9,"y":65}
+{"text":"                                    ","x":9,"y":73}
+{"text":"                                    ","x":9,"y":81}
+{"text":"                                    ","x":9,"y":89}
+{"text":"                                    ","x":9,"y":97}
+{"text":"                                    ","x":9,"y":105}
+{"text":"                                    ","x":9,"y":113}
+{"text":"                                    ","x":9,"y":121}
+{"text":"                                    ","x":9,"y":129}
+{"text":"                                    ","x":9,"y":137}
+{"text":"                                    ","x":9,"y":145}
+{"text":"DOS error code 205 - Object not found","x":172,"y":19}
+{"text":"SYS:","x":358,"y":169}
+{"text":"                                    ","x":343,"y":41}
+{"text":"                                    ","x":343,"y":49}
+{"text":"                                    ","x":343,"y":57}
+{"text":"                                    ","x":343,"y":65}
+{"text":"                                    ","x":343,"y":73}
+{"text":"                                    ","x":343,"y":81}
+{"text":"                                    ","x":343,"y":89}
+{"text":"                                    ","x":343,"y":97}
+{"text":"                                    ","x":343,"y":105}
+{"text":"                                    ","x":343,"y":113}
+{"text":"                                    ","x":343,"y":121}
+{"text":"                                    ","x":343,"y":129}
+{"text":"                                    ","x":343,"y":137}
+{"text":"                                    ","x":343,"y":145}
+{"text":"Reading directory...","x":240,"y":19}
+{"text":"System                        ","x":324,"y":29}
+{"text":"OK","x":312,"y":19}
+{"text":"C                                   ","x":343,"y":41}
+{"text":"Classes                             ","x":343,"y":49}
+{"text":"Devs                                ","x":343,"y":57}
+{"text":"Expansion                           ","x":343,"y":65}
+{"text":"Fonts                               ","x":343,"y":73}
+{"text":"L                                   ","x":343,"y":81}
+{"text":"Libs                                ","x":343,"y":89}
+{"text":"Locale                              ","x":343,"y":97}
+{"text":"Prefs                               ","x":343,"y":105}
+{"text":"Rexxc                               ","x":343,"y":113}
+{"text":"S                                   ","x":343,"y":121}
+{"text":"Storage                             ","x":343,"y":129}
+{"text":"System                              ","x":343,"y":137}
+{"text":"T                                   ","x":343,"y":145}
+{"text":"<Directory not available>     ","x":8,"y":29}
+{"text":"SYS:x/","x":24,"y":169}
+{"text":"System                        ","x":324,"y":29}
+{"text":"SYS:","x":358,"y":169}
+{"text":"CHIP:1900K  FAST:23313K  TOTAL:25213K  01-Jan-24  12:00:07A","x":28,"y":240}
+{"text":"CHIP:1900K  FAST:23313K  TOTAL:25213K  01-Jan-24  12:00:08A","x":28,"y":240}
+{"text":"CHIP:1900K  FAST:23313K  TOTAL:25213K  01-Jan-24  12:00:09A","x":28,"y":240}
+{"text":"SYS:x/","x":24,"y":169}
+{"text":"CHIP:1900K  FAST:23313K  TOTAL:25213K  01-Jan-24  12:00:11A","x":28,"y":240}
+{"text":"CHIP:1900K  FAST:23313K  TOTAL:25213K  01-Jan-24  12:00:12A","x":28,"y":240}
+{"text":"CHIP:1900K  FAST:23313K  TOTAL:25213K  01-Jan-24  12:00:13A","x":28,"y":240}
+{"text":"CHIP:1900K  FAST:23313K  TOTAL:25213K  01-Jan-24  12:00:14A","x":28,"y":240}
+{"text":"D","x":24,"y":169}
+{"text":"DO","x":24,"y":169}
+{"text":"DOp","x":24,"y":169}
+{"text":"CHIP:1900K  FAST:23313K  TOTAL:25213K  01-Jan-24  12:00:15A","x":28,"y":240}
+{"text":"DOpu","x":24,"y":169}
+{"text":"DOpus","x":24,"y":169}
+{"text":"DOpus:","x":24,"y":169}
+{"text":"DOpus:s","x":24,"y":169}
+{"text":"CHIP:1900K  FAST:23313K  TOTAL:25213K  01-Jan-24  12:00:16A","x":28,"y":240}
+{"text":"DOpus:s","x":24,"y":169}
+{"text":"DOpus:s","x":24,"y":169}
+{"text":"DOpus:s/","x":24,"y":169}
+{"text":"                                    ","x":9,"y":41}
+{"text":"                                    ","x":9,"y":49}
+{"text":"                                    ","x":9,"y":57}
+{"text":"                                    ","x":9,"y":65}
+{"text":"                                    ","x":9,"y":73}
+{"text":"                                    ","x":9,"y":81}
+{"text":"                                    ","x":9,"y":89}
+{"text":"                                    ","x":9,"y":97}
+{"text":"                                    ","x":9,"y":105}
+{"text":"                                    ","x":9,"y":113}
+{"text":"                                    ","x":9,"y":121}
+{"text":"                                    ","x":9,"y":129}
+{"text":"                                    ","x":9,"y":137}
+{"text":"                                    ","x":9,"y":145}
+{"text":"Reading directory...","x":240,"y":19}
+{"text":"APPS                          ","x":8,"y":29}
+{"text":"OK","x":312,"y":19}
+{"text":"ConfigOpus.HLP                40508 ","x":9,"y":41}
+{"text":"DirectoryOpus.CFG             17993 ","x":9,"y":49}
+{"text":"DirectoryOpus.CLA              1471 ","x":9,"y":57}
+{"text":"DirectoryOpus.HLP             29438 ","x":9,"y":65}
+{"text":"startup-sequence                 59 ","x":9,"y":73}
+{"text":"                                    ","x":9,"y":81}
+{"text":"                                    ","x":9,"y":89}
+{"text":"                                    ","x":9,"y":97}
+{"text":"                                    ","x":9,"y":105}
+{"text":"                                    ","x":9,"y":113}
+{"text":"                                    ","x":9,"y":121}
+{"text":"                                    ","x":9,"y":129}
+{"text":"                                    ","x":9,"y":137}
+{"text":"                                    ","x":9,"y":145}
+{"text":"APPS                          ","x":8,"y":29}
+{"text":"ConfigOpus.HLP                40508 ","x":9,"y":41}
+{"text":"DirectoryOpus.CFG             17993 ","x":9,"y":49}
+{"text":"DirectoryOpus.CLA              1471 ","x":9,"y":57}
+{"text":"DirectoryOpus.HLP             29438 ","x":9,"y":65}
+{"text":"startup-sequence                 59 ","x":9,"y":73}
+{"text":"                                    ","x":9,"y":81}
+{"text":"                                    ","x":9,"y":89}
+{"text":"                                    ","x":9,"y":97}
+{"text":"                                    ","x":9,"y":105}
+{"text":"                                    ","x":9,"y":113}
+{"text":"                                    ","x":9,"y":121}
+{"text":"                                    ","x":9,"y":129}
+{"text":"                                    ","x":9,"y":137}
+{"text":"                                    ","x":9,"y":145}
+{"text":"CHIP:1900K  FAST:23313K  TOTAL:25213K  01-Jan-24  12:00:17A","x":28,"y":240}
+{"text":"CHIP:1900K  FAST:23313K  TOTAL:25213K  01-Jan-24  12:00:19A","x":28,"y":240}
+{"text":"CHIP:1900K  FAST:23313K  TOTAL:25213K  01-Jan-24  12:00:19A","x":28,"y":240}
+{"text":"CHIP:1900K  FAST:23313K  TOTAL:25213K  01-Jan-24  12:00:21A","x":28,"y":240}
+{"text":"CHIP:1900K  FAST:23313K  TOTAL:25213K  01-Jan-24  12:00:21A","x":28,"y":240}
+{"text":"CHIP:1900K  FAST:23312K  TOTAL:25212K  01-Jan-24  12:00:23A","x":28,"y":240}
