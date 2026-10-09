@@ -115,7 +115,7 @@ M0 and M1 are on the critical path: nothing in M2 and later is efficient without
 
 ## Next Phase
 
-> M3: **237** and **238** (agents running).
+> M3: **238** (agent running), then **237b**.
 
 ---
 
@@ -139,15 +139,13 @@ Complete (Phases 220–225, v0.11.28); see the summary table.
 
 ## M3 — Breadth: Corpus, Compat DB, Sweeps
 
-### Phase 237 — Fred Fish divergence classes
-**Class**: Compatibility. The Phase 232 mass run (`doc/sweeps/2026-10-03-fish-massrun.md`; reference results for 1338 programs) leaves these lxa-only failures. Work them in order of size; for each, pick a representative, run it on both systems with a relay trace (`python3 -m rdd massrun ...` + `LXA_TRACE`, or a scenario with `trace:`; `python3 -m rdd tracediff`) and fix the root cause; then re-run the class (`python3 -m rdd massrun lxa --ids-file ...`).
-- [x] Fixed so far (v0.11.21-v0.11.26, each verified with a probe on 3.1): command entry registers (`dos/entryregs`), dos.library with any a6 (`dos/a6base`), `OpenLibrary()` signed-word version compare (`exec/openlibver`), sign-extended returns of OpenDevice/DoIO/WaitIO (`exec/ioreturn`), a1/d1 left by the exec I/O calls (`exec/scratchregs`), the bootstrap's `pr_ReturnAddr` (`dos/returnaddr`), saved a5 and 3.1 default stack, ParentDir() stopping at assign roots; harness: equal run time, non-interactive stdio like `RUN >file`, the reference's "Software Failure" requester counted as a crash (it had been counted as a window), non-programs listed apart. Report `doc/sweeps/2026-10-04-fish-crashlist.md`: of the 299 Phase 232 lxa-only crashes, 58 still crash on lxa only (22 open a window on 3.1, 28 exit, 8 keep running).
-- [ ] Generic bus errors (17): FontEdit and Cycles (Manx, jump to 0 after an unbalanced stack), JbSpool and ColorSaver (detach, return slot overwritten with 0x1b), MicroEmacs, A-Gene, JukeBox, FHSpread, DirWork, VMK, GoWB, PowerVisor scripts.
-- [x] CHK (11): BCPL programs - fixed by Phase 239. Line-F (5): FPU code (MoonTool .030/.040, SManCP, SafeBoot) - owned by Phase 240.
-- [ ] Calls through NULL bases (LVO -540 x4, -1 x3, ...), privilege violation (3).
-- [ ] Re-run the whole mass run (all 9932 programs, both sides) with the calibrated harness and publish the report; triage the hangs and missing windows it lists.
+### Phase 237b — Full Fred Fish mass re-run
+**Class**: Compatibility. Phase 237 closed the Phase 232 crash list (`doc/sweeps/2026-10-09-fish-crashlist.md`: 9 lxa-only crashes left of 299, each owned below); the other ~9600 programs were not re-run since Phase 232.
+- [ ] Re-run the whole mass run (all 9943 programs, both sides; `LXA_REF_POOL` picks free reference instances) with the calibrated harness (`LXA_PROGDIR_ASSIGNS=0`, WB 3.1 fonts) and publish the report; cluster new lxa-only crash classes into phases.
+- [ ] Triage the hangs and missing windows it lists, starting with Fish SetMouse (lxa keeps running without its window), DW and VChess (lxa: window/exit, 3.1: exit/hang), Scrambler (emulator hang where 3.1 crashes).
+- [ ] Harness: programs that sleep exactly the run time (Fish DumpWB `Delay(300)`) end as `hang` on lxa because loading takes emulated time - give the lxa side the reference's load-time margin or compare them as equal.
 
-**Test gate**: every class has a fix or a narrower owning phase; the mass-run report shows no lxa-only crash class with >= 5 programs.
+**Test gate**: the full mass-run report shows no lxa-only crash class with >= 5 programs.
 
 ### Phase 238 — Corpus app failures (from the Phase 231 sweep)
 **Class**: Compatibility. Worst ratings of `doc/sweeps/2026-10-03-sweep.md`, per app (use the compat-sweep skill's parallel triage; tracediff before hypotheses).
@@ -156,6 +154,7 @@ Complete (Phases 220–225, v0.11.28); see the summary table.
 - [ ] asl.library's screen-mode requester is simplified (6 entries, no "Control" menu; 3.1 lists the display database) and not marked `LXA_UNIMPLEMENTED` - complete it (GadToolsBox3 shows it).
 - [ ] `NameFromLock()` returns `SYS:`/`T:`/`RAM:` where 3.1 returns volume names (`Ram Disk:`, `System:C`; probe `tests/probes/dos/volnames.c` has no `.ref.out` yet) - give lxa a "System" boot volume and a "Ram Disk" volume for RAM:, then capture the probe.
 - [ ] Give the lxa backend a `SYS:` laid out like the reference's system root (pylxa's `SYS:` is the samples directory first): the dopus-startup golden's right pane lists different directories (ignore region, Phase 224).
+- [ ] (from Phase 237) The reference runner's Workbench screen has a window, lxa's headless one has none: Fish ISAM's server takes `GetScreenData(WBENCHSCREEN)->FirstWindow` as its window and exits, then returns to 0xffffffff from SAS/C cback's exit code - give the lxa harness the same Workbench windows, then compare the exit path.
 - [ ] Re-run `python3 -m rdd sweep run` after each fix; the rating in `apps/compat.yaml` must not drop (`rdd loop`).
 
 - [ ] (from Phase 222) lxaprobe's `MENU` command cannot reach sub-items on 3.1 (the menus golden uses coordinates).
@@ -168,7 +167,8 @@ Complete (Phases 220–225, v0.11.28); see the summary table.
 **Reclassified from "new feature" to "compatibility"**: PPaint and FinalWriter fail without it, and so does DPaint's "Choose Display Mode" list. The reference profile `rtg` provides the ground truth.
 
 ### Phase 240 — Machine identity: 68040 + AGA + RTG mode database
-- [ ] Present a 68040 with FPU (Fred Fish MoonTool .030/.040 and other FPU programs take a line-F exception on lxa's 68030 without FPU, Phase 237). Switch the Musashi CPU type, set `AttnFlags` (`exec.c:5898`), and ship a `68040.library`-compatible `SYS:Libs` entry, since apps probe for it.
+- [ ] Present a 68040. The FPU is done (Phase 237: 68881/68882 reported in `AttnFlags`, the coprocessor core completed, FPU context saved on task switches, probe `exec/fpu`). Still to do: switch the Musashi CPU type, report AFF_68040/AFF_FPU40, and ship a `68040.library`-compatible `SYS:Libs` entry, since apps probe for it. The reference's 68040.library returns 0x80000000 from FINT for |x| >= 2^31 (not mimicked).
+- [ ] (from Phase 237) Fish WO 1.0d reads `IntuitionBase->ActiveScreen` before opening intuition.library, i.e. Kickstart ROM code through the vector table (`exec/vectors`: every vector points into ROM on both systems); its outcome depends on the ROM's bytes. Classify such programs as memory-dependent in `massrun report`.
 - [ ] Report AGA everywhere (`ChipRevBits0`, `GetChipRev`-style code at `lxa_graphics.c:9314`, `exec.c:5765`). Add AGA display modes, 256-colour planar screens and `LoadRGB32`/`SetRGB32` 24-bit palettes.
 - [ ] Cross-check GfxBase, ExecBase and display-info fields one by one against a reference `aga` dump.
 - [x] Memory layout of the reference: 2 MB chip RAM plus fast RAM (done in Phase 238, v0.11.30).
@@ -224,6 +224,10 @@ The order below is provisional. After Phase 231/232 it is re-sorted by how often
 - [ ] Resources: battclock, battmem, misc, potgo, disk, FileSystem. SysInfo needs these (Phase 234).
 - [ ] exec: `RawIOInit`/`RawMayGetChar`/`RawPutChar` (routed to `lxa.log`), `Child*`, `ObtainQuickVector`, plus `Alert` (logged guru plus host dialog) and the `Cache*` functions (flush the CPU core).
 - [ ] dos: `FindSegment`, `AbortPkt`, the remaining `AllocDosObject` types, and a real `LockDosList`.
+- [ ] (from Phase 237) dos locks as real `struct FileLock`s (fl_Key, fl_Access, fl_Task, fl_Volume -> a DLT_VOLUME DosList node with its BSTR name): Modula-2 programs read the volume name through `fl_Volume` (Fish calendarfactory, AmigaPunt, Pennywise: CHK; SafeBoot copies a garbage BSTR over itself). lxa returns host ids as BPTRs. Probe `dos/lockfields` first.
+- [ ] (from Phase 237) Input() handles with a real `fh_Buf` buffer that Read/FGetC/FGets consume first: Manx `fexecv` copies the command line into `BADDR(fh_Buf)` (Fish Pdc make wrote it over address 0). Probe `dos/inputbuf` first.
+- [ ] (from Phase 237) A `workbench.task` resident (FindResident(); GoWB starts it with `CreateProc(.., (rt+42)>>2, ..)`, a seglist at RomTag+42 on 3.1). Probe `exec/residents` first.
+- [ ] (from Phase 237) 1.3 BCPL `Run` copies lose the rest of their command line: the background CLI reads only "\n" (Fish YachtC3's `loadproc SOUNDPROC` never starts SOUNDPROC; on 3.1 `loadproc Echo >file hello` writes hello). `lxa_bcpl_cli_start`/`CliInitRun` current input.
 - [ ] bullet.library (outline fonts) as a separately scoped sub-phase.
 
 - [ ] (from Phase 222) CON:/RAW: options AUTO, WAIT and SCREEN are ignored (`LXA_UNIMPLEMENTED`).
@@ -351,4 +355,5 @@ The order below is provisional. After Phase 231/232 it is re-sorted by how often
 | 234 | Legacy app items re-validated with reference goldens: BlitzBasic 2 ted (prop gadgets from a `propgad` probe, old-look screen pens, window re-activation), Cluster2 EXIT (screen MouseX/Y on every input path; blitter masks/shift/descending fixed), DOpus (`DirectoryOpusCopiesFile` re-enabled, PaletteExtra for every screen, string gadget Amiga-X/Q, `.uaem` hidden), SysInfo (beam position registers, address 0); goldens `blitzbasic2-ted`, `cluster2-exit`, `dopus-select`, `sysinfo-gadgets`. SysInfo page gadgets moved to Phase 255. | v0.11.29 |
 | 235 | Library override mode: `LXA_OVERRIDE=asl,iffparse` (+ `LXA_OVERRIDE_DIR`, default the reference system's `Libs/`) keeps the built-in library private to the ROM and maps `LIBS:<name>` to the user's AmigaOS 3.1 binary (`src/lxa/lxa_override.c`, `EMU_CALL_LIB_OVERRIDDEN`); only 3.1 disk libraries accepted; `tests/exec/libident`; gate `tests/rdd/test_override.py` (Tests/IffParse/Basic runs on the real iffparse 40.1). Debug-only workflow: AGENTS §6.26. | v0.11.12 |
 | 236 | Prefs fidelity: `C:IPrefs` (input, locale, overscan, font, palette, pointer, icontrol, screenmode from `ENV:Sys/*.prefs`, run at boot), `OpenLocale()` reads locale prefs, 3.1 defaults (ColorMap, overscan, Preferences, Workbench/pointer colours), fonts/palette/pens applied as on 3.1; goldens `Prefs/gallery-prefs-{default,fontpal,sys}` (scenario keys `prefs:`, `keymaps: wb31`). Open: wbpattern and icon font (264), live prefs changes, pointer image drawing. | v0.11.27 |
+| 237 | Fred Fish crash classes: of the 299 Phase 232 lxa-only crashes 9 remain (owned by 237b/238/240/255; `doc/sweeps/2026-10-09-fish-crashlist.md`). Fixed, each with a 3.1 probe: entry registers, any-a6 dos, signed OpenLibrary versions, exec I/O returns and scratch registers, `pr_ReturnAddr`, ParentDir at assign roots (v0.11.21-26); address 0 = 0 and a full vector table (`exec/lowmem`, `exec/vectors`), CreateNewProc runs only higher-priority children first (`dos/newprocrun`), `dl_UtilityBase`/`dl_IntuitionBase`, OpenLibrary from the current directory (`exec/libpath`), FPU reported and the coprocessor core completed with task-switch context (`exec/fpu`), CIA-A buttons (`exec/buttons`), WaitBlit/OwnBlitter keep registers (`graphics/blitregs`), custom gadgets via the MutualExclude hook (`intuition/customhook`), PRT: (`dos/prt`), SuperState/UserState (`exec/superstate`), DisplayAlert waits for a button, ViewAddress' ViewPort list (`intuition/viewaddress`), console unit font (`console/conunit`), input handlers keep the writer's registers (`input/handlerregs`), InitResident of any type (`exec/initresident`); harness: `LXA_PROGDIR_ASSIGNS=0`, WB 3.1 fonts, `LXA_REF_POOL`, bounded invalid-write logging. | v0.11.31 |
 | 239 | BCPL programs: AROS m68k BCPL support ported (`src/rom/bcpl/`, `doc/third-party-code.md`); every command gets a2 = global vector, a5/a6 = BCPL call/return, a1 = BCPL stack (as 3.1, verified with `dos/entryregs`); ROM console segment for 1.3 Run/NewCLI; probe `dos/bcpl`. All six BCPL programs of the Fish corpus exit like on 3.1. Remaining BCPL stubs (coroutines, longjump, requesters) are in the stub inventory. | v0.11.27 |
