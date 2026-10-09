@@ -57,6 +57,17 @@ uint16_t custom_read_beam(uint16_t reg)
     return (uint16_t)(((line & 0xffu) << 8) | hpos);
 }
 
+/* one barrel-shifter step: shift `cur` by `sh` bits, filling in from the
+ * channel's previous word (right when ascending, left when descending) */
+static uint16_t blitter_shift(uint16_t cur, uint16_t prev, uint16_t sh, bool desc)
+{
+    if (sh == 0)
+        return cur;
+    if (desc)
+        return (uint16_t)((cur << sh) | (prev >> (16 - sh)));
+    return (uint16_t)((cur >> sh) | (prev << (16 - sh)));
+}
+
 /* Phase 31: Helper function to get custom chip register name for logging */
 static const char *_custom_reg_name(uint16_t reg) __attribute__((unused));
 static const char *_custom_reg_name(uint16_t reg)
@@ -350,15 +361,19 @@ static void _blitter_execute (uint16_t width_words, uint16_t height)
         return;
     }
 
-    uint32_t apt = g_blitter.apt;
-    uint32_t bpt = g_blitter.bpt;
-    uint32_t cpt = g_blitter.cpt;
-    uint32_t dpt = g_blitter.dpt;
+    /* area mode works on words: bit 0 of the pointers and modulos does not
+     * exist in the hardware registers (HRM).  Cluster2 passes odd byte
+     * addresses for its counter fields.  (Line mode keeps BLTAPTL whole:
+     * it is the error accumulator there.) */
+    uint32_t apt = g_blitter.apt & ~1u;
+    uint32_t bpt = g_blitter.bpt & ~1u;
+    uint32_t cpt = g_blitter.cpt & ~1u;
+    uint32_t dpt = g_blitter.dpt & ~1u;
 
-    int16_t  amod = g_blitter.amod;
-    int16_t  bmod = g_blitter.bmod;
-    int16_t  cmod = g_blitter.cmod;
-    int16_t  dmod = g_blitter.dmod;
+    int16_t  amod = (int16_t)(g_blitter.amod & ~1);
+    int16_t  bmod = (int16_t)(g_blitter.bmod & ~1);
+    int16_t  cmod = (int16_t)(g_blitter.cmod & ~1);
+    int16_t  dmod = (int16_t)(g_blitter.dmod & ~1);
 
     /* Barrel shifter state: holds previous word for cross-word shifting */
     uint16_t a_prev = 0;
@@ -373,10 +388,6 @@ static void _blitter_execute (uint16_t width_words, uint16_t height)
 
     for (uint16_t row = 0; row < height; row++)
     {
-        /* Reset barrel shifter at start of each row */
-        a_prev = 0;
-        b_prev = 0;
-
         /* Fill mode carry state (per-row) */
         bool fill_carry = fill_carry_in;
 
@@ -426,41 +437,24 @@ static void _blitter_execute (uint16_t width_words, uint16_t height)
                 c_data = g_blitter.cdat;
             }
 
-            /* --- Apply barrel shift to channels A and B --- */
+            /* --- First/last word masks, then the barrel shifters ---
+             * (HRM, blitter: the masks apply to the A source data before
+             * the shift; the shifters shift right in ascending and left in
+             * descending mode, the bits shifted in coming from the
+             * previous word of the channel, across rows.  Cluster2 draws
+             * its counters with 8-bit shifted descending blits.) */
 
-            uint16_t a_shifted;
-            if (ash == 0)
-            {
-                a_shifted = a_data;
-            }
-            else
-            {
-                /* Combine previous and current word, shift right by ash bits */
-                uint32_t combined = ((uint32_t)a_prev << 16) | a_data;
-                a_shifted = (combined >> ash) & 0xffff;
-            }
+            if (col == 0)
+                a_data &= g_blitter.afwm;
+            if (col == width_words - 1)
+                a_data &= g_blitter.alwm;
+            /* If only 1 word wide, both masks are applied (handled above) */
+
+            uint16_t a_masked = blitter_shift(a_data, a_prev, ash, desc);
             a_prev = a_data;
 
-            uint16_t b_shifted;
-            if (bsh == 0)
-            {
-                b_shifted = b_data;
-            }
-            else
-            {
-                uint32_t combined = ((uint32_t)b_prev << 16) | b_data;
-                b_shifted = (combined >> bsh) & 0xffff;
-            }
+            uint16_t b_shifted = blitter_shift(b_data, b_prev, bsh, desc);
             b_prev = b_data;
-
-            /* --- Apply first/last word masks to channel A --- */
-
-            uint16_t a_masked = a_shifted;
-            if (col == 0)
-                a_masked &= g_blitter.afwm;
-            if (col == width_words - 1)
-                a_masked &= g_blitter.alwm;
-            /* If only 1 word wide, both masks are applied (handled above) */
 
             /* --- Evaluate minterm logic function --- */
             /* For each bit: index = (A<<2)|(B<<1)|C, result = (minterm>>index)&1 */

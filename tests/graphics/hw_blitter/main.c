@@ -1019,6 +1019,89 @@ int main(void)
         }
     }
 
+    /* ================================================================ */
+    /* Tests 17-19 (Phase 234): what Cluster2's text blits rely on -     */
+    /* odd pointers, shifted blits in descending mode, shifter carry.   */
+    /* The resulting words are printed; the expected output comes from  */
+    /* the AmigaOS 3.1 reference.                                       */
+    /* ================================================================ */
+    {
+        UBYTE *b = (UBYTE *)AllocMem(64, MEMF_CHIP | MEMF_CLEAR);
+        if (!b)
+        {
+            print("FAIL: tests 17-19: could not allocate\n");
+            errors++;
+        }
+        else
+        {
+            OwnBlitter();
+
+            /* 17: OR-fill (D = A | B, A = constant) through an odd pointer */
+            print("Test 17: odd BLTBPT/BLTDPT:");
+            wait_blit();
+            custom->bltcon0 = 0x05FC;       /* SRCB + DEST, minterm A|B */
+            custom->bltcon1 = 0x0000;
+            custom->bltadat = 0xFFFF;
+            custom->bltafwm = 0x00FF;
+            custom->bltalwm = 0xFFFF;
+            custom->bltbpt  = (APTR)(b + 5);
+            custom->bltdpt  = (APTR)(b + 5);
+            custom->bltbmod = 0;
+            custom->bltdmod = 0;
+            custom->bltsize = (1 << 6) | 3;
+            wait_blit();
+            for (i = 0; i < 12; i++) { print(" "); print_hex(b[i]); }
+            print("\n");
+
+            /* 18: A shifted by 8 in descending mode, C constant as mask
+             * (minterm 0x07 and 0x58 as Cluster2 uses them) */
+            for (i = 0; i < 64; i++) b[i] = 0;
+            b[0] = 0x81; b[1] = 0x42;       /* A: 2 words */
+            b[2] = 0x24; b[3] = 0x18;
+            b[8] = 0xF0; b[9] = 0x0F;       /* B */
+            b[10] = 0x33; b[11] = 0xCC;
+            print("Test 18: descending shift 8, minterm 0x07:");
+            wait_blit();
+            custom->bltcon0 = 0x8D07;       /* ASH 8, A+B+D, minterm 0x07 */
+            custom->bltcon1 = 0x0002;       /* descending */
+            custom->bltcdat = 0x00FF;
+            custom->bltafwm = 0xFFFF;
+            custom->bltalwm = 0xFFFF;
+            custom->bltapt  = (APTR)(b + 2);  /* last word of each source */
+            custom->bltbpt  = (APTR)(b + 10);
+            custom->bltdpt  = (APTR)(b + 18);
+            custom->bltamod = 0;
+            custom->bltbmod = 0;
+            custom->bltdmod = 0;
+            custom->bltsize = (1 << 6) | 2;
+            wait_blit();
+            for (i = 16; i < 20; i++) { print(" "); print_hex(b[i]); }
+            print("\n");
+
+            print("Test 19: descending shift 4 masks, minterm 0x58, 2 rows:");
+            for (i = 16; i < 32; i++) b[i] = 0;
+            wait_blit();
+            custom->bltcon0 = 0x4D58;       /* ASH 4, A+B+D, minterm 0x58 */
+            custom->bltcon1 = 0x0002;
+            custom->bltcdat = 0xFF00;
+            custom->bltafwm = 0x0FF0;
+            custom->bltalwm = 0xF00F;
+            custom->bltapt  = (APTR)(b + 2);
+            custom->bltbpt  = (APTR)(b + 10);
+            custom->bltdpt  = (APTR)(b + 22);
+            custom->bltamod = -4;           /* each row reads the same 2 words */
+            custom->bltbmod = -4;
+            custom->bltdmod = 0;
+            custom->bltsize = (2 << 6) | 2;
+            wait_blit();
+            for (i = 16; i < 24; i++) { print(" "); print_hex(b[i]); }
+            print("\n");
+
+            DisownBlitter();
+            FreeMem(b, 64);
+        }
+    }
+
     /* Final result */
     if (errors == 0)
     {

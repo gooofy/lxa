@@ -1,0 +1,14 @@
+# Phase 234 (legacy 162): Cluster2's custom-rendered EXIT toolbar button
+# (no Intuition gadgets, WFLG_RMBTRAP, AGENTS.md 6.12) at screen (607,249),
+# the click of cluster2_gtest.cpp ExitButtonResponds.
+name: cluster2-exit
+app: {manifest: Cluster2}
+steps:
+  - launch
+  - frames: 150
+  - frames: 100
+  - snapshot: startup
+  - click: {xy: [607, 249]}
+  - frames: 100
+  - snapshot: {name: exit, screen: false}   # the editor has quit: no screen of its own is left (lxa opens no Workbench screen by itself)
+  - quit
