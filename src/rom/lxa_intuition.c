@@ -9243,7 +9243,7 @@ struct Screen * _intuition_OpenScreen ( register struct IntuitionBase * Intuitio
     {
         struct DimensionInfo dims;
         ULONG mode_id = g_screen_display_id ? g_screen_display_id - 1
-                      : (ULONG)(newScreen->ViewModes & (HIRES | SUPERHIRES | LACE));
+                      : (ULONG)(newScreen->ViewModes & (HIRES | LACE));
         BOOL have_dims = (requested_width <= 0 || requested_height <= 0) &&
                          GetDisplayInfoData(NULL, (UBYTE *)&dims, sizeof(dims), DTAG_DIMS, mode_id);
 
@@ -9252,7 +9252,8 @@ struct Screen * _intuition_OpenScreen ( register struct IntuitionBase * Intuitio
         else if (have_dims)
             width = (UWORD)(dims.TxtOScan.MaxX - dims.TxtOScan.MinX + 1);
         else
-            width = (newScreen->ViewModes & SUPERHIRES) ? 1280 : (newScreen->ViewModes & HIRES) ? 640 : 320;
+            width = (g_screen_display_id && (newScreen->ViewModes & SUPERHIRES)) ? 1280
+                  : (newScreen->ViewModes & HIRES) ? 640 : 320;
 
         if (requested_height > 0)
             height = (UWORD)requested_height;
@@ -9365,6 +9366,11 @@ struct Screen * _intuition_OpenScreen ( register struct IntuitionBase * Intuitio
          * with ViewModes 0 is a (wide) lores screen
          * (tests/probes/intuition/screens) */
         UWORD adjModes = newScreen->ViewModes;
+        /* a plain NewScreen cannot ask for SUPERHIRES: 3.1 drops the bit
+         * (HIRES|SUPERHIRES is a hires screen, SysInfo opens one;
+         * tests/probes/intuition/screens) */
+        if (!g_screen_display_id)
+            adjModes &= ~SUPERHIRES;
         /* AmigaOS 3.1 screens always have SPRITES set */
         screen->ViewPort.Modes = adjModes | SPRITES;
         /* a screen opened behind the others is hidden */

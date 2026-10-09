@@ -1,0 +1,503 @@
+{
+ "app": "SysInfo",
+ "disabled": null,
+ "lxa_version": "0.11.28",
+ "promoted": "2026-10-09",
+ "reference": "AmigaOS 3.1 (KS 40.70), profile aga",
+ "requires_apps": true,
+ "scenario": "sysinfo-gadgets",
+ "snapshots": {
+  "boards": {
+   "known_tree_diffs": [
+    {
+     "field": "count",
+     "kind": "window",
+     "lxa": 1,
+     "phase": 255,
+     "ref": 2,
+     "where": "screen[0]"
+    },
+    {
+     "field": "height",
+     "kind": "window",
+     "lxa": 256,
+     "phase": 255,
+     "ref": 200,
+     "where": "screen[0]/window[0]"
+    },
+    {
+     "field": "min_height",
+     "kind": "window",
+     "lxa": 256,
+     "phase": 255,
+     "ref": 200,
+     "where": "screen[0]/window[0]"
+    },
+    {
+     "field": "flags",
+     "kind": "window",
+     "lxa": 75776,
+     "phase": 255,
+     "ref": 79872,
+     "where": "screen[0]/window[0]"
+    },
+    {
+     "field": "idcmp",
+     "kind": "window",
+     "lxa": 96,
+     "phase": 255,
+     "ref": 64,
+     "where": "screen[0]/window[0]"
+    },
+    {
+     "field": "detail_pen",
+     "kind": "window",
+     "lxa": 0,
+     "phase": 255,
+     "ref": 1,
+     "where": "screen[0]/window[0]"
+    },
+    {
+     "field": "block_pen",
+     "kind": "window",
+     "lxa": 1,
+     "phase": 255,
+     "ref": 0,
+     "where": "screen[0]/window[0]"
+    },
+    {
+     "field": "count",
+     "kind": "gadget",
+     "lxa": 15,
+     "phase": 255,
+     "ref": 1,
+     "where": "screen[0]/window[0]"
+    },
+    {
+     "field": "extra",
+     "kind": "gadget",
+     "lxa": 8,
+     "phase": 255,
+     "ref": null,
+     "where": "screen[0]/window[0]/gadget[id=8]"
+    },
+    {
+     "field": "extra",
+     "kind": "gadget",
+     "lxa": 9,
+     "phase": 255,
+     "ref": null,
+     "where": "screen[0]/window[0]/gadget[id=9]"
+    },
+    {
+     "field": "extra",
+     "kind": "gadget",
+     "lxa": 10,
+     "phase": 255,
+     "ref": null,
+     "where": "screen[0]/window[0]/gadget[id=10]"
+    },
+    {
+     "field": "extra",
+     "kind": "gadget",
+     "lxa": 12,
+     "phase": 255,
+     "ref": null,
+     "where": "screen[0]/window[0]/gadget[id=12]"
+    },
+    {
+     "field": "extra",
+     "kind": "gadget",
+     "lxa": 15,
+     "phase": 255,
+     "ref": null,
+     "where": "screen[0]/window[0]/gadget[id=15]"
+    },
+    {
+     "field": "extra",
+     "kind": "gadget",
+     "lxa": 13,
+     "phase": 255,
+     "ref": null,
+     "where": "screen[0]/window[0]/gadget[id=13]"
+    },
+    {
+     "field": "extra",
+     "kind": "gadget",
+     "lxa": 16,
+     "phase": 255,
+     "ref": null,
+     "where": "screen[0]/window[0]/gadget[id=16]"
+    },
+    {
+     "field": "extra",
+     "kind": "gadget",
+     "lxa": 14,
+     "phase": 255,
+     "ref": null,
+     "where": "screen[0]/window[0]/gadget[id=14]"
+    },
+    {
+     "field": "extra",
+     "kind": "gadget",
+     "lxa": 17,
+     "phase": 255,
+     "ref": null,
+     "where": "screen[0]/window[0]/gadget[id=17]"
+    },
+    {
+     "field": "extra",
+     "kind": "gadget",
+     "lxa": 1,
+     "phase": 255,
+     "ref": null,
+     "where": "screen[0]/window[0]/gadget[id=1]"
+    },
+    {
+     "field": "extra",
+     "kind": "gadget",
+     "lxa": 7,
+     "phase": 255,
+     "ref": null,
+     "where": "screen[0]/window[0]/gadget[id=7]"
+    },
+    {
+     "field": "extra",
+     "kind": "gadget",
+     "lxa": 6,
+     "phase": 255,
+     "ref": null,
+     "where": "screen[0]/window[0]/gadget[id=6]"
+    },
+    {
+     "field": "extra",
+     "kind": "gadget",
+     "lxa": 4,
+     "phase": 255,
+     "ref": null,
+     "where": "screen[0]/window[0]/gadget[id=4]"
+    },
+    {
+     "field": "extra",
+     "kind": "gadget",
+     "lxa": 2,
+     "phase": 255,
+     "ref": null,
+     "where": "screen[0]/window[0]/gadget[id=2]"
+    },
+    {
+     "field": "extra",
+     "kind": "gadget",
+     "lxa": 3,
+     "phase": 255,
+     "ref": null,
+     "where": "screen[0]/window[0]/gadget[id=3]"
+    },
+    {
+     "field": "missing",
+     "kind": "gadget",
+     "lxa": null,
+     "phase": 255,
+     "ref": 0,
+     "where": "screen[0]/window[0]/gadget[id=0]"
+    },
+    {
+     "field": "missing",
+     "kind": "window",
+     "lxa": null,
+     "phase": 255,
+     "ref": "",
+     "where": "screen[0]/window[1]"
+    }
+   ],
+   "pixel_budget": 56934,
+   "pixel_phase": 255,
+   "stdout_known_diff": null
+  },
+  "libraries": {
+   "known_tree_diffs": [
+    {
+     "field": "flags",
+     "kind": "gadget",
+     "lxa": 2,
+     "phase": 240,
+     "ref": 258,
+     "where": "screen[0]/window[0]/gadget[5 id=13]"
+    },
+    {
+     "field": "flags",
+     "kind": "gadget",
+     "lxa": 2,
+     "phase": 240,
+     "ref": 258,
+     "where": "screen[0]/window[0]/gadget[6 id=16]"
+    },
+    {
+     "field": "flags",
+     "kind": "gadget",
+     "lxa": 258,
+     "phase": 240,
+     "ref": 2,
+     "where": "screen[0]/window[0]/gadget[7 id=14]"
+    }
+   ],
+   "pixel_budget": 7334,
+   "pixel_phase": 255,
+   "stdout_known_diff": null
+  },
+  "memory": {
+   "known_tree_diffs": [
+    {
+     "field": "count",
+     "kind": "window",
+     "lxa": 1,
+     "phase": 255,
+     "ref": 2,
+     "where": "screen[0]"
+    },
+    {
+     "field": "height",
+     "kind": "window",
+     "lxa": 256,
+     "phase": 255,
+     "ref": 200,
+     "where": "screen[0]/window[0]"
+    },
+    {
+     "field": "min_height",
+     "kind": "window",
+     "lxa": 256,
+     "phase": 255,
+     "ref": 200,
+     "where": "screen[0]/window[0]"
+    },
+    {
+     "field": "flags",
+     "kind": "window",
+     "lxa": 75776,
+     "phase": 255,
+     "ref": 79872,
+     "where": "screen[0]/window[0]"
+    },
+    {
+     "field": "idcmp",
+     "kind": "window",
+     "lxa": 96,
+     "phase": 255,
+     "ref": 64,
+     "where": "screen[0]/window[0]"
+    },
+    {
+     "field": "detail_pen",
+     "kind": "window",
+     "lxa": 0,
+     "phase": 255,
+     "ref": 1,
+     "where": "screen[0]/window[0]"
+    },
+    {
+     "field": "block_pen",
+     "kind": "window",
+     "lxa": 1,
+     "phase": 255,
+     "ref": 0,
+     "where": "screen[0]/window[0]"
+    },
+    {
+     "field": "count",
+     "kind": "gadget",
+     "lxa": 15,
+     "phase": 255,
+     "ref": 3,
+     "where": "screen[0]/window[0]"
+    },
+    {
+     "field": "extra",
+     "kind": "gadget",
+     "lxa": 8,
+     "phase": 255,
+     "ref": null,
+     "where": "screen[0]/window[0]/gadget[id=8]"
+    },
+    {
+     "field": "extra",
+     "kind": "gadget",
+     "lxa": 9,
+     "phase": 255,
+     "ref": null,
+     "where": "screen[0]/window[0]/gadget[id=9]"
+    },
+    {
+     "field": "extra",
+     "kind": "gadget",
+     "lxa": 10,
+     "phase": 255,
+     "ref": null,
+     "where": "screen[0]/window[0]/gadget[id=10]"
+    },
+    {
+     "field": "extra",
+     "kind": "gadget",
+     "lxa": 12,
+     "phase": 255,
+     "ref": null,
+     "where": "screen[0]/window[0]/gadget[id=12]"
+    },
+    {
+     "field": "extra",
+     "kind": "gadget",
+     "lxa": 15,
+     "phase": 255,
+     "ref": null,
+     "where": "screen[0]/window[0]/gadget[id=15]"
+    },
+    {
+     "field": "extra",
+     "kind": "gadget",
+     "lxa": 13,
+     "phase": 255,
+     "ref": null,
+     "where": "screen[0]/window[0]/gadget[id=13]"
+    },
+    {
+     "field": "extra",
+     "kind": "gadget",
+     "lxa": 16,
+     "phase": 255,
+     "ref": null,
+     "where": "screen[0]/window[0]/gadget[id=16]"
+    },
+    {
+     "field": "extra",
+     "kind": "gadget",
+     "lxa": 14,
+     "phase": 255,
+     "ref": null,
+     "where": "screen[0]/window[0]/gadget[id=14]"
+    },
+    {
+     "field": "extra",
+     "kind": "gadget",
+     "lxa": 17,
+     "phase": 255,
+     "ref": null,
+     "where": "screen[0]/window[0]/gadget[id=17]"
+    },
+    {
+     "field": "extra",
+     "kind": "gadget",
+     "lxa": 1,
+     "phase": 255,
+     "ref": null,
+     "where": "screen[0]/window[0]/gadget[id=1]"
+    },
+    {
+     "field": "extra",
+     "kind": "gadget",
+     "lxa": 7,
+     "phase": 255,
+     "ref": null,
+     "where": "screen[0]/window[0]/gadget[id=7]"
+    },
+    {
+     "field": "extra",
+     "kind": "gadget",
+     "lxa": 6,
+     "phase": 255,
+     "ref": null,
+     "where": "screen[0]/window[0]/gadget[id=6]"
+    },
+    {
+     "field": "extra",
+     "kind": "gadget",
+     "lxa": 4,
+     "phase": 255,
+     "ref": null,
+     "where": "screen[0]/window[0]/gadget[id=4]"
+    },
+    {
+     "field": "extra",
+     "kind": "gadget",
+     "lxa": 2,
+     "phase": 255,
+     "ref": null,
+     "where": "screen[0]/window[0]/gadget[id=2]"
+    },
+    {
+     "field": "extra",
+     "kind": "gadget",
+     "lxa": 3,
+     "phase": 255,
+     "ref": null,
+     "where": "screen[0]/window[0]/gadget[id=3]"
+    },
+    {
+     "field": "missing",
+     "kind": "gadget",
+     "lxa": null,
+     "phase": 255,
+     "ref": 25,
+     "where": "screen[0]/window[0]/gadget[id=25]"
+    },
+    {
+     "field": "missing",
+     "kind": "gadget",
+     "lxa": null,
+     "phase": 255,
+     "ref": 32,
+     "where": "screen[0]/window[0]/gadget[id=32]"
+    },
+    {
+     "field": "missing",
+     "kind": "gadget",
+     "lxa": null,
+     "phase": 255,
+     "ref": 0,
+     "where": "screen[0]/window[0]/gadget[id=0]"
+    },
+    {
+     "field": "missing",
+     "kind": "window",
+     "lxa": null,
+     "phase": 255,
+     "ref": "",
+     "where": "screen[0]/window[1]"
+    }
+   ],
+   "pixel_budget": 60390,
+   "pixel_phase": 255,
+   "stdout_known_diff": null
+  },
+  "startup": {
+   "known_tree_diffs": [
+    {
+     "field": "flags",
+     "kind": "gadget",
+     "lxa": 2,
+     "phase": 240,
+     "ref": 258,
+     "where": "screen[0]/window[0]/gadget[5 id=13]"
+    },
+    {
+     "field": "flags",
+     "kind": "gadget",
+     "lxa": 2,
+     "phase": 240,
+     "ref": 258,
+     "where": "screen[0]/window[0]/gadget[6 id=16]"
+    },
+    {
+     "field": "flags",
+     "kind": "gadget",
+     "lxa": 258,
+     "phase": 240,
+     "ref": 2,
+     "where": "screen[0]/window[0]/gadget[7 id=14]"
+    }
+   ],
+   "pixel_budget": 6219,
+   "pixel_phase": 255,
+   "stdout_known_diff": null
+  }
+ }
+}

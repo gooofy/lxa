@@ -9,6 +9,7 @@
 
 #include "lxa_internal.h"
 #include "lxa_memory.h"
+#include "lxa_vclock.h"
 
 /*
  * Hardware blitter emulation state.
@@ -33,6 +34,28 @@ static struct {
     uint16_t adat;       /* Channel A data register */
     uint16_t sizv;       /* ECS: vertical size (for BLTSIZH trigger) */
 } g_blitter = {0};
+
+/*
+ * Beam position (Phase 234).  A PAL frame has 313 lines of 227 colour clocks
+ * (HRM); VBlank fires at the frame boundary, so the position is the share of
+ * the current frame's emulated cycles.  Programs busy-wait on it (SysInfo
+ * waits for VHPOSR line byte 1).  VPOSR: LOF set (non-interlaced long
+ * frames), Agnus ID $20 (ECS PAL, as DENISEID reports ECS), V8 in bit 0.
+ */
+#define BEAM_LINES   313u
+#define BEAM_HCLOCKS 227u
+
+uint16_t custom_read_beam(uint16_t reg)
+{
+    uint32_t cpf = vclock_cycles_per_frame();
+    uint64_t in_frame = cpf ? vclock_cycles() % cpf : 0;
+    uint32_t pos = cpf ? (uint32_t)((in_frame * (BEAM_LINES * BEAM_HCLOCKS)) / cpf) : 0;
+    uint32_t line = pos / BEAM_HCLOCKS, hpos = pos % BEAM_HCLOCKS;
+
+    if (reg == CUSTOM_REG_VPOSR)
+        return (uint16_t)(0x8000u | 0x2000u | ((line >> 8) & 1u));
+    return (uint16_t)(((line & 0xffu) << 8) | hpos);
+}
 
 /* Phase 31: Helper function to get custom chip register name for logging */
 static const char *_custom_reg_name(uint16_t reg) __attribute__((unused));

@@ -464,6 +464,9 @@ int lxa_init(const lxa_config_t *config)
     m68k_init();
     m68k_set_cpu_type(M68K_CPU_TYPE_68030);
     m68k_pulse_reset();
+    /* the reset vector is consumed: address 0 holds 0 after boot, as on
+     * AmigaOS 3.1 (tests/probes/exec/lowmem) */
+    m68k_write_memory_32(0, 0);
     g_pending_irq = 0;
 
     /* Set headless mode if requested */

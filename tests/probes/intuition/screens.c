@@ -257,6 +257,35 @@ int main(void)
         show_bar("ExtNewScreen p9 detail 1 block 2", OpenScreen((struct NewScreen *)&ens));
     }
 
+    /* Phase 234: ViewModes combinations (SysInfo opens HIRES|SUPERHIRES) */
+    {
+        static const UWORD vm[] = { HIRES, HIRES | SUPERHIRES, SUPERHIRES, HIRES | SPRITES, HIRES | LACE | SUPERHIRES };
+        int k;
+
+        for (k = 0; k < (int)(sizeof(vm) / sizeof(vm[0])); k++)
+        {
+            struct Screen *s;
+
+            memset(&ns, 0, sizeof(ns));
+            ns.Width = 640; ns.Height = 200; ns.Depth = 2;
+            ns.ViewModes = vm[k];
+            ns.Type = CUSTOMSCREEN;
+            ns.DetailPen = 0; ns.BlockPen = 1;
+            P_SECTION("NewScreen viewmodes");
+            P_HEX("requested", vm[k]);
+            s = OpenScreen(&ns);
+            if (!s)
+            {
+                probe_s("OpenScreen = NULL\n");
+                continue;
+            }
+            P_HEX("vp modes", s->ViewPort.Modes);
+            P_HEX("mode id", GetVPModeID(&s->ViewPort));
+            P_LONG("width", s->Width);
+            CloseScreen(s);
+        }
+    }
+
     CloseLibrary(DiskfontBase);
     CloseLibrary(GfxBase);
     CloseLibrary(IntuitionBase);

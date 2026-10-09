@@ -268,3 +268,28 @@ screen box=0,0,640x200 flags=0x021f title="Pens" deftitle="Pens"
  sg ext more=0x00000002
  dri version=2 numpens=12 flags=0x00000001 depth=2 resx=22 resy=44 font=8 pens=1,2,2,1,2,3,1,0,3,1,2,2
  bar fill=2 line=2 below=0 titlepens 1 2
+-- NewScreen viewmodes
+requested = 0x00008000
+vp modes = 0x0000c000
+mode id = 0x00008000
+width = 640
+-- NewScreen viewmodes
+requested = 0x00008020
+vp modes = 0x0000c000
+mode id = 0x00008000
+width = 640
+-- NewScreen viewmodes
+requested = 0x00000020
+vp modes = 0x00004000
+mode id = 0x00000000
+width = 640
+-- NewScreen viewmodes
+requested = 0x0000c000
+vp modes = 0x0000c000
+mode id = 0x00008000
+width = 640
+-- NewScreen viewmodes
+requested = 0x00008024
+vp modes = 0x0000c004
+mode id = 0x00008004
+width = 640
