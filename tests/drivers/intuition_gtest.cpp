@@ -82,6 +82,27 @@ protected:
             // screen before we can check the pixels).
             lxa_flush_display();
             EXPECT_GT(lxa_get_content_pixels(), 0) << "Expected some rendered content";
+        } else if (strcmp(name, "DisplayAlert") == 0) {
+            /* DisplayAlert() blocks until a mouse button answers it */
+            static const struct { const char *ready; int button; } alerts[] = {
+                { "READY: alert 1", LXA_MOUSE_LEFT },
+                { "READY: alert 2", LXA_MOUSE_RIGHT },
+                { "READY: alert 3", LXA_MOUSE_LEFT },
+            };
+            char buffer[16384];
+            for (const auto &a : alerts) {
+                for (int i = 0; i < 2000; i++) {
+                    lxa_run_cycles(10000);
+                    lxa_get_output(buffer, sizeof(buffer));
+                    if (strstr(buffer, a.ready)) break;
+                }
+                ASSERT_NE(strstr(buffer, a.ready), nullptr) << "no " << a.ready;
+                RunCyclesWithVBlank(5, 50000);
+                lxa_inject_mouse(100, 50, a.button, LXA_EVENT_MOUSEBUTTON);
+                RunCyclesWithVBlank(5, 50000);
+                lxa_inject_mouse(100, 50, 0, LXA_EVENT_MOUSEBUTTON);
+                RunCyclesWithVBlank(5, 50000);
+            }
         } else if (strcmp(name, "IDCMPDeltaMove") == 0) {
             ASSERT_TRUE(WaitForWindows(1, 5000));
             ASSERT_TRUE(GetWindowInfo(0, &window_info));

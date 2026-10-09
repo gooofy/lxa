@@ -245,6 +245,10 @@ static VOID _intuition_clear_window_runtime_state(struct Window *window);
 static VOID _intuition_clear_screen_runtime_state(struct IntuitionBase *IntuitionBase,
                                                   struct Screen *screen);
 static volatile BOOL g_processing_events;
+/* DisplayAlert() waits for a mouse button (Phase 237): set while an alert
+ * is up, the button (SELECTDOWN/MENUDOWN) that answered it */
+static volatile BOOL g_alert_waiting;
+static volatile UWORD g_alert_button;
 static BOOL g_screen_from_tags;     /* OpenScreen() called by OpenScreenTagList() */
 static ULONG g_screen_display_id;   /* OpenScreenTagList(): SA_DisplayID + 1 (0: none) */
 static BYTE g_screen_sysfont;       /* OpenScreenTagList(): SA_SysFont (-1: none) */
@@ -5194,28 +5198,40 @@ BOOL _intuition_DisplayAlert ( register struct IntuitionBase * IntuitionBase __a
                                                         register UWORD height __asm("d1"))
 {
     /*
-     * DisplayAlert() shows a hardware/software alert (Guru Meditation).
-     * We log the alert and return TRUE (user pressed left mouse = continue).
-     * The string format is: y_position, string_chars, continuation_byte...
+     * DisplayAlert() shows an alert and waits until the user presses a
+     * mouse button: left = TRUE (continue), right = FALSE.  A dead-end
+     * alert returns FALSE (AmigaOS reboots).  AmigaOS 3.1 blocks until the
+     * click (Fish VMK on the reference); lxa used to answer "continue" at
+     * once, which made VMK and DirWork reboot through Supervisor().
+     * The string is a list of (x.w, y.b, text, continuation.b) entries.
      */
-    DPRINTF (LOG_ERROR, "_intuition: DisplayAlert() alertNumber=0x%08lx string=0x%08lx height=%u\n",
-             alertNumber, (ULONG)string, (unsigned)height);
-    
-    /* Parse the alert string if possible */
-    if (string) {
-        /* Skip y position byte, print the text */
-        const char *p = (const char *)string;
-        if (*p) {
-            p++;  /* Skip y position */
-            DPRINTF (LOG_ERROR, "_intuition: DisplayAlert() message: %s\n", p);
+    LXA_UNIMPLEMENTED("intuition", "DisplayAlert", "partial: the alert box is not drawn (logged), waits for a mouse button");
+    LPRINTF (LOG_WARNING, "_intuition: DisplayAlert() alertNumber=0x%08lx height=%u\n",
+             alertNumber, (unsigned)height);
+    if (string)
+    {
+        const UBYTE *p = (const UBYTE *)string;
+        for (;;)
+        {
+            p += 3;                         /* x (WORD), y (BYTE) */
+            LPRINTF (LOG_WARNING, "_intuition: DisplayAlert(): %s\n", (const char *)p);
+            while (*p)
+                p++;
+            p++;
+            if (!*p++)                      /* continuation byte */
+                break;
         }
     }
-    
+
+    g_alert_button = 0;
+    g_alert_waiting = TRUE;
+    while (!g_alert_button)
+        WaitTOF();
+    g_alert_waiting = FALSE;
+
     if (alertNumber & DEADEND_ALERT)
         return FALSE;
-
-    /* Return TRUE = left mouse button (continue), FALSE = right mouse (reboot) */
-    return TRUE;
+    return g_alert_button == SELECTDOWN;
 }
 
 VOID _intuition_DisplayBeep ( register struct IntuitionBase * IntuitionBase __asm("a6"),
@@ -7962,6 +7978,16 @@ VOID _intuition_ProcessInputEvents(struct Screen *hint_screen)
         mouse_pos = emucall0(EMU_CALL_INT_GET_MOUSE_POS);
         mouseX = (WORD)(mouse_pos >> 16);
         mouseY = (WORD)(mouse_pos & 0xFFFF);
+
+        /* an alert is up (DisplayAlert): mouse buttons answer it and
+         * nothing reaches the screens */
+        if (g_alert_waiting && event_type == 1)
+        {
+            UWORD code = (UWORD)(emucall0(EMU_CALL_INT_GET_MOUSE_BTN) & 0xFF);
+            if (code == SELECTDOWN || code == MENUDOWN)
+                g_alert_button = code;
+            continue;
+        }
 
         DPRINTF(LOG_DEBUG, "_intuition: ProcessInputEvents: event_type=%ld mouse=(%d,%d)\n",
                 event_type, (int)mouseX, (int)mouseY);

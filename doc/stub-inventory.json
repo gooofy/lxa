@@ -921,6 +921,14 @@
  },
  {
   "lib": "intuition",
+  "function": "DisplayAlert",
+  "kind": "partial",
+  "detail": "partial: the alert box is not drawn (logged), waits for a mouse button",
+  "file": "src/rom/lxa_intuition.c",
+  "symbol": "_intuition_DisplayAlert"
+ },
+ {
+  "lib": "intuition",
   "function": "DisplayBeep",
   "kind": "stub",
   "detail": "stub: no screen flash or bell (Phase 256)",
