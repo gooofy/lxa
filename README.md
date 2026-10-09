@@ -231,6 +231,8 @@ Built-in C: commands with full AmigaDOS template support:
 
 ## Current Status
 
+**Version 0.11.42** - Corpus residue (Phase 244): IntuiTextLength() and PrintIText() use the IntuiText's own font (FinalWriter's dialog now has 3.1's geometry), system requesters opened before the Workbench measure their text and visit the Workbench screen (ACE's AIDE alert). New probes for requester fonts, proportional text metrics and missing fonts.
+
 **Version 0.11.41** - Corpus residue (Phase 244): ADPro, MaxonBASIC, ProWrite and ReSource are tree-equal to AmigaOS 3.1 - GadTools labels with GT_Underscore always carry the underline text, windows opened by tags take their screen's pens, and "input.device" and "ramlib" exist as system tasks (each verified with a probe); MaxonBASIC and ProWrite now run with the Workbench 3.1 fonts as on the reference.
 
 **Version 0.11.40** - Corpus residue (Phase 244): OpenWindow widens the borders around an application's border gadgets and marks them GACT_BORDERSNIFF as AmigaOS 3.1 does (SIGMAth, BECKERtext II), and GadTools keeps menus on the screen - items move left at the right edge, long menus continue in a second column (ADPro, MaxonBASIC, Scout). Both verified with new reference probes.

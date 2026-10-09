@@ -1,0 +1,55 @@
+-- helvetica.font 11
+ysize 11 xsize 6 flags 0x62 style 0x00 lo 32 hi 255 space kern
+"OK" len 15 extent 15 0,-8,14,2
+"Abbruch" len 39 extent 39 0,-8,38,2
+"8" len 6 extent 6 0,-8,5,2
+"Workbench verwenden" len 106 extent 106 0,-8,105,2
+"Neue Anzeige oeffnen" len 101 extent 101 0,-8,100,2
+"iiii" len 8 extent 8 0,-8,7,2
+"WWWW" len 36 extent 36 0,-8,35,2
+" " len 3 extent 3 0,-8,2,2
+"Wie Workbench" len 71 extent 71 0,-8,70,2
+-- helvetica.font 13
+ysize 13 xsize 7 flags 0x62 style 0x00 lo 32 hi 255 space kern
+"OK" len 18 extent 18 0,-9,17,3
+"Abbruch" len 48 extent 48 0,-9,47,3
+"8" len 7 extent 7 0,-9,6,3
+"Workbench verwenden" len 129 extent 129 0,-9,128,3
+"Neue Anzeige oeffnen" len 125 extent 125 0,-9,124,3
+"iiii" len 12 extent 12 0,-9,11,3
+"WWWW" len 44 extent 44 0,-9,43,3
+" " len 4 extent 4 0,-9,3,3
+"Wie Workbench" len 88 extent 88 0,-9,87,3
+-- times.font 11
+ysize 11 xsize 5 flags 0x62 style 0x00 lo 32 hi 255 space kern
+"OK" len 14 extent 14 0,-7,13,3
+"Abbruch" len 36 extent 36 0,-7,35,3
+"8" len 5 extent 5 0,-7,4,3
+"Workbench verwenden" len 93 extent 93 -1,-7,92,3
+"Neue Anzeige oeffnen" len 90 extent 90 0,-7,89,3
+"iiii" len 12 extent 12 0,-7,11,3
+"WWWW" len 40 extent 40 -1,-7,39,3
+" " len 2 extent 2 0,-7,1,3
+"Wie Workbench" len 66 extent 66 -1,-7,65,3
+-- courier.font 13
+ysize 13 xsize 7 flags 0x42 style 0x00 lo 32 hi 255 space kern
+"OK" len 14 extent 14 0,-9,13,3
+"Abbruch" len 49 extent 49 0,-9,48,3
+"8" len 7 extent 7 0,-9,6,3
+"Workbench verwenden" len 133 extent 133 0,-9,132,3
+"Neue Anzeige oeffnen" len 140 extent 140 0,-9,139,3
+"iiii" len 28 extent 28 0,-9,27,3
+"WWWW" len 28 extent 28 0,-9,27,3
+" " len 7 extent 7 0,-9,6,3
+"Wie Workbench" len 91 extent 91 0,-9,90,3
+-- garnet.font 9
+ysize 9 xsize 10 flags 0x62 style 0x00 lo 32 hi 255 space kern
+"OK" len 29 extent 29 0,-7,28,1
+"Abbruch" len 72 extent 72 0,-7,71,1
+"8" len 9 extent 9 0,-7,8,1
+"Workbench verwenden" len 195 extent 195 0,-7,194,1
+"Neue Anzeige oeffnen" len 190 extent 190 0,-7,189,1
+"iiii" len 24 extent 24 0,-7,23,1
+"WWWW" len 80 extent 80 0,-7,79,1
+" " len 8 extent 8 0,-7,7,1
+"Wie Workbench" len 138 extent 138 0,-7,137,1

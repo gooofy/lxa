@@ -11149,8 +11149,6 @@ VOID _intuition_PrintIText ( register struct IntuitionBase * IntuitionBase __asm
                                                         register WORD left __asm("d0"),
                                                         register WORD top __asm("d1"))
 {
-    LXA_UNIMPLEMENTED("intuition", "PrintIText", "partial: ignores IntuiText ITextFont, uses RastPort font (Phase 256)");
-
     DPRINTF (LOG_DEBUG, "_intuition: PrintIText() rp=0x%08lx iText=0x%08lx at %d,%d\n",
              (ULONG)rp, (ULONG)iText, (int)left, (int)top);
     
@@ -11165,6 +11163,13 @@ VOID _intuition_PrintIText ( register struct IntuitionBase * IntuitionBase __asm
             BYTE oldAPen = rp->FgPen;
             BYTE oldBPen = rp->BgPen;
             BYTE oldDrMd = rp->DrawMode;
+            /* the text's own font for this text only (AmigaOS 3.1, probe
+             * intuition/itextfont: the RastPort keeps its font) */
+            struct TextFont *oldFont = rp->Font;
+            struct TextFont *itFont = iText->ITextFont ? OpenFont(iText->ITextFont) : NULL;
+
+            if (itFont)
+                SetFont(rp, itFont);
             
             /* Set colors and drawmode from IntuiText */
             SetAPen(rp, iText->FrontPen);
@@ -11178,8 +11183,6 @@ VOID _intuition_PrintIText ( register struct IntuitionBase * IntuitionBase __asm
             DPRINTF (LOG_DEBUG, "_intuition: PrintIText() text='%s' leftEdge=%d topEdge=%d -> x=%d y=%d\n",
                      (const char *)iText->IText, (int)iText->LeftEdge, (int)iText->TopEdge, (int)x, (int)y);
             
-            /* If a font is specified, try to use it */
-            /* For now, just use the rastport's current font */
             
             /* Move to position and render text.
              * TopEdge is the top of the character cell (per RKRM),
@@ -11204,6 +11207,12 @@ VOID _intuition_PrintIText ( register struct IntuitionBase * IntuitionBase __asm
             SetAPen(rp, oldAPen);
             SetBPen(rp, oldBPen);
             SetDrMd(rp, oldDrMd);
+            if (itFont)
+            {
+                if (oldFont)
+                    SetFont(rp, oldFont);
+                CloseFont(itFont);
+            }
         }
         
         iText = iText->NextText;
@@ -11886,30 +11895,31 @@ struct Preferences  * _intuition_SetPrefs ( register struct IntuitionBase * Intu
 LONG _intuition_IntuiTextLength ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register const struct IntuiText * iText __asm("a0"))
 {
-    LXA_UNIMPLEMENTED("intuition", "IntuiTextLength", "partial: assumes 8 pixel Topaz width, ignores ITextFont (Phase 256)");
-
     /*
-     * IntuiTextLength() returns the pixel width of an IntuiText string.
-     * This is used for layout calculations before rendering.
+     * The width of the text in its own font (ITextFont, opened from the
+     * fonts in memory, best match by size), else in the default font
+     * (AmigaOS 3.1, probe intuition/itextfont; FinalWriter's buttons).
      */
+    struct RastPort rp;
+    struct TextFont *f = NULL;
+    LONG width;
+    UWORD len = 0;
+
     DPRINTF (LOG_DEBUG, "_intuition: IntuiTextLength() iText=0x%08lx\n", (ULONG)iText);
-    
-    if (!iText || !iText->IText) {
+
+    if (!iText || !iText->IText)
         return 0;
-    }
-    
-    /* Count string length */
-    const char *s = (const char *)iText->IText;
-    int len = 0;
-    while (s[len]) len++;
-    
-    /* Default to 8 pixels per char (Topaz 8) - ITextFont is a TextAttr, not TextFont */
-    UWORD char_width = 8;
-    
-    /* Could look up font from TextAttr if needed, but for now use default */
-    (void)iText->ITextFont;  /* Unused - would need to open font to get metrics */
-    
-    return (LONG)(len * char_width);
+    while (iText->IText[len])
+        len++;
+    InitRastPort(&rp);
+    if (iText->ITextFont)
+        f = OpenFont(iText->ITextFont);
+    if (f)
+        SetFont(&rp, f);
+    width = TextLength(&rp, iText->IText, len);
+    if (f)
+        CloseFont(f);
+    return width;
 }
 
 BOOL _intuition_WBenchToBack ( register struct IntuitionBase * IntuitionBase __asm("a6"))
@@ -12265,7 +12275,13 @@ struct Window * _intuition_BuildSysRequest ( register struct IntuitionBase * Int
     {
         struct Screen *scr = (window && window->WScreen) ? window->WScreen
                                                          : _intuition_find_workbench_screen(IntuitionBase);
-        struct RastPort *srp = scr ? &scr->RastPort : NULL;
+        struct RastPort *srp;
+
+        /* the requester opens the Workbench when it is not open yet (ACE's
+         * AIDE alert is its first window): measure on it, not on nothing */
+        if (!scr && _intuition_OpenWorkBench(IntuitionBase))
+            scr = _intuition_find_workbench_screen(IntuitionBase);
+        srp = scr ? &scr->RastPort : NULL;
         WORD fh = (srp && srp->TxHeight) ? (WORD)srp->TxHeight : 8;
         WORD ew = 0, eh = 0, ml = 0x7fff, mt = 0x7fff;
 
@@ -14671,6 +14687,10 @@ struct Window * _intuition_BuildEasyRequestArgs ( register struct IntuitionBase 
         FreeMem(gad_buf, gad_len + 1);
         return (struct Window *)1; /* 1 = could not open window */
     }
+    /* without a reference window the requester visits the Workbench
+     * (AmigaOS 3.1, probe intuition/reqfont; ACE's AIDE alert) */
+    if (!window && (scr->Flags & SCREENTYPE) == WBENCHSCREEN)
+        reqWindow->Flags |= WFLG_VISITOR;
 
     /* Store cleanup data in UserData */
     reqWindow->UserData = (BYTE *)erd;
