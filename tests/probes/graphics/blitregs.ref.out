@@ -1,0 +1,5 @@
+-- registers after the call
+WaitBlit d0=kept d1=kept a0=kept a1=kept
+OwnBlitter d0=kept d1=kept a0=kept a1=kept
+WaitBlit (owned) d0=kept d1=kept a0=kept a1=kept
+DisownBlitter d0=kept d1=kept a0=kept a1=kept

@@ -4213,7 +4213,7 @@ static VOID _graphics_LoadView ( register struct GfxBase * GfxBase __asm("a6"),
     }
 }
 
-static VOID _graphics_WaitBlit ( register struct GfxBase * GfxBase __asm("a6"))
+static __attribute__((used)) VOID _graphics_WaitBlit ( register struct GfxBase * GfxBase __asm("a6"))
 {
     DPRINTF(LOG_DEBUG, "_graphics: WaitBlit()\n");
 
@@ -6804,7 +6804,7 @@ static VOID _graphics_CopySBitMap ( register struct GfxBase * GfxBase __asm("a6"
     gfx_sync_superbitmap(GfxBase, layer, FALSE);
 }
 
-static VOID _graphics_OwnBlitter ( register struct GfxBase * GfxBase __asm("a6"))
+static __attribute__((used)) VOID _graphics_OwnBlitter ( register struct GfxBase * GfxBase __asm("a6"))
 {
     struct Task *me;
     struct BlitWaitQNode waiter;
@@ -6851,7 +6851,7 @@ static VOID _graphics_OwnBlitter ( register struct GfxBase * GfxBase __asm("a6")
     }
 }
 
-static VOID _graphics_DisownBlitter ( register struct GfxBase * GfxBase __asm("a6"))
+static __attribute__((used)) VOID _graphics_DisownBlitter ( register struct GfxBase * GfxBase __asm("a6"))
 {
     struct Task *me;
 
@@ -6888,6 +6888,35 @@ static VOID _graphics_DisownBlitter ( register struct GfxBase * GfxBase __asm("a
         graphics_signal_next_blit_waiter_locked(GfxBase);
     Enable();
 }
+
+/*
+ * AmigaOS 3.1 preserves d0/d1/a0/a1 across WaitBlit(), OwnBlitter() and
+ * DisownBlitter() (tests/probes/graphics/blitregs.c).  AMOS keeps a0 across
+ * WaitBlit() in its screen-clear loop (Fish Planetarium, WhereK) - the C
+ * implementations clobber the scratch registers.
+ */
+extern void _graphics_WaitBlit_regs(void);
+extern void _graphics_OwnBlitter_regs(void);
+extern void _graphics_DisownBlitter_regs(void);
+asm(
+"        .text                                       \n"
+"        .even                                       \n"
+"__graphics_WaitBlit_regs:                           \n"
+"        movem.l d0-d1/a0-a1,-(sp)                   \n"
+"        jsr     __graphics_WaitBlit                 \n"
+"        movem.l (sp)+,d0-d1/a0-a1                   \n"
+"        rts                                         \n"
+"__graphics_OwnBlitter_regs:                         \n"
+"        movem.l d0-d1/a0-a1,-(sp)                   \n"
+"        jsr     __graphics_OwnBlitter               \n"
+"        movem.l (sp)+,d0-d1/a0-a1                   \n"
+"        rts                                         \n"
+"__graphics_DisownBlitter_regs:                      \n"
+"        movem.l d0-d1/a0-a1,-(sp)                   \n"
+"        jsr     __graphics_DisownBlitter            \n"
+"        movem.l (sp)+,d0-d1/a0-a1                   \n"
+"        rts                                         \n"
+);
 
 static struct TmpRas * _graphics_InitTmpRas ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct TmpRas * tmpRas __asm("a0"),
@@ -11992,7 +12021,7 @@ APTR __g_lxa_graphics_FuncTab [] =
     _graphics_MrgCop, // offset = -210
     _graphics_MakeVPort, // offset = -216
     _graphics_LoadView, // offset = -222
-    _graphics_WaitBlit, // offset = -228
+    _graphics_WaitBlit_regs, // offset = -228
     _graphics_SetRast, // offset = -234
     _graphics_Move, // offset = -240
     _graphics_Draw, // offset = -246
@@ -12030,8 +12059,8 @@ APTR __g_lxa_graphics_FuncTab [] =
     _graphics_UnlockLayerRom, // offset = -438
     _graphics_SyncSBitMap, // offset = -444
     _graphics_CopySBitMap, // offset = -450
-    _graphics_OwnBlitter, // offset = -456
-    _graphics_DisownBlitter, // offset = -462
+    _graphics_OwnBlitter_regs, // offset = -456
+    _graphics_DisownBlitter_regs, // offset = -462
     _graphics_InitTmpRas, // offset = -468
     _graphics_AskFont, // offset = -474
     _graphics_AddFont, // offset = -480
