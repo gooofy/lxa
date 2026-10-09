@@ -8061,16 +8061,10 @@ VOID _intuition_ProcessInputEvents(struct Screen *hint_screen)
         DPRINTF(LOG_DEBUG, "_intuition: ProcessInputEvents: got event type=%ld screen=0x%08lx\n",
                 event_type, (ULONG)screen);
         
-        /* Update IntuitionBase with current mouse position and timestamp */
-        if (IntuitionBase)
-        {
-            struct timeval tv;
-            emucall1(EMU_CALL_GETSYSTIME, (ULONG)&tv);
-            IntuitionBase->MouseX = mouseX;
-            IntuitionBase->MouseY = mouseY;
-            IntuitionBase->Seconds = tv.tv_secs;
-            IntuitionBase->Micros = tv.tv_micro;
-        }
+        /* Update IntuitionBase and every screen's MouseX/MouseY with the
+         * current mouse position, and the timestamp (Cluster2 polls
+         * Screen->MouseX/Y to find the toolbar button it is released on) */
+        _intuition_update_input_snapshot(IntuitionBase, mouseX, mouseY);
         
         /* Find the window at the mouse position */
         window = _find_window_at_pos(screen, mouseX, mouseY);
