@@ -10,14 +10,6 @@
   "startup": {
    "ignore_regions": [
     {
-     "h": 140,
-     "phase": 238,
-     "w": 80,
-     "why": "lxa lists a host directory there (file sizes and free space change with every build); the reference shows the pane empty ('Directory not available' finding)",
-     "x": 560,
-     "y": 28
-    },
-    {
      "h": 10,
      "phase": 255,
      "w": 640,
@@ -27,9 +19,9 @@
     },
     {
      "h": 130,
-     "phase": 238,
-     "w": 320,
-     "why": "right lister: SYS: of the lxa backend is not laid out like the reference's system disk (file list and scroller knob)",
+     "phase": 264,
+     "w": 16,
+     "why": "right lister scroller knob: the reference's system partition also holds 8 drawer icons (.info files), lxa's SYS: root has none",
      "x": 320,
      "y": 42
     },
