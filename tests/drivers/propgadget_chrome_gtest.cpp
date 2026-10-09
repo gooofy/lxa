@@ -1,9 +1,11 @@
 /**
  * propgadget_chrome_gtest.cpp - Phase 152 prop-gadget track-frame regression
  *
- * Verifies that PROPGADGETs render with a recessed 3D track frame
- * (shadow pen 1 on top/left, shine pen 2 on bottom/right) on the outer
- * perimeter, instead of just rendering the knob alone.
+ * Verifies that PROPNEWLOOK PROPGADGETs render a track frame on the outer
+ * perimeter, instead of just rendering the knob alone.  AmigaOS 3.1 draws
+ * that frame in pen 1 on all four sides (Phase 234,
+ * tests/probes/intuition/propgad.ref.out); the original Phase 152 guess of
+ * a recessed shine/shadow frame was wrong.
  *
  * Sample: SYS:PropGad opens a window with one vertical (FREEVERT) and
  * one horizontal (FREEHORIZ) PROPGADGET, both with PROPNEWLOOK and
@@ -17,8 +19,7 @@
  *     both)
  *   - Honour PROPBORDERLESS (covered indirectly: the sample does NOT set
  *     it, so we expect the frame to appear)
- *   - The frame edges must be recessed: top/left = SHADOWPEN (pen 1),
- *     bottom/right = SHINEPEN (pen 2)
+ *   - All four frame edges are pen 1 (reference-verified, Phase 234)
  */
 
 #include "lxa_test.h"
@@ -106,29 +107,29 @@ TEST_F(PropGadgetChromeTest, VerticalPropLeftEdgeIsShadow) {
         << "shadow_count=" << shadow_pixels << " expected≥" << (g.height - 1);
 }
 
-TEST_F(PropGadgetChromeTest, VerticalPropBottomEdgeIsShine) {
+TEST_F(PropGadgetChromeTest, VerticalPropBottomEdgeIsShadow) {
     lxa_gadget_info_t g;
     ASSERT_TRUE(FindPropGadget(1, &g));
 
     int x0 = g.left;
     int x1 = g.left + g.width - 1;
     int y  = g.top + g.height - 1;
-    int shine_pixels = CountPenAlongRow(x0, x1, y, kPenShine);
+    int shine_pixels = CountPenAlongRow(x0, x1, y, kPenShadow);
     EXPECT_GE(shine_pixels, g.width - 1)
-        << "Vertical prop bottom edge should be shine pen (track frame). "
+        << "Vertical prop bottom edge should be shadow pen (track frame). "
         << "shine_count=" << shine_pixels << " expected≥" << (g.width - 1);
 }
 
-TEST_F(PropGadgetChromeTest, VerticalPropRightEdgeIsShine) {
+TEST_F(PropGadgetChromeTest, VerticalPropRightEdgeIsShadow) {
     lxa_gadget_info_t g;
     ASSERT_TRUE(FindPropGadget(1, &g));
 
     int x  = g.left + g.width - 1;
     int y0 = g.top;
     int y1 = g.top + g.height - 1;
-    int shine_pixels = CountPenAlongCol(x, y0, y1, kPenShine);
+    int shine_pixels = CountPenAlongCol(x, y0, y1, kPenShadow);
     EXPECT_GE(shine_pixels, g.height - 1)
-        << "Vertical prop right edge should be shine pen (track frame). "
+        << "Vertical prop right edge should be shadow pen (track frame). "
         << "shine_count=" << shine_pixels << " expected≥" << (g.height - 1);
 }
 
@@ -147,16 +148,16 @@ TEST_F(PropGadgetChromeTest, HorizontalPropTopEdgeIsShadow) {
         << "shadow_count=" << shadow_pixels;
 }
 
-TEST_F(PropGadgetChromeTest, HorizontalPropBottomEdgeIsShine) {
+TEST_F(PropGadgetChromeTest, HorizontalPropBottomEdgeIsShadow) {
     lxa_gadget_info_t g;
     ASSERT_TRUE(FindPropGadget(2, &g));
 
     int x0 = g.left;
     int x1 = g.left + g.width - 1;
     int y  = g.top + g.height - 1;
-    int shine_pixels = CountPenAlongRow(x0, x1, y, kPenShine);
+    int shine_pixels = CountPenAlongRow(x0, x1, y, kPenShadow);
     EXPECT_GE(shine_pixels, g.width - 1)
-        << "Horizontal prop bottom edge should be shine pen. "
+        << "Horizontal prop bottom edge should be shadow pen. "
         << "shine_count=" << shine_pixels;
 }
 
