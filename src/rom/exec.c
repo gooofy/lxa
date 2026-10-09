@@ -5792,7 +5792,11 @@ void _bootstrap(void)
         lxa_dos_set_next_command_stack(stacksize);
         if (((struct Process *)me)->pr_CLI) {
             struct CommandLineInterface *mycli = (struct CommandLineInterface *)BADDR(((struct Process *)me)->pr_CLI);
-            if (mycli->cli_DefaultStack && mycli->cli_DefaultStack * 4 < stacksize && !requested)
+            /* a requested stack (scenario `stack:`) is what the STACK
+             * command would have set: the CLI's default stack too */
+            if (requested)
+                mycli->cli_DefaultStack = (requested + 3) / 4;
+            else if (mycli->cli_DefaultStack && mycli->cli_DefaultStack * 4 < stacksize)
                 stacksize = mycli->cli_DefaultStack * 4;
         }
         /* RunCommand() also puts the arguments into Input()'s buffer and
