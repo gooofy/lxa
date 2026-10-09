@@ -1,9 +1,3 @@
-{"text":"Amiga Workbench  2,011,960 graphics mem  24,417,232 other me","x":5,"y":7}
-{"text":"Copyright © 1985-1993 Commodore-Amiga, Inc. All Rights Reser","x":5,"y":7}
-{"text":"Ram Disk","x":5,"y":34}
-{"text":"LXAREF","x":13,"y":69}
-{"text":"APPS","x":21,"y":104}
-{"text":"System","x":13,"y":139}
 {"text":"     Version 4.4  Classic Amiga System Information Program","x":127,"y":9}
 {"text":"    Contact information SysInfo@d0.se http://sysinfo.d0.se","x":127,"y":19}
 {"text":"   SYSTEM SOFTWARE INSTALLED    ","x":32,"y":35}
@@ -150,10 +144,10 @@
 {"text":"30","x":274,"y":72}
 {"text":"$07800020","x":274,"y":82}
 {"text":"$08000000","x":274,"y":92}
-{"text":"7517856","x":274,"y":112}
+{"text":"7517832","x":274,"y":112}
 {"text":" Bytes","x":330,"y":112}
 {"text":"16777184","x":274,"y":122}
 {"text":" Bytes","x":338,"y":122}
 {"text":"expansion memory","x":274,"y":142}
-{"text":"$07802778","x":274,"y":102}
-{"text":"147","x":274,"y":132}
+{"text":"$078026C8","x":274,"y":102}
+{"text":"144","x":274,"y":132}
