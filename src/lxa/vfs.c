@@ -890,10 +890,13 @@ static int update_directory_files(const char *src_dir, const char *dst_dir)
                     updated_count++;
                 }
             }
+        } else if (stat(src_file, &st) == 0 && S_ISDIR(st.st_mode) && strstr(src_dir, "/Libs")) {
+            /* LIBS: subdirectories such as Libs/gadgets (the gadget classes) */
+            updated_count += update_directory_files(src_file, dst_file);
         }
     }
     closedir(dir);
-    
+
     return updated_count;
 }
 

@@ -1,0 +1,27 @@
+colorwheel.gadget = non-NULL
+gradientslider.gadget = non-NULL
+tapedeck.gadget = non-NULL
+window = non-NULL
+wheel = non-NULL
+slider = non-NULL
+deck = non-NULL
+-- added and refreshed
+wheel Hue = 0x6aaa6aaa (GetAttr 1)
+wheel Brightness = 0xc000c000 (GetAttr 1)
+slider CurVal = 0x00003fff (GetAttr 1)
+deck CurrentFrame = 0x0000000a (GetAttr 1)
+-- SetGadgetAttrs while displayed
+wheel Hue = 0x20002000 (GetAttr 1)
+wheel Saturation = 0x80008000 (GetAttr 1)
+wheel Brightness = 0xdfffdfff (GetAttr 1)
+wheel Red = 0xdfffdfff (GetAttr 1)
+slider CurVal = 0x00002000 (GetAttr 1)
+deck Mode = 0x00000001 (GetAttr 1)
+deck CurrentFrame = 0x00000014 (GetAttr 1)
+-- disabled
+wheel Flags = 0x00008100
+slider Flags = 0x00008100
+deck Flags = 0x0000c100
+-- removed
+RemoveGList = 2
+-- done

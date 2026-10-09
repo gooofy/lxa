@@ -4166,6 +4166,19 @@ struct Library * _exec_OpenLibrary ( register struct ExecBase *SysBase __asm("a6
 
     struct Library *lib = (struct Library *) FindName (&SysBase->LibList, libName);
 
+    if (!lib)
+    {
+        /* a library loaded as "gadgets/colorwheel.gadget" is called
+         * "colorwheel.gadget": AmigaOS 3.1 finds it again by the name's
+         * file part (tests/probes/colorwheel/class.c) */
+        CONST_STRPTR part = libName, p;
+        for (p = libName; *p; p++)
+            if (*p == '/' || *p == ':')
+                part = p + 1;
+        if (part != libName && *part)
+            lib = (struct Library *) FindName (&SysBase->LibList, part);
+    }
+
     Permit();
 
     if (lib)

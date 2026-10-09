@@ -45,7 +45,7 @@ set(LIBS_OUTPUTS)
 function(add_disk_library target output_name)
     set(options)
     set(oneValueArgs)
-    set(multiValueArgs SOURCES)
+    set(multiValueArgs SOURCES HEADERS)
     cmake_parse_arguments(DISKLIB "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
 
     if(NOT DISKLIB_SOURCES)
@@ -53,19 +53,22 @@ function(add_disk_library target output_name)
     endif()
 
     set(output "${CMAKE_CURRENT_BINARY_DIR}/Libs/${output_name}")
+    # output_name may contain a subdirectory (gadgets/colorwheel.gadget)
+    get_filename_component(output_subdir ${output_name} DIRECTORY)
+    file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/Libs/${output_subdir}")
     list(APPEND DISKLIB_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/Libs/disklib_support.c)
 
     add_custom_command(
         OUTPUT ${output}
         COMMAND ${M68K_GCC_BIN} ${LIBS_CFLAGS} ${LIBS_LDFLAGS} -o ${output} ${DISKLIB_SOURCES}
-        DEPENDS ${DISKLIB_SOURCES}
+        DEPENDS ${DISKLIB_SOURCES} ${DISKLIB_HEADERS}
         COMMENT "Building LIBS:${output_name}"
     )
 
     set(LIBS_OUTPUTS ${LIBS_OUTPUTS} ${output} PARENT_SCOPE)
 
     install(FILES ${output}
-        DESTINATION share/lxa/System/Libs
+        DESTINATION share/lxa/System/Libs/${output_subdir}
         PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE
     )
 endfunction()
@@ -93,6 +96,33 @@ add_disk_library(version_disklib version.library
 add_disk_library(datatypes_disklib datatypes.library
     SOURCES
         ${CMAKE_CURRENT_SOURCE_DIR}/../src/rom/lxa_datatypes.c
+)
+
+# AmigaOS 3.1 BOOPSI gadget classes (LIBS:gadgets/, ported from AROS,
+# see doc/third-party-code.md)
+add_disk_library(colorwheel_disklib gadgets/colorwheel.gadget
+    SOURCES
+        ${CMAKE_CURRENT_SOURCE_DIR}/../src/rom/gadgets/classlib.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/../src/rom/gadgets/colorwheel.c
+    HEADERS
+        ${CMAKE_CURRENT_SOURCE_DIR}/../src/rom/gadgets/classlib.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/../src/rom/gadgets/colorwheel_fixmath.h
+)
+
+add_disk_library(gradientslider_disklib gadgets/gradientslider.gadget
+    SOURCES
+        ${CMAKE_CURRENT_SOURCE_DIR}/../src/rom/gadgets/classlib.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/../src/rom/gadgets/gradientslider.c
+    HEADERS
+        ${CMAKE_CURRENT_SOURCE_DIR}/../src/rom/gadgets/classlib.h
+)
+
+add_disk_library(tapedeck_disklib gadgets/tapedeck.gadget
+    SOURCES
+        ${CMAKE_CURRENT_SOURCE_DIR}/../src/rom/gadgets/classlib.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/../src/rom/gadgets/tapedeck.c
+    HEADERS
+        ${CMAKE_CURRENT_SOURCE_DIR}/../src/rom/gadgets/classlib.h
 )
 
 # === SYS:C Commands ===
