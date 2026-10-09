@@ -133,6 +133,7 @@ class Lxa:
             "lxa_init": (ctypes.c_int, [ctypes.POINTER(LxaConfig)]),
             "lxa_shutdown": (None, []),
             "lxa_load_program": (ctypes.c_int, [ctypes.c_char_p, ctypes.c_char_p]),
+            "lxa_set_program_stack": (None, [ctypes.c_uint32]),
             "lxa_add_assign": (ctypes.c_bool, [ctypes.c_char_p, ctypes.c_char_p]),
             "lxa_add_assign_path": (ctypes.c_bool, [ctypes.c_char_p, ctypes.c_char_p]),
             "lxa_add_drive": (ctypes.c_bool, [ctypes.c_char_p, ctypes.c_char_p]),
@@ -213,7 +214,8 @@ class Lxa:
         return self.lib.lxa_add_drive(name.encode(), path.encode())
 
     # -- execution -------------------------------------------------------------
-    def run(self, program, args=""):
+    def run(self, program, args="", stack=0):
+        self.lib.lxa_set_program_stack(stack)
         if self.lib.lxa_load_program(program.encode(), args.encode()) != 0:
             raise RuntimeError("cannot load %s" % program)
 

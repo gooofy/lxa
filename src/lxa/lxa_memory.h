@@ -13,6 +13,7 @@
 #define LXA_MEMORY_H
 
 #include "lxa_internal.h"
+#include "lxa_vclock.h"
 #include <string.h>  /* memcpy */
 
 /*
@@ -79,6 +80,10 @@ static inline uint8_t mread8(uint32_t address)
         uint32_t addr = address - ROM_START;
         return g_rom[addr];
     }
+    else if ((address >= Z3RAM_START) && (address <= Z3RAM_END))
+    {
+        return g_z3ram[address - Z3RAM_START];
+    }
     else if ((address >= EXTROM_START) && (address <= EXTROM_END))
     {
         /* Extended ROM area (A3000/A4000) - return 0 to indicate no extended ROM */
@@ -136,12 +141,13 @@ static inline uint8_t mread8(uint32_t address)
         
         /* Return sensible defaults for common read registers */
         switch (reg & ~1) {  /* Use even address for word-aligned registers */
-            case CUSTOM_REG_VPOSR:    /* Vertical position - return 0 (line 0, PAL long frame) */
-                result = (reg & 1) ? 0x00 : 0x00;
+            case CUSTOM_REG_VPOSR:    /* beam position (lxa_custom.c) */
+            case CUSTOM_REG_VHPOSR:
+            {
+                uint16_t v = custom_read_beam((uint16_t)(reg & ~1));
+                result = (reg & 1) ? (v & 0xFF) : ((v >> 8) & 0xFF);
                 break;
-            case CUSTOM_REG_VHPOSR:   /* Horiz/vert position - return 0 */
-                result = 0;
-                break;
+            }
             case CUSTOM_REG_JOY0DAT:  /* Joystick 0 - no movement */
                 result = 0;
                 break;
@@ -267,6 +273,10 @@ static inline void mwrite8(uint32_t address, uint8_t value)
     {
         uint32_t addr = address - RAM_START;
         g_ram[addr] = value;
+    }
+    else if ((address >= Z3RAM_START) && (address <= Z3RAM_END))
+    {
+        g_z3ram[address - Z3RAM_START] = value;
     }
     else if ((address >= 0x00A00000) && (address < CUSTOM_START) &&
              !((address >= CIA_START) && (address <= CIA_END)))   /* CIAs below (Phase 237, exec/buttons) */

@@ -1,0 +1,9 @@
+-- priority 127 child inside Forbid()
+ran before Permit = 0
+ran right after Permit = 1
+child saw tc_TrapData set after CreateNewProc = 1
+-- priority 127 child, no Forbid()
+ran before CreateNewProc returned = 1
+-- lower priority child, no Forbid()
+ran before CreateNewProc returned = 0
+ran after Delay = 1

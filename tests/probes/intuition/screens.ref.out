@@ -168,3 +168,128 @@ screen box=0,0,640x256 flags=0x021f title=NULL deftitle=NULL
  sg gad1 id=0 type=0xc035 flags=0x8024 act=0x0000 box=0,0,0x11 norender noselect notext nospecial mx=set
  sg ext more=0x00000002
  dri version=2 numpens=12 flags=0x00000001 depth=2 resx=22 resy=44 font=8 pens=0,1,1,2,1,3,1,0,2,1,2,1
+-- NewScreen detail 1 block 2
+screen box=0,0,640x200 flags=0x021f title="Pens" deftitle="Pens"
+  barh=10 barv=1 barhb=5 menuv=2 menuh=4 wbt=2 wbl=4 wbr=4 wbb=2
+  font=topaz.font/8 rpfont=8 depth=2 vpmodes=49152 detailpen=1 blockpen=2 barlayer box=0,0,640x11 gadgets
+ sg gad0 id=0 type=0xc055 flags=0x8014 act=0x0001 box=-22,0,23x11 render noselect notext nospecial mx=set
+ sg ext more=0x00000002
+ sg gad1 id=0 type=0xc035 flags=0x8024 act=0x0000 box=0,0,0x11 norender noselect notext nospecial mx=set
+ sg ext more=0x00000002
+ dri version=2 numpens=12 flags=0x00000000 depth=2 resx=22 resy=44 font=8 pens=1,2,2,2,2,2,1,0,2,1,2,2
+ bar fill=2 line=2 below=0 titlepens 1 2
+-- NewScreen detail 3 block 2
+screen box=0,0,640x200 flags=0x021f title="Pens" deftitle="Pens"
+  barh=10 barv=1 barhb=5 menuv=2 menuh=4 wbt=2 wbl=4 wbr=4 wbb=2
+  font=topaz.font/8 rpfont=8 depth=2 vpmodes=49152 detailpen=3 blockpen=2 barlayer box=0,0,640x11 gadgets
+ sg gad0 id=0 type=0xc055 flags=0x8014 act=0x0001 box=-22,0,23x11 render noselect notext nospecial mx=set
+ sg ext more=0x00000002
+ sg gad1 id=0 type=0xc035 flags=0x8024 act=0x0000 box=0,0,0x11 norender noselect notext nospecial mx=set
+ sg ext more=0x00000002
+ dri version=2 numpens=12 flags=0x00000000 depth=2 resx=22 resy=44 font=8 pens=3,2,2,2,2,2,3,0,2,3,2,2
+ bar fill=2 line=2 below=0 titlepens 2 3
+-- NewScreen detail 2 block 0
+screen box=0,0,640x200 flags=0x021f title="Pens" deftitle="Pens"
+  barh=10 barv=1 barhb=5 menuv=2 menuh=4 wbt=2 wbl=4 wbr=4 wbb=2
+  font=topaz.font/8 rpfont=8 depth=2 vpmodes=49152 detailpen=2 blockpen=0 barlayer box=0,0,640x11 gadgets
+ sg gad0 id=0 type=0xc055 flags=0x8014 act=0x0001 box=-22,0,23x11 render noselect notext nospecial mx=set
+ sg ext more=0x00000002
+ sg gad1 id=0 type=0xc035 flags=0x8024 act=0x0000 box=0,0,0x11 norender noselect notext nospecial mx=set
+ sg ext more=0x00000002
+ dri version=2 numpens=12 flags=0x00000000 depth=2 resx=22 resy=44 font=8 pens=2,0,2,2,2,2,0,0,2,0,2,2
+ bar fill=2 line=2 below=0 titlepens 0 2
+-- tags oldlook detail 3 block 1
+screen box=0,0,640x256 flags=0x021f title="Pens" deftitle="Pens"
+  barh=10 barv=1 barhb=5 menuv=2 menuh=4 wbt=2 wbl=4 wbr=4 wbb=2
+  font=topaz.font/8 rpfont=8 depth=2 vpmodes=49152 detailpen=3 blockpen=1 barlayer box=0,0,640x11 gadgets
+ sg gad0 id=0 type=0xc055 flags=0x8014 act=0x0001 box=-22,0,23x11 render noselect notext nospecial mx=set
+ sg ext more=0x00000002
+ sg gad1 id=0 type=0xc035 flags=0x8024 act=0x0000 box=0,0,0x11 norender noselect notext nospecial mx=set
+ sg ext more=0x00000002
+ dri version=2 numpens=12 flags=0x00000000 depth=2 resx=22 resy=44 font=8 pens=3,1,1,1,1,1,3,0,1,3,1,1
+ bar fill=1 line=1 below=0 titlepens 1 3
+-- tags pens detail 3 block 1
+screen box=0,0,640x256 flags=0x021f title="Pens" deftitle="Pens"
+  barh=10 barv=1 barhb=5 menuv=2 menuh=4 wbt=2 wbl=4 wbr=4 wbb=2
+  font=topaz.font/8 rpfont=8 depth=2 vpmodes=49152 detailpen=3 blockpen=1 barlayer box=0,0,640x11 gadgets
+ sg gad0 id=0 type=0xc055 flags=0x8014 act=0x0001 box=-22,0,23x11 render noselect notext nospecial mx=set
+ sg ext more=0x00000002
+ sg gad1 id=0 type=0xc035 flags=0x8024 act=0x0000 box=0,0,0x11 norender noselect notext nospecial mx=set
+ sg ext more=0x00000002
+ dri version=2 numpens=12 flags=0x00000001 depth=2 resx=22 resy=44 font=8 pens=3,1,1,2,1,3,1,0,2,1,2,1
+ bar fill=2 line=1 below=0 titlepens 1 2
+-- tags p9 detail 3 block 1
+screen box=0,0,640x256 flags=0x021f title="Pens" deftitle="Pens"
+  barh=10 barv=1 barhb=5 menuv=2 menuh=4 wbt=2 wbl=4 wbr=4 wbb=2
+  font=topaz.font/8 rpfont=8 depth=2 vpmodes=49152 detailpen=3 blockpen=1 barlayer box=0,0,640x11 gadgets
+ sg gad0 id=0 type=0xc055 flags=0x8014 act=0x0001 box=-22,0,23x11 render noselect notext nospecial mx=set
+ sg ext more=0x00000002
+ sg gad1 id=0 type=0xc035 flags=0x8024 act=0x0000 box=0,0,0x11 norender noselect notext nospecial mx=set
+ sg ext more=0x00000002
+ dri version=2 numpens=12 flags=0x00000001 depth=2 resx=22 resy=44 font=8 pens=1,2,2,1,2,3,1,0,3,3,1,1
+ bar fill=1 line=1 below=0 titlepens 1 3
+-- tags p10
+screen box=0,0,640x256 flags=0x021f title="Pens" deftitle="Pens"
+  barh=10 barv=1 barhb=5 menuv=2 menuh=4 wbt=2 wbl=4 wbr=4 wbb=2
+  font=topaz.font/8 rpfont=8 depth=2 vpmodes=49152 detailpen=0 blockpen=1 barlayer box=0,0,640x11 gadgets
+ sg gad0 id=0 type=0xc055 flags=0x8014 act=0x0001 box=-22,0,23x11 render noselect notext nospecial mx=set
+ sg ext more=0x00000002
+ sg gad1 id=0 type=0xc035 flags=0x8024 act=0x0000 box=0,0,0x11 norender noselect notext nospecial mx=set
+ sg ext more=0x00000002
+ dri version=2 numpens=12 flags=0x00000001 depth=2 resx=22 resy=44 font=8 pens=1,2,2,1,2,3,1,0,3,2,2,1
+ bar fill=2 line=1 below=0 titlepens 2
+-- tags p1
+screen box=0,0,640x256 flags=0x021f title="Pens" deftitle="Pens"
+  barh=10 barv=1 barhb=5 menuv=2 menuh=4 wbt=2 wbl=4 wbr=4 wbb=2
+  font=topaz.font/8 rpfont=8 depth=2 vpmodes=49152 detailpen=0 blockpen=1 barlayer box=0,0,640x11 gadgets
+ sg gad0 id=0 type=0xc055 flags=0x8014 act=0x0001 box=-22,0,23x11 render noselect notext nospecial mx=set
+ sg ext more=0x00000002
+ sg gad1 id=0 type=0xc035 flags=0x8024 act=0x0000 box=0,0,0x11 norender noselect notext nospecial mx=set
+ sg ext more=0x00000002
+ dri version=2 numpens=12 flags=0x00000001 depth=2 resx=22 resy=44 font=8 pens=2,1,1,2,1,3,1,0,2,0,1,1
+ bar fill=1 line=1 below=0 titlepens 0 1
+-- tags p4
+screen box=0,0,640x256 flags=0x021f title="Pens" deftitle="Pens"
+  barh=10 barv=1 barhb=5 menuv=2 menuh=4 wbt=2 wbl=4 wbr=4 wbb=2
+  font=topaz.font/8 rpfont=8 depth=2 vpmodes=49152 detailpen=0 blockpen=1 barlayer box=0,0,640x11 gadgets
+ sg gad0 id=0 type=0xc055 flags=0x8014 act=0x0001 box=-22,0,23x11 render noselect notext nospecial mx=set
+ sg ext more=0x00000002
+ sg gad1 id=0 type=0xc035 flags=0x8024 act=0x0000 box=0,0,0x11 norender noselect notext nospecial mx=set
+ sg ext more=0x00000002
+ dri version=2 numpens=12 flags=0x00000001 depth=2 resx=22 resy=44 font=8 pens=0,1,3,2,1,3,1,0,2,0,1,1
+ bar fill=1 line=1 below=0 titlepens 0 1
+-- ExtNewScreen p9 detail 1 block 2
+screen box=0,0,640x200 flags=0x021f title="Pens" deftitle="Pens"
+  barh=10 barv=1 barhb=5 menuv=2 menuh=4 wbt=2 wbl=4 wbr=4 wbb=2
+  font=topaz.font/8 rpfont=8 depth=2 vpmodes=49152 detailpen=1 blockpen=2 barlayer box=0,0,640x11 gadgets
+ sg gad0 id=0 type=0xc055 flags=0x8014 act=0x0001 box=-22,0,23x11 render noselect notext nospecial mx=set
+ sg ext more=0x00000002
+ sg gad1 id=0 type=0xc035 flags=0x8024 act=0x0000 box=0,0,0x11 norender noselect notext nospecial mx=set
+ sg ext more=0x00000002
+ dri version=2 numpens=12 flags=0x00000001 depth=2 resx=22 resy=44 font=8 pens=1,2,2,1,2,3,1,0,3,1,2,2
+ bar fill=2 line=2 below=0 titlepens 1 2
+-- NewScreen viewmodes
+requested = 0x00008000
+vp modes = 0x0000c000
+mode id = 0x00008000
+width = 640
+-- NewScreen viewmodes
+requested = 0x00008020
+vp modes = 0x0000c000
+mode id = 0x00008000
+width = 640
+-- NewScreen viewmodes
+requested = 0x00000020
+vp modes = 0x00004000
+mode id = 0x00000000
+width = 640
+-- NewScreen viewmodes
+requested = 0x0000c000
+vp modes = 0x0000c000
+mode id = 0x00008000
+width = 640
+-- NewScreen viewmodes
+requested = 0x00008024
+vp modes = 0x0000c004
+mode id = 0x00008004
+width = 640

@@ -1,7 +1,7 @@
 # Phase 231 sweep scenario, generated from tests/scenarios/apps/aqb.yaml
 # by `python3 -m rdd sweep gen` - edit the app scenario, not this file.
 name: sweep-aqb
-app: {manifest: AQB}
+app: {manifest: AQB, stack: 65536}
 steps:
   - launch
   - wait_window: {title: "AQB", timeout: 30000}

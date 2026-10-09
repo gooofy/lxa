@@ -15,6 +15,7 @@
 #define EMU_CALL_GETARGS      12
 #define EMU_CALL_DELAY        13   /* Delay with interrupt processing: d1=milliseconds */
 #define EMU_CALL_SUPERVISOR   14   /* () -> 1 if the caller runs in supervisor mode (interrupt) */
+#define EMU_CALL_GETSTACK     15   /* () -> stack size requested for the program (0: default) */
 #define EMU_CALL_EXIT        127
 
 /*

@@ -1,0 +1,25 @@
+-- WA_Activate with IDCMP from the start
+right after OpenWindow: WINDOWACTIVE=1 ActiveWindow==w 1
+messages: ACTIVE
+after Delay: WINDOWACTIVE=1 ActiveWindow==w 1
+-- ActivateWindow of the active window
+messages: ACTIVE
+-- WA_Activate, IDCMP set by ModifyIDCMP after OpenWindow
+messages: (none)
+after Delay: WINDOWACTIVE=1 ActiveWindow==w 1
+-- ... then ActivateWindow
+messages: ACTIVE
+-- no WA_Activate, ModifyIDCMP, ActivateWindow
+right after OpenWindow: WINDOWACTIVE=0 ActiveWindow==w 0
+right after ActivateWindow: WINDOWACTIVE=1 ActiveWindow==w 1
+messages: ACTIVE
+after Delay: WINDOWACTIVE=1 ActiveWindow==w 1
+-- second window activated
+A: INACTIVE
+B: ACTIVE
+A: WINDOWACTIVE=0 ActiveWindow==w 0
+B: WINDOWACTIVE=1 ActiveWindow==w 1
+A after ActivateWindow(A): ACTIVE
+B after ActivateWindow(A): INACTIVE
+A after CloseWindow(B): (none)
+A: WINDOWACTIVE=1 ActiveWindow==w 1

@@ -15,6 +15,8 @@
 
 #include "lxa_test.h"
 
+#include <vector>
+
 #include <algorithm>
 #include <chrono>
 #include <string>
@@ -510,8 +512,18 @@ TEST_F(Cluster2Test, ExitButtonResponds)
     FlushAndSettle();
     lxa_flush_display();
 
-    /* Capture baseline to detect pixel changes */
-    const int before_pixels = lxa_get_content_pixels();
+    /* the requester area, sampled before the click */
+    auto sample = []() {
+        std::vector<int> pens;
+        for (int y = 45; y < 110; y += 2)
+            for (int x = 160; x < 490; x += 2) {
+                int p = -1;
+                lxa_read_pixel(x, y, &p);
+                pens.push_back(p);
+            }
+        return pens;
+    };
+    const std::vector<int> before = sample();
     lxa_capture_screen("/tmp/cluster2-before-exit.png");
 
     /*
@@ -529,10 +541,21 @@ TEST_F(Cluster2Test, ExitButtonResponds)
     lxa_flush_display();
     lxa_capture_screen("/tmp/cluster2-after-exit.png");
 
-    /* Verify the app survived the interaction */
-    EXPECT_TRUE(lxa_is_running())
-        << "Cluster2 should survive EXIT button click "
-           "(EXIT may not respond due to custom toolbar coordinate mapping)";
+    /* AmigaOS 3.1 (golden tests/golden/Cluster2/cluster2-exit): EXIT quits
+     * an unmodified editor; it finds the button it is released on through
+     * Screen->MouseX/MouseY, which Intuition must keep current.  The text
+     * typed by the earlier tests is unsaved, so here the editor asks
+     * "Text nicht gesichert - Sichern ???" in a custom-drawn requester
+     * instead (its quit routine checks for modified views). */
+    if (lxa_program_exited())
+        return;
+    const std::vector<int> after = sample();
+    int changed = 0;
+    for (size_t i = 0; i < before.size() && i < after.size(); ++i)
+        if (before[i] != after[i])
+            ++changed;
+    EXPECT_GT(changed, 500)
+        << "EXIT should either quit Cluster2 or open its 'save?' requester";
 }
 
 /* Phase 126: startup latency baseline sentinel */

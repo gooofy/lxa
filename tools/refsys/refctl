@@ -84,7 +84,17 @@ def display(n):
     return ":%d" % (100 + n)
 
 
-def render_config(n, profile):
+# CPU variants of the canonical A4000/040 (--cpu): old programs with
+# 68881 code (FSIN & co. trap on a 68040 without 68040.library) or
+# self-modifying code need a 68020/68030 with a 68882
+CPU_CONFIGS = {
+    "68040": ("68040", "68040"),
+    "68030": ("68030", "68882"),
+    "68020": ("68020", "68882"),
+}
+
+
+def render_config(n, profile, cpu="68040"):
     d = inst_dir(n)
     sysdir = os.path.join(d, "SYS")
     rtg = ("graphics_card = uaegfx\ngraphics_memory = 4096" if profile == "rtg"
@@ -95,6 +105,8 @@ def render_config(n, profile):
                  "@APPS@": APPS, "@EXCHANGE@": os.path.join(d, "exchange"),
                  "@SERIAL_PORT@": str(serial_port(n)), "@STATE@": d}.items():
         cfg = cfg.replace(k, v)
+    c, f = CPU_CONFIGS[cpu]
+    cfg = cfg.replace("cpu = 68040", "cpu = %s" % c).replace("fpu = 68040", "fpu = %s" % f)
     path = os.path.join(d, "ref.fs-uae")
     with open(path, "w") as f:
         f.write(cfg)
@@ -156,7 +168,7 @@ def cmd_boot(a):
     for ov in a.overlay or []:
         src, dst = ov.split("=", 1)
         shutil.copytree(src, os.path.join(inst_sys, dst), dirs_exist_ok=True)
-    cfg = render_config(n, a.profile)
+    cfg = render_config(n, a.profile, a.cpu)
 
     t0 = time.time()
     xvfb = subprocess.Popen(["Xvfb", display(n), "-screen", "0", "1024x768x24", "-nolisten", "tcp"],
@@ -322,6 +334,8 @@ def main():
     p.add_argument("--id", type=int, default=0)
     p.add_argument("--profile", default="aga", choices=["aga", "rtg"])
     p.add_argument("--timeout", type=int, default=90)
+    p.add_argument("--cpu", default="68040", choices=sorted(CPU_CONFIGS),
+                   help="CPU/FPU of the instance (default: the canonical 68040)")
     p.add_argument("--overlay", action="append", help="HOSTDIR=SYSPATH, copied into SYS: for this boot")
     p.set_defaults(fn=cmd_boot)
     p = sub.add_parser("ping")

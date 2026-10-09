@@ -1,0 +1,153 @@
+{"text":"     Version 4.4  Classic Amiga System Information Program","x":127,"y":9}
+{"text":"    Contact information SysInfo@d0.se http://sysinfo.d0.se","x":127,"y":19}
+{"text":"   SYSTEM SOFTWARE INSTALLED    ","x":32,"y":35}
+{"text":"SPEED COMPARISONS","x":31,"y":110}
+{"text":"INTERNAL HARDWARE MODES","x":432,"y":35}
+{"text":"     Version 4.4  Classic Amiga System Information Program","x":126,"y":8}
+{"text":"    Contact information SysInfo@d0.se http://sysinfo.d0.se","x":126,"y":18}
+{"text":"   SYSTEM SOFTWARE INSTALLED    ","x":31,"y":34}
+{"text":"SPEED COMPARISONS","x":30,"y":109}
+{"text":"INTERNAL HARDWARE MODES","x":431,"y":34}
+{"text":"QUIT","x":216,"y":185}
+{"text":"MEMORY","x":278,"y":185}
+{"text":"BOARDS","x":345,"y":185}
+{"text":"DRIVES","x":208,"y":197}
+{"text":"SPEED","x":280,"y":197}
+{"text":"PRINT","x":349,"y":197}
+{"text":"ICACHE","x":429,"y":185}
+{"text":"IBURST","x":498,"y":185}
+{"text":"CBACK","x":567,"y":185}
+{"text":"DCACHE","x":429,"y":197}
+{"text":"DBURST","x":498,"y":197}
+{"text":" ALL  ","x":567,"y":197}
+{"text":"LIBRARIES","x":321,"y":35}
+{"text":"EXPAND","x":224,"y":110}
+{"text":"QUIT","x":215,"y":184}
+{"text":"MEMORY","x":277,"y":184}
+{"text":"BOARDS","x":344,"y":184}
+{"text":"DRIVES","x":207,"y":196}
+{"text":"SPEED","x":279,"y":196}
+{"text":"PRINT","x":348,"y":196}
+{"text":"ICACHE","x":428,"y":184}
+{"text":"IBURST","x":497,"y":184}
+{"text":"CBACK","x":566,"y":184}
+{"text":"DCACHE","x":428,"y":196}
+{"text":"DBURST","x":497,"y":196}
+{"text":" ALL  ","x":566,"y":196}
+{"text":"LIBRARIES","x":320,"y":34}
+{"text":"EXPAND","x":223,"y":109}
+{"text":"ON ","x":613,"y":171}
+{"text":"ON ","x":613,"y":139}
+{"text":"ON ","x":613,"y":155}
+{"text":"ON ","x":613,"y":147}
+{"text":"ON ","x":613,"y":163}
+{"text":"68040 ","x":480,"y":83}
+{"text":"68040  (IN USE)   ","x":480,"y":99}
+{"text":"68040+68882","x":480,"y":91}
+{"text":"$07820CA4","x":480,"y":107}
+{"text":"$F","x":495,"y":139}
+{"text":"$0","x":495,"y":147}
+{"text":"kickstart          (512K)  $00F80000 V40.70  ","x":13,"y":48}
+{"text":"utility           32BitRAM $07803400 V40.1   ","x":13,"y":56}
+{"text":"graphics          32BitRAM $07803C2C V40.24  ","x":13,"y":64}
+{"text":"layers            32BitRAM $078083E0 V40.1   ","x":13,"y":72}
+{"text":"keymap            32BitRAM $07809BF0 V40.4   ","x":13,"y":80}
+{"text":"intuition         32BitRAM $0780A12C V40.85  ","x":13,"y":88}
+{"text":"mathieeesingbas   32BitRAM $0780CD58 V40.4   ","x":13,"y":96}
+{"text":"AGA ALICE - 2Meg ","x":480,"y":59}
+{"text":"PAL  ","x":480,"y":67}
+{"text":"AGA LISA CHIP   ","x":480,"y":75}
+{"text":"50","x":495,"y":163}
+{"text":"50","x":495,"y":171}
+{"text":"15.60","x":495,"y":123}
+{"text":"NO ","x":495,"y":155}
+{"text":"CLOCK FOUND","x":480,"y":51}
+{"text":"709379","x":495,"y":131}
+{"text":"Workbench Screen","x":5,"y":7}
+{"text":" EXIT","x":29,"y":197}
+{"text":" EXIT","x":28,"y":196}
+{"text":"AUTOCONFIG BOARDS INFORMATION","x":207,"y":20}
+{"text":"Board Address","x":16,"y":32}
+{"text":"Board Size","x":134,"y":32}
+{"text":"Board Type","x":232,"y":32}
+{"text":"Product","x":347,"y":32}
+{"text":"Manufacturer","x":440,"y":32}
+{"text":"Serial No.","x":545,"y":32}
+{"text":"AUTOCONFIG BOARDS INFORMATION","x":206,"y":19}
+{"text":"Board Address","x":15,"y":31}
+{"text":"Board Size","x":133,"y":31}
+{"text":"Board Type","x":231,"y":31}
+{"text":"Product","x":346,"y":31}
+{"text":"Manufacturer","x":439,"y":31}
+{"text":"Serial No.","x":544,"y":31}
+{"text":"$00E90000","x":13,"y":50}
+{"text":"64K","x":123,"y":50}
+{"text":"ZORRO II     ","x":228,"y":50}
+{"text":"UAE File Syst","x":315,"y":50}
+{"text":"Reserved     ","x":434,"y":50}
+{"text":"1","x":541,"y":50}
+{"text":"$40000000","x":13,"y":60}
+{"text":"16M","x":123,"y":60}
+{"text":"ZORRO III    ","x":228,"y":60}
+{"text":"UAE Z3 Fast  ","x":315,"y":60}
+{"text":"Reserved     ","x":434,"y":60}
+{"text":"1","x":541,"y":60}
+{"text":"$00F00000","x":13,"y":70}
+{"text":"64K","x":123,"y":70}
+{"text":"UNDEFINED    ","x":228,"y":70}
+{"text":"4","x":315,"y":70}
+{"text":"Reserved     ","x":434,"y":70}
+{"text":"1","x":541,"y":70}
+{"text":" EXIT","x":29,"y":197}
+{"text":" EXIT","x":28,"y":196}
+{"text":" EXIT","x":29,"y":197}
+{"text":" EXIT","x":28,"y":196}
+{"text":" EXIT","x":29,"y":197}
+{"text":" EXIT","x":28,"y":196}
+{"text":" PREV","x":29,"y":183}
+{"text":" PREV","x":28,"y":182}
+{"text":" NEXT","x":103,"y":183}
+{"text":" NEXT","x":102,"y":182}
+{"text":"M E M O R Y  I N F O R M A T I O N","x":181,"y":13}
+{"text":"START ADDRESS","x":123,"y":33}
+{"text":"END ADDRESS","x":123,"y":43}
+{"text":"TOTAL SIZE","x":123,"y":53}
+{"text":"MEMORY TYPE","x":123,"y":63}
+{"text":"PRIORITY","x":123,"y":73}
+{"text":"LOWER BOUND","x":123,"y":83}
+{"text":"UPPER BOUND","x":123,"y":93}
+{"text":"FIRST ADDRESS","x":123,"y":103}
+{"text":"AMOUNT FREE","x":123,"y":113}
+{"text":"LARGEST BLOCK","x":123,"y":123}
+{"text":"NUMBER OF CHUNKS","x":123,"y":133}
+{"text":"NODE NAME","x":123,"y":143}
+{"text":"M E M O R Y  I N F O R M A T I O N","x":180,"y":12}
+{"text":"START ADDRESS","x":122,"y":32}
+{"text":"END ADDRESS","x":122,"y":42}
+{"text":"TOTAL SIZE","x":122,"y":52}
+{"text":"MEMORY TYPE","x":122,"y":62}
+{"text":"PRIORITY","x":122,"y":72}
+{"text":"LOWER BOUND","x":122,"y":82}
+{"text":"UPPER BOUND","x":122,"y":92}
+{"text":"FIRST ADDRESS","x":122,"y":102}
+{"text":"AMOUNT FREE","x":122,"y":112}
+{"text":"LARGEST BLOCK","x":122,"y":122}
+{"text":"NUMBER OF CHUNKS","x":122,"y":132}
+{"text":"NODE NAME","x":122,"y":142}
+{"text":"$07800000","x":274,"y":32}
+{"text":"$07FFFFFF","x":274,"y":42}
+{"text":"8.0MB","x":274,"y":52}
+{"text":"32BitRAM","x":274,"y":62}
+{"text":"LOCAL ","x":354,"y":62}
+{"text":"PUBLIC ","x":402,"y":62}
+{"text":"KICK ","x":458,"y":62}
+{"text":"30","x":274,"y":72}
+{"text":"$07800020","x":274,"y":82}
+{"text":"$08000000","x":274,"y":92}
+{"text":"7517832","x":274,"y":112}
+{"text":" Bytes","x":330,"y":112}
+{"text":"16777184","x":274,"y":122}
+{"text":" Bytes","x":338,"y":122}
+{"text":"expansion memory","x":274,"y":142}
+{"text":"$078026C8","x":274,"y":102}
+{"text":"144","x":274,"y":132}

@@ -802,6 +802,10 @@ char *_mgetstr (uint32_t address)
         uint32_t addr = address - RAM_START;
         return (char *) &g_ram[addr];
     }
+    else if ((address >= Z3RAM_START) && (address <= Z3RAM_END))
+    {
+        return (char *) &g_z3ram[address - Z3RAM_START];
+    }
     else if ((address >= ROM_START) && (address <= ROM_END))
     {
         uint32_t addr = address - ROM_START;
@@ -1075,6 +1079,8 @@ static uint32_t _dos_buffer_span(uint32_t addr, uint32_t len, bool for_write_int
 {
     if (addr >= RAM_START && addr <= RAM_END)
         return len < (uint32_t)(RAM_END - addr + 1) ? len : (uint32_t)(RAM_END - addr + 1);
+    if (addr >= Z3RAM_START && addr <= Z3RAM_END)
+        return len < (uint32_t)(Z3RAM_END - addr + 1) ? len : (uint32_t)(Z3RAM_END - addr + 1);
     if (!for_write_into && addr >= ROM_START && addr <= ROM_END)
         return len < (uint32_t)(ROM_END - addr + 1) ? len : (uint32_t)(ROM_END - addr + 1);
     return 0;
@@ -2526,6 +2532,26 @@ int _dos_examine(uint32_t lock_id, uint32_t fib68k)
 }
 
 /* Examine next entry in directory */
+/*
+ * FS-UAE keeps an Amiga file's protection bits, date and comment in a
+ * "<name>.uaem" file next to it; app trees installed through FS-UAE carry
+ * them (lxa-apps).  The emulated Amiga never sees those files, so a
+ * directory scan skips "<name>.uaem" when "<name>" exists (Directory Opus
+ * lists DOpus:s identically on lxa and AmigaOS 3.1: scenario dopus-select).
+ */
+static bool is_uae_sidecar(const char *dir, const char *name)
+{
+    size_t len = strlen(name);
+    char path[PATH_MAX];
+    struct stat st;
+
+    if (len <= 5 || strcmp(name + len - 5, ".uaem") != 0)
+        return false;
+    if (snprintf(path, sizeof(path), "%s/%.*s", dir, (int)(len - 5), name) >= (int)sizeof(path))
+        return false;
+    return lstat(path, &st) == 0;
+}
+
 int _dos_exnext(uint32_t lock_id, uint32_t fib68k)
 {
     DPRINTF(LOG_DEBUG, "lxa: _dos_exnext(): lock_id=%d, fib68k=0x%08x\n", lock_id, fib68k);
@@ -2554,6 +2580,8 @@ int _dos_exnext(uint32_t lock_id, uint32_t fib68k)
     struct dirent *de;
     while ((de = readdir(lock->dir)) != NULL) {
         if (strcmp(de->d_name, ".") == 0 || strcmp(de->d_name, "..") == 0)
+            continue;
+        if (is_uae_sidecar(lock->linux_path, de->d_name))
             continue;
         break;
     }

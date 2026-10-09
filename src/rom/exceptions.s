@@ -409,7 +409,7 @@ _handleVec11:
     bra         _dispatchTrap
 
     /*
-     * Every other CPU exception vector (Phase 237, probe exec/lowmem: AmigaOS
+     * Every other CPU exception vector (Phase 237, probe exec/vectors: AmigaOS
      * points the whole table into ROM; programs that read through a NULL
      * pointer see it).  The exception number comes from the format/vector
      * word of the 68010+ frame.  Stack: [d0][slot][SR.w][PC.l][fmt.w]

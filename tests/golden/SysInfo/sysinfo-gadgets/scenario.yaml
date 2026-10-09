@@ -1,0 +1,26 @@
+# Phase 234: SysInfo after full startup (hardware fields) and its page
+# gadgets, the clicks of sysinfo_gtest.cpp.  Gadget IDs: SPEED 2, BOARDS 6,
+# MEMORY 7, LIBRARIES 9.  On AmigaOS 3.1 BOARDS and MEMORY open a page
+# window with an EXIT button at (51,193).
+name: sysinfo-gadgets
+app: {manifest: SysInfo}
+steps:
+  - launch
+  - frames: 150
+  - wait_idle: {timeout: 20000}
+  - frames: 100
+  - snapshot: startup
+  - click: {gadget_id: 6}
+  - frames: 100
+  - snapshot: boards
+  - click: {xy: [51, 193]}
+  - frames: 50
+  - click: {gadget_id: 7}
+  - frames: 100
+  - snapshot: memory
+  - click: {xy: [51, 193]}
+  - frames: 50
+  - click: {gadget_id: 9}
+  - frames: 100
+  - snapshot: libraries
+  - quit

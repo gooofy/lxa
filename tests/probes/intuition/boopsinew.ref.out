@@ -1,0 +1,37 @@
+-- private classes: c1 < rootclass, c2 < c1
+c1 = non-NULL
+c2 = non-NULL
+c1 InstOffset = 0
+c1 InstSize = 8
+c2 InstOffset = 8
+c2 InstSize = 12
+-- NewObject(c2)
+object = non-NULL
+c2: new=1 obj=trueclass 1 obj=ownclass 1 superok 1 dispose=0
+c1: new=1 obj=trueclass 1 obj=ownclass 0 superok 1 dispose=0
+OCLASS == c2 = 1
+c1 data = 0x11111111
+c2 data = 0x22222222
+c2 ObjectCount = 1
+c1 ObjectCount = 0
+o_Node.mln_Succ = NULL
+-- NewObject(c1)
+object = non-NULL
+c1: new=1 obj=trueclass 1 obj=ownclass 1 superok 1 dispose=0
+c2: new=0 obj=trueclass 0 obj=ownclass 0 superok 0 dispose=0
+c1 ObjectCount = 1
+dispose c1: new=0 obj=trueclass 0 obj=ownclass 0 superok 0 dispose=1
+c1 ObjectCount after = 0
+-- DisposeObject(c2 object)
+c2: new=0 obj=trueclass 0 obj=ownclass 0 superok 0 dispose=1
+c1: new=0 obj=trueclass 0 obj=ownclass 0 superok 0 dispose=1
+c2 ObjectCount = 0
+FreeClass(c2) = 1
+FreeClass(c1) = 1
+-- public classes: OM_NEW returns the object
+frameiclass = non-NULL
+frameiclass Width = 20
+frameiclass OCLASS id ok = 1
+buttongclass = non-NULL
+buttongclass Width = 30
+modelclass = non-NULL

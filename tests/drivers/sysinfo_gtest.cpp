@@ -424,10 +424,10 @@ TEST_F(SysInfoTest, ExecBaseMaxLocMemReportsChipMemTop)
 
     uint32_t max_loc_mem = lxa_peek32(sysbase + EXECBASE_OFF_MAXLOCMEM);
 
-    /* lxa provides 10MB chip memory: 0x00010000 .. 0x009FFFFF,
-     * so MaxLocMem should be 0x00A00000 (top of chip memory). */
-    EXPECT_EQ(max_loc_mem, 0x00A00000u)
-        << "MaxLocMem should report top of chip memory (10MB)";
+    /* 2 MB chip memory as on the reference A4000 (fast RAM above it,
+     * tests/probes/exec/memlist): MaxLocMem is the top of chip memory. */
+    EXPECT_EQ(max_loc_mem, 0x00200000u)
+        << "MaxLocMem should report top of chip memory (2MB)";
 }
 
 TEST_F(SysInfoTest, ExecBaseEClockFrequencyIsPAL)
@@ -449,9 +449,12 @@ TEST_F(SysInfoTest, ExecBaseEClockFrequencyIsPAL)
 /* the app may need extra settling before gadget clicks are processed.  */
 /* ===================================================================== */
 
-/* Phase 234: false positive under the wall clock (diff came from the
- * still-running startup paint); after full startup the click produces no
- * repaint.  Re-enable once SysInfo's gadget handling is fixed. */
+/* Owned by Phase 255 (golden tests/golden/SysInfo/sysinfo-gadgets).
+ * SysInfo never reaches its event loop on lxa: after the library list it
+ * busy-waits for 60 CIA-A time-of-day ticks ($BFE801-$BFEA01, not emulated)
+ * and, past that, its DRIVES scan needs a non-empty DOS device list
+ * (DosInfo->di_DevInfo; lxa's is empty - "a real LockDosList").  Until
+ * then no gadget click is processed. */
 TEST_F(SysInfoTest, DISABLED_MemoryGadgetRefreshesMemoryArea)
 {
     const int gadget_index = FindGadgetIndexById(GADGET_ID_MEMORY);
@@ -489,9 +492,12 @@ TEST_F(SysInfoTest, DISABLED_MemoryGadgetRefreshesMemoryArea)
         << "SysInfo should remain running after clicking the MEMORY gadget";
 }
 
-/* Phase 234: false positive under the wall clock (diff came from the
- * still-running startup paint); after full startup the click produces no
- * repaint.  Re-enable once SysInfo's gadget handling is fixed. */
+/* Owned by Phase 255 (golden tests/golden/SysInfo/sysinfo-gadgets).
+ * SysInfo never reaches its event loop on lxa: after the library list it
+ * busy-waits for 60 CIA-A time-of-day ticks ($BFE801-$BFEA01, not emulated)
+ * and, past that, its DRIVES scan needs a non-empty DOS device list
+ * (DosInfo->di_DevInfo; lxa's is empty - "a real LockDosList").  Until
+ * then no gadget click is processed. */
 TEST_F(SysInfoTest, DISABLED_BoardsGadgetRefreshesBoardsArea)
 {
     const int gadget_index = FindGadgetIndexById(GADGET_ID_BOARDS);
@@ -521,9 +527,12 @@ TEST_F(SysInfoTest, DISABLED_BoardsGadgetRefreshesBoardsArea)
         << "SysInfo should remain running after clicking the BOARDS gadget";
 }
 
-/* Phase 234: false positive under the wall clock (diff came from the
- * still-running startup paint); after full startup the click produces no
- * repaint.  Re-enable once SysInfo's gadget handling is fixed. */
+/* Owned by Phase 255 (golden tests/golden/SysInfo/sysinfo-gadgets).
+ * SysInfo never reaches its event loop on lxa: after the library list it
+ * busy-waits for 60 CIA-A time-of-day ticks ($BFE801-$BFEA01, not emulated)
+ * and, past that, its DRIVES scan needs a non-empty DOS device list
+ * (DosInfo->di_DevInfo; lxa's is empty - "a real LockDosList").  Until
+ * then no gadget click is processed. */
 TEST_F(SysInfoTest, DISABLED_LibrariesGadgetRefreshesContentArea)
 {
     const int gadget_index = FindGadgetIndexById(GADGET_ID_LIBRARIES);
@@ -555,9 +564,12 @@ TEST_F(SysInfoTest, DISABLED_LibrariesGadgetRefreshesContentArea)
         << "SysInfo should remain running after clicking the LIBRARIES gadget";
 }
 
-/* Phase 234: false positive under the wall clock (diff came from the
- * still-running startup paint); after full startup the click produces no
- * repaint.  Re-enable once SysInfo's gadget handling is fixed. */
+/* Owned by Phase 255 (golden tests/golden/SysInfo/sysinfo-gadgets).
+ * SysInfo never reaches its event loop on lxa: after the library list it
+ * busy-waits for 60 CIA-A time-of-day ticks ($BFE801-$BFEA01, not emulated)
+ * and, past that, its DRIVES scan needs a non-empty DOS device list
+ * (DosInfo->di_DevInfo; lxa's is empty - "a real LockDosList").  Until
+ * then no gadget click is processed. */
 TEST_F(SysInfoTest, DISABLED_SpeedGadgetRefreshesComparisonArea)
 {
     const int gadget_index = FindGadgetIndexById(GADGET_ID_SPEED);

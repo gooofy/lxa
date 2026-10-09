@@ -103,12 +103,16 @@ def diff_trees(lt, rt):
         if len(lw) != len(rw):
             d.add("window", where, "count", len(lw), len(rw))
         for wi, rwin in enumerate(rw):
-            lwin = next((w for w in lw if w.get("title") == rwin.get("title")), lw[wi] if wi < len(lw) else None)
+            # the reference agent prints a NULL title as "" (lxaprobe out_jstr):
+            # an untitled window is matched positionally, NULL equals ""
+            rtitle = rwin.get("title") or None
+            lwin = (next((w for w in lw if w.get("title") == rtitle), None) if rtitle else None) \
+                or (lw[wi] if wi < len(lw) else None)
             wwhere = "%s/window[%s]" % (where, rwin.get("title") or wi)
             if lwin is None:
                 d.add("window", wwhere, "missing", None, rwin.get("title"))
                 continue
-            if lwin.get("title") != rwin.get("title"):
+            if (lwin.get("title") or None) != rtitle:
                 d.add("window", wwhere, "title", lwin.get("title"), rwin.get("title"))
             d.fields("window", wwhere, lwin, rwin, WINDOW_FIELDS)
             if _font_key(lwin.get("font")) != _font_key(rwin.get("font")):

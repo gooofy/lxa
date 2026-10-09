@@ -115,7 +115,7 @@ M0 and M1 are on the critical path: nothing in M2 and later is efficient without
 
 ## Next Phase
 
-> M3: **237**, **238** and **234** (agents running).
+> M3: **237** and **238** (agents running).
 
 ---
 
@@ -151,23 +151,15 @@ Complete (Phases 220–225, v0.11.28); see the summary table.
 
 ### Phase 238 — Corpus app failures (from the Phase 231 sweep)
 **Class**: Compatibility. Worst ratings of `doc/sweeps/2026-10-03-sweep.md`, per app (use the compat-sweep skill's parallel triage; tracediff before hypotheses).
-- [ ] No window where AmigaOS 3.1 shows one: ADPro (crashed after loading `adpro.library` in Phase 230), Asm-One and GadToolsBox3 (screen-mode requester), Oberon, Scout (MUI).
-- [ ] The five `untested` apps: the reference never shows the expected window for AmiBlitz3/AQB/BTII/SIGMAth/SIGMAth2 - fix the scenarios (DSL: stack size for the launched program - AQB needs 64 KB; a writable copy of the app directory - AmiBlitz3 writes into its own folder; BTII/SIGMAth crash on the reference itself with #80000006/#8000000B: find the configuration they need).
+- [x] (v0.11.30) Scout, Oberon, ADPro, Asm-One, AQB, BTII, SIGMAth, SIGMAth2 reach their window on both systems (memory handlers, BOOPSI OM_NEW class, CreateNewProc under Forbid, ActivateWindow message, programs on their own stack, unknown display IDs refused + ViewPortExtra, scenario `stack:`/`writable:`, lxaprobe RUN keeps detached segments); colorwheel/gradientslider/tapedeck gadgets ported from AROS; exec pools, 2 MB chip + fast RAM.
+- [ ] AmiBlitz3 fails on lxa ("Could not build index cache"): the 2509th `AllocPooled` diverges (reference: 0xC0 bytes from pool 17; lxa: 0x30 bytes from a NULL pool) - find the corrupted list header.
+- [ ] asl.library's screen-mode requester is simplified (6 entries, no "Control" menu; 3.1 lists the display database) and not marked `LXA_UNIMPLEMENTED` - complete it (GadToolsBox3 shows it).
 - [ ] `NameFromLock()` returns `SYS:`/`T:`/`RAM:` where 3.1 returns volume names (`Ram Disk:`, `System:C`; probe `tests/probes/dos/volnames.c` has no `.ref.out` yet) - give lxa a "System" boot volume and a "Ram Disk" volume for RAM:, then capture the probe.
 - [ ] Give the lxa backend a `SYS:` laid out like the reference's system root (pylxa's `SYS:` is the samples directory first): the dopus-startup golden's right pane lists different directories (ignore region, Phase 224).
 - [ ] Re-run `python3 -m rdd sweep run` after each fix; the rating in `apps/compat.yaml` must not drop (`rdd loop`).
 
 - [ ] (from Phase 222) lxaprobe's `MENU` command cannot reach sub-items on 3.1 (the menus golden uses coordinates).
 **Test gate**: no corpus app rated `garbage` or `untested` for a reason inside lxa or the scenarios.
-
-### Phase 234 — Legacy app items, re-validated
-**Class**: Compatibility. Carried over from the legacy roadmap; each one must now end with a reference golden.
-- [ ] BlitzBasic 2 ted editor shows no text (legacy 160). Start with a tracediff and a reference capture, not with hypotheses.
-- [ ] SysInfo hardware fields and the Cluster2 EXIT button (legacy 162). SysInfo needs the battclock/CIA resources from Phase 255.
-- [ ] DOpus button pages beyond the default (Move/Rename), and re-enable `AppsMiscScreenTest.DISABLED_DirectoryOpusCopiesFile` (`apps_misc_gtest.cpp`): the test now waits until the lister shows the file; a click on the file row (window y + 37) still does not select it with the test's generated configuration, while with the default configuration a click on a lister row selects it on lxa as on 3.1 (twin scenario). Run the generated configuration on the reference next.
-- [ ] SysInfo gadgets: re-enable `SysInfoTest.DISABLED_{Memory,Boards,Libraries,Speed}Gadget…` (`sysinfo_gtest.cpp`). Phase 201 showed they only passed while the slow wall-clock startup paint was still running; after full startup a click on MEMORY/BOARDS/LIBRARIES/SPEED repaints nothing. Start with a reference capture of the same clicks.
-
-**Test gate**: each item has a passing golden scenario.
 
 ---
 
@@ -179,7 +171,7 @@ Complete (Phases 220–225, v0.11.28); see the summary table.
 - [ ] Present a 68040 with FPU (Fred Fish MoonTool .030/.040 and other FPU programs take a line-F exception on lxa's 68030 without FPU, Phase 237). Switch the Musashi CPU type, set `AttnFlags` (`exec.c:5898`), and ship a `68040.library`-compatible `SYS:Libs` entry, since apps probe for it.
 - [ ] Report AGA everywhere (`ChipRevBits0`, `GetChipRev`-style code at `lxa_graphics.c:9314`, `exec.c:5765`). Add AGA display modes, 256-colour planar screens and `LoadRGB32`/`SetRGB32` 24-bit palettes.
 - [ ] Cross-check GfxBase, ExecBase and display-info fields one by one against a reference `aga` dump.
-- [ ] Memory layout of the reference: 2 MB chip RAM plus fast RAM (lxa has one 10 MB `MEMF_CHIP` region). Directory Opus shows `MEMORY:` instead of `CHIP: FAST: TOTAL:` (dopus-startup golden pixel budget).
+- [x] Memory layout of the reference: 2 MB chip RAM plus fast RAM (done in Phase 238, v0.11.30).
 
 **Test gate**: the field dump and the `aga` gallery (Phase 223) match the reference.
 
@@ -235,6 +227,7 @@ The order below is provisional. After Phase 231/232 it is re-sorted by how often
 - [ ] bullet.library (outline fonts) as a separately scoped sub-phase.
 
 - [ ] (from Phase 222) CON:/RAW: options AUTO, WAIT and SCREEN are ignored (`LXA_UNIMPLEMENTED`).
+- [ ] (from Phase 234) Re-enable `SysInfoTest.DISABLED_{Memory,Boards,Libraries,Speed}Gadget…` (`sysinfo_gtest.cpp`): SysInfo busy-waits for 60 ticks of CIA-A's time-of-day counter ($BFE801-$BFEA01) and its DRIVES scan needs a non-empty DOS device list (real `LockDosList`); battclock.resource is missing. Golden `SysInfo/sysinfo-gadgets` records the divergence.
 ### Phase 256 — intuition / graphics / gadtools remaining stubs
 - [ ] `DisplayBeep` (screen flash plus optional host bell), `MoveScreen`/`ScreenPosition`, `ModifyProp` refresh, `RethinkDisplay`, `GT_FilterIMsg`/`GT_PostFilterIMsg`, `LoadView`, `RPTAG_DrawBounds`, layers SuperBitMap sync.
 - [ ] Whatever else is in the stub inventory (Phase 203) for these libraries.
@@ -355,6 +348,7 @@ The order below is provisional. After Phase 231/232 it is re-sorted by how often
 | 231 | Shallow sweep & divergence ranking: scenario step `menus` (open every menu, snapshot, cancel) on both backends, `python3 -m rdd sweep gen|run|rank` (36 app sweep scenarios generated from the Phase 230 launch scenarios; ranking crash > no window > tree diff > pixel diff; clustering + phase stubs), explicit cluster ownership map `doc/sweeps/owners.yaml` (checked by golden_lint). Report `doc/sweeps/2026-10-03-sweep.md`: 31 clusters in >= 2 apps, all owned; per-app failures moved to Phase 238. | v0.11.17 |
 | 232 | Fred Fish mass run: `python3 -m rdd massrun crawl|lxa|ref|report` (9932 executables from 993 disks; lxa side in a private system copy; reference batched per instance with crash/hang detection). Emulator-level failures (host segfaults, Musashi `exit()`, wall-clock stalls) driven to zero: 32-bit address wrap in RAM/ROM fast paths, copper self-jump recursion, FPU/PMMU fatal errors, Read/Write buffer clamping, `WaitForChar` real-time select, runaway PCs (now a bus error), AmigaOS trap convention with held tasks / Guru for faulting interrupt code, sane stack for held tasks, bounded fault logging, console handles never close host fds; `Open("*")` and the CLI stack-size entry convention fixed. Report `doc/sweeps/2026-10-03-fish-massrun.md`; remaining lxa-only crash classes owned by Phase 237. | v0.11.16 |
 | 233 | Relay-trace differential: `src/lxa/lxa_relay.c` traces calls through library jump tables (`LXA_TRACE`, `lxa_trace_start`, return detection by return address + SP, library list refreshed after `OpenLibrary`, ROM-internal calls skipped, `LXA_TRACE_INJECT` fault injection); scenario step `trace:`; reference side via lxaprobe `TRACE`; `python3 -m rdd tracediff` (NDK .fd names, clib-prototype typing, top-level calls only, first divergence in order or return value). Gate: an injected `Seek` return bug is located (`tests/rdd/test_tracediff.py`). Found and fixed: `Close()` returned 1 instead of DOSTRUE, `Seek()` returned the new position and allowed seeking past EOF; `ExecBase->ChkBase` was never set. | v0.11.10 |
+| 234 | Legacy app items re-validated with reference goldens: BlitzBasic 2 ted (prop gadgets from a `propgad` probe, old-look screen pens, window re-activation), Cluster2 EXIT (screen MouseX/Y on every input path; blitter masks/shift/descending fixed), DOpus (`DirectoryOpusCopiesFile` re-enabled, PaletteExtra for every screen, string gadget Amiga-X/Q, `.uaem` hidden), SysInfo (beam position registers, address 0); goldens `blitzbasic2-ted`, `cluster2-exit`, `dopus-select`, `sysinfo-gadgets`. SysInfo page gadgets moved to Phase 255. | v0.11.29 |
 | 235 | Library override mode: `LXA_OVERRIDE=asl,iffparse` (+ `LXA_OVERRIDE_DIR`, default the reference system's `Libs/`) keeps the built-in library private to the ROM and maps `LIBS:<name>` to the user's AmigaOS 3.1 binary (`src/lxa/lxa_override.c`, `EMU_CALL_LIB_OVERRIDDEN`); only 3.1 disk libraries accepted; `tests/exec/libident`; gate `tests/rdd/test_override.py` (Tests/IffParse/Basic runs on the real iffparse 40.1). Debug-only workflow: AGENTS §6.26. | v0.11.12 |
 | 236 | Prefs fidelity: `C:IPrefs` (input, locale, overscan, font, palette, pointer, icontrol, screenmode from `ENV:Sys/*.prefs`, run at boot), `OpenLocale()` reads locale prefs, 3.1 defaults (ColorMap, overscan, Preferences, Workbench/pointer colours), fonts/palette/pens applied as on 3.1; goldens `Prefs/gallery-prefs-{default,fontpal,sys}` (scenario keys `prefs:`, `keymaps: wb31`). Open: wbpattern and icon font (264), live prefs changes, pointer image drawing. | v0.11.27 |
 | 239 | BCPL programs: AROS m68k BCPL support ported (`src/rom/bcpl/`, `doc/third-party-code.md`); every command gets a2 = global vector, a5/a6 = BCPL call/return, a1 = BCPL stack (as 3.1, verified with `dos/entryregs`); ROM console segment for 1.3 Run/NewCLI; probe `dos/bcpl`. All six BCPL programs of the Fish corpus exit like on 3.1. Remaining BCPL stubs (coroutines, longjump, requesters) are in the stub inventory. | v0.11.27 |

@@ -1,0 +1,4 @@
+-- CreateNewProc NP_Entry
+priority +1: created yes, ran before return yes, finished yes
+priority 0: created yes, ran before return no, finished yes
+priority -1: created yes, ran before return no, finished yes

@@ -1,0 +1,18 @@
+-- MemList (lxa has one fast region, the reference two)
+first region attributes = 0x00000505
+first region pri = 30
+chip region attributes = 0x00000703
+chip region pri = -10
+fast regions before chip = TRUE
+-- where allocations come from
+TypeOfMem(AllocMem(MEMF_ANY)) = 0x00000505
+TypeOfMem(AllocMem(MEMF_PUBLIC)) = 0x00000505
+TypeOfMem(AllocMem(MEMF_CHIP)) = 0x00000703
+AllocMem(MEMF_FAST) = non-NULL
+TypeOfMem(AllocMem(MEMF_FAST)) = 0x00000505
+-- AvailMem
+AvailMem(MEMF_FAST) > 1 MB = TRUE
+AvailMem(MEMF_CHIP) < 2 MB = TRUE
+AvailMem(MEMF_CHIP) > 1 MB = TRUE
+AvailMem(MEMF_TOTAL|MEMF_CHIP) == 2 MB = FALSE
+MaxLocMem = 0x00200000

@@ -799,7 +799,7 @@ TEST_F(AppsMiscTest, DirectoryOpus) {
 
 }
 
-TEST_F(AppsMiscScreenTest, DISABLED_DirectoryOpusCopiesFile) {
+TEST_F(AppsMiscScreenTest, DirectoryOpusCopiesFile) {
     std::string dopus_base;
     namespace fs = std::filesystem;
     constexpr int RAWKEY_RETURN = 0x44;
@@ -842,8 +842,15 @@ TEST_F(AppsMiscScreenTest, DISABLED_DirectoryOpusCopiesFile) {
     ASSERT_TRUE(GetWindowInfo(0, &dopus_info));
     ASSERT_TRUE(lxa_is_running()) << GetOutput();
 
+    /* run until every task waits (bounded): DOpus was still reading the
+     * lister (header not yet drawn) when a fixed number of frames had
+     * passed, and the row click got lost.  The same configuration selects
+     * the row on lxa and on AmigaOS 3.1 once DOpus is idle (Phase 234,
+     * golden tests/golden/DirectoryOpus/dopus-select). */
     auto settle = [&](int vblanks = 40) {
         RunCyclesWithVBlank(vblanks, 50000);
+        for (int i = 0; i < 20 && lxa_run_until_idle(50, 100000) >= 50; ++i) {
+        }
     };
 
     auto confirm_copy_requester = [&]() {
