@@ -467,7 +467,7 @@ struct LXAPubScreenNode {
 };
 
 /* AmigaOS 3.1 reference: a custom screen opened without SA_Pens keeps the
- * pre-V36 pens and has DRIF_NEWLOOK clear (dri_Pens 0 1 1 1 1 1 0 0 1 0 1 1). */
+ * pre-V36 pens and has DRIF_NEWLOOK clear. */
 static VOID _intuition_set_oldlook_pens(struct LXAPubScreenNode *entry)
 {
     /* AmigaOS 3.1 (tests/probes/intuition/screens): the old look pens come
@@ -15255,6 +15255,14 @@ struct Screen * _intuition_OpenScreenTagList ( register struct IntuitionBase * I
                 lxa_pub->pens[i] = sa_pens[i];
             }
 
+            /* a V37-style array (1 to 9 pens, no bar pens): the bar keeps
+             * the screen's DetailPen/BlockPen (tests/probes/intuition/screens) */
+            if (i > 0 && i <= BARDETAILPEN)
+            {
+                lxa_pub->pens[BARDETAILPEN] = screen->DetailPen;
+                lxa_pub->pens[BARBLOCKPEN] = screen->BlockPen;
+                lxa_pub->pens[BARTRIMPEN] = screen->BlockPen;
+            }
             DPRINTF(LOG_DEBUG, "_intuition: OpenScreenTagList() applied %d custom pens\n", (int)i);
             if (screen->Flags & SHOWTITLE)
                 _render_screen_title_bar(screen);

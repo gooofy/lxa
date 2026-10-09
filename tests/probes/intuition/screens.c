@@ -229,6 +229,33 @@ int main(void)
     show_bar("tags pens detail 3 block 1",
              OpenScreenTags(NULL, SA_Depth, 2, SA_DisplayID, HIRES_KEY, SA_DetailPen, 3, SA_BlockPen, 1,
                             SA_Pens, (ULONG)pens, SA_Title, (ULONG)"Pens", TAG_END));
+    {
+        /* V37-style pen arrays without the bar pens (BlitzBasic 2: p9) */
+        static UWORD p9[] = { 1, 2, 2, 1, 2, 3, 1, 0, 3, (UWORD)~0 };
+        static UWORD p10[] = { 1, 2, 2, 1, 2, 3, 1, 0, 3, 2, (UWORD)~0 };
+        static UWORD p1[] = { 2, (UWORD)~0 };
+        static UWORD p4[] = { 0, 1, 3, 2, (UWORD)~0 };
+        struct ExtNewScreen ens;
+        struct TagItem ext[] = { { SA_Pens, (ULONG)p9 }, { TAG_DONE, 0 } };
+
+        show_bar("tags p9 detail 3 block 1",
+                 OpenScreenTags(NULL, SA_Depth, 2, SA_DisplayID, HIRES_KEY, SA_DetailPen, 3, SA_BlockPen, 1,
+                                SA_Pens, (ULONG)p9, SA_Title, (ULONG)"Pens", TAG_END));
+        show_bar("tags p10", OpenScreenTags(NULL, SA_Depth, 2, SA_DisplayID, HIRES_KEY,
+                                            SA_Pens, (ULONG)p10, SA_Title, (ULONG)"Pens", TAG_END));
+        show_bar("tags p1", OpenScreenTags(NULL, SA_Depth, 2, SA_DisplayID, HIRES_KEY,
+                                           SA_Pens, (ULONG)p1, SA_Title, (ULONG)"Pens", TAG_END));
+        show_bar("tags p4", OpenScreenTags(NULL, SA_Depth, 2, SA_DisplayID, HIRES_KEY,
+                                           SA_Pens, (ULONG)p4, SA_Title, (ULONG)"Pens", TAG_END));
+        memset(&ens, 0, sizeof(ens));
+        ens.Width = 640; ens.Height = 200; ens.Depth = 2;
+        ens.ViewModes = HIRES;
+        ens.Type = CUSTOMSCREEN | SHOWTITLE | NS_EXTENDED;
+        ens.DefaultTitle = (UBYTE *)"Pens";
+        ens.DetailPen = 1; ens.BlockPen = 2;
+        ens.Extension = ext;
+        show_bar("ExtNewScreen p9 detail 1 block 2", OpenScreen((struct NewScreen *)&ens));
+    }
 
     CloseLibrary(DiskfontBase);
     CloseLibrary(GfxBase);
