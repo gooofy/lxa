@@ -5723,6 +5723,34 @@ static void _myTestTask(void)
  */
 static struct Task *wb_window_parent;
 
+/*
+ * The system tasks programs find by name (probe exec/systasks: AmigaOS 3.1
+ * has an "input.device" task at priority 20 and a "ramlib" process at 0,
+ * both waiting).  SnoopDos looks both up before it builds its window.  lxa
+ * dispatches input events from the VBlank input hook and loads disk
+ * libraries in the caller's context, so these only wait.
+ */
+static void sys_wait_task(void)
+{
+    for (;;)
+        Wait(SIGBREAKF_CTRL_C);
+}
+
+static void create_system_tasks(void)
+{
+    struct Task *t;
+
+    if (!FindTask((STRPTR)"input.device") &&
+        (t = U_createTask((STRPTR)"input.device", 20, (APTR)sys_wait_task, 4096)))
+        emucall1(EMU_CALL_SYSTEM_TASK, (ULONG)t);
+    if (!FindTask((STRPTR)"ramlib") &&
+        (t = (struct Task *)CreateNewProcTags(NP_Entry, (ULONG)sys_wait_task, NP_Name, (ULONG)"ramlib",
+                                              NP_Priority, 0, NP_StackSize, 4096, NP_Input, 0,
+                                              NP_Output, 0, NP_CloseInput, FALSE,
+                                              NP_CloseOutput, FALSE, TAG_DONE)))
+        emucall1(EMU_CALL_SYSTEM_TASK, (ULONG)t);
+}
+
 static void wb_window_task(void)
 {
     struct Screen *scr = LockPubScreen((CONST_STRPTR)"Workbench");
@@ -5793,6 +5821,8 @@ void _bootstrap(void)
             }
         }
     }
+
+    create_system_tasks ();
 
     if (emucall1 (EMU_CALL_WB_WINDOW, 0))
     {

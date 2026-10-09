@@ -1,6 +1,7 @@
 # Phase 230 launch scenario: the compat DB (apps/compat.yaml) derives the
 # rating of MaxonBASIC from it.  Window title from the discovery twin run.
 name: app-maxonbasic
+fonts: wb31        # the editor uses topaz 11 from the Workbench 3.1 FONTS: (Phase 244)
 app: {manifest: MaxonBASIC}
 steps:
   - launch

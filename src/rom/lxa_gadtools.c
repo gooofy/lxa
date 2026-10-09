@@ -1071,7 +1071,7 @@ static WORD gt_font_ysize(struct TextFont *font)
 /* Helper: create a stripped copy of a label string.
  * Removes all occurrences of the underscore prefix character 'us'.
  * Returns allocated string or NULL. Also returns the character index
- * (in the stripped string) of the first underlined character via *ul_pos.
+ * (in the stripped string) of the underlined character via *ul_pos.
  * *ul_pos is set to -1 if no underscore is found.
  */
 static STRPTR gt_strip_underscore(CONST_STRPTR label, UBYTE us, WORD *ul_pos)
@@ -1091,9 +1091,10 @@ static STRPTR gt_strip_underscore(CONST_STRPTR label, UBYTE us, WORD *ul_pos)
     {
         if (us && label[src] == us)
         {
-            /* Mark next character as underlined (first occurrence only) */
-            if (*ul_pos < 0 && label[src + 1])
-                *ul_pos = dst;
+            /* the character after the last underscore is underlined; a
+             * trailing underscore underlines the terminating NUL (AmigaOS
+             * 3.1, probe gadtools/underscore) */
+            *ul_pos = dst;
             /* Skip the underscore prefix itself */
             continue;
         }
@@ -1222,19 +1223,26 @@ static struct IntuiText * gt_create_label(CONST_STRPTR text, ULONG flags,
     it->NextText  = NULL;
 
     textWidth = gt_label_text_width(font, displayText, gt_strlen(displayText));
-    fh = gt_font_ysize(font);
+    /* an empty label has no height (probe gadtools/underscore: "_") */
+    fh = displayText[0] ? gt_font_ysize(font) : 0;
     gt_label_pos(gt_label_place(flags, defaultPlace), gadWidth, gadHeight, textWidth, fh,
                  &it->LeftEdge, &it->TopEdge);
 
     /* GT_Underscore: AmigaOS 3.1 chains a second IntuiText with the
-     * underlined character in an underlined copy of the font */
-    if (ul_pos >= 0)
+     * underlined character in an underlined copy of the font - an empty
+     * one at the label's start when the label has no underscore (probe
+     * gadtools/underscore; ADPro's and SnoopDos' TEXT_KIND labels) */
+    if (us)
     {
+        BOOL none = ul_pos < 0;
+
+        if (none)
+            ul_pos = 0;
         struct GTULText *u = (struct GTULText *)AllocMem(sizeof(struct GTULText), MEMF_CLEAR | MEMF_PUBLIC);
         STRPTR c = (STRPTR)AllocMem(2, MEMF_CLEAR | MEMF_PUBLIC);
         if (u && c)
         {
-            c[0] = displayText[ul_pos];
+            c[0] = none ? 0 : displayText[ul_pos];
             u->it = *it;
             u->it.IText = c;
             u->it.LeftEdge = it->LeftEdge + gt_text_width(font, displayText, ul_pos);
@@ -1256,7 +1264,7 @@ static struct IntuiText * gt_create_label(CONST_STRPTR text, ULONG flags,
     }
 
     if (ul)
-        *ul = ul_pos;
+        *ul = (ul_pos >= 0 && displayText[ul_pos]) ? ul_pos : -1;
     return it;
 }
 
@@ -1428,8 +1436,14 @@ static void gt_label(struct gt_build *b, struct Gadget *gad, ULONG defplace, WOR
             b->failed = TRUE;
             return;
         }
-        it->LeftEdge += bx - gad->LeftEdge;
-        it->TopEdge += by - gad->TopEdge;
+        {
+            struct IntuiText *t;
+            for (t = it; t; t = t->NextText)
+            {
+                t->LeftEdge += bx - gad->LeftEdge;
+                t->TopEdge += by - gad->TopEdge;
+            }
+        }
         gad->GadgetText = it;
         data->label_gad = gad;
         data->underline_pos = ul;
@@ -1512,7 +1526,7 @@ struct Gadget * _gadtools_CreateGadgetA ( register struct GadToolsBase *GadTools
             /* the label is part of the button imagery (no GadgetText) */
             data->label = gt_strip_underscore(ng->ng_GadgetText, us, &ul_pos);
             data->label_pen = (ng->ng_Flags & NG_HIGHLABEL) ? HIGHLIGHTTEXTPEN : TEXTPEN;
-            data->underline_pos = ul_pos;
+            data->underline_pos = (data->label && ul_pos >= 0 && data->label[ul_pos]) ? ul_pos : -1;
             tw = data->label ? gt_label_text_width(font, data->label, gt_strlen(data->label)) : 0;
             gt_label_pos(place, W, H, tw, fh, &data->label_x, &data->label_y);
             data->label_in = (place & (PLACETEXT_LEFT | PLACETEXT_RIGHT | PLACETEXT_ABOVE | PLACETEXT_BELOW)) == 0;

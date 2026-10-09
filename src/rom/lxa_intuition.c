@@ -14853,14 +14853,14 @@ struct Window * _intuition_OpenWindowTagList ( register struct IntuitionBase * I
          * When newWindow is NULL, Flags start at 0.
          * Only the WA_* tags should set flags.
          * Width/Height default to ~0 (sentinel meaning "use screen dimensions").
-         * DetailPen/BlockPen default to 0xFF (use screen defaults) per AROS,
-         * but we use 0/1 for backward compatibility.
+         * DetailPen/BlockPen default to 0xFF: the window takes the
+         * screen's pens (AmigaOS 3.1, probe intuition/scrpens; ReSource).
          */
         memset(&nw, 0, sizeof(nw));
         nw.Width = (WORD)~0;
         nw.Height = (WORD)~0;
-        nw.DetailPen = 0;
-        nw.BlockPen = 1;
+        nw.DetailPen = 0xFF;
+        nw.BlockPen = 0xFF;
         nw.Flags = 0;  /* Tags will set the flags */
         nw.Type = WBENCHSCREEN;  /* Default to opening on Workbench */
     }

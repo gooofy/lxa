@@ -322,5 +322,8 @@
  * the reference's LoadWB window).  d1=0 -> d0=1 if wanted; d1=window:
  * registers it (not an application window in tree dumps / window counts) */
 #define EMU_CALL_WB_WINDOW           5202
+/* Phase 244: d1=task - a system task that only waits (input.device,
+ * ramlib); like a held task it does not keep the emulation running */
+#define EMU_CALL_SYSTEM_TASK         5203
 
 #endif

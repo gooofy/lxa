@@ -231,6 +231,8 @@ Built-in C: commands with full AmigaDOS template support:
 
 ## Current Status
 
+**Version 0.11.41** - Corpus residue (Phase 244): ADPro, MaxonBASIC, ProWrite and ReSource are tree-equal to AmigaOS 3.1 - GadTools labels with GT_Underscore always carry the underline text, windows opened by tags take their screen's pens, and "input.device" and "ramlib" exist as system tasks (each verified with a probe); MaxonBASIC and ProWrite now run with the Workbench 3.1 fonts as on the reference.
+
 **Version 0.11.40** - Corpus residue (Phase 244): OpenWindow widens the borders around an application's border gadgets and marks them GACT_BORDERSNIFF as AmigaOS 3.1 does (SIGMAth, BECKERtext II), and GadTools keeps menus on the screen - items move left at the right edge, long menus continue in a second column (ADPro, MaxonBASIC, Scout). Both verified with new reference probes.
 
 **Version 0.11.32** - Corpus apps (Phase 238 closed): all 36 corpus apps now open their windows as on AmigaOS 3.1 - none is rated garbage or untested any more (2 platinum, 15 gold, 19 silver; `doc/sweeps/2026-10-09-sweep.md`). AmiBlitz3 starts (exec's Disable/Enable/Forbid/Permit and semaphore calls keep all registers, as documented), asl.library's screen-mode requester is identical to 3.1's, files are named by their volumes ("System:C", "Ram Disk:T") and the test harnesses get a Workbench laid out like the reference's.
