@@ -52,6 +52,7 @@
 #include <devices/timer.h>
 #include <dos/dos.h>
 #include <dos/dostags.h>
+#include <dos/dosextens.h>
 #include <graphics/gfx.h>
 #include <graphics/gfxbase.h>
 #include <graphics/rastport.h>
@@ -415,6 +416,10 @@ static void cmd_run(char *args)
     {
         static char argline[512];
         snprintf(argline, sizeof(argline), "%s\n", p);
+        /* the child must not run before its CLI says how large its
+         * stack is (cli_DefaultStack, as the STACK command sets it):
+         * C startup codes (Maxon, SAS) derive their stack bound from it */
+        Forbid();
         app_proc = CreateNewProcTags(NP_Seglist, (ULONG)seg,
                                      NP_FreeSeglist, TRUE,
                                      NP_Name, (ULONG)FilePart((STRPTR)prog),
@@ -432,6 +437,9 @@ static void cmd_run(char *args)
                                      NP_StackSize, stack,
                                      NP_ExitCode, (ULONG)exit_hook,
                                      TAG_DONE);
+        if (app_proc && app_proc->pr_CLI)
+            ((struct CommandLineInterface *)BADDR(app_proc->pr_CLI))->cli_DefaultStack = stack / 4;
+        Permit();
     }
     if (!app_proc)
     {
