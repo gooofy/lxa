@@ -3773,6 +3773,32 @@ struct IntuitionBase * __g_lxa_intuition_InitLib    ( register struct IntuitionB
         }
     }
 
+    /* Create fillrectclass (subclass of imageclass) */
+    {
+        struct IClass *fillrect = AllocMem(sizeof(struct IClass) + sizeof(FILLRECTCLASS), MEMF_PUBLIC | MEMF_CLEAR);
+        if (fillrect && base->ImageClass) {
+            UBYTE *id = (UBYTE *)(fillrect + 1);
+            strcpy((char *)id, FILLRECTCLASS);
+
+            fillrect->cl_ID = (ClassID)id;
+            fillrect->cl_Super = base->ImageClass;
+            fillrect->cl_Dispatcher.h_Entry = (ULONG (*)())lxa_fillrectclass_dispatch;
+            fillrect->cl_InstOffset = base->ImageClass->cl_InstOffset + base->ImageClass->cl_InstSize;
+            fillrect->cl_InstSize = lxa_fillrectclass_instsize;
+            base->ImageClass->cl_SubclassCount++;
+            {
+                struct LXAClassNode *node = AllocMem(sizeof(struct LXAClassNode), MEMF_PUBLIC | MEMF_CLEAR);
+                if (node) {
+                    node->class_ptr = fillrect;
+                    node->node.ln_Type = NT_UNKNOWN;
+                    node->node.ln_Name = (char *)id;
+                    AddTail(&base->ClassList, &node->node);
+                    fillrect->cl_Flags |= CLF_INLIST;
+                }
+            }
+        }
+    }
+
     /* Create icclass (subclass of rootclass) */
     struct IClass *icclass = AllocMem(sizeof(struct IClass) + sizeof("icclass"), MEMF_PUBLIC | MEMF_CLEAR);
     if (icclass && base->RootClass)

@@ -467,6 +467,116 @@ ULONG lxa_imageclass_dispatch(register struct IClass *cl __asm("a0"),
     }
 }
 
+/* fillrectclass (probe intuition/fillrect): the box filled with the
+ * IA_FGPen/IA_BGPen pens, IA_Mode draw mode and an IA_APattern area
+ * pattern of 2^IA_APatSize rows; the RastPort's pens, mode and pattern are
+ * left as they were.  Without IA_FGPen the fill pen is 0.  reqtools.library
+ * builds its requester backgrounds from it. */
+struct FillRectData
+{
+    UWORD *pattern;
+    UWORD patsize;
+    UWORD mode;
+};
+
+const ULONG lxa_fillrectclass_instsize = sizeof(struct FillRectData);
+
+static void fillrect_set(struct FillRectData *fd, struct TagItem *tags)
+{
+    struct TagItem *ts = tags, *tag;
+
+    while ((tag = NextTagItem(&ts)))
+    {
+        switch (tag->ti_Tag)
+        {
+            case IA_APattern: fd->pattern = (UWORD *)tag->ti_Data; break;
+            case IA_APatSize: fd->patsize = (UWORD)tag->ti_Data; break;
+            case IA_Mode:     fd->mode = (UWORD)tag->ti_Data; break;
+            default: break;
+        }
+    }
+}
+
+ULONG lxa_fillrectclass_dispatch(register struct IClass *cl __asm("a0"),
+                                 register Object *obj __asm("a2"),
+                                 register Msg msg __asm("a1"))
+{
+    struct FillRectData *fd;
+    struct Image *im;
+
+    switch (msg->MethodID)
+    {
+        case OM_NEW:
+            obj = (Object *)do_super(cl, obj, msg);
+            if (obj)
+            {
+                struct TagItem *tags = ((struct opSet *)msg)->ops_AttrList;
+
+                fd = INST_DATA(cl, obj);
+                fd->pattern = NULL;
+                fd->patsize = 0;
+                fd->mode = JAM2;
+                if (!FindTagItem(IA_FGPen, tags))
+                    ((struct Image *)obj)->PlanePick = 0;
+                fillrect_set(fd, tags);
+            }
+            return (ULONG)obj;
+
+        case OM_SET:
+        case OM_UPDATE:
+            fd = INST_DATA(cl, obj);
+            fillrect_set(fd, ((struct opSet *)msg)->ops_AttrList);
+            return do_super(cl, obj, msg);
+
+        case IM_DRAW:
+        case IM_DRAWFRAME:
+        {
+            struct impDraw *id = (struct impDraw *)msg;
+            struct RastPort *rp = id->imp_RPort;
+            WORD x, y, w, h;
+            UBYTE apen, bpen, drmd;
+            UWORD *optrn;
+            BYTE osize;
+
+            fd = INST_DATA(cl, obj);
+            im = (struct Image *)obj;
+            if (!rp)
+                return 0;
+            w = im->Width;
+            h = im->Height;
+            if (msg->MethodID == IM_DRAWFRAME)
+            {
+                w = id->imp_Dimensions.Width;
+                h = id->imp_Dimensions.Height;
+            }
+            if (w <= 0 || h <= 0)
+                return 1;
+            x = id->imp_Offset.X + im->LeftEdge;
+            y = id->imp_Offset.Y + im->TopEdge;
+            apen = rp->FgPen;
+            bpen = rp->BgPen;
+            drmd = rp->DrawMode;
+            optrn = rp->AreaPtrn;
+            osize = rp->AreaPtSz;
+            SetAPen(rp, im->PlanePick);
+            SetBPen(rp, im->PlaneOnOff);
+            SetDrMd(rp, fd->mode);
+            rp->AreaPtrn = fd->pattern;
+            rp->AreaPtSz = fd->pattern ? (BYTE)fd->patsize : 0;
+            RectFill(rp, x, y, x + w - 1, y + h - 1);
+            rp->AreaPtrn = optrn;
+            rp->AreaPtSz = osize;
+            SetAPen(rp, apen);
+            SetBPen(rp, bpen);
+            SetDrMd(rp, drmd);
+            return 1;
+        }
+
+        default:
+            return do_super(cl, obj, msg);
+    }
+}
+
 /* sysiclass */
 struct SysIData
 {
