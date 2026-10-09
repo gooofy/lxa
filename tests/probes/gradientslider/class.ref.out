@@ -1,0 +1,93 @@
+-- library
+OpenLibrary gadgets/gradientslider.gadget = non-NULL
+lib_Version = 40
+ln_Name = "gradientslider.gadget"
+-- NewObject defaults
+object = non-NULL
+class = "gradientslider.gadget"
+superclass = "gadgetclass"
+  LeftEdge = 5
+  TopEdge = 7
+  Width = 100
+  Height = 12
+  GadgetID = 3
+  GadgetType = 0x00000005
+  Flags = 0x00008000
+  Activation = 0x00000000
+  MaxVal = 0xdeadbeef (GetAttr 0)
+  CurVal = 0x00000000 (GetAttr 1)
+  SkipVal = 0xdeadbeef (GetAttr 0)
+  GA_ID = 0xdeadbeef (GetAttr 0)
+-- SetAttrs GRAD_CurVal
+SetAttrs = 1
+  MaxVal = 0xdeadbeef (GetAttr 0)
+  CurVal = 0x00008000 (GetAttr 1)
+  SkipVal = 0xdeadbeef (GetAttr 0)
+-- SetAttrs GRAD_SkipVal
+SetAttrs = 0
+  MaxVal = 0xdeadbeef (GetAttr 0)
+  CurVal = 0x00008000 (GetAttr 1)
+  SkipVal = 0xdeadbeef (GetAttr 0)
+-- SetAttrs GRAD_MaxVal 0x100
+SetAttrs = 1
+  MaxVal = 0xdeadbeef (GetAttr 0)
+  CurVal = 0x00000100 (GetAttr 1)
+  SkipVal = 0xdeadbeef (GetAttr 0)
+-- SetAttrs GRAD_CurVal 0x80
+SetAttrs = 1
+  MaxVal = 0xdeadbeef (GetAttr 0)
+  CurVal = 0x00000080 (GetAttr 1)
+  SkipVal = 0xdeadbeef (GetAttr 0)
+-- SetAttrs GRAD_MaxVal 1000
+SetAttrs = 1
+  MaxVal = 0xdeadbeef (GetAttr 0)
+  CurVal = 0x00000080 (GetAttr 1)
+  SkipVal = 0xdeadbeef (GetAttr 0)
+-- SetAttrs GRAD_PenArray
+SetAttrs = 1
+  MaxVal = 0xdeadbeef (GetAttr 0)
+  CurVal = 0x00000080 (GetAttr 1)
+  SkipVal = 0xdeadbeef (GetAttr 0)
+-- NewObject with values
+object = non-NULL
+  LeftEdge = 0
+  TopEdge = 0
+  Width = 16
+  Height = 80
+  GadgetID = 0
+  GadgetType = 0x00000005
+  Flags = 0x00008000
+  Activation = 0x00000000
+  MaxVal = 0xdeadbeef (GetAttr 0)
+  CurVal = 0x00000064 (GetAttr 1)
+  SkipVal = 0xdeadbeef (GetAttr 0)
+-- NewObject CurVal before MaxVal
+object = non-NULL
+  MaxVal = 0xdeadbeef (GetAttr 0)
+  CurVal = 0x00000032 (GetAttr 1)
+  SkipVal = 0xdeadbeef (GetAttr 0)
+-- clamping and OM_SET return value
+object = non-NULL
+CurVal (MaxVal 100, CurVal 300) = 0x00000064 (GetAttr 1)
+set CurVal 500 = 0
+CurVal = 0x00000064 (GetAttr 1)
+set MaxVal 0 = 1
+CurVal = 0x00000000 (GetAttr 1)
+set MaxVal 0x20000 = 1
+CurVal = 0x00000000 (GetAttr 1)
+set CurVal 0x18000 = 1
+CurVal = 0x00018000 (GetAttr 1)
+set CurVal 0x18000 again = 0
+set GRAD_KnobPixels = 0
+set GA_Left = 0
+set no tags = 0
+set GRAD_PenArray NULL = 1
+set GA_Disabled = 0
+Flags = 0x00008100
+GRAD_KnobPixels = 0xdeadbeef (GetAttr 0)
+GRAD_PenArray = 0xdeadbeef (GetAttr 0)
+PGA_Freedom = 0xdeadbeef (GetAttr 0)
+object = non-NULL
+CurVal 0x20000 with the default MaxVal = 0x0000ffff (GetAttr 1)
+object = non-NULL
+CurVal (CurVal 300, MaxVal 100) = 0x00000064 (GetAttr 1)

@@ -1,0 +1,190 @@
+-- library
+OpenLibrary gadgets/colorwheel.gadget = non-NULL
+lib_Version = 40
+ln_Name = "colorwheel.gadget"
+2nd OpenLibrary gadgets/colorwheel.gadget same base = TRUE
+OpenLibrary colorwheel.gadget same base = TRUE
+-- ConvertHSBToRGB
+HSB 0x00000000 0xffffffff 0xffffffff -> RGB 0xffffffff 0x00000000 0x00000000
+HSB 0x2aaaaaaa 0xffffffff 0xffffffff -> RGB 0xffffffff 0xfffefffe 0x00000000
+HSB 0x55555555 0xffffffff 0xffffffff -> RGB 0x00000000 0xffffffff 0x00000000
+HSB 0x80000000 0xffffffff 0xffffffff -> RGB 0x00000000 0xffffffff 0xfffefffe
+HSB 0xaaaaaaaa 0xffffffff 0xffffffff -> RGB 0x00000000 0x00060006 0xffffffff
+HSB 0xd5555555 0xffffffff 0xffffffff -> RGB 0xfff9fff9 0x00000000 0xffffffff
+HSB 0xffffffff 0xffffffff 0xffffffff -> RGB 0xffffffff 0x00000000 0x000c000c
+HSB 0x00000000 0x00000000 0xffffffff -> RGB 0xffffffff 0xffffffff 0xffffffff
+HSB 0x40000000 0x00000000 0x80000000 -> RGB 0x80008000 0x80008000 0x80008000
+HSB 0x40000000 0x80000000 0x80000000 -> RGB 0x60006000 0x80008000 0x3fff3fff
+HSB 0x40000000 0xffffffff 0x00000000 -> RGB 0x00000000 0x00000000 0x00000000
+HSB 0x12345678 0x9abcdef0 0xfedcba98 -> RGB 0xfedcfedc 0xa68aa68a 0x64cf64cf
+HSB 0xc0000000 0x40000000 0xc0000000 -> RGB 0xa7fea7fe 0x8fff8fff 0xc000c000
+HSB 0x0fff0fff 0xffffffff 0xffffffff -> RGB 0xffffffff 0x5ffb5ffb 0x00000000
+HSB 0x2aa82aa8 0xffffffff 0xffffffff -> RGB 0xffffffff 0xfff3fff3 0x00000000
+HSB 0x2aab0000 0xffffffff 0xffffffff -> RGB 0xfffefffe 0xffffffff 0x00000000
+HSB 0x40000000 0x7fffffff 0x80000000 -> RGB 0x60006000 0x80008000 0x40004000
+HSB 0x854d854d 0x80000000 0xc0000000 -> RGB 0x5fff5fff 0xb414b414 0xc000c000
+HSB 0xaff5aff5 0xffffffff 0xffffffff -> RGB 0x1fb61fb6 0x00000000 0xffffffff
+HSB 0xfff0fff0 0x12345678 0x9abcdef0 -> RGB 0x9abc9abc 0x8fba8fba 0x8fbf8fbf
+-- ConvertRGBToHSB
+RGB 0xffffffff 0x00000000 0x00000000 -> HSB 0x00000000 0xffffffff 0xffffffff
+RGB 0x00000000 0xffffffff 0x00000000 -> HSB 0x55555555 0xffffffff 0xffffffff
+RGB 0x00000000 0x00000000 0xffffffff -> HSB 0xaaaaaaaa 0xffffffff 0xffffffff
+RGB 0xffffffff 0xffffffff 0x00000000 -> HSB 0x2aaa2aaa 0xffffffff 0xffffffff
+RGB 0x00000000 0xffffffff 0xffffffff -> HSB 0x7fff7fff 0xffffffff 0xffffffff
+RGB 0xffffffff 0x00000000 0xffffffff -> HSB 0xd554d554 0xffffffff 0xffffffff
+RGB 0xffffffff 0xffffffff 0xffffffff -> HSB (undefined) 0x00000000 0xffffffff
+RGB 0x00000000 0x00000000 0x00000000 -> HSB (undefined) 0x00000000 0x00000000
+RGB 0x80808080 0x80808080 0x80808080 -> HSB (undefined) 0x00000000 0x80808080
+RGB 0xffffffff 0x80000000 0x00000000 -> HSB 0x15551555 0xffffffff 0xffffffff
+RGB 0x12345678 0x9abcdef0 0xfedcba98 -> HSB 0x920c920c 0xedb6edb6 0xfedcfedc
+RGB 0x66666666 0x88888888 0xbbbbbbbb -> HSB 0x99999999 0x745c745c 0xbbbbbbbb
+RGB 0x9380f57d 0xe2d6f703 0xc385e89f -> HSB 0x6f286f28 0x59885988 0xe2d6e2d6
+RGB 0x714f6f00 0x78115fd0 0xf1737cb0 -> HSB 0xa869a869 0x87dc87dc 0xf173f173
+RGB 0x74ef6bd7 0x6bd7f927 0xf927aaaa -> HSB 0xad69ad69 0x91319131 0xf927f927
+RGB 0xc0910000 0x3c970000 0xb2030000 -> HSB 0xda09da09 0xaf72af72 0xc091c091
+RGB 0xbc6e0000 0x98b50000 0x00000000 -> HSB 0x22932293 0xffffffff 0xbc6ebc6e
+RGB 0x90dc0000 0xf7c80000 0x9df00000 -> HSB 0x5ac15ac1 0x6a556a55 0xf7c8f7c8
+RGB 0x00010000 0x00000000 0x00000000 -> HSB 0x00000000 0xffffffff 0x00010001
+-- NewObject defaults
+object = non-NULL
+class = "colorwheel.gadget"
+superclass = "gadgetclass"
+Width = 60
+Height = 60
+GadgetType = 0x00000005
+Flags = 0x00008000
+Activation = 0x00000000
+  Hue = 0x00000000 (GetAttr 1)
+  Saturation = 0xffffffff (GetAttr 1)
+  Brightness = 0xffffffff (GetAttr 1)
+  Red = 0xffffffff (GetAttr 1)
+  Green = 0x00000000 (GetAttr 1)
+  Blue = 0x00000000 (GetAttr 1)
+  HSB = 0x00000000 0xffffffff 0xffffffff
+  RGB = 0xffffffff 0x00000000 0x00000000
+-- SetAttrs WHEEL_Hue/Saturation
+SetAttrs = 1
+  Hue = 0x55555555 (GetAttr 1)
+  Saturation = 0x80008000 (GetAttr 1)
+  Brightness = 0xffffffff (GetAttr 1)
+  Red = 0x7fff7fff (GetAttr 1)
+  Green = 0xffffffff (GetAttr 1)
+  Blue = 0x7ffe7ffe (GetAttr 1)
+  HSB = 0x55555555 0x80008000 0xffffffff
+  RGB = 0x7fff7fff 0xffffffff 0x7ffe7ffe
+-- SetAttrs WHEEL_Brightness
+SetAttrs = 2
+  Hue = 0x55555555 (GetAttr 1)
+  Saturation = 0x80008000 (GetAttr 1)
+  Brightness = 0x40004000 (GetAttr 1)
+  Red = 0x20002000 (GetAttr 1)
+  Green = 0x40004000 (GetAttr 1)
+  Blue = 0x1fff1fff (GetAttr 1)
+  HSB = 0x55555555 0x80008000 0x40004000
+  RGB = 0x20002000 0x40004000 0x1fff1fff
+-- SetAttrs WHEEL_Red/Green/Blue
+SetAttrs = 3
+  Hue = 0x66666666 (GetAttr 1)
+  Saturation = 0xd554d554 (GetAttr 1)
+  Brightness = 0xc000c000 (GetAttr 1)
+  Red = 0x20002000 (GetAttr 1)
+  Green = 0xc000c000 (GetAttr 1)
+  Blue = 0x5ffd5ffd (GetAttr 1)
+  HSB = 0x66666666 0xd554d554 0xc000c000
+  RGB = 0x20002000 0xc000c000 0x5ffd5ffd
+-- SetAttrs WHEEL_RGB
+SetAttrs = 3
+  Hue = 0x15551555 (GetAttr 1)
+  Saturation = 0xffffffff (GetAttr 1)
+  Brightness = 0xffffffff (GetAttr 1)
+  Red = 0xffffffff (GetAttr 1)
+  Green = 0x7fff7fff (GetAttr 1)
+  Blue = 0x00000000 (GetAttr 1)
+  HSB = 0x15551555 0xffffffff 0xffffffff
+  RGB = 0xffffffff 0x7fff7fff 0x00000000
+-- SetAttrs WHEEL_HSB
+SetAttrs = 3
+  Hue = 0xaaaaaaaa (GetAttr 1)
+  Saturation = 0xc000c000 (GetAttr 1)
+  Brightness = 0xe000e000 (GetAttr 1)
+  Red = 0x37ff37ff (GetAttr 1)
+  Green = 0x38043804 (GetAttr 1)
+  Blue = 0xe000e000 (GetAttr 1)
+  HSB = 0xaaaaaaaa 0xc000c000 0xe000e000
+  RGB = 0x37ff37ff 0x38043804 0xe000e000
+-- OM_SET return value
+Hue/Sat/Bri 0 = 3
+same values = 0
+Red unchanged = 0
+Green = 3
+Blue unchanged = 0
+Hue + same Brightness = 1
+Brightness + same Hue = 2
+Brightness twice = 2
+Hue there and back = 0
+GA_Left = 0
+no tags = 0
+WHEEL_Abbrv = 0
+GA_Disabled = 0
+Flags = 0x00008100
+  Hue = 0x00000000 (GetAttr 1)
+  Saturation = 0xffffffff (GetAttr 1)
+  Brightness = 0x00000000 (GetAttr 1)
+  Red = 0x00000000 (GetAttr 1)
+  Green = 0x00000000 (GetAttr 1)
+  Blue = 0x00000000 (GetAttr 1)
+  HSB = 0x00000000 0xffffffff 0x00000000
+  RGB = 0x00000000 0x00000000 0x00000000
+-- OM_GET of I-only attributes
+WHEEL_Screen = 0xdeadbeef (GetAttr 0)
+WHEEL_Abbrv = 0xdeadbeef (GetAttr 0)
+WHEEL_MaxPens = 0xdeadbeef (GetAttr 0)
+WHEEL_GradientSlider = 0xdeadbeef (GetAttr 0)
+WHEEL_BevelBox = 0xdeadbeef (GetAttr 0)
+WHEEL_Donation = 0xdeadbeef (GetAttr 0)
+-- HSB attributes before RGB attributes
+object = non-NULL
+  Hue = 0x4f434f43 (GetAttr 1)
+  Saturation = 0xffffffff (GetAttr 1)
+  Brightness = 0x80008000 (GetAttr 1)
+  Red = 0x12361236 (GetAttr 1)
+  Green = 0x80008000 (GetAttr 1)
+  Blue = 0x00000000 (GetAttr 1)
+  HSB = 0x4f434f43 0xffffffff 0x80008000
+  RGB = 0x12361236 0x80008000 0x00000000
+-- NewObject without WHEEL_Screen
+object = non-NULL
+  Hue = 0xd554d554 (GetAttr 1)
+  Saturation = 0xffffffff (GetAttr 1)
+  Brightness = 0xffffffff (GetAttr 1)
+  Red = 0xfff3fff3 (GetAttr 1)
+  Green = 0x00000000 (GetAttr 1)
+  Blue = 0xffffffff (GetAttr 1)
+  HSB = 0xd554d554 0xffffffff 0xffffffff
+  RGB = 0xfff3fff3 0x00000000 0xffffffff
+-- NewObject with initial values
+object = non-NULL
+  Hue = 0x95549554 (GetAttr 1)
+  Saturation = 0xeeeeeeee (GetAttr 1)
+  Brightness = 0xf000f000 (GetAttr 1)
+  Red = 0x0fff0fff (GetAttr 1)
+  Green = 0x800b800b (GetAttr 1)
+  Blue = 0xf000f000 (GetAttr 1)
+  HSB = 0x95549554 0xeeeeeeee 0xf000f000
+  RGB = 0x0fff0fff 0x800b800b 0xf000f000
+-- attached gradient slider
+OpenLibrary gadgets/gradientslider.gadget = non-NULL
+slider = non-NULL
+object = non-NULL
+slider CurVal after OM_NEW = 0x00003fff
+  Hue = 0x00000000 (GetAttr 1)
+  Saturation = 0xffffffff (GetAttr 1)
+  Brightness = 0xc000c000 (GetAttr 1)
+  Red = 0xc000c000 (GetAttr 1)
+  Green = 0x00000000 (GetAttr 1)
+  Blue = 0x00000000 (GetAttr 1)
+  HSB = 0x00000000 0xffffffff 0xc000c000
+  RGB = 0xc000c000 0x00000000 0x00000000
+slider CurVal after WHEEL_Brightness = 0x0000dfff
+Brightness after GRAD_CurVal 0x1000 = 0xefffefff (GetAttr 1)
+Red after GRAD_CurVal 0x1000 = 0xefffefff (GetAttr 1)

@@ -176,6 +176,14 @@
   "symbol": "_exec_FreeTrap"
  },
  {
+  "lib": "tapedeck.gadget",
+  "function": "GM_RENDER",
+  "kind": "partial",
+  "detail": "partial: TDECK_Tape drawn as animation controls",
+  "file": "src/rom/gadgets/tapedeck.c",
+  "symbol": "TapeDeck_RENDER"
+ },
+ {
   "lib": "amigaguide",
   "function": "LockAmigaGuideBase",
   "kind": "stub",

@@ -23,10 +23,11 @@ implementing the function, never by deleting the macro.
 | icon | 0 | 2 | 0 |
 | intuition | 3 | 17 | 10 |
 | rexxsyslib | 17 | 0 | 0 |
+| tapedeck.gadget | 0 | 1 | 0 |
 | translator | 1 | 0 | 0 |
 | utility | 0 | 0 | 7 |
 | workbench | 0 | 0 | 3 |
-| **total** | **96** | **31** | **47** |
+| **total** | **96** | **32** | **47** |
 
 ## amigaguide
 
@@ -223,6 +224,10 @@ implementing the function, never by deleting the macro.
 - `LockRexxBase` — stub: rexxsyslib.library not implemented (Phase 250) (`src/rom/lxa_rexxsyslib.c`)
 - `SetRexxVarFromMsg` — stub: rexxsyslib.library not implemented (Phase 250) (`src/rom/lxa_rexxsyslib.c`)
 - `UnlockRexxBase` — stub: rexxsyslib.library not implemented (Phase 250) (`src/rom/lxa_rexxsyslib.c`)
+
+## tapedeck.gadget
+
+- `GM_RENDER` — partial: TDECK_Tape drawn as animation controls (`src/rom/gadgets/tapedeck.c`)
 
 ## translator
 
