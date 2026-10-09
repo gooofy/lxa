@@ -17,7 +17,7 @@
    "ignore_regions": [
     {
      "h": 4,
-     "phase": 238,
+     "phase": 244,
      "w": 8,
      "why": "text cursor: the editor blinks it on IntuiTicks counted from launch, and launch takes different time on the two systems (blink phase)",
      "x": 0,

@@ -968,7 +968,7 @@ static void cmd_menu(char *path)
     struct Window *w = IntuitionBase->ActiveWindow;
     struct Screen *s;
     struct Menu *m;
-    struct MenuItem *it = NULL, *sub = NULL, *first;
+    struct MenuItem *it = NULL, *sub = NULL;
     char *seg[3];
     int len[3], nseg = 0;
     char *p = path;
@@ -1019,26 +1019,33 @@ static void cmd_menu(char *path)
             return;
         }
     }
-    first = m->FirstItem;
+    /* the item origin is the drop-down's inner corner: MenuHBorder right of
+     * the title's left edge + 1, MenuVBorder below the bar; sub-items are
+     * relative to their item's LeftEdge/TopEdge (the same model as lxa's
+     * lxa_get_menu_rect(), verified against 3.1 by the menus gallery) */
     mx = s->BarHBorder + m->LeftEdge + m->Width / 2;
     my = s->BarHeight / 2;
-    ix = s->BarHBorder + m->LeftEdge + (it->LeftEdge - first->LeftEdge) + it->Width / 2;
-    iy = s->BarHeight + 1 + it->TopEdge + it->Height / 2;
+    ix = m->LeftEdge + 1 + s->MenuHBorder + it->LeftEdge;
+    iy = s->BarHeight + s->MenuVBorder - 1 + it->TopEdge;
     if (sub)
     {
-        sx = s->BarHBorder + m->LeftEdge + it->LeftEdge + it->Width +
-             (sub->LeftEdge - it->SubItem->LeftEdge) + sub->Width / 2;
-        sy = iy - it->Height / 2 + sub->TopEdge + sub->Height / 2;
+        sx = ix + sub->LeftEdge + sub->Width / 2;
+        sy = iy + sub->TopEdge + sub->Height / 2;
     }
     move_to(mx, my, 0);
     delay_ticks(1);
     button('R', TRUE);
     delay_ticks(3);
-    move_to(ix, iy, IEQUALIFIER_RBUTTON);
+    move_to(ix + it->Width / 2, iy, IEQUALIFIER_RBUTTON);           /* enter the list */
+    delay_ticks(3);
+    move_to(ix + it->Width / 2, iy + it->Height / 2, IEQUALIFIER_RBUTTON);
     delay_ticks(3);
     if (sub)
     {
-        move_to(sx, iy, IEQUALIFIER_RBUTTON);
+        /* out of the item's right part, across into the sub-menu */
+        move_to(ix + it->Width - 2, iy + it->Height / 2, IEQUALIFIER_RBUTTON);
+        delay_ticks(3);
+        move_to(sx, iy + it->Height / 2, IEQUALIFIER_RBUTTON);
         delay_ticks(3);
         move_to(sx, sy, IEQUALIFIER_RBUTTON);
         delay_ticks(3);

@@ -30,6 +30,7 @@
 
 extern void (*g_text_hook)(const char *str, int len, int x, int y, void *userdata);
 extern void *g_text_hook_userdata;
+extern uint32_t g_wb_window;   /* harness Workbench backdrop: not the application's (Phase 238) */
 
 static uint32_t rd32(uint32_t a) { return m68k_read_memory_32(a); }
 static int16_t  rd16s(uint32_t a) { return (int16_t)m68k_read_memory_16(a); }
@@ -186,10 +187,11 @@ static void jwindow(FILE *f, uint32_t w)
     jstr(f, rd32(w + OFF_W_TITLE));
     fputs(",\"screen_title\":", f);
     jstr(f, rd32(w + OFF_W_SCRTITLE));
-    fprintf(f, ",\"app\":true,\"left\":%d,\"top\":%d,\"width\":%d,\"height\":%d,"
+    fprintf(f, ",\"app\":%s,\"left\":%d,\"top\":%d,\"width\":%d,\"height\":%d,"
                "\"min_width\":%d,\"min_height\":%d,\"max_width\":%u,\"max_height\":%u,"
                "\"flags\":%u,\"idcmp\":%u,\"border\":[%d,%d,%d,%d],\"detail_pen\":%u,"
                "\"block_pen\":%u,\"font\":",
+            w == g_wb_window ? "false" : "true",
             rd16s(w + OFF_W_LEFT), rd16s(w + OFF_W_TOP), rd16s(w + OFF_W_W), rd16s(w + OFF_W_H),
             rd16s(w + OFF_W_MINW), rd16s(w + OFF_W_MINH), rd16(w + OFF_W_MAXW), rd16(w + OFF_W_MAXH),
             rd32(w + OFF_W_FLAGS), rd32(w + OFF_W_IDCMP),

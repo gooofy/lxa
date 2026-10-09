@@ -318,5 +318,9 @@
 #define EMU_CALL_UNIMPLEMENTED       5200
 /* Phase 235: d1=library name -> d0=1 if LXA_OVERRIDE loads it from disk */
 #define EMU_CALL_LIB_OVERRIDDEN      5201
+/* Phase 238: Workbench backdrop window of the harness (LXA_WB_WINDOW=1, as
+ * the reference's LoadWB window).  d1=0 -> d0=1 if wanted; d1=window:
+ * registers it (not an application window in tree dumps / window counts) */
+#define EMU_CALL_WB_WINDOW           5202
 
 #endif

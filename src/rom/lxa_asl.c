@@ -31,7 +31,15 @@
 #include <clib/intuition_protos.h>
 #include <inline/intuition.h>
 
+#include <graphics/monitor.h>
+#include <libraries/gadtools.h>
+#include <clib/gadtools_protos.h>
+#include <inline/gadtools.h>
+
 #include <utility/tagitem.h>
+#include <utility/hooks.h>
+#include <clib/utility_protos.h>
+#include <inline/utility.h>
 #include <libraries/asl.h>
 
 #include "util.h"
@@ -51,6 +59,8 @@ extern struct ExecBase *SysBase;
 extern struct DosLibrary *DOSBase;
 extern struct GfxBase *GfxBase;
 extern struct IntuitionBase *IntuitionBase;
+extern struct Library *GadToolsBase;
+extern struct UtilityBase *UtilityBase;
 
 /* AslBase structure */
 struct AslBase {
@@ -148,17 +158,26 @@ struct LXAScreenModeRequester {
     WORD          sm_InfoHeight;
     APTR          sm_UserData;
 
+    /* private: the tag state (ASLSM_*) */
     STRPTR        sm_Title;
     STRPTR        sm_OkText;
     STRPTR        sm_CancelText;
     struct Window *sm_Window;
     struct Screen *sm_Screen;
+    STRPTR        sm_PubScreenName;
+    BOOL          sm_PrivateIDCMP;
+    BOOL          sm_SleepWindow;
+    struct Hook  *sm_IntuiMsgFunc;
+    struct Hook  *sm_FilterFunc;
+    struct List  *sm_CustomSMList;
+    struct TextAttr *sm_TextAttr;
+    APTR          sm_Locale;
     ULONG         sm_PropertyFlags;
     ULONG         sm_PropertyMask;
-    UWORD         sm_MinWidth;
-    UWORD         sm_MaxWidth;
-    UWORD         sm_MinHeight;
-    UWORD         sm_MaxHeight;
+    ULONG         sm_MinWidth;
+    ULONG         sm_MaxWidth;
+    ULONG         sm_MinHeight;
+    ULONG         sm_MaxHeight;
     UWORD         sm_MinDepth;
     UWORD         sm_MaxDepth;
     BOOL          sm_DoWidth;
@@ -166,15 +185,6 @@ struct LXAScreenModeRequester {
     BOOL          sm_DoDepth;
     BOOL          sm_DoOverscanType;
     BOOL          sm_DoAutoScroll;
-};
-
-struct AslDisplayModeEntry {
-    ULONG display_id;
-    UWORD width;
-    UWORD height;
-    UWORD depth;
-    ULONG property_flags;
-    UBYTE name[DISPLAYNAMELEN];
 };
 
 /* Gadget IDs - File Requester */
@@ -196,7 +206,6 @@ struct AslDisplayModeEntry {
 #define MAX_FILE_ENTRIES 100
 #define MAX_PATH_LEN     256
 #define MAX_FILE_LEN     108
-#define MAX_SCREENMODE_ENTRIES 8
 
 /*
  * Library init/open/close/expunge
@@ -403,181 +412,6 @@ static void asl_set_font_selection(struct LXAFontRequester *fo, CONST_STRPTR nam
     fo->fo_TAttr.tta_Tags = NULL;
 }
 
-static const ULONG g_asl_display_ids[] = {
-    LORES_KEY,
-    HIRES_KEY,
-    NTSC_MONITOR_ID | LORES_KEY,
-    NTSC_MONITOR_ID | HIRES_KEY,
-    PAL_MONITOR_ID | LORES_KEY,
-    PAL_MONITOR_ID | HIRES_KEY
-};
-
-static BOOL asl_query_display_mode(ULONG display_id, struct AslDisplayModeEntry *entry)
-{
-    struct DimensionInfo dims;
-    struct DisplayInfo di;
-    struct NameInfo name;
-    ULONG i;
-
-    if (!entry)
-        return FALSE;
-
-    memset(entry, 0, sizeof(*entry));
-    entry->display_id = display_id;
-
-    if (GetDisplayInfoData(NULL, &dims, sizeof(dims), DTAG_DIMS, display_id) < sizeof(struct QueryHeader))
-        return FALSE;
-    if (GetDisplayInfoData(NULL, &di, sizeof(di), DTAG_DISP, display_id) < sizeof(struct QueryHeader))
-        return FALSE;
-
-    entry->width = dims.Nominal.MaxX - dims.Nominal.MinX + 1;
-    entry->height = dims.Nominal.MaxY - dims.Nominal.MinY + 1;
-    entry->depth = dims.MaxDepth;
-    entry->property_flags = di.PropertyFlags;
-
-    if (GetDisplayInfoData(NULL, &name, sizeof(name), DTAG_NAME, display_id) >= sizeof(struct QueryHeader))
-    {
-        for (i = 0; i < (DISPLAYNAMELEN - 1) && name.Name[i]; i++)
-            entry->name[i] = name.Name[i];
-        return TRUE;
-    }
-
-    if (display_id & HIRES)
-    {
-        entry->name[0] = 'H';
-        entry->name[1] = 'I';
-        entry->name[2] = 'R';
-        entry->name[3] = 'E';
-        entry->name[4] = 'S';
-    }
-    else
-    {
-        entry->name[0] = 'L';
-        entry->name[1] = 'O';
-        entry->name[2] = 'R';
-        entry->name[3] = 'E';
-        entry->name[4] = 'S';
-    }
-
-    return TRUE;
-}
-
-static void asl_set_screenmode_selection(struct LXAScreenModeRequester *sm, ULONG display_id, ULONG width, ULONG height, UWORD depth)
-{
-    struct AslDisplayModeEntry entry;
-
-    if (!sm)
-        return;
-
-    if (!asl_query_display_mode(display_id, &entry))
-    {
-        entry.display_id = LORES_KEY;
-        entry.width = 320;
-        entry.height = 200;
-        entry.depth = 8;
-    }
-
-    sm->sm_DisplayID = entry.display_id;
-    sm->sm_DisplayWidth = width ? width : entry.width;
-    sm->sm_DisplayHeight = height ? height : entry.height;
-    sm->sm_DisplayDepth = depth ? depth : entry.depth;
-    sm->sm_BitMapWidth = sm->sm_DisplayWidth;
-    sm->sm_BitMapHeight = sm->sm_DisplayHeight;
-}
-
-static BOOL asl_screenmode_matches_filters(struct LXAScreenModeRequester *sm, const struct AslDisplayModeEntry *entry)
-{
-    if (!sm || !entry)
-        return FALSE;
-
-    if (sm->sm_MinWidth && entry->width < sm->sm_MinWidth)
-        return FALSE;
-    if (sm->sm_MaxWidth && entry->width > sm->sm_MaxWidth)
-        return FALSE;
-    if (sm->sm_MinHeight && entry->height < sm->sm_MinHeight)
-        return FALSE;
-    if (sm->sm_MaxHeight && entry->height > sm->sm_MaxHeight)
-        return FALSE;
-    if (sm->sm_MinDepth && entry->depth < sm->sm_MinDepth)
-        return FALSE;
-    if (sm->sm_MaxDepth && entry->depth > sm->sm_MaxDepth)
-        return FALSE;
-    if ((entry->property_flags & sm->sm_PropertyMask) != (sm->sm_PropertyFlags & sm->sm_PropertyMask))
-        return FALSE;
-
-    return TRUE;
-}
-
-static void draw_screenmode_entries(struct RastPort *rp,
-                                    WORD winWidth,
-                                    WORD margin,
-                                    WORD listTop,
-                                    WORD listHeight,
-                                    struct AslDisplayModeEntry *entries,
-                                    WORD entryCount,
-                                    WORD selectedIndex)
-{
-    WORD i;
-
-    SetAPen(rp, 0);
-    RectFill(rp, margin + 1, listTop + 1, winWidth - margin - 1, listTop + listHeight - 1);
-
-    for (i = 0; i < entryCount; i++)
-    {
-        WORD rowTop = listTop + 4 + i * 12;
-        UBYTE line[48];
-        WORD pos = 0;
-        WORD j;
-        ULONG value;
-
-        if (selectedIndex == i)
-        {
-            SetAPen(rp, 2);
-            RectFill(rp, margin + 2, rowTop - 8, winWidth - margin - 2, rowTop + 2);
-        }
-
-        SetAPen(rp, 1);
-        Move(rp, margin + 4, rowTop);
-
-        if (selectedIndex == i)
-            line[pos++] = '>';
-        else
-            line[pos++] = ' ';
-
-        for (j = 0; entries[i].name[j] && pos < (sizeof(line) - 1); j++)
-            line[pos++] = entries[i].name[j];
-
-        if (pos < (sizeof(line) - 4))
-        {
-            line[pos++] = ' ';
-            line[pos++] = '(';
-        }
-
-        value = entries[i].width;
-        if (value >= 1000 && pos < (sizeof(line) - 1)) line[pos++] = '0' + (value / 1000);
-        if (value >= 100 && pos < (sizeof(line) - 1)) line[pos++] = '0' + ((value / 100) % 10);
-        if (value >= 10 && pos < (sizeof(line) - 1)) line[pos++] = '0' + ((value / 10) % 10);
-        if (pos < (sizeof(line) - 1)) line[pos++] = '0' + (value % 10);
-        if (pos < (sizeof(line) - 1)) line[pos++] = 'x';
-
-        value = entries[i].height;
-        if (value >= 1000 && pos < (sizeof(line) - 1)) line[pos++] = '0' + (value / 1000);
-        if (value >= 100 && pos < (sizeof(line) - 1)) line[pos++] = '0' + ((value / 100) % 10);
-        if (value >= 10 && pos < (sizeof(line) - 1)) line[pos++] = '0' + ((value / 10) % 10);
-        if (pos < (sizeof(line) - 1)) line[pos++] = '0' + (value % 10);
-        if (pos < (sizeof(line) - 2))
-        {
-            line[pos++] = 'x';
-            line[pos++] = '0' + (entries[i].depth % 10);
-        }
-        if (pos < (sizeof(line) - 1))
-            line[pos++] = ')';
-        line[pos] = 0;
-
-        Text(rp, (STRPTR)line, pos);
-    }
-}
-
 /* Parse tags for file requester */
 static void parse_fr_tags(struct LXAFileRequester *fr, struct TagItem *tagList)
 {
@@ -757,139 +591,11 @@ static void parse_fo_tags(struct LXAFontRequester *fo, struct TagItem *tagList)
     }
 }
 
-static void parse_sm_tags(struct LXAScreenModeRequester *sm, struct TagItem *tagList)
-{
-    struct TagItem *tag;
-
-    if (!tagList)
-        return;
-
-    for (tag = tagList; tag->ti_Tag != TAG_DONE; tag++)
-    {
-        if (tag->ti_Tag == TAG_SKIP)
-        {
-            tag += tag->ti_Data;
-            continue;
-        }
-        if (tag->ti_Tag == TAG_IGNORE)
-            continue;
-        if (tag->ti_Tag == TAG_MORE)
-        {
-            tag = (struct TagItem *)tag->ti_Data;
-            if (!tag) break;
-            tag--;
-            continue;
-        }
-
-        switch (tag->ti_Tag)
-        {
-            case ASLSM_TitleText:
-                sm->sm_Title = (STRPTR)tag->ti_Data;
-                break;
-            case ASLSM_PositiveText:
-                sm->sm_OkText = (STRPTR)tag->ti_Data;
-                break;
-            case ASLSM_NegativeText:
-                sm->sm_CancelText = (STRPTR)tag->ti_Data;
-                break;
-            case ASLSM_Window:
-                sm->sm_Window = (struct Window *)tag->ti_Data;
-                break;
-            case ASLSM_Screen:
-                sm->sm_Screen = (struct Screen *)tag->ti_Data;
-                break;
-            case ASLSM_UserData:
-                sm->sm_UserData = (APTR)tag->ti_Data;
-                break;
-            case ASLSM_InitialLeftEdge:
-                sm->sm_LeftEdge = (WORD)tag->ti_Data;
-                break;
-            case ASLSM_InitialTopEdge:
-                sm->sm_TopEdge = (WORD)tag->ti_Data;
-                break;
-            case ASLSM_InitialWidth:
-                sm->sm_Width = (WORD)tag->ti_Data;
-                break;
-            case ASLSM_InitialHeight:
-                sm->sm_Height = (WORD)tag->ti_Data;
-                break;
-            case ASLSM_InitialDisplayID:
-                sm->sm_DisplayID = tag->ti_Data;
-                break;
-            case ASLSM_InitialDisplayWidth:
-                sm->sm_DisplayWidth = tag->ti_Data;
-                break;
-            case ASLSM_InitialDisplayHeight:
-                sm->sm_DisplayHeight = tag->ti_Data;
-                break;
-            case ASLSM_InitialDisplayDepth:
-                sm->sm_DisplayDepth = (UWORD)tag->ti_Data;
-                break;
-            case ASLSM_InitialOverscanType:
-                sm->sm_OverscanType = (UWORD)tag->ti_Data;
-                break;
-            case ASLSM_InitialAutoScroll:
-                sm->sm_AutoScroll = (BOOL)tag->ti_Data;
-                break;
-            case ASLSM_InitialInfoOpened:
-                sm->sm_InfoOpened = (BOOL)tag->ti_Data;
-                break;
-            case ASLSM_InitialInfoLeftEdge:
-                sm->sm_InfoLeftEdge = (WORD)tag->ti_Data;
-                break;
-            case ASLSM_InitialInfoTopEdge:
-                sm->sm_InfoTopEdge = (WORD)tag->ti_Data;
-                break;
-            case ASLSM_DoWidth:
-                sm->sm_DoWidth = (BOOL)tag->ti_Data;
-                break;
-            case ASLSM_DoHeight:
-                sm->sm_DoHeight = (BOOL)tag->ti_Data;
-                break;
-            case ASLSM_DoDepth:
-                sm->sm_DoDepth = (BOOL)tag->ti_Data;
-                break;
-            case ASLSM_DoOverscanType:
-                sm->sm_DoOverscanType = (BOOL)tag->ti_Data;
-                break;
-            case ASLSM_DoAutoScroll:
-                sm->sm_DoAutoScroll = (BOOL)tag->ti_Data;
-                break;
-            case ASLSM_PropertyFlags:
-                sm->sm_PropertyFlags = tag->ti_Data;
-                break;
-            case ASLSM_PropertyMask:
-                sm->sm_PropertyMask = tag->ti_Data;
-                break;
-            case ASLSM_MinWidth:
-                sm->sm_MinWidth = (UWORD)tag->ti_Data;
-                break;
-            case ASLSM_MaxWidth:
-                sm->sm_MaxWidth = (UWORD)tag->ti_Data;
-                break;
-            case ASLSM_MinHeight:
-                sm->sm_MinHeight = (UWORD)tag->ti_Data;
-                break;
-            case ASLSM_MaxHeight:
-                sm->sm_MaxHeight = (UWORD)tag->ti_Data;
-                break;
-            case ASLSM_MinDepth:
-                sm->sm_MinDepth = (UWORD)tag->ti_Data;
-                break;
-            case ASLSM_MaxDepth:
-                sm->sm_MaxDepth = (UWORD)tag->ti_Data;
-                break;
-        }
-    }
-
-    /* The sm_Display* / sm_BitMap* fields only change when the user confirms
-     * the requester (asl_set_screenmode_selection); the Initial* tags are
-     * stored verbatim (AmigaOS 3.1 reference: no validation at alloc time). */
-}
 
 /* Display the file requester window and handle interaction */
 static BOOL do_file_request(struct LXAFileRequester *fr)
 {
+    LXA_UNIMPLEMENTED("asl", "AslRequest", "partial: simplified file requester - own drawing instead of 3.1's GadTools layout, no Control menu, at most 100 entries, no volume list/pattern filtering as on 3.1 (Phase 258)");
     struct NewWindow nw;
     struct Window *win;
     struct Screen *scr;
@@ -1214,6 +920,7 @@ cleanup:
 /* Display the font requester window and handle interaction */
 static BOOL do_font_request(struct LXAFontRequester *fo)
 {
+    LXA_UNIMPLEMENTED("asl", "AslRequest", "partial: simplified font requester - own drawing instead of 3.1's GadTools layout, no Control menu, no size list/style/pen/draw-mode gadgets as on 3.1 (Phase 258)");
     struct NewWindow nw;
     struct Window *win;
     struct Screen *scr;
@@ -1482,228 +1189,1439 @@ cleanup:
     return result;
 }
 
-static BOOL do_screenmode_request(struct LXAScreenModeRequester *sm)
+/*
+ * ======================================================================
+ * Screen-mode requester (Phase 238)
+ *
+ * Built from GadTools gadgets and laid out as asl.library 40.x of
+ * AmigaOS 3.1 does it.  Every rule below was measured on the reference
+ * system with tests/gallery/asl.c (scenarios gallery-asl-*, probe
+ * tests/probes/asl/smalloc):
+ *
+ *   - list: every available display mode except the DEFAULT monitor's,
+ *     filtered by ASLSM_PropertyFlags/Mask (default DIPF_IS_WB), the
+ *     Min/Max width/height/depth ranges, ASLSM_FilterFunc, plus
+ *     ASLSM_CustomSMList; named "<MONITOR>:<w> x <h> <EHB |HAM |DPF |DPF2 >
+ *     [Interlaced]" (the ROM database has no DTAG_NAME) and sorted by name.
+ *   - the optional rows (Overscan, Width+Height, Colors, AutoScroll) are
+ *     stacked above the OK/Cancel buttons, 2 pixels apart, as a block
+ *     centred in the window; the list (GadTools quantises it to whole
+ *     lines) takes the space above them.
+ *   - window 318x198 at 30,20 by default (the fields of the requester),
+ *     sizeable, zoom box = minimum size; a "Control" menu.
+ *   - clicking a mode loads its overscan size into Width/Height; the
+ *     Overscan cycle does the same; "Next Mode"/"Last Mode" only move the
+ *     selection; "Restore" goes back to the initial values.
+ *   - OK clamps the depth to the mode, sets sm_BitMapHeight to the display
+ *     height and leaves sm_BitMapWidth alone (it stays 0, as on 3.1); the
+ *     window box is stored on OK and on Cancel; with the property window
+ *     open its offset is stored and sm_InfoWidth/Height get the requester's
+ *     size (as 3.1 does).
+ * ======================================================================
+ */
+
+#define SMG_OK          1
+#define SMG_CANCEL      2
+#define SMG_LIST        3
+#define SMG_INFOLIST    4
+#define SMG_WIDTH       5
+#define SMG_HEIGHT      6
+#define SMG_DEPTH       7
+#define SMG_OVERSCAN    9
+#define SMG_AUTOSCROLL  11
+
+#define SM_MAX_PROPS    10
+
+struct SMNode
 {
-    struct NewWindow nw;
-    struct Window *win;
-    struct Screen *scr;
-    struct IntuiMessage *imsg;
-    struct Gadget *gadList = NULL, *gad, *lastGad = NULL;
-    struct RastPort *rp;
-    struct AslDisplayModeEntry display_entries[MAX_SCREENMODE_ENTRIES];
-    BOOL result = FALSE;
-    BOOL done = FALSE;
-    WORD winWidth, winHeight;
-    WORD btnWidth = 60, btnHeight = 14;
-    WORD margin = 8;
-    WORD listTop, listHeight;
-    WORD borderTop = 11;   /* standard Intuition title bar height */
-    WORD borderBottom = 2; /* standard Intuition bottom border */
-    WORD selectedIndex = 0;
-    WORD display_count = 0;
-    ULONG i;
+    struct Node node;               /* ln_Name = name */
+    ULONG       id;
+    ULONG       props;
+    struct DimensionInfo dims;
+    UBYTE       name[64];
+};
 
-    if (sm->sm_Window)
-        scr = sm->sm_Window->WScreen;
-    else if (sm->sm_Screen)
-        scr = sm->sm_Screen;
-    else
-        scr = NULL;
+struct SMSession
+{
+    struct LXAScreenModeRequester *sm;
+    struct Screen   *scr;
+    BOOL             pub_locked;
+    struct Window   *win;
+    struct Window   *info;
+    APTR             vi;
+    struct TextAttr  ta;
+    struct TextFont *font;
+    WORD             fw, fh;
+    struct Gadget   *glist;
+    struct Gadget   *info_glist;
+    struct Gadget   *g_list, *g_width, *g_height, *g_colors, *g_slider, *g_oscan, *g_auto;
+    struct Gadget   *g_infolist;
+    struct Menu     *menu;
+    struct List      modes;
+    LONG             nmodes;
+    struct SMNode   *sel;
+    LONG             selidx;
+    /* the current values and the initial ones ("Restore") */
+    ULONG            id, width, height;
+    UWORD            depth, oscan;
+    BOOL             autoscroll;
+    ULONG            i_id, i_width, i_height;
+    UWORD            i_depth, i_oscan;
+    BOOL             i_autoscroll;
+    /* the property window list */
+    struct List      props;
+    struct Node      prop_node[SM_MAX_PROPS];
+    UBYTE            freq[32];
+    UBYTE            colors[16];
+    WORD             minw, minh;
+    ULONG            click_secs, click_mics;
+    LONG             click_idx;
+    struct Requester sleep_req;
+    BOOL             sleeping;
+    BOOL             shared_port;
+    BOOL             done, result;
+};
 
-    winWidth = sm->sm_Width > 0 ? sm->sm_Width : 320;
-    winHeight = sm->sm_Height > 0 ? sm->sm_Height : 180;
+static STRPTR g_sm_oscan_labels[] =
+{
+    (STRPTR)"Text Size", (STRPTR)"Graphics Size", (STRPTR)"Extreme Size", (STRPTR)"Maximum Size", NULL
+};
 
-    for (i = 0; i < (sizeof(g_asl_display_ids) / sizeof(g_asl_display_ids[0])); i++)
+static struct NewMenu g_sm_newmenu[] =
+{
+    { NM_TITLE, (STRPTR)"Control",          NULL,       0, 0, NULL },
+    { NM_ITEM,  (STRPTR)"Last Mode",        (STRPTR)"L", 0, 0, NULL },
+    { NM_ITEM,  (STRPTR)"Next Mode",        (STRPTR)"N", 0, 0, NULL },
+    { NM_ITEM,  NM_BARLABEL,                NULL,       0, 0, NULL },
+    { NM_ITEM,  (STRPTR)"Property List...", (STRPTR)"?", 0, 0, NULL },
+    { NM_ITEM,  (STRPTR)"Restore",          (STRPTR)"R", 0, 0, NULL },
+    { NM_ITEM,  NM_BARLABEL,                NULL,       0, 0, NULL },
+    { NM_ITEM,  (STRPTR)"OK",               (STRPTR)"O", 0, 0, NULL },
+    { NM_ITEM,  (STRPTR)"Cancel",           (STRPTR)"C", 0, 0, NULL },
+    { NM_END,   NULL,                       NULL,       0, 0, NULL }
+};
+
+#define SM_MENU_LAST     0
+#define SM_MENU_NEXT     1
+#define SM_MENU_PROPS    3
+#define SM_MENU_RESTORE  4
+#define SM_MENU_OK       6
+#define SM_MENU_CANCEL   7
+
+static void parse_sm_tags(struct LXAScreenModeRequester *sm, struct TagItem *tagList)
+{
+    struct TagItem *tstate = tagList, *tag;
+
+    while ((tag = NextTagItem(&tstate)) != NULL)
     {
-        struct AslDisplayModeEntry entry;
+        ULONG d = tag->ti_Data;
 
-        if (!asl_query_display_mode(g_asl_display_ids[i], &entry))
-            continue;
-        if (!asl_screenmode_matches_filters(sm, &entry))
-            continue;
-
-        display_entries[display_count] = entry;
-        if (entry.display_id == sm->sm_DisplayID)
-            selectedIndex = display_count;
-        display_count++;
-        if (display_count >= MAX_SCREENMODE_ENTRIES)
-            break;
-    }
-
-    if (display_count == 0)
-    {
-        if (asl_query_display_mode(sm->sm_DisplayID ? sm->sm_DisplayID : LORES_KEY, &display_entries[0]))
-            display_count = 1;
-    }
-
-    gad = AllocMem(sizeof(struct Gadget), MEMF_PUBLIC | MEMF_CLEAR);
-    if (!gad)
-        goto cleanup;
-    gadList = gad;
-    lastGad = gad;
-
-    gad->LeftEdge = margin;
-    gad->TopEdge = winHeight - borderBottom - margin - btnHeight;
-    gad->Width = btnWidth;
-    gad->Height = btnHeight;
-    gad->GadgetID = GID_FONT_OK;
-    gad->GadgetType = GTYP_BOOLGADGET;
-    gad->Flags = GFLG_GADGHCOMP;
-    gad->Activation = GACT_RELVERIFY;
-
-    gad = AllocMem(sizeof(struct Gadget), MEMF_PUBLIC | MEMF_CLEAR);
-    if (!gad)
-        goto cleanup;
-    lastGad->NextGadget = gad;
-    lastGad = gad;
-
-    gad->LeftEdge = winWidth - margin - btnWidth;
-    gad->TopEdge = winHeight - borderBottom - margin - btnHeight;
-    gad->Width = btnWidth;
-    gad->Height = btnHeight;
-    gad->GadgetID = GID_FONT_CANCEL;
-    gad->GadgetType = GTYP_BOOLGADGET;
-    gad->Flags = GFLG_GADGHCOMP;
-    gad->Activation = GACT_RELVERIFY;
-
-    nw.LeftEdge = sm->sm_LeftEdge >= 0 ? sm->sm_LeftEdge : 40;
-    nw.TopEdge = sm->sm_TopEdge >= 0 ? sm->sm_TopEdge : 24;
-    nw.Width = winWidth;
-    nw.Height = winHeight;
-    nw.DetailPen = 0;
-    nw.BlockPen = 1;
-    nw.IDCMPFlags = IDCMP_GADGETUP | IDCMP_CLOSEWINDOW | IDCMP_REFRESHWINDOW | IDCMP_MOUSEBUTTONS;
-    nw.Flags = WFLG_DRAGBAR | WFLG_DEPTHGADGET | WFLG_CLOSEGADGET | WFLG_ACTIVATE | WFLG_SMART_REFRESH;
-    nw.FirstGadget = gadList;
-    nw.CheckMark = NULL;
-    nw.Title = sm->sm_Title ? sm->sm_Title : (UBYTE *)"Select Screen Mode";
-    nw.Screen = scr;
-    nw.BitMap = NULL;
-    nw.MinWidth = 240;
-    nw.MinHeight = 120;
-    nw.MaxWidth = 640;
-    nw.MaxHeight = 256;
-    nw.Type = scr ? CUSTOMSCREEN : WBENCHSCREEN;
-
-    win = OpenWindow(&nw);
-    if (!win)
-        goto cleanup;
-
-    rp = win->RPort;
-
-    /* Use actual border dimensions from the opened window for layout */
-    borderTop = win->BorderTop;
-    borderBottom = win->BorderBottom;
-
-    listTop = borderTop + margin;
-    listHeight = winHeight - listTop - btnHeight - margin * 2 - borderBottom;
-
-    SetAPen(rp, 1);
-    Move(rp, margin, listTop - 2);
-    Text(rp, (STRPTR)"Modes:", 6);
-
-    {
-        WORD btnY = winHeight - borderBottom - margin - btnHeight;
-        Move(rp, margin + 44, btnY + 10);
-        Text(rp, sm->sm_OkText ? sm->sm_OkText : (STRPTR)"OK",
-             sm->sm_OkText ? strlen((char *)sm->sm_OkText) : 2);
-        Move(rp, winWidth - margin - btnWidth + 8, btnY + 10);
-        Text(rp, sm->sm_CancelText ? sm->sm_CancelText : (STRPTR)"Cancel",
-             sm->sm_CancelText ? strlen((char *)sm->sm_CancelText) : 6);
-    }
-
-    SetAPen(rp, 2);
-    Move(rp, margin, listTop);
-    Draw(rp, margin, listTop + listHeight);
-    Draw(rp, winWidth - margin, listTop + listHeight);
-    SetAPen(rp, 1);
-    Draw(rp, winWidth - margin, listTop);
-    Draw(rp, margin, listTop);
-
-    draw_screenmode_entries(rp, winWidth, margin, listTop, listHeight, display_entries, display_count, selectedIndex);
-    RefreshGList(gadList, win, NULL, -1);
-
-    while (!done)
-    {
-        WaitPort(win->UserPort);
-
-        while ((imsg = (struct IntuiMessage *)GetMsg(win->UserPort)) != NULL)
+        switch (tag->ti_Tag)
         {
-            ULONG class_id = imsg->Class;
-            WORD mouse_x = imsg->MouseX;
-            WORD mouse_y = imsg->MouseY;
-            struct Gadget *igad = (struct Gadget *)imsg->IAddress;
+            case ASLSM_Window:              sm->sm_Window = (struct Window *)d; break;
+            case ASLSM_Screen:              sm->sm_Screen = (struct Screen *)d; break;
+            case ASLSM_PubScreenName:       sm->sm_PubScreenName = (STRPTR)d; break;
+            case ASLSM_PrivateIDCMP:        sm->sm_PrivateIDCMP = d ? TRUE : FALSE; break;
+            case ASLSM_IntuiMsgFunc:        sm->sm_IntuiMsgFunc = (struct Hook *)d; break;
+            case ASLSM_SleepWindow:         sm->sm_SleepWindow = d ? TRUE : FALSE; break;
+            case ASLSM_UserData:            sm->sm_UserData = (APTR)d; break;
+            case ASLSM_TextAttr:            sm->sm_TextAttr = (struct TextAttr *)d; break;
+            case ASLSM_Locale:              sm->sm_Locale = (APTR)d; break;
+            case ASLSM_TitleText:           sm->sm_Title = (STRPTR)d; break;
+            case ASLSM_PositiveText:        sm->sm_OkText = (STRPTR)d; break;
+            case ASLSM_NegativeText:        sm->sm_CancelText = (STRPTR)d; break;
+            case ASLSM_InitialLeftEdge:     sm->sm_LeftEdge = (WORD)d; break;
+            case ASLSM_InitialTopEdge:      sm->sm_TopEdge = (WORD)d; break;
+            case ASLSM_InitialWidth:        sm->sm_Width = (WORD)d; break;
+            case ASLSM_InitialHeight:       sm->sm_Height = (WORD)d; break;
+            case ASLSM_InitialDisplayID:    sm->sm_DisplayID = d; break;
+            case ASLSM_InitialDisplayWidth: sm->sm_DisplayWidth = d; break;
+            case ASLSM_InitialDisplayHeight:sm->sm_DisplayHeight = d; break;
+            case ASLSM_InitialDisplayDepth: sm->sm_DisplayDepth = (UWORD)d; break;
+            case ASLSM_InitialOverscanType: sm->sm_OverscanType = (UWORD)d; break;
+            case ASLSM_InitialAutoScroll:   sm->sm_AutoScroll = d ? TRUE : FALSE; break;
+            case ASLSM_InitialInfoOpened:   sm->sm_InfoOpened = d ? TRUE : FALSE; break;
+            case ASLSM_InitialInfoLeftEdge: sm->sm_InfoLeftEdge = (WORD)d; break;
+            case ASLSM_InitialInfoTopEdge:  sm->sm_InfoTopEdge = (WORD)d; break;
+            case ASLSM_DoWidth:             sm->sm_DoWidth = d ? TRUE : FALSE; break;
+            case ASLSM_DoHeight:            sm->sm_DoHeight = d ? TRUE : FALSE; break;
+            case ASLSM_DoDepth:             sm->sm_DoDepth = d ? TRUE : FALSE; break;
+            case ASLSM_DoOverscanType:      sm->sm_DoOverscanType = d ? TRUE : FALSE; break;
+            case ASLSM_DoAutoScroll:        sm->sm_DoAutoScroll = d ? TRUE : FALSE; break;
+            case ASLSM_PropertyFlags:       sm->sm_PropertyFlags = d; break;
+            case ASLSM_PropertyMask:        sm->sm_PropertyMask = d; break;
+            case ASLSM_MinWidth:            sm->sm_MinWidth = d; break;
+            case ASLSM_MaxWidth:            sm->sm_MaxWidth = d; break;
+            case ASLSM_MinHeight:           sm->sm_MinHeight = d; break;
+            case ASLSM_MaxHeight:           sm->sm_MaxHeight = d; break;
+            case ASLSM_MinDepth:            sm->sm_MinDepth = (UWORD)d; break;
+            case ASLSM_MaxDepth:            sm->sm_MaxDepth = (UWORD)d; break;
+            case ASLSM_FilterFunc:          sm->sm_FilterFunc = (struct Hook *)d; break;
+            case ASLSM_CustomSMList:        sm->sm_CustomSMList = (struct List *)d; break;
+            default:                        break;
+        }
+    }
+}
 
-            ReplyMsg((struct Message *)imsg);
+static void sm_init_defaults(struct LXAScreenModeRequester *sm)
+{
+    /* AllocAslRequest() defaults, tests/probes/asl/smalloc.ref.out */
+    sm->sm_DisplayID = LORES_KEY;
+    sm->sm_DisplayWidth = 640;
+    sm->sm_DisplayHeight = 200;
+    sm->sm_DisplayDepth = 2;
+    sm->sm_OverscanType = OSCAN_TEXT;
+    sm->sm_AutoScroll = TRUE;
+    sm->sm_LeftEdge = 30;
+    sm->sm_TopEdge = 20;
+    sm->sm_Width = 318;
+    sm->sm_Height = 198;
+    sm->sm_InfoLeftEdge = 16;
+    sm->sm_InfoTopEdge = 25;
+    sm->sm_InfoWidth = 280;
+    sm->sm_InfoHeight = 84;
+    sm->sm_PropertyFlags = DIPF_IS_WB;
+    sm->sm_PropertyMask = DIPF_IS_WB;
+    sm->sm_MinWidth = 16;
+    sm->sm_MaxWidth = 16368;
+    sm->sm_MinHeight = 16;
+    sm->sm_MaxHeight = 16384;
+    sm->sm_MinDepth = 1;
+    sm->sm_MaxDepth = 24;
+}
 
-            switch (class_id)
+static void sm_putnum(UBYTE *buf, WORD *pos, ULONG v)
+{
+    UBYTE tmp[12];
+    WORD n = 0;
+
+    do
+    {
+        tmp[n++] = (UBYTE)('0' + v % 10);
+        v /= 10;
+    } while (v && n < 11);
+    while (n > 0)
+        buf[(*pos)++] = tmp[--n];
+}
+
+static void sm_putstr(UBYTE *buf, WORD *pos, WORD max, CONST_STRPTR s)
+{
+    while (s && *s && *pos < max - 1)
+        buf[(*pos)++] = *s++;
+}
+
+/* "<MONITOR>:<w> x <h> <attr>[Interlaced]" */
+static void sm_build_name(struct SMNode *n)
+{
+    struct NameInfo ni;
+    struct MonitorInfo mi;
+    UBYTE mon[32];
+    WORD pos = 0, i;
+    ULONG p = n->props;
+
+    if (GetDisplayInfoData(NULL, (UBYTE *)&ni, sizeof(ni), DTAG_NAME, n->id) > sizeof(struct QueryHeader) &&
+        ni.Name[0])
+    {
+        for (i = 0; i < (WORD)sizeof(n->name) - 1 && i < DISPLAYNAMELEN && ni.Name[i]; i++)
+            n->name[i] = ni.Name[i];
+        n->name[i] = 0;
+        return;
+    }
+
+    mon[0] = 0;
+    if (GetDisplayInfoData(NULL, (UBYTE *)&mi, sizeof(mi), DTAG_MNTR, n->id) > sizeof(struct QueryHeader) &&
+        mi.Mspc && mi.Mspc->ms_Node.xln_Name)
+    {
+        CONST_STRPTR s = (CONST_STRPTR)mi.Mspc->ms_Node.xln_Name;
+        for (i = 0; i < 31 && s[i] && s[i] != '.'; i++)
+            mon[i] = (s[i] >= 'a' && s[i] <= 'z') ? (UBYTE)(s[i] - 32) : (UBYTE)s[i];
+        mon[i] = 0;
+    }
+    if (!mon[0])
+    {
+        ULONG m = n->id & MONITOR_ID_MASK;
+        CONST_STRPTR s = m == PAL_MONITOR_ID ? (CONST_STRPTR)"PAL" : m == NTSC_MONITOR_ID ? (CONST_STRPTR)"NTSC" :
+                         (CONST_STRPTR)"UNKNOWN";
+        for (i = 0; s[i]; i++)
+            mon[i] = s[i];
+        mon[i] = 0;
+    }
+
+    sm_putstr(n->name, &pos, sizeof(n->name), (CONST_STRPTR)mon);
+    n->name[pos++] = ':';
+    sm_putnum(n->name, &pos, n->dims.Nominal.MaxX - n->dims.Nominal.MinX + 1);
+    sm_putstr(n->name, &pos, sizeof(n->name), (CONST_STRPTR)" x ");
+    sm_putnum(n->name, &pos, n->dims.Nominal.MaxY - n->dims.Nominal.MinY + 1);
+    n->name[pos++] = ' ';
+    if (p & DIPF_IS_DUALPF)
+        sm_putstr(n->name, &pos, sizeof(n->name), (p & DIPF_IS_PF2PRI) ? (CONST_STRPTR)"DPF2 " : (CONST_STRPTR)"DPF ");
+    else if (p & DIPF_IS_HAM)
+        sm_putstr(n->name, &pos, sizeof(n->name), (CONST_STRPTR)"HAM ");
+    else if (p & DIPF_IS_EXTRAHALFBRITE)
+        sm_putstr(n->name, &pos, sizeof(n->name), (CONST_STRPTR)"EHB ");
+    if (p & DIPF_IS_LACE)
+        sm_putstr(n->name, &pos, sizeof(n->name), (CONST_STRPTR)"Interlaced");
+    n->name[pos] = 0;
+}
+
+static BOOL sm_accept(struct LXAScreenModeRequester *sm, ULONG id, ULONG props, struct DimensionInfo *dims)
+{
+    if ((props & sm->sm_PropertyMask) != (sm->sm_PropertyFlags & sm->sm_PropertyMask))
+        return FALSE;
+    /* a mode is offered when its raster range meets the allowed range */
+    if ((ULONG)dims->MaxRasterWidth < sm->sm_MinWidth || (ULONG)dims->MinRasterWidth > sm->sm_MaxWidth)
+        return FALSE;
+    if ((ULONG)dims->MaxRasterHeight < sm->sm_MinHeight || (ULONG)dims->MinRasterHeight > sm->sm_MaxHeight)
+        return FALSE;
+    if (dims->MaxDepth < sm->sm_MinDepth)
+        return FALSE;
+    if (sm->sm_FilterFunc && !CallHookPkt(sm->sm_FilterFunc, sm, (APTR)id))
+        return FALSE;
+    return TRUE;
+}
+
+static void sm_insert_sorted(struct SMSession *s, struct SMNode *n)
+{
+    struct Node *at;
+
+    n->node.ln_Name = (char *)n->name;
+    for (at = s->modes.lh_Head; at->ln_Succ; at = at->ln_Succ)
+        if (strcmp((const char *)n->name, (const char *)at->ln_Name) < 0)
+            break;
+    /* insert before `at` */
+    Insert(&s->modes, &n->node, at->ln_Pred);
+    s->nmodes++;
+}
+
+static void sm_build_modes(struct SMSession *s)
+{
+    struct LXAScreenModeRequester *sm = s->sm;
+    ULONG id = INVALID_ID;
+
+    NEWLIST(&s->modes);
+    s->nmodes = 0;
+
+    while ((id = NextDisplayInfo(id)) != INVALID_ID)
+    {
+        struct DisplayInfo di;
+        struct DimensionInfo dims;
+        struct SMNode *n;
+
+        if ((id & MONITOR_ID_MASK) == DEFAULT_MONITOR_ID)
+            continue;
+        if (GetDisplayInfoData(NULL, (UBYTE *)&di, sizeof(di), DTAG_DISP, id) < sizeof(struct QueryHeader))
+            continue;
+        if (di.NotAvailable)
+            continue;
+        if (GetDisplayInfoData(NULL, (UBYTE *)&dims, sizeof(dims), DTAG_DIMS, id) < sizeof(struct QueryHeader))
+            continue;
+        if (!sm_accept(sm, id, di.PropertyFlags, &dims))
+            continue;
+        n = (struct SMNode *)AllocVec(sizeof(*n), MEMF_PUBLIC | MEMF_CLEAR);
+        if (!n)
+            break;
+        n->id = id;
+        n->props = di.PropertyFlags;
+        CopyMem(&dims, &n->dims, sizeof(dims));
+        sm_build_name(n);
+        sm_insert_sorted(s, n);
+    }
+
+    if (sm->sm_CustomSMList)
+    {
+        struct DisplayMode *dm;
+
+        for (dm = (struct DisplayMode *)sm->sm_CustomSMList->lh_Head; dm->dm_Node.ln_Succ;
+             dm = (struct DisplayMode *)dm->dm_Node.ln_Succ)
+        {
+            struct SMNode *n;
+            WORD i;
+
+            if (!sm_accept(sm, dm->dm_DimensionInfo.Header.DisplayID, dm->dm_PropertyFlags, &dm->dm_DimensionInfo))
+                continue;
+            n = (struct SMNode *)AllocVec(sizeof(*n), MEMF_PUBLIC | MEMF_CLEAR);
+            if (!n)
+                break;
+            n->id = dm->dm_DimensionInfo.Header.DisplayID;
+            n->props = dm->dm_PropertyFlags;
+            CopyMem(&dm->dm_DimensionInfo, &n->dims, sizeof(n->dims));
+            for (i = 0; dm->dm_Node.ln_Name && dm->dm_Node.ln_Name[i] && i < (WORD)sizeof(n->name) - 1; i++)
+                n->name[i] = dm->dm_Node.ln_Name[i];
+            n->name[i] = 0;
+            sm_insert_sorted(s, n);
+        }
+    }
+}
+
+static void sm_free_modes(struct SMSession *s)
+{
+    struct Node *n;
+
+    while ((n = RemHead(&s->modes)) != NULL)
+        FreeVec(n);
+}
+
+static struct SMNode *sm_find_mode(struct SMSession *s, ULONG id, LONG *idx)
+{
+    struct Node *n;
+    LONG i = 0;
+
+    for (n = s->modes.lh_Head; n->ln_Succ; n = n->ln_Succ, i++)
+        if (((struct SMNode *)n)->id == id)
+        {
+            *idx = i;
+            return (struct SMNode *)n;
+        }
+    *idx = -1;
+    return NULL;
+}
+
+static struct SMNode *sm_mode_at(struct SMSession *s, LONG idx)
+{
+    struct Node *n;
+    LONG i = 0;
+
+    for (n = s->modes.lh_Head; n->ln_Succ; n = n->ln_Succ, i++)
+        if (i == idx)
+            return (struct SMNode *)n;
+    return NULL;
+}
+
+static UWORD sm_max_depth(struct SMSession *s)
+{
+    UWORD d = s->sel ? s->sel->dims.MaxDepth : 8;
+
+    if (d > s->sm->sm_MaxDepth)
+        d = s->sm->sm_MaxDepth;
+    if (d < 1)
+        d = 1;
+    return d;
+}
+
+static UWORD sm_min_depth(struct SMSession *s)
+{
+    UWORD d = s->sm->sm_MinDepth ? s->sm->sm_MinDepth : 1;
+    UWORD mx = sm_max_depth(s);
+
+    /* HAM and EHB need six planes (the Colors slider of 3.1: HAM 6..8,
+     * EHB 6..6) */
+    if (s->sel && (s->sel->props & (DIPF_IS_HAM | DIPF_IS_EXTRAHALFBRITE)) && d < 6)
+        d = 6;
+
+    return d > mx ? mx : d;
+}
+
+static UWORD sm_shown_depth(struct SMSession *s)
+{
+    UWORD d = s->depth, mn = sm_min_depth(s), mx = sm_max_depth(s);
+
+    if (d < mn)
+        d = mn;
+    if (d > mx)
+        d = mx;
+    return d;
+}
+
+/* "Colors:" - 2^depth, 64 for EHB, 4,096 for HAM, with a thousands separator */
+static void sm_format_colors(struct SMSession *s)
+{
+    ULONG v;
+    UBYTE tmp[16];
+    WORD n = 0, i, pos = 0;
+
+    if (s->sel && (s->sel->props & DIPF_IS_HAM))
+        v = 1UL << (3 * (sm_shown_depth(s) - 2));     /* HAM6 4,096, HAM8 262,144 */
+    else if (s->sel && (s->sel->props & DIPF_IS_EXTRAHALFBRITE))
+        v = 64;
+    else
+        v = 1UL << sm_shown_depth(s);
+    do
+    {
+        if (n == 3 || n == 7)
+            tmp[n++] = ',';
+        tmp[n++] = (UBYTE)('0' + v % 10);
+        v /= 10;
+    } while (v && n < 15);
+    for (i = n - 1; i >= 0; i--)
+        s->colors[pos++] = tmp[i];
+    s->colors[pos] = 0;
+}
+
+static void sm_query_oscan(struct SMSession *s)
+{
+    struct Rectangle r;
+    UWORD t = s->oscan ? s->oscan : OSCAN_TEXT;
+
+    if (s->sel && QueryOverscan(s->sel->id, &r, t))
+    {
+        s->width = r.MaxX - r.MinX + 1;
+        s->height = r.MaxY - r.MinY + 1;
+    }
+}
+
+/* the property list: one line per property, then the scan rates */
+static void sm_build_props(struct SMSession *s)
+{
+    struct MonitorInfo mi;
+    WORD n = 0, pos = 0;
+    ULONG p;
+
+    NEWLIST(&s->props);
+    if (!s->sel)
+        return;
+    p = s->sel->props;
+#define SM_PROP(str) do { s->prop_node[n].ln_Name = (char *)(str); AddTail(&s->props, &s->prop_node[n]); n++; } while (0)
+    if (p & DIPF_IS_LACE)
+        SM_PROP("Interlaced");
+    if (p & DIPF_IS_EXTRAHALFBRITE)
+        SM_PROP("Extra-HalfBright");
+    if (p & DIPF_IS_HAM)
+        SM_PROP("Hold & Modify");
+    if (p & DIPF_IS_ECS)
+        SM_PROP("Requires ECS");
+    SM_PROP((p & DIPF_IS_WB) ? "Supports Workbench" : "Does not support Workbench");
+    if (p & DIPF_IS_GENLOCK)
+        SM_PROP("Supports genlock");
+    if (p & DIPF_IS_DRAGGABLE)
+        SM_PROP("Draggable");
+    if (p & DIPF_IS_DUALPF)
+        SM_PROP((p & DIPF_IS_PF2PRI) ? "DualPlayfield Priority 2" : "DualPlayfield");
+    if (GetDisplayInfoData(NULL, (UBYTE *)&mi, sizeof(mi), DTAG_MNTR, s->sel->id) > sizeof(struct QueryHeader) &&
+        mi.TotalRows && mi.TotalColorClocks)
+    {
+        ULONG v = 1000000000UL / ((ULONG)mi.TotalRows * mi.TotalColorClocks * 280UL);
+        ULONG h = v * mi.TotalRows;
+
+        sm_putnum(s->freq, &pos, v);
+        sm_putstr(s->freq, &pos, sizeof(s->freq), (CONST_STRPTR)"Hz, ");
+        sm_putnum(s->freq, &pos, h / 1000);
+        s->freq[pos++] = '.';
+        s->freq[pos++] = (UBYTE)('0' + (h % 1000) / 100);
+        s->freq[pos++] = (UBYTE)('0' + (h % 100) / 10);
+        sm_putstr(s->freq, &pos, sizeof(s->freq), (CONST_STRPTR)"kHz");
+        s->freq[pos] = 0;
+        SM_PROP(s->freq);
+    }
+#undef SM_PROP
+}
+
+/* ---- layout ------------------------------------------------------------ */
+
+struct SMLayout
+{
+    WORD label_col;     /* widest label + 8 */
+    WORD nominal;       /* widest row content (default widths) */
+    WORD minimal;       /* widest row content (minimum widths) */
+    WORD rows_h;        /* the option rows, 2 pixels apart */
+    WORD list_min;      /* list space at the minimum window height */
+    WORD int_w, int2_w, num_w, slider_w, cycle_w, check_w, check_h, row_h;
+};
+
+static WORD sm_tlen(struct SMSession *s, CONST_STRPTR str)
+{
+    struct RastPort rp;
+    WORD len = 0;
+
+    while (str[len])
+        len++;
+    InitRastPort(&rp);
+    SetFont(&rp, s->font);
+    return TextLength(&rp, (STRPTR)str, len);
+}
+
+static void sm_measure(struct SMSession *s, struct SMLayout *l)
+{
+    struct LXAScreenModeRequester *sm = s->sm;
+    WORD lw = 0, w, nrows = 0, i;
+
+    memset(l, 0, sizeof(*l));
+    l->row_h = s->fh + 6;
+    l->check_h = s->fh + 5;
+    l->check_w = 26;
+    l->int_w = 7 * s->fw;               /* 56 with topaz 8 */
+    l->int2_w = 7 * s->fw + 1;          /* the Height gadget is one wider */
+    l->num_w = 8 * s->fw;               /* "Colors:" value field */
+    l->slider_w = 10 * s->fw + 1;       /* 81 */
+    for (i = 0; g_sm_oscan_labels[i]; i++)
+    {
+        w = sm_tlen(s, g_sm_oscan_labels[i]);
+        if (w > l->cycle_w)
+            l->cycle_w = w;
+    }
+    l->cycle_w += 36;
+
+    if (sm->sm_DoOverscanType)
+    {
+        w = sm_tlen(s, (CONST_STRPTR)"Overscan:");
+        if (w > lw) lw = w;
+        if (l->cycle_w > l->nominal) l->nominal = l->cycle_w;
+        if (l->cycle_w > l->minimal) l->minimal = l->cycle_w;
+        l->rows_h += l->row_h + 2;
+        nrows++;
+    }
+    if (sm->sm_DoWidth || sm->sm_DoHeight)
+    {
+        WORD hl = sm_tlen(s, (CONST_STRPTR)"Height:");
+
+        if (sm->sm_DoWidth)
+        {
+            w = sm_tlen(s, (CONST_STRPTR)"Width:");
+            if (w > lw) lw = w;
+        }
+        if (sm->sm_DoHeight && hl > lw) lw = hl;
+        if (sm->sm_DoWidth && sm->sm_DoHeight)
+        {
+            w = l->int_w + 7 + hl + 8 + l->int2_w;
+            if (w > l->nominal) l->nominal = w;
+            w = 2 * (l->int_w - 6) + hl + 16;
+            if (w > l->minimal) l->minimal = w;
+        }
+        else
+        {
+            w = l->int_w;           /* one gadget alone: 56 */
+            if (w > l->nominal) l->nominal = w;
+            if (l->int_w - 6 > l->minimal) l->minimal = l->int_w - 6;
+        }
+        l->rows_h += l->row_h + 2;
+        nrows++;
+    }
+    if (sm->sm_DoDepth)
+    {
+        w = sm_tlen(s, (CONST_STRPTR)"Colors:");
+        if (w > lw) lw = w;
+        w = l->num_w + 3 + l->slider_w;
+        if (w > l->nominal) l->nominal = w;
+        w = l->num_w + 3 + l->slider_w - 14;
+        if (w > l->minimal) l->minimal = w;
+        l->rows_h += l->row_h + 2;
+        nrows++;
+    }
+    if (sm->sm_DoAutoScroll)
+    {
+        w = sm_tlen(s, (CONST_STRPTR)"AutoScroll:");
+        if (w > lw) lw = w;
+        if (l->check_w > l->nominal) l->nominal = l->check_w;
+        if (l->check_w > l->minimal) l->minimal = l->check_w;
+        l->rows_h += l->check_h + 2;
+        nrows++;
+    }
+    l->label_col = nrows ? lw + 8 : 0;
+
+    /* the list space at the minimum height depends on the topmost row
+     * (measured: Overscan 32, Width 34, Height 36, Colors 38,
+     * AutoScroll 42, no options 46 - with topaz 8) */
+    if (sm->sm_DoOverscanType)
+        l->list_min = 32;
+    else if (sm->sm_DoWidth)
+        l->list_min = 34;
+    else if (sm->sm_DoHeight)
+        l->list_min = 36;
+    else if (sm->sm_DoDepth)
+        l->list_min = 38;
+    else if (sm->sm_DoAutoScroll)
+        l->list_min = 42;
+    else
+        l->list_min = 46;
+}
+
+static WORD sm_button_w(struct SMSession *s, CONST_STRPTR text)
+{
+    WORD w = sm_tlen(s, text) + 12;
+    return w > 60 ? w : 60;
+}
+
+static CONST_STRPTR sm_ok_text(struct SMSession *s)
+{
+    return s->sm->sm_OkText ? (CONST_STRPTR)s->sm->sm_OkText : (CONST_STRPTR)"OK";
+}
+
+static CONST_STRPTR sm_cancel_text(struct SMSession *s)
+{
+    return s->sm->sm_CancelText ? (CONST_STRPTR)s->sm->sm_CancelText : (CONST_STRPTR)"Cancel";
+}
+
+static void sm_min_size(struct SMSession *s, struct SMLayout *l, WORD bl, WORD bt, WORD br, WORD bb)
+{
+    WORD w, bh = s->fh + 6;
+
+    /* OK may shrink to its text + 20, Cancel keeps its width */
+    s->minw = bl + 4 + (sm_tlen(s, sm_ok_text(s)) + 20) + 4 + sm_button_w(s, sm_cancel_text(s)) + 4 + br;
+    w = bl + br + 16 + l->label_col + l->minimal;
+    if (l->label_col && w > s->minw)
+        s->minw = w;
+    s->minh = bt + 2 + l->list_min + l->rows_h + 4 + bh + 2 + bb;
+}
+
+static struct Gadget *sm_create_gadgets(struct SMSession *s, struct Window *win)
+{
+    struct LXAScreenModeRequester *sm = s->sm;
+    struct SMLayout l;
+    struct NewGadget ng;
+    struct Gadget *gad;
+    WORD W = win->Width, H = win->Height;
+    WORD bl = win->BorderLeft, bt = win->BorderTop, br = win->BorderRight, bb = win->BorderBottom;
+    WORD bh = s->fh + 6, btop, okw, cw, rowt, L, block, x0, list_bottom;
+
+    sm_measure(s, &l);
+    s->g_list = s->g_width = s->g_height = s->g_colors = s->g_slider = s->g_oscan = s->g_auto = NULL;
+    s->glist = NULL;
+    gad = CreateContext(&s->glist);
+    if (!gad)
+        return NULL;
+
+    memset(&ng, 0, sizeof(ng));
+    ng.ng_TextAttr = &s->ta;
+    ng.ng_VisualInfo = s->vi;
+
+    /* OK and Cancel */
+    btop = H - bb - 2 - bh;
+    cw = sm_button_w(s, sm_cancel_text(s));
+    okw = sm_button_w(s, sm_ok_text(s));
+    if (okw > W - bl - br - 8 - 4 - cw)
+        okw = W - bl - br - 8 - 4 - cw;
+    ng.ng_LeftEdge = bl + 4;
+    ng.ng_TopEdge = btop;
+    ng.ng_Width = okw;
+    ng.ng_Height = bh;
+    ng.ng_GadgetText = (UBYTE *)sm_ok_text(s);
+    ng.ng_GadgetID = SMG_OK;
+    ng.ng_Flags = PLACETEXT_IN;
+    gad = CreateGadget(BUTTON_KIND, gad, &ng, TAG_END);
+    ng.ng_LeftEdge = W - br - 4 - cw;
+    ng.ng_Width = cw;
+    ng.ng_GadgetText = (UBYTE *)sm_cancel_text(s);
+    ng.ng_GadgetID = SMG_CANCEL;
+    gad = CreateGadget(BUTTON_KIND, gad, &ng, TAG_END);
+
+    /* the option block, centred, bottom row 4 pixels above the buttons */
+    block = l.label_col + l.nominal;
+    x0 = (W - block + 1) / 2;
+    if (x0 < bl + 4)
+        x0 = bl + 4;
+    L = x0 + l.label_col;
+    rowt = btop - 4 - l.rows_h + 2;
+    list_bottom = l.rows_h ? rowt - 2 : btop - 4;
+
+    if (sm->sm_DoOverscanType)
+    {
+        UWORD o = s->oscan ? s->oscan : OSCAN_TEXT;
+        ng.ng_LeftEdge = L;
+        ng.ng_TopEdge = rowt;
+        ng.ng_Width = l.cycle_w;
+        ng.ng_Height = l.row_h;
+        ng.ng_GadgetText = (UBYTE *)"Overscan:";
+        ng.ng_GadgetID = SMG_OVERSCAN;
+        ng.ng_Flags = PLACETEXT_LEFT;
+        gad = CreateGadget(CYCLE_KIND, gad, &ng,
+                           GTCY_Labels, (ULONG)g_sm_oscan_labels,
+                           GTCY_Active, (ULONG)((o >= 1 && o <= 4) ? o - 1 : 0),
+                           TAG_END);
+        s->g_oscan = gad;
+        rowt += l.row_h + 2;
+    }
+    if (sm->sm_DoWidth || sm->sm_DoHeight)
+    {
+        WORD x = L;
+        ng.ng_TopEdge = rowt;
+        ng.ng_Height = l.row_h;
+        ng.ng_Flags = PLACETEXT_LEFT;
+        if (sm->sm_DoWidth)
+        {
+            ng.ng_LeftEdge = x;
+            ng.ng_Width = l.int_w;
+            ng.ng_GadgetText = (UBYTE *)"Width:";
+            ng.ng_GadgetID = SMG_WIDTH;
+            gad = CreateGadget(INTEGER_KIND, gad, &ng,
+                               GTIN_Number, s->width, GTIN_MaxChars, 4, TAG_END);
+            s->g_width = gad;
+            x += l.int_w + 7 + sm_tlen(s, (CONST_STRPTR)"Height:") + 8;
+        }
+        if (sm->sm_DoHeight)
+        {
+            ng.ng_LeftEdge = x;
+            ng.ng_Width = sm->sm_DoWidth ? (L + l.nominal - x) : l.int_w;
+            ng.ng_GadgetText = (UBYTE *)"Height:";
+            ng.ng_GadgetID = SMG_HEIGHT;
+            gad = CreateGadget(INTEGER_KIND, gad, &ng,
+                               GTIN_Number, s->height, GTIN_MaxChars, 4, TAG_END);
+            s->g_height = gad;
+        }
+        rowt += l.row_h + 2;
+    }
+    if (sm->sm_DoDepth)
+    {
+        sm_format_colors(s);
+        ng.ng_LeftEdge = L;
+        ng.ng_TopEdge = rowt;
+        ng.ng_Width = l.num_w;
+        ng.ng_Height = s->fh + 3;
+        ng.ng_GadgetText = (UBYTE *)"Colors:";
+        ng.ng_GadgetID = SMG_DEPTH;
+        ng.ng_Flags = PLACETEXT_LEFT;
+        gad = CreateGadget(TEXT_KIND, gad, &ng,
+                           GTTX_Text, (ULONG)s->colors, GTTX_Justification, GTJ_RIGHT, TAG_END);
+        s->g_colors = gad;
+        ng.ng_LeftEdge = L + l.num_w + 3;
+        ng.ng_Width = L + l.nominal - ng.ng_LeftEdge;
+        ng.ng_GadgetText = NULL;
+        gad = CreateGadget(SLIDER_KIND, gad, &ng,
+                           GTSL_Min, sm_min_depth(s), GTSL_Max, sm_max_depth(s),
+                           GTSL_Level, sm_shown_depth(s), GA_RelVerify, TRUE, TAG_END);
+        s->g_slider = gad;
+        rowt += l.row_h + 2;
+    }
+    if (sm->sm_DoAutoScroll)
+    {
+        ng.ng_LeftEdge = L;
+        ng.ng_TopEdge = rowt;
+        ng.ng_Width = l.check_w;
+        ng.ng_Height = l.check_h;
+        ng.ng_GadgetText = (UBYTE *)"AutoScroll:";
+        ng.ng_GadgetID = SMG_AUTOSCROLL;
+        ng.ng_Flags = PLACETEXT_LEFT;
+        gad = CreateGadget(CHECKBOX_KIND, gad, &ng,
+                           GTCB_Checked, (ULONG)s->autoscroll, GTCB_Scaled, TRUE, TAG_END);
+        s->g_auto = gad;
+    }
+
+    /* the mode list fills the space above */
+    ng.ng_LeftEdge = bl + 4;
+    ng.ng_TopEdge = bt + 2;
+    ng.ng_Width = W - bl - br - 8;
+    ng.ng_Height = list_bottom - (bt + 2);
+    ng.ng_GadgetText = NULL;
+    ng.ng_GadgetID = SMG_LIST;
+    ng.ng_Flags = 0;
+    gad = CreateGadget(LISTVIEW_KIND, gad, &ng,
+                       GTLV_Labels, (ULONG)&s->modes,
+                       GTLV_ShowSelected, 0,
+                       GTLV_Selected, (ULONG)s->selidx,
+                       GTLV_MakeVisible, (ULONG)(s->selidx >= 0 ? s->selidx : 0),
+                       GTLV_ScrollWidth, 18,
+                       LAYOUTA_Spacing, 1,
+                       TAG_END);
+    s->g_list = gad;
+
+    return gad;
+}
+
+static BOOL sm_add_gadgets(struct SMSession *s)
+{
+    if (!sm_create_gadgets(s, s->win))
+    {
+        if (s->glist)
+            FreeGadgets(s->glist);
+        s->glist = NULL;
+        return FALSE;
+    }
+    AddGList(s->win, s->glist, (UWORD)~0, -1, NULL);
+    RefreshGList(s->glist, s->win, NULL, -1);
+    GT_RefreshWindow(s->win, NULL);
+    return TRUE;
+}
+
+static void sm_relayout(struct SMSession *s)
+{
+    struct Window *w = s->win;
+
+    if (s->glist)
+    {
+        RemoveGList(w, s->glist, -1);
+        FreeGadgets(s->glist);
+        s->glist = NULL;
+    }
+    SetAPen(w->RPort, 0);
+    if (w->Width - w->BorderRight - 1 >= w->BorderLeft && w->Height - w->BorderBottom - 1 >= w->BorderTop)
+        RectFill(w->RPort, w->BorderLeft, w->BorderTop, w->Width - w->BorderRight - 1,
+                 w->Height - w->BorderBottom - 1);
+    sm_add_gadgets(s);
+    RefreshWindowFrame(w);
+}
+
+/* ---- the property window ------------------------------------------------ */
+
+static void sm_info_update(struct SMSession *s)
+{
+    if (!s->info || !s->g_infolist)
+        return;
+    GT_SetGadgetAttrs(s->g_infolist, s->info, NULL, GTLV_Labels, ~0, TAG_END);
+    sm_build_props(s);
+    GT_SetGadgetAttrs(s->g_infolist, s->info, NULL, GTLV_Labels, (ULONG)&s->props, GTLV_Top, 0, TAG_END);
+}
+
+static void sm_info_close(struct SMSession *s, BOOL remember)
+{
+    struct IntuiMessage *m;
+    struct Node *succ;
+
+    if (!s->info)
+        return;
+    if (remember)
+    {
+        s->sm->sm_InfoLeftEdge = s->info->LeftEdge - s->win->LeftEdge;
+        s->sm->sm_InfoTopEdge = s->info->TopEdge - s->win->TopEdge;
+    }
+    /* the window shares the requester's port: drop its messages first */
+    Forbid();
+    for (m = (struct IntuiMessage *)s->win->UserPort->mp_MsgList.lh_Head;
+         (succ = m->ExecMessage.mn_Node.ln_Succ) != NULL; m = (struct IntuiMessage *)succ)
+    {
+        if (m->IDCMPWindow == s->info)
+        {
+            Remove((struct Node *)m);
+            ReplyMsg((struct Message *)m);
+        }
+    }
+    s->info->UserPort = NULL;
+    ModifyIDCMP(s->info, 0);
+    Permit();
+    CloseWindow(s->info);
+    s->info = NULL;
+    if (s->info_glist)
+        FreeGadgets(s->info_glist);
+    s->info_glist = NULL;
+    s->g_infolist = NULL;
+}
+
+static void sm_info_open(struct SMSession *s)
+{
+    struct NewGadget ng;
+    struct Gadget *gad;
+    WORD w = s->sm->sm_InfoWidth > 0 ? s->sm->sm_InfoWidth : 280;
+    WORD h = (s->sm->sm_InfoHeight > 0 ? s->sm->sm_InfoHeight : 84) + 4;
+    WORD bt = s->scr->WBorTop + s->fh + 1;
+
+    if (s->info)
+        return;
+    sm_build_props(s);
+    s->info_glist = NULL;
+    gad = CreateContext(&s->info_glist);
+    memset(&ng, 0, sizeof(ng));
+    ng.ng_TextAttr = &s->ta;
+    ng.ng_VisualInfo = s->vi;
+    ng.ng_LeftEdge = s->scr->WBorLeft + 4;
+    ng.ng_TopEdge = bt + 4;
+    ng.ng_Width = w - 2 * (s->scr->WBorLeft + 4);
+    ng.ng_Height = h - (bt + 4) - 6;
+    ng.ng_GadgetID = SMG_INFOLIST;
+    gad = CreateGadget(LISTVIEW_KIND, gad, &ng,
+                       GTLV_Labels, (ULONG)&s->props, GTLV_ReadOnly, TRUE,
+                       LAYOUTA_Spacing, 1, TAG_END);
+    s->g_infolist = gad;
+    if (!gad)
+    {
+        FreeGadgets(s->info_glist);
+        s->info_glist = NULL;
+        return;
+    }
+    s->info = OpenWindowTags(NULL,
+        WA_Left, s->win->LeftEdge + s->sm->sm_InfoLeftEdge,
+        WA_Top, s->win->TopEdge + s->sm->sm_InfoTopEdge,
+        WA_Width, w,
+        WA_Height, h,
+        WA_Title, (ULONG)"Mode Properties",
+        WA_CustomScreen, (ULONG)s->scr,
+        WA_DragBar, TRUE,
+        WA_DepthGadget, TRUE,
+        WA_CloseGadget, TRUE,
+        WA_SimpleRefresh, TRUE,
+        WA_NewLookMenus, TRUE,
+        WA_AutoAdjust, TRUE,
+        WA_Gadgets, (ULONG)s->info_glist,
+        TAG_END);
+    if (!s->info)
+    {
+        FreeGadgets(s->info_glist);
+        s->info_glist = NULL;
+        s->g_infolist = NULL;
+        return;
+    }
+    s->info->UserPort = s->win->UserPort;
+    ModifyIDCMP(s->info, IDCMP_REFRESHWINDOW | IDCMP_MOUSEBUTTONS | IDCMP_MOUSEMOVE | IDCMP_GADGETDOWN |
+                         IDCMP_GADGETUP | IDCMP_CLOSEWINDOW | IDCMP_INTUITICKS);
+    GT_RefreshWindow(s->info, NULL);
+}
+
+/* ---- state changes --------------------------------------------------------- */
+
+static void sm_update_values(struct SMSession *s)
+{
+    struct Window *w = s->win;
+
+    if (s->g_width)
+        GT_SetGadgetAttrs(s->g_width, w, NULL, GTIN_Number, s->width, TAG_END);
+    if (s->g_height)
+        GT_SetGadgetAttrs(s->g_height, w, NULL, GTIN_Number, s->height, TAG_END);
+    if (s->g_oscan)
+        GT_SetGadgetAttrs(s->g_oscan, w, NULL, GTCY_Active, (ULONG)(s->oscan >= 1 && s->oscan <= 4 ? s->oscan - 1 : 0),
+                          TAG_END);
+    if (s->g_auto)
+        GT_SetGadgetAttrs(s->g_auto, w, NULL, GTCB_Checked, (ULONG)s->autoscroll, TAG_END);
+    if (s->g_slider)
+        GT_SetGadgetAttrs(s->g_slider, w, NULL, GTSL_Min, sm_min_depth(s), GTSL_Max, sm_max_depth(s),
+                          GTSL_Level, sm_shown_depth(s), TAG_END);
+    if (s->g_colors)
+    {
+        sm_format_colors(s);
+        GT_SetGadgetAttrs(s->g_colors, w, NULL, GTTX_Text, (ULONG)s->colors, TAG_END);
+    }
+}
+
+static void sm_select(struct SMSession *s, LONG idx, BOOL load_size)
+{
+    struct SMNode *n = sm_mode_at(s, idx);
+
+    if (!n)
+        return;
+    s->sel = n;
+    s->selidx = idx;
+    s->id = n->id;
+    if (load_size)
+        sm_query_oscan(s);
+    GT_SetGadgetAttrs(s->g_list, s->win, NULL, GTLV_Selected, (ULONG)idx, GTLV_MakeVisible, (ULONG)idx, TAG_END);
+    sm_update_values(s);
+    sm_info_update(s);
+}
+
+static void sm_restore(struct SMSession *s)
+{
+    LONG idx;
+
+    s->id = s->i_id;
+    s->width = s->i_width;
+    s->height = s->i_height;
+    s->depth = s->i_depth;
+    s->oscan = s->i_oscan;
+    s->autoscroll = s->i_autoscroll;
+    s->sel = sm_find_mode(s, s->id, &idx);
+    s->selidx = idx;
+    GT_SetGadgetAttrs(s->g_list, s->win, NULL, GTLV_Selected, (ULONG)idx,
+                      GTLV_MakeVisible, (ULONG)(idx >= 0 ? idx : 0), TAG_END);
+    sm_update_values(s);
+    sm_info_update(s);
+}
+
+static void sm_read_integers(struct SMSession *s)
+{
+    if (s->g_width)
+        s->width = ((struct StringInfo *)s->g_width->SpecialInfo)->LongInt;
+    if (s->g_height)
+        s->height = ((struct StringInfo *)s->g_height->SpecialInfo)->LongInt;
+}
+
+static void sm_finish(struct SMSession *s, BOOL ok)
+{
+    struct LXAScreenModeRequester *sm = s->sm;
+
+    s->done = TRUE;
+    s->result = ok;
+    if (!ok)
+        return;
+    sm_read_integers(s);
+    sm->sm_DisplayID = s->id;
+    sm->sm_DisplayWidth = s->width;
+    sm->sm_DisplayHeight = s->height;
+    sm->sm_DisplayDepth = s->sel ? sm_shown_depth(s) : s->depth;
+    sm->sm_OverscanType = s->oscan;
+    sm->sm_AutoScroll = s->autoscroll;
+    sm->sm_BitMapHeight = s->height;
+}
+
+static void sm_handle(struct SMSession *s, ULONG cl, UWORD code, struct Gadget *g, struct Window *iw,
+                      ULONG secs, ULONG mics)
+{
+    if (iw == s->info && s->info)
+    {
+        if (cl == IDCMP_CLOSEWINDOW)
+            sm_info_close(s, TRUE);
+        else if (cl == IDCMP_REFRESHWINDOW)
+        {
+            GT_BeginRefresh(s->info);
+            GT_EndRefresh(s->info, TRUE);
+        }
+        return;
+    }
+
+    switch (cl)
+    {
+        case IDCMP_CLOSEWINDOW:
+            sm_finish(s, FALSE);
+            break;
+
+        case IDCMP_REFRESHWINDOW:
+            GT_BeginRefresh(s->win);
+            GT_EndRefresh(s->win, TRUE);
+            break;
+
+        case IDCMP_NEWSIZE:
+            sm_relayout(s);
+            break;
+
+        case IDCMP_GADGETUP:
+            if (!g)
+                break;
+            switch (g->GadgetID)
             {
-                case IDCMP_GADGETUP:
-                    if (igad && igad->GadgetID == GID_FONT_OK)
-                    {
-                        if (display_count > 0)
-                        {
-                            struct AslDisplayModeEntry *entry = &display_entries[selectedIndex];
-                            asl_set_screenmode_selection(sm, entry->display_id, entry->width, entry->height, entry->depth);
-                        }
-                        result = TRUE;
-                        done = TRUE;
-                    }
-                    else if (igad && igad->GadgetID == GID_FONT_CANCEL)
-                    {
-                        result = FALSE;
-                        done = TRUE;
-                    }
+                case SMG_OK:
+                    sm_finish(s, TRUE);
                     break;
-
-                case IDCMP_MOUSEBUTTONS:
-                    if (display_count > 0 && mouse_x >= margin && mouse_x <= (winWidth - margin) &&
-                        mouse_y >= listTop && mouse_y < (listTop + listHeight))
-                    {
-                        WORD row = (mouse_y - (listTop + 2)) / 12;
-                        if (row >= 0 && row < display_count)
-                        {
-                            selectedIndex = row;
-                            draw_screenmode_entries(rp, winWidth, margin, listTop, listHeight,
-                                                    display_entries, display_count, selectedIndex);
-                        }
-                    }
+                case SMG_CANCEL:
+                    sm_finish(s, FALSE);
                     break;
+                case SMG_LIST:
+                {
+                    BOOL dbl = (s->click_idx == (LONG)code) && DoubleClick(s->click_secs, s->click_mics, secs, mics);
 
-                case IDCMP_CLOSEWINDOW:
-                    result = FALSE;
-                    done = TRUE;
+                    s->click_idx = code;
+                    s->click_secs = secs;
+                    s->click_mics = mics;
+                    sm_select(s, code, TRUE);
+                    if (dbl)
+                        sm_finish(s, TRUE);
                     break;
-
-                case IDCMP_REFRESHWINDOW:
-                    BeginRefresh(win);
-                    draw_screenmode_entries(rp, winWidth, margin, listTop, listHeight,
-                                            display_entries, display_count, selectedIndex);
-                    EndRefresh(win, TRUE);
+                }
+                case SMG_OVERSCAN:
+                    s->oscan = code + 1;
+                    sm_query_oscan(s);
+                    sm_update_values(s);
+                    break;
+                case SMG_WIDTH:
+                case SMG_HEIGHT:
+                    sm_read_integers(s);
+                    break;
+                case SMG_DEPTH:
+                    s->depth = code;
+                    sm_update_values(s);
+                    break;
+                case SMG_AUTOSCROLL:
+                    s->autoscroll = (g->Flags & GFLG_SELECTED) ? TRUE : FALSE;
                     break;
             }
+            break;
+
+        case IDCMP_MOUSEMOVE:
+            if (g && g == s->g_slider && s->g_colors)
+            {
+                s->depth = code;
+                sm_format_colors(s);
+                GT_SetGadgetAttrs(s->g_colors, s->win, NULL, GTTX_Text, (ULONG)s->colors, TAG_END);
+            }
+            break;
+
+        case IDCMP_MENUPICK:
+        {
+            UWORD num = code;
+
+            while (num != MENUNULL && !s->done)
+            {
+                struct MenuItem *item = ItemAddress(s->win->MenuStrip, num);
+
+                if (MENUNUM(num) == 0)
+                {
+                    switch (ITEMNUM(num))
+                    {
+                        case SM_MENU_LAST:
+                            if (s->nmodes)
+                                sm_select(s, s->selidx > 0 ? s->selidx - 1 : (s->selidx < 0 ? 0 : s->nmodes - 1), FALSE);
+                            break;
+                        case SM_MENU_NEXT:
+                            if (s->nmodes)
+                                sm_select(s, (s->selidx + 1) % s->nmodes, FALSE);
+                            break;
+                        case SM_MENU_PROPS:
+                            if (s->info)
+                                sm_info_close(s, TRUE);
+                            else
+                                sm_info_open(s);
+                            break;
+                        case SM_MENU_RESTORE:
+                            sm_restore(s);
+                            break;
+                        case SM_MENU_OK:
+                            sm_finish(s, TRUE);
+                            break;
+                        case SM_MENU_CANCEL:
+                            sm_finish(s, FALSE);
+                            break;
+                    }
+                }
+                if (!item)
+                    break;
+                num = item->NextSelect;
+            }
+            break;
+        }
+    }
+}
+
+static BOOL do_screenmode_request(struct LXAScreenModeRequester *sm)
+{
+    struct SMSession *s;
+    struct SMLayout l;
+    struct Screen *scr = NULL;
+    BOOL result = FALSE;
+    LONG idx;
+    WORD left, top, w, h, bl, bt, br, bb;
+
+    s = (struct SMSession *)AllocVec(sizeof(*s), MEMF_PUBLIC | MEMF_CLEAR);
+    if (!s)
+        return FALSE;
+    s->sm = sm;
+    s->click_idx = -1;
+    NEWLIST(&s->props);
+
+    /* the screen: ASLSM_Screen, else the public screen, else the
+     * parent window's, else the default public screen */
+    if (sm->sm_Screen)
+        scr = sm->sm_Screen;
+    else if (sm->sm_PubScreenName && (scr = LockPubScreen(sm->sm_PubScreenName)) != NULL)
+        s->pub_locked = TRUE;
+    else if (sm->sm_Window)
+        scr = sm->sm_Window->WScreen;
+    if (!scr && (scr = LockPubScreen(NULL)) != NULL)
+        s->pub_locked = TRUE;
+    if (!scr)
+        goto out;
+    s->scr = scr;
+
+    if (sm->sm_TextAttr)
+        s->ta = *sm->sm_TextAttr;
+    else
+        s->ta = *scr->Font;
+    s->font = OpenFont(&s->ta);
+    if (!s->font)
+    {
+        s->ta.ta_Name = (STRPTR)"topaz.font";
+        s->ta.ta_YSize = 8;
+        s->ta.ta_Style = 0;
+        s->ta.ta_Flags = 0;
+        s->font = OpenFont(&s->ta);
+    }
+    if (!s->font)
+        goto out;
+    s->fh = s->font->tf_YSize;
+    s->fw = s->font->tf_XSize;
+
+    s->vi = GetVisualInfoA(scr, NULL);
+    if (!s->vi)
+        goto out;
+
+    /* the initial values; a mode of the default monitor means the same
+     * mode on the monitor the system runs on */
+    s->id = sm->sm_DisplayID;
+    if ((s->id & MONITOR_ID_MASK) == DEFAULT_MONITOR_ID)
+        s->id |= (GfxBase->DisplayFlags & PAL) ? PAL_MONITOR_ID : NTSC_MONITOR_ID;
+    sm->sm_DisplayID = s->id;
+    s->width = sm->sm_DisplayWidth;
+    s->height = sm->sm_DisplayHeight;
+    s->depth = sm->sm_DisplayDepth;
+    s->oscan = sm->sm_OverscanType ? sm->sm_OverscanType : OSCAN_TEXT;
+    s->autoscroll = sm->sm_AutoScroll;
+    s->i_id = s->id;
+    s->i_width = s->width;
+    s->i_height = s->height;
+    s->i_depth = s->depth;
+    s->i_oscan = s->oscan;
+    s->i_autoscroll = s->autoscroll;
+
+    sm_build_modes(s);
+    s->sel = sm_find_mode(s, s->id, &idx);
+    s->selidx = idx;
+
+    /* window geometry: the requester's box, at least the minimum size,
+     * moved onto the screen */
+    bl = scr->WBorLeft;
+    br = scr->WBorRight;
+    bt = scr->WBorTop + scr->Font->ta_YSize + 1;
+    bb = 10;        /* the size gadget sits in the bottom border */
+    sm_measure(s, &l);
+    sm_min_size(s, &l, bl, bt, br, bb);
+    w = sm->sm_Width;
+    h = sm->sm_Height;
+    if (w < s->minw)
+        w = s->minw;
+    if (h < s->minh)
+        h = s->minh;
+    if (w > scr->Width)
+        w = scr->Width;
+    if (h > scr->Height)
+        h = scr->Height;
+    left = sm->sm_LeftEdge;
+    top = sm->sm_TopEdge;
+    if (left + w > scr->Width)
+        left = scr->Width - w;
+    if (top + h > scr->Height)
+        top = scr->Height - h;
+    if (left < 0)
+        left = 0;
+    if (top < 0)
+        top = 0;
+
+    {
+        WORD zoom[4];
+        struct TagItem wtags[] =
+        {
+            { WA_Left, 0 }, { WA_Top, 0 }, { WA_Width, 0 }, { WA_Height, 0 },
+            { WA_MinWidth, 0 }, { WA_MinHeight, 0 }, { WA_MaxWidth, 1024 }, { WA_MaxHeight, 1024 },
+            { WA_Title, 0 }, { WA_CustomScreen, 0 }, { WA_Zoom, 0 },
+            { WA_SizeGadget, TRUE }, { WA_SizeBBottom, TRUE }, { WA_DragBar, TRUE },
+            { WA_DepthGadget, TRUE }, { WA_CloseGadget, TRUE }, { WA_SimpleRefresh, TRUE },
+            { WA_Activate, TRUE }, { WA_NewLookMenus, TRUE }, { WA_IDCMP, 0 },
+            { TAG_DONE, 0 }
+        };
+        ULONG idcmp = IDCMP_NEWSIZE | IDCMP_REFRESHWINDOW | IDCMP_MOUSEBUTTONS | IDCMP_MOUSEMOVE |
+                      IDCMP_GADGETDOWN | IDCMP_GADGETUP | IDCMP_MENUPICK | IDCMP_CLOSEWINDOW |
+                      IDCMP_INTUITICKS;
+
+        s->shared_port = (sm->sm_Window && !sm->sm_PrivateIDCMP && sm->sm_Window->UserPort);
+        zoom[0] = left;
+        zoom[1] = top;
+        zoom[2] = s->minw;
+        zoom[3] = s->minh;
+        wtags[0].ti_Data = left;
+        wtags[1].ti_Data = top;
+        wtags[2].ti_Data = w;
+        wtags[3].ti_Data = h;
+        wtags[4].ti_Data = s->minw;
+        wtags[5].ti_Data = s->minh;
+        wtags[8].ti_Data = (ULONG)(sm->sm_Title ? sm->sm_Title : (STRPTR)"Select Screen Mode");
+        wtags[9].ti_Data = (ULONG)scr;
+        wtags[10].ti_Data = (ULONG)zoom;
+        wtags[19].ti_Data = s->shared_port ? 0 : idcmp;
+        s->win = OpenWindowTagList(NULL, wtags);
+        if (!s->win)
+            goto out_modes;
+        if (s->shared_port)
+        {
+            s->win->UserPort = sm->sm_Window->UserPort;
+            ModifyIDCMP(s->win, idcmp);
         }
     }
 
-    sm->sm_LeftEdge = win->LeftEdge;
-    sm->sm_TopEdge = win->TopEdge;
-    sm->sm_Width = win->Width;
-    sm->sm_Height = win->Height;
-
-    CloseWindow(win);
-    win = NULL;
-
-cleanup:
-    gad = gadList;
-    while (gad)
+    s->menu = CreateMenus(g_sm_newmenu, TAG_END);
+    if (s->menu)
     {
-        struct Gadget *next = gad->NextGadget;
-        FreeMem(gad, sizeof(struct Gadget));
-        gad = next;
+        struct MenuItem *it;
+        WORD i = 0;
+
+        /* the OK/Cancel items carry the gadget texts */
+        for (it = s->menu->FirstItem; it; it = it->NextItem, i++)
+        {
+            if (i == SM_MENU_OK && sm->sm_OkText)
+                ((struct IntuiText *)it->ItemFill)->IText = (UBYTE *)sm->sm_OkText;
+            if (i == SM_MENU_CANCEL && sm->sm_CancelText)
+                ((struct IntuiText *)it->ItemFill)->IText = (UBYTE *)sm->sm_CancelText;
+        }
+        if (LayoutMenus(s->menu, s->vi, GTMN_NewLookMenus, TRUE, GTMN_TextAttr, (ULONG)&s->ta, TAG_END))
+            SetMenuStrip(s->win, s->menu);
     }
 
+    if (sm->sm_SleepWindow && sm->sm_Window)
+    {
+        InitRequester(&s->sleep_req);
+        if (Request(&s->sleep_req, sm->sm_Window))
+        {
+            s->sleeping = TRUE;
+            SetWindowPointer(sm->sm_Window, WA_BusyPointer, TRUE, TAG_END);
+        }
+    }
+
+    if (!sm_add_gadgets(s))
+        goto out_win;
+    if (sm->sm_InfoOpened)
+        sm_info_open(s);
+
+    while (!s->done)
+    {
+        struct MsgPort *port = s->win->UserPort;
+        struct IntuiMessage *im;
+
+        WaitPort(port);
+        while (!s->done && (im = GT_GetIMsg(port)) != NULL)
+        {
+            ULONG cl = im->Class;
+            UWORD code = im->Code;
+            struct Gadget *g = (struct Gadget *)im->IAddress;
+            struct Window *iw = im->IDCMPWindow;
+            ULONG secs = im->Seconds, mics = im->Micros;
+
+            if (iw != s->win && iw != s->info)
+            {
+                /* a message of the parent window (shared port) */
+                if (sm->sm_IntuiMsgFunc)
+                    CallHookPkt(sm->sm_IntuiMsgFunc, sm, im);
+                GT_ReplyIMsg(im);
+                continue;
+            }
+            if (cl != IDCMP_GADGETUP && cl != IDCMP_GADGETDOWN && cl != IDCMP_MOUSEMOVE)
+                g = NULL;
+            GT_ReplyIMsg(im);
+            sm_handle(s, cl, code, g, iw, secs, mics);
+        }
+    }
+    result = s->result;
+
+    /* the requester's window box, and the property window's */
+    sm->sm_LeftEdge = s->win->LeftEdge;
+    sm->sm_TopEdge = s->win->TopEdge;
+    sm->sm_Width = s->win->Width;
+    sm->sm_Height = s->win->Height;
+    sm->sm_InfoOpened = s->info ? TRUE : FALSE;
+    if (s->info)
+    {
+        sm->sm_InfoLeftEdge = s->info->LeftEdge - s->win->LeftEdge;
+        sm->sm_InfoTopEdge = s->info->TopEdge - s->win->TopEdge;
+        sm->sm_InfoWidth = s->win->Width;
+        sm->sm_InfoHeight = s->win->Height;
+        sm_info_close(s, FALSE);
+    }
+
+out_win:
+    if (s->sleeping)
+    {
+        EndRequest(&s->sleep_req, sm->sm_Window);
+        SetWindowPointer(sm->sm_Window, TAG_END);
+    }
+    if (s->menu)
+    {
+        ClearMenuStrip(s->win);
+        FreeMenus(s->menu);
+    }
+    if (s->shared_port)
+    {
+        struct IntuiMessage *m;
+        struct Node *succ;
+
+        Forbid();
+        for (m = (struct IntuiMessage *)s->win->UserPort->mp_MsgList.lh_Head;
+             (succ = m->ExecMessage.mn_Node.ln_Succ) != NULL; m = (struct IntuiMessage *)succ)
+        {
+            if (m->IDCMPWindow == s->win)
+            {
+                Remove((struct Node *)m);
+                ReplyMsg((struct Message *)m);
+            }
+        }
+        s->win->UserPort = NULL;
+        ModifyIDCMP(s->win, 0);
+        Permit();
+    }
+    CloseWindow(s->win);
+    if (s->glist)
+        FreeGadgets(s->glist);
+out_modes:
+    sm_free_modes(s);
+out:
+    if (s->vi)
+        FreeVisualInfo(s->vi);
+    if (s->font)
+        CloseFont(s->font);
+    if (s->pub_locked)
+        UnlockPubScreen(NULL, s->scr);
+    FreeVec(s);
     return result;
 }
+
 
 /*
  * ASL Functions (V36+)
@@ -1798,20 +2716,7 @@ APTR _asl_AllocAslRequest ( register struct AslBase *AslBase __asm("a6"),
         case ASL_ScreenModeRequest: {
             struct LXAScreenModeRequester *sm = asl_alloc_request(reqType, sizeof(struct LXAScreenModeRequester));
             if (sm) {
-                sm->sm_LeftEdge = -1;
-                sm->sm_TopEdge = -1;
-                sm->sm_Width = 320;
-                sm->sm_Height = 180;
-                /* ASLSM_InitialDisplay* defaults (asl.doc, verified on 3.1):
-                 * 640x200x2, DisplayID 0; sm_BitMapWidth/Height stay 0 until
-                 * a mode has been chosen. */
-                sm->sm_DisplayID = LORES_KEY;
-                sm->sm_DisplayWidth = 640;
-                sm->sm_DisplayHeight = 200;
-                sm->sm_DisplayDepth = 2;
-                sm->sm_DoWidth = TRUE;
-                sm->sm_DoHeight = TRUE;
-                sm->sm_DoDepth = TRUE;
+                sm_init_defaults(sm);
                 parse_sm_tags(sm, tagList);
             }
             return sm;

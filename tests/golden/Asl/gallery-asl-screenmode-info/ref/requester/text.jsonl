@@ -1,0 +1,19 @@
+{"text":"LXAREF","x":13,"y":69}
+{"text":"APPS","x":21,"y":104}
+{"text":"System","x":13,"y":139}
+{"text":"Workbench Screen","x":5,"y":7}
+{"text":"Select Screen Mode","x":30,"y":7}
+{"text":"Cancel","x":256,"y":181}
+{"text":"OK","x":30,"y":181}
+{"text":"PAL:1280 x 256 ","x":12,"y":22}
+{"text":"PAL:1280 x 512 Interlaced","x":12,"y":31}
+{"text":"PAL:320 x 256 ","x":12,"y":40}
+{"text":"PAL:320 x 512 Interlaced","x":12,"y":49}
+{"text":"PAL:640 x 256 ","x":12,"y":58}
+{"text":"PAL:640 x 512 Interlaced","x":12,"y":67}
+{"text":"Mode Properties","x":30,"y":7}
+{"text":"Interlaced","x":12,"y":24}
+{"text":"Supports Workbench","x":12,"y":33}
+{"text":"Supports genlock","x":12,"y":42}
+{"text":"Draggable","x":12,"y":51}
+{"text":"50Hz, 15.60kHz","x":12,"y":60}

@@ -1,9 +1,9 @@
 {
  "app": "DPaintV",
  "disabled": null,
- "lxa_version": "0.11.26",
- "note": "Screen Format mode list contents and History menu widths: Phase 240 (the 9-pixel listview lines are GadTools LAYOUTA_Spacing, fixed in Phase 222g)",
- "promoted": "2026-10-04",
+ "lxa_version": "0.11.29",
+ "note": "Screen Format mode list contents and History menu widths: Phase 240 (listview text centred in spaced lines since Phase 238)",
+ "promoted": "2026-10-09",
  "reference": "AmigaOS 3.1 (KS 40.70), profile aga",
  "requires_apps": true,
  "scenario": "dpaintv-startup",
@@ -91,7 +91,7 @@
      "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/menu[Settings]/History/#?"
     }
    ],
-   "pixel_budget": 14199,
+   "pixel_budget": 1310,
    "pixel_phase": 240,
    "stdout_known_diff": null
   }

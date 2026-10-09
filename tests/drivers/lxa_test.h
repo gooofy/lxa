@@ -21,6 +21,7 @@
 #include <limits.h>
 #include <unistd.h>
 #include <sys/stat.h>
+#include <sys/stat.h>
 #include <cstdio>
 #include <cstdlib>
 #include <vector>
@@ -559,25 +560,21 @@ protected:
             lxa_add_assign("C", commands_path);
         }
 
-        // Map System: to system binaries if found
-        const char* system_path = FindSystemPath();
-        if (system_path) {
-            lxa_add_assign("System", system_path);
-        }
-
-        // Map T: to a temporary directory
-        char t_dir[] = "/tmp/lxa_test_T_XXXXXX";
-        if (mkdtemp(t_dir)) {
-            t_dir_path = t_dir;
-            lxa_add_assign("T", t_dir);
-        }
-
-        // Map ENV: and ENVARC: to a temporary directory
-        char env_dir[] = "/tmp/lxa_test_ENV_XXXXXX";
-        if (mkdtemp(env_dir)) {
-            env_dir_path = env_dir;
-            lxa_add_assign("ENV", env_dir);
-            lxa_add_assign("ENVARC", env_dir);
+        // T: and ENV: are directories of the "Ram Disk" volume, as on
+        // Workbench 3.1 (SYS:System is reached through the SYS: assign;
+        // "System:" is the boot volume, not an assign)
+        if (!ram_dir_path.empty()) {
+            std::string t = ram_dir_path + "/T";
+            std::string env = ram_dir_path + "/ENV";
+            if (mkdir(t.c_str(), 0755) == 0) {
+                t_dir_path = t;
+                lxa_add_assign("T", t.c_str());
+            }
+            if (mkdir(env.c_str(), 0755) == 0) {
+                env_dir_path = env;
+                lxa_add_assign("ENV", env.c_str());
+                lxa_add_assign("ENVARC", env.c_str());
+            }
         }
 
         initialized = true;

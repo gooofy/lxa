@@ -300,7 +300,7 @@ int main(void)
     wbctrl_tags[1].ti_Tag = TAG_DONE;
     wbctrl_tags[1].ti_Data = 0;
     copied_list = NULL;
-    if (!WorkbenchControlA(NULL, wbctrl_tags) || !list_contains_name(copied_list, "SYS:Tests/Exec/Lists"))
+    if (!WorkbenchControlA(NULL, wbctrl_tags) || !list_contains_name(copied_list, "System:Tests/Exec/Lists"))
     {
         print("FAIL: WorkbenchControlA should expose launched program paths\n");
         errors++;
@@ -593,7 +593,7 @@ int main(void)
         wbctrl_tags[2].ti_Tag = TAG_DONE;
         wbctrl_tags[2].ti_Data = 0;
         copied_list = NULL;
-        if (!WorkbenchControlA(NULL, wbctrl_tags) || list_contains_name(copied_list, "SYS:Tests/Workbench/AppObjects.info"))
+        if (!WorkbenchControlA(NULL, wbctrl_tags) || list_contains_name(copied_list, "System:Tests/Workbench/AppObjects.info"))
         {
             print("FAIL: UpdateWorkbench should remove deleted objects from selection state\n");
             errors++;

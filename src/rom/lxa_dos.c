@@ -5300,16 +5300,9 @@ LONG _dos_ExAll ( register struct DosLibrary * __dos_a6 __asm("a6"),
             break;
         }
 
-        curr->ed_Type = 0;
-        curr->ed_Size = 0;
-        curr->ed_Prot = 0;
-        curr->ed_Days = 0;
-        curr->ed_Mins = 0;
-        curr->ed_Ticks = 0;
-        curr->ed_Comment = NULL;
-        curr->ed_OwnerUID = 0;
-        curr->ed_OwnerGID = 0;
-
+        /* only the fields of the requested level exist in the buffer: an
+         * ED_NAME entry is 8 bytes, writing the whole ExAllData overran a
+         * small buffer into the following memory */
         if (data >= ED_OWNER)
         {
             curr->ed_OwnerUID = icontrol->fib->fib_OwnerUID;

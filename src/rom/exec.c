@@ -27,6 +27,8 @@
 #include <graphics/monitor.h>
 
 #include <intuition/intuitionbase.h>
+#include <clib/intuition_protos.h>
+#include <inline/intuition.h>
 
 #include <libraries/expansionbase.h>
 
@@ -1230,6 +1232,39 @@ void _exec_Permit ( register struct ExecBase * SysBase __asm("a6"))
     if (SysBase->TDNestCnt < 0 && SysBase->IDNestCnt < 0 && (SysBase->SysFlags & LXA_SFF_SAR))
         exec_preempt(SysBase);
 }
+
+/*
+ * Disable(), Enable(), Forbid(), Permit(), ObtainSemaphore(),
+ * ObtainSemaphoreShared() and ReleaseSemaphore() are "guaranteed to
+ * preserve all registers" (exec autodocs), and programs rely on it:
+ * AmiBlitz3's linked-list library keeps its list pointer in D0 across
+ * Disable() and its result in D0 across Enable().  The C implementations
+ * may use the scratch registers D0/D1/A0/A1, so the jump table points to
+ * these wrappers.
+ */
+#define EXEC_PRESERVE_ALL(fn)                                  \
+    extern void fn##_PreserveAll(void);                        \
+    asm(".text\n\t.even\n"                                     \
+        "_" #fn "_PreserveAll:\n\t"                            \
+        "movem.l d0-d1/a0-a1,-(sp)\n\t"                        \
+        "jsr _" #fn "\n\t"                                     \
+        "movem.l (sp)+,d0-d1/a0-a1\n\t"                        \
+        "rts\n");
+
+void _exec_ObtainSemaphore ( register struct ExecBase * SysBase __asm("a6"),
+                             register struct SignalSemaphore * ___sigSem __asm("a0"));
+void _exec_ObtainSemaphoreShared ( register struct ExecBase * SysBase __asm("a6"),
+                                   register struct SignalSemaphore * ___sigSem __asm("a0"));
+void _exec_ReleaseSemaphore ( register struct ExecBase * SysBase __asm("a6"),
+                              register struct SignalSemaphore * ___sigSem __asm("a0"));
+
+EXEC_PRESERVE_ALL(_exec_Disable)
+EXEC_PRESERVE_ALL(_exec_Enable)
+EXEC_PRESERVE_ALL(_exec_Forbid)
+EXEC_PRESERVE_ALL(_exec_Permit)
+EXEC_PRESERVE_ALL(_exec_ObtainSemaphore)
+EXEC_PRESERVE_ALL(_exec_ObtainSemaphoreShared)
+EXEC_PRESERVE_ALL(_exec_ReleaseSemaphore)
 
 /*
  * SuperState(): continue in supervisor mode on the caller's stack and return
@@ -5677,6 +5712,50 @@ static void _myTestTask(void)
 }
 #endif
 
+/*
+ * Phase 238: the reference's Workbench screen carries LoadWB's backdrop
+ * window (untitled, borderless, simple refresh, below the screen bar, the
+ * active window at boot) - Fish ISAM uses GetScreenData()->FirstWindow as
+ * its own window.  With LXA_WB_WINDOW=1 the harness opens the same window
+ * from a "Workbench" process.  It is registered with the host, which keeps
+ * it out of tree dumps and window counts (lxaprobe likewise ignores windows
+ * that existed before RUN).
+ */
+static struct Task *wb_window_parent;
+
+static void wb_window_task(void)
+{
+    struct Screen *scr = LockPubScreen((CONST_STRPTR)"Workbench");
+    struct Window *w = NULL;
+
+    if (scr)
+    {
+        WORD top = scr->BarHeight + 1;
+        struct TagItem tags[] = {
+            { WA_PubScreen,     (ULONG)scr },
+            { WA_Left,          0 },
+            { WA_Top,           top },
+            { WA_Width,         scr->Width },
+            { WA_Height,        scr->Height - top },
+            { WA_Backdrop,      TRUE },
+            { WA_Borderless,    TRUE },
+            { WA_SimpleRefresh, TRUE },
+            { WA_NoCareRefresh, TRUE },
+            { WA_Activate,      TRUE },
+            { WA_ReportMouse,   TRUE },
+            { TAG_DONE,         0 }
+        };
+        w = OpenWindowTagList(NULL, tags);
+        UnlockPubScreen(NULL, scr);
+    }
+    if (w)
+        emucall1(EMU_CALL_WB_WINDOW, (ULONG)w);
+    Signal(wb_window_parent, SIGBREAKF_CTRL_F);    /* window is open */
+    Wait(SIGBREAKF_CTRL_C);
+    if (w)
+        CloseWindow(w);
+}
+
 typedef ULONG (*cliChildFn_t) ( register ULONG  arglen __asm("d0"),
                                 register STRPTR args   __asm("a0"));
 void _bootstrap(void)
@@ -5713,6 +5792,17 @@ void _bootstrap(void)
                 UnLoadSeg (iprefs);
             }
         }
+    }
+
+    if (emucall1 (EMU_CALL_WB_WINDOW, 0))
+    {
+        wb_window_parent = FindTask (NULL);
+        SetSignal (0, SIGBREAKF_CTRL_F);
+        /* the window is open before the program looks for it */
+        if (CreateNewProcTags (NP_Entry, (ULONG)wb_window_task, NP_Name, (ULONG)"Workbench",
+                               NP_StackSize, 8192, NP_Input, 0, NP_Output, 0, NP_CloseInput, FALSE,
+                               NP_CloseOutput, FALSE, TAG_DONE))
+            Wait (SIGBREAKF_CTRL_F);
     }
 
     BPTR segs = LoadSeg ((STRPTR)binfn);
@@ -6060,10 +6150,10 @@ void coldstart (void)
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-102)].vec = _exec_InitResident;
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-108)].vec = _exec_Alert;
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-114)].vec = _exec_Debug;
-    g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-120)].vec = _exec_Disable;
-    g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-126)].vec = _exec_Enable;
-    g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-132)].vec = _exec_Forbid;
-    g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-138)].vec = _exec_Permit;
+    g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-120)].vec = _exec_Disable_PreserveAll;
+    g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-126)].vec = _exec_Enable_PreserveAll;
+    g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-132)].vec = _exec_Forbid_PreserveAll;
+    g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-138)].vec = _exec_Permit_PreserveAll;
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-144)].vec =  exec_SetSR;
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-150)].vec = _exec_SuperState;
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-156)].vec = _exec_UserState;
@@ -6131,8 +6221,8 @@ void coldstart (void)
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-546)].vec = _exec_Vacate;
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-552)].vec = _exec_OpenLibrary;
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-558)].vec = _exec_InitSemaphore;
-    g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-564)].vec = _exec_ObtainSemaphore;
-    g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-570)].vec = _exec_ReleaseSemaphore;
+    g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-564)].vec = _exec_ObtainSemaphore_PreserveAll;
+    g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-570)].vec = _exec_ReleaseSemaphore_PreserveAll;
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-576)].vec = _exec_AttemptSemaphore;
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-582)].vec = _exec_ObtainSemaphoreList;
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-588)].vec = _exec_ReleaseSemaphoreList;
@@ -6150,7 +6240,7 @@ void coldstart (void)
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-660)].vec = _exec_DeleteIORequest;
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-666)].vec = _exec_CreateMsgPort;
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-672)].vec = _exec_DeleteMsgPort;
-    g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-678)].vec = _exec_ObtainSemaphoreShared;
+    g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-678)].vec = _exec_ObtainSemaphoreShared_PreserveAll;
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-684)].vec = _exec_AllocVec;
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-690)].vec = _exec_FreeVec;
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-696)].vec = _exec_CreatePool;

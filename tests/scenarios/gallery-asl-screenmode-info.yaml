@@ -1,0 +1,18 @@
+# asl.library gallery (Phase 238): the plain screen-mode requester with its
+# "Mode Properties" window open (ASLSM_InitialInfoOpened) and its Control
+# menu; Cancel keeps the initial mode.  The requester gets
+# IDCMP_INTUITICKS, so the reference agent never sees it idle.
+name: gallery-asl-screenmode-info
+app:
+  sample: Tests/Gallery/Asl
+  args: "sm I i29004"
+steps:
+  - launch
+  - wait_window: "Mode Properties"
+  - frames: 50
+  - snapshot: {name: requester}
+  - menus: {window: "Select Screen Mode"}
+  - click: {gadget_id: 2, window: "Select Screen Mode"}
+  - wait_output: "DONE"
+  - snapshot: {name: result, screen: false}
+  - quit

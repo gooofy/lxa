@@ -119,7 +119,8 @@ def _flat(name):
     return name.replace("/", "_")
 
 
-# Shell parity: lxa's boot volume is SYS: (the reference's is "System"),
+# Shell parity: the expected outputs were captured with "System:" written as
+# "SYS:" (lxa names its boot volume "System" too since Phase 238),
 # and times of day printed by Date differ (the reference clock runs).
 SHELL_NORMALISE = [
     (re.compile(r"\bSystem:"), "SYS:"),
@@ -272,6 +273,8 @@ def run_ref(progs, jobs, timeout_ms, use_cache=True, chunk=12):
 
 def run_lxa_one(name, build, timeout_ms, prog=None, args="", fonts=None):
     from rdd.pylxa import Lxa
+    # the reference runs LoadWB: its Workbench screen has the backdrop window
+    os.environ.setdefault("LXA_WB_WINDOW", "1")
     lxa = Lxa(build=build)
     try:
         if fonts:

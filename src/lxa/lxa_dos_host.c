@@ -857,6 +857,8 @@ static void _dos_path2linux (const char *amiga_path, char *linux_path, int buf_l
                 dlen = sizeof(dev) - 1;
             memcpy (dev, amiga_path, dlen);
             dev[dlen] = '\0';
+            if (!vfs_assign_exists (dev) && vfs_device_of_volume (dev))
+                snprintf (dev, sizeof(dev), "%s", vfs_device_of_volume (dev));   /* "System" -> SYS */
 
             base = vfs_get_drive_path (dev);
             if (!base && vfs_assign_exists (dev))
@@ -2712,10 +2714,24 @@ int _dos_samelock(uint32_t lock1_id, uint32_t lock2_id)
         return 0; /* LOCK_SAME */
     }
     
+    /* the same Amiga volume (lxa's volumes may span host file systems:
+     * SYS: is several host directories, RAM: may share /tmp with them) */
+    {
+        char a1[PATH_MAX], a2[PATH_MAX];
+        if (vfs_path_to_amiga(lock1->linux_path, a1, sizeof(a1)) &&
+            vfs_path_to_amiga(lock2->linux_path, a2, sizeof(a2))) {
+            char *c1 = strchr(a1, ':'), *c2 = strchr(a2, ':');
+            if (c1 && c2) {
+                *c1 = *c2 = '\0';
+                return strcasecmp(a1, a2) == 0 ? 1 : -1;   /* LOCK_SAME_VOLUME */
+            }
+        }
+    }
+
     if (st1.st_dev == st2.st_dev) {
         return 1; /* LOCK_SAME_VOLUME */
     }
-    
+
     return -1; /* LOCK_DIFFERENT */
 }
 

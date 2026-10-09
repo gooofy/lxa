@@ -243,7 +243,8 @@ void lxa_relay_check_slow(uint32_t pc)
                 else
                     fputs("null", s_out);
             }
-            fputs("}}\n", s_out);
+            /* the caller's return address: where to look in a disassembly */
+            fprintf(s_out, "},\"ra\":%u}\n", rd32(r[15]));
             if (s_npend < MAX_PENDING) {
                 s_pend[s_npend].ret_pc = rd32(r[15]);
                 s_pend[s_npend].sp = r[15] + 4;

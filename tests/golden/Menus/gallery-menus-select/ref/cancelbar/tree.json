@@ -145,7 +145,7 @@
          "sub": [
           {
            "command": 0,
-           "flags": 339,
+           "flags": 83,
            "height": 9,
            "left": 92,
            "mutualexclude": -2,
@@ -156,7 +156,7 @@
           },
           {
            "command": 0,
-           "flags": 83,
+           "flags": 339,
            "height": 9,
            "left": 92,
            "mutualexclude": -3,

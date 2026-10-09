@@ -13,6 +13,7 @@ implementing the function, never by deleting the macro.
 | Library | stub | partial | private slot |
 |---|---|---|---|
 | amigaguide | 18 | 0 | 0 |
+| asl | 0 | 2 | 0 |
 | commodities | 26 | 0 | 4 |
 | console | 1 | 0 | 0 |
 | datatypes | 5 | 0 | 0 |
@@ -27,7 +28,7 @@ implementing the function, never by deleting the macro.
 | translator | 1 | 0 | 0 |
 | utility | 0 | 0 | 7 |
 | workbench | 0 | 0 | 3 |
-| **total** | **94** | **33** | **47** |
+| **total** | **94** | **35** | **47** |
 
 ## amigaguide
 
@@ -49,6 +50,11 @@ implementing the function, never by deleting the macro.
 - `SetAmigaGuideAttrsA` — stub: amigaguide.library not implemented (Phase 254) (`src/rom/lxa_amigaguide.c`)
 - `SetAmigaGuideContextA` — stub: amigaguide.library not implemented (Phase 254) (`src/rom/lxa_amigaguide.c`)
 - `UnlockAmigaGuideBase` — stub: amigaguide.library not implemented (Phase 254) (`src/rom/lxa_amigaguide.c`)
+
+## asl
+
+- `AslRequest` — partial: simplified file requester - own drawing instead of 3.1's GadTools layout, no Control menu, at most 100 entries, no volume list/pattern filtering as on 3.1 (Phase 258) (`src/rom/lxa_asl.c`)
+- `AslRequest` — partial: simplified font requester - own drawing instead of 3.1's GadTools layout, no Control menu, no size list/style/pen/draw-mode gadgets as on 3.1 (Phase 258) (`src/rom/lxa_asl.c`)
 
 ## commodities
 

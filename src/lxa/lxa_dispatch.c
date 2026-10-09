@@ -264,6 +264,18 @@ int op_illg(int level)
             break;
         }
 
+        case EMU_CALL_WB_WINDOW:
+        {
+            uint32_t win = m68k_get_reg(NULL, M68K_REG_D1);
+            if (win)
+                g_wb_window = win;
+            else {
+                const char *e = getenv("LXA_WB_WINDOW");
+                m68k_set_reg(M68K_REG_D0, e && *e == '1' ? 1 : 0);
+            }
+            break;
+        }
+
         case EMU_CALL_STOP:
         {
             g_rv = m68k_get_reg(NULL, M68K_REG_D1);
