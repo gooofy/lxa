@@ -11,14 +11,14 @@ steps:
   - launch
   - wait_window: "Menu Gallery"
   - wait_idle
-  # Project/Print -> sub-item Draft (CHECKIT, MutualExclude NLQ)
-  - press: {window: "Menu Gallery", xy: [-66, -55], button: R}
-  - move: {window: "Menu Gallery", xy: [-70, -11]}
-  - move: {window: "Menu Gallery", xy: [20, -11]}
-  - move: {window: "Menu Gallery", xy: [22, -11]}
-  - release: {window: "Menu Gallery", xy: [22, -11], button: R}
+  # Project/Print -> sub-item Draft (CHECKIT, MutualExclude NLQ); lxaprobe
+  # MENU reaches sub-items since Phase 238
+  - menu: "Project/Print/Draft"
   - frames: 10
   - snapshot: sub
+  - menu: "Project/Print/NLQ"
+  - frames: 10
+  - snapshot: sub2
   # Edit/Cut is disabled
   - press: {window: "Menu Gallery", xy: [-6, -55], button: R}
   - move: {window: "Menu Gallery", xy: [-6, -44]}

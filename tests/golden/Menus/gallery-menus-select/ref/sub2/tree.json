@@ -138,7 +138,7 @@
         },
         {
          "command": 0,
-         "flags": 82,
+         "flags": 12370,
          "height": 9,
          "left": 0,
          "mutualexclude": 0,
@@ -156,7 +156,7 @@
           },
           {
            "command": 0,
-           "flags": 339,
+           "flags": 24915,
            "height": 9,
            "left": 92,
            "mutualexclude": -3,
