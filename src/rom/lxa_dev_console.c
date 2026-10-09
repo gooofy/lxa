@@ -309,6 +309,17 @@ static struct LxaConUnit *console_create_unit(struct Window *window)
     
     /* Store the window pointer */
     unit->cu.cu_Window = window;
+    /* the window's font and its cell (AmigaOS 3.1, probe console/conunit;
+     * Fish MicroEmacs sizes its terminal from cu_Font) */
+    if (window->RPort && window->RPort->Font)
+    {
+        struct TextFont *tf = window->RPort->Font;
+        unit->cu.cu_Font = tf;
+        unit->cu.cu_TxHeight = tf->tf_YSize;
+        unit->cu.cu_TxWidth = tf->tf_XSize;
+        unit->cu.cu_TxBaseline = tf->tf_Baseline;
+        unit->cu.cu_TxSpacing = window->RPort->TxSpacing;
+    }
     unit->auto_page_length = TRUE;
     unit->auto_line_length = TRUE;
     unit->auto_left_offset = TRUE;

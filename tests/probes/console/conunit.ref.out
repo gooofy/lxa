@@ -1,0 +1,12 @@
+-- console unit on a window
+cu_Window == window = TRUE
+cu_Font = non-NULL
+cu_Font == window font = TRUE
+cu_TxHeight = 8
+cu_TxWidth = 8
+cu_TxBaseline = 6
+cu_TxSpacing = 0
+cu_XRSize = 8
+cu_YRSize = 8
+cu_XMax = 38
+cu_YMax = 12
