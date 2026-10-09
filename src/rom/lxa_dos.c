@@ -2948,6 +2948,16 @@ struct MsgPort * _dos_CreateProc ( register struct DosLibrary * __libBase __asm(
         { NP_Priority, (LONG)___pri },
         { NP_StackSize, ___stackSize > 0 ? (ULONG)___stackSize : 4096 },
         { NP_FreeSeglist, FALSE },  /* CreateProc does NOT free seglist on exit */
+        /* AmigaOS 3.1 (probe dos/createproc): the process gets no I/O
+         * streams and no current/home directory of the caller - a
+         * detaching program's child must not share (and later close) the
+         * handles of the process that started it */
+        { NP_Input, 0 },
+        { NP_Output, 0 },
+        { NP_CloseInput, FALSE },
+        { NP_CloseOutput, FALSE },
+        { NP_CurrentDir, 0 },
+        { NP_HomeDir, 0 },
         { TAG_DONE, 0 }
     };
     
