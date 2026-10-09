@@ -1577,9 +1577,9 @@ static BOOL lxa_dos_fh_interactive(struct FileHandle *fh)
         return FALSE;
     if (fh->fh_Func3 == FILE_KIND_CON)
         return TRUE;
-    if (fh->fh_Func3 != FILE_KIND_CONSOLE)
+    if (fh->fh_Func3 != FILE_KIND_CONSOLE && fh->fh_Func3 != FILE_KIND_REGULAR)
         return FALSE;
-    return emucall1(EMU_CALL_DOS_ISINTERACTIVE, fh->fh_Args) ? TRUE : FALSE;
+    return emucall2(EMU_CALL_DOS_ISINTERACTIVE, fh->fh_Args, fh->fh_Func3) ? TRUE : FALSE;
 }
 
 /* the buffer, allocated when first needed */
@@ -2948,7 +2948,7 @@ struct MsgPort * _dos_CreateProc ( register struct DosLibrary * __libBase __asm(
         { NP_Priority, (LONG)___pri },
         { NP_StackSize, ___stackSize > 0 ? (ULONG)___stackSize : 4096 },
         { NP_FreeSeglist, FALSE },  /* CreateProc does NOT free seglist on exit */
-        /* AmigaOS 3.1 (probe dos/createproc): the process gets no I/O
+        /* AmigaOS 3.1 (probe dos/newprocrun): the process gets no I/O
          * streams and no current/home directory of the caller - a
          * detaching program's child must not share (and later close) the
          * handles of the process that started it */
@@ -3700,9 +3700,10 @@ LONG _dos_IsInteractive ( register struct DosLibrary *__dos_a6 __asm("a6"),
     ULONG kind = fh->fh_Func3;
     if (kind == FILE_KIND_CON)
         return 1;           /* CON:/RAW: windows */
-    if (kind != FILE_KIND_CONSOLE)
+    if (kind != FILE_KIND_CONSOLE && kind != FILE_KIND_REGULAR)
         return 0;
-    return emucall1(EMU_CALL_DOS_ISINTERACTIVE, fh->fh_Args) ? 1 : 0;
+    /* a file is interactive when it is a device (PRT:) */
+    return emucall2(EMU_CALL_DOS_ISINTERACTIVE, fh->fh_Args, kind) ? 1 : 0;
 }
 
 void _dos_Delay ( register struct DosLibrary * __libBase __asm("a6"),
@@ -6181,15 +6182,13 @@ struct Process * _dos_CreateNewProc ( register struct DosLibrary * __dos_a6 __as
     Enable();
 
     /*
-     * Yield CPU to allow the newly created process to run its initialisation
-     * (e.g. AddPort, library init) before the calling task continues.
-     *
-     * On a real Amiga the process would eventually get a timeslice when the
-     * calling task calls Delay() or Wait().  Many apps rely on the child
-     * having had at least one timeslice before the parent queries ports
-     * created by the child.  We force one round-trip through the scheduler
-     * by temporarily putting the current task at the back of TaskReady and
-     * switching away.
+     * The new process only preempts the caller when it has a higher
+     * priority (as with AddTask()).  At equal priority AmigaOS 3.1 returns
+     * to the caller first and the child runs when the caller waits or its
+     * quantum ends (Phase 237, probe dos/newprocrun): SAS/C programs that
+     * detach with CreateProc() on their own seglist share one data hunk
+     * with the child, and the child running first overwrote the parent's
+     * saved stack pointer (Fish JbSpool, ColorSaver).
      */
     {
         struct Task *me = FindTask(NULL);
@@ -6205,11 +6204,10 @@ struct Process * _dos_CreateNewProc ( register struct DosLibrary * __dos_a6 __as
                 SysBase->SysFlags |= (1 << 15);     /* LXA_SFF_SAR: reschedule at Permit() */
             me = NULL;
         }
-        if (me)
+        if (me && process->pr_Task.tc_Node.ln_Pri > me->tc_Node.ln_Pri)
         {
             Disable();
             me->tc_State = TS_READY;
-            /* Put ourselves at the *back* so higher/equal priority tasks run first */
             Enqueue(&SysBase->TaskReady, &me->tc_Node);
             asm volatile (
                 "   move.l  a5, -(a7)               \n"

@@ -364,349 +364,128 @@ static inline int TEST_CONDITION(int condition)
 	return r;
 }
 
+/* lxa: one effective-address calculation for every FPU operand (Phase 237).
+ * The original core handled a few addressing modes per operand size, so
+ * common compiler output such as fmove.d (xxx).L,fp0 (MoonTool, SManCP)
+ * took an F-line exception.  All memory modes of the 68881/68882 are
+ * accepted: (An), (An)+, -(An), (d16,An), (d8,An,Xn) and the full extension
+ * forms, (xxx).W, (xxx).L, (d16,PC), (d8,PC,Xn) and #<data> (read where it
+ * sits in the instruction stream; a byte immediate is the low byte of a
+ * word). */
+static int fpu_ea_ok;
+
+static uint32 fpu_ea_addr(int mode, int reg, int size)
+{
+	uint32 ea;
+
+	fpu_ea_ok = 1;
+	switch (mode)
+	{
+		case 2:		// (An)
+			return REG_A[reg];
+		case 3:		// (An)+
+			ea = REG_A[reg];
+			REG_A[reg] += (size == 1 && reg == 7) ? 2 : size;
+			return ea;
+		case 4:		// -(An)
+			REG_A[reg] -= (size == 1 && reg == 7) ? 2 : size;
+			return REG_A[reg];
+		case 5:		// (d16,An)
+			return REG_A[reg] + MAKE_INT_16(m68ki_read_imm_16());
+		case 6:		// (d8,An,Xn), full extension word forms
+			return m68ki_get_ea_ix(REG_A[reg]);
+		case 7:
+			switch (reg)
+			{
+				case 0:		// (xxx).W
+					return MAKE_INT_16(m68ki_read_imm_16());
+				case 1:		// (xxx).L
+					return m68ki_read_imm_32();
+				case 2:		// (d16,PC)
+					return m68ki_get_ea_pcdi();
+				case 3:		// (d8,PC,Xn)
+					return m68ki_get_ea_pcix();
+				case 4:		// #<data>
+					ea = REG_PC;
+					if (size == 1)
+					{
+						ea++;
+						size = 2;
+					}
+					REG_PC += size;
+					return ea;
+			}
+			break;
+	}
+	fpu_ea_ok = 0;
+	fatalerror("M68kFPU: unhandled addressing mode %d, reg %d at %08X\n", mode, reg, REG_PC);
+	return 0;
+}
+
 static uint8 READ_EA_8(int ea)
 {
 	int mode = (ea >> 3) & 0x7;
 	int reg = (ea & 0x7);
+	uint32 addr;
 
-	switch (mode)
-	{
-		case 0:		// Dn
-		{
-			return REG_D[reg];
-		}
-		case 2: 	// (An)
-		{
-			uint32 ea = REG_A[reg];
-			return m68ki_read_8(ea);
-		}
-		case 5:		// (d16, An)
-		{
-			uint32 ea = EA_AY_DI_8();
-			return m68ki_read_8(ea);
-		}
-		case 6:		// (An) + (Xn) + d8
-		{
-			uint32 ea = EA_AY_IX_8();
-			return m68ki_read_8(ea);
-		}
-		case 7:
-		{
-			switch (reg)
-			{
-				case 0:		// (xxx).W
-				{
-					uint32 ea = (uint32)OPER_I_16();
-					return m68ki_read_8(ea);
-				}
-				case 1:		// (xxx).L
-				{
-					uint32 d1 = OPER_I_16();
-					uint32 d2 = OPER_I_16();
-					uint32 ea = (d1 << 16) | d2;
-					return m68ki_read_8(ea);
-				}
-				case 4:		// #<data>
-				{
-					return  OPER_I_8();
-				}
-				default:	fatalerror("M68kFPU: READ_EA_8: unhandled mode %d, reg %d at %08X\n", mode, reg, REG_PC);
-			}
-			break;
-		}
-		default:	fatalerror("M68kFPU: READ_EA_8: unhandled mode %d, reg %d at %08X\n", mode, reg, REG_PC);
-	}
-
-	return 0;
+	if (mode == 0)
+		return REG_D[reg];
+	addr = fpu_ea_addr(mode, reg, 1);
+	return fpu_ea_ok ? m68ki_read_8(addr) : 0;
 }
 
 static uint16 READ_EA_16(int ea)
 {
 	int mode = (ea >> 3) & 0x7;
 	int reg = (ea & 0x7);
+	uint32 addr;
 
-	switch (mode)
-	{
-		case 0:		// Dn
-		{
-			return (uint16)(REG_D[reg]);
-		}
-		case 2:		// (An)
-		{
-			uint32 ea = REG_A[reg];
-			return m68ki_read_16(ea);
-		}
-		case 5:		// (d16, An)
-		{
-			uint32 ea = EA_AY_DI_16();
-			return m68ki_read_16(ea);
-		}
-		case 6:		// (An) + (Xn) + d8
-		{
-			uint32 ea = EA_AY_IX_16();
-			return m68ki_read_16(ea);
-		}
-		case 7:
-		{
-			switch (reg)
-			{
-				case 0:		// (xxx).W
-				{
-					uint32 ea = (uint32)OPER_I_16();
-					return m68ki_read_16(ea);
-				}
-				case 1:		// (xxx).L
-				{
-					uint32 d1 = OPER_I_16();
-					uint32 d2 = OPER_I_16();
-					uint32 ea = (d1 << 16) | d2;
-					return m68ki_read_16(ea);
-				}
-				case 4:		// #<data>
-				{
-					return OPER_I_16();
-				}
-
-				default:	fatalerror("M68kFPU: READ_EA_16: unhandled mode %d, reg %d at %08X\n", mode, reg, REG_PC);
-			}
-			break;
-		}
-		default:	fatalerror("M68kFPU: READ_EA_16: unhandled mode %d, reg %d at %08X\n", mode, reg, REG_PC);
-	}
-
-	return 0;
+	if (mode == 0)
+		return (uint16)(REG_D[reg]);
+	addr = fpu_ea_addr(mode, reg, 2);
+	return fpu_ea_ok ? m68ki_read_16(addr) : 0;
 }
 
 static uint32 READ_EA_32(int ea)
 {
 	int mode = (ea >> 3) & 0x7;
 	int reg = (ea & 0x7);
+	uint32 addr;
 
-	switch (mode)
-	{
-		case 0:		// Dn
-		{
-			return REG_D[reg];
-		}
-		case 2:		// (An)
-		{
-			uint32 ea = REG_A[reg];
-			return m68ki_read_32(ea);
-		}
-		case 3:		// (An)+
-		{
-			uint32 ea = EA_AY_PI_32();
-			return m68ki_read_32(ea);
-		}
-		case 5:		// (d16, An)
-		{
-			uint32 ea = EA_AY_DI_32();
-			return m68ki_read_32(ea);
-		}
-		case 6:		// (An) + (Xn) + d8
-		{
-			uint32 ea = EA_AY_IX_32();
-			return m68ki_read_32(ea);
-		}
-		case 7:
-		{
-			switch (reg)
-			{
-				case 0:		// (xxx).W
-				{
-					uint32 ea = (uint32)OPER_I_16();
-					return m68ki_read_32(ea);
-				}
-				case 1:		// (xxx).L
-				{
-					uint32 d1 = OPER_I_16();
-					uint32 d2 = OPER_I_16();
-					uint32 ea = (d1 << 16) | d2;
-					return m68ki_read_32(ea);
-				}
-				case 2:		// (d16, PC)
-				{
-					uint32 ea = EA_PCDI_32();
-					return m68ki_read_32(ea);
-				}
-				case 4:		// #<data>
-				{
-					return  OPER_I_32();
-				}
-				default:	fatalerror("M68kFPU: READ_EA_32: unhandled mode %d, reg %d at %08X\n", mode, reg, REG_PC);
-			}
-			break;
-		}
-		default:	fatalerror("M68kFPU: READ_EA_32: unhandled mode %d, reg %d at %08X\n", mode, reg, REG_PC);
-	}
-	return 0;
+	if (mode == 0)
+		return REG_D[reg];
+	if (mode == 1)
+		return REG_A[reg];
+	addr = fpu_ea_addr(mode, reg, 4);
+	return fpu_ea_ok ? m68ki_read_32(addr) : 0;
 }
 
 static uint64 READ_EA_64(int ea)
 {
-	int mode = (ea >> 3) & 0x7;
-	int reg = (ea & 0x7);
-	uint32 h1, h2;
+	uint32 addr = fpu_ea_addr((ea >> 3) & 7, ea & 7, 8);
 
-	switch (mode)
-	{
-		case 2:		// (An)
-		{
-			uint32 ea = REG_A[reg];
-			h1 = m68ki_read_32(ea+0);
-			h2 = m68ki_read_32(ea+4);
-			return  (uint64)(h1) << 32 | (uint64)(h2);
-		}
-		case 3:		// (An)+
-		{
-			uint32 ea = REG_A[reg];
-			REG_A[reg] += 8;
-			h1 = m68ki_read_32(ea+0);
-			h2 = m68ki_read_32(ea+4);
-			return  (uint64)(h1) << 32 | (uint64)(h2);
-		}
-		case 5:		// (d16, An)
-		{
-			uint32 ea = EA_AY_DI_32();
-			h1 = m68ki_read_32(ea+0);
-			h2 = m68ki_read_32(ea+4);
-			return  (uint64)(h1) << 32 | (uint64)(h2);
-		}
-		case 7:
-		{
-			switch (reg)
-			{
-				case 4:		// #<data>
-				{
-					h1 = OPER_I_32();
-					h2 = OPER_I_32();
-					return  (uint64)(h1) << 32 | (uint64)(h2);
-				}
-				case 2:		// (d16, PC)
-				{
-					uint32 ea = EA_PCDI_32();
-					h1 = m68ki_read_32(ea+0);
-					h2 = m68ki_read_32(ea+4);
-					return  (uint64)(h1) << 32 | (uint64)(h2);
-				}
-				default:	fatalerror("M68kFPU: READ_EA_64: unhandled mode %d, reg %d at %08X\n", mode, reg, REG_PC);
-			}
-			break;
-		}
-		default:	fatalerror("M68kFPU: READ_EA_64: unhandled mode %d, reg %d at %08X\n", mode, reg, REG_PC);
-	}
-
-	return 0;
+	if (!fpu_ea_ok)
+		return 0;
+	return (uint64)m68ki_read_32(addr) << 32 | (uint64)m68ki_read_32(addr + 4);
 }
 
-
-static floatx80 READ_EA_FPE(int mode, int reg, uint32 di_mode_ea)
+static floatx80 READ_EA_FPE(int ea)
 {
-	floatx80 fpr;
+	floatx80 fpr = { 0, 0 };
+	uint32 addr = fpu_ea_addr((ea >> 3) & 7, ea & 7, 12);
 
-	switch (mode)
-	{
-		case 2:		// (An)
-		{
-			uint32 ea = REG_A[reg];
-			fpr = load_extended_float80(ea);
-			break;
-		}
-
-		case 3:		// (An)+
-		{
-			uint32 ea = REG_A[reg];
-			REG_A[reg] += 12;
-			fpr = load_extended_float80(ea);
-			break;
-		}
-      case 5:		// (d16, An)  (added by JFF)
-		{
-		  fpr = load_extended_float80(di_mode_ea);
-	  	break;
-
-		}
-		case 7:	// extended modes
-		{
-			switch (reg)
-			{
-				case 2:	// (d16, PC)
-					{
-						uint32 ea = EA_PCDI_32();
-					 	fpr = load_extended_float80(ea);
-					}
-					break;
-
-				case 3:	// (d16,PC,Dx.w)
-					{
-						uint32 ea = EA_PCIX_32();
-						fpr = load_extended_float80(ea);
-					}
-					break;
-	      		case 4: // immediate (JFF)
-				{
-				  uint32 ea = REG_PC;
-				  fpr = load_extended_float80(ea);
-				  REG_PC += 12;
-				}
-				break;
-				default:
-					fatalerror("M68kFPU: READ_EA_FPE: unhandled mode %d, reg %d, at %08X\n", mode, reg, REG_PC);
-					break;
-			}
-		}
-		break;
-
-		default:	fatalerror("M68kFPU: READ_EA_FPE: unhandled mode %d, reg %d, at %08X\n", mode, reg, REG_PC); break;
-	}
-
+	if (fpu_ea_ok)
+		fpr = load_extended_float80(addr);
 	return fpr;
 }
 
 static floatx80 READ_EA_PACK(int ea)
 {
-	floatx80 fpr;
-	int mode = (ea >> 3) & 0x7;
-	int reg = (ea & 0x7);
+	floatx80 fpr = { 0, 0 };
+	uint32 addr = fpu_ea_addr((ea >> 3) & 7, ea & 7, 12);
 
-	switch (mode)
-	{
-		case 2:		// (An)
-		{
-			uint32 ea = REG_A[reg];
-			fpr = load_pack_float80(ea);
-			break;
-		}
-
-		case 3:		// (An)+
-		{
-			uint32 ea = REG_A[reg];
-			REG_A[reg] += 12;
-			fpr = load_pack_float80(ea);
-			break;
-		}
-
-		case 7:	// extended modes
-		{
-			switch (reg)
-			{
-				case 3:	// (d16,PC,Dx.w)
-					{
-						uint32 ea = EA_PCIX_32();
-						fpr = load_pack_float80(ea);
-					}
-					break;
-
-				default:
-					fatalerror("M68kFPU: READ_EA_PACK: unhandled mode %d, reg %d, at %08X\n", mode, reg, REG_PC);
-					break;
-			}
-		}
-		break;
-
-		default:	fatalerror("M68kFPU: READ_EA_PACK: unhandled mode %d, reg %d, at %08X\n", mode, reg, REG_PC); break;
-	}
-
+	if (fpu_ea_ok)
+		fpr = load_pack_float80(addr);
 	return fpr;
 }
 
@@ -714,342 +493,266 @@ static void WRITE_EA_8(int ea, uint8 data)
 {
 	int mode = (ea >> 3) & 0x7;
 	int reg = (ea & 0x7);
+	uint32 addr;
 
-	switch (mode)
+	if (mode == 0)
 	{
-		case 0:		// Dn
-		{
-			REG_D[reg] = data;
-			break;
-		}
-		case 2:		// (An)
-		{
-			uint32 ea = REG_A[reg];
-			m68ki_write_8(ea, data);
-			break;
-		}
-		case 3:		// (An)+
-		{
-			uint32 ea = EA_AY_PI_8();
-			m68ki_write_8(ea, data);
-			break;
-		}
-		case 4:		// -(An)
-		{
-			uint32 ea = EA_AY_PD_8();
-			m68ki_write_8(ea, data);
-			break;
-		}
-		case 5:		// (d16, An)
-		{
-			uint32 ea = EA_AY_DI_8();
-			m68ki_write_8(ea, data);
-			break;
-		}
-		case 6:		// (An) + (Xn) + d8
-		{
-			uint32 ea = EA_AY_IX_8();
-			m68ki_write_8(ea, data);
-			break;
-		}
-		case 7:
-		{
-			switch (reg)
-			{
-				case 1:		// (xxx).B
-				{
-					uint32 d1 = OPER_I_16();
-					uint32 d2 = OPER_I_16();
-					uint32 ea = (d1 << 16) | d2;
-					m68ki_write_8(ea, data);
-					break;
-				}
-				case 2:		// (d16, PC)
-				{
-					uint32 ea = EA_PCDI_16();
-					m68ki_write_8(ea, data);
-					break;
-				}
-				default:	fatalerror("M68kFPU: WRITE_EA_8: unhandled mode %d, reg %d at %08X\n", mode, reg, REG_PC);
-			}
-			break;
-		}
-		default:	fatalerror("M68kFPU: WRITE_EA_8: unhandled mode %d, reg %d, data %08X at %08X\n", mode, reg, data, REG_PC);
+		REG_D[reg] = (REG_D[reg] & 0xffffff00) | data;
+		return;
 	}
+	addr = fpu_ea_addr(mode, reg, 1);
+	if (fpu_ea_ok)
+		m68ki_write_8(addr, data);
 }
 
 static void WRITE_EA_16(int ea, uint16 data)
 {
 	int mode = (ea >> 3) & 0x7;
 	int reg = (ea & 0x7);
+	uint32 addr;
 
-	switch (mode)
+	if (mode == 0)
 	{
-		case 0:		// Dn
-		{
-			REG_D[reg] = data;
-			break;
-		}
-		case 2:		// (An)
-		{
-			uint32 ea = REG_A[reg];
-			m68ki_write_16(ea, data);
-			break;
-		}
-		case 3:		// (An)+
-		{
-			uint32 ea = EA_AY_PI_16();
-			m68ki_write_16(ea, data);
-			break;
-		}
-		case 4:		// -(An)
-		{
-			uint32 ea = EA_AY_PD_16();
-			m68ki_write_16(ea, data);
-			break;
-		}
-		case 5:		// (d16, An)
-		{
-			uint32 ea = EA_AY_DI_16();
-			m68ki_write_16(ea, data);
-			break;
-		}
-		case 6:		// (An) + (Xn) + d8
-		{
-			uint32 ea = EA_AY_IX_16();
-			m68ki_write_16(ea, data);
-			break;
-		}
-		case 7:
-		{
-			switch (reg)
-			{
-				case 1:		// (xxx).W
-				{
-					uint32 d1 = OPER_I_16();
-					uint32 d2 = OPER_I_16();
-					uint32 ea = (d1 << 16) | d2;
-					m68ki_write_16(ea, data);
-					break;
-				}
-				case 2:		// (d16, PC)
-				{
-					uint32 ea = EA_PCDI_16();
-					m68ki_write_16(ea, data);
-					break;
-				}
-				default:	fatalerror("M68kFPU: WRITE_EA_16: unhandled mode %d, reg %d at %08X\n", mode, reg, REG_PC);
-			}
-			break;
-		}
-		default:	fatalerror("M68kFPU: WRITE_EA_16: unhandled mode %d, reg %d, data %08X at %08X\n", mode, reg, data, REG_PC);
+		REG_D[reg] = (REG_D[reg] & 0xffff0000) | data;
+		return;
 	}
+	addr = fpu_ea_addr(mode, reg, 2);
+	if (fpu_ea_ok)
+		m68ki_write_16(addr, data);
 }
 
 static void WRITE_EA_32(int ea, uint32 data)
 {
 	int mode = (ea >> 3) & 0x7;
 	int reg = (ea & 0x7);
+	uint32 addr;
 
-	switch (mode)
+	if (mode == 0)
 	{
-		case 0:		// Dn
-		{
-			REG_D[reg] = data;
-			break;
-		}
-		case 1:		// An
-		{
-			REG_A[reg] = data;
-			break;
-		}
-		case 2:		// (An)
-		{
-			uint32 ea = REG_A[reg];
-			m68ki_write_32(ea, data);
-			break;
-		}
-		case 3:		// (An)+
-		{
-			uint32 ea = EA_AY_PI_32();
-			m68ki_write_32(ea, data);
-			break;
-		}
-		case 4:		// -(An)
-		{
-			uint32 ea = EA_AY_PD_32();
-			m68ki_write_32(ea, data);
-			break;
-		}
-		case 5:		// (d16, An)
-		{
-			uint32 ea = EA_AY_DI_32();
-			m68ki_write_32(ea, data);
-			break;
-		}
-		case 6:		// (An) + (Xn) + d8
-		{
-			uint32 ea = EA_AY_IX_32();
-			m68ki_write_32(ea, data);
-			break;
-		}
-		case 7:
-		{
-			switch (reg)
-			{
-				case 1:		// (xxx).L
-				{
-					uint32 d1 = OPER_I_16();
-					uint32 d2 = OPER_I_16();
-					uint32 ea = (d1 << 16) | d2;
-					m68ki_write_32(ea, data);
-					break;
-				}
-				case 2:		// (d16, PC)
-				{
-					uint32 ea = EA_PCDI_32();
-					m68ki_write_32(ea, data);
-					break;
-				}
-				default:	fatalerror("M68kFPU: WRITE_EA_32: unhandled mode %d, reg %d at %08X\n", mode, reg, REG_PC);
-			}
-			break;
-		}
-		default:	fatalerror("M68kFPU: WRITE_EA_32: unhandled mode %d, reg %d, data %08X at %08X\n", mode, reg, data, REG_PC);
+		REG_D[reg] = data;
+		return;
 	}
+	if (mode == 1)
+	{
+		REG_A[reg] = data;
+		return;
+	}
+	addr = fpu_ea_addr(mode, reg, 4);
+	if (fpu_ea_ok)
+		m68ki_write_32(addr, data);
 }
 
 static void WRITE_EA_64(int ea, uint64 data)
 {
-	int mode = (ea >> 3) & 0x7;
-	int reg = (ea & 0x7);
+	uint32 addr = fpu_ea_addr((ea >> 3) & 7, ea & 7, 8);
 
-	switch (mode)
-	{
-		case 2:		// (An)
-		{
-			uint32 ea = REG_A[reg];
-			m68ki_write_32(ea, (uint32)(data >> 32));
-			m68ki_write_32(ea+4, (uint32)(data));
-			break;
-		}
-		case 4:		// -(An)
-		{
-			uint32 ea;
-			REG_A[reg] -= 8;
-			ea = REG_A[reg];
-			m68ki_write_32(ea+0, (uint32)(data >> 32));
-			m68ki_write_32(ea+4, (uint32)(data));
-			break;
-		}
-		case 5:		// (d16, An)
-		{
-			uint32 ea = EA_AY_DI_32();
-			m68ki_write_32(ea+0, (uint32)(data >> 32));
-			m68ki_write_32(ea+4, (uint32)(data));
-			break;
-		}
-		default:	fatalerror("M68kFPU: WRITE_EA_64: unhandled mode %d, reg %d, data %08X%08X at %08X\n", mode, reg, (uint32)(data >> 32), (uint32)(data), REG_PC);
-	}
+	if (!fpu_ea_ok)
+		return;
+	m68ki_write_32(addr, (uint32)(data >> 32));
+	m68ki_write_32(addr + 4, (uint32)(data));
 }
 
-static void WRITE_EA_FPE(int mode, int reg, floatx80 fpr, uint32 di_mode_ea)
+static void WRITE_EA_FPE(int ea, floatx80 fpr)
 {
+	uint32 addr = fpu_ea_addr((ea >> 3) & 7, ea & 7, 12);
 
-
-	switch (mode)
-	{
-		case 2:		// (An)
-		{
-			uint32 ea;
-			ea = REG_A[reg];
-			store_extended_float80(ea, fpr);
-			break;
-		}
-
-		case 3:		// (An)+
-		{
-			uint32 ea;
-			ea = REG_A[reg];
-			store_extended_float80(ea, fpr);
-			REG_A[reg] += 12;
-			break;
-		}
-
-		case 4:		// -(An)
-		{
-			uint32 ea;
-			REG_A[reg] -= 12;
-			ea = REG_A[reg];
-			store_extended_float80(ea, fpr);
-			break;
-		}
-    	  case 5:		// (d16, An)  (added by JFF)
-		{
-		  // EA_AY_DI_32() should not be done here because fmovem would increase
-		  // PC each time, reading incorrect displacement & advancing PC too much
-		  // uint32 ea = EA_AY_DI_32();
-		  store_extended_float80(di_mode_ea, fpr);
-	 	 break;
-
-		}
-		case 7:
-		{
-			switch (reg)
-			{
-				default:	fatalerror("M68kFPU: WRITE_EA_FPE: unhandled mode %d, reg %d, at %08X\n", mode, reg, REG_PC);
-			}
-			break;
-		}
-		default:	fatalerror("M68kFPU: WRITE_EA_FPE: unhandled mode %d, reg %d, at %08X\n", mode, reg, REG_PC);
-	}
+	if (fpu_ea_ok)
+		store_extended_float80(addr, fpr);
 }
 
 static void WRITE_EA_PACK(int ea, int k, floatx80 fpr)
 {
-	int mode = (ea >> 3) & 0x7;
-	int reg = (ea & 0x7);
+	uint32 addr = fpu_ea_addr((ea >> 3) & 7, ea & 7, 12);
 
-	switch (mode)
-	{
-		case 2:		// (An)
-		{
-			uint32 ea;
-			ea = REG_A[reg];
-			store_pack_float80(ea, k, fpr);
-			break;
-		}
-
-		case 3:		// (An)+
-		{
-			uint32 ea;
-			ea = REG_A[reg];
-			store_pack_float80(ea, k, fpr);
-			REG_A[reg] += 12;
-			break;
-		}
-
-		case 4:		// -(An)
-		{
-			uint32 ea;
-			REG_A[reg] -= 12;
-			ea = REG_A[reg];
-			store_pack_float80(ea, k, fpr);
-			break;
-		}
-
-		case 7:
-		{
-			switch (reg)
-			{
-				default:	fatalerror("M68kFPU: WRITE_EA_PACK: unhandled mode %d, reg %d, at %08X\n", mode, reg, REG_PC);
-			}
-		}
-		break;
-		default:	fatalerror("M68kFPU: WRITE_EA_PACK: unhandled mode %d, reg %d, at %08X\n", mode, reg, REG_PC);
-	}
+	if (fpu_ea_ok)
+		store_pack_float80(addr, k, fpr);
 }
 
+/* lxa (Phase 237): the 68881/68882 operations the original core lacked -
+ * transcendental functions, FINT/FINTRZ beyond 32 bits, FGETEXP/FGETMAN,
+ * FMOD, FSCALE, FSGLMUL/FSGLDIV and the 68040 single/double-rounded
+ * arithmetic forms.  Transcendentals go through the host's long double
+ * (the 80-bit extended format on x86 hosts, so no precision is lost
+ * there). */
+static long double fx80_to_ld(floatx80 a)
+{
+	int exp = a.high & 0x7fff;
+	long double v;
+
+	if (exp == 0x7fff)
+	{
+		if ((a.low << 1) == 0)
+			return (a.high & 0x8000) ? -HUGE_VALL : HUGE_VALL;
+		return NAN;
+	}
+	v = ldexpl((long double)a.low, (exp ? exp : 1) - 0x3fff - 63);
+	return (a.high & 0x8000) ? -v : v;
+}
+
+static floatx80 ld_to_fx80(long double v)
+{
+	floatx80 r;
+	int e, sign = signbit(v) ? 0x8000 : 0;
+	long double m;
+
+	if (isnan(v))
+	{
+		r.high = 0x7fff;
+		r.low = U64(0xffffffffffffffff);
+		return r;
+	}
+	if (v < 0)
+		v = -v;
+	if (isinf(v))
+	{
+		r.high = 0x7fff | sign;
+		r.low = 0;
+		return r;
+	}
+	if (v == 0)
+	{
+		r.high = sign;
+		r.low = 0;
+		return r;
+	}
+	m = frexpl(v, &e);		/* v = m * 2^e, 0.5 <= m < 1 */
+	e = e - 1 + 0x3fff;
+	if (e <= 0)			/* denormal */
+	{
+		r.low = (uint64)ldexpl(m, 64 + e - 1);
+		r.high = sign;
+		return r;
+	}
+	r.low = (uint64)ldexpl(m, 64);
+	r.high = sign | e;
+	return r;
+}
+
+/* round to an integer in the given softfloat rounding mode */
+static floatx80 fx80_round(floatx80 a, int mode)
+{
+	int8 saved = float_rounding_mode;
+	floatx80 r;
+
+	float_rounding_mode = mode;
+	r = floatx80_round_to_int(a);
+	float_rounding_mode = saved;
+	return r;
+}
+
+static int fpgen_extra(int opmode, int dst, floatx80 source)
+{
+	long double s, d, r;
+	floatx80 res;
+
+	switch (opmode)
+	{
+		case 0x01:	/* FINT */
+			res = fx80_round(source, float_rounding_mode);
+			break;
+		case 0x03:	/* FINTRZ */
+			res = fx80_round(source, float_round_to_zero);
+			break;
+		case 0x1e:	/* FGETEXP */
+			if (((source.high & 0x7fff) == 0 && source.low == 0) || (source.high & 0x7fff) == 0x7fff)
+				res = (source.high & 0x7fff) == 0x7fff ? ld_to_fx80(NAN) : source;
+			else
+			{
+				int e;
+				frexpl(fx80_to_ld(source), &e);
+				res = int32_to_floatx80(e - 1);
+			}
+			break;
+		case 0x1f:	/* FGETMAN */
+			if (((source.high & 0x7fff) == 0 && source.low == 0) || (source.high & 0x7fff) == 0x7fff)
+				res = (source.high & 0x7fff) == 0x7fff ? ld_to_fx80(NAN) : source;
+			else
+			{
+				int e;
+				r = frexpl(fx80_to_ld(source), &e) * 2;
+				res = ld_to_fx80(r);
+			}
+			break;
+		case 0x02: case 0x06: case 0x08: case 0x09: case 0x0a: case 0x0c: case 0x0d:
+		case 0x0e: case 0x0f: case 0x10: case 0x11: case 0x12: case 0x14: case 0x15:
+		case 0x16: case 0x19: case 0x1c: case 0x1d:
+			s = fx80_to_ld(source);
+			switch (opmode)
+			{
+				case 0x02: r = sinhl(s); break;
+				case 0x06: r = log1pl(s); break;
+				case 0x08: r = expm1l(s); break;
+				case 0x09: r = tanhl(s); break;
+				case 0x0a: r = atanl(s); break;
+				case 0x0c: r = asinl(s); break;
+				case 0x0d: r = atanhl(s); break;
+				case 0x0e: r = sinl(s); break;
+				case 0x0f: r = tanl(s); break;
+				case 0x10: r = expl(s); break;
+				case 0x11: r = exp2l(s); break;
+				case 0x12: r = powl(10.0L, s); break;
+				case 0x14: r = logl(s); break;
+				case 0x15: r = log10l(s); break;
+				case 0x16: r = log2l(s); break;
+				case 0x19: r = coshl(s); break;
+				case 0x1c: r = acosl(s); break;
+				default:   r = cosl(s); break;	/* 0x1d */
+			}
+			res = ld_to_fx80(r);
+			USE_CYCLES(100);
+			break;
+		case 0x30: case 0x31: case 0x32: case 0x33:
+		case 0x34: case 0x35: case 0x36: case 0x37:	/* FSINCOS: FPc = cos, FPs = sin */
+			s = fx80_to_ld(source);
+			REG_FP[opmode & 7] = ld_to_fx80(cosl(s));
+			res = ld_to_fx80(sinl(s));
+			USE_CYCLES(100);
+			break;
+		case 0x21:	/* FMOD: remainder of the truncated quotient */
+			d = fx80_to_ld(REG_FP[dst]);
+			s = fx80_to_ld(source);
+			res = ld_to_fx80(fmodl(d, s));
+			break;
+		case 0x26:	/* FSCALE */
+			d = fx80_to_ld(REG_FP[dst]);
+			res = ld_to_fx80(ldexpl(d, (int)fx80_to_ld(fx80_round(source, float_round_to_zero))));
+			break;
+		case 0x24:	/* FSGLDIV */
+		case 0x64:	/* FDDIV */
+			res = floatx80_div(REG_FP[dst], source);
+			break;
+		case 0x27:	/* FSGLMUL */
+		case 0x67:	/* FDMUL */
+			res = floatx80_mul(REG_FP[dst], source);
+			break;
+		case 0x40: case 0x44:	/* FSMOVE, FDMOVE */
+			res = source;
+			break;
+		case 0x41: case 0x45:	/* FSSQRT, FDSQRT */
+			res = floatx80_sqrt(source);
+			break;
+		case 0x58: case 0x5c:	/* FSABS, FDABS */
+			res = source;
+			res.high &= 0x7fff;
+			break;
+		case 0x5a: case 0x5e:	/* FSNEG, FDNEG */
+			res = source;
+			res.high ^= 0x8000;
+			break;
+		case 0x62: case 0x66:	/* FSADD, FDADD */
+			res = floatx80_add(REG_FP[dst], source);
+			break;
+		case 0x68: case 0x6c:	/* FSSUB, FDSUB */
+			res = floatx80_sub(REG_FP[dst], source);
+			break;
+		default:
+			return 0;
+	}
+	REG_FP[dst] = res;
+	SET_CONDITION_CODES(REG_FP[dst]);
+	USE_CYCLES(10);
+	return 1;
+}
 
 static void fpgen_rm_reg(uint16 w2)
 {
@@ -1080,10 +783,7 @@ static void fpgen_rm_reg(uint16 w2)
 			}
 			case 2:		// Extended-precision Real
 			{
-	  	    	int imode = (ea >> 3) & 0x7;
-	  	    	int reg = (ea & 0x7);
-		      	uint32 di_mode_ea = imode == 5 ? (REG_A[reg]+MAKE_INT_16(m68ki_read_imm_16())) : 0;
-		      	source = READ_EA_FPE(imode,reg,di_mode_ea);
+			source = READ_EA_FPE(ea);
 			  	break;
 			}
 			case 3:		// Packed-decimal Real
@@ -1165,8 +865,11 @@ static void fpgen_rm_reg(uint16 w2)
 						source = int32_to_floatx80((sint32)10*10);
 						break;
 
-					default:
-						fatalerror("fmove_rm_reg: unknown constant ROM offset %x at %08x\n", w2&0x7f, REG_PC-4);
+					default:	/* lxa: 10^4 .. 10^4096; the other offsets read 0 */
+						if ((w2 & 0x7f) >= 0x35 && (w2 & 0x7f) <= 0x3f)
+							source = ld_to_fx80(powl(10.0L, (long double)(1 << ((w2 & 0x7f) - 0x33))));
+						else
+							source = int32_to_floatx80((sint32)0);
 						break;
 				}
 
@@ -1185,6 +888,9 @@ static void fpgen_rm_reg(uint16 w2)
 	}
 
 
+
+	if (fpgen_extra(opmode, dst, source))
+		return;
 
 	switch (opmode)
 	{
@@ -1325,10 +1031,7 @@ static void fmove_reg_mem(uint16 w2)
 		}
 		case 2:		// Extended-precision Real
 		{
-		  	int mode = (ea >> 3) & 0x7;
-		  	int reg = (ea & 0x7);
-		  	uint32 di_mode_ea = mode == 5 ? (REG_A[reg]+MAKE_INT_16(m68ki_read_imm_16())) : 0;
-			WRITE_EA_FPE(mode, reg, REG_FP[src], di_mode_ea);
+			WRITE_EA_FPE(ea, REG_FP[src]);
 			break;
 		}
 		case 3:		// Packed-decimal Real with Static K-factor
@@ -1367,158 +1070,170 @@ static void fmove_reg_mem(uint16 w2)
 	USE_CYCLES(12);
 }
 
+/* FMOVE/FMOVEM of the control registers (lxa, Phase 237): any subset of
+ * FPCR/FPSR/FPIAR, transferred in that order to consecutive longwords;
+ * a single register may also live in Dn (or An for FPIAR). */
+static void fpcr_set(uint32 v)
+{
+	/* FPCR rounding mode (bits 5-4): RN, RZ, RM, RP -> softfloat modes */
+	static const int8 rmode[4] = { float_round_nearest_even, float_round_to_zero,
+	                               float_round_down, float_round_up };
+	REG_FPCR = v & 0x0000fff0;
+	float_rounding_mode = rmode[(REG_FPCR >> 4) & 3];
+}
+
 static void fmove_fpcr(uint16 w2)
 {
 	int ea = REG_IR & 0x3f;
+	int mode = (ea >> 3) & 0x7;
 	int dir = (w2 >> 13) & 0x1;
-	int reg = (w2 >> 10) & 0x7;
+	int list = (w2 >> 10) & 0x7;
+	int count = ((list >> 2) & 1) + ((list >> 1) & 1) + (list & 1);
+	uint32 addr = 0;
+	int i;
 
-	if (dir)	// From system control reg to <ea>
+	if (count == 0)
+		list = 1, count = 1;	/* no register: the 68881 moves FPIAR */
+
+	if (count == 1 || mode == 0 || mode == 1)
 	{
-		if (reg & 4) WRITE_EA_32(ea, REG_FPCR);
-		if (reg & 2) WRITE_EA_32(ea, REG_FPSR);
-		if (reg & 1) WRITE_EA_32(ea, REG_FPIAR);
-	}
-	else		// From <ea> to system control reg
-	{
-      if (reg & 4) 
+		if (dir)
 		{
-		  REG_FPCR = READ_EA_32(ea);
-		  // JFF: need to update rounding mode from softfloat module
-		  float_rounding_mode = (REG_FPCR >> 4) & 0x3;
+			if (list & 4) WRITE_EA_32(ea, REG_FPCR);
+			if (list & 2) WRITE_EA_32(ea, REG_FPSR);
+			if (list & 1) WRITE_EA_32(ea, REG_FPIAR);
 		}
-		if (reg & 2) REG_FPSR = READ_EA_32(ea);
-		if (reg & 1) REG_FPIAR = READ_EA_32(ea);
+		else
+		{
+			if (list & 4) fpcr_set(READ_EA_32(ea));
+			if (list & 2) REG_FPSR = READ_EA_32(ea);
+			if (list & 1) REG_FPIAR = READ_EA_32(ea);
+		}
+		USE_CYCLES(10);
+		return;
 	}
 
-	USE_CYCLES(10);
+	addr = fpu_ea_addr(mode, ea & 7, 4 * count);
+	if (!fpu_ea_ok)
+		return;
+	for (i = 2; i >= 0; i--)
+	{
+		if (!(list & (1 << i)))
+			continue;
+		if (dir)
+			m68ki_write_32(addr, i == 2 ? REG_FPCR : i == 1 ? REG_FPSR : REG_FPIAR);
+		else
+		{
+			uint32 v = m68ki_read_32(addr);
+			if (i == 2) fpcr_set(v);
+			else if (i == 1) REG_FPSR = v;
+			else REG_FPIAR = v;
+		}
+		addr += 4;
+	}
+	USE_CYCLES(10 * count);
 }
 
+/* FMOVEM.X (lxa, Phase 237): static or dynamic (Dn) register lists, every
+ * memory addressing mode.  Register mask: for -(An) bit i is FPi and FP7 is
+ * stored first (at the highest address); for (An)+ and the control modes
+ * bit 7 is FP0 and FP0 is transferred first (at the lowest address).  Either
+ * way FP0 ends up at the lowest address, like MOVEM. */
 static void fmovem(uint16 w2)
 {
 	int i;
 	int ea = REG_IR & 0x3f;
+	int imode = (ea >> 3) & 0x7;
+	int reg = ea & 0x7;
 	int dir = (w2 >> 13) & 0x1;
 	int mode = (w2 >> 11) & 0x3;
-	int reglist = w2 & 0xff;
+	int reglist = (mode & 1) ? (REG_D[(w2 >> 4) & 7] & 0xff) : (w2 & 0xff);
+	uint32 addr;
 
-	if (dir)	// From FP regs to mem
+	if (imode == 4)			// -(An): registers to memory only
 	{
-		switch (mode)
-	{
-	  	case 2:		// (JFF): Static register list, postincrement or control addressing mode.     
-	    {
-	      int imode = (ea >> 3) & 0x7;
-	      int reg = (ea & 0x7);
-	      int di_mode = imode == 5;	      
-	      uint32 di_mode_ea = di_mode ? (REG_A[reg]+MAKE_INT_16(m68ki_read_imm_16())) : 0;
-	      for (i=0; i < 8; i++)
-			{
-			  if (reglist & (1 << i))
-			    {
-			      WRITE_EA_FPE(imode,reg, REG_FP[7-i],di_mode_ea);
-			      USE_CYCLES(2);
-			      if (di_mode)
-				{
-				  di_mode_ea += 12;
-				}
-		    	}
-			}
-	      break;
-	   	 }
-			case 0:		// Static register list, predecrement addressing mode
-			{
-	      int imode = (ea >> 3) & 0x7;
-	      int reg = (ea & 0x7);
-	      // the "di_mode_ea" parameter kludge is required here else WRITE_EA_FPE would have
-	      // to call EA_AY_DI_32() (that advances PC & reads displacement) each time
-	      // when the proper behaviour is 1) read once, 2) increment ea for each matching register
-	      // this forces to pre-read the mode (named "imode") so we can decide to read displacement, only once
-	      int di_mode = imode == 5;	      
-	      uint32 di_mode_ea =  di_mode ? (REG_A[reg]+MAKE_INT_16(m68ki_read_imm_16())) : 0;
-				for (i=0; i < 8; i++)
-				{
-					if (reglist & (1 << i))
-					{
-		 			    WRITE_EA_FPE(imode,reg, REG_FP[i],di_mode_ea);
-						USE_CYCLES(2);
-					    if (di_mode)
-						{
-						  di_mode_ea += 12;
-						}
-					}
-				}
-				break;
-			}
-
-			default:	fatalerror("040fpu0: FMOVEM: mode %d unimplemented at %08X\n", mode, REG_PC-4);
-		}
-	}
-	else		// From mem to FP regs
-	{
-		switch (mode)
+		if (!dir)
 		{
-			case 2:		// Static register list, postincrement addressing mode
+			fatalerror("M68kFPU: FMOVEM -(An) to registers at %08X\n", REG_PC-4);
+			return;
+		}
+		for (i = 7; i >= 0; i--)
+		{
+			if (reglist & (1 << i))
 			{
-		      int imode = (ea >> 3) & 0x7;
-		      int reg = (ea & 0x7);
-		      int di_mode = imode == 5;	    
-		      uint32 di_mode_ea = di_mode ? (REG_A[reg]+MAKE_INT_16(m68ki_read_imm_16())) : 0;
-				for (i=0; i < 8; i++)
-				{
-					if (reglist & (1 << i))
-					{
-		   			   	REG_FP[7-i] = READ_EA_FPE(imode,reg,di_mode_ea);
-						USE_CYCLES(2);
-					    if (di_mode)
-						{
-						  di_mode_ea += 12;
-						}
-					}
-				}
-				break;
+				REG_A[reg] -= 12;
+				store_extended_float80(REG_A[reg], REG_FP[i]);
+				USE_CYCLES(2);
 			}
+		}
+		return;
+	}
 
-			default:	fatalerror("040fpu0: FMOVEM: mode %d unimplemented at %08X\n", mode, REG_PC-4);
+	if (imode == 3)			// (An)+: memory to registers only
+	{
+		addr = REG_A[reg];
+	}
+	else
+	{
+		addr = fpu_ea_addr(imode, reg, 0);
+		if (!fpu_ea_ok)
+			return;
+	}
+	for (i = 0; i < 8; i++)
+	{
+		if (reglist & (0x80 >> i))
+		{
+			if (dir)
+				store_extended_float80(addr, REG_FP[i]);
+			else
+				REG_FP[i] = load_extended_float80(addr);
+			addr += 12;
+			USE_CYCLES(2);
 		}
 	}
+	if (imode == 3)
+		REG_A[reg] = addr;
 }
 
+/* Condition-code group (lxa, Phase 237): FScc <ea>, FDBcc Dn,<label> and
+ * FTRAPcc (#<data>). */
 static void fscc()
 {
-  // added by JFF, this seems to work properly now 
-  int condition = OPER_I_16() & 0x3f;
+	int condition = OPER_I_16() & 0x3f;
+	int mode = (REG_IR >> 3) & 0x7;
+	int reg = REG_IR & 0x7;
+	int cc = TEST_CONDITION(condition);
 
-  int cc = TEST_CONDITION(condition);
-  int mode = (REG_IR & 0x38) >> 3;
-  int v = (cc ? 0xff : 0x00);
-  
-  switch (mode)
-  {
-  case 0:  // fscc Dx
-    {
-      // If the specified floating-point condition is true, sets the byte integer operand at
-      // the destination to TRUE (all ones); otherwise, sets the byte to FALSE (all zeros).
-      
-      REG_D[REG_IR & 7] = (REG_D[REG_IR & 7] & 0xFFFFFF00) | v;
-      break;
-    }
-    case 5: // (disp,Ax)
-    {
-    int reg = REG_IR & 7;
-    uint32 ea = REG_A[reg]+MAKE_INT_16(m68ki_read_imm_16());
-    m68ki_write_8(ea,v);
-    break;
-    }
-    
-  default:
-    {
-      // unimplemented see fpu_uae.cpp around line 1300
-      fatalerror("040fpu0: fscc: mode %d not implemented at %08X\n", mode, REG_PC-4);
-    }
-    }
-  USE_CYCLES(7);  // JFF unsure of the number of cycles!!
+	if (mode == 1)			// FDBcc Dn,<disp16>
+	{
+		uint32 base = REG_PC;
+		sint32 offset = MAKE_INT_16(OPER_I_16());
+		if (!cc)
+		{
+			uint16 cnt = (uint16)(REG_D[reg] - 1);
+			REG_D[reg] = (REG_D[reg] & 0xffff0000) | cnt;
+			if (cnt != 0xffff)
+			{
+				m68ki_trace_t0();
+				m68ki_jump(base + offset);
+			}
+		}
+		USE_CYCLES(7);
+		return;
+	}
+	if (mode == 7 && reg >= 2 && reg <= 4)	// FTRAPcc
+	{
+		if (reg == 2) OPER_I_16();
+		else if (reg == 3) OPER_I_32();
+		if (cc)
+			m68ki_exception_trap(EXCEPTION_TRAPV);
+		USE_CYCLES(7);
+		return;
+	}
+	WRITE_EA_8(REG_IR & 0x3f, cc ? 0xff : 0x00);
+	USE_CYCLES(7);
 }
+
 static void fbcc16(void)
 {
 	sint32 offset;

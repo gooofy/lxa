@@ -106,20 +106,37 @@ static void input_update_qualifier(struct InputBase *inputbase,
     }
 }
 
+/*
+ * Call a handler (a0 = events, a1 = is_Data, result in d0).  On AmigaOS
+ * handlers run in input.device's task, so registers a handler changes never
+ * reach the program that wrote the event (probe input/handlerregs; AMOS's
+ * handler changes d4 - Fish WhereK).  lxa calls them in the writer's task:
+ * every register but d0/d1/a0/a1 is preserved around the call.
+ */
+extern struct InputEvent *input_call_handler_regs(APTR code, struct InputEvent *events, APTR data);
+asm(
+"        .text                                       \n"
+"        .even                                       \n"
+"        .globl  _input_call_handler_regs            \n"
+"_input_call_handler_regs:                           \n"
+"        movem.l d2-d7/a2-a6,-(sp)                   \n"
+"        move.l  48(sp),a2                           | code \n"
+"        move.l  52(sp),a0                           | events \n"
+"        move.l  56(sp),a1                           | is_Data \n"
+"        jsr     (a2)                                \n"
+"        movem.l (sp)+,d2-d7/a2-a6                   \n"
+"        rts                                         \n"
+);
+
 static struct InputEvent *input_call_handler(struct Interrupt *handler,
                                              struct InputEvent *events)
 {
-    typedef struct InputEvent *(*InputHandlerFn)(register struct InputEvent *events __asm("a0"),
-                                                 register APTR data __asm("a1"));
-    InputHandlerFn entry;
-
     if (!handler || !handler->is_Code)
     {
         return events;
     }
 
-    entry = (InputHandlerFn)handler->is_Code;
-    return entry(events, handler->is_Data);
+    return input_call_handler_regs((APTR)handler->is_Code, events, handler->is_Data);
 }
 
 static struct InputEvent *input_forward_handlers(struct InputBase *inputbase,

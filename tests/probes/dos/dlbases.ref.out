@@ -1,0 +1,6 @@
+-- DosLibrary bases
+dl_UtilityBase = non-NULL
+dl_UtilityBase == utility.library = TRUE
+dl_IntuitionBase = non-NULL
+dl_IntuitionBase == intuition.library = TRUE
+dl_Root = non-NULL

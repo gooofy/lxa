@@ -249,6 +249,10 @@ static VOID _intuition_clear_window_runtime_state(struct Window *window);
 static VOID _intuition_clear_screen_runtime_state(struct IntuitionBase *IntuitionBase,
                                                   struct Screen *screen);
 static volatile BOOL g_processing_events;
+/* DisplayAlert() waits for a mouse button (Phase 237): set while an alert
+ * is up, the button (SELECTDOWN/MENUDOWN) that answered it */
+static volatile BOOL g_alert_waiting;
+static volatile UWORD g_alert_button;
 static BOOL g_screen_from_tags;     /* OpenScreen() called by OpenScreenTagList() */
 static ULONG g_screen_display_id;   /* OpenScreenTagList(): SA_DisplayID + 1 (0: none) */
 static BYTE g_screen_sysfont;       /* OpenScreenTagList(): SA_SysFont (-1: none) */
@@ -498,6 +502,37 @@ static VOID _intuition_set_oldlook_pens(struct LXAPubScreenNode *entry)
 
 static struct IClass *_intuition_find_class(struct LXAIntuitionBase *base, CONST_STRPTR classID);
 static ULONG _intuition_dispatch_method(struct IClass *cl, Object *obj, Msg msg);
+
+/*
+ * Intuition calls a GTYP_CUSTOMGADGET through the hook in its MutualExclude
+ * field (a0 = hook, a2 = gadget, a1 = message); for a BOOPSI gadget that is
+ * its class (AmigaOS 3.1, probe intuition/customhook).  Programs build custom
+ * gadgets by hand with their own hook and no BOOPSI object header (Fish
+ * JukeBox).  Returns FALSE when the gadget has no hook to call.
+ */
+static BOOL _custom_gadget_call(struct Gadget *gad, Msg msg, ULONG *result)
+{
+    typedef ULONG (*HookEntry)(register struct Hook *h __asm("a0"),
+                               register Object *obj __asm("a2"),
+                               register Msg msg __asm("a1"));
+    struct Hook *h = (struct Hook *)gad->MutualExclude;
+    ULONG r;
+
+    if (!h)
+    {
+        /* gadgets lxa created without the hook: dispatch on the class */
+        struct IClass *cl = OCLASS((Object *)gad);
+        if (!cl)
+            return FALSE;
+        h = &cl->cl_Dispatcher;
+    }
+    if (!h->h_Entry)
+        return FALSE;
+    r = ((HookEntry)h->h_Entry)(h, (Object *)gad, msg);
+    if (result)
+        *result = r;
+    return TRUE;
+}
 VOID _intuition_DrawImageState ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a0"),
                                                         register struct Image * image __asm("a1"),
@@ -2276,6 +2311,9 @@ static ULONG gadgetclass_dispatch(
             
             /* Initialize gadget structure */
             gadget->GadgetType = GTYP_CUSTOMGADGET;
+            /* AmigaOS 3.1: MutualExclude holds the hook Intuition calls for
+             * a custom gadget - the object's class (probe intuition/customhook) */
+            gadget->MutualExclude = (ULONG)OCLASS(obj);
             /* AmigaOS 3.1: gadgetclass objects are ExtGadgets, GADGHCOMP */
             gadget->Flags = GFLG_EXTENDED;
             gadget->Activation = 0;
@@ -5086,6 +5124,16 @@ BOOL _intuition_CloseScreen ( register struct IntuitionBase * IntuitionBase __as
         }
     }
 
+    /* Unlink its ViewPort from Intuition's View */
+    {
+        struct ViewPort **vpp = &IntuitionBase->ViewLord.ViewPort;
+        while (*vpp && *vpp != &screen->ViewPort)
+            vpp = &(*vpp)->Next;
+        if (*vpp)
+            *vpp = screen->ViewPort.Next;
+        screen->ViewPort.Next = NULL;
+    }
+
     /* Unlink screen from IntuitionBase screen list */
     if (IntuitionBase->FirstScreen == screen)
     {
@@ -5296,28 +5344,40 @@ BOOL _intuition_DisplayAlert ( register struct IntuitionBase * IntuitionBase __a
                                                         register UWORD height __asm("d1"))
 {
     /*
-     * DisplayAlert() shows a hardware/software alert (Guru Meditation).
-     * We log the alert and return TRUE (user pressed left mouse = continue).
-     * The string format is: y_position, string_chars, continuation_byte...
+     * DisplayAlert() shows an alert and waits until the user presses a
+     * mouse button: left = TRUE (continue), right = FALSE.  A dead-end
+     * alert returns FALSE (AmigaOS reboots).  AmigaOS 3.1 blocks until the
+     * click (Fish VMK on the reference); lxa used to answer "continue" at
+     * once, which made VMK and DirWork reboot through Supervisor().
+     * The string is a list of (x.w, y.b, text, continuation.b) entries.
      */
-    DPRINTF (LOG_ERROR, "_intuition: DisplayAlert() alertNumber=0x%08lx string=0x%08lx height=%u\n",
-             alertNumber, (ULONG)string, (unsigned)height);
-    
-    /* Parse the alert string if possible */
-    if (string) {
-        /* Skip y position byte, print the text */
-        const char *p = (const char *)string;
-        if (*p) {
-            p++;  /* Skip y position */
-            DPRINTF (LOG_ERROR, "_intuition: DisplayAlert() message: %s\n", p);
+    LXA_UNIMPLEMENTED("intuition", "DisplayAlert", "partial: the alert box is not drawn (logged), waits for a mouse button");
+    LPRINTF (LOG_WARNING, "_intuition: DisplayAlert() alertNumber=0x%08lx height=%u\n",
+             alertNumber, (unsigned)height);
+    if (string)
+    {
+        const UBYTE *p = (const UBYTE *)string;
+        for (;;)
+        {
+            p += 3;                         /* x (WORD), y (BYTE) */
+            LPRINTF (LOG_WARNING, "_intuition: DisplayAlert(): %s\n", (const char *)p);
+            while (*p)
+                p++;
+            p++;
+            if (!*p++)                      /* continuation byte */
+                break;
         }
     }
-    
+
+    g_alert_button = 0;
+    g_alert_waiting = TRUE;
+    while (!g_alert_button)
+        WaitTOF();
+    g_alert_waiting = FALSE;
+
     if (alertNumber & DEADEND_ALERT)
         return FALSE;
-
-    /* Return TRUE = left mouse button (continue), FALSE = right mouse (reboot) */
-    return TRUE;
+    return g_alert_button == SELECTDOWN;
 }
 
 VOID _intuition_DisplayBeep ( register struct IntuitionBase * IntuitionBase __asm("a6"),
@@ -6394,9 +6454,7 @@ static VOID _layout_custom_gadget(struct Window *window, struct Requester *req, 
         (gad->GadgetType & GTYP_SYSGADGET) ||
         !(gad->Flags & (GFLG_RELRIGHT | GFLG_RELBOTTOM | GFLG_RELWIDTH | GFLG_RELHEIGHT | GFLG_RELSPECIAL)))
         return;
-    cl = OCLASS((Object *)gad);
-    if (!cl)
-        return;
+    (void)cl;
     memset(&gi, 0, sizeof(gi));
     gi.gi_Screen = window->WScreen;
     gi.gi_Window = window;
@@ -6408,7 +6466,7 @@ static VOID _layout_custom_gadget(struct Window *window, struct Requester *req, 
     gpl.MethodID = GM_LAYOUT;
     gpl.gpl_GInfo = &gi;
     gpl.gpl_Initial = initial;
-    _intuition_dispatch_method(cl, (Object *)gad, (Msg)&gpl);
+    _custom_gadget_call(gad, (Msg)&gpl, NULL);
     if (gi.gi_DrInfo)
         _intuition_FreeScreenDrawInfo(IntuitionBase, window->WScreen, gi.gi_DrInfo);
 }
@@ -8142,6 +8200,16 @@ VOID _intuition_ProcessInputEvents(struct Screen *hint_screen)
         mouseX = (WORD)(mouse_pos >> 16);
         mouseY = (WORD)(mouse_pos & 0xFFFF);
 
+        /* an alert is up (DisplayAlert): mouse buttons answer it and
+         * nothing reaches the screens */
+        if (g_alert_waiting && event_type == 1)
+        {
+            UWORD code = (UWORD)(emucall0(EMU_CALL_INT_GET_MOUSE_BTN) & 0xFF);
+            if (code == SELECTDOWN || code == MENUDOWN)
+                g_alert_button = code;
+            continue;
+        }
+
         DPRINTF(LOG_DEBUG, "_intuition: ProcessInputEvents: event_type=%ld mouse=(%d,%d)\n",
                 event_type, (int)mouseX, (int)mouseY);
         
@@ -9789,6 +9857,11 @@ struct Screen * _intuition_OpenScreen ( register struct IntuitionBase * Intuitio
     /* Link screen into IntuitionBase screen list (at front) */
     screen->NextScreen = IntuitionBase->FirstScreen;
     IntuitionBase->FirstScreen = screen;
+    /* ... and its ViewPort into Intuition's View (ViewAddress()): newest
+     * screen first, the order does not follow depth arrangement (AmigaOS
+     * 3.1, probe intuition/viewaddress; Fish EOMS reads ViewPort->ColorMap) */
+    screen->ViewPort.Next = IntuitionBase->ViewLord.ViewPort;
+    IntuitionBase->ViewLord.ViewPort = &screen->ViewPort;
     _intuition_register_pubscreen(IntuitionBase, screen);
     {
         struct PubScreenNode *pub = _intuition_find_pubscreen_by_screen(
@@ -12599,8 +12672,8 @@ static void _render_gadget(struct Window *window, struct Requester *req, struct 
      */
     if ((gad->GadgetType & GTYP_GTYPEMASK) == GTYP_CUSTOMGADGET)
     {
-        struct IClass *cl = OCLASS((Object *)gad);
-        if (cl)
+        struct Hook *ch = (struct Hook *)gad->MutualExclude;
+        if (ch ? ch->h_Entry != NULL : OCLASS((Object *)gad) != NULL)
         {
             /* For GZZ windows, route system/gzz gadgets to the border RastPort. */
             struct RastPort *brp = window->RPort;
@@ -12631,7 +12704,7 @@ static void _render_gadget(struct Window *window, struct Requester *req, struct 
             gpr.gpr_RPort = brp;
             gpr.gpr_Redraw = GREDRAW_REDRAW;
 
-            _intuition_dispatch_method(cl, (Object *)gad, (Msg)&gpr);
+            _custom_gadget_call(gad, (Msg)&gpr, NULL);
 
             if (gad->Flags & GFLG_DISABLED)
             {

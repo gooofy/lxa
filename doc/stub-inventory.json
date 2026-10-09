@@ -129,22 +129,6 @@
  },
  {
   "lib": "exec",
-  "function": "SuperState",
-  "kind": "stub",
-  "detail": "stub: does not enter supervisor mode, returns NULL",
-  "file": "src/rom/exec.c",
-  "symbol": "_exec_SuperState"
- },
- {
-  "lib": "exec",
-  "function": "UserState",
-  "kind": "stub",
-  "detail": "stub: does not return to user mode",
-  "file": "src/rom/exec.c",
-  "symbol": "_exec_UserState"
- },
- {
-  "lib": "exec",
   "function": "Cause",
   "kind": "partial",
   "detail": "partial: runs the handler immediately in caller context, no softint queue/priority (Phase 255)",
@@ -950,6 +934,14 @@
   "detail": "partial: ignores all ICONPUTA_* tags, behaves like PutDiskObject",
   "file": "src/rom/lxa_icon.c",
   "symbol": "_icon_PutIconTagList"
+ },
+ {
+  "lib": "intuition",
+  "function": "DisplayAlert",
+  "kind": "partial",
+  "detail": "partial: the alert box is not drawn (logged), waits for a mouse button",
+  "file": "src/rom/lxa_intuition.c",
+  "symbol": "_intuition_DisplayAlert"
  },
  {
   "lib": "intuition",

@@ -1,0 +1,8 @@
+-- BOOPSI gadget
+MutualExclude = non-NULL
+MutualExclude == OCLASS(gadget) = TRUE
+-- hand-made custom gadget
+OpenWindow:
+AddGList:
+RefreshGList: GM_RENDER
+RemoveGList:

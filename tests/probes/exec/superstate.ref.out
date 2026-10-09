@@ -1,0 +1,4 @@
+-- SuperState/UserState
+SuperState() result = non-NULL
+supervisor bit set after SuperState = TRUE
+continued after UserState = TRUE

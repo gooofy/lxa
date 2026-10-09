@@ -1,0 +1,24 @@
+-- ViewAddress
+Workbench only
+  ViewAddress() = non-NULL
+  ViewPort 0 = Workbench, ColorMap set
+  ViewPorts = 1
+custom screen in front
+  ViewAddress() = non-NULL
+  ViewPort 0 = custom, ColorMap set
+  ViewPort 1 = Workbench, ColorMap set
+  ViewPorts = 2
+custom screen behind (ScreenToBack)
+  ViewAddress() = non-NULL
+  ViewPort 0 = custom, ColorMap set
+  ViewPort 1 = Workbench, ColorMap set
+  ViewPorts = 2
+custom screen in front again (ScreenToFront)
+  ViewAddress() = non-NULL
+  ViewPort 0 = custom, ColorMap set
+  ViewPort 1 = Workbench, ColorMap set
+  ViewPorts = 2
+closed again
+  ViewAddress() = non-NULL
+  ViewPort 0 = Workbench, ColorMap set
+  ViewPorts = 1

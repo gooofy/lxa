@@ -89,7 +89,8 @@ static inline uint8_t mread8(uint32_t address)
         /* Extended ROM area (A3000/A4000) - return 0 to indicate no extended ROM */
         return 0;
     }
-    else if ((address >= 0x00A00000) && (address < CUSTOM_START))
+    else if ((address >= 0x00A00000) && (address < CUSTOM_START) &&
+             !((address >= CIA_START) && (address <= CIA_END)))   /* CIAs below (Phase 237, exec/buttons) */
     {
         /* RAM overflow area (10MB - just before custom chips at 0xDFF000) - some apps allocate
          * to end of RAM and overflow into what would be expansion RAM, slow RAM, or CIA areas.
@@ -277,7 +278,8 @@ static inline void mwrite8(uint32_t address, uint8_t value)
     {
         g_z3ram[address - Z3RAM_START] = value;
     }
-    else if ((address >= 0x00A00000) && (address < CUSTOM_START))
+    else if ((address >= 0x00A00000) && (address < CUSTOM_START) &&
+             !((address >= CIA_START) && (address <= CIA_END)))   /* CIAs below (Phase 237, exec/buttons) */
     {
         /* RAM overflow area (10MB - just before custom chips at 0xDFF000) - some apps allocate
          * to end of RAM and overflow into what would be expansion RAM, slow RAM, or CIA areas.
@@ -326,8 +328,15 @@ static inline void mwrite8(uint32_t address, uint8_t value)
     }
     else
     {
-        printf("ERROR: mwrite8 at invalid address 0x%08x\n", address);
-        _debug(m68k_get_reg(NULL, M68K_REG_PC));
+        /* reported a few times only: a program whose exception vectors
+         * point nowhere pushes frame after frame through the whole address
+         * space (Fish PowerVisor scripts, Phase 237: 585 M lines) */
+        static int invalid_write_count = 0;
+        if (invalid_write_count < 10) {
+            invalid_write_count++;
+            printf("ERROR: mwrite8 at invalid address 0x%08x\n", address);
+            _debug(m68k_get_reg(NULL, M68K_REG_PC));
+        }
         assert (false);
     }
 }

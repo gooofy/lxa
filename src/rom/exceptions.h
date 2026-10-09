@@ -17,6 +17,8 @@ void  handleVec07     ( void );
 void  handleVec09     ( void );
 void  handleVec10     ( void );
 void  handleVec11     ( void );
+void  handleVecGeneric( void );
+void  handleIntIgnore ( void );
 
 void  handleVec08     ( void );
 void  handleIRQ3      ( void );

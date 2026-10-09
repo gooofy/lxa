@@ -20,6 +20,8 @@
     .set tc_Flags       , 14
     .set tc_State       , 15
     .set tc_SPReg       , 54
+    .set AttnFlags      , 296
+    .set FPU_CONTEXT    , 0x4c584601              | odd: never a saved PC
     .set tc_Switch      , 66
     .set tc_Launch      , 70
 
@@ -160,6 +162,26 @@ _exec_Switch:
     move.w   (a7)+, -(a5)                           | push SR on user stack
     move.l   (a7)+, -(a5)                           | push return address on user stack
 
+    /*
+     * FPU context (Phase 237: lxa reports AFF_68881/AFF_68882): below the
+     * register frame, FSAVE and - unless the FPU is in its reset (null)
+     * state - FP0-FP7 and FPCR/FPSR/FPIAR, then a flag (registers saved)
+     * and a marker that _exec_Dispatch checks (a task that never ran has
+     * no FPU context).  FPU instructions are encoded as data: the ROM is
+     * assembled for a 68000.
+     */
+    btst.b   #4, AttnFlags+1(a6)                    | AFF_68881?
+    beq.s    7f
+    .short   0xf325                                 | fsave -(a5)
+    tst.b    (a5)                                   | null frame?
+    beq.s    6f
+    .short   0xf225, 0xe0ff                         | fmovem.x fp0-fp7,-(a5)
+    .short   0xf225, 0xbc00                         | fmovem.l fpcr/fpsr/fpiar,-(a5)
+    move.l   #1, -(a5)                              | registers saved
+    bra.s    8f
+6:  clr.l    -(a5)                                  | no registers
+8:  move.l   #FPU_CONTEXT, -(a5)
+7:
     move.l   ThisTask(a6), a3                       | SysBase->ThisTask -> a3
     move.w   d0, 16(a3)                             | IDNestCnt -> ThisTask->tc_IDNestCnt
     move.l   a5, 54(a3)                             | user stack -> ThisTask->tc_SPReg
@@ -225,6 +247,23 @@ __dispatch:
 5:
 
     move.l   54(a3), a5                             | ThisTask->tc_SPReg -> a5
+
+    /* FPU context saved by _exec_Switch (see there) */
+    move.l   4, a6                                  | SysBase (tc_Launch/Exception may change a6)
+    btst.b   #4, AttnFlags+1(a6)                    | AFF_68881?
+    beq.s    7f
+    cmp.l    #FPU_CONTEXT, (a5)
+    beq.s    6f
+    clr.l    -(sp)                                  | never ran: FPU to its reset state
+    .short   0xf35f                                 | frestore (sp)+
+    bra.s    7f
+6:  addq.l   #4, a5
+    tst.l    (a5)+                                  | registers saved?
+    beq.s    8f
+    .short   0xf21d, 0x9c00                         | fmovem.l (a5)+,fpcr/fpsr/fpiar
+    .short   0xf21d, 0xd0ff                         | fmovem.x (a5)+,fp0-fp7
+8:  .short   0xf35d                                 | frestore (a5)+
+7:
     lea      2+16*4(a5), a2                         | setup return address -> a2
     move.l   a2, usp                                | a2 -> USP
     move.l   (a5)+, -(sp)                           | push pc on SSP
@@ -368,6 +407,29 @@ _handleVec10:
 _handleVec11:
     move.l      #11, -(a7)                           | exception number on top of the frame
     bra         _dispatchTrap
+
+    /*
+     * Every other CPU exception vector (Phase 237, probe exec/vectors: AmigaOS
+     * points the whole table into ROM; programs that read through a NULL
+     * pointer see it).  The exception number comes from the format/vector
+     * word of the 68010+ frame.  Stack: [d0][slot][SR.w][PC.l][fmt.w]
+     */
+    .globl _handleVecGeneric
+_handleVecGeneric:
+    subq.l      #4, a7                              | slot for the exception number
+    move.l      d0, -(a7)
+    moveq       #0, d0
+    move.w      14(a7), d0                          | format/vector offset word
+    and.w       #0x0fff, d0
+    lsr.w       #2, d0
+    move.l      d0, 4(a7)
+    move.l      (a7)+, d0
+    bra         _dispatchTrap
+
+    /* spurious interrupt and the autovectors exec does not use */
+    .globl _handleIntIgnore
+_handleIntIgnore:
+    rte
 
     .globl _handleTrap0
 _handleTrap0:

@@ -2,10 +2,10 @@
  * Test: intuition/display_alert
  * DisplayAlert() return values for recovery and dead-end alerts.
  *
- * On AmigaOS, DisplayAlert() blocks until the user presses a mouse button
- * (left = continue, right = reboot), so this program is not run unattended
- * on the reference (tests/ref_suite.yaml, interactive).  Headless lxa
- * answers a recovery alert with "continue" and a dead-end alert with FALSE.
+ * DisplayAlert() blocks until the user presses a mouse button (left =
+ * TRUE, right = FALSE); intuition_gtest answers each alert after the
+ * READY line.  A dead-end alert returns FALSE on lxa (AmigaOS reboots), so
+ * the program is lxa-only (tests/ref_suite.yaml).
  */
 
 #include <exec/types.h>
@@ -43,13 +43,23 @@ int main(void)
 
     print("Testing DisplayAlert()...\n");
 
+    print("READY: alert 1 (left button)\n");
     if (DisplayAlert(RECOVERY_ALERT, alert_text, 40) == TRUE) {
-        print("  OK: DisplayAlert returns continue for recovery alerts\n");
+        print("  OK: left button returns TRUE\n");
     } else {
-        print("  FAIL: DisplayAlert did not return continue for recovery alerts\n");
+        print("  FAIL: left button did not return TRUE\n");
         errors++;
     }
 
+    print("READY: alert 2 (right button)\n");
+    if (DisplayAlert(RECOVERY_ALERT, alert_text, 40) == FALSE) {
+        print("  OK: right button returns FALSE\n");
+    } else {
+        print("  FAIL: right button did not return FALSE\n");
+        errors++;
+    }
+
+    print("READY: alert 3 (dead-end, left button)\n");
     if (DisplayAlert(DEADEND_ALERT, alert_text, 40) == FALSE) {
         print("  OK: DisplayAlert returns FALSE for dead-end alerts\n");
     } else {

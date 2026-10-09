@@ -937,6 +937,24 @@ void _dos_stdinout_fh (uint32_t fh68k, int is_input)
 
 static uint32_t _amiga_protection_path(const char *linux_path, mode_t mode);
 
+/*
+ * PRT: (Phase 237, probe dos/prt): AmigaOS 3.1 opens the printer handler
+ * in every mode, the handle is interactive, and Lock("PRT:") fails with
+ * ERROR_ACTION_NOT_KNOWN.  lxa has no printer: the data is discarded.
+ */
+static bool _is_printer_path(const char *amiga_path)
+{
+    return !strncasecmp(amiga_path, "PRT:", 4);
+}
+
+#define MAX_DEVICE_FDS 1024
+static uint8_t g_fd_interactive[MAX_DEVICE_FDS];
+
+bool _dos_fd_interactive(int fd)
+{
+    return fd >= 0 && fd < MAX_DEVICE_FDS && g_fd_interactive[fd];
+}
+
 int _dos_open (uint32_t path68k, uint32_t accessMode, uint32_t fh68k)
 {
     char *amiga_path = _mgetstr(path68k);
@@ -959,6 +977,20 @@ int _dos_open (uint32_t path68k, uint32_t accessMode, uint32_t fh68k)
          * buffering and must stay 0 here - a byte written into it made
          * every RAW: Open() corrupt memory) */
         DPRINTF (LOG_DEBUG, "lxa: _dos_open(): CON:/RAW: window, path=%s\n", amiga_path);
+    }
+    else if (_is_printer_path (amiga_path))
+    {
+        int fd = open ("/dev/null", O_RDWR);
+        if (fd < 0)
+        {
+            m68k_write_memory_32 (fh68k+40, ERROR_NO_FREE_STORE);
+            return ERROR_NO_FREE_STORE;
+        }
+        if (fd < MAX_DEVICE_FDS)
+            g_fd_interactive[fd] = 1;
+        m68k_write_memory_32 (fh68k+36, fd);                // fh_Args
+        m68k_write_memory_32 (fh68k+32, FILE_KIND_REGULAR); // fh_Func3
+        return 0;
     }
     else
     {
@@ -1984,7 +2016,11 @@ int _dos_close (uint32_t fh68k)
     /* console handles ("*", CONSOLE:, Input()/Output()) share the host's
      * stdin/stdout/stderr: closing them must not close the emulator's own */
     if (fd > 2 && m68k_read_memory_32 (fh68k+32) != FILE_KIND_CONSOLE)
+    {
+        if (fd < MAX_DEVICE_FDS)
+            g_fd_interactive[fd] = 0;
         close(fd);
+    }
 
     DPRINTF (LOG_DEBUG, "lxa: _dos_close(): fh=0x%08x done\n", fh68k);
     return 1;
@@ -2136,6 +2172,11 @@ uint32_t _dos_lock(uint32_t name68k, int32_t mode)
 
     if (_amiga_path_has_dot_component(amiga_path)) {
         g_dos_last_error = ERROR_OBJECT_NOT_FOUND;
+        return 0;
+    }
+
+    if (_is_printer_path(amiga_path)) {
+        g_dos_last_error = ERROR_ACTION_NOT_KNOWN;
         return 0;
     }
 

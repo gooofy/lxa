@@ -1140,15 +1140,10 @@ APTR _exec_InitResident ( register struct ExecBase * SysBase __asm("a6"),
             struct List *target_list = exec_get_resident_target_list(SysBase, ___resident->rt_Type);
             struct Library *libBase = NULL;
 
-            if (target_list)
-            {
-                libBase = exec_register_resident_node(SysBase, target_list, ___resident, ___segList);
-            }
-            else
-            {
-                LPRINTF (LOG_WARNING, "_exec: InitResident: unknown type %d for %s\n",
-                         ___resident->rt_Type, ___resident->rt_Name);
-            }
+            /* a type without a system list (Fish JukeBox's 0xFD player
+             * modules) is made all the same and returned, not added
+             * anywhere (AmigaOS 3.1, probe exec/initresident) */
+            libBase = exec_register_resident_node(SysBase, target_list, ___resident, ___segList);
 
             result = libBase;
     }
@@ -1269,24 +1264,50 @@ EXEC_PRESERVE_ALL(_exec_ObtainSemaphore)
 EXEC_PRESERVE_ALL(_exec_ObtainSemaphoreShared)
 EXEC_PRESERVE_ALL(_exec_ReleaseSemaphore)
 
-APTR _exec_SuperState ( register struct ExecBase * SysBase __asm("a6"))
-{
-    LXA_UNIMPLEMENTED("exec", "SuperState", "stub: does not enter supervisor mode, returns NULL");
-
-    DPRINTF (LOG_DEBUG, "_exec: SuperState() called.\n");
-    /* In emulation, we're always in "supervisor" mode effectively.
-     * Return NULL to indicate we're already in supervisor state. */
-    return NULL;
-}
-
-void _exec_UserState ( register struct ExecBase * SysBase __asm("a6"),
-                                                        register APTR ___sysStack  __asm("d0"))
-{
-    LXA_UNIMPLEMENTED("exec", "UserState", "stub: does not return to user mode");
-
-    DPRINTF (LOG_DEBUG, "_exec: UserState() called, sysStack=0x%08lx\n", ___sysStack);
-    /* In emulation, state switching is a no-op. */
-}
+/*
+ * SuperState(): continue in supervisor mode on the caller's stack and return
+ * the old system stack pointer (NULL when already in supervisor mode);
+ * UserState(sysStack) goes back to user mode (Phase 237, probe
+ * exec/superstate; Fish ILBM_Killer reads the VBR in between).
+ * SuperState enters supervisor mode through Supervisor(): the routine runs
+ * with the exception frame on the system stack and the user stack holding
+ * [return into SuperState][saved a5][caller's return address].
+ */
+extern APTR _exec_SuperState(void);
+extern void _exec_UserState(void);
+asm(
+"        .text                                       \n"
+"        .even                                       \n"
+"        .globl  __exec_SuperState                   \n"
+"__exec_SuperState:                                  \n"
+"        move.l  a5,-(sp)                            \n"
+"        lea     1f(pc),a5                           \n"
+"        jsr     -30(a6)                             | Supervisor() \n"
+"1:      btst    #5,(sp)                             | frame SR: was the caller in supervisor mode? \n"
+"        bne.s   2f                                  \n"
+"        lea     8(sp),a0                            | system stack without the (format 0) frame \n"
+"        move.l  a0,d0                               \n"
+"        move.l  usp,a0                              \n"
+"        lea     4(a0),sp                            | caller's stack, minus the return into SuperState \n"
+"        move.l  (sp)+,a5                            \n"
+"        rts                                         \n"
+"2:      addq.l  #6,sp                               | Supervisor()'s own frame (SR, PC) \n"
+"        addq.l  #4,sp                               | return into SuperState \n"
+"        move.l  (sp)+,a5                            \n"
+"        moveq   #0,d0                               \n"
+"        rts                                         \n"
+"        .globl  __exec_UserState                    \n"
+"__exec_UserState:                                   \n"
+"        tst.l   d0                                  | NULL: SuperState() found supervisor mode \n"
+"        beq.s   3f                                  \n"
+"        move.l  (sp)+,a0                            | return address \n"
+"        move.l  sp,a1                               \n"
+"        move.l  d0,sp                               | system stack back \n"
+"        move.l  a1,usp                              \n"
+"        andi.w  #0xdfff,sr                          | user mode: sp = usp \n"
+"        jmp     (a0)                                \n"
+"3:      rts                                         \n"
+);
 
 struct Interrupt * _exec_SetIntVector ( register struct ExecBase * SysBase __asm("a6"),
                                                         register LONG ___intNumber  __asm("d0"),
@@ -4289,6 +4310,16 @@ struct Library * _exec_OpenLibrary ( register struct ExecBase *SysBase __asm("a6
             }
         }
 
+        /* After LIBS: AmigaOS 3.1 tries the plain name, relative to the
+         * caller's current directory (probe exec/libpath; Fish ParM
+         * SetMouse, WhatIs For keep their library next to the program) */
+        if (!segList && !hasPath)
+        {
+            strcpy(libPath, (const char *)libName);
+            DPRINTF (LOG_DEBUG, "_exec: OpenLibrary: trying to load %s (current directory)\n", libPath);
+            segList = LoadSeg((STRPTR)libPath);
+        }
+
         /*
          * BOOPSI gadget class fallback: when an app calls
          * OpenLibrary("gadgets/foo.gadget") (the conventional path on
@@ -6002,6 +6033,18 @@ void coldstart (void)
     p = (uint32_t*) 0x000000b8; *p = (uint32_t) handleTrap14;  // trap #14
     /* trap #15 (0xBC) is reserved for EMU_CALL - don't set it here */
 
+    /* the rest of the table (vectors 12..63): AmigaOS fills all of it
+     * (Phase 237, probe exec/vectors) */
+    for (p = (uint32_t *) 0x00000030; p < (uint32_t *) 0x00000100; p++)
+    {
+        if (p == (uint32_t *) 0x000000bc || *p)
+            continue;
+        if (p >= (uint32_t *) 0x00000060 && p < (uint32_t *) 0x00000080)
+            *p = (uint32_t) handleIntIgnore;    /* spurious, autovectors 1-7 */
+        else
+            *p = (uint32_t) handleVecGeneric;
+    }
+
     //__asm("    ori.w  #0x0700, sr;\n");   // disable interrupts
     //__asm("andi.w  #0xdfff, sr\n");   // disable supervisor bit
     //__asm("andi.w  #0xdfff, sr\n");   // disable supervisor bit
@@ -6324,6 +6367,14 @@ void coldstart (void)
     }
     
     IntuitionBase = (struct IntuitionBase *) registerBuiltInLib (sizeof(*IntuitionBase) , __lxa_intuition_ROMTag );
+
+    /* dos.library keeps utility and intuition open in DosLibrary, as on
+     * AmigaOS 3.1 (probe dos/dlbases): SAS/C 6 startup code takes its
+     * UtilityBase from dl_UtilityBase (Fish MeMeter) */
+    DOSBase->dl_UtilityBase = (struct Library *) UtilityBase;
+    ((struct Library *) UtilityBase)->lib_OpenCnt++;
+    DOSBase->dl_IntuitionBase = (struct Library *) IntuitionBase;
+    ((struct Library *) IntuitionBase)->lib_OpenCnt++;
     DPRINTF(LOG_DEBUG, "[exec] IntuitionBase=0x%08lx\n", (ULONG)IntuitionBase);
     LayersBase    = (struct Library       *) registerBuiltInLib (sizeof(*LayersBase)    , __lxa_layers_ROMTag    );
     ExpansionBase = (struct ExpansionBase *) registerBuiltInLib (sizeof(*ExpansionBase) , __lxa_expansion_ROMTag );
@@ -6422,7 +6473,10 @@ void coldstart (void)
      * AttnFlags: The emulator runs a 68030 CPU (set in lxa.c:
      * m68k_set_cpu_type(M68K_CPU_TYPE_68030)).  Per the RKRM,
      * higher-model flags imply all lower ones, so 68030 sets
-     * AFF_68010 | AFF_68020 | AFF_68030.
+     * AFF_68010 | AFF_68020 | AFF_68030.  The CPU core executes the
+     * 68881/68882 instruction set (m68kfpu.c), and AmigaOS 3.1 on the
+     * reference reports AFF_68881 | AFF_68882 (probe exec/fpu): programs
+     * compiled for the FPU check these bits (Fish Offender).
      *
      * VBlankFrequency / PowerSupplyFrequency: PAL = 50 Hz.
      *
@@ -6430,7 +6484,7 @@ void coldstart (void)
      *
      * ex_EClockFrequency: PAL E-clock = 709379 Hz (per NDK).
      */
-    SysBase->AttnFlags           = AFF_68010 | AFF_68020 | AFF_68030;
+    SysBase->AttnFlags           = AFF_68010 | AFF_68020 | AFF_68030 | AFF_68881 | AFF_68882;
     SysBase->VBlankFrequency     = 50;
     SysBase->PowerSupplyFrequency = 50;
     SysBase->MaxLocMem           = (ULONG)LXA_CHIP_END;
