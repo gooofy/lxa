@@ -1,0 +1,3 @@
+-- IND_WRITEEVENT through a handler that changes d4
+handler called = TRUE
+of d2-d7/a2-a5 kept = 10
