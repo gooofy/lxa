@@ -29,7 +29,17 @@ REFSYS_TOOLS = os.path.join(ROOT, "tools", "refsys")
 REFCTL = os.path.join(REFSYS_TOOLS, "refctl")
 REFSYS = os.environ.get("LXA_REFSYS_DIR", os.path.expanduser("~/.cache/lxa/refsys"))
 CACHE = os.environ.get("LXA_RDD_CACHE", os.path.expanduser("~/.cache/lxa/rdd/ref"))
-POOL = range(20, 40)
+def _pool():
+    """Reference instances to use: the twin-runner pool 20-39, or
+    LXA_REF_POOL="a-b" (e.g. while other agents hold the pool)."""
+    spec = os.environ.get("LXA_REF_POOL")
+    if spec:
+        lo, _, hi = spec.partition("-")
+        return range(int(lo), int(hi or lo) + 1)
+    return range(20, 40)
+
+
+POOL = _pool()
 EPOCH = 1704067200   # lxa's deterministic boot time (2024-01-01 00:00)
 
 
