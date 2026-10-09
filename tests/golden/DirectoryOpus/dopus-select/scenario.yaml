@@ -1,0 +1,24 @@
+# Phase 234: Directory Opus lister selection (apps_misc_gtest
+# DirectoryOpusCopiesFile).  The left lister is pointed at DOpus:s through
+# its path gadget, then the first row (window y + 37) is clicked: the row is
+# selected and the status line shows the selection.
+name: dopus-select
+app:
+  manifest: DirectoryOpus
+steps:
+  - launch
+  - wait_window: {title: "DOPUS", timeout: 30000}
+  - wait_idle: {timeout: 20000}
+  - frames: 100
+  - click: {xy: [100, 176]}
+  - frames: 10
+  - key: {rawkey: 0x32, qualifier: 0x80}      # right Amiga + X: clear the gadget
+  - type: "DOpus:s\n"
+  - wait_idle: {timeout: 20000}
+  - frames: 50
+  - snapshot: listed
+  - click: {xy: [40, 37], window: "DOPUS"}
+  - wait_idle: {timeout: 20000}
+  - frames: 50
+  - snapshot: selected
+  - quit

@@ -1,8 +1,8 @@
 {
  "app": "DirectoryOpus",
  "disabled": null,
- "lxa_version": "0.11.26",
- "promoted": "2026-10-04",
+ "lxa_version": "0.11.28",
+ "promoted": "2026-10-09",
  "reference": "AmigaOS 3.1 (KS 40.70), profile aga",
  "requires_apps": true,
  "scenario": "dopus-startup",
@@ -16,11 +16,35 @@
      "why": "lxa lists a host directory there (file sizes and free space change with every build); the reference shows the pane empty ('Directory not available' finding)",
      "x": 560,
      "y": 28
+    },
+    {
+     "h": 10,
+     "phase": 255,
+     "w": 640,
+     "why": "lister headers: AmigaOS 3.1 shows the volume name (Info() id_VolumeNode), lxa has no DOS volume nodes and DOpus shows the free space",
+     "x": 0,
+     "y": 32
+    },
+    {
+     "h": 130,
+     "phase": 238,
+     "w": 320,
+     "why": "right lister: SYS: of the lxa backend is not laid out like the reference's system disk (file list and scroller knob)",
+     "x": 320,
+     "y": 42
+    },
+    {
+     "h": 12,
+     "phase": 240,
+     "w": 640,
+     "why": "status line: CHIP/FAST/TOTAL on the reference, MEMORY on lxa (memory layout)",
+     "x": 0,
+     "y": 244
     }
    ],
    "known_tree_diffs": [],
-   "pixel_budget": 17107,
-   "pixel_phase": 256,
+   "pixel_budget": 0,
+   "pixel_phase": null,
    "stdout_known_diff": null
   }
  }

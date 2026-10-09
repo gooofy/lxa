@@ -135,12 +135,13 @@ static inline uint8_t mread8(uint32_t address)
         
         /* Return sensible defaults for common read registers */
         switch (reg & ~1) {  /* Use even address for word-aligned registers */
-            case CUSTOM_REG_VPOSR:    /* Vertical position - return 0 (line 0, PAL long frame) */
-                result = (reg & 1) ? 0x00 : 0x00;
+            case CUSTOM_REG_VPOSR:    /* beam position (lxa_custom.c) */
+            case CUSTOM_REG_VHPOSR:
+            {
+                uint16_t v = custom_read_beam((uint16_t)(reg & ~1));
+                result = (reg & 1) ? (v & 0xFF) : ((v >> 8) & 0xFF);
                 break;
-            case CUSTOM_REG_VHPOSR:   /* Horiz/vert position - return 0 */
-                result = 0;
-                break;
+            }
             case CUSTOM_REG_JOY0DAT:  /* Joystick 0 - no movement */
                 result = 0;
                 break;
