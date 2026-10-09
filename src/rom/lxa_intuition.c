@@ -4975,6 +4975,15 @@ VOID _intuition_input_device_events(struct InputEvent *iEvent)
     _intuition_process_input_events(IntuitionBase, iEvent, FALSE);
 }
 
+UWORD _intuition_AddGList ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+                            register struct Window * window __asm("a0"),
+                            register struct Gadget * gadget __asm("a1"),
+                            register UWORD position __asm("d0"),
+                            register WORD numGad __asm("d1"),
+                            register struct Requester * requester __asm("a2"));
+
+/* AddGadget() is AddGList() for one gadget (autodoc); it initialises the
+ * gadget like AddGList() does (GACT_BORDERSNIFF, probe intuition/bordersniff) */
 UWORD _intuition_AddGadget ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Window * window __asm("a0"),
                                                         register struct Gadget * gadget __asm("a1"),
@@ -4988,31 +4997,7 @@ UWORD _intuition_AddGadget ( register struct IntuitionBase * IntuitionBase __asm
 
     /* Ensure gadget is not linked to another list */
     gadget->NextGadget = NULL;
-
-    /* Count existing gadgets and find insertion point */
-    UWORD count = 0;
-    struct Gadget *prev = NULL;
-    struct Gadget *curr = window->FirstGadget;
-    
-    while (curr && count < position) {
-        count++;
-        prev = curr;
-        curr = curr->NextGadget;
-    }
-    
-    /* Insert the gadget */
-    if (!prev) {
-        /* Insert at beginning */
-        gadget->NextGadget = window->FirstGadget;
-        window->FirstGadget = gadget;
-    } else {
-        /* Insert after prev */
-        gadget->NextGadget = prev->NextGadget;
-        prev->NextGadget = gadget;
-    }
-    
-    /* Return the actual position where gadget was inserted */
-    return count;
+    return _intuition_AddGList(IntuitionBase, window, gadget, position, 1, NULL);
 }
 
 BOOL _intuition_ClearDMRequest ( register struct IntuitionBase * IntuitionBase __asm("a6"),
@@ -6472,6 +6457,43 @@ static VOID _layout_custom_gadget(struct Window *window, struct Requester *req, 
 }
 
 /*
+ * OpenWindow widens the borders around the application's border gadgets
+ * (GACT_*BORDER, the window's initial gadget list only; AddGList() does
+ * not resize).  Each border grows to reach the gadget's far edge: a
+ * GACT_BOTTOMBORDER gadget whose top row is y makes BorderBottom at least
+ * Height - y, a GACT_TOPBORDER gadget BorderTop at least y + height, and
+ * likewise for the side borders (probe intuition/bordersniff: SIGMAth's
+ * 10 pixel bottom border, BECKERtext II's 20 pixel top border).  The
+ * window's own size counts, also on a GimmeZeroZero window.
+ */
+static VOID _sniff_window_borders(struct Window *window, WORD *bl, WORD *bt, WORD *br, WORD *bb)
+{
+    struct Gadget *gad;
+
+    for (gad = window->FirstGadget; gad; gad = gad->NextGadget)
+    {
+        LONG x, y, w, h;
+        UWORD act = gad->Activation;
+
+        if ((gad->GadgetType & GTYP_SYSGADGET) ||
+            !(act & (GACT_RIGHTBORDER | GACT_LEFTBORDER | GACT_TOPBORDER | GACT_BOTTOMBORDER)))
+            continue;
+        x = gad->LeftEdge + ((gad->Flags & GFLG_RELRIGHT) ? window->Width - 1 : 0);
+        y = gad->TopEdge + ((gad->Flags & GFLG_RELBOTTOM) ? window->Height - 1 : 0);
+        w = gad->Width + ((gad->Flags & GFLG_RELWIDTH) ? window->Width : 0);
+        h = gad->Height + ((gad->Flags & GFLG_RELHEIGHT) ? window->Height : 0);
+        if ((act & GACT_TOPBORDER) && y + h > *bt)
+            *bt = (WORD)(y + h);
+        if ((act & GACT_BOTTOMBORDER) && window->Height - y > *bb)
+            *bb = (WORD)(window->Height - y);
+        if ((act & GACT_LEFTBORDER) && x + w > *bl)
+            *bl = (WORD)(x + w);
+        if ((act & GACT_RIGHTBORDER) && window->Width - x > *br)
+            *br = (WORD)(window->Width - x);
+    }
+}
+
+/*
  * AmigaOS 3.1 marks every gadget that reaches into the window border with
  * GACT_BORDERSNIFF when it joins a window (reference: dopus-startup and
  * devpac-edit goldens): border gadgets (GACT_*BORDER) and gadgets whose box
@@ -6481,19 +6503,25 @@ static VOID _sniff_border_gadget(struct Window *window, struct Requester *req, s
 {
     LONG l, t, w, h;
 
-    if (!window || req || !gad || (gad->GadgetType & GTYP_SYSGADGET) ||
-        (window->Flags & WFLG_GIMMEZEROZERO))
+    if (!window || req || !gad || (gad->GadgetType & GTYP_SYSGADGET))
         return;
     if (gad->Activation & (GACT_RIGHTBORDER | GACT_LEFTBORDER | GACT_TOPBORDER | GACT_BOTTOMBORDER))
     {
         gad->Activation |= GACT_BORDERSNIFF;
         return;
     }
+    if (window->Flags & WFLG_GIMMEZEROZERO)
+        return;
     _calculate_gadget_box(window, NULL, gad, &l, &t, &w, &h);
+    /* a gadget that lies against a border is marked: it ends at most 3
+     * pixels inside the left/top border's inner edge or starts at most 4
+     * pixels before the right/bottom border's (probe intuition/bordersniff;
+     * DirectoryOpus' lister scroll strips) */
     if (w > 0 && h > 0 &&
-        (l < window->BorderLeft || t < window->BorderTop ||
-         l + w > window->Width - window->BorderRight ||
-         t + h > window->Height - window->BorderBottom))
+        (l + w <= window->BorderLeft + 3 ||
+         t + h <= window->BorderTop + 3 ||
+         l >= window->Width - window->BorderRight - 4 ||
+         t >= window->Height - window->BorderBottom - 4))
         gad->Activation |= GACT_BORDERSNIFF;
 }
 
@@ -10076,8 +10104,18 @@ static void _create_window_sys_gadgets(struct Window *window)
     h = window->BorderTop;
     /* a borderless window keeps its system gadgets; depth, zoom and close
      * are as high as on a bordered window, the drag bar spans the
-     * (thinner) title bar (AmigaOS 3.1, probe dos/conwindow) */
-    gh = borderless ? window->WScreen->WBorTop + _screen_font_height(window->WScreen) + 1 : h;
+     * (thinner) title bar (AmigaOS 3.1, probe dos/conwindow).  A top
+     * border widened around a GACT_TOPBORDER gadget only stretches the
+     * drag bar (probe intuition/bordersniff). */
+    if (borderless)
+        gh = window->WScreen->WBorTop + _screen_font_height(window->WScreen) + 1;
+    else
+    {
+        WORD sbl, sbt, sbr, sbb;
+
+        _window_compute_borders(window->WScreen, window->Flags, window->Title, &sbl, &sbt, &sbr, &sbb);
+        gh = (sbt < h) ? sbt : h;
+    }
 
     if (window->Flags & WFLG_DEPTHGADGET)
     {
@@ -10736,6 +10774,7 @@ struct Window * _intuition_OpenWindow ( register struct IntuitionBase * Intuitio
         WORD bl, bt, br, bb;
 
         _window_compute_borders(screen, window->Flags, window->Title, &bl, &bt, &br, &bb);
+        _sniff_window_borders(window, &bl, &bt, &br, &bb);
         window->BorderLeft = bl;
         window->BorderTop = bt;
         window->BorderRight = br;

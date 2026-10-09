@@ -175,6 +175,9 @@ def main(argv=None):
         if names:
             ref_task = max(set(names), key=names.count)
             rt = [dict(r, task="<app>") if r.get("task") == ref_task else r for r in rt]
+            # an application that renames its task (SIGMAth) carries the same
+            # name on lxa, where its launcher task is otherwise "exec bootstrap"
+            lt = [dict(r, task="<app>") if r.get("task") == ref_task else r for r in lt]
             task = "<app>"
     res = diff(reduce_calls(lt, task), reduce_calls(rt, task))
     print(json.dumps(res, indent=1) if a.json else report(res))

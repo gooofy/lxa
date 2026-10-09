@@ -139,11 +139,12 @@ protected:
     /* Convenience accessors so tests read like before */
     lxa_window_info_t& window_info = s_window_info;
 
+    /* The same emulated time in real 50 Hz frames (Phase 244): extra
+     * VBlanks every 50000 cycles made MaxonBASIC's editor drop typed keys
+     * depending on unrelated ROM timing. */
     void RunCyclesWithVBlank(int iterations = 20, int cycles_per_iteration = 50000) {
-        for (int i = 0; i < iterations; i++) {
-            lxa_trigger_vblank();
-            lxa_run_cycles(cycles_per_iteration);
-        }
+        long long cycles = (long long)iterations * cycles_per_iteration;
+        lxa_run_frames((int)((cycles + 499999) / 500000));
     }
 
     void Click(int x, int y, int button = LXA_MOUSE_LEFT) {
