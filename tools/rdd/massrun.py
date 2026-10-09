@@ -42,6 +42,9 @@ FISH = os.environ.get("LXA_FISH_DIR", os.path.expanduser("~/media/sys/amiga/pd/u
 OUT = os.path.join(ROOT, "build", "rdd", "massrun")
 HUNK_HEADER = b"\x00\x00\x03\xf3"
 MAX_SIZE = 2 * 1024 * 1024
+# the reference agent's WAIT_EXIT command arrives a serial round trip after
+# RUN returned: the program has a little more than --seconds there
+LXA_MARGIN_FRAMES = int(os.environ.get("LXA_MASSRUN_MARGIN", "10"))
 
 
 def _key(rel):
@@ -103,12 +106,23 @@ def run_lxa_one(rel, root, frames, build=None):
             lxa.assign("FONTS", wb31_fonts)
         lxa.assign("FISH", root)
         lxa.run("FISH:" + rel.replace(os.sep, "/"), "")
+        # the reference's run time starts when RUN returns, i.e. after
+        # LoadSeg(); on lxa booting and loading take emulated time too, so
+        # the budget starts once the program is loaded (Phase 237b: Fish
+        # DumpWB sleeps Delay(300), exactly the run time)
+        boot = 0
+        while not lxa.program_loaded() and lxa.running() and boot < 500:
+            lxa.frames(1)
+            boot += 1
+        res["load_frames"] = boot
         step = 10
-        for _ in range(0, frames, step):
+        for _ in range(0, frames + LXA_MARGIN_FRAMES, step):
             lxa.frames(step)
-            if not lxa.running():
+            if lxa.program_exited():
                 break
-        res["running"] = bool(lxa.running())
+        # as the reference's WAIT_EXIT: the program itself has returned
+        # (tasks it started may live on)
+        res["running"] = not lxa.program_exited()
         res["rc"] = None if res["running"] else lxa.exit_code()
         res["windows"] = lxa.lib.lxa_get_window_count()
         res["exceptions"] = lxa.exceptions()
@@ -285,6 +299,19 @@ def program_kind(rel):
     return "non-program" if NONPROGRAM_RX.search(rel) else "program"
 
 
+# Programs whose outcome depends on the bytes of the Kickstart ROM or of low
+# memory (they read or write through a NULL pointer into it): neither lxa
+# nor the reference outcome says anything about compatibility.  Each entry
+# was established by disassembling the program.
+MEMORY_DEPENDENT = {
+    "fish-0363/WO/wo1.0d": "reads IntuitionBase->ActiveScreen through a NULL IntuitionBase "
+                           "(Kickstart code via the vector table, Phase 237)",
+    "fish-0843/ParM/2.0/SetMouse": "parm.library's handler process runs (priority 5) before "
+                                   "CreateNewProc() returns and stores its port: it calls "
+                                   "WaitPort(NULL)/GetMsg(NULL) on the vector table (Phase 237b)",
+}
+
+
 def crash_class(e):
     """exception class: vector, plus the LVO for calls through a NULL base"""
     pc = e.get("pc", 0)
@@ -308,7 +335,8 @@ def build_report(out, md=None):
                 return json.load(f)
         lx, rf = load("lxa"), load("ref")
         cl, cr = classify(lx), classify(rf)
-        row = {"id": p["id"], "rel": p["rel"], "lxa": cl, "ref": cr, "kind": program_kind(p["rel"]),
+        kind = "memory-dependent" if p["rel"] in MEMORY_DEPENDENT else program_kind(p["rel"])
+        row = {"id": p["id"], "rel": p["rel"], "lxa": cl, "ref": cr, "kind": kind,
                "lxa_rc": (lx or {}).get("rc"), "ref_rc": (rf or {}).get("rc")}
         for u in (lx or {}).get("unimplemented", []):
             k = "%s/%s" % (u["lib"], u["function"])
@@ -327,6 +355,8 @@ def build_report(out, md=None):
     def rank(r):
         if r["lxa"] in ("emulator-crash", "emulator-hang"):
             return 0
+        if r["kind"] == "memory-dependent":
+            return 7 if r["lxa"] != r["ref"] else 9
         if r["lxa"] == "crash" and r["ref"] not in ("crash", "noload", "missing"):
             return 1 if r["kind"] == "program" else 6
         if r["lxa"] == "hang" and r["ref"] in ("exit", "window"):
@@ -383,6 +413,10 @@ def _write_md(path, summary, rows, rank):
     L += ["", "## Non-programs that crash on lxa only", "",
           "Libraries, devices, keymaps and modules run as commands: the outcome depends on memory contents.", ""]
     L += ["- %s (%s)" % (r["rel"], crash_class(r.get("exception") or {})) for r in rows if rank(r) == 6]
+    L += ["", "## Memory-dependent programs", "",
+          "Their outcome depends on the bytes of the Kickstart ROM or low memory (`MEMORY_DEPENDENT` in massrun.py).", ""]
+    L += ["- %s (lxa %s, 3.1 %s): %s" % (r["rel"], r["lxa"], r["ref"], MEMORY_DEPENDENT[r["rel"]])
+          for r in rows if rank(r) == 7]
     L += ["", "## lxa-only hangs and missing windows", "", "| program | lxa | AmigaOS 3.1 |", "|---|---|---|"]
     L += ["| %s | %s | %s |" % (r["rel"], r["lxa"], r["ref"]) for r in rows if rank(r) in (2, 3)]
     L += ["", "## Exit code and output differences", "",
@@ -413,6 +447,10 @@ def main(argv=None):
     a = ap.parse_args(argv)
     if a.build:
         a.build = os.path.abspath(a.build)
+    # the lxa side runs its workers with cwd=ROOT
+    a.out = os.path.abspath(a.out)
+    if a.result:
+        a.result = os.path.abspath(a.result)
     if a.cmd == "lxa-one":
         res = run_lxa_one(a.rel, a.root, a.frames, a.build)
         with open(a.result, "w") as f:      # not stdout: the program writes there too

@@ -4114,6 +4114,16 @@ int _dos_waitforchar(uint32_t fh68k, uint32_t timeout_us)
         return 0;
     }
     
+    /* a handle that is no host file (NIL:, a handler's, a garbage
+     * pointer, an fd out of range): no input arrives, the timeout elapses.  FD_SET() must not
+     * see such an fd (Fred Fish Xlisp: host SIGBUS, Phase 237b). */
+    if ((kind != FILE_KIND_REGULAR && kind != FILE_KIND_CONSOLE) || fd < 0 || fd >= FD_SETSIZE)
+    {
+        if (g_console_stdin_detached)
+            vclock_advance_us(timeout_us);
+        return 0;
+    }
+
     /* Use select() to check for available input */
     fd_set readfds;
     FD_ZERO(&readfds);

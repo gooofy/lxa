@@ -19,6 +19,7 @@
 
 void lxa_reset_held_tasks(void);   /* lxa_dos_host.c */
 extern bool g_program_exited;      /* lxa_dispatch.c */
+extern bool g_program_loaded;      /* lxa_dispatch.c */
 #include "lxa_unimpl.h"
 
 #include <stdio.h>
@@ -512,6 +513,7 @@ int lxa_init(const lxa_config_t *config)
     lxa_unimpl_reset();
     lxa_reset_held_tasks();
     g_program_exited = false;
+    g_program_loaded = false;
     lxa_unimpl_set_strict(config->strict_unimplemented);
     s_vblank_count = 0;
     s_cycles_since_auto_vblank = 0;
@@ -1543,6 +1545,13 @@ bool lxa_wait_windows(int count, int timeout_ms)
 bool lxa_program_exited(void)
 {
     return g_program_exited || !g_running;
+}
+
+/* Phase 237b: the program has been loaded (LoadSeg succeeded) and is about
+ * to start - the moment the reference agent's RUN returns. */
+bool lxa_program_loaded(void)
+{
+    return g_program_loaded;
 }
 
 bool lxa_wait_program_exit(int timeout_ms)

@@ -139,6 +139,7 @@ class Lxa:
             "lxa_add_drive": (ctypes.c_bool, [ctypes.c_char_p, ctypes.c_char_p]),
             "lxa_get_exception_log": (ctypes.c_int, [ctypes.c_void_p, ctypes.c_int]),
             "lxa_program_exited": (ctypes.c_bool, []),
+            "lxa_program_loaded": (ctypes.c_bool, []),
             "lxa_wait_program_exit": (ctypes.c_bool, [ctypes.c_int]),
             "lxa_trace_start": (ctypes.c_bool, [ctypes.c_char_p, ctypes.c_char_p]),
             "lxa_trace_stop": (None, []),
@@ -280,6 +281,11 @@ class Lxa:
     def program_exited(self):
         """the launched program returned (its other tasks may still run)"""
         return self.lib.lxa_program_exited()
+
+    def program_loaded(self):
+        """the launched program was loaded and is about to start (where the
+        reference agent's RUN returns)"""
+        return self.lib.lxa_program_loaded()
 
     def wait_program_exit(self, timeout_ms=5000):
         return self.lib.lxa_wait_program_exit(timeout_ms)

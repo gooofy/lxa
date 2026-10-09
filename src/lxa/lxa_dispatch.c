@@ -15,6 +15,7 @@
 #include "lxa_override.h"
 
 bool g_program_exited = false;   /* Phase 220: lxa_program_exited() */
+bool g_program_loaded = false;   /* Phase 237b: lxa_program_loaded() */
 
 /* Forward declarations for float/double helpers defined later in this file */
 static float ffp_to_host_float(uint32_t raw);
@@ -608,6 +609,7 @@ int op_illg(int level)
 
         case EMU_CALL_LOADED:
         {
+            g_program_loaded = true;   /* LoadSeg() of the program succeeded */
             /* Handle pending breakpoints */
             for (pending_bp_t *pbp = _g_pending_bps; pbp; pbp=pbp->next)
             {

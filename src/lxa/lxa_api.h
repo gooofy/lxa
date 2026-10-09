@@ -613,6 +613,13 @@ bool lxa_wait_exit(int timeout_ms);
 bool lxa_program_exited(void);
 bool lxa_wait_program_exit(int timeout_ms);
 
+/**
+ * Phase 237b: has the program been loaded (LoadSeg succeeded, about to be
+ * started)?  The reference agent's RUN returns at this point, so run-time
+ * budgets measured from here are equal on both backends.
+ */
+bool lxa_program_loaded(void);
+
 /* ========== Output Capture API ========== */
 
 /*
