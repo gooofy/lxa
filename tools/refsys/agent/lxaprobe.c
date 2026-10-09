@@ -265,7 +265,19 @@ static volatile BOOL app_exited;
 /* NP_ExitCode: called in the dying process with the return code in d0 */
 static LONG exit_hook(LONG rc __asm("d0"), LONG data __asm("d1"))
 {
+    struct Process *me = (struct Process *)FindTask(NULL);
+
     (void)data;
+    /* the program's segments are the CLI's cli_Module, as when a shell
+     * runs it: a program that detaches (CreateProc() of its own code,
+     * Maxon/SAS "detach" startup) clears cli_Module to keep them */
+    if (me->pr_CLI)
+    {
+        struct CommandLineInterface *cli = (struct CommandLineInterface *)BADDR(me->pr_CLI);
+        if (cli->cli_Module)
+            UnLoadSeg(cli->cli_Module);
+        cli->cli_Module = 0;
+    }
     app_rc = rc;
     app_exited = TRUE;
     return rc;
@@ -421,7 +433,7 @@ static void cmd_run(char *args)
          * C startup codes (Maxon, SAS) derive their stack bound from it */
         Forbid();
         app_proc = CreateNewProcTags(NP_Seglist, (ULONG)seg,
-                                     NP_FreeSeglist, TRUE,
+                                     NP_FreeSeglist, FALSE,   /* cli_Module: see exit_hook */
                                      NP_Name, (ULONG)FilePart((STRPTR)prog),
                                      NP_CurrentDir, (ULONG)dir,
                                      NP_HomeDir, (ULONG)(dir ? DupLock(dir) : 0),
@@ -438,7 +450,11 @@ static void cmd_run(char *args)
                                      NP_ExitCode, (ULONG)exit_hook,
                                      TAG_DONE);
         if (app_proc && app_proc->pr_CLI)
-            ((struct CommandLineInterface *)BADDR(app_proc->pr_CLI))->cli_DefaultStack = stack / 4;
+        {
+            struct CommandLineInterface *cli = (struct CommandLineInterface *)BADDR(app_proc->pr_CLI);
+            cli->cli_DefaultStack = stack / 4;
+            cli->cli_Module = seg;
+        }
         Permit();
     }
     if (!app_proc)
