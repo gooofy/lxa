@@ -84,7 +84,8 @@ static inline uint8_t mread8(uint32_t address)
         /* Extended ROM area (A3000/A4000) - return 0 to indicate no extended ROM */
         return 0;
     }
-    else if ((address >= 0x00A00000) && (address < CUSTOM_START))
+    else if ((address >= 0x00A00000) && (address < CUSTOM_START) &&
+             !((address >= CIA_START) && (address <= CIA_END)))   /* CIAs below (Phase 237, exec/buttons) */
     {
         /* RAM overflow area (10MB - just before custom chips at 0xDFF000) - some apps allocate
          * to end of RAM and overflow into what would be expansion RAM, slow RAM, or CIA areas.
@@ -267,7 +268,8 @@ static inline void mwrite8(uint32_t address, uint8_t value)
         uint32_t addr = address - RAM_START;
         g_ram[addr] = value;
     }
-    else if ((address >= 0x00A00000) && (address < CUSTOM_START))
+    else if ((address >= 0x00A00000) && (address < CUSTOM_START) &&
+             !((address >= CIA_START) && (address <= CIA_END)))   /* CIAs below (Phase 237, exec/buttons) */
     {
         /* RAM overflow area (10MB - just before custom chips at 0xDFF000) - some apps allocate
          * to end of RAM and overflow into what would be expansion RAM, slow RAM, or CIA areas.
