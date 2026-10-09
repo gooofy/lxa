@@ -5908,6 +5908,18 @@ void coldstart (void)
     p = (uint32_t*) 0x000000b8; *p = (uint32_t) handleTrap14;  // trap #14
     /* trap #15 (0xBC) is reserved for EMU_CALL - don't set it here */
 
+    /* the rest of the table (vectors 12..63): AmigaOS fills all of it
+     * (Phase 237, probe exec/lowmem) */
+    for (p = (uint32_t *) 0x00000030; p < (uint32_t *) 0x00000100; p++)
+    {
+        if (p == (uint32_t *) 0x000000bc || *p)
+            continue;
+        if (p >= (uint32_t *) 0x00000060 && p < (uint32_t *) 0x00000080)
+            *p = (uint32_t) handleIntIgnore;    /* spurious, autovectors 1-7 */
+        else
+            *p = (uint32_t) handleVecGeneric;
+    }
+
     //__asm("    ori.w  #0x0700, sr;\n");   // disable interrupts
     //__asm("andi.w  #0xdfff, sr\n");   // disable supervisor bit
     //__asm("andi.w  #0xdfff, sr\n");   // disable supervisor bit

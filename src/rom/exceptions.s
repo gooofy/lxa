@@ -369,6 +369,29 @@ _handleVec11:
     move.l      #11, -(a7)                           | exception number on top of the frame
     bra         _dispatchTrap
 
+    /*
+     * Every other CPU exception vector (Phase 237, probe exec/lowmem: AmigaOS
+     * points the whole table into ROM; programs that read through a NULL
+     * pointer see it).  The exception number comes from the format/vector
+     * word of the 68010+ frame.  Stack: [d0][slot][SR.w][PC.l][fmt.w]
+     */
+    .globl _handleVecGeneric
+_handleVecGeneric:
+    subq.l      #4, a7                              | slot for the exception number
+    move.l      d0, -(a7)
+    moveq       #0, d0
+    move.w      14(a7), d0                          | format/vector offset word
+    and.w       #0x0fff, d0
+    lsr.w       #2, d0
+    move.l      d0, 4(a7)
+    move.l      (a7)+, d0
+    bra         _dispatchTrap
+
+    /* spurious interrupt and the autovectors exec does not use */
+    .globl _handleIntIgnore
+_handleIntIgnore:
+    rte
+
     .globl _handleTrap0
 _handleTrap0:
     move.l      #32, -(a7)
