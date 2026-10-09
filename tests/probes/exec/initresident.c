@@ -2,7 +2,9 @@
  * Probe (Phase 222g): InitResident() with an RTF_AUTOINIT library resident -
  * which Library fields come from the Resident tag (rt_Name, rt_Version,
  * rt_IdString, rt_Type, rt_Pri) and which only from the data table, and
- * whether the library is added to SysBase->LibList.
+ * whether the library is added to SysBase->LibList.  Phase 237: a resident
+ * of a type exec does not keep a list for (Fish JukeBox: 0xFD modules) is
+ * still made and returned.
  */
 #include <exec/types.h>
 #include <exec/libraries.h>
@@ -88,6 +90,22 @@ static struct Resident res_c = {
     RTC_MATCHWORD, &res_c, &res_c + 1, RTF_AUTOINIT, 7, NT_LIBRARY, 5, name_c, id_c, &init_c
 };
 
+static char name_d[] = "probeinitd.module";
+static char id_d[] = "probeinitd 7.1 (1.1.24)\r\n";
+static struct IrInitTable init_d = { sizeof(struct Library) + 8, functab, NULL, NULL };
+static struct Resident res_d = {
+    RTC_MATCHWORD, &res_d, &res_d + 1, RTF_AUTOINIT, 7, 0xfd, 0, name_d, id_d, &init_d
+};
+
+static int in_list(struct List *l, struct Node *x)
+{
+    struct Node *n;
+    for (n = l->lh_Head; n->ln_Succ; n = n->ln_Succ)
+        if (n == x)
+            return 1;
+    return 0;
+}
+
 static void pstr(const char *s)
 {
     if (!s) {
@@ -165,5 +183,31 @@ int main(void)
     probe_s(" lib_Flags ");
     probe_dec(ir_seen_flags);
     probe_ch('\n');
+    {
+        struct Library *lib = (struct Library *)InitResident(&res_d, 0);
+        P_SECTION("type 0xfd (no list)");
+        probe_s("result ");
+        probe_s(lib ? "base" : "NULL");
+        probe_ch('\n');
+        if (lib) {
+            probe_s("ln_Type ");
+            probe_dec(lib->lib_Node.ln_Type);
+            probe_s(" ln_Name ");
+            pstr(lib->lib_Node.ln_Name);
+            probe_s(" lib_Version ");
+            probe_dec(lib->lib_Version);
+            probe_s(" lib_NegSize ");
+            probe_dec(lib->lib_NegSize);
+            probe_s(" lib_PosSize ");
+            probe_dec(lib->lib_PosSize);
+            probe_ch('\n');
+            Forbid();
+            probe_s("in a system list ");
+            probe_s(in_list(&SysBase->LibList, &lib->lib_Node) || in_list(&SysBase->DeviceList, &lib->lib_Node) ||
+                    in_list(&SysBase->ResourceList, &lib->lib_Node) ? "yes" : "no");
+            Permit();
+            probe_ch('\n');
+        }
+    }
     return 0;
 }

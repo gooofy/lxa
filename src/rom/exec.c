@@ -1135,15 +1135,10 @@ APTR _exec_InitResident ( register struct ExecBase * SysBase __asm("a6"),
             struct List *target_list = exec_get_resident_target_list(SysBase, ___resident->rt_Type);
             struct Library *libBase = NULL;
 
-            if (target_list)
-            {
-                libBase = exec_register_resident_node(SysBase, target_list, ___resident, ___segList);
-            }
-            else
-            {
-                LPRINTF (LOG_WARNING, "_exec: InitResident: unknown type %d for %s\n",
-                         ___resident->rt_Type, ___resident->rt_Name);
-            }
+            /* a type without a system list (Fish JukeBox's 0xFD player
+             * modules) is made all the same and returned, not added
+             * anywhere (AmigaOS 3.1, probe exec/initresident) */
+            libBase = exec_register_resident_node(SysBase, target_list, ___resident, ___segList);
 
             result = libBase;
     }
