@@ -328,6 +328,22 @@
   "symbol": "_amigaguide_GetAmigaGuideString"
  },
  {
+  "lib": "asl",
+  "function": "AslRequest",
+  "kind": "partial",
+  "detail": "partial: simplified file requester - own drawing instead of 3.1's GadTools layout, no Control menu, at most 100 entries, no volume list/pattern filtering as on 3.1 (Phase 238)",
+  "file": "src/rom/lxa_asl.c",
+  "symbol": "do_file_request"
+ },
+ {
+  "lib": "asl",
+  "function": "AslRequest",
+  "kind": "partial",
+  "detail": "partial: simplified font requester - own drawing instead of 3.1's GadTools layout, no Control menu, no size list/style/pen/draw-mode gadgets as on 3.1 (Phase 238)",
+  "file": "src/rom/lxa_asl.c",
+  "symbol": "do_font_request"
+ },
+ {
   "lib": "commodities",
   "function": "CreateCxObj",
   "kind": "stub",

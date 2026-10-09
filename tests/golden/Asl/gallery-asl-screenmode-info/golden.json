@@ -1,0 +1,30 @@
+{
+ "app": "Asl",
+ "disabled": null,
+ "lxa_version": "0.11.29",
+ "note": "Workbench desktop icons (no LoadWB on lxa)",
+ "promoted": "2026-10-09",
+ "reference": "AmigaOS 3.1 (KS 40.70), profile aga",
+ "requires_apps": false,
+ "scenario": "gallery-asl-screenmode-info",
+ "snapshots": {
+  "menu0": {
+   "known_tree_diffs": [],
+   "pixel_budget": 583,
+   "pixel_phase": 264,
+   "stdout_known_diff": null
+  },
+  "requester": {
+   "known_tree_diffs": [],
+   "pixel_budget": 1234,
+   "pixel_phase": 264,
+   "stdout_known_diff": null
+  },
+  "result": {
+   "known_tree_diffs": [],
+   "pixel_budget": 0,
+   "pixel_phase": null,
+   "stdout_known_diff": null
+  }
+ }
+}

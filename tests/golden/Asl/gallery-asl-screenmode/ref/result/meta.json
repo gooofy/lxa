@@ -1,21 +1,15 @@
 {
  "backend": "ref",
  "files": [
-  "screen.png",
-  "palette.json",
   "tree.json",
   "text.jsonl",
   "stdout.txt"
  ],
  "profile": "aga",
  "refsys_checksum": "22a2f4795449679c-b6e8304c5f46",
- "scenario": "dpaintv-startup",
+ "scenario": "gallery-asl-screenmode",
  "schema": "lxa-bundle/1",
- "screen": {
-  "depth": 2,
-  "height": 256,
-  "width": 640
- },
- "snapshot": "startup",
+ "screen": null,
+ "snapshot": "result",
  "window": null
 }

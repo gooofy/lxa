@@ -432,6 +432,20 @@ static void gt_lv_clamp_top(struct GTGadgetData *data)
         data->lv_top = 0;
 }
 
+/* GTLV_MakeVisible: minimal scrolling that brings the item into view
+ * (autodoc; AmigaOS 3.1 shows asl's selected mode on the last line) */
+static void gt_lv_make_visible(struct GTGadgetData *data, LONG item)
+{
+    LONG vis = gt_lv_visible(data);
+
+    if (item < 0)
+        return;
+    if (item < data->lv_top)
+        data->lv_top = (WORD)item;
+    else if (vis > 0 && item >= data->lv_top + vis)
+        data->lv_top = (WORD)(item - vis + 1);
+}
+
 static void gt_scroller_update_prop(struct GTGadgetData *data)
 {
     struct PropInfo *pi = data->main ? (struct PropInfo *)data->main->SpecialInfo : NULL;
@@ -1929,6 +1943,8 @@ struct Gadget * _gadtools_CreateGadgetA ( register struct GadToolsBase *GadTools
             pi = gt_new_prop(&b, data->lv_prop, TRUE);
             if (pi && mg)
             {
+                if (gt_find_tagitem(GTLV_MakeVisible, taglist))
+                    gt_lv_make_visible(data, (LONG)GetTagData(GTLV_MakeVisible, 0, taglist));
                 gt_lv_clamp_top(data);
                 gt_lv_update_prop(data);
             }
@@ -3140,7 +3156,7 @@ void _gadtools_GT_SetGadgetAttrsA ( register struct GadToolsBase *GadToolsBase _
                 tag = gt_find_tagitem(GTLV_MakeVisible, taglist);
                 if (tag)
                 {
-                    data->lv_top = (WORD)tag->ti_Data;
+                    gt_lv_make_visible(data, (LONG)tag->ti_Data);
                     needs_refresh = TRUE;
                 }
                 if (needs_refresh)
