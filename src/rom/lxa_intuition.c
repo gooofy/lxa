@@ -180,6 +180,7 @@ struct LXAWindowState {
     BOOL zip_valid;
     struct MsgPort *console_port;       /* attached console.device unit's input port */
     struct MsgPort *console_reply_port; /* Intuition-owned reply port for it */
+    struct Window *prev_active;   /* active when this window opened active: active again when it closes */
 };
 
 /* the input events Intuition passes on to an attached console.device unit */
@@ -468,14 +469,25 @@ struct LXAPubScreenNode {
 };
 
 /* AmigaOS 3.1 reference: a custom screen opened without SA_Pens keeps the
- * pre-V36 pens and has DRIF_NEWLOOK clear (dri_Pens 0 1 1 1 1 1 0 0 1 0 1 1). */
+ * pre-V36 pens and has DRIF_NEWLOOK clear. */
 static VOID _intuition_set_oldlook_pens(struct LXAPubScreenNode *entry)
 {
-    static const UBYTE old_pens[NUMDRIPENS] = { 0, 1, 1, 1, 1, 1, 0, 0, 1, 0, 1, 1 };
+    /* AmigaOS 3.1 (tests/probes/intuition/screens): the old look pens come
+     * from the screen's DetailPen D and BlockPen B: DETAILPEN = D,
+     * BLOCKPEN = B, BACKGROUNDPEN = 0, FILLTEXTPEN and BARDETAILPEN = D and
+     * every other pen = B - unless B is 0, then those two groups swap. */
+    struct Screen *s = entry->pub.psn_Screen;
+    UWORD d = s ? s->DetailPen : 0, b = s ? s->BlockPen : 1;
+    UWORD fg = b ? b : d, detail = b ? d : b;
     UWORD i;
 
     for (i = 0; i < NUMDRIPENS; i++)
-        entry->pens[i] = (i < sizeof(old_pens)) ? old_pens[i] : 1;
+        entry->pens[i] = fg;
+    entry->pens[DETAILPEN] = d;
+    entry->pens[BLOCKPEN] = b;
+    entry->pens[BACKGROUNDPEN] = 0;
+    entry->pens[FILLTEXTPEN] = detail;
+    entry->pens[BARDETAILPEN] = detail;
     entry->pens[NUMDRIPENS] = (UWORD)~0;
     entry->drawInfo.dri_Flags &= ~DRIF_NEWLOOK;
 }
@@ -1413,6 +1425,80 @@ static BOOL _post_idcmp_message(struct Window *window, ULONG class, UWORD code,
 static void _draw_bevel_box(struct RastPort *rp, WORD left, WORD top, WORD width, WORD height, 
                            ULONG flags, const struct DrawInfo *drInfo);
 
+/*
+ * Proportional gadget geometry, as AmigaOS 3.1 lays it out
+ * (tests/probes/intuition/propgad.ref.out):
+ *  - the container is the whole gadget box (PropInfo CWidth/CHeight);
+ *  - the knob moves inside it, inset by LeftBorder/TopBorder on each side:
+ *    0/0 with PROPBORDERLESS, 1/1 with PROPNEWLOOK, 4/2 otherwise;
+ *  - along a free axis the knob is range * Body / MAXBODY + 1 pixels
+ *    (at least KNOBHMIN/KNOBVMIN, at most the range), otherwise the range;
+ *  - its offset is (range - knob) * Pot / MAXPOT.
+ */
+struct PropLayout
+{
+    WORD lb, tb;        /* knob range inset */
+    WORD rw, rh;        /* knob range */
+    WORD kx, ky;        /* knob offset in the range */
+    WORD kw, kh;        /* knob size */
+};
+
+static WORD _prop_knob_size(WORD range, UWORD body, BOOL free_axis, WORD minimum)
+{
+    WORD k;
+
+    if (range <= 0)
+        return 0;
+    if (!free_axis)
+        return range;
+    k = (WORD)(((ULONG)range * (ULONG)body) / MAXBODY + 1);
+    if (k < minimum)
+        k = minimum;
+    if (k > range)
+        k = range;
+    return k;
+}
+
+static void _prop_layout(const struct PropInfo *pi, WORD width, WORD height, struct PropLayout *pl)
+{
+    if (pi->Flags & PROPBORDERLESS)
+        pl->lb = pl->tb = 0;
+    else if (pi->Flags & PROPNEWLOOK)
+        pl->lb = pl->tb = 1;
+    else
+    {
+        pl->lb = 4;
+        pl->tb = 2;
+    }
+    pl->rw = width - 2 * pl->lb;
+    pl->rh = height - 2 * pl->tb;
+    if (pl->rw < 0)
+        pl->rw = 0;
+    if (pl->rh < 0)
+        pl->rh = 0;
+    pl->kw = _prop_knob_size(pl->rw, pi->HorizBody, (pi->Flags & FREEHORIZ) != 0, KNOBHMIN);
+    pl->kh = _prop_knob_size(pl->rh, pi->VertBody, (pi->Flags & FREEVERT) != 0, KNOBVMIN);
+    pl->kx = (WORD)(((ULONG)(pl->rw - pl->kw) * (ULONG)pi->HorizPot) / MAXPOT);
+    pl->ky = (WORD)(((ULONG)(pl->rh - pl->kh) * (ULONG)pi->VertPot) / MAXPOT);
+}
+
+/* the level range of a GadTools slider (lxa_gadtools.c); FALSE for other gadgets */
+extern BOOL _gadtools_GetSliderRange(register struct Gadget *gad __asm("a0"),
+                                     register LONG *min __asm("a1"),
+                                     register LONG *max __asm("a2"));
+
+/* the level a horizontal slider reports for its current HorizPot */
+static LONG _prop_slider_level(struct Gadget *gad, const struct PropInfo *pi)
+{
+    LONG sl_min = 0, sl_max = 0;
+
+    if (!_gadtools_GetSliderRange(gad, &sl_min, &sl_max))
+        return 0;
+    if (sl_max > sl_min)
+        return sl_min + ((LONG)pi->HorizPot * (sl_max - sl_min) + 0x7FFF) / 0xFFFF;
+    return sl_min;
+}
+
 /* Forward declarations for gadget rendering helpers */
 static void _complement_gadget_area(struct Window *window, struct Requester *req, struct Gadget *gad);
 static void _render_gadget(struct Window *window, struct Requester *req, struct Gadget *gad);
@@ -1475,7 +1561,76 @@ VOID _intuition_SizeWindow(register struct IntuitionBase *IntuitionBase __asm("a
 static struct Gadget *g_active_gadget;
 static struct Window *g_active_window;
 static WORD g_prop_click_offset;
-static LONG g_gt_down_code;      /* GADGETDOWN code of a GadTools MX click */
+
+/* screen x of the knob range and the layout of an AUTOKNOB prop gadget */
+static void _prop_screen_layout(struct Window *window, struct Gadget *gad, struct PropInfo *pi,
+                                WORD *range_left, struct PropLayout *pl)
+{
+    LONG l, t, w, h;
+
+    _calculate_gadget_box(window, NULL, gad, &l, &t, &w, &h);
+    _prop_layout(pi, (WORD)w, (WORD)h, pl);
+    *range_left = (WORD)(window->LeftEdge + l + pl->lb);
+}
+
+/* set HorizPot so that the knob's left edge lies at screen x knob_left */
+static void _prop_set_hpot(struct PropInfo *pi, const struct PropLayout *pl, WORD range_left, WORD knob_left)
+{
+    WORD max_move = pl->rw - pl->kw;
+
+    if (knob_left < range_left)
+        knob_left = range_left;
+    if (knob_left > range_left + max_move)
+        knob_left = range_left + max_move;
+    pi->HorizPot = max_move > 0 ? (UWORD)(((ULONG)(knob_left - range_left) * MAXPOT) / (ULONG)max_move) : 0;
+}
+
+/* SELECTDOWN on an AUTOKNOB prop gadget: remember where the knob was
+ * grabbed; a click beside the knob centres it on the pointer */
+static void _prop_select_down(struct Window *window, struct Gadget *gad, WORD mouseX)
+{
+    struct PropInfo *pi = (struct PropInfo *)gad->SpecialInfo;
+    struct PropLayout pl;
+    WORD range_left, knob_left;
+
+    if (!pi || !(pi->Flags & AUTOKNOB))
+        return;
+    _prop_screen_layout(window, gad, pi, &range_left, &pl);
+    knob_left = range_left + pl.kx;
+    if (mouseX >= knob_left && mouseX < knob_left + pl.kw)
+    {
+        g_prop_click_offset = mouseX - knob_left;
+        return;
+    }
+    g_prop_click_offset = pl.kw / 2;
+    _prop_set_hpot(pi, &pl, range_left, mouseX - g_prop_click_offset);
+    _gadtools_UpdateSliderLevelDisplay(gad, _prop_slider_level(gad, pi));
+    _render_gadget(window, NULL, gad);
+}
+
+/* pointer moved while a horizontal AUTOKNOB prop gadget is held: TRUE when
+ * the pot changed (the gadget is then redrawn and *level is set) */
+static BOOL _prop_drag(struct Window *window, struct Gadget *gad, WORD mouseX, LONG *level)
+{
+    struct PropInfo *pi = (struct PropInfo *)gad->SpecialInfo;
+    struct PropLayout pl;
+    WORD range_left;
+    UWORD old_pot;
+
+    if (!pi || !(pi->Flags & AUTOKNOB) || !(pi->Flags & FREEHORIZ))
+        return FALSE;
+    old_pot = pi->HorizPot;
+    _prop_screen_layout(window, gad, pi, &range_left, &pl);
+    _prop_set_hpot(pi, &pl, range_left, mouseX - g_prop_click_offset);
+    if (pi->HorizPot == old_pot)
+        return FALSE;
+    _render_gadget(window, NULL, gad);
+    *level = _prop_slider_level(gad, pi);
+    _gadtools_UpdateSliderLevelDisplay(gad, *level);
+    return TRUE;
+}
+
+static LONG g_gt_down_code;     /* GADGETDOWN code of a GadTools MX click */
 static UWORD g_intuitick_counter;   /* VBlank counter for IDCMP_INTUITICKS (fires every 10th VBlank) */
 static UWORD g_current_qualifier;   /* last known input qualifier (for INTUITICKS messages) */
 static BOOL g_menu_mode;
@@ -4033,66 +4188,7 @@ static VOID _intuition_handle_mouse_button_event(struct IntuitionBase *Intuition
                 }
 
                 if ((gad->GadgetType & GTYP_GTYPEMASK) == GTYP_PROPGADGET)
-                {
-                    struct PropInfo *pi = (struct PropInfo *)gad->SpecialInfo;
-                    if (pi && (pi->Flags & AUTOKNOB))
-                    {
-                        WORD gadAbsL = gad->LeftEdge + window->LeftEdge;
-                        WORD containerL = gadAbsL + 1;
-                        WORD containerW = gad->Width - 2;
-                        WORD knobW;
-                        WORD maxMoveX;
-                        WORD knobX;
-
-                        if (pi->Flags & FREEHORIZ)
-                            knobW = (WORD)(((ULONG)containerW * (ULONG)pi->HorizBody) / 0xFFFF);
-                        else
-                            knobW = containerW;
-                        if (knobW < 6) knobW = 6;
-                        if (knobW > containerW) knobW = containerW;
-
-                        maxMoveX = containerW - knobW;
-                        if (maxMoveX < 0) maxMoveX = 0;
-                        knobX = containerL + (WORD)(((ULONG)maxMoveX * (ULONG)pi->HorizPot) / 0xFFFF);
-
-                        if (mouseX >= knobX && mouseX < knobX + knobW)
-                        {
-                            g_prop_click_offset = mouseX - knobX;
-                        }
-                        else
-                        {
-                            g_prop_click_offset = knobW / 2;
-                            {
-                                WORD newKnobL = mouseX - g_prop_click_offset;
-                                if (newKnobL < containerL) newKnobL = containerL;
-                                if (newKnobL > containerL + maxMoveX)
-                                    newKnobL = containerL + maxMoveX;
-                                if (maxMoveX > 0)
-                                    pi->HorizPot = (UWORD)(((ULONG)(newKnobL - containerL) * 0xFFFF) / (ULONG)maxMoveX);
-                                else
-                                    pi->HorizPot = 0;
-
-                                {
-                                    WORD sl_min = (WORD)pi->CWidth;
-                                    WORD sl_max = (WORD)pi->CHeight;
-                                    LONG level;
-
-                                    if (sl_max > sl_min)
-                                        level = sl_min + ((LONG)pi->HorizPot * (sl_max - sl_min) + 0x7FFF) / 0xFFFF;
-                                    else
-                                        level = sl_min;
-
-                                    _gadtools_UpdateSliderLevelDisplay(gad, level);
-                                }
-
-                                _render_gadget(window, NULL, gad);
-                            }
-                        }
-
-                        DPRINTF(LOG_DEBUG, "_intuition: Prop SELECTDOWN: knobX=%d knobW=%d maxMove=%d offset=%d pot=%u\n",
-                                knobX, knobW, maxMoveX, g_prop_click_offset, pi->HorizPot);
-                    }
-                }
+                    _prop_select_down(window, gad, mouseX);
 
                 if (gad->Activation & GACT_IMMEDIATE)
                 {
@@ -4167,20 +4263,11 @@ static VOID _intuition_handle_mouse_button_event(struct IntuitionBase *Intuition
 
                     if (pi)
                     {
-                        WORD sl_min = (WORD)pi->CWidth;
-                        WORD sl_max = (WORD)pi->CHeight;
-                        LONG range = sl_max - sl_min;
-                        LONG level;
-
-                        if (range > 0)
-                            level = sl_min + ((LONG)pi->HorizPot * range + 0x7FFF) / 0xFFFF;
-                        else
-                            level = sl_min;
+                        LONG level = _prop_slider_level(gad, pi);
                         _gadtools_UpdateSliderLevelDisplay(gad, level);
                         level_code = (UWORD)level;
 
-                        DPRINTF(LOG_DEBUG, "_intuition: Prop SELECTUP: pot=%u min=%d max=%d level=%ld\n",
-                                pi->HorizPot, sl_min, sl_max, level);
+                        DPRINTF(LOG_DEBUG, "_intuition: Prop SELECTUP: pot=%u level=%ld\n", pi->HorizPot, level);
                     }
 
                     if (gad->Activation & GACT_RELVERIFY)
@@ -4586,62 +4673,11 @@ static VOID _intuition_handle_pointerpos_event(struct IntuitionBase *IntuitionBa
     {
         struct Gadget *gad = g_active_gadget;
         struct Window *activeWin = g_active_window;
-        struct PropInfo *pi = (struct PropInfo *)gad->SpecialInfo;
+        LONG level;
 
-        if (pi && (pi->Flags & AUTOKNOB) && (pi->Flags & FREEHORIZ))
-        {
-            WORD gadAbsL = gad->LeftEdge + activeWin->LeftEdge;
-            WORD containerL = gadAbsL + 1;
-            WORD containerW = gad->Width - 2;
-            WORD knobW;
-            WORD maxMoveX;
-            WORD newKnobL;
-            UWORD old_pot = pi->HorizPot;
-
-            knobW = (WORD)(((ULONG)containerW * (ULONG)pi->HorizBody) / 0xFFFF);
-            if (knobW < 6) knobW = 6;
-            if (knobW > containerW) knobW = containerW;
-
-            maxMoveX = containerW - knobW;
-            if (maxMoveX < 0) maxMoveX = 0;
-
-            newKnobL = mouseX - g_prop_click_offset;
-            if (newKnobL < containerL) newKnobL = containerL;
-            if (newKnobL > containerL + maxMoveX)
-                newKnobL = containerL + maxMoveX;
-
-            if (maxMoveX > 0)
-                pi->HorizPot = (UWORD)(((ULONG)(newKnobL - containerL) * 0xFFFF) / (ULONG)maxMoveX);
-            else
-                pi->HorizPot = 0;
-
-            if (pi->HorizPot != old_pot)
-            {
-                WORD sl_min;
-                WORD sl_max;
-                LONG range;
-                LONG level;
-                WORD relX;
-                WORD relY;
-
-                _render_gadget(activeWin, NULL, gad);
-
-                sl_min = (WORD)pi->CWidth;
-                sl_max = (WORD)pi->CHeight;
-                range = sl_max - sl_min;
-                if (range > 0)
-                    level = sl_min + ((LONG)pi->HorizPot * range + 0x7FFF) / 0xFFFF;
-                else
-                    level = sl_min;
-
-                _gadtools_UpdateSliderLevelDisplay(gad, level);
-
-                relX = mouseX - activeWin->LeftEdge;
-                relY = mouseY - activeWin->TopEdge;
-                _post_idcmp_message(activeWin, IDCMP_MOUSEMOVE, (UWORD)level,
-                                   qualifier, gad, relX, relY);
-            }
-        }
+        if (_prop_drag(activeWin, gad, mouseX, &level))
+            _post_idcmp_message(activeWin, IDCMP_MOUSEMOVE, (UWORD)level, qualifier, gad,
+                                mouseX - activeWin->LeftEdge, mouseY - activeWin->TopEdge);
     }
 
     if (window)
@@ -5107,6 +5143,7 @@ VOID _intuition_CloseWindow ( register struct IntuitionBase * IntuitionBase __as
     struct Layer *border_layer = NULL;
     struct Layer *content_layer = NULL;
     BOOL was_processing_events;
+    struct Window *reactivate = NULL;
 
     DPRINTF (LOG_DEBUG, "_intuition: CloseWindow() window=0x%08lx\n", (ULONG)window);
 
@@ -5122,6 +5159,21 @@ VOID _intuition_CloseWindow ( register struct IntuitionBase * IntuitionBase __as
     _intuition_clear_window_runtime_state(window);
 
     state = _intuition_find_window_state((struct LXAIntuitionBase *)IntuitionBase, window);
+
+    /* AmigaOS 3.1 (tests/probes/intuition/activation): closing the active
+     * window activates the window that was active when it opened (with
+     * WFLG_ACTIVATE), if that one is still open.  Forget this window as
+     * the predecessor of others. */
+    {
+        struct Node *node;
+        struct LXAIntuitionBase *lb = (struct LXAIntuitionBase *)IntuitionBase;
+
+        if (state && IntuitionBase->ActiveWindow == window)
+            reactivate = state->prev_active;
+        for (node = lb->WindowStateList.lh_Head; node && node->ln_Succ; node = node->ln_Succ)
+            if (((struct LXAWindowState *)node)->prev_active == window)
+                ((struct LXAWindowState *)node)->prev_active = NULL;
+    }
 
     /* Close the tracked host window if one exists. */
     if (state && state->host_window_handle)
@@ -5198,6 +5250,10 @@ VOID _intuition_CloseWindow ( register struct IntuitionBase * IntuitionBase __as
 
     /* Free the Window structure */
     FreeMem(window, sizeof(struct Window));
+
+    if (reactivate && reactivate != window && !IntuitionBase->ActiveWindow &&
+        _intuition_find_window_state((struct LXAIntuitionBase *)IntuitionBase, reactivate))
+        _intuition_ActivateWindow(IntuitionBase, reactivate);
 
     g_processing_events = was_processing_events;
 
@@ -7449,6 +7505,38 @@ static BOOL _handle_string_gadget_key(struct Gadget *gad, struct Window *window,
     DPRINTF(LOG_DEBUG, "_intuition: _handle_string_gadget_key code=0x%02x qual=0x%04x buf='%s' pos=%d numch=%d\n",
             code, qualifier, si->Buffer ? (char*)si->Buffer : "(null)", (int)si->BufferPos, (int)si->NumChars);
     
+    /* Right-Amiga editing commands (RKRM Libraries, string gadget editing
+     * keys): Amiga-X clears the buffer, Amiga-Q restores the undo buffer;
+     * other Right-Amiga keys insert nothing.  Directory Opus clears its path
+     * gadget with Amiga-X (scenario dopus-select, AmigaOS 3.1). */
+    if (qualifier & IEQUALIFIER_RCOMMAND)
+    {
+        if (code == 0x32) /* X */
+        {
+            si->Buffer[0] = '\0';
+            si->NumChars = 0;
+            si->BufferPos = 0;
+            si->DispPos = 0;
+            needsRefresh = TRUE;
+        }
+        else if (code == 0x10 && si->UndoBuffer) /* Q */
+        {
+            WORD len = 0;
+            while (len < si->MaxChars - 1 && si->UndoBuffer[len])
+            {
+                si->Buffer[len] = si->UndoBuffer[len];
+                len++;
+            }
+            si->Buffer[len] = '\0';
+            si->NumChars = len;
+            si->BufferPos = len;
+            needsRefresh = TRUE;
+        }
+        if (needsRefresh && IntuitionBase)
+            _intuition_RefreshGList(IntuitionBase, gad, window, NULL, 1);
+        return TRUE;
+    }
+
     /* Check for special keys */
     switch (code) {
         case 0x44: /* Return key */
@@ -8052,16 +8140,10 @@ VOID _intuition_ProcessInputEvents(struct Screen *hint_screen)
         DPRINTF(LOG_DEBUG, "_intuition: ProcessInputEvents: got event type=%ld screen=0x%08lx\n",
                 event_type, (ULONG)screen);
         
-        /* Update IntuitionBase with current mouse position and timestamp */
-        if (IntuitionBase)
-        {
-            struct timeval tv;
-            emucall1(EMU_CALL_GETSYSTIME, (ULONG)&tv);
-            IntuitionBase->MouseX = mouseX;
-            IntuitionBase->MouseY = mouseY;
-            IntuitionBase->Seconds = tv.tv_secs;
-            IntuitionBase->Micros = tv.tv_micro;
-        }
+        /* Update IntuitionBase and every screen's MouseX/MouseY with the
+         * current mouse position, and the timestamp (Cluster2 polls
+         * Screen->MouseX/Y to find the toolbar button it is released on) */
+        _intuition_update_input_snapshot(IntuitionBase, mouseX, mouseY);
         
         /* Find the window at the mouse position */
         window = _find_window_at_pos(screen, mouseX, mouseY);
@@ -8228,70 +8310,7 @@ VOID _intuition_ProcessInputEvents(struct Screen *hint_screen)
                             
                             /* For prop gadgets, compute drag offset for smooth knob tracking */
                             if ((gad->GadgetType & GTYP_GTYPEMASK) == GTYP_PROPGADGET)
-                            {
-                                struct PropInfo *pi = (struct PropInfo *)gad->SpecialInfo;
-                                if (pi && (pi->Flags & AUTOKNOB))
-                                {
-                                    /* Compute the knob position to determine click offset.
-                                     * Container is inset 1px from the gadget border. */
-                                    WORD gadAbsL = gad->LeftEdge + window->LeftEdge;
-                                    WORD containerL = gadAbsL + 1;
-                                    WORD containerW = gad->Width - 2;
-                                    WORD knobW;
-                                    WORD maxMoveX;
-                                    WORD knobX;
-
-                                    if (pi->Flags & FREEHORIZ)
-                                        knobW = (WORD)(((ULONG)containerW * (ULONG)pi->HorizBody) / 0xFFFF);
-                                    else
-                                        knobW = containerW;
-                                    if (knobW < 6) knobW = 6;
-                                    if (knobW > containerW) knobW = containerW;
-
-                                    maxMoveX = containerW - knobW;
-                                    if (maxMoveX < 0) maxMoveX = 0;
-                                    knobX = containerL + (WORD)(((ULONG)maxMoveX * (ULONG)pi->HorizPot) / 0xFFFF);
-
-                                    /* Store offset of click from knob left edge.
-                                     * If click is outside knob, center the knob on click. */
-                                    if (mouseX >= knobX && mouseX < knobX + knobW)
-                                    {
-                                        g_prop_click_offset = mouseX - knobX;
-                                    }
-                                    else
-                                    {
-                                        /* Click outside knob: jump knob center to click position */
-                                        g_prop_click_offset = knobW / 2;
-                                        WORD newKnobL = mouseX - g_prop_click_offset;
-                                        if (newKnobL < containerL) newKnobL = containerL;
-                                        if (newKnobL > containerL + maxMoveX)
-                                            newKnobL = containerL + maxMoveX;
-                                        if (maxMoveX > 0)
-                                            pi->HorizPot = (UWORD)(((ULONG)(newKnobL - containerL) * 0xFFFF) / (ULONG)maxMoveX);
-                                        else
-                                            pi->HorizPot = 0;
-
-                                        {
-                                            WORD sl_min = (WORD)pi->CWidth;
-                                            WORD sl_max = (WORD)pi->CHeight;
-                                            LONG level;
-
-                                            if (sl_max > sl_min)
-                                                level = sl_min + ((LONG)pi->HorizPot * (sl_max - sl_min) + 0x7FFF) / 0xFFFF;
-                                            else
-                                                level = sl_min;
-
-                                            _gadtools_UpdateSliderLevelDisplay(gad, level);
-                                        }
-
-                                        /* Redraw the gadget with new knob position */
-                                        _render_gadget(window, NULL, gad);
-                                    }
-
-                                    DPRINTF(LOG_DEBUG, "_intuition: Prop SELECTDOWN: knobX=%d knobW=%d maxMove=%d offset=%d pot=%u\n",
-                                            knobX, knobW, maxMoveX, g_prop_click_offset, pi->HorizPot);
-                                }
-                            }
+                                _prop_select_down(window, gad, mouseX);
                             
                             /* Post IDCMP_GADGETDOWN if it's a GADGIMMEDIATE gadget */
                             if (gad->Activation & GACT_IMMEDIATE)
@@ -8380,21 +8399,11 @@ VOID _intuition_ProcessInputEvents(struct Screen *hint_screen)
 
                                 if (pi)
                                 {
-                                    /* Recover min/max stored in CWidth/CHeight by CreateGadgetA */
-                                    WORD sl_min = (WORD)pi->CWidth;
-                                    WORD sl_max = (WORD)pi->CHeight;
-                                    LONG range = sl_max - sl_min;
-                                    LONG level;
-
-                                    if (range > 0)
-                                        level = sl_min + ((LONG)pi->HorizPot * range + 0x7FFF) / 0xFFFF;
-                                    else
-                                        level = sl_min;
+                                    LONG level = _prop_slider_level(gad, pi);
                                     _gadtools_UpdateSliderLevelDisplay(gad, level);
                                     level_code = (UWORD)level;
 
-                                    DPRINTF(LOG_DEBUG, "_intuition: Prop SELECTUP: pot=%u min=%d max=%d level=%ld\n",
-                                            pi->HorizPot, sl_min, sl_max, level);
+                                    DPRINTF(LOG_DEBUG, "_intuition: Prop SELECTUP: pot=%u level=%ld\n", pi->HorizPot, level);
                                 }
 
                                 /* Post IDCMP_GADGETUP with level as Code, gadget as IAddress */
@@ -8721,62 +8730,11 @@ VOID _intuition_ProcessInputEvents(struct Screen *hint_screen)
                 {
                     struct Gadget *gad = g_active_gadget;
                     struct Window *activeWin = g_active_window;
-                    struct PropInfo *pi = (struct PropInfo *)gad->SpecialInfo;
+                    LONG level;
 
-                    if (pi && (pi->Flags & AUTOKNOB) && (pi->Flags & FREEHORIZ))
-                    {
-                        WORD gadAbsL = gad->LeftEdge + activeWin->LeftEdge;
-                        WORD containerL = gadAbsL + 1;
-                        WORD containerW = gad->Width - 2;
-                        WORD knobW;
-                        WORD maxMoveX;
-                        WORD newKnobL;
-                        UWORD old_pot = pi->HorizPot;
-
-                        knobW = (WORD)(((ULONG)containerW * (ULONG)pi->HorizBody) / 0xFFFF);
-                        if (knobW < 6) knobW = 6;
-                        if (knobW > containerW) knobW = containerW;
-
-                        maxMoveX = containerW - knobW;
-                        if (maxMoveX < 0) maxMoveX = 0;
-
-                        /* Calculate new knob position based on mouse position and drag offset */
-                        newKnobL = mouseX - g_prop_click_offset;
-                        if (newKnobL < containerL) newKnobL = containerL;
-                        if (newKnobL > containerL + maxMoveX)
-                            newKnobL = containerL + maxMoveX;
-
-                        if (maxMoveX > 0)
-                            pi->HorizPot = (UWORD)(((ULONG)(newKnobL - containerL) * 0xFFFF) / (ULONG)maxMoveX);
-                        else
-                            pi->HorizPot = 0;
-
-                        /* Only re-render and post message if pot actually changed */
-                        if (pi->HorizPot != old_pot)
-                        {
-                            /* Redraw the gadget with updated knob position */
-                            _render_gadget(activeWin, NULL, gad);
-
-                            /* Compute current level for the MOUSEMOVE message Code field.
-                             * GadTools convention: MOUSEMOVE for sliders carries the
-                             * gadget pointer in IAddress and the level in Code. */
-                            WORD sl_min = (WORD)pi->CWidth;
-                            WORD sl_max = (WORD)pi->CHeight;
-                            LONG range = sl_max - sl_min;
-                            LONG level;
-                            if (range > 0)
-                                level = sl_min + ((LONG)pi->HorizPot * range + 0x7FFF) / 0xFFFF;
-                            else
-                                level = sl_min;
-
-                            _gadtools_UpdateSliderLevelDisplay(gad, level);
-
-                            WORD relX = mouseX - activeWin->LeftEdge;
-                            WORD relY = mouseY - activeWin->TopEdge;
-                            _post_idcmp_message(activeWin, IDCMP_MOUSEMOVE, (UWORD)level,
-                                               qualifier, gad, relX, relY);
-                        }
-                    }
+                    if (_prop_drag(activeWin, gad, mouseX, &level))
+                        _post_idcmp_message(activeWin, IDCMP_MOUSEMOVE, (UWORD)level, qualifier, gad,
+                                            mouseX - activeWin->LeftEdge, mouseY - activeWin->TopEdge);
                 }
                 
                 if (window && !g_menu_mode)
@@ -9323,6 +9281,49 @@ VOID _intuition_OnMenu ( register struct IntuitionBase * IntuitionBase __asm("a6
  */
 static BOOL g_opening_workbench_screen = FALSE;
 
+/*
+ * The screen's PaletteExtra (AmigaOS 3.1, tests/probes/intuition/screenpens):
+ * Intuition attaches one to every screen, obtains the pens its DrawInfo
+ * uses as shared pens (in pen order), and - unless the screen is PENSHARED
+ * (SA_SharePens) - every other pen of the screen exclusively, so that
+ * ObtainBestPenA() only shares the DrawInfo pens.  Called once the screen's
+ * pens are final.
+ */
+static void _intuition_setup_palextra(struct Screen *screen)
+{
+    struct ColorMap *cm = screen->ViewPort.ColorMap;
+    const UWORD *pens = _intuition_screen_pens(screen);
+    UBYTE used[256];
+    ULONG ncol, p;
+    int i;
+
+    if (!cm || cm->PalExtra || AttachPalExtra(cm, &screen->ViewPort) || !cm->PalExtra)
+        return;
+    ncol = 1UL << (screen->BitMap.Depth > 8 ? 8 : screen->BitMap.Depth);
+    if (ncol > (ULONG)cm->Count)
+        ncol = (ULONG)cm->Count;
+    memset(used, 0, sizeof(used));
+    for (i = 0; i < NUMDRIPENS; i++)
+        if (pens[i] < ncol)
+            used[pens[i]] = 1;
+    for (p = 0; p < ncol; p++)
+        if (used[p])
+            ObtainPen(cm, p, 0, 0, 0, PENF_NO_SETCOLOR);
+    /* the other pens are taken by count: 3.1 leaves them linked in the
+     * (then empty, pe_NFree 0) free list - pe_FirstFree keeps its value */
+    if (!(screen->Flags & PENSHARED))
+    {
+        struct PaletteExtra *pe = cm->PalExtra;
+
+        ObtainSemaphore(&pe->pe_Semaphore);
+        for (p = 0; p < ncol; p++)
+            if (!used[p])
+                ((UWORD *)pe->pe_RefCnt)[p]++;
+        pe->pe_NFree = 0;
+        ReleaseSemaphore(&pe->pe_Semaphore);
+    }
+}
+
 struct Screen * _intuition_OpenScreen ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register const struct NewScreen * newScreen __asm("a0"))
 {
@@ -9390,7 +9391,7 @@ struct Screen * _intuition_OpenScreen ( register struct IntuitionBase * Intuitio
     {
         struct DimensionInfo dims;
         ULONG mode_id = g_screen_display_id ? g_screen_display_id - 1
-                      : (ULONG)(newScreen->ViewModes & (HIRES | SUPERHIRES | LACE));
+                      : (ULONG)(newScreen->ViewModes & (HIRES | LACE));
         BOOL have_dims = (requested_width <= 0 || requested_height <= 0) &&
                          GetDisplayInfoData(NULL, (UBYTE *)&dims, sizeof(dims), DTAG_DIMS, mode_id);
 
@@ -9399,7 +9400,8 @@ struct Screen * _intuition_OpenScreen ( register struct IntuitionBase * Intuitio
         else if (have_dims)
             width = (UWORD)(dims.TxtOScan.MaxX - dims.TxtOScan.MinX + 1);
         else
-            width = (newScreen->ViewModes & SUPERHIRES) ? 1280 : (newScreen->ViewModes & HIRES) ? 640 : 320;
+            width = (g_screen_display_id && (newScreen->ViewModes & SUPERHIRES)) ? 1280
+                  : (newScreen->ViewModes & HIRES) ? 640 : 320;
 
         if (requested_height > 0)
             height = (UWORD)requested_height;
@@ -9512,6 +9514,11 @@ struct Screen * _intuition_OpenScreen ( register struct IntuitionBase * Intuitio
          * with ViewModes 0 is a (wide) lores screen
          * (tests/probes/intuition/screens) */
         UWORD adjModes = newScreen->ViewModes;
+        /* a plain NewScreen cannot ask for SUPERHIRES: 3.1 drops the bit
+         * (HIRES|SUPERHIRES is a hires screen, SysInfo opens one;
+         * tests/probes/intuition/screens) */
+        if (!g_screen_display_id)
+            adjModes &= ~SUPERHIRES;
         /* AmigaOS 3.1 screens always have SPRITES set */
         screen->ViewPort.Modes = adjModes | SPRITES;
         /* a screen opened behind the others is hidden */
@@ -9538,7 +9545,11 @@ struct Screen * _intuition_OpenScreen ( register struct IntuitionBase * Intuitio
      * This is required for GetRGB4(), SetRGB4(), and other color operations.
      * The number of entries is 2^depth (e.g., 4 for 2-bit depth, 32 for 5-bit depth).
      */
+    /* AmigaOS 3.1: at least 32 entries (the sprite colours 16-31 included),
+     * whatever the depth (tests/probes/intuition/screenpens) */
     ULONG num_colors = 1UL << depth;
+    if (num_colors < 32)
+        num_colors = 32;
     screen->ViewPort.ColorMap = GetColorMap(num_colors);
     if (screen->ViewPort.ColorMap)
     {
@@ -9718,9 +9729,13 @@ struct Screen * _intuition_OpenScreen ( register struct IntuitionBase * Intuitio
 
     _create_screen_sys_gadgets(screen);
 
+    /* OpenScreenTagList() does this once SA_Pens/SA_SharePens are applied */
+    if (!g_screen_from_tags)
+        _intuition_setup_palextra(screen);
+
     if (screen->Flags & SHOWTITLE)
         _render_screen_title_bar(screen);
-    
+
     DPRINTF(LOG_DEBUG, "[ROM] OpenScreen: IntuitionBase=0x%08lx, FirstScreen set to 0x%08lx\n",
             (ULONG)IntuitionBase, (ULONG)screen);
     
@@ -10735,6 +10750,7 @@ struct Window * _intuition_OpenWindow ( register struct IntuitionBase * Intuitio
         state->host_window_handle = window_handle;
         state->open_left = window->LeftEdge;
         state->open_top = window->TopEdge;
+        state->prev_active = (newWindow->Flags & WFLG_ACTIVATE) ? IntuitionBase->ActiveWindow : NULL;
         host_window_handle = window_handle;
 
         if (window_handle)
@@ -12608,7 +12624,11 @@ static void _render_gadget(struct Window *window, struct Requester *req, struct 
      * The highlight flags (GFLG_GADGHCOMP, GFLG_GADGHBOX, GFLG_GADGHIMAGE)
      * control how the gadget looks when SELECTED, not the initial rendering.
      */
-    if (gad->Flags & GFLG_GADGIMAGE)
+    if ((gad->GadgetType & GTYP_GTYPEMASK) == GTYP_PROPGADGET && gad->SpecialInfo)
+    {
+        /* GadgetRender is the knob: drawn with the container below */
+    }
+    else if (gad->Flags & GFLG_GADGIMAGE)
     {
         if (gad->GadgetRender)
         {
@@ -12862,143 +12882,114 @@ static void _render_gadget(struct Window *window, struct Requester *req, struct 
         }
     }
     
-    /* Render proportional gadget knob (SLIDER_KIND and other prop gadgets) */
-    if ((gad->GadgetType & GTYP_GTYPEMASK) == GTYP_PROPGADGET)
+    /* Proportional gadget: container and knob as AmigaOS 3.1 draws them
+     * (tests/probes/intuition/propgad.ref.out).  The layout is in
+     * _prop_layout(); Intuition stores the container size and knob inset in
+     * the PropInfo and the knob box in the AUTOKNOB Image.
+     *
+     *  - old look: a pen 1 frame (1 pixel top/bottom, 2 pixels left/right)
+     *    around a pen 0 container, a solid pen 1 knob; PROPBORDERLESS
+     *    drops the frame;
+     *  - PROPNEWLOOK: a 1 pixel pen 1 frame around a pen 1/0 dither
+     *    (pen 1 where x + y is odd), a pen 2 knob with pen 1 ends along each
+     *    free axis; PROPBORDERLESS drops the frame and the knob gets a pen 1
+     *    right column and bottom row instead.
+     */
+    if ((gad->GadgetType & GTYP_GTYPEMASK) == GTYP_PROPGADGET && gad->SpecialInfo &&
+        width > 0 && height > 0)
     {
         struct PropInfo *pi = (struct PropInfo *)gad->SpecialInfo;
+        struct PropLayout pl;
+        WORD x0 = (WORD)left, y0 = (WORD)top;
+        WORD x1 = (WORD)(left + width - 1), y1 = (WORD)(top + height - 1);
+        BOOL newlook = (pi->Flags & PROPNEWLOOK) != 0;
+        BOOL borderless = (pi->Flags & PROPBORDERLESS) != 0;
 
-        /* Phase 152: Render the recessed track frame around the prop
-         * gadget area, unless the app explicitly opted out via
-         * PROPBORDERLESS.  Real Amiga + Intuition draws prop gadgets with a
-         * recessed 3D edge: shadow (pen 1) on the top and left, shine (pen 2)
-         * on the bottom and right.  Apps wrapping a prop gadget for scrolling
-         * (DPaint listview, BGUI scroll-area) expect this chrome.
-         *
-         * We draw the frame independently of AUTOKNOB so that prop gadgets
-         * with custom knob imagery still get the standard track chrome.
-         * Frame is drawn at the outer perimeter; the existing container
-         * inset (left+1, top+1, width-2, height-2) leaves the frame intact.
-         */
-        if (pi && !(pi->Flags & PROPBORDERLESS) && width >= 2 && height >= 2)
+        _prop_layout(pi, (WORD)width, (WORD)height, &pl);
+        pi->CWidth = (UWORD)width;
+        pi->CHeight = (UWORD)height;
+        pi->LeftBorder = (UWORD)pl.lb;
+        pi->TopBorder = (UWORD)pl.tb;
+
+        SetDrMd(rp, JAM2);
+        if (!borderless)
         {
-            WORD fx0 = (WORD)left;
-            WORD fy0 = (WORD)top;
-            WORD fx1 = (WORD)(left + width - 1);
-            WORD fy1 = (WORD)(top + height - 1);
-
-            /* Top edge (shadow) */
-            SetAPen(rp, 1);  /* SHADOWPEN */
-            Move(rp, fx0, fy0);
-            Draw(rp, fx1, fy0);
-            /* Left edge (shadow) */
-            Move(rp, fx0, fy0);
-            Draw(rp, fx0, fy1);
-            /* Bottom edge (shine) */
-            SetAPen(rp, 2);  /* SHINEPEN */
-            Move(rp, fx0, fy1);
-            Draw(rp, fx1, fy1);
-            /* Right edge (shine) */
-            Move(rp, fx1, fy0);
-            Draw(rp, fx1, fy1);
+            SetAPen(rp, 1);
+            RectFill(rp, x0, y0, x1, y1);
+            x0 += newlook ? 1 : 2;
+            x1 -= newlook ? 1 : 2;
+            y0++;
+            y1--;
+        }
+        if (x0 <= x1 && y0 <= y1)
+        {
+            if (newlook)
+            {
+                static const UWORD dither[2] = { 0x5555, 0xAAAA };
+                SetAfPt(rp, (UWORD *)dither, 1);
+                SetAPen(rp, 1);
+                SetBPen(rp, 0);
+                RectFill(rp, x0, y0, x1, y1);
+                SetAfPt(rp, NULL, 0);
+            }
+            else
+            {
+                SetAPen(rp, 0);
+                RectFill(rp, x0, y0, x1, y1);
+            }
         }
 
-        if (pi && (pi->Flags & AUTOKNOB))
+        if (pi->Flags & AUTOKNOB)
         {
-            /* Clear the interior of the prop container */
-            WORD containerL = left + 1;
-            WORD containerT = top + 1;
-            WORD containerW = width - 2;
-            WORD containerH = height - 2;
-            WORD knobW, knobH, knobX, knobY;
+            struct Image *knob = (struct Image *)gad->GadgetRender;
+            WORD kx0 = (WORD)(left + pl.lb + pl.kx), ky0 = (WORD)(top + pl.tb + pl.ky);
+            WORD kx1 = kx0 + pl.kw - 1, ky1 = ky0 + pl.kh - 1;
 
-            /*
-             * PROPNEWLOOK: fill the container with a stipple pattern
-             * (alternating SHADOWPEN/BACKGROUNDPEN rows, 0x5555/0xAAAA).
-             * Without PROPNEWLOOK, fill plain with pen 0 (background).
-             */
-            if (pi->Flags & PROPNEWLOOK)
+            if (knob)
             {
-                static const UWORD stipple[2] = { 0x5555, 0xAAAA };
-                SetDrMd(rp, JAM2);
-                SetAfPt(rp, (UWORD *)stipple, 1);
-                SetAPen(rp, 1);  /* SHADOWPEN */
-                SetBPen(rp, 0);  /* BACKGROUNDPEN */
-                RectFill(rp, containerL, containerT,
-                         containerL + containerW - 1, containerT + containerH - 1);
-                SetAfPt(rp, NULL, 0);
-                SetDrMd(rp, JAM2);
+                knob->LeftEdge = pl.kx;
+                knob->TopEdge = pl.ky;
+                knob->Width = pl.kw;
+                knob->Height = pl.kh;
             }
-            else
+            if (pl.kw > 0 && pl.kh > 0)
             {
-                SetAPen(rp, 0);  /* Background pen */
-                RectFill(rp, containerL, containerT,
-                         containerL + containerW - 1, containerT + containerH - 1);
-            }
-
-            /* Calculate knob size from Body */
-            if (pi->Flags & FREEHORIZ)
-                knobW = (WORD)(((ULONG)containerW * (ULONG)pi->HorizBody) / 0xFFFF);
-            else
-                knobW = containerW;
-
-            if (pi->Flags & FREEVERT)
-                knobH = (WORD)(((ULONG)containerH * (ULONG)pi->VertBody) / 0xFFFF);
-            else
-                knobH = containerH;
-
-            /* Minimum knob size */
-            if (knobW < 6) knobW = 6;
-            if (knobH < 4) knobH = 4;
-            if (knobW > containerW) knobW = containerW;
-            if (knobH > containerH) knobH = containerH;
-
-            /* Calculate knob position from Pot */
-            {
-                WORD maxMoveX = containerW - knobW;
-                WORD maxMoveY = containerH - knobH;
-                if (maxMoveX < 0) maxMoveX = 0;
-                if (maxMoveY < 0) maxMoveY = 0;
-
-                knobX = containerL + (WORD)(((ULONG)maxMoveX * (ULONG)pi->HorizPot) / 0xFFFF);
-                knobY = containerT + (WORD)(((ULONG)maxMoveY * (ULONG)pi->VertPot) / 0xFFFF);
-            }
-
-            /* Draw knob: shadow border lines + shine interior (AROS/OS3 style) */
-            {
-                WORD kx0 = knobX;
-                WORD ky0 = knobY;
-                WORD kx1 = knobX + knobW - 1;
-                WORD ky1 = knobY + knobH - 1;
-
-                /* Shadow lines on the outside edges of the knob */
-                SetAPen(rp, 1);  /* SHADOWPEN */
-                if (pi->Flags & FREEVERT)
+                if (!newlook)
                 {
-                    /* Top and bottom shadow lines */
-                    RectFill(rp, kx0, ky0, kx1, ky0);
-                    RectFill(rp, kx0, ky1, kx1, ky1);
-                    ky0++;
-                    ky1--;
-                }
-                if (pi->Flags & FREEHORIZ)
-                {
-                    /* Left and right shadow lines */
-                    RectFill(rp, kx0, ky0, kx0, ky1);
-                    RectFill(rp, kx1, ky0, kx1, ky1);
-                    kx0++;
-                    kx1--;
-                }
-
-                /* Fill knob interior with SHINEPEN (white) */
-                if (kx0 <= kx1 && ky0 <= ky1)
-                {
-                    SetAPen(rp, 2);  /* SHINEPEN */
+                    SetAPen(rp, 1);
                     RectFill(rp, kx0, ky0, kx1, ky1);
                 }
+                else
+                {
+                    SetAPen(rp, 2);
+                    RectFill(rp, kx0, ky0, kx1, ky1);
+                    SetAPen(rp, 1);
+                    if (borderless)
+                    {
+                        RectFill(rp, kx1, ky0, kx1, ky1);
+                        RectFill(rp, kx0, ky1, kx1, ky1);
+                    }
+                    else
+                    {
+                        if (pi->Flags & FREEVERT)
+                        {
+                            RectFill(rp, kx0, ky0, kx1, ky0);
+                            RectFill(rp, kx0, ky1, kx1, ky1);
+                        }
+                        if (pi->Flags & FREEHORIZ)
+                        {
+                            RectFill(rp, kx0, ky0, kx0, ky1);
+                            RectFill(rp, kx1, ky0, kx1, ky1);
+                        }
+                    }
+                }
             }
-
-            DPRINTF(LOG_DEBUG, "_render_gadget: prop knob at (%d,%d) size %dx%d pot=%u body=%u\n",
-                    knobX, knobY, knobW, knobH, pi->HorizPot, pi->HorizBody);
+        }
+        else if (gad->GadgetRender)
+        {
+            /* a custom knob image at the knob position */
+            _intuition_DrawImage((struct IntuitionBase *)NULL, rp, (struct Image *)gad->GadgetRender,
+                                 (WORD)(left + pl.lb + pl.kx), (WORD)(top + pl.tb + pl.ky));
         }
     }
 
@@ -15447,6 +15438,10 @@ struct Screen * _intuition_OpenScreenTagList ( register struct IntuitionBase * I
             lxa_pub->drawInfo.dri_Flags |= DRIF_NEWLOOK;
             for (i = 0; i < NUMDRIPENS; i++)
                 lxa_pub->pens[i] = def[i];
+            /* AmigaOS 3.1: DETAILPEN/BLOCKPEN default to the screen's
+             * DetailPen/BlockPen (tests/probes/intuition/screens) */
+            lxa_pub->pens[DETAILPEN] = screen->DetailPen;
+            lxa_pub->pens[BLOCKPEN] = screen->BlockPen;
             for (i = 0; i < NUMDRIPENS; i++)
             {
                 if (sa_pens[i] == (UWORD)~0)
@@ -15454,6 +15449,14 @@ struct Screen * _intuition_OpenScreenTagList ( register struct IntuitionBase * I
                 lxa_pub->pens[i] = sa_pens[i];
             }
 
+            /* a V37-style array (1 to 9 pens, no bar pens): the bar keeps
+             * the screen's DetailPen/BlockPen (tests/probes/intuition/screens) */
+            if (i > 0 && i <= BARDETAILPEN)
+            {
+                lxa_pub->pens[BARDETAILPEN] = screen->DetailPen;
+                lxa_pub->pens[BARBLOCKPEN] = screen->BlockPen;
+                lxa_pub->pens[BARTRIMPEN] = screen->BlockPen;
+            }
             DPRINTF(LOG_DEBUG, "_intuition: OpenScreenTagList() applied %d custom pens\n", (int)i);
             if (screen->Flags & SHOWTITLE)
                 _render_screen_title_bar(screen);
@@ -15528,6 +15531,8 @@ struct Screen * _intuition_OpenScreenTagList ( register struct IntuitionBase * I
             DPRINTF(LOG_DEBUG, "_intuition: OpenScreenTagList() applied SA_Colors32 palette\n");
         }
     }
+
+    _intuition_setup_palextra(screen);
 
     return screen;
 }

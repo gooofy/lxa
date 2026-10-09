@@ -388,7 +388,8 @@ int  lxa_host_console_input_pop(void);
 /* From lxa_custom.c */
 void _handle_custom_write(uint16_t reg, uint16_t value);
 void _handle_custom_write_ext(uint16_t reg, uint16_t value);
-
+/* VPOSR / VHPOSR: the beam position derived from the emulated cycles */
+uint16_t custom_read_beam(uint16_t reg);
 /* From lxa.c (debugger) */
 void _debug(uint32_t pc);
 void hexdump(int lvl, uint32_t offset, uint32_t len);

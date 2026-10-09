@@ -1,0 +1,19 @@
+# Phase 234 (legacy 160): BlitzBasic 2's "ted" editor shows typed text.
+# Dismiss the about requester (OKEE DOKEE), type a line, snapshot.  The
+# editor scrollers are borderless AUTOKNOB prop gadgets
+# (tests/probes/intuition/propgad), the screen an old-look screen with
+# DetailPen 1 / BlockPen 2 (tests/probes/intuition/screens).
+name: blitzbasic2-ted
+app: {manifest: BlitzBasic2}
+steps:
+  - launch
+  - frames: 150
+  - wait_idle: {timeout: 20000}
+  - frames: 100
+  - snapshot: startup
+  - click: {xy: [316, 151]}
+  - frames: 50
+  - type: "Print \"Hello\"\n"
+  - frames: 50
+  - snapshot: typed
+  - quit

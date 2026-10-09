@@ -182,6 +182,9 @@ struct GTGad
 #define GT_GAD_MAGIC 0x47544741UL    /* "GTGA" */
 
 BOOL _gadtools_IsCheckbox(register struct Gadget *gad __asm("a0"));
+BOOL _gadtools_GetSliderRange(register struct Gadget *gad __asm("a0"),
+                              register LONG *min __asm("a1"),
+                              register LONG *max __asm("a2"));
 BOOL _gadtools_GetCheckboxState(register struct Gadget *gad __asm("a0"));
 VOID _gadtools_SetCheckboxState(register struct Gadget *gad __asm("a0"),
                                 register BOOL checked __asm("d0"));
@@ -538,6 +541,20 @@ LONG _gadtools_HandleClick(register struct Gadget *gad __asm("a0"),
         default:
             return -1;
     }
+}
+
+/* the level range of a slider, for Intuition's level computation */
+BOOL _gadtools_GetSliderRange(register struct Gadget *gad __asm("a0"),
+                              register LONG *min __asm("a1"),
+                              register LONG *max __asm("a2"))
+{
+    struct GTGadgetData *data = gt_get_data(gad);
+
+    if (!data || data->kind != GT_KIND_SLIDER)
+        return FALSE;
+    *min = data->min;
+    *max = data->max;
+    return TRUE;
 }
 
 BOOL _gadtools_IsCheckbox(register struct Gadget *gad __asm("a0"))
@@ -1763,9 +1780,6 @@ struct Gadget * _gadtools_CreateGadgetA ( register struct GadToolsBase *GadTools
                     pi->HorizPot = pot;
                     pi->HorizBody = body;
                 }
-                /* min/max for Intuition's level computation */
-                pi->CWidth = (UWORD)sl_min;
-                pi->CHeight = (UWORD)sl_max;
 
                 data->format = gt_strdup((STRPTR)GetTagData(GTSL_LevelFormat, (ULONG)"%ld", taglist));
                 max_level_len = (UWORD)GetTagData(GTSL_MaxLevelLen, 2, taglist);
@@ -2953,14 +2967,11 @@ void _gadtools_GT_SetGadgetAttrsA ( register struct GadToolsBase *GadToolsBase _
             LONG level = (LONG)GetTagData(GTSL_Level, -1, taglist);
             if (level != -1)
             {
-                /* min/max stored in CWidth/CHeight */
-                LONG sl_min = (LONG)(WORD)pi->CWidth;
-                LONG sl_max = (LONG)(WORD)pi->CHeight;
+                LONG sl_min = data->min;
+                LONG sl_max = data->max;
 
                 if (level < sl_min) level = sl_min;
                 if (level > sl_max) level = sl_max;
-                data->min = sl_min;
-                data->max = sl_max;
                 data->value = level;
 
                 /* Recompute the pot from the new level */

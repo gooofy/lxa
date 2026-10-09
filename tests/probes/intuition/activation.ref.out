@@ -1,0 +1,14 @@
+-- A active, B opened active, B closed
+open: A=0 B=1
+closed B: A=1
+-- A inactive, B opened active, B closed
+open: A=0 B=1
+closed B: A=0
+-- A active, B active, C active, C closed, B closed
+open: A=0 B=0 C=1
+closed C: A=0 B=1
+closed B: A=1
+-- A active, B active, ActivateWindow A, B closed
+activated A: A=1 B=0 C=0
+closed A: B=0 C=0
+closed C: B=0
