@@ -29,7 +29,13 @@ int main(int argc, char **argv)
     args[1] = lib->lib_Version;
     args[2] = lib->lib_Revision;
     VPrintf((STRPTR)"%s %lu.%lu ", args);
-    Printf((STRPTR)"id=%s\n", (ULONG)(lib->lib_IdString ? (char *)lib->lib_IdString : "(none)"));
+    Printf((STRPTR)"id=%s ", (ULONG)(lib->lib_IdString ? (char *)lib->lib_IdString : "(none)"));
+    /* where Open() (LVO -6: jmp abs.l) lives: lxa's built-in libraries are
+     * in its ROM, a library loaded from LIBS: is in RAM */
+    {
+        ULONG open = *(ULONG *)((UBYTE *)lib - 4);
+        Printf((STRPTR)"code=%s\n", (ULONG)(open >= 0xf80000 && open < 0x1000000 ? "rom" : "ram"));
+    }
     CloseLibrary(lib);
     return 0;
 }

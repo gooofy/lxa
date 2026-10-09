@@ -1,0 +1,13 @@
+# Prefs fidelity (Phase 236): what a program sees with the default prefs
+# (no ENV:Sys/*.prefs besides the Workbench's own): fonts, Workbench screen,
+# palette and pens, Preferences, overscan, locale, keymap, custom screens.
+name: gallery-prefs-default
+fonts: wb31
+app:
+  sample: Tests/Gallery/Prefs
+steps:
+  - launch
+  - wait_window: "Prefs Gallery"
+  - wait_idle
+  - snapshot: {name: window, window: "Prefs Gallery"}
+  - quit

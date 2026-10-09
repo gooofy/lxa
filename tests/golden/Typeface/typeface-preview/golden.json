@@ -1,88 +1,22 @@
 {
  "app": "Typeface",
  "disabled": null,
- "lxa_version": "0.11.23",
- "promoted": "2026-10-03",
+ "lxa_version": "0.11.26",
+ "promoted": "2026-10-04",
  "reference": "AmigaOS 3.1 (KS 40.70), profile aga",
  "requires_apps": true,
  "scenario": "typeface-preview",
  "snapshots": {
   "preview": {
-   "known_tree_diffs": [
-    {
-     "field": "flags",
-     "kind": "window",
-     "lxa": 539111983,
-     "phase": 222,
-     "ref": 606220847,
-     "where": "screen[Typeface]/window[Font Preview]"
-    },
-    {
-     "field": "flags",
-     "kind": "gadget",
-     "lxa": 32768,
-     "phase": 222,
-     "ref": 32864,
-     "where": "screen[Typeface]/window[Font Preview]/gadget[0 id=0]"
-    },
-    {
-     "field": "flags",
-     "kind": "window",
-     "lxa": 2232878,
-     "phase": 222,
-     "ref": 69341742,
-     "where": "screen[Typeface]/window[topaz/8]"
-    },
-    {
-     "field": "flags",
-     "kind": "gadget",
-     "lxa": 32768,
-     "phase": 222,
-     "ref": 32864,
-     "where": "screen[Typeface]/window[topaz/8]/gadget[0 id=0]"
-    },
-    {
-     "field": "flags",
-     "kind": "menu",
-     "lxa": 1,
-     "phase": 222,
-     "ref": 257,
-     "where": "screen[Typeface]/window[topaz/8]/menu[Project]"
-    },
-    {
-     "field": "flags",
-     "kind": "item",
-     "lxa": 86,
-     "phase": 222,
-     "ref": 8278,
-     "where": "screen[Typeface]/window[topaz/8]/menu[Project]/Preview..."
-    }
-   ],
-   "pixel_budget": 13622,
-   "pixel_phase": 222,
+   "known_tree_diffs": [],
+   "pixel_budget": 816,
+   "pixel_phase": 256,
    "stdout_known_diff": null
   },
   "startup": {
-   "known_tree_diffs": [
-    {
-     "field": "flags",
-     "kind": "window",
-     "lxa": 2241070,
-     "phase": 222,
-     "ref": 69349934,
-     "where": "screen[Typeface]/window[topaz/8]"
-    },
-    {
-     "field": "flags",
-     "kind": "gadget",
-     "lxa": 32768,
-     "phase": 222,
-     "ref": 32864,
-     "where": "screen[Typeface]/window[topaz/8]/gadget[0 id=0]"
-    }
-   ],
-   "pixel_budget": 922,
-   "pixel_phase": 222,
+   "known_tree_diffs": [],
+   "pixel_budget": 272,
+   "pixel_phase": 256,
    "stdout_known_diff": null
   }
  }

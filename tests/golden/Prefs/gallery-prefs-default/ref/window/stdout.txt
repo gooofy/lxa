@@ -1,0 +1,42 @@
+sysfont topaz.font 8 8
+wb 640x256x2 mode 00008000 bar 10 wbortop 2 font topaz.font/8
+  rpfont topaz.font 8 8
+  colors0 aaaaaa 000000 ffffff 6688bb
+  pens 0 1 1 2 1 3 1 0 2 1 2 1
+  drifont topaz.font 8 8
+prefs fontheight 8 ticks 1 dclick 1.020000 rptdelay 0.600000 rptspeed 0.050000
+  colors aaa 000 fff 68b ptrcolors e44 000 eec
+  pointer fb779125 offset -1 0
+  matrix 0000 0000 c000 4000 7000 b000 3c00 4c00 3f00 4300 1fc0 20c0 1fc0 2000 0f00 1100 0d80 1280 04c0 0940 0460 08a0 0020 0040 0000 0000 0000 0000 0000 0000 0000 0000 0000 0000 0000 0000
+  view 0 0 init 129 44 lacewb 0
+defprefs fontheight 9 ticks 1 dclick 1.500000 rptdelay 0.600000 rptspeed 0.050000
+  colors aaa 000 fff 68b ptrcolors e44 000 eec
+  pointer fb779125 offset -1 0
+  matrix 0000 0000 c000 4000 7000 b000 3c00 4c00 3f00 4300 1fc0 20c0 1fc0 2000 0f00 1100 0d80 1280 04c0 0940 0460 08a0 0020 0040 0000 0000 0000 0000 0000 0000 0000 0000 0000 0000 0000 0000
+  view 0 0 init 129 44 lacewb 0
+oscan 00029000 text 0,0-639,255 standard 0,0-639,255 max -72,-15-651,267 video -72,-15-663,267
+oscan 00008000 text 0,0-639,255 standard 0,0-639,255 max -72,-15-651,267 video -72,-15-663,267
+locale united_states.country english.language [english]
+  country 55534100 tel 1 gmt -300 ms 1 ct 0 flags 0
+  formats [%A %B %e %Y %Q:%M %p] [%A %B %e %Y] [%Q:%M %p] [%m/%d/%y %Q:%M %p] [%m/%d/%y] [%Q:%M %p]
+  numbers [.] [,] [,] grouping 3 mon [.] [,] cs [$] [¢] [USD] digits 2 2
+  sign [] 0 1 0 [-] 0 1 0
+  strings Monday March Yes
+  date [Wednesday March  6 2002 1:07 PM] [03/06/02 1:07 PM]
+keymap 10:q 15:y 31:z 1a:[ 2a:' 0b:-
+scr-newlook 640x200x4 mode 00008000 bar 10 wbortop 2 font topaz.font/8
+  rpfont topaz.font 8 8
+  colors0 aaaaaa 000000 ffffff 6688bb 0000ff ff00ff 00ffff ffffff
+  colors8 662200 ee5500 99ff11 eebb00 5555ff 9922ff 00ff88 cccccc
+  pens 0 1 1 2 1 3 1 0 2 1 2 1
+  drifont topaz.font 8 8
+  winfont topaz.font 8 8
+scr-old 320x200x5 mode 00000000 bar 10 wbortop 2 font topaz.font/8
+  rpfont topaz.font 8 8
+  colors0 aaaaaa 000000 ffffff 6688bb 0000ff ff00ff 00ffff ffffff
+  colors8 662200 ee5500 99ff11 eebb00 5555ff 9922ff 00ff88 cccccc
+  colors16 000000 ee4444 000000 eeeecc 444444 555555 666666 777777
+  colors24 888888 999999 aaaaaa bbbbbb cccccc dddddd eeeeee ffffff
+  pens 0 1 1 1 1 1 0 0 1 0 1 1
+  drifont topaz.font 8 8
+  winfont topaz.font 8 8

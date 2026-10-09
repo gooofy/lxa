@@ -1,159 +1,15 @@
 {
  "app": "DPaintV",
  "disabled": null,
- "lxa_version": "0.11.23",
- "note": "Screen Format listviews: 9 pixel lines on 3.1, 8 on lxa although DPaint opens only topaz 8 (not a ROM font issue, Phase 225 checked; suspect GadTools LAYOUTA_Spacing, Phase 222); mode list contents: Phase 240",
- "promoted": "2026-10-03",
+ "lxa_version": "0.11.26",
+ "note": "Screen Format mode list contents and History menu widths: Phase 240 (the 9-pixel listview lines are GadTools LAYOUTA_Spacing, fixed in Phase 222g)",
+ "promoted": "2026-10-04",
  "reference": "AmigaOS 3.1 (KS 40.70), profile aga",
  "requires_apps": true,
  "scenario": "dpaintv-startup",
  "snapshots": {
   "startup": {
    "known_tree_diffs": [
-    {
-     "field": "flags",
-     "kind": "window",
-     "lxa": 136327182,
-     "phase": 240,
-     "ref": 203436046,
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]"
-    },
-    {
-     "field": "top",
-     "kind": "gadget",
-     "lxa": 128,
-     "phase": 222,
-     "ref": 122,
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[0 id=2]"
-    },
-    {
-     "field": "height",
-     "kind": "gadget",
-     "lxa": 96,
-     "phase": 222,
-     "ref": 90,
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[1 id=1]"
-    },
-    {
-     "field": "height",
-     "kind": "gadget",
-     "lxa": 80,
-     "phase": 222,
-     "ref": 72,
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[2 id=1]"
-    },
-    {
-     "field": "top",
-     "kind": "gadget",
-     "lxa": 109,
-     "phase": 222,
-     "ref": 101,
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[3 id=1]"
-    },
-    {
-     "field": "height",
-     "kind": "gadget",
-     "lxa": 8,
-     "phase": 222,
-     "ref": 9,
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[3 id=1]"
-    },
-    {
-     "field": "top",
-     "kind": "gadget",
-     "lxa": 117,
-     "phase": 222,
-     "ref": 110,
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[4 id=1]"
-    },
-    {
-     "field": "height",
-     "kind": "gadget",
-     "lxa": 8,
-     "phase": 240,
-     "ref": 9,
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[4 id=1]"
-    },
-    {
-     "field": "height",
-     "kind": "gadget",
-     "lxa": 100,
-     "phase": 222,
-     "ref": 94,
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[5 id=1]"
-    },
-    {
-     "field": "height",
-     "kind": "gadget",
-     "lxa": 100,
-     "phase": 222,
-     "ref": 94,
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[6 id=1]"
-    },
-    {
-     "field": "height",
-     "kind": "gadget",
-     "lxa": 112,
-     "phase": 222,
-     "ref": 108,
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[7 id=3]"
-    },
-    {
-     "field": "height",
-     "kind": "gadget",
-     "lxa": 96,
-     "phase": 222,
-     "ref": 90,
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[8 id=3]"
-    },
-    {
-     "field": "top",
-     "kind": "gadget",
-     "lxa": 125,
-     "phase": 222,
-     "ref": 119,
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[9 id=3]"
-    },
-    {
-     "field": "height",
-     "kind": "gadget",
-     "lxa": 8,
-     "phase": 222,
-     "ref": 9,
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[9 id=3]"
-    },
-    {
-     "field": "top",
-     "kind": "gadget",
-     "lxa": 133,
-     "phase": 222,
-     "ref": 128,
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[10 id=3]"
-    },
-    {
-     "field": "height",
-     "kind": "gadget",
-     "lxa": 8,
-     "phase": 222,
-     "ref": 9,
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[10 id=3]"
-    },
-    {
-     "field": "height",
-     "kind": "gadget",
-     "lxa": 116,
-     "phase": 222,
-     "ref": 112,
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[11 id=3]"
-    },
-    {
-     "field": "height",
-     "kind": "gadget",
-     "lxa": 116,
-     "phase": 222,
-     "ref": 112,
-     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/gadget[12 id=3]"
-    },
     {
      "field": "width",
      "kind": "item",
@@ -235,7 +91,7 @@
      "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/menu[Settings]/History/#?"
     }
    ],
-   "pixel_budget": 20245,
+   "pixel_budget": 14199,
    "pixel_phase": 240,
    "stdout_known_diff": null
   }

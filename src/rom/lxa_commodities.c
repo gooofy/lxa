@@ -23,10 +23,10 @@
 
 #include "util.h"
 
-#define VERSION    39
-#define REVISION   1
+#define VERSION    40
+#define REVISION   2
 #define EXLIBNAME  "commodities"
-#define EXLIBVER   " 39.1 (2025/06/23)"
+#define EXLIBVER   " 40.2 (11.2.93)\r\n"
 
 char __aligned _g_commodities_ExLibName [] = EXLIBNAME ".library";
 char __aligned _g_commodities_ExLibID   [] = EXLIBNAME EXLIBVER;

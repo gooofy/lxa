@@ -57,6 +57,8 @@ int main(void)
 {
     struct Task *t, *a, *b, *c;
     BYTE oldpri;
+    UBYTE sigstate;
+    int sigorder;
 
     mainTask = FindTask(NULL);
     SetTaskPri(mainTask, 0);         /* the launcher's priority is not part of the probe */
@@ -86,8 +88,12 @@ int main(void)
     P_LONG("SetTaskPri(sub, -5) old", SetTaskPri(t, -5));
     P_STR("tc_State after SetTaskPri", statename(t->tc_State));
     Signal(t, SIGBREAKF_CTRL_C);
-    P_STR("tc_State after Signal (lower pri)", statename(t->tc_State));
-    P_LONG("subtask has not run yet", norder);
+    /* read both before printing: Write() waits for the console, and the
+     * lower-priority subtask may run meanwhile */
+    sigstate = t->tc_State;
+    sigorder = norder;
+    P_STR("tc_State after Signal (lower pri)", statename(sigstate));
+    P_LONG("subtask has not run yet", sigorder);
     Wait(SIGBREAKF_CTRL_F);
     P_LONG("subtask ran after main waited", norder);
     P_NULL("FindTask(name) after exit", FindTask((STRPTR)"probewait"));
@@ -109,7 +115,7 @@ int main(void)
     a = start_task("a", sub_mark, -1);
     b = start_task("b", sub_mark, -1);
     c = start_task("c", sub_mark, 5);
-    P_STR("tc_State of a (Forbid)", statename(a->tc_State));
+    sigstate = a->tc_State;     /* printed after Permit: Write() inside Forbid() would let the subtasks run */
     Permit();
     order[norder++] = 'M';
     SetTaskPri(mainTask, -10);
@@ -117,6 +123,7 @@ int main(void)
         Wait(SIGBREAKF_CTRL_F);
     SetTaskPri(mainTask, oldpri);
     order[norder] = 0;
+    P_STR("tc_State of a (Forbid)", statename(sigstate));
     P_STR("run order (c pri 5, main pri 0, a,b pri -1)", (char *)order);
     free_task(a);
     free_task(b);

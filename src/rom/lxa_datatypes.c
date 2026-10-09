@@ -70,12 +70,12 @@ static struct TagItem *lxa_next_tag(struct TagItem **state)
 }
 
 #define VERSION    40
-#define REVISION   1
+#define REVISION   6
 #define EXLIBNAME  "datatypes"
-#define EXLIBVER   " 40.1 (2026/04/23)"
+#define EXLIBVER   " 40.6 (25.8.93)\r\n"
 
 char __aligned _g_datatypes_ExLibName [] = EXLIBNAME ".library";
-char __aligned _g_datatypes_ExLibID   [] = EXLIBNAME EXLIBVER;
+char __aligned _g_datatypes_ExLibID   [] = "DataTypes" EXLIBVER;   /* as on AmigaOS 3.1 */
 char __aligned _g_datatypes_Copyright [] = "(C)opyright 2026 by G. Bartsch. Licensed under the MIT License.";
 
 char __aligned _g_datatypes_VERSTRING [] = "\0$VER: " EXLIBNAME EXLIBVER;

@@ -7,6 +7,7 @@
 #define LXA_PROBE_GTPROBE_H
 
 #include <exec/memory.h>
+#include <stdarg.h>
 #include <intuition/gadgetclass.h>
 #include <libraries/gadtools.h>
 #include <clib/exec_protos.h>
@@ -50,6 +51,22 @@ static void probe_kind(const char *name, ULONG kind, Tag tag1, ...)
 {
     struct Gadget *glist = NULL, *ctx, *g, *x;
     int n, ret = -1;
+    /* copy the tag pairs into a real array: &tag1 as a TagItem list read
+     * stale stack after the first pair (Phase 222g) */
+    static struct TagItem tags[32];
+    va_list ap;
+    int t = 0;
+    Tag tag = tag1;
+    va_start(ap, tag1);
+    while (tag != TAG_DONE && t < 31) {
+        tags[t].ti_Tag = tag;
+        tags[t].ti_Data = va_arg(ap, ULONG);
+        t++;
+        tag = va_arg(ap, Tag);
+    }
+    va_end(ap);
+    tags[t].ti_Tag = TAG_DONE;
+    tags[t].ti_Data = 0;
 
     P_SECTION(name);
     ctx = CreateContext(&glist);
@@ -58,7 +75,7 @@ static void probe_kind(const char *name, ULONG kind, Tag tag1, ...)
         probe_s("CreateContext failed\n");
         return;
     }
-    g = CreateGadgetA(kind, ctx, &g_ng, (struct TagItem *)&tag1);
+    g = CreateGadgetA(kind, ctx, &g_ng, tags);
     if (!g)
         probe_s("result = NULL\n");
     else

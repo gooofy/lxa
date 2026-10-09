@@ -142,6 +142,7 @@ void            U_prepareTask    (struct Task *task, APTR initPC, APTR finalPC, 
 void            U_freeTask       (struct Task *task);
 struct Task    *U_createTask     (STRPTR name, LONG pri, APTR initpc, ULONG stacksize);
 
+BOOL            U_isSystemSegment(BPTR seg);
 void            U_prepareProcess (struct Process *process, APTR initPC, APTR finalPC, ULONG stacksize, char *args);
 
 #endif

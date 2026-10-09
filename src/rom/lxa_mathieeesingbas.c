@@ -26,9 +26,9 @@
 #include "util.h"
 
 #define VERSION    40
-#define REVISION   1
+#define REVISION   4
 #define EXLIBNAME  "mathieeesingbas"
-#define EXLIBVER   " 40.1 (2026/03/06)"
+#define EXLIBVER   " 40.4 (16.3.93)\r\n"
 
 char __aligned _g_mathieeesingbas_ExLibName [] = EXLIBNAME ".library";
 char __aligned _g_mathieeesingbas_ExLibID   [] = EXLIBNAME EXLIBVER;
@@ -44,6 +44,9 @@ struct Library * __g_lxa_mathieeesingbas_InitLib (register struct Library *lib  
                                                   register struct ExecBase *sysb  __asm("a6"))
 {
     DPRINTF (LOG_DEBUG, "_mathieeesingbas: InitLib() called\n");
+    /* the AmigaOS 3.1 ROM copy has no lib_IdString (only its resident tag
+     * has one; probe exec/diskversions) */
+    lib->lib_IdString = NULL;
     return lib;
 }
 

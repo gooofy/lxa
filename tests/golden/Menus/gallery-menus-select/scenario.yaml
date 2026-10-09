@@ -1,0 +1,51 @@
+# Phase 222g: menu drawn-state flags after a menu session (MIDRAWN on the
+# menu, HIGHITEM/ISDRAWN on the final item and sub-item, MENUTOGGLED and
+# MutualExclude on a selected CHECKIT sub-item), a disabled item, a disabled
+# menu, releasing over an empty part of the bar or outside the menu.
+# xy is relative to the Menu Gallery window at (100,60): the menu bar is at
+# y = -55, Project's title at x = -66.
+name: gallery-menus-select
+app:
+  sample: Tests/Gallery/Menus
+steps:
+  - launch
+  - wait_window: "Menu Gallery"
+  - wait_idle
+  # Project/Print -> sub-item Draft (CHECKIT, MutualExclude NLQ)
+  - press: {window: "Menu Gallery", xy: [-66, -55], button: R}
+  - move: {window: "Menu Gallery", xy: [-70, -11]}
+  - move: {window: "Menu Gallery", xy: [20, -11]}
+  - move: {window: "Menu Gallery", xy: [22, -11]}
+  - release: {window: "Menu Gallery", xy: [22, -11], button: R}
+  - frames: 10
+  - snapshot: sub
+  # Edit/Cut is disabled
+  - press: {window: "Menu Gallery", xy: [-6, -55], button: R}
+  - move: {window: "Menu Gallery", xy: [-6, -44]}
+  - move: {window: "Menu Gallery", xy: [-5, -44]}
+  - release: {window: "Menu Gallery", xy: [-5, -44], button: R}
+  - frames: 10
+  - snapshot: disabled
+  # the Ghost menu is disabled
+  - press: {window: "Menu Gallery", xy: [46, -55], button: R}
+  - move: {window: "Menu Gallery", xy: [46, -44]}
+  - move: {window: "Menu Gallery", xy: [47, -44]}
+  - release: {window: "Menu Gallery", xy: [47, -44], button: R}
+  - frames: 10
+  - snapshot: ghost
+  # release over the bar right of the last title: Project stays drawn
+  - press: {window: "Menu Gallery", xy: [-66, -55], button: R}
+  - move: {window: "Menu Gallery", xy: [300, -55]}
+  - release: {window: "Menu Gallery", xy: [300, -55], button: R}
+  - frames: 10
+  - snapshot: cancelbar
+  # release outside the drop-down
+  - press: {window: "Menu Gallery", xy: [-66, -55], button: R}
+  - move: {window: "Menu Gallery", xy: [-70, -44]}
+  - move: {window: "Menu Gallery", xy: [400, 140]}
+  - release: {window: "Menu Gallery", xy: [400, 140], button: R}
+  - frames: 10
+  - snapshot: cancelout
+  - menu: "Edit/Copy"
+  - snapshot: copy
+  - quit

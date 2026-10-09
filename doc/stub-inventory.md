@@ -16,18 +16,17 @@ implementing the function, never by deleting the macro.
 | commodities | 26 | 0 | 4 |
 | console | 1 | 0 | 0 |
 | datatypes | 5 | 0 | 0 |
-| dos | 5 | 1 | 10 |
+| dos | 18 | 2 | 10 |
 | exec | 7 | 3 | 0 |
 | gadtools | 0 | 1 | 6 |
-| graphics | 0 | 7 | 8 |
+| graphics | 0 | 7 | 7 |
 | icon | 0 | 2 | 0 |
-| intuition | 3 | 17 | 11 |
-| locale | 0 | 1 | 0 |
+| intuition | 3 | 17 | 10 |
 | rexxsyslib | 17 | 0 | 0 |
 | translator | 1 | 0 | 0 |
 | utility | 0 | 0 | 7 |
 | workbench | 0 | 0 | 3 |
-| **total** | **83** | **32** | **49** |
+| **total** | **96** | **32** | **47** |
 
 ## amigaguide
 
@@ -97,6 +96,7 @@ implementing the function, never by deleting the macro.
 
 ## dos
 
+- `CON:` — partial: AUTO, WAIT and SCREEN options are ignored (`src/rom/lxa_dos.c`)
 - `UnLockDosList` — partial: DosList locking is simulated (Phase 255) (`src/rom/lxa_dos.c`)
 - `ClearVec` — private/reserved slot (`src/rom/lxa_dos.c`)
 - `NoReqLoadSeg` — private/reserved slot (`src/rom/lxa_dos.c`)
@@ -110,6 +110,19 @@ implementing the function, never by deleting the macro.
 - `private7` — private/reserved slot (`src/rom/lxa_dos.c`)
 - `AbortPkt` — stub: packet not aborted (Phase 255) (`src/rom/lxa_dos.c`)
 - `AttemptLockDosList` — stub: returns a dummy marker, no real DosList or locking (Phase 255) (`src/rom/lxa_dos.c`)
+- `BCPL callco` — stub: BCPL coroutines (GV 0x64) (`src/rom/bcpl/bcpl_support.c`)
+- `BCPL compareTime` — stub: BCPL compareTime (GV 0x1f8) (`src/rom/bcpl/bcpl_support.c`)
+- `BCPL cowait` — stub: BCPL coroutines (GV 0x68) (`src/rom/bcpl/bcpl_support.c`)
+- `BCPL createco` — stub: BCPL coroutines (GV 0x5c) (`src/rom/bcpl/bcpl_support.c`)
+- `BCPL deleteco` — stub: BCPL coroutines (GV 0x60) (`src/rom/bcpl/bcpl_support.c`)
+- `BCPL holdTask` — stub: BCPL holdTask (GV 0xb8) (`src/rom/bcpl/bcpl_support.c`)
+- `BCPL longjump` — stub: BCPL longjump (GV 0x50) (`src/rom/bcpl/bcpl_support.c`)
+- `BCPL makeGVarea` — stub: BCPL makeGVarea (GV 0x34) (`src/rom/bcpl/bcpl_support.c`)
+- `BCPL openDevInfo` — stub: BCPL handler start-up (GV 0x1c0) (`src/rom/bcpl/bcpl_support.c`)
+- `BCPL resumeco` — stub: BCPL coroutines (GV 0x6c) (`src/rom/bcpl/bcpl_support.c`)
+- `BCPL sysRequest` — stub: BCPL system requester (GV -0x84) (`src/rom/bcpl/bcpl_support.c`)
+- `BCPL systemRequest` — stub: BCPL system requester (GV 0xd0) (`src/rom/bcpl/bcpl_support.c`)
+- `BCPL tidyup` — stub: BCPL tidyup (GV 0x150) (`src/rom/bcpl/bcpl_support.c`)
 - `FindDosEntry` — stub: always returns NULL (Phase 255) (`src/rom/lxa_dos.c`)
 - `LockDosList` — stub: returns a dummy marker, no real DosList or locking (Phase 255) (`src/rom/lxa_dos.c`)
 - `NextDosEntry` — stub: always returns NULL (Phase 255) (`src/rom/lxa_dos.c`)
@@ -148,7 +161,6 @@ implementing the function, never by deleting the macro.
 - `UnlockLayerRom` — partial: no-op, layer is not locked (Phase 256) (`src/rom/lxa_graphics.c`)
 - `private2` — private/reserved slot (`src/rom/lxa_graphics.c`)
 - `private3` — private/reserved slot (`src/rom/lxa_graphics.c`)
-- `private4` — private/reserved slot (`src/rom/lxa_graphics.c`)
 - `private5` — private/reserved slot (`src/rom/lxa_graphics.c`)
 - `private6` — private/reserved slot (`src/rom/lxa_graphics.c`)
 - `private7` — private/reserved slot (`src/rom/lxa_graphics.c`)
@@ -170,7 +182,7 @@ implementing the function, never by deleting the macro.
 - `NextPubScreen` — partial: only ever reports Workbench (Phase 256) (`src/rom/lxa_intuition.c`)
 - `ObtainGIRPort` — partial: returns the shared gadget RastPort instead of a clone (Phase 256) (`src/rom/lxa_intuition.c`)
 - `OpenScreen` — partial: fixed bar/border sizes, screen font height ignored (Phase 256) (`src/rom/lxa_intuition.c`)
-- `OpenScreenTagList` — partial: ignores SA_DClip, SA_Overscan, SA_Colors, SA_SysFont, SA_ErrorCode (Phase 256) (`src/rom/lxa_intuition.c`)
+- `OpenScreenTagList` — partial: ignores SA_DClip, SA_Overscan, SA_Colors, SA_ErrorCode (Phase 256) (`src/rom/lxa_intuition.c`)
 - `OpenWindow` — partial: title bar height ignores screen font height (Phase 256) (`src/rom/lxa_intuition.c`)
 - `OpenWindowTagList` — partial: ignores WA_BackFill, WA_RptQueue, WA_Pointer, WA_BusyPointer, WA_Checkmark, WA_HelpGroup (Phase 256) (`src/rom/lxa_intuition.c`)
 - `PrintIText` — partial: ignores IntuiText ITextFont, uses RastPort font (Phase 256) (`src/rom/lxa_intuition.c`)
@@ -180,7 +192,6 @@ implementing the function, never by deleting the macro.
 - `SetPubScreenModes` — partial: modes stored but SHANGHAI/POPPUBSCREEN ignored (Phase 256) (`src/rom/lxa_intuition.c`)
 - `UnlockPubScreenList` — partial: no-op, list is never locked (Phase 256) (`src/rom/lxa_intuition.c`)
 - `private0` — private/reserved slot (`src/rom/lxa_intuition.c`)
-- `private1` — private/reserved slot (`src/rom/lxa_intuition.c`)
 - `private10` — private/reserved slot (`src/rom/lxa_intuition.c`)
 - `private2` — private/reserved slot (`src/rom/lxa_intuition.c`)
 - `private3` — private/reserved slot (`src/rom/lxa_intuition.c`)
@@ -193,10 +204,6 @@ implementing the function, never by deleting the macro.
 - `DisplayBeep` — stub: no screen flash or bell (Phase 256) (`src/rom/lxa_intuition.c`)
 - `PointInImage` — stub: always TRUE (Phase 256) (`src/rom/lxa_intuition.c`)
 - `SetDefaultPubScreen` — stub: default public screen not changed (Phase 256) (`src/rom/lxa_intuition.c`)
-
-## locale
-
-- `OpenLocale` — partial: locale prefs files are not parsed, the default locale is returned (`src/rom/lxa_locale.c`)
 
 ## rexxsyslib
 

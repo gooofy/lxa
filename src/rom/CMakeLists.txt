@@ -77,6 +77,15 @@ set(ROM_C_SOURCES
     lxa_dev_trackdisk.c
     util.c
     amath.c
+    # BCPL support ported from AROS (Phase 239); gcc preprocesses the .S
+    bcpl/bcpl_support.c
+    bcpl/bcpl.S
+)
+
+set(ROM_HEADERS
+    ${CMAKE_CURRENT_SOURCE_DIR}/bcpl/bcpl.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/bcpl/bcpl.inc
+    ${CMAKE_CURRENT_SOURCE_DIR}/bcpl/bcpl_support.h
 )
 
 set(ROM_ASM_SOURCES
@@ -107,7 +116,7 @@ foreach(src ${ROM_C_SOURCES})
     add_custom_command(
         OUTPUT ${obj}
         COMMAND ${M68K_GCC} -c ${ROM_CFLAGS} -o ${obj} ${CMAKE_CURRENT_SOURCE_DIR}/${src}
-        DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/${src}
+        DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/${src} ${ROM_HEADERS}
         COMMENT "Compiling ${src}"
     )
     list(APPEND ROM_OBJECTS ${obj})

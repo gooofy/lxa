@@ -126,6 +126,7 @@ set(TESTS_LIST
     "../tests/exec/libident|main|Tests/Exec/LibIdent"
     "../tests/dos/chario|main|Tests/Dos/CharIO"
     "../tests/console/conbuf|main|Tests/Console/ConBuf"
+    "../tests/console/conrepair|main|Tests/Console/ConRepair"
     "../tests/dos/stdin_eof|main|Tests/Dos/StdinEOF"
     "../tests/dos/createdir|main|Tests/Dos/CreateDir"
     "../tests/dos/fhutils|main|Tests/Dos/FHUtils"
@@ -441,6 +442,7 @@ set(GALLERY_LIST
     "sysimages|SysI"
     "frames|Frames"
     "screen|Screen"
+    "prefs|Prefs"
 )
 file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/Samples/Tests/Gallery")
 foreach(gallery_info ${GALLERY_LIST})

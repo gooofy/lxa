@@ -7,6 +7,13 @@ A scenario is one YAML file, executed unchanged on both backends:
     fonts: wb31                         # optional: lxa gets the reference's
                                         # Workbench 3.1 FONTS: (user-supplied
                                         # media, never committed)
+    prefs: tests/prefs/fontpal          # optional: *.prefs files installed as
+                                        # ENVARC:Sys (reference, applied by its
+                                        # boot-time IPrefs) / ENV:Sys (lxa,
+                                        # applied by C:IPrefs at boot) - Phase 236
+    keymaps: wb31                       # optional: the Workbench 3.1 keymaps
+                                        # (Storage/Keymaps of the reference
+                                        # system) as KEYMAPS: on both sides
     app:
       sample: SimpleGTGadget            # lxa sample/test binary (SYS:<path>)
       # manifest: DPaintV               # or an app from apps/<App>.json
@@ -108,6 +115,12 @@ class Scenario:
         self.fonts = doc.get("fonts")
         if self.fonts not in (None, "wb31"):
             raise ScenarioError("%s: fonts must be wb31" % path)
+        self.keymaps = doc.get("keymaps")
+        if self.keymaps not in (None, "wb31"):
+            raise ScenarioError("%s: keymaps must be wb31" % path)
+        self.prefs = doc.get("prefs")
+        if self.prefs and not os.path.isdir(self.prefs_dir()):
+            raise ScenarioError("%s: prefs directory %s missing" % (path, self.prefs))
         app = doc.get("app") or {}
         self.args = app.get("args", "")
         self.sample = app.get("sample")
@@ -157,6 +170,23 @@ class Scenario:
         refsys = os.environ.get("LXA_REFSYS_DIR", os.path.expanduser("~/.cache/lxa/refsys"))
         return os.path.join(refsys, "SYS-%s" % self.profile, "Fonts")
 
+    def keymaps_dir(self):
+        """Host directory with the Workbench 3.1 keymaps (`keymaps: wb31`),
+        built from the user's ADFs; None: no disk keymaps."""
+        if not self.keymaps:
+            return None
+        refsys = os.environ.get("LXA_REFSYS_DIR", os.path.expanduser("~/.cache/lxa/refsys"))
+        return os.path.join(refsys, "SYS-%s" % self.profile, "Storage", "Keymaps")
+
+    def prefs_dir(self):
+        """Host directory with the scenario's ENV:Sys/*.prefs files (None: the
+        default prefs), relative to the repository root."""
+        return os.path.join(ROOT, self.prefs) if self.prefs else None
+
+    def prefs_files(self):
+        d = self.prefs_dir()
+        return sorted(f for f in os.listdir(d) if f.lower().endswith(".prefs")) if d else []
+
     def app_host_dir(self):
         return os.path.join(APPS_DIR, self.manifest["dir"]) if self.manifest else None
 
@@ -168,5 +198,9 @@ class Scenario:
         if sp and os.path.exists(sp):
             with open(sp, "rb") as f:
                 h.update(f.read())
+        for f in self.prefs_files():
+            h.update(f.encode())
+            with open(os.path.join(self.prefs_dir(), f), "rb") as pf:
+                h.update(pf.read())
         h.update(extra.encode())
         return h.hexdigest()[:24]
