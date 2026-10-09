@@ -2011,6 +2011,8 @@ struct Gadget * _gadtools_CreateGadgetA ( register struct GadToolsBase *GadTools
         case NUMBER_KIND:
             mg = gt_member(&b, GT_ROLE_MAIN, 0, GFLG_EXTENDED | GFLG_GADGHNONE | GFLG_GADGIMAGE, 0,
                              L, T, W, H);
+            /* GTTX_Justification == GTNM_Justification (V39) */
+            data->justification = (UBYTE)GetTagData(GTTX_Justification, GTJ_LEFT, taglist);
             if (kind == TEXT_KIND)
             {
                 data->kind = GT_KIND_TEXT;
@@ -2494,7 +2496,24 @@ BOOL _gadtools_RenderGadget(register struct Window *win __asm("a0"),
             else
             {
                 lxa_draw_frame(rp, FRAME_BUTTON, FALSE, mgl, mgt, w, h, IDS_NORMAL, FALSE, pens);
-                if (data->value)
+                if (data->value && w == 26 && h == 13)
+                {
+                    /* 26x13 (GTCB_Scaled with a topaz 8 row, asl.library's
+                     * AutoScroll box): 3.1's scaled check glyph, columns
+                     * 2..23 of rows 1..11 (scenario gallery-asl-screenmode) */
+                    static const ULONG glyph[11] = {
+                        0x000000, 0x000070, 0x0000c0, 0x0001c0, 0x000380, 0x01c300,
+                        0x00e600, 0x007e00, 0x007c00, 0x003800, 0x000000
+                    };
+                    WORD r, c;
+
+                    SetAPen(rp, pens[TEXTPEN]);
+                    for (r = 0; r < 11; r++)
+                        for (c = 2; c < 24; c++)
+                            if (glyph[r] & (1UL << (23 - c)))
+                                WritePixel(rp, mgl + c, mgt + 1 + r);
+                }
+                else if (data->value)
                 {
                     SetAPen(rp, pens[TEXTPEN]);
                     RectFill(rp, mgl + w / 3, mgt + h / 2, mgl + w / 2, mgt + h - 3);
@@ -2688,7 +2707,9 @@ BOOL _gadtools_RenderGadget(register struct Window *win __asm("a0"),
                 {
                     WORD len = gt_strlen((STRPTR)n->ln_Name);
                     WORD fit = lxa_text_fit(rp, (STRPTR)n->ln_Name, len, lw - 4 - 4);
-                    gt_draw_text(rp, L + 4, y, (STRPTR)n->ln_Name, fit,
+                    /* the text is centred in a line taller than the font
+                     * (LAYOUTA_Spacing 1: one pixel down - asl's mode list) */
+                    gt_draw_text(rp, L + 4, y + (ih - fh + 1) / 2, (STRPTR)n->ln_Name, fit,
                                  sel ? pens[FILLTEXTPEN] : pens[TEXTPEN], -1);
                 }
             }
@@ -2742,13 +2763,25 @@ BOOL _gadtools_RenderGadget(register struct Window *win __asm("a0"),
 
             if (data->border)
                 lxa_draw_frame(rp, FRAME_BUTTON, TRUE, L, T, W, H, IDS_NORMAL, FALSE, pens);
+            /* a new GTTX_Text/GTNM_Number replaces the old text */
+            SetAPen(rp, pens[BACKGROUNDPEN]);
+            if (data->border && W > 4 && H > 2)
+                RectFill(rp, L + 2, T + 1, L + W - 3, T + H - 2);
+            else if (!data->border && W > 0 && H > 0)
+                RectFill(rp, L, T, L + W - 1, T + H - 1);
             if (s)
             {
                 WORD len = gt_strlen(s);
                 WORD inner = data->border ? W - 8 : W;
                 WORD fit = lxa_text_fit(rp, s, len, inner);
-                gt_draw_text(rp, L + (data->border ? 4 : 0), T + (H - fh + 1) / 2, s, fit,
-                             pens[TEXTPEN], -1);
+                WORD x = L + (data->border ? 4 : 0);
+                WORD tw = TextLength(rp, (STRPTR)s, fit);
+
+                if (data->justification == GTJ_RIGHT)
+                    x += inner - tw;
+                else if (data->justification == GTJ_CENTER)
+                    x += (inner - tw) / 2;
+                gt_draw_text(rp, x, T + (H - fh + 1) / 2, s, fit, pens[TEXTPEN], -1);
             }
             gt_draw_label_chain(rp, mg, mgl, mgt, data, pens);
             break;

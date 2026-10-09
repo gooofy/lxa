@@ -1,0 +1,17 @@
+# asl.library gallery (Phase 238): the screen-mode requester with every
+# ASLSM_Do* gadget, initial mode PAL:High Res 640x256x3; OK returns the
+# selection.  The requester's window gets IDCMP_INTUITICKS, so the
+# reference agent never sees it idle: wait in frames.
+name: gallery-asl-screenmode
+app:
+  sample: Tests/Gallery/Asl
+  args: "smfull"
+steps:
+  - launch
+  - wait_window: "Gallery Screen Mode"
+  - frames: 50
+  - snapshot: {name: requester, window: "Gallery Screen Mode"}
+  - click: {gadget_id: 1, window: "Gallery Screen Mode"}
+  - wait_output: "DONE"
+  - snapshot: {name: result, screen: false}
+  - quit

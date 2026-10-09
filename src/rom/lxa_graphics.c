@@ -809,6 +809,25 @@ static BOOL graphics_display_id_is_known(ULONG display_id)
         if (g_known_display_ids[i] == display_id)
             return TRUE;
     }
+    /* every mode key of the 3.1 ROM database (dual playfield, super-hires
+     * HAM/EHB, scan-doubled, ...) on one of the known monitors
+     * (tests/probes/graphics/modedb) */
+    {
+        static const UWORD keys[] = {
+            0x0000, 0x8000, 0x8020, 0x0800, 0x0080, 0x0004, 0x8004, 0x8024,
+            0x0804, 0x0084, 0x0400, 0x8400, 0x8420, 0x0404, 0x8404, 0x8424,
+            0x0440, 0x8440, 0x8460, 0x0444, 0x8444, 0x8464, 0x8800, 0x8820,
+            0x8804, 0x8824, 0x8080, 0x80a0, 0x8084, 0x80a4, 0x0008, 0x0808,
+            0x0088, 0x8808
+        };
+        ULONG mon = display_id & MONITOR_ID_MASK;
+
+        if (mon != DEFAULT_MONITOR_ID && mon != PAL_MONITOR_ID && mon != NTSC_MONITOR_ID)
+            return FALSE;
+        for (i = 0; i < sizeof(keys) / sizeof(keys[0]); i++)
+            if ((display_id & ~MONITOR_ID_MASK) == keys[i])
+                return TRUE;
+    }
 
     return FALSE;
 }
@@ -885,6 +904,8 @@ static UWORD graphics_display_nominal_height(ULONG display_id)
 
     if (display_id & LACE)
         height *= 2;
+    if (display_id & 0x8)       /* scan-doubled: half the lines */
+        height /= 2;
     return height;
 }
 
@@ -9595,20 +9616,37 @@ static ULONG _graphics_GetDisplayInfoData ( register struct GfxBase * GfxBase __
                 di.PropertyFlags |= DIPF_IS_LACE;
             if (actualDisplayID & HAM)
             {
-                di.PropertyFlags = (di.PropertyFlags & ~DIPF_IS_WB) | DIPF_IS_HAM;
+                di.PropertyFlags = (di.PropertyFlags & ~(DIPF_IS_WB | DIPF_IS_ECS)) | DIPF_IS_HAM;
                 if (xscale > 1)
                     di.PropertyFlags |= DIPF_IS_AA;
             }
             if ((actualDisplayID & EXTRAHALFBRITE_KEY) == EXTRAHALFBRITE_KEY)
-                di.PropertyFlags = (di.PropertyFlags & ~DIPF_IS_WB) | DIPF_IS_EXTRAHALFBRITE;
+            {
+                di.PropertyFlags = (di.PropertyFlags & ~(DIPF_IS_WB | DIPF_IS_ECS)) | DIPF_IS_EXTRAHALFBRITE;
+                if (xscale > 1)
+                    di.PropertyFlags |= DIPF_IS_AA;
+            }
+            /* dual playfield (0x400) and playfield 2 priority (0x40)
+             * modes are not Workbench modes (tests/probes/graphics/modedb) */
+            if (actualDisplayID & DUALPF)
+            {
+                di.PropertyFlags = (di.PropertyFlags & ~DIPF_IS_WB) | DIPF_IS_DUALPF;
+                if (actualDisplayID & 0x40)       /* PF2PRI */
+                    di.PropertyFlags |= DIPF_IS_PF2PRI;
+            }
+            /* scan-doubled modes (0x8: 128 lines) need AA */
+            if (actualDisplayID & 0x8)
+                di.PropertyFlags = (di.PropertyFlags & ~DIPF_IS_WB) | DIPF_IS_AA | DIPF_IS_SCANDBL;
             di.Resolution.x = (WORD)(44 / xscale);
             di.Resolution.y = is_ntsc ? 52 : 44;
             if (actualDisplayID & LACE)
                 di.Resolution.y /= 2;
+            if (actualDisplayID & 0x8)
+                di.Resolution.y *= 2;
             di.PixelSpeed = (UWORD)(280 / (xscale * 2));
             di.NumStdSprites = 8;
             di.PaletteRange = 16;
-            di.SpriteResolution.x = 44;
+            di.SpriteResolution.x = (xscale == 4) ? 22 : 44;   /* SHIRES sprites are hires */
             di.SpriteResolution.y = is_ntsc ? 52 : 44;
             di.RedBits = 4;
             di.GreenBits = 4;
@@ -9644,8 +9682,9 @@ static ULONG _graphics_GetDisplayInfoData ( register struct GfxBase * GfxBase __
              * PAL -15..+12 lines, NTSC -23..+18 lines */
             {
                 BOOL ntsc = ((actualDisplayID & MONITOR_ID_MASK) == NTSC_MONITOR_ID);
-                dims.MaxOScan.MinY = (WORD)((ntsc ? -23 : -15) * yscale);
-                dims.MaxOScan.MaxY = (WORD)(height - 1 + (ntsc ? 18 : 12) * yscale);
+                WORD yden = (actualDisplayID & 0x8) ? 2 : 1;     /* scan-doubled */
+                dims.MaxOScan.MinY = (WORD)((ntsc ? -23 : -15) * yscale / yden);
+                dims.MaxOScan.MaxY = (WORD)(height - 1 + (ntsc ? 18 : 12) * yscale / yden);
             }
             dims.MaxOScan.MaxX = (WORD)(width - 1 + 6 * xscale);
             dims.VideoOScan = dims.MaxOScan;
