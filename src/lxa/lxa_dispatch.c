@@ -918,6 +918,12 @@ int op_illg(int level)
              * `RUN >file prog`, so IsInteractive() is FALSE for them there too */
             static int stdio_file = -1;
             uint32_t fd = m68k_get_reg(NULL, M68K_REG_D1);
+            /* d2: the handle kind - a file is interactive only when it is a
+             * device such as PRT: (Phase 237) */
+            if (m68k_get_reg(NULL, M68K_REG_D2) == FILE_KIND_REGULAR) {
+                m68k_set_reg(M68K_REG_D0, _dos_fd_interactive((int)fd) ? 1 : 0);
+                break;
+            }
             if (stdio_file < 0) {
                 const char *e = getenv("LXA_STDIO_FILE");
                 stdio_file = e && *e && strcmp(e, "0") != 0;

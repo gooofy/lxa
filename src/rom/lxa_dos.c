@@ -1577,9 +1577,9 @@ static BOOL lxa_dos_fh_interactive(struct FileHandle *fh)
         return FALSE;
     if (fh->fh_Func3 == FILE_KIND_CON)
         return TRUE;
-    if (fh->fh_Func3 != FILE_KIND_CONSOLE)
+    if (fh->fh_Func3 != FILE_KIND_CONSOLE && fh->fh_Func3 != FILE_KIND_REGULAR)
         return FALSE;
-    return emucall1(EMU_CALL_DOS_ISINTERACTIVE, fh->fh_Args) ? TRUE : FALSE;
+    return emucall2(EMU_CALL_DOS_ISINTERACTIVE, fh->fh_Args, fh->fh_Func3) ? TRUE : FALSE;
 }
 
 /* the buffer, allocated when first needed */
@@ -3690,9 +3690,10 @@ LONG _dos_IsInteractive ( register struct DosLibrary *__dos_a6 __asm("a6"),
     ULONG kind = fh->fh_Func3;
     if (kind == FILE_KIND_CON)
         return 1;           /* CON:/RAW: windows */
-    if (kind != FILE_KIND_CONSOLE)
+    if (kind != FILE_KIND_CONSOLE && kind != FILE_KIND_REGULAR)
         return 0;
-    return emucall1(EMU_CALL_DOS_ISINTERACTIVE, fh->fh_Args) ? 1 : 0;
+    /* a file is interactive when it is a device (PRT:) */
+    return emucall2(EMU_CALL_DOS_ISINTERACTIVE, fh->fh_Args, kind) ? 1 : 0;
 }
 
 void _dos_Delay ( register struct DosLibrary * __libBase __asm("a6"),

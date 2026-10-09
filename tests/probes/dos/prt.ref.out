@@ -1,0 +1,12 @@
+-- PRT:
+Open PRT: MODE_OLDFILE = non-NULL
+  IsInteractive = TRUE
+  Close = -1
+Open PRT: MODE_NEWFILE = non-NULL
+  IsInteractive = TRUE
+  Close = -1
+Open PRT:RAW MODE_NEWFILE = non-NULL
+  IsInteractive = TRUE
+  Close = -1
+Lock PRT: = NULL
+  IoErr = 209

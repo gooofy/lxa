@@ -429,6 +429,7 @@ uint32_t _dos_parentdir(uint32_t lock_id);
 uint32_t _dos_createdir(uint32_t name68k);
 int _dos_deletefile(uint32_t name68k);
 uint32_t _dos_last_error(void);
+bool _dos_fd_interactive(int fd);
 int _dos_rename(uint32_t old68k, uint32_t new68k);
 int _dos_namefromlock(uint32_t lock_id, uint32_t buf68k, uint32_t buflen);
 int _dos_setprotection(uint32_t name68k, uint32_t protect);
