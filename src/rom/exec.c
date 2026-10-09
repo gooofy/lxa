@@ -603,28 +603,39 @@ static struct Library *exec_register_resident_node(struct ExecBase *SysBase,
     struct InitTable *init_tab = (struct InitTable *)resident->rt_Init;
     struct Library *lib_base = MakeLibrary(init_tab->FunctionTable,
                                            init_tab->DataTable,
-                                           init_tab->InitLibFn,
+                                           NULL,
                                            init_tab->LibBaseSize,
                                            seg_list);
 
     if (lib_base)
     {
         /*
-         * Copy standard fields from the Resident structure into the
-         * Library node. Real AmigaOS / AROS does this in InitResident
-         * regardless of whether the InitLibFn already touched them.
-         * The library's own InitLibFn may have set some of these via
-         * its DataTable, but the Resident is the canonical source for
-         * Type, Pri, Name, IdString, and Version.
+         * AmigaOS 3.1 (probe exec/initresident): after the data table,
+         * before the init function, the Resident sets ln_Type, ln_Name,
+         * lib_Version and lib_IdString (overriding the data table) and
+         * lib_Flags = LIBF_SUMUSED|LIBF_CHANGED; ln_Pri stays as the data
+         * table left it.  The init function may change any of them (the
+         * 3.1 mathieeesingbas clears its IdString) or fail (NULL); then the
+         * library is added with AddLibrary/AddDevice/AddResource.
          */
         lib_base->lib_Node.ln_Type = resident->rt_Type;
-        lib_base->lib_Node.ln_Pri  = resident->rt_Pri;
         lib_base->lib_Node.ln_Name = resident->rt_Name;
-        lib_base->lib_IdString     = (APTR)resident->rt_IdString;
+        lib_base->lib_Flags        = LIBF_SUMUSED | LIBF_CHANGED;
         lib_base->lib_Version      = resident->rt_Version;
+        lib_base->lib_IdString     = (APTR)resident->rt_IdString;
 
-        if (target_list)
-            AddTail(target_list, (struct Node *)lib_base);
+        if (init_tab->InitLibFn)
+            lib_base = ((libInitFn_t)init_tab->InitLibFn)(lib_base, seg_list, SysBase);
+
+        if (lib_base && target_list)
+        {
+            if (target_list == &SysBase->LibList)
+                AddLibrary(lib_base);
+            else if (target_list == &SysBase->DeviceList)
+                AddDevice((struct Device *)lib_base);
+            else
+                AddResource(lib_base);
+        }
     }
 
     return lib_base;
@@ -5639,6 +5650,27 @@ void _bootstrap(void)
 
     OpenLibrary ((STRPTR)"dos.library", 0);
     OpenLibrary ((STRPTR)"utility.library", 0);
+
+    /* Phase 236: install the preferences in ENV:Sys before the program
+     * starts, as the AmigaOS Startup-Sequence does with C:IPrefs (without
+     * ENV:Sys there is nothing to install) */
+    {
+        BPTR envsys = Lock ((STRPTR)"ENV:Sys", SHARED_LOCK);
+
+        if (envsys)
+        {
+            BPTR iprefs;
+
+            UnLock (envsys);
+            iprefs = LoadSeg ((STRPTR)"C:IPrefs");
+            if (iprefs)
+            {
+                RunCommand (iprefs, 16384, (STRPTR)"\n", 1);
+                UnLoadSeg (iprefs);
+            }
+        }
+    }
+
     BPTR segs = LoadSeg ((STRPTR)binfn);
 
     DPRINTF (LOG_INFO, "_exec: _bootstrap(): segs=0x%08lx\n", segs);
@@ -5747,8 +5779,8 @@ void _bootstrap(void)
     {
         struct Task *me = SysBase->ThisTask;
         /* the program runs on lxa's large bootstrap stack but is told the
-         * AmigaOS 3.1 shell default (cli_DefaultStack, 4096 bytes), as a
-         * command started from a 3.1 shell would be */
+         * CLI's default stack (cli_DefaultStack: 32768 bytes, what the
+         * reference runner gives the programs it starts) */
         ULONG stacksize = (ULONG)me->tc_SPUpper - (ULONG)me->tc_SPLower;
         ULONG requested = emucall0(EMU_CALL_GETSTACK);    /* scenario `stack:` */
         extern void lxa_dos_set_next_command_stack(ULONG bytes);
@@ -6391,7 +6423,7 @@ void coldstart (void)
      * most 78/102/58 characters).  A longer host program path is kept.
      * (Allocated here: utility.library tags are not available this early.) */
     struct CommandLineInterface *cli = (struct CommandLineInterface *) AllocDosObject (DOS_CLI, (struct TagItem *)NULL);
-    cli->cli_DefaultStack = 4096 / 4;   /* the AmigaOS 3.1 shell default */
+    cli->cli_DefaultStack = 32768 / 4;  /* what the reference runner (lxaprobe RUN) gives programs */
 
     {
         LONG name_cap = binlen > 102 ? binlen : 102;

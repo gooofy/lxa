@@ -54,6 +54,9 @@ Minimal manifest (`apps/Asm-One.json`):
 case-variant symlinks `DOPUS`, `SYSINFO`, `KP2`) gets
 `{"dir": "DOPUS", "alias_of": "DirectoryOpus"}`; `--check` verifies that it
 resolves into the target's directory.  Aliases are not part of the compat DB.
+Manifest file names must not differ only in case (the repository must check out
+on case-insensitive filesystems), so a case-variant alias is named
+`<DIR>_alias.json` (e.g. `SYSINFO_alias.json`); `--check` enforces this.
 
 **Reference constraints** (enforced by `--check`): AmigaDOS is
 case-insensitive, so no two entries of an app may differ only in case (one of

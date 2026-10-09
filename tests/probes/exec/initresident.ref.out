@@ -1,0 +1,19 @@
+-- no data table
+result library
+ln_Type 9 ln_Pri 0 ln_Name "probeinita.library"
+lib_Version 7 lib_Revision 0 lib_IdString "probeinita 7.1 (1.1.24)\r\n"
+lib_OpenCnt 0 lib_Flags 4
+in LibList yes
+-- data table sets name, version, revision, IdString
+result library
+ln_Type 9 ln_Pri 0 ln_Name "probeinitb.library"
+lib_Version 7 lib_Revision 3 lib_IdString "probeinitb 7.1 (1.1.24)\r\n"
+lib_OpenCnt 0 lib_Flags 4
+in LibList yes
+-- data table and init function
+result library
+ln_Type 9 ln_Pri 0 ln_Name "probeinitc.library"
+lib_Version 7 lib_Revision 3 lib_IdString "probeinitc 7.1 (1.1.24)\r\n"
+lib_OpenCnt 0 lib_Flags 4
+in LibList yes
+seen by the init function: ln_Name "probeinitc.library" lib_IdString "probeinitc 7.1 (1.1.24)\r\n" lib_Version 7 ln_Pri 0 lib_Flags 6

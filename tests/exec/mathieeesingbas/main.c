@@ -284,9 +284,9 @@ int main(void)
             test_fail_msg("IEEESPSub(3, 10)");
     }
 
-    /* IEEESPMul/IEEESPDiv hang the AmigaOS 3.1 reference machine (FS-UAE
-     * A4000/040): they are tested by Tests/Exec/MathIeeeSingBasMulDiv
-     * (lxa only, Phase 220).  The fractional inputs below are bit
+    /* IEEESPMul/IEEESPDiv raise a Line-F exception on the A4000/040
+     * reference (they work on a 68030+68882): they are tested by
+     * Tests/Exec/MathIeeeSingBasMulDiv (lxa only, Phase 222b).  The fractional inputs below are bit
      * patterns instead of quotients. */
 
     /* Test IEEESPFloor */

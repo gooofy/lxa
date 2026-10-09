@@ -129,8 +129,19 @@ def run(scn, out_dir, build=None, use_cache=True):
             # APPS: is read-only: the program runs from a copy in LXAREF:
             shutil.copytree(scn.app_host_dir(), os.path.join(exch, "rddapp", scn.manifest["dir"]),
                             symlinks=True)
-        r = subprocess.run([REFCTL, "boot", "--id", str(inst), "--profile", scn.profile],
-                           capture_output=True, text=True)
+        boot = [REFCTL, "boot", "--id", str(inst), "--profile", scn.profile]
+        if scn.prefs:
+            # the reference's Startup-Sequence copies ENVARC: to ENV: and runs
+            # its own C:IPrefs before LoadWB
+            pdir = os.path.join(exch, "prefs-overlay")
+            os.makedirs(pdir, exist_ok=True)
+            for f in scn.prefs_files():
+                shutil.copy2(os.path.join(scn.prefs_dir(), f), pdir)
+            boot += ["--overlay", "%s=Prefs/Env-Archive/Sys" % pdir]
+        if scn.keymaps:
+            # KEYMAPS: is DEVS:Keymaps on the reference
+            boot += ["--overlay", "%s=Devs/Keymaps" % scn.keymaps_dir()]
+        r = subprocess.run(boot, capture_output=True, text=True)
         if r.returncode:
             raise AgentError("boot failed: %s%s" % (r.stdout, r.stderr))
         agent = Agent(inst)

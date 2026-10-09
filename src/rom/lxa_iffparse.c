@@ -34,10 +34,10 @@
 
 extern struct UtilityBase *UtilityBase;
 
-#define VERSION    39
-#define REVISION   2
+#define VERSION    40
+#define REVISION   1
 #define EXLIBNAME  "iffparse"
-#define EXLIBVER   " 39.2 (2026/02/03)"
+#define EXLIBVER   " 40.1 (9.2.93)\r\n"
 
 char __aligned _g_iffparse_ExLibName [] = EXLIBNAME ".library";
 char __aligned _g_iffparse_ExLibID   [] = EXLIBNAME EXLIBVER;

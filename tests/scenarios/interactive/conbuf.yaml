@@ -11,5 +11,7 @@ steps:
   - click: {anchor: inside, window: "ConBuf", xy: [20, 20]}
   - type: "x\n"
   - wait_output: "DONE"
-  - frames: 25
+  # 3.1 is still busy with the window right after the read (the snapshot
+  # caught its lower part undrawn, differently each run)
+  - frames: 150
   - snapshot: read

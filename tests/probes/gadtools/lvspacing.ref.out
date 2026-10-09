@@ -1,0 +1,161 @@
+-- spacing 0
+gad0 id=0 type=0x0100 flags=0x0003 act=0x0000 box=0,0,0x0 norender noselect notext nospecial mx=0
+gad1 id=7 type=0x0101 flags=0x0007 act=0x000b box=102,42,100x56 norender noselect notext nospecial mx=0
+gad2 id=7 type=0x0103 flags=0x0007 act=0x000b box=208,42,8x40 render noselect notext special mx=0
+image0 box=0,0,0x0 depth=0 nodata pick=0x00 onoff=0x00
+prop flags=0x000d hpot=0x0000 vpot=0x0000 hbody=0x0000 vbody=0xffff
+gad3 id=7 type=0x0101 flags=0x8006 act=0x0003 box=204,84,16x8 render select notext nospecial mx=0
+ext more=0x00000001 box=204,84,16x8
+image0 box=0,0,16x8 depth=-1
+select:
+image0 box=0,0,16x8 depth=-1
+gad4 id=7 type=0x0101 flags=0x8006 act=0x0003 box=204,92,16x8 render select notext nospecial mx=0
+ext more=0x00000001 box=204,92,16x8
+image0 box=0,0,16x8 depth=-1
+select:
+image0 box=0,0,16x8 depth=-1
+gad5 id=7 type=0x0100 flags=0x8007 act=0x0000 box=204,40,16x60 render noselect notext nospecial mx=0
+ext more=0x00000001 box=204,40,16x60
+image0 box=0,0,16x44 depth=-1
+gad6 id=7 type=0x0100 flags=0x8007 act=0x0000 box=100,40,120x60 render noselect text nospecial mx=0
+ext more=0x00000003 box=100,28,120x72
+itext0 t="Label" l=40 tp=-12 fp=1 bp=0 dm=0 font=topaz.font/8
+image0 box=0,0,104x60 depth=-1
+-- spacing 1
+gad0 id=0 type=0x0100 flags=0x0003 act=0x0000 box=0,0,0x0 norender noselect notext nospecial mx=0
+gad1 id=7 type=0x0101 flags=0x0007 act=0x000b box=102,42,100x54 norender noselect notext nospecial mx=0
+gad2 id=7 type=0x0103 flags=0x0007 act=0x000b box=208,42,8x36 render noselect notext special mx=0
+image0 box=0,0,0x0 depth=0 nodata pick=0x00 onoff=0x00
+prop flags=0x000d hpot=0x0000 vpot=0x0000 hbody=0x0000 vbody=0xffff
+gad3 id=7 type=0x0101 flags=0x8006 act=0x0003 box=204,80,16x9 render select notext nospecial mx=0
+ext more=0x00000001 box=204,80,16x9
+image0 box=0,0,16x9 depth=-1
+select:
+image0 box=0,0,16x9 depth=-1
+gad4 id=7 type=0x0101 flags=0x8006 act=0x0003 box=204,89,16x9 render select notext nospecial mx=0
+ext more=0x00000001 box=204,89,16x9
+image0 box=0,0,16x9 depth=-1
+select:
+image0 box=0,0,16x9 depth=-1
+gad5 id=7 type=0x0100 flags=0x8007 act=0x0000 box=204,40,16x58 render noselect notext nospecial mx=0
+ext more=0x00000001 box=204,40,16x58
+image0 box=0,0,16x40 depth=-1
+gad6 id=7 type=0x0100 flags=0x8007 act=0x0000 box=100,40,120x58 render noselect text nospecial mx=0
+ext more=0x00000003 box=100,28,120x70
+itext0 t="Label" l=40 tp=-12 fp=1 bp=0 dm=0 font=topaz.font/8
+image0 box=0,0,104x58 depth=-1
+-- spacing 1 h=100
+gad0 id=0 type=0x0100 flags=0x0003 act=0x0000 box=0,0,0x0 norender noselect notext nospecial mx=0
+gad1 id=7 type=0x0101 flags=0x0007 act=0x000b box=102,42,100x90 norender noselect notext nospecial mx=0
+gad2 id=7 type=0x0103 flags=0x0007 act=0x000b box=208,42,8x72 render noselect notext special mx=0
+image0 box=0,0,0x0 depth=0 nodata pick=0x00 onoff=0x00
+prop flags=0x000d hpot=0x0000 vpot=0x0000 hbody=0x0000 vbody=0xffff
+gad3 id=7 type=0x0101 flags=0x8006 act=0x0003 box=204,116,16x9 render select notext nospecial mx=0
+ext more=0x00000001 box=204,116,16x9
+image0 box=0,0,16x9 depth=-1
+select:
+image0 box=0,0,16x9 depth=-1
+gad4 id=7 type=0x0101 flags=0x8006 act=0x0003 box=204,125,16x9 render select notext nospecial mx=0
+ext more=0x00000001 box=204,125,16x9
+image0 box=0,0,16x9 depth=-1
+select:
+image0 box=0,0,16x9 depth=-1
+gad5 id=7 type=0x0100 flags=0x8007 act=0x0000 box=204,40,16x94 render noselect notext nospecial mx=0
+ext more=0x00000001 box=204,40,16x94
+image0 box=0,0,16x76 depth=-1
+gad6 id=7 type=0x0100 flags=0x8007 act=0x0000 box=100,40,120x94 render noselect text nospecial mx=0
+ext more=0x00000003 box=100,28,120x106
+itext0 t="Label" l=40 tp=-12 fp=1 bp=0 dm=0 font=topaz.font/8
+image0 box=0,0,104x94 depth=-1
+-- spacing 2
+gad0 id=0 type=0x0100 flags=0x0003 act=0x0000 box=0,0,0x0 norender noselect notext nospecial mx=0
+gad1 id=7 type=0x0101 flags=0x0007 act=0x000b box=102,42,100x50 norender noselect notext nospecial mx=0
+gad2 id=7 type=0x0103 flags=0x0007 act=0x000b box=208,42,8x30 render noselect notext special mx=0
+image0 box=0,0,0x0 depth=0 nodata pick=0x00 onoff=0x00
+prop flags=0x000d hpot=0x0000 vpot=0x0000 hbody=0x0000 vbody=0xffff
+gad3 id=7 type=0x0101 flags=0x8006 act=0x0003 box=204,74,16x10 render select notext nospecial mx=0
+ext more=0x00000001 box=204,74,16x10
+image0 box=0,0,16x10 depth=-1
+select:
+image0 box=0,0,16x10 depth=-1
+gad4 id=7 type=0x0101 flags=0x8006 act=0x0003 box=204,84,16x10 render select notext nospecial mx=0
+ext more=0x00000001 box=204,84,16x10
+image0 box=0,0,16x10 depth=-1
+select:
+image0 box=0,0,16x10 depth=-1
+gad5 id=7 type=0x0100 flags=0x8007 act=0x0000 box=204,40,16x54 render noselect notext nospecial mx=0
+ext more=0x00000001 box=204,40,16x54
+image0 box=0,0,16x34 depth=-1
+gad6 id=7 type=0x0100 flags=0x8007 act=0x0000 box=100,40,120x54 render noselect text nospecial mx=0
+ext more=0x00000003 box=100,28,120x66
+itext0 t="Label" l=40 tp=-12 fp=1 bp=0 dm=0 font=topaz.font/8
+image0 box=0,0,104x54 depth=-1
+-- itemheight 12
+gad0 id=0 type=0x0100 flags=0x0003 act=0x0000 box=0,0,0x0 norender noselect notext nospecial mx=0
+gad1 id=7 type=0x0101 flags=0x0007 act=0x000b box=102,42,100x48 norender noselect notext nospecial mx=0
+gad2 id=7 type=0x0103 flags=0x0007 act=0x000b box=208,42,8x24 render noselect notext special mx=0
+image0 box=0,0,0x0 depth=0 nodata pick=0x00 onoff=0x00
+prop flags=0x000d hpot=0x0000 vpot=0x0000 hbody=0x0000 vbody=0xbfff
+gad3 id=7 type=0x0101 flags=0x8006 act=0x0003 box=204,68,16x12 render select notext nospecial mx=0
+ext more=0x00000001 box=204,68,16x12
+image0 box=0,0,16x12 depth=-1
+select:
+image0 box=0,0,16x12 depth=-1
+gad4 id=7 type=0x0101 flags=0x8006 act=0x0003 box=204,80,16x12 render select notext nospecial mx=0
+ext more=0x00000001 box=204,80,16x12
+image0 box=0,0,16x12 depth=-1
+select:
+image0 box=0,0,16x12 depth=-1
+gad5 id=7 type=0x0100 flags=0x8007 act=0x0000 box=204,40,16x52 render noselect notext nospecial mx=0
+ext more=0x00000001 box=204,40,16x52
+image0 box=0,0,16x28 depth=-1
+gad6 id=7 type=0x0100 flags=0x8007 act=0x0000 box=100,40,120x52 render noselect text nospecial mx=0
+ext more=0x00000003 box=100,28,120x64
+itext0 t="Label" l=40 tp=-12 fp=1 bp=0 dm=0 font=topaz.font/8
+image0 box=0,0,104x52 depth=-1
+-- itemheight 6
+gad0 id=0 type=0x0100 flags=0x0003 act=0x0000 box=0,0,0x0 norender noselect notext nospecial mx=0
+gad1 id=7 type=0x0101 flags=0x0007 act=0x000b box=102,42,100x54 norender noselect notext nospecial mx=0
+gad2 id=7 type=0x0103 flags=0x0007 act=0x000b box=208,42,8x42 render noselect notext special mx=0
+image0 box=0,0,0x0 depth=0 nodata pick=0x00 onoff=0x00
+prop flags=0x000d hpot=0x0000 vpot=0x0000 hbody=0x0000 vbody=0xffff
+gad3 id=7 type=0x0101 flags=0x8006 act=0x0003 box=204,86,16x6 render select notext nospecial mx=0
+ext more=0x00000001 box=204,86,16x6
+image0 box=0,0,16x6 depth=-1
+select:
+image0 box=0,0,16x6 depth=-1
+gad4 id=7 type=0x0101 flags=0x8006 act=0x0003 box=204,92,16x6 render select notext nospecial mx=0
+ext more=0x00000001 box=204,92,16x6
+image0 box=0,0,16x6 depth=-1
+select:
+image0 box=0,0,16x6 depth=-1
+gad5 id=7 type=0x0100 flags=0x8007 act=0x0000 box=204,40,16x58 render noselect notext nospecial mx=0
+ext more=0x00000001 box=204,40,16x58
+image0 box=0,0,16x46 depth=-1
+gad6 id=7 type=0x0100 flags=0x8007 act=0x0000 box=100,40,120x58 render noselect text nospecial mx=0
+ext more=0x00000003 box=100,28,120x70
+itext0 t="Label" l=40 tp=-12 fp=1 bp=0 dm=0 font=topaz.font/8
+image0 box=0,0,104x58 depth=-1
+-- spacing 1 above
+gad0 id=0 type=0x0100 flags=0x0003 act=0x0000 box=0,0,0x0 norender noselect notext nospecial mx=0
+gad1 id=7 type=0x0101 flags=0x0007 act=0x000b box=102,42,100x63 norender noselect notext nospecial mx=0
+gad2 id=7 type=0x0103 flags=0x0007 act=0x000b box=208,42,8x45 render noselect notext special mx=0
+image0 box=0,0,0x0 depth=0 nodata pick=0x00 onoff=0x00
+prop flags=0x000d hpot=0x0000 vpot=0x0000 hbody=0x0000 vbody=0xffff
+gad3 id=7 type=0x0101 flags=0x8006 act=0x0003 box=204,89,16x9 render select notext nospecial mx=0
+ext more=0x00000001 box=204,89,16x9
+image0 box=0,0,16x9 depth=-1
+select:
+image0 box=0,0,16x9 depth=-1
+gad4 id=7 type=0x0101 flags=0x8006 act=0x0003 box=204,98,16x9 render select notext nospecial mx=0
+ext more=0x00000001 box=204,98,16x9
+image0 box=0,0,16x9 depth=-1
+select:
+image0 box=0,0,16x9 depth=-1
+gad5 id=7 type=0x0100 flags=0x8007 act=0x0000 box=204,40,16x67 render noselect notext nospecial mx=0
+ext more=0x00000001 box=204,40,16x67
+image0 box=0,0,16x49 depth=-1
+gad6 id=7 type=0x0100 flags=0x8007 act=0x0000 box=100,40,120x67 render noselect text nospecial mx=0
+ext more=0x00000003 box=100,28,120x79
+itext0 t="Label" l=40 tp=-12 fp=1 bp=0 dm=0 font=topaz.font/8
+image0 box=0,0,104x67 depth=-1

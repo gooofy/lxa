@@ -21,6 +21,7 @@
 #include "util.h"
 
 extern struct ExecBase *SysBase;
+extern struct DosLibrary *DOSBase;
 
 struct Task *U_getCurrentTask(void)
 {
@@ -757,6 +758,13 @@ struct newMemList
 /* the shared system entries of every pr_SegList array: an empty one-hunk seglist (next = 0, rts) */
 static const ULONG g_systemSegment[2] __attribute__((aligned(4))) = { 0, 0x4e754e75 };
 
+/* BCPL code installs the system segments into its global vectors
+ * (Phase 239): they stand for the system's BCPL globals */
+BOOL U_isSystemSegment (BPTR seg)
+{
+    return seg == MKBADDR((ULONG)g_systemSegment);
+}
+
 struct Task *U_allocTask (STRPTR name, LONG pri, ULONG stacksize, BOOL isProcess)
 {
     struct newMemList  nml;
@@ -943,7 +951,8 @@ void U_prepareProcess (struct Process *process, APTR initPC, APTR finalPC, ULONG
         process->pr_SegList = MKBADDR(segarray);
     }
     process->pr_StackSize               = stacksize;
-    process->pr_GlobVec					= 0; /* unsupported */
+    /* the system BCPL global vector (Phase 239) */
+    process->pr_GlobVec                 = DOSBase ? DOSBase->dl_GV : NULL;
     process->pr_TaskNum					= 0;
     process->pr_StackBase				= MKBADDR(process->pr_Task.tc_SPUpper);
     process->pr_Result2				    = 0;

@@ -37,9 +37,9 @@
 #include "util.h"
 
 #define VERSION    40
-#define REVISION   2
+#define REVISION   6
 #define EXLIBNAME  "asl"
-#define EXLIBVER   " 40.2 (2025/02/03)"
+#define EXLIBVER   " 40.6 (7.5.93)\r\n"
 
 char __aligned _g_asl_ExLibName [] = EXLIBNAME ".library";
 char __aligned _g_asl_ExLibID   [] = EXLIBNAME EXLIBVER;

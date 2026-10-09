@@ -1,0 +1,16 @@
+# Prefs fidelity (Phase 236): Workbench screen mode (8 colours), overscan,
+# input (keymap "d", repeat, double-click), locale (German country data) and
+# pointer prefs, applied by C:IPrefs at boot (tests/prefs/sys,
+# tests/prefs/mkprefs.py).
+name: gallery-prefs-sys
+fonts: wb31
+keymaps: wb31
+prefs: tests/prefs/sys
+app:
+  sample: Tests/Gallery/Prefs
+steps:
+  - launch
+  - wait_window: "Prefs Gallery"
+  - wait_idle
+  - snapshot: {name: window, window: "Prefs Gallery"}
+  - quit

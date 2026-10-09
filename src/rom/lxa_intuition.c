@@ -39,6 +39,10 @@
 
 #include "util.h"
 #include "lxa_images.h"
+#include "lxa_iprefs.h"
+
+#include <graphics/displayinfo.h>
+#include <graphics/modeid.h>
 
 extern void _input_device_dispatch_event(struct InputEvent *event);
 extern void _keyboard_device_record_event(UWORD rawkey, UWORD qualifier);
@@ -212,6 +216,17 @@ struct LXAIntuitionBase {
     struct Preferences DefaultPrefs;
     struct Preferences ActivePrefs;
     struct Hook *EditHook;
+    /* Phase 236: preferences installed by IPrefs through SetIPrefs() */
+    ULONG PrefColors[11][3];        /* 0-7 Workbench colours, 8-10 pointer
+                                     * colours 17-19 (32 bit components) */
+    UWORD Pens4[NUMDRIPENS + 1];    /* Workbench pens below 8 colours */
+    UWORD Pens8[NUMDRIPENS + 1];    /* Workbench pens from 8 colours on */
+    struct LxaIScreenModePrefs ScreenModePrefs;
+    BOOL HasScreenModePrefs;
+    struct TextFont *ScreenFont;    /* screen font prefs (NULL: topaz 8) */
+    struct LxaIIControlPrefs IControlPrefs;
+    struct LxaIPointerPrefs PointerPrefs[2];   /* normal, busy (image copied) */
+    UWORD *PointerData[2];
     struct MinList ScreenDataList; /* per-screen records (LXAPubScreenNode.all_node) */
 };
 
@@ -233,6 +248,9 @@ static VOID _intuition_clear_screen_runtime_state(struct IntuitionBase *Intuitio
                                                   struct Screen *screen);
 static volatile BOOL g_processing_events;
 static BOOL g_screen_from_tags;     /* OpenScreen() called by OpenScreenTagList() */
+static ULONG g_screen_display_id;   /* OpenScreenTagList(): SA_DisplayID + 1 (0: none) */
+static BYTE g_screen_sysfont;       /* OpenScreenTagList(): SA_SysFont (-1: none) */
+static BOOL g_screen_full_palette;  /* OpenScreenTagList(): SA_FullPalette */
 static BOOL g_sysreq_layout;        /* BuildSysRequest(): body extent below */
 static WORD g_sysreq_w, g_sysreq_h;
 static void _create_screen_sys_gadgets(struct Screen *screen);
@@ -296,6 +314,11 @@ static VOID _dispose_idcmp_message(struct IntuiMessage *msg)
         if (state && state->pending_mousemoves > 0)
             state->pending_mousemoves--;
     }
+
+    /* AmigaOS 3.1: WFLG_WINDOWTICKED stays set from the moment a tick is
+     * sent until Intuition reaps its reply (tests/probes/intuition/ticks). */
+    if (msg->Class == IDCMP_INTUITICKS && msg->IDCMPWindow)
+        msg->IDCMPWindow->Flags &= ~WFLG_WINDOWTICKED;
 
     if (msg->Class == IDCMP_IDCMPUPDATE && msg->IAddress)
     {
@@ -440,6 +463,8 @@ struct LXAPubScreenNode {
     BOOL has_custom_pens;         /* TRUE if SA_Pens was provided */
     struct MinNode all_node;      /* ScreenDataList link */
     BOOL is_public;               /* pub.psn_Node is in PubScreenList */
+    BOOL default_font;            /* no NewScreen.Font/SA_Font: windows draw in
+                                   * the system default font */
 };
 
 /* AmigaOS 3.1 reference: a custom screen opened without SA_Pens keeps the
@@ -618,6 +643,18 @@ static void _intuition_strncpy(char *dst, const char *src, LONG maxchars)
     dst[i] = '\0';
 }
 
+/* The pointer of the AmigaOS 3.1 Preferences (PointerMatrix, two words
+ * per row between the control words; reference: tests/gallery/prefs.c) */
+static const UWORD _intuition_default_pointer[POINTERSIZE] = {
+    0x0000, 0x0000,
+    0xc000, 0x4000, 0x7000, 0xb000, 0x3c00, 0x4c00, 0x3f00, 0x4300,
+    0x1fc0, 0x20c0, 0x1fc0, 0x2000, 0x0f00, 0x1100, 0x0d80, 0x1280,
+    0x04c0, 0x0940, 0x0460, 0x08a0, 0x0020, 0x0040
+};
+
+/* Preferences of a freshly booted AmigaOS 3.1 (reference-verified, Phase
+ * 236: tests/scenarios/gallery-prefs-default.yaml); GetDefPrefs() reports
+ * a 9 pixel font and a 1.5 s double-click time, GetPrefs() 8 and 1.02 s. */
 static VOID _intuition_init_preferences(struct Preferences *prefs)
 {
     if (!prefs)
@@ -630,15 +667,16 @@ static VOID _intuition_init_preferences(struct Preferences *prefs)
     prefs->BaudRate = 5;
 
     prefs->KeyRptDelay.tv_secs = 0;
-    prefs->KeyRptDelay.tv_micro = 500000;
+    prefs->KeyRptDelay.tv_micro = 600000;
     prefs->KeyRptSpeed.tv_secs = 0;
-    prefs->KeyRptSpeed.tv_micro = 100000;
+    prefs->KeyRptSpeed.tv_micro = 50000;
 
-    prefs->DoubleClick.tv_secs = 0;
-    prefs->DoubleClick.tv_micro = 500000;
+    prefs->DoubleClick.tv_secs = 1;
+    prefs->DoubleClick.tv_micro = 20000;
 
+    CopyMem((APTR)_intuition_default_pointer, prefs->PointerMatrix, sizeof(_intuition_default_pointer));
     prefs->XOffset = -1;
-    prefs->YOffset = -1;
+    prefs->YOffset = 0;
     prefs->PointerTicks = 1;
 
     prefs->color0 = 0x0AAA;
@@ -883,6 +921,269 @@ static struct PubScreenNode *_intuition_default_pubscreen_node(struct LXAIntuiti
 struct LXAPubScreenNode;
 static VOID _intuition_set_oldlook_pens(struct LXAPubScreenNode *entry);
 
+/* ------------------------------------------------------------------------
+ * Preferences installed by IPrefs (Phase 236, reference-verified with
+ * tests/scenarios/gallery-prefs-*.yaml)
+ * ------------------------------------------------------------------------ */
+
+static const UWORD _intuition_newlook_pens[NUMDRIPENS] = {
+    0, 1, 1, 2, 1, 3, 1, 0, 2, 1, 2, 1
+};
+
+static VOID _intuition_init_iprefs(struct LXAIntuitionBase *base)
+{
+    /* the Workbench palette of AmigaOS 3.1: colours 0-3, the four colours
+     * the Workbench puts at the end of a palette of 8 or more, and the
+     * pointer colours */
+    static const UBYTE rgb[11][3] = {
+        { 0xaa, 0xaa, 0xaa }, { 0x00, 0x00, 0x00 }, { 0xff, 0xff, 0xff }, { 0x66, 0x88, 0xbb },
+        { 0xee, 0x44, 0x44 }, { 0x55, 0xdd, 0x55 }, { 0x00, 0x44, 0xdd }, { 0xee, 0x99, 0x00 },
+        { 0xee, 0x44, 0x44 }, { 0x00, 0x00, 0x00 }, { 0xee, 0xee, 0xcc }
+    };
+    UWORD i, c;
+
+    for (i = 0; i < 11; i++)
+        for (c = 0; c < 3; c++)
+            base->PrefColors[i][c] = rgb[i][c] * 0x01010101UL;
+    for (i = 0; i < NUMDRIPENS; i++)
+    {
+        base->Pens4[i] = _intuition_newlook_pens[i];
+        base->Pens8[i] = _intuition_newlook_pens[i];
+    }
+    base->Pens4[NUMDRIPENS] = (UWORD)~0;
+    base->Pens8[NUMDRIPENS] = (UWORD)~0;
+    base->HasScreenModePrefs = FALSE;
+    base->ScreenFont = NULL;
+    /* IControl defaults as written by the 3.1 IControl editor */
+    base->IControlPrefs.ic_TimeOut = 50;
+    base->IControlPrefs.ic_MetaDrag = IEQUALIFIER_LCOMMAND;
+    base->IControlPrefs.ic_Flags = 0x1e;
+    base->IControlPrefs.ic_WBtoFront = 'N';
+    base->IControlPrefs.ic_FrontToBack = 'M';
+    base->IControlPrefs.ic_ReqTrue = 'V';
+    base->IControlPrefs.ic_ReqFalse = 'B';
+}
+
+/* one colour into a ColorMap and the host palette */
+static VOID _intuition_set_screen_color(struct Screen *screen, ULONG index, const ULONG *rgb)
+{
+    ULONG display_handle = (ULONG)screen->ExtData;
+
+    if (!screen->ViewPort.ColorMap || index >= (ULONG)screen->ViewPort.ColorMap->Count)
+        return;
+    SetRGB32CM(screen->ViewPort.ColorMap, index, rgb[0], rgb[1], rgb[2]);
+    if (display_handle)
+        emucall3(EMU_CALL_GFX_SET_COLOR, display_handle, index,
+                 ((rgb[0] >> 8) & 0xff0000) | ((rgb[1] >> 16) & 0xff00) | (rgb[2] >> 24));
+}
+
+/* The preferences colours of a screen (AmigaOS 3.1 reference): colours 0-3
+ * on every screen, the pointer colours 17-19 on screens of 32 colours or
+ * more, and on the Workbench (SA_FullPalette) colours 4-7 as the last four
+ * colours of a palette of 8 or more. */
+static VOID _intuition_apply_pref_colors(struct Screen *screen, BOOL full_palette)
+{
+    struct LXAIntuitionBase *base = (struct LXAIntuitionBase *)IntuitionBase;
+    ULONG ncolors;
+    ULONG i;
+
+    if (!screen->ViewPort.ColorMap)
+        return;
+    ncolors = 1UL << screen->BitMap.Depth;
+    for (i = 0; i < 4 && i < ncolors; i++)
+        _intuition_set_screen_color(screen, i, base->PrefColors[i]);
+    if (full_palette && ncolors >= 8)
+        for (i = 0; i < 4; i++)
+            _intuition_set_screen_color(screen, ncolors - 4 + i, base->PrefColors[4 + i]);
+    if (ncolors >= 32)
+        for (i = 0; i < 3; i++)
+            _intuition_set_screen_color(screen, 17 + i, base->PrefColors[8 + i]);
+}
+
+static struct Screen *_intuition_find_workbench_screen(struct IntuitionBase *IntuitionBase);
+static VOID _intuition_register_pubscreen(struct IntuitionBase *IntuitionBase, struct Screen *screen);
+ULONG _intuition_OpenWorkBench ( register struct IntuitionBase * IntuitionBase __asm("a6"));
+LONG _intuition_CloseWorkBench ( register struct IntuitionBase * IntuitionBase __asm("a6"));
+
+/* graphics.library SetDisplayInfoData() (-750, system private) */
+static ULONG _intuition_set_display_info(APTR buf, ULONG size, ULONG tagID, ULONG displayID)
+{
+    register ULONG d0 __asm("d0") = size;
+    register ULONG d1 __asm("d1") = tagID;
+    register ULONG d2 __asm("d2") = displayID;
+    register APTR a0 __asm("a0") = NULL;
+    register APTR a1 __asm("a1") = buf;
+    register struct GfxBase *a6 __asm("a6") = GfxBase;
+
+    __asm__ __volatile__ ("jsr -750(%%a6)"
+                          : "+r" (d0), "+r" (d1), "+r" (a0), "+r" (a1)
+                          : "r" (d2), "r" (a6)
+                          : "cc", "memory");
+    return d0;
+}
+
+static VOID _intuition_set_wb_pens(struct LXAPubScreenNode *entry, struct Screen *screen)
+{
+    struct LXAIntuitionBase *base = (struct LXAIntuitionBase *)IntuitionBase;
+    const UWORD *src = (screen->BitMap.Depth >= 3) ? base->Pens8 : base->Pens4;
+    UWORD i;
+
+    for (i = 0; i < NUMDRIPENS; i++)
+        entry->pens[i] = src[i];
+    entry->pens[NUMDRIPENS] = (UWORD)~0;
+}
+
+/* SetIPrefs() (-576, private): IPrefs installs the preferences that belong
+ * to Intuition (lxa_iprefs.h).  The values apply to screens opened from now
+ * on; the Workbench screen, if open, gets the new palette and pens at once,
+ * and a new screen mode reopens it when no windows are open on it. */
+ULONG _intuition_SetIPrefs ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+                             register APTR data __asm("a0"),
+                             register ULONG length __asm("d0"),
+                             register ULONG type __asm("d1"))
+{
+    struct LXAIntuitionBase *base = (struct LXAIntuitionBase *)IntuitionBase;
+    struct Screen *wb = _intuition_find_workbench_screen(IntuitionBase);
+
+    DPRINTF(LOG_DEBUG, "_intuition: SetIPrefs() data=0x%08lx length=%lu type=%lu\n",
+            (ULONG)data, length, type);
+    if (!data)
+        return FALSE;
+
+    switch (type)
+    {
+        case LXA_IPREFS_SCREENMODE:
+        {
+            const struct LxaIScreenModePrefs *sm = (const struct LxaIScreenModePrefs *)data;
+
+            if (base->HasScreenModePrefs &&
+                base->ScreenModePrefs.smp_DisplayID == sm->smp_DisplayID &&
+                base->ScreenModePrefs.smp_Width == sm->smp_Width &&
+                base->ScreenModePrefs.smp_Height == sm->smp_Height &&
+                base->ScreenModePrefs.smp_Depth == sm->smp_Depth &&
+                base->ScreenModePrefs.smp_Control == sm->smp_Control)
+                return TRUE;
+            if (wb && wb->FirstWindow)
+                return FALSE;           /* cannot reset the Workbench now */
+            base->ScreenModePrefs = *sm;
+            base->HasScreenModePrefs = TRUE;
+            if (wb && _intuition_CloseWorkBench(IntuitionBase))
+                _intuition_OpenWorkBench(IntuitionBase);
+            return TRUE;
+        }
+
+        case LXA_IPREFS_FONT:
+        {
+            const struct LxaIFontPrefs *fp = (const struct LxaIFontPrefs *)data;
+            struct TextAttr ta = fp->fp_TextAttr;
+            struct TextFont *font;
+
+            ta.ta_Name = (STRPTR)fp->fp_Name;
+            font = OpenFont(&ta);
+            if (!font)
+                return FALSE;
+            if (!fp->fp_ScrFont)
+            {
+                /* the system default font stays open for good */
+                GfxBase->DefaultFont = font;
+            }
+            else
+            {
+                if (base->ScreenFont)
+                    CloseFont(base->ScreenFont);
+                base->ScreenFont = font;
+            }
+            return TRUE;
+        }
+
+        case LXA_IPREFS_OVERSCAN:
+        {
+            const struct LxaIOverscanPrefs *op = (const struct LxaIOverscanPrefs *)data;
+            struct DimensionInfo dims;
+
+            if (!GetDisplayInfoData(NULL, (UBYTE *)&dims, sizeof(dims), DTAG_DIMS, op->os_DisplayID))
+                return FALSE;
+            dims.TxtOScan.MinX = 0;
+            dims.TxtOScan.MinY = 0;
+            dims.TxtOScan.MaxX = op->os_Text.x - 1;
+            dims.TxtOScan.MaxY = op->os_Text.y - 1;
+            dims.StdOScan = op->os_Standard;
+            return _intuition_set_display_info(&dims, sizeof(dims), DTAG_DIMS,
+                                               op->os_DisplayID) ? TRUE : FALSE;
+        }
+
+        case LXA_IPREFS_ICONTROL:
+            CopyMem(data, &base->IControlPrefs,
+                    length < sizeof(base->IControlPrefs) ? length : sizeof(base->IControlPrefs));
+            return TRUE;
+
+        case LXA_IPREFS_POINTER:
+        {
+            const struct LxaIPointerPrefs *pp = (const struct LxaIPointerPrefs *)data;
+            UWORD which = pp->Which ? 1 : 0;
+            ULONG rows = pp->BitMap ? pp->BitMap->Rows : 0;
+            ULONG words = pp->BitMap ? pp->BitMap->BytesPerRow / 2 : 0;
+            UWORD *copy;
+            ULONG r, w, pl;
+
+            /* keep a copy of the image (both planes, row by row) */
+            copy = (rows && words) ? AllocVec(rows * words * 2 * sizeof(UWORD), MEMF_PUBLIC) : NULL;
+            if (copy)
+            {
+                for (pl = 0; pl < 2; pl++)
+                    for (r = 0; r < rows; r++)
+                        for (w = 0; w < words; w++)
+                            copy[(pl * rows + r) * words + w] = pp->BitMap->Depth > pl
+                                ? ((UWORD *)pp->BitMap->Planes[pl])[r * words + w] : 0;
+            }
+            if (base->PointerData[which])
+                FreeVec(base->PointerData[which]);
+            base->PointerData[which] = copy;
+            base->PointerPrefs[which] = *pp;
+            base->PointerPrefs[which].BitMap = NULL;
+            /* the AmigaOS 3.x convention for this call */
+            return (ULONG)-1;
+        }
+
+        case LXA_IPREFS_PALETTE:
+        {
+            const struct ColorSpec *cs = (const struct ColorSpec *)data;
+
+            for (; cs->ColorIndex != -1; cs++)
+            {
+                if (cs->ColorIndex < 0 || cs->ColorIndex > 10)
+                    continue;
+                base->PrefColors[cs->ColorIndex][0] = (ULONG)cs->Red * 0x10001UL;
+                base->PrefColors[cs->ColorIndex][1] = (ULONG)cs->Green * 0x10001UL;
+                base->PrefColors[cs->ColorIndex][2] = (ULONG)cs->Blue * 0x10001UL;
+            }
+            if (wb)
+                _intuition_apply_pref_colors(wb, TRUE);
+            return TRUE;
+        }
+
+        case LXA_IPREFS_PENS:
+        {
+            const struct LxaIPenPrefs *pp = (const struct LxaIPenPrefs *)data;
+            UWORD *dst = pp->Type ? base->Pens8 : base->Pens4;
+            UWORD i;
+
+            for (i = 0; i < NUMDRIPENS && pp->PenTable[i] != (UWORD)~0; i++)
+                dst[i] = pp->PenTable[i];
+            if (wb && ((wb->BitMap.Depth >= 3) == (pp->Type != 0)))
+            {
+                struct PubScreenNode *pub = _intuition_find_pubscreen_by_screen(base, wb);
+                if (pub)
+                    _intuition_set_wb_pens((struct LXAPubScreenNode *)pub, wb);
+            }
+            return TRUE;
+        }
+
+        default:
+            return FALSE;
+    }
+}
+
 static VOID _intuition_register_pubscreen(struct IntuitionBase *IntuitionBase, struct Screen *screen)
 {
     struct LXAIntuitionBase *base = (struct LXAIntuitionBase *)IntuitionBase;
@@ -946,6 +1247,8 @@ static VOID _intuition_register_pubscreen(struct IntuitionBase *IntuitionBase, s
     entry->drawInfo.dri_Flags      = DRIF_NEWLOOK;
     if ((screen->Flags & SCREENTYPE) != WBENCHSCREEN)
         _intuition_set_oldlook_pens(entry);
+    else
+        _intuition_set_wb_pens(entry, screen);
     entry->drawInfo.dri_CheckMark  = NULL;
     entry->drawInfo.dri_AmigaKey   = NULL;
 
@@ -1157,6 +1460,8 @@ static void _render_menu_items_in_place(struct Window *window);
 static void _enter_menu_mode(struct Window *window, struct Screen *screen, WORD mouseX, WORD mouseY);
 static void _exit_menu_mode(struct Window *window, WORD mouseX, WORD mouseY);
 static UWORD _find_menu_commkey(struct Menu *strip, char key);
+static void _menu_check_item(struct MenuItem *chain, struct MenuItem *item, BOOL mark_toggled);
+static void _menu_sync_drawn_flags(void);
 static void _handle_sys_gadget_verify(struct Window *window, struct Gadget *gadget);
 static void _compute_idcmp_mouse_coords(struct Window *window, ULONG class,
                                          WORD absX, WORD absY,
@@ -1178,6 +1483,11 @@ static struct Window *g_menu_window;
 static struct Menu *g_active_menu;
 static struct MenuItem *g_active_item;
 static struct MenuItem *g_active_subitem;
+/* the menu, item and sub-item whose MIDRAWN/HIGHITEM/ISDRAWN flags this
+ * session set (only valid while g_menu_mode; see _menu_sync_drawn_flags) */
+static struct Menu *g_flagged_menu;
+static struct MenuItem *g_flagged_item;
+static struct MenuItem *g_flagged_subitem;
 static BOOL g_dragging_window;
 static struct Window *g_drag_window;
 static WORD g_drag_start_x;
@@ -1711,13 +2021,10 @@ static ULONG _gadgetclass_set_attrs(Object *obj, struct Gadget *gadget, struct T
             case GA_Top:       gadget->TopEdge = (WORD)tag->ti_Data; gadget->Flags &= ~GFLG_RELBOTTOM; break;
             case GA_RelBottom: gadget->TopEdge = (WORD)tag->ti_Data; gadget->Flags |= GFLG_RELBOTTOM; break;
             case GA_Width:     gadget->Width = (WORD)tag->ti_Data; gadget->Flags &= ~GFLG_RELWIDTH; break;
-            /* GA_RelWidth/GA_RelHeight: AmigaOS 3.1 also sets GFLG_RELWIDTH/
-             * RELHEIGHT (typeface-preview golden); lxa does not yet, because
-             * BGUI's group class then stops drawing its members here (its
-             * relative layout needs Intuition's GM_LAYOUT protocol in full) */
-            case GA_RelWidth:  gadget->Width = (WORD)tag->ti_Data; break;
+            case GA_RelWidth:  gadget->Width = (WORD)tag->ti_Data; gadget->Flags |= GFLG_RELWIDTH; break;
             case GA_Height:    gadget->Height = (WORD)tag->ti_Data; gadget->Flags &= ~GFLG_RELHEIGHT; break;
-            case GA_RelHeight: gadget->Height = (WORD)tag->ti_Data; break;
+            case GA_RelHeight: gadget->Height = (WORD)tag->ti_Data; gadget->Flags |= GFLG_RELHEIGHT; break;
+            case GA_RelSpecial: GC_FLAG(Flags, GFLG_RELSPECIAL); break;
             case GA_ID:        gadget->GadgetID = (UWORD)tag->ti_Data; break;
             case GA_UserData:  gadget->UserData = (APTR)tag->ti_Data; break;
             case GA_SpecialInfo: gadget->SpecialInfo = (APTR)tag->ti_Data; break;
@@ -3134,9 +3441,13 @@ struct IntuitionBase * __g_lxa_intuition_InitLib    ( register struct IntuitionB
     NewList((struct List *)&base->ScreenDataList);
     NewList(&base->WindowStateList);
     base->DefaultPubScreen = NULL;
-    _intuition_init_preferences(&base->DefaultPrefs);
-    base->ActivePrefs = base->DefaultPrefs;
+    _intuition_init_preferences(&base->ActivePrefs);
+    base->DefaultPrefs = base->ActivePrefs;
+    base->DefaultPrefs.FontHeight = 9;
+    base->DefaultPrefs.DoubleClick.tv_secs = 1;
+    base->DefaultPrefs.DoubleClick.tv_micro = 500000;
     base->EditHook = NULL;
+    _intuition_init_iprefs(base);
 
     /* Create rootclass */
     struct IClass *root = AllocMem(sizeof(struct IClass) + sizeof("rootclass"), MEMF_PUBLIC | MEMF_CLEAR);
@@ -4064,6 +4375,132 @@ static VOID _intuition_handle_mouse_button_event(struct IntuitionBase *Intuition
     }
 }
 
+/* Menu tracking while the menu button is held: pointer at screen (mouseX, mouseY). */
+static void _menu_track_pointer(struct Screen *screen, WORD mouseX, WORD mouseY)
+{
+    BOOL needRedraw = FALSE;
+    struct Menu *oldMenu = g_active_menu;
+    struct MenuItem *oldItem = g_active_item;
+
+    DPRINTF(LOG_DEBUG, "_intuition: pointerpos in menu_mode: mouse=(%d,%d) BarH=%d g_active_menu=0x%08lx g_active_item=0x%08lx\n",
+            mouseX, mouseY, (int)screen->BarHeight, (ULONG)g_active_menu, (ULONG)g_active_item);
+
+    if (mouseY < screen->BarHeight + 1)
+    {
+        struct Menu *newMenu = _find_menu_at_x(g_menu_window, mouseX);
+        /* AmigaOS 3.1 keeps the last menu open while the pointer is
+         * over a part of the bar without a menu title */
+        if (!newMenu)
+        {
+            newMenu = g_active_menu;
+            if (g_active_item || g_active_subitem)
+            {
+                g_active_item = NULL;
+                g_active_subitem = NULL;
+                needRedraw = TRUE;
+            }
+        }
+        if (newMenu != g_active_menu)
+        {
+            g_active_menu = newMenu;
+            g_active_item = NULL;
+            g_active_subitem = NULL;
+            needRedraw = TRUE;
+        }
+    }
+    else if (g_active_menu && g_active_menu->FirstItem)
+    {
+        BOOL handledSubmenu = FALSE;
+
+        if (g_active_item && g_active_item->SubItem)
+        {
+            WORD submenuX;
+            WORD submenuY;
+            WORD submenuWidth;
+            WORD submenuHeight;
+
+            if (_get_active_submenu_box(g_menu_window, &submenuX, &submenuY,
+                                        &submenuWidth, &submenuHeight) &&
+                mouseX >= submenuX && mouseX < submenuX + submenuWidth &&
+                mouseY >= submenuY && mouseY < submenuY + submenuHeight)
+            {
+                struct MenuItem *newSubItem;
+
+                handledSubmenu = TRUE;
+                {
+                                                        WORD sox = 0, soy = 0;
+                                                        _get_menu_submenu_origin(g_menu_window, g_active_menu, g_active_item, &sox, &soy);
+                                                        newSubItem = _find_item_in_chain_at_pos(g_active_item->SubItem,
+                                                                                                mouseX - sox, mouseY - soy);
+                                                        }
+                if (newSubItem != g_active_subitem)
+                {
+                    g_active_subitem = newSubItem;
+                    needRedraw = TRUE;
+                }
+            }
+        }
+
+        if (!handledSubmenu)
+        {
+            WORD menuTop, menuLeft;
+            WORD itemX, itemY;
+            _menu_item_origin(screen, g_active_menu, &menuLeft, &menuTop);
+            itemX = mouseX - menuLeft;
+            itemY = mouseY - menuTop;
+            struct MenuItem *newItem = _find_item_at_pos(g_active_menu, itemX, itemY);
+
+            DPRINTF(LOG_DEBUG, "_intuition: menu_item_hit: menuTop=%d menuLeft=%d itemX=%d itemY=%d newItem=0x%08lx BarHBorder=%d LeftEdge=%d\n",
+                    (int)menuTop, (int)menuLeft, (int)itemX, (int)itemY, (ULONG)newItem, (int)screen->BarHBorder, (int)g_active_menu->LeftEdge);
+
+            if (newItem != g_active_item)
+            {
+                g_active_item = newItem;
+                g_active_subitem = NULL;
+                needRedraw = TRUE;
+            }
+            else if (g_active_subitem)
+            {
+                g_active_subitem = NULL;
+                needRedraw = TRUE;
+            }
+        }
+    }
+    else
+    {
+        if (g_active_item || g_active_subitem)
+        {
+            g_active_item = NULL;
+            g_active_subitem = NULL;
+            needRedraw = TRUE;
+        }
+    }
+
+    if (needRedraw)
+    {
+        _menu_sync_drawn_flags();
+        if (_menu_hover_redraw_can_repaint_in_place(g_menu_window,
+                                                    oldMenu,
+                                                    oldItem))
+        {
+            _render_menu_items_in_place(g_menu_window);
+        }
+        else
+        {
+            if (oldMenu || g_active_menu)
+                _restore_menu_dropdown_area(g_menu_window->WScreen);
+
+            _render_menu_bar(g_menu_window);
+
+            if (g_active_menu)
+            {
+                _save_dropdown_for_menu(g_menu_window, g_active_menu);
+                _render_menu_items(g_menu_window);
+            }
+        }
+    }
+}
+
 static VOID _intuition_handle_pointerpos_event(struct IntuitionBase *IntuitionBase,
                                                struct Screen *screen,
                                                struct Window *window,
@@ -4087,116 +4524,7 @@ static VOID _intuition_handle_pointerpos_event(struct IntuitionBase *IntuitionBa
         _input_device_dispatch_event(&input_event);
 
     if (g_menu_mode && g_menu_window && screen)
-    {
-        BOOL needRedraw = FALSE;
-        struct Menu *oldMenu = g_active_menu;
-        struct MenuItem *oldItem = g_active_item;
-
-        DPRINTF(LOG_DEBUG, "_intuition: pointerpos in menu_mode: mouse=(%d,%d) BarH=%d g_active_menu=0x%08lx g_active_item=0x%08lx\n",
-                mouseX, mouseY, (int)screen->BarHeight, (ULONG)g_active_menu, (ULONG)g_active_item);
-
-        if (mouseY < screen->BarHeight + 1)
-        {
-            struct Menu *newMenu = _find_menu_at_x(g_menu_window, mouseX);
-            if (newMenu != g_active_menu)
-            {
-                g_active_menu = newMenu;
-                g_active_item = NULL;
-                g_active_subitem = NULL;
-                needRedraw = TRUE;
-            }
-        }
-        else if (g_active_menu && g_active_menu->FirstItem)
-        {
-            BOOL handledSubmenu = FALSE;
-
-            if (g_active_item && g_active_item->SubItem)
-            {
-                WORD submenuX;
-                WORD submenuY;
-                WORD submenuWidth;
-                WORD submenuHeight;
-
-                if (_get_active_submenu_box(g_menu_window, &submenuX, &submenuY,
-                                            &submenuWidth, &submenuHeight) &&
-                    mouseX >= submenuX && mouseX < submenuX + submenuWidth &&
-                    mouseY >= submenuY && mouseY < submenuY + submenuHeight)
-                {
-                    struct MenuItem *newSubItem;
-
-                    handledSubmenu = TRUE;
-                    {
-                                                            WORD sox = 0, soy = 0;
-                                                            _get_menu_submenu_origin(g_menu_window, g_active_menu, g_active_item, &sox, &soy);
-                                                            newSubItem = _find_item_in_chain_at_pos(g_active_item->SubItem,
-                                                                                                    mouseX - sox, mouseY - soy);
-                                                            }
-                    if (newSubItem != g_active_subitem)
-                    {
-                        g_active_subitem = newSubItem;
-                        needRedraw = TRUE;
-                    }
-                }
-            }
-
-            if (!handledSubmenu)
-            {
-                WORD menuTop, menuLeft;
-                WORD itemX, itemY;
-                _menu_item_origin(screen, g_active_menu, &menuLeft, &menuTop);
-                itemX = mouseX - menuLeft;
-                itemY = mouseY - menuTop;
-                struct MenuItem *newItem = _find_item_at_pos(g_active_menu, itemX, itemY);
-
-                DPRINTF(LOG_DEBUG, "_intuition: menu_item_hit: menuTop=%d menuLeft=%d itemX=%d itemY=%d newItem=0x%08lx BarHBorder=%d LeftEdge=%d\n",
-                        (int)menuTop, (int)menuLeft, (int)itemX, (int)itemY, (ULONG)newItem, (int)screen->BarHBorder, (int)g_active_menu->LeftEdge);
-
-                if (newItem != g_active_item)
-                {
-                    g_active_item = newItem;
-                    g_active_subitem = NULL;
-                    needRedraw = TRUE;
-                }
-                else if (g_active_subitem)
-                {
-                    g_active_subitem = NULL;
-                    needRedraw = TRUE;
-                }
-            }
-        }
-        else
-        {
-            if (g_active_item || g_active_subitem)
-            {
-                g_active_item = NULL;
-                g_active_subitem = NULL;
-                needRedraw = TRUE;
-            }
-        }
-
-        if (needRedraw)
-        {
-            if (_menu_hover_redraw_can_repaint_in_place(g_menu_window,
-                                                        oldMenu,
-                                                        oldItem))
-            {
-                _render_menu_items_in_place(g_menu_window);
-            }
-            else
-            {
-                if (oldMenu || g_active_menu)
-                    _restore_menu_dropdown_area(g_menu_window->WScreen);
-
-                _render_menu_bar(g_menu_window);
-
-                if (g_active_menu)
-                {
-                    _save_dropdown_for_menu(g_menu_window, g_active_menu);
-                    _render_menu_items(g_menu_window);
-                }
-            }
-        }
-    }
+        _menu_track_pointer(screen, mouseX, mouseY);
 
     if (g_dragging_window && g_drag_window)
     {
@@ -5842,6 +6170,9 @@ static VOID _intuition_discard_menu_runtime_state(VOID)
     g_active_menu = NULL;
     g_active_item = NULL;
     g_active_subitem = NULL;
+    g_flagged_menu = NULL;
+    g_flagged_item = NULL;
+    g_flagged_subitem = NULL;
     g_menu_selection = MENUNULL;
     g_menu_save_x = 0;
     g_menu_save_y = 0;
@@ -5967,6 +6298,30 @@ static VOID _init_string_gadget_info(struct Gadget *gadget)
 }
 
 /*
+ * gi_Domain of the GadgetInfo Intuition passes to BOOPSI gadgets (AmigaOS
+ * 3.1, tests/probes/intuition/gadinfo): the whole window, or the inner
+ * area of a GIMMEZEROZERO window - for every method (GM_LAYOUT, GM_RENDER,
+ * SetGadgetAttrsA's OM_SET, DoGadgetMethodA).
+ */
+static VOID _intuition_gadget_domain(struct Window *window, struct IBox *domain)
+{
+    if (window->Flags & WFLG_GIMMEZEROZERO)
+    {
+        domain->Left = window->BorderLeft;
+        domain->Top = window->BorderTop;
+        domain->Width = window->Width - window->BorderLeft - window->BorderRight;
+        domain->Height = window->Height - window->BorderTop - window->BorderBottom;
+    }
+    else
+    {
+        domain->Left = 0;
+        domain->Top = 0;
+        domain->Width = window->Width;
+        domain->Height = window->Height;
+    }
+}
+
+/*
  * GM_LAYOUT for BOOPSI gadgets whose size depends on the window
  * (GFLG_REL*): sent when the gadget joins a window and after every size
  * change (gpl_Initial FALSE), as Intuition V39 does.
@@ -5991,18 +6346,7 @@ static VOID _layout_custom_gadget(struct Window *window, struct Requester *req, 
     gi.gi_Requester = req;
     gi.gi_RastPort = window->RPort;
     gi.gi_Layer = window->WLayer;
-    if (window->Flags & WFLG_GIMMEZEROZERO)
-    {
-        gi.gi_Domain.Left = window->BorderLeft;
-        gi.gi_Domain.Top = window->BorderTop;
-        gi.gi_Domain.Width = window->Width - window->BorderLeft - window->BorderRight;
-        gi.gi_Domain.Height = window->Height - window->BorderTop - window->BorderBottom;
-    }
-    else
-    {
-        gi.gi_Domain.Width = window->Width;
-        gi.gi_Domain.Height = window->Height;
-    }
+    _intuition_gadget_domain(window, &gi.gi_Domain);
     gi.gi_DrInfo = _intuition_GetScreenDrawInfo(IntuitionBase, window->WScreen);
     gpl.MethodID = GM_LAYOUT;
     gpl.gpl_GInfo = &gi;
@@ -6085,14 +6429,7 @@ static UWORD _find_menu_commkey(struct Menu *strip, char key)
                             cmd -= ('a' - 'A');
                         if (cmd == ukey)
                         {
-                            /* Handle CHECKIT toggle */
-                            if (sub->Flags & CHECKIT)
-                            {
-                                if (sub->Flags & MENUTOGGLE)
-                                    sub->Flags ^= CHECKED;
-                                else
-                                    sub->Flags |= CHECKED;
-                            }
+                            _menu_check_item(item->SubItem, sub, FALSE);
                             sub->NextSelect = MENUNULL;
                             return (UWORD)((menuNum & 0x1F) |
                                           ((itemNum & 0x3F) << 5) |
@@ -6110,14 +6447,7 @@ static UWORD _find_menu_commkey(struct Menu *strip, char key)
                     cmd -= ('a' - 'A');
                 if (cmd == ukey)
                 {
-                    /* Handle CHECKIT toggle */
-                    if (item->Flags & CHECKIT)
-                    {
-                        if (item->Flags & MENUTOGGLE)
-                            item->Flags ^= CHECKED;
-                        else
-                            item->Flags |= CHECKED;
-                    }
+                    _menu_check_item(menu->FirstItem, item, FALSE);
                     item->NextSelect = MENUNULL;
                     return (UWORD)((menuNum & 0x1F) |
                                   ((itemNum & 0x3F) << 5) |
@@ -6869,6 +7199,92 @@ static void _render_menu_items_in_place(struct Window *window)
 /*
  * Enter menu mode - called on MENUDOWN
  */
+/*
+ * Menu drawn-state flags, as AmigaOS 3.1 keeps them (tests/scenarios/
+ * gallery-menus-select.yaml): the menu whose items are shown has MIDRAWN,
+ * the highlighted (enabled) item or sub-item has HIGHITEM, an item whose
+ * sub-items are shown has ISDRAWN.  When the menu button is released the
+ * flags of the final state stay set; the next menu session clears them,
+ * together with MENUTOGGLED, on the whole strip.
+ */
+static void _menu_clear_session_flags(struct Menu *strip)
+{
+    struct Menu *menu;
+    struct MenuItem *item, *sub;
+
+    for (menu = strip; menu; menu = menu->NextMenu)
+    {
+        menu->Flags &= ~MIDRAWN;
+        for (item = menu->FirstItem; item; item = item->NextItem)
+        {
+            item->Flags &= ~(HIGHITEM | ISDRAWN | MENUTOGGLED);
+            for (sub = item->SubItem; sub; sub = sub->NextItem)
+                sub->Flags &= ~(HIGHITEM | ISDRAWN | MENUTOGGLED);
+        }
+    }
+    g_flagged_menu = NULL;
+    g_flagged_item = NULL;
+    g_flagged_subitem = NULL;
+}
+
+static void _menu_sync_drawn_flags(void)
+{
+    if (g_flagged_menu)
+        g_flagged_menu->Flags &= ~MIDRAWN;
+    if (g_flagged_item)
+        g_flagged_item->Flags &= ~(HIGHITEM | ISDRAWN);
+    if (g_flagged_subitem)
+        g_flagged_subitem->Flags &= ~HIGHITEM;
+
+    g_flagged_menu = g_active_menu;
+    g_flagged_item = g_active_menu ? g_active_item : NULL;
+    g_flagged_subitem = g_flagged_item && g_flagged_item->SubItem ? g_active_subitem : NULL;
+
+    if (g_flagged_menu)
+        g_flagged_menu->Flags |= MIDRAWN;
+    if (g_flagged_item)
+    {
+        if (g_flagged_item->Flags & ITEMENABLED)
+            g_flagged_item->Flags |= HIGHITEM;
+        if (g_flagged_item->SubItem)
+            g_flagged_item->Flags |= ISDRAWN;
+    }
+    if (g_flagged_subitem && (g_flagged_subitem->Flags & ITEMENABLED))
+        g_flagged_subitem->Flags |= HIGHITEM;
+}
+
+/*
+ * A selected CHECKIT item: MENUTOGGLE items toggle, others become checked;
+ * MutualExclude unchecks the checked CHECKIT items of the same chain
+ * (bit n = n-th item of the menu, or sub-item of the parent item).
+ * mark_toggled: the mouse path flags the item MENUTOGGLED (AmigaOS 3.1).
+ */
+static void _menu_check_item(struct MenuItem *chain, struct MenuItem *item, BOOL mark_toggled)
+{
+    struct MenuItem *other;
+    WORD i;
+
+    if (!(item->Flags & CHECKIT))
+        return;
+
+    if (item->Flags & MENUTOGGLE)
+        item->Flags ^= CHECKED;
+    else
+        item->Flags |= CHECKED;
+    if (mark_toggled)
+        item->Flags |= MENUTOGGLED;
+
+    if (item->MutualExclude)
+    {
+        for (other = chain, i = 0; other && i < 32; other = other->NextItem, i++)
+        {
+            if (other != item && (item->MutualExclude & (1UL << i)) &&
+                (other->Flags & (CHECKIT | CHECKED)) == (CHECKIT | CHECKED))
+                other->Flags &= ~CHECKED;
+        }
+    }
+}
+
 static void _enter_menu_mode(struct Window *window, struct Screen *screen, WORD mouseX, WORD mouseY)
 {
     if (!window || !window->MenuStrip || !screen)
@@ -6889,6 +7305,7 @@ static void _enter_menu_mode(struct Window *window, struct Screen *screen, WORD 
     g_active_item = NULL;
     g_active_subitem = NULL;
     g_menu_selection = MENUNULL;
+    _menu_clear_session_flags(window->MenuStrip);
     
     /* Render the menu bar */
     _render_menu_bar(window);
@@ -6906,6 +7323,7 @@ static void _enter_menu_mode(struct Window *window, struct Screen *screen, WORD 
             _render_menu_items(window);
         }
     }
+    _menu_sync_drawn_flags();
     DPRINTF(LOG_DEBUG, "_intuition: _enter_menu_mode completed, g_menu_mode=%d g_active_menu=0x%08lx\n",
             g_menu_mode, (ULONG)g_active_menu);
 }
@@ -6944,6 +7362,8 @@ static void _exit_menu_mode(struct Window *window, WORD mouseX, WORD mouseY)
 
         if (selected_item->Flags & ITEMENABLED)
         {
+            _menu_check_item(subNum != NOSUB ? g_active_item->SubItem : g_active_menu->FirstItem,
+                             selected_item, TRUE);
             menuCode = _encode_menu_selection(menuNum, itemNum, subNum);
             selected_item->NextSelect = MENUNULL;
 
@@ -6969,12 +7389,16 @@ static void _exit_menu_mode(struct Window *window, WORD mouseX, WORD mouseY)
                            IEQUALIFIER_RBUTTON, NULL, relX, relY);
     }
     
-    /* Clear menu mode state */
+    /* Clear menu mode state (the drawn-state flags of the final state
+     * stay set, as on AmigaOS 3.1) */
     g_menu_mode = FALSE;
     g_menu_window = NULL;
     g_active_menu = NULL;
     g_active_item = NULL;
     g_active_subitem = NULL;
+    g_flagged_menu = NULL;
+    g_flagged_item = NULL;
+    g_flagged_subitem = NULL;
     g_menu_selection = MENUNULL;
     
     /* Restore the menu drop-down area and redraw screen title bar */
@@ -7335,9 +7759,16 @@ void lxa_notify_window_refresh(APTR win)
     if (!window)
         return;
 
-    /* Only send if the app asked for REFRESHWINDOW events */
+    /* Only send if the app asked for REFRESHWINDOW events, or to the
+     * console.device unit attached to the window (it repairs CON: windows,
+     * which are simple refresh) */
     if (!(window->IDCMPFlags & IDCMP_REFRESHWINDOW))
-        return;
+    {
+        struct LXAWindowState *state =
+            _intuition_find_window_state((struct LXAIntuitionBase *)IntuitionBase, window);
+        if (!state || !state->console_port)
+            return;
+    }
 
     /* Do not send for SuperBitMap or NoCareRefresh windows */
     if (window->Flags & (WFLG_SUPER_BITMAP | WFLG_NOCAREREFRESH))
@@ -8216,121 +8647,8 @@ VOID _intuition_ProcessInputEvents(struct Screen *hint_screen)
                 _input_device_dispatch_event(&input_event);
                 
                 /* Handle menu tracking when in menu mode */
-                if (g_menu_mode && g_menu_window)
-                {
-                    BOOL needRedraw = FALSE;
-                    struct Menu *oldMenu = g_active_menu;
-                    struct MenuItem *oldItem = g_active_item;
-                    
-                    DPRINTF(LOG_DEBUG, "_intuition: menu_track: mouse=(%d,%d) BarHeight=%d activeMenu=0x%08lx activeItem=0x%08lx\n",
-                            mouseX, mouseY, screen ? (int)screen->BarHeight : -1,
-                            (ULONG)g_active_menu, (ULONG)g_active_item);
-                    
-                    /* Check if mouse is in menu bar area */
-                    if (mouseY < screen->BarHeight + 1)
-                    {
-                        struct Menu *newMenu = _find_menu_at_x(g_menu_window, mouseX);
-                        if (newMenu != g_active_menu)
-                        {
-                            g_active_menu = newMenu;
-                            g_active_item = NULL;  /* Clear item when switching menus */
-                            g_active_subitem = NULL;
-                            needRedraw = TRUE;
-                        }
-                    }
-                    else if (g_active_menu && g_active_menu->FirstItem)
-                    {
-                        BOOL handledSubmenu = FALSE;
-
-                        if (g_active_item && g_active_item->SubItem)
-                        {
-                            WORD submenuX;
-                            WORD submenuY;
-                            WORD submenuWidth;
-                            WORD submenuHeight;
-
-                            if (_get_active_submenu_box(g_menu_window, &submenuX, &submenuY,
-                                                        &submenuWidth, &submenuHeight) &&
-                                mouseX >= submenuX && mouseX < submenuX + submenuWidth &&
-                                mouseY >= submenuY && mouseY < submenuY + submenuHeight)
-                            {
-                                struct MenuItem *newSubItem;
-
-                                handledSubmenu = TRUE;
-                                {
-                                                                        WORD sox = 0, soy = 0;
-                                                                        _get_menu_submenu_origin(g_menu_window, g_active_menu, g_active_item, &sox, &soy);
-                                                                        newSubItem = _find_item_in_chain_at_pos(g_active_item->SubItem,
-                                                                                                                mouseX - sox, mouseY - soy);
-                                                                        }
-                                if (newSubItem != g_active_subitem)
-                                {
-                                    g_active_subitem = newSubItem;
-                                    needRedraw = TRUE;
-                                }
-                            }
-                        }
-
-                        if (!handledSubmenu)
-                        {
-                            /* Check if mouse is in the main drop-down menu area.
-                             * This keeps lower menu items responsive after visiting
-                             * a submenu instead of pinning the parent item highlight. */
-                            WORD menuTop, menuLeft;
-                            WORD itemX, itemY;
-                            _menu_item_origin(screen, g_active_menu, &menuLeft, &menuTop);
-                            itemX = mouseX - menuLeft;
-                            itemY = mouseY - menuTop;
-                            struct MenuItem *newItem = _find_item_at_pos(g_active_menu, itemX, itemY);
-
-                            if (newItem != g_active_item)
-                            {
-                                g_active_item = newItem;
-                                g_active_subitem = NULL;
-                                needRedraw = TRUE;
-                            }
-                            else if (g_active_subitem)
-                            {
-                                g_active_subitem = NULL;
-                                needRedraw = TRUE;
-                            }
-                        }
-                    }
-                    else
-                    {
-                        /* Mouse outside menu areas */
-                        if (g_active_item || g_active_subitem)
-                        {
-                            g_active_item = NULL;
-                            g_active_subitem = NULL;
-                            needRedraw = TRUE;
-                        }
-                    }
-                    
-                    /* Redraw if selection changed */
-                    if (needRedraw)
-                    {
-                        if (_menu_hover_redraw_can_repaint_in_place(g_menu_window,
-                                                                    oldMenu,
-                                                                    oldItem))
-                        {
-                            _render_menu_items_in_place(g_menu_window);
-                        }
-                        else
-                        {
-                            if (oldMenu || g_active_menu)
-                                _restore_menu_dropdown_area(g_menu_window->WScreen);
-
-                            _render_menu_bar(g_menu_window);
-
-                            if (g_active_menu)
-                            {
-                                _save_dropdown_for_menu(g_menu_window, g_active_menu);
-                                _render_menu_items(g_menu_window);
-                            }
-                        }
-                    }
-                }
+                if (g_menu_mode && g_menu_window && screen)
+                    _menu_track_pointer(screen, mouseX, mouseY);
                 
                 /* Handle window dragging */
                 if (g_dragging_window && g_drag_window)
@@ -8710,27 +9028,27 @@ VOID _intuition_VBlankInputHook(void)
 
     /*
      * IDCMP_INTUITICKS: fire approximately every 10th VBlank (~5 Hz on PAL).
-     * Per RKRM, INTUITICKS are sent to every open window whose IDCMPFlags
-     * include IDCMP_INTUITICKS.  The message carries the current mouse
-     * position relative to the window.
+     * AmigaOS 3.1 (tests/probes/intuition/ticks): only the active window
+     * gets ticks, and never a second one while WFLG_WINDOWTICKED is set;
+     * the flag is cleared when Intuition reaps the tick's reply, which it
+     * does for the active window on every tick and for any window when it
+     * posts another message to it.
      */
     g_intuitick_counter++;
     if (g_intuitick_counter >= 10)
     {
-        struct Screen *scr;
-        struct Window *win;
+        struct Window *win = IntuitionBase->ActiveWindow;
 
         g_intuitick_counter = 0;
-        for (scr = IntuitionBase->FirstScreen; scr; scr = scr->NextScreen)
+        if (win && _intuition_find_window_state((struct LXAIntuitionBase *)IntuitionBase, win))
         {
-            for (win = scr->FirstWindow; win; win = win->NextWindow)
+            _reap_window_idcmp_replies(win);
+            if ((win->IDCMPFlags & IDCMP_INTUITICKS) && !(win->Flags & WFLG_WINDOWTICKED))
             {
-                if (win->IDCMPFlags & IDCMP_INTUITICKS)
-                {
-                    _post_idcmp_message(win, IDCMP_INTUITICKS, 0,
+                if (_post_idcmp_message(win, IDCMP_INTUITICKS, 0,
                                         g_current_qualifier,
-                                        NULL, win->MouseX, win->MouseY);
-                }
+                                        NULL, win->MouseX, win->MouseY))
+                    win->Flags |= WFLG_WINDOWTICKED;
             }
         }
     }
@@ -9066,17 +9384,30 @@ struct Screen * _intuition_OpenScreen ( register struct IntuitionBase * Intuitio
         return NULL;
     }
 
-    /* STDSCREENWIDTH/HEIGHT: the size of the display mode
-     * (AmigaOS 3.1: lores 320, hires 640, interlace doubles the height) */
-    if (requested_width <= 0)
-        width = (newScreen->ViewModes & SUPERHIRES) ? 1280 : (newScreen->ViewModes & HIRES) ? 640 : 320;
-    else
-        width = (UWORD)requested_width;
+    /* STDSCREENWIDTH/HEIGHT: the text overscan of the display mode
+     * (AmigaOS 3.1: lores 320, hires 640, interlace doubles the height;
+     * the overscan preferences change it - Phase 236) */
+    {
+        struct DimensionInfo dims;
+        ULONG mode_id = g_screen_display_id ? g_screen_display_id - 1
+                      : (ULONG)(newScreen->ViewModes & (HIRES | SUPERHIRES | LACE));
+        BOOL have_dims = (requested_width <= 0 || requested_height <= 0) &&
+                         GetDisplayInfoData(NULL, (UBYTE *)&dims, sizeof(dims), DTAG_DIMS, mode_id);
 
-    if (requested_height <= 0)
-        height = (newScreen->ViewModes & LACE) ? 512 : 256;
-    else
-        height = (UWORD)requested_height;
+        if (requested_width > 0)
+            width = (UWORD)requested_width;
+        else if (have_dims)
+            width = (UWORD)(dims.TxtOScan.MaxX - dims.TxtOScan.MinX + 1);
+        else
+            width = (newScreen->ViewModes & SUPERHIRES) ? 1280 : (newScreen->ViewModes & HIRES) ? 640 : 320;
+
+        if (requested_height > 0)
+            height = (UWORD)requested_height;
+        else if (have_dims)
+            height = (UWORD)(dims.TxtOScan.MaxY - dims.TxtOScan.MinY + 1);
+        else
+            height = (newScreen->ViewModes & LACE) ? 512 : 256;
+    }
 
     if (depth == 0)
         depth = 2;
@@ -9211,6 +9542,12 @@ struct Screen * _intuition_OpenScreen ( register struct IntuitionBase * Intuitio
     screen->ViewPort.ColorMap = GetColorMap(num_colors);
     if (screen->ViewPort.ColorMap)
     {
+        /* attached to the screen ViewPort, as by VTAG_ATTACH_CM_SET:
+         * VideoControl() changes then happen immediately (reference) */
+        screen->ViewPort.ColorMap->cm_vp = &screen->ViewPort;
+    }
+    if (screen->ViewPort.ColorMap)
+    {
         /* AmigaOS 3.1 reference: GetVPModeID() of a screen is the mode the
          * application asked for, without a monitor ID unless it asked for one
          * (Workbench and a ViewModes HIRES screen: 0x8000; SA_DisplayID
@@ -9220,33 +9557,68 @@ struct Screen * _intuition_OpenScreen ( register struct IntuitionBase * Intuitio
                             (HIRES | SUPERHIRES | LACE | HAM | EXTRA_HALFBRITE);
             screen->ViewPort.ColorMap->VPModeID = modeKey;
         }
-        /* Default palette of a freshly booted AmigaOS 3.1 (reference
-         * palette.json): Workbench pens 0-3 and the default pens 4-7. */
+        /* The palette: the ColorMap's defaults with the preferences colours
+         * (AmigaOS 3.1 reference: gallery-prefs-*).  The screen is not
+         * linked into IntuitionBase yet, so the host palette is set
+         * directly. */
         {
-            static const UWORD default_rgb4[8] = {
-                0xAAA, 0x000, 0xFFF, 0x68B, 0x00F, 0xF0F, 0x0FF, 0xFFF
-            };
-            ULONG c;
+            ULONG c, rgb[3];
 
-            for (c = 0; c < 8 && c < num_colors; c++)
+            _intuition_apply_pref_colors(screen, g_opening_workbench_screen || g_screen_full_palette);
+            for (c = 0; c < num_colors && c < 256; c++)
             {
-                UWORD rgb = default_rgb4[c];
-                ULONG r = (rgb >> 8) & 0xF, g = (rgb >> 4) & 0xF, b = rgb & 0xF;
-
-                SetRGB4CM(screen->ViewPort.ColorMap, c, r, g, b);
-                /* The screen is not linked into IntuitionBase yet, so the
-                 * host palette is set directly. */
+                GetRGB32(screen->ViewPort.ColorMap, c, 1, rgb);
                 emucall3(EMU_CALL_GFX_SET_COLOR, display_handle, c,
-                         ((r * 17) << 16) | ((g * 17) << 8) | (b * 17));
+                         ((rgb[0] >> 8) & 0xff0000) | ((rgb[1] >> 16) & 0xff00) | (rgb[2] >> 24));
             }
         }
         _intuition_update_display_clip(screen);
     }
 
+    /* The screen font: NewScreen.Font / SA_Font, else the Workbench and
+     * SA_SysFont 1 screens get the screen font of the preferences and all
+     * others the system default font GfxBase->DefaultFont (AmigaOS 3.1
+     * reference: gallery-prefs-fontpal). */
+    {
+        struct TextAttr *ta = NULL;
+        struct TextFont *deffont = NULL;
+
+        if (newScreen->Font)
+        {
+            ta = newScreen->Font;
+        }
+        else
+        {
+            struct LXAIntuitionBase *ibase = (struct LXAIntuitionBase *)IntuitionBase;
+
+            if (g_opening_workbench_screen || g_screen_sysfont == 1)
+                deffont = ibase->ScreenFont;
+            else
+                deffont = GfxBase->DefaultFont;
+            ta = (struct TextAttr *)AllocMem(sizeof(struct TextAttr), MEMF_PUBLIC | MEMF_CLEAR);
+            if (ta)
+            {
+                if (deffont)
+                {
+                    ta->ta_Name = (STRPTR)deffont->tf_Message.mn_Node.ln_Name;
+                    ta->ta_YSize = deffont->tf_YSize;
+                    ta->ta_Style = deffont->tf_Style;
+                    ta->ta_Flags = deffont->tf_Flags;
+                }
+                else
+                {
+                    ta->ta_Name = (STRPTR)"topaz.font";
+                    ta->ta_YSize = 8;
+                }
+            }
+        }
+        screen->Font = ta;
+    }
+
     /* Bar height: font height + 2 (AmigaOS 3.1 reference: 10 for topaz 8,
      * 13 for topaz 11) */
-    screen->BarHeight = ((newScreen->Font && newScreen->Font->ta_YSize > 0)
-                         ? newScreen->Font->ta_YSize : 8) + 2;
+    screen->BarHeight = ((screen->Font && screen->Font->ta_YSize > 0)
+                         ? screen->Font->ta_YSize : 8) + 2;
     screen->BarVBorder = 1;
     /* AmigaOS 3.1 reference: 5 on hires screens, 2 on lores screens */
     screen->BarHBorder = (screen->ViewPort.Modes & (HIRES | SUPERHIRES)) ? 5 : 2;
@@ -9262,30 +9634,6 @@ struct Screen * _intuition_OpenScreen ( register struct IntuitionBase * Intuitio
     screen->WBorRight = 4;
     screen->WBorBottom = 2;
 
-    /* Set screen font (TextAttr pointer).
-     * Per RKRM, screen->Font describes the default font for this screen.
-     * If the caller supplied a font via NewScreen.Font (or SA_Font tag),
-     * use that; otherwise, allocate a TextAttr describing the default
-     * system font (Topaz 8).
-     */
-    if (newScreen->Font)
-    {
-        screen->Font = newScreen->Font;
-    }
-    else
-    {
-        /* Allocate a persistent TextAttr for the default font */
-        struct TextAttr *ta;
-        ta = (struct TextAttr *)AllocMem(sizeof(struct TextAttr), MEMF_PUBLIC | MEMF_CLEAR);
-        if (ta)
-        {
-            ta->ta_Name = (STRPTR)"topaz.font";
-            ta->ta_YSize = 8;
-            ta->ta_Style = 0;
-            ta->ta_Flags = 0;
-        }
-        screen->Font = ta;
-    }
 
     /* Clear the screen to color 0 */
     SetRast(&screen->RastPort, 0);
@@ -9361,6 +9709,12 @@ struct Screen * _intuition_OpenScreen ( register struct IntuitionBase * Intuitio
     screen->NextScreen = IntuitionBase->FirstScreen;
     IntuitionBase->FirstScreen = screen;
     _intuition_register_pubscreen(IntuitionBase, screen);
+    {
+        struct PubScreenNode *pub = _intuition_find_pubscreen_by_screen(
+            (struct LXAIntuitionBase *)IntuitionBase, screen);
+        if (pub)
+            ((struct LXAPubScreenNode *)pub)->default_font = newScreen->Font ? FALSE : TRUE;
+    }
 
     _create_screen_sys_gadgets(screen);
 
@@ -9457,7 +9811,11 @@ static void _window_compute_borders(struct Screen *screen, ULONG flags, const UB
         r = screen->WBorRight;
         b = screen->WBorBottom;
         t = screen->WBorTop + (titlebar ? _screen_font_height(screen) + 1 : 0);
+    }
 
+    /* the sizing gadget widens the border, borderless or not (AmigaOS
+     * 3.1, probe dos/conwindow: a borderless CON: window has 0/9/18/0) */
+    {
         if (flags & WFLG_SIZEGADGET)
         {
             UWORD sw = 18, sh = 10;
@@ -9549,7 +9907,7 @@ static void _create_window_sys_gadgets(struct Window *window)
     struct Gadget *list[5];
     WORD n = 0, i;
     UWORD size = _screen_sysi_size(window->WScreen);
-    UWORD dw = 24, zw = 24, sw = 18, sh = 10, cw = 20, h;
+    UWORD dw = 24, zw = 24, sw = 18, sh = 10, cw = 20, h, gh;
     WORD right_left = 0;
     BOOL borderless = (window->Flags & WFLG_BORDERLESS) != 0;
 
@@ -9558,34 +9916,37 @@ static void _create_window_sys_gadgets(struct Window *window)
     lxa_sysi_dims(SIZEIMAGE, size, &sw, &sh);
     lxa_sysi_dims(CLOSEIMAGE, size, &cw, NULL);
     h = window->BorderTop;
+    /* a borderless window keeps its system gadgets; depth, zoom and close
+     * are as high as on a bordered window, the drag bar spans the
+     * (thinner) title bar (AmigaOS 3.1, probe dos/conwindow) */
+    gh = borderless ? window->WScreen->WBorTop + _screen_font_height(window->WScreen) + 1 : h;
 
-    /* a borderless window keeps only its drag bar (AmigaOS 3.1) */
-    if ((window->Flags & WFLG_DEPTHGADGET) && !borderless)
+    if (window->Flags & WFLG_DEPTHGADGET)
     {
         right_left = -(WORD)(dw - 2);
-        list[n] = _create_sys_gadget(window, GTYP_WDEPTH, right_left, 0, dw, h,
+        list[n] = _create_sys_gadget(window, GTYP_WDEPTH, right_left, 0, dw, gh,
                                      GFLG_EXTENDED | GFLG_RELRIGHT | GFLG_GADGIMAGE,
                                      GACT_BORDERSNIFF | GACT_RELVERIFY, DEPTHIMAGE);
         if (list[n]) n++;
     }
-    if ((window->Flags & WFLG_HASZOOM) && !borderless)
+    if (window->Flags & WFLG_HASZOOM)
     {
         right_left = right_left ? right_left - (WORD)(zw - 1) : -(WORD)(zw - 2);
-        list[n] = _create_sys_gadget(window, GTYP_WZOOM, right_left, 0, zw, h,
+        list[n] = _create_sys_gadget(window, GTYP_WZOOM, right_left, 0, zw, gh,
                                      GFLG_EXTENDED | GFLG_RELRIGHT | GFLG_GADGIMAGE,
                                      GACT_BORDERSNIFF | GACT_RELVERIFY, ZOOMIMAGE);
         if (list[n]) n++;
     }
-    if ((window->Flags & WFLG_SIZEGADGET) && !borderless)
+    if (window->Flags & WFLG_SIZEGADGET)
     {
         list[n] = _create_sys_gadget(window, GTYP_SIZING, -(WORD)(sw - 1), -(WORD)(sh - 1), sw, sh,
                                      GFLG_EXTENDED | GFLG_RELRIGHT | GFLG_RELBOTTOM | GFLG_GADGIMAGE,
                                      GACT_BORDERSNIFF | GACT_RELVERIFY, SIZEIMAGE);
         if (list[n]) n++;
     }
-    if ((window->Flags & WFLG_CLOSEGADGET) && !borderless)
+    if (window->Flags & WFLG_CLOSEGADGET)
     {
-        list[n] = _create_sys_gadget(window, GTYP_CLOSE, 0, 0, cw, h,
+        list[n] = _create_sys_gadget(window, GTYP_CLOSE, 0, 0, cw, gh,
                                      GFLG_EXTENDED | GFLG_GADGIMAGE,
                                      GACT_BORDERSNIFF | GACT_RELVERIFY, CLOSEIMAGE);
         if (list[n]) n++;
@@ -9705,25 +10066,48 @@ static void _render_sys_gadget(struct Window *window, struct Gadget *gad)
         return;
     im = (struct Image *)gad->GadgetRender;
     _calculate_gadget_box(window, NULL, gad, &x, &y, &w, &h);
-    _intuition_DrawImageState(IntuitionBase, rp, im, (WORD)x, (WORD)y,
-                              _window_image_state(window, gad), NULL);
+    {
+        /* the screen's pens (preferences pens on the Workbench, Phase 236) */
+        struct DrawInfo dri;
+
+        memset(&dri, 0, sizeof(dri));
+        dri.dri_Version = 2;
+        dri.dri_NumPens = NUMDRIPENS;
+        dri.dri_Pens = (UWORD *)_intuition_screen_pens(window->WScreen);
+        dri.dri_Font = window->WScreen ? window->WScreen->RastPort.Font : NULL;
+        dri.dri_Depth = window->WScreen ? window->WScreen->BitMap.Depth : 2;
+        dri.dri_Flags = DRIF_NEWLOOK;
+        {
+            /* old-look screens keep the built-in imagery (Phase 252) */
+            struct PubScreenNode *pub = window->WScreen ? _intuition_find_pubscreen_by_screen(
+                (struct LXAIntuitionBase *)IntuitionBase, window->WScreen) : NULL;
+            BOOL newlook = pub && (((struct LXAPubScreenNode *)pub)->drawInfo.dri_Flags & DRIF_NEWLOOK);
+
+            _intuition_DrawImageState(IntuitionBase, rp, im, (WORD)x, (WORD)y,
+                                      _window_image_state(window, gad), newlook ? &dri : NULL);
+        }
+    }
 }
 
-static void _render_window_frame_impl(struct Window *window);
+#define LXA_FRAME_NO_GADGETS      0
+#define LXA_FRAME_BORDER_GADGETS  1
+#define LXA_FRAME_ALL_GADGETS     2
+static void _render_window_frame_impl(struct Window *window, UBYTE user_gadgets);
+static void _render_window_user_gadgets_ex(struct Window *window, BOOL border_only);
 
 /*
  * Intuition renders the frame without leaving traces in the window's
  * RastPort: on AmigaOS 3.1 a window's RPort keeps its InitRastPort()
  * attributes (FgPen -1, BgPen 0, JAM2) - verified in Phase 220.
  */
-static void _render_window_frame(struct Window *window)
+static void _render_window_frame_ex(struct Window *window, UBYTE user_gadgets)
 {
     struct RastPort *rp = window ? (window->BorderRPort ? window->BorderRPort : window->RPort) : NULL;
     UBYTE fg, bg, ol, dm;
 
     if (!rp)
     {
-        _render_window_frame_impl(window);
+        _render_window_frame_impl(window, user_gadgets);
         return;
     }
 
@@ -9731,14 +10115,19 @@ static void _render_window_frame(struct Window *window)
     bg = rp->BgPen;
     ol = rp->AOlPen;
     dm = rp->DrawMode;
-    _render_window_frame_impl(window);
+    _render_window_frame_impl(window, user_gadgets);
     SetAPen(rp, fg);
     SetBPen(rp, bg);
     rp->AOlPen = ol;    /* not SetOPen(): that also sets AREAOUTLINE */
     SetDrMd(rp, dm);
 }
 
-static void _render_window_frame_impl(struct Window *window)
+static void _render_window_frame(struct Window *window)
+{
+    _render_window_frame_ex(window, LXA_FRAME_ALL_GADGETS);
+}
+
+static void _render_window_frame_impl(struct Window *window, UBYTE user_gadgets)
 {
     struct RastPort *rp;
     const UWORD *pens;
@@ -9834,8 +10223,14 @@ static void _render_window_frame_impl(struct Window *window)
         WORD tx = (title_left > 1) ? title_left + 10 : 4;
         WORD avail = title_right - tx - 1;
         WORD len = strlen((const char *)window->Title);
-        WORD fit = (avail > 0) ? lxa_text_fit(rp, (STRPTR)window->Title, len, avail) : 0;
+        WORD fit;
+        /* the title is in the screen font (window->IFont), which may
+         * differ from the window's own font (Phase 236) */
+        struct TextFont *rpfont = rp->Font;
 
+        if (window->IFont && window->IFont != rpfont)
+            SetFont(rp, window->IFont);
+        fit = (avail > 0) ? lxa_text_fit(rp, (STRPTR)window->Title, len, avail) : 0;
         if (fit > 0)
         {
             SetAPen(rp, active ? pens[FILLTEXTPEN] : pens[TEXTPEN]);
@@ -9843,6 +10238,8 @@ static void _render_window_frame_impl(struct Window *window)
             Move(rp, tx, 1 + rp->TxBaseline);
             Text(rp, (STRPTR)window->Title, fit);
         }
+        if (rpfont && rp->Font != rpfont)
+            SetFont(rp, rpfont);
     }
 
     /* system gadget imagery */
@@ -9856,23 +10253,53 @@ static void _render_window_frame_impl(struct Window *window)
     SetDrMd(rp, olddm);
 
     /* Render user gadgets after the frame/system gadgets. */
-    _render_window_user_gadgets(window);
+    if (user_gadgets != LXA_FRAME_NO_GADGETS)
+        _render_window_user_gadgets_ex(window, user_gadgets == LXA_FRAME_BORDER_GADGETS);
 }
 
-static void _render_window_user_gadgets(struct Window *window)
+/*
+ * Render n gadgets starting at first, last one first: AmigaOS 3.1 draws a
+ * gadget list back to front, so the first gadget ends up on top
+ * (tests/probes/intuition/gadinfo).  border_only: only GACT_*BORDER
+ * gadgets (window activation, tests/probes/intuition/gadinfo); sys_too:
+ * system gadgets are drawn as well.
+ */
+static void _render_gadget_range_reverse(struct Window *window, struct Requester *req,
+                                         struct Gadget *first, WORD n,
+                                         BOOL border_only, BOOL sys_too)
 {
+    WORD count = 0, i, k;
     struct Gadget *gad;
 
+    for (gad = first; gad && (n == -1 || count < n); gad = gad->NextGadget)
+        count++;
+    for (i = count - 1; i >= 0; i--)
+    {
+        gad = first;
+        for (k = 0; k < i; k++)
+            gad = gad->NextGadget;
+        if (!sys_too && (gad->GadgetType & GTYP_SYSGADGET))
+            continue;
+        if (border_only &&
+            !(gad->Activation & (GACT_RIGHTBORDER | GACT_LEFTBORDER | GACT_TOPBORDER | GACT_BOTTOMBORDER)))
+            continue;
+        _render_gadget(window, req, gad);
+    }
+}
+
+static void _render_window_user_gadgets_ex(struct Window *window, BOOL border_only)
+{
     if (!window)
         return;
 
     _gadtools_RefreshPass(TRUE);
-    for (gad = window->FirstGadget; gad; gad = gad->NextGadget)
-    {
-        if (!(gad->GadgetType & GTYP_SYSGADGET))
-            _render_gadget(window, NULL, gad);
-    }
+    _render_gadget_range_reverse(window, NULL, window->FirstGadget, -1, border_only, FALSE);
     _gadtools_RefreshPass(FALSE);
+}
+
+static void _render_window_user_gadgets(struct Window *window)
+{
+    _render_window_user_gadgets_ex(window, FALSE);
 }
 
 /* Phase 147a: Decide whether a window should get its own native host SDL
@@ -10231,10 +10658,20 @@ struct Window * _intuition_OpenWindow ( register struct IntuitionBase * Intuitio
         {
             window->WLayer = content_layer;
             window->RPort = content_layer->rp;
-            /* windows render in the screen font (AmigaOS 3.1) */
+            /* windows render in the screen font when the screen was
+             * opened with one, else in the system default font - also on
+             * the Workbench and SA_SysFont 1 screens, whose font is the
+             * screen font of the preferences (AmigaOS 3.1 reference:
+             * gallery-menus-topaz11, gallery-prefs-fontpal) */
             if (screen->RastPort.Font)
             {
-                SetFont(window->RPort, screen->RastPort.Font);
+                struct PubScreenNode *pub = _intuition_find_pubscreen_by_screen(
+                    (struct LXAIntuitionBase *)IntuitionBase, screen);
+                struct TextFont *wfont = screen->RastPort.Font;
+
+                if (pub && ((struct LXAPubScreenNode *)pub)->default_font && GfxBase->DefaultFont)
+                    wfont = GfxBase->DefaultFont;
+                SetFont(window->RPort, wfont);
                 if (border_layer)
                     SetFont(border_layer->rp, screen->RastPort.Font);
                 window->IFont = screen->RastPort.Font;
@@ -10333,7 +10770,7 @@ struct Window * _intuition_OpenWindow ( register struct IntuitionBase * Intuitio
         if (prevActive && prevActive != window)
         {
             prevActive->Flags &= ~WFLG_WINDOWACTIVE;
-            _render_window_frame(prevActive);
+            _render_window_frame_ex(prevActive, LXA_FRAME_BORDER_GADGETS);
             _post_idcmp_message(prevActive, IDCMP_INACTIVEWINDOW, 0, 0,
                                 prevActive, 0, 0);
         }
@@ -10353,6 +10790,25 @@ struct Window * _intuition_OpenWindow ( register struct IntuitionBase * Intuitio
     /* Create system gadgets based on window flags (in front of the list) */
     _create_window_sys_gadgets(window);
 
+    /* Clear the window interior to pen 0 before rendering gadgets/chrome.
+     * Real AmigaOS Intuition always clears a new window's background — this
+     * prevents ghost pixels from previously-rendered content at the same
+     * screen coordinates from showing through (Phase 150 backfill fix).
+     * We use RectFill on the full window area (including borders) at pen 0
+     * so even the border region starts clean; _render_window_frame will
+     * overdraw it correctly afterwards.  It comes before GM_LAYOUT: a
+     * BOOPSI gadget may draw while it lays itself out (BGUI's groups do). */
+    if (window->RPort)
+    {
+        UBYTE save_fg = window->RPort->FgPen;
+
+        SetAPen(window->RPort, 0);
+        RectFill(window->RPort, window->LeftEdge, window->TopEdge,
+                 window->LeftEdge + window->Width - 1,
+                 window->TopEdge  + window->Height - 1);
+        SetAPen(window->RPort, save_fg);
+    }
+
     /* Initialize string gadget NumChars for user gadgets (per RKRM, Intuition does this) */
     {
         struct Gadget *gad = window->FirstGadget;
@@ -10365,24 +10821,6 @@ struct Window * _intuition_OpenWindow ( register struct IntuitionBase * Intuitio
         }
     }
     
-    /* Clear the window interior to pen 0 before rendering gadgets/chrome.
-     * Real AmigaOS Intuition always clears a new window's background — this
-     * prevents ghost pixels from previously-rendered content at the same
-     * screen coordinates from showing through (Phase 150 backfill fix).
-     * We use RectFill on the full window area (including borders) at pen 0
-     * so even the border region starts clean; _render_window_frame will
-     * overdraw it correctly afterwards. */
-    if (window->RPort)
-    {
-        UBYTE save_fg = window->RPort->FgPen;
-
-        SetAPen(window->RPort, 0);
-        RectFill(window->RPort, window->LeftEdge, window->TopEdge,
-                 window->LeftEdge + window->Width - 1,
-                 window->TopEdge  + window->Height - 1);
-        SetAPen(window->RPort, save_fg);
-    }
-
     /* Render initial visuals.
      * Windows that use a native host SDL window let the host render the
      * outer frame; we still draw user gadgets into the backing bitmap.
@@ -10397,20 +10835,9 @@ struct Window * _intuition_OpenWindow ( register struct IntuitionBase * Intuitio
         _render_window_user_gadgets(window);
     }
 
-    /* Send initial REFRESHWINDOW for all non-NOCAREREFRESH windows that
-     * requested it.  WFLG_SMART_REFRESH is 0, so the old bit-test against
-     * (WFLG_SIMPLE_REFRESH | WFLG_SMART_REFRESH) never matched SMART
-     * windows.  The correct test is: "not Super-BitMap and not NoCare". */
-    if ((window->IDCMPFlags & IDCMP_REFRESHWINDOW) &&
-        !(window->Flags & WFLG_SUPER_BITMAP) &&
-        !(window->Flags & WFLG_NOCAREREFRESH))
-    {
-        if (window->WLayer)
-            window->WLayer->Flags |= LAYERREFRESH;
-
-        _post_idcmp_message(window, IDCMP_REFRESHWINDOW, 0, 0, NULL,
-                            window->MouseX, window->MouseY);
-    }
+    /* No initial IDCMP_REFRESHWINDOW and no LAYERREFRESH: a new window has
+     * no damage on AmigaOS 3.1, smart or simple refresh
+     * (tests/probes/intuition/openrefresh) */
 
     DPRINTF (LOG_DEBUG, "_intuition: OpenWindow() -> 0x%08lx\n", (ULONG)window);
 
@@ -10442,24 +10869,47 @@ ULONG _intuition_OpenWorkBench ( register struct IntuitionBase * IntuitionBase _
      * OpenScreen() rejects WBENCHSCREEN from public callers.
      * We set Flags to WBENCHSCREEN after creation so the screen
      * is properly identified as the Workbench screen. */
+    /* The screen mode preferences choose mode, size (~0: the mode's text
+     * overscan) and depth; without them the Workbench is a 4 colour hires
+     * screen of the text overscan size (AmigaOS 3.1 reference:
+     * gallery-prefs-sys). */
+    struct LXAIntuitionBase *ibase = (struct LXAIntuitionBase *)IntuitionBase;
     memset(&ns, 0, sizeof(ns));
     ns.LeftEdge = 0;
     ns.TopEdge = 0;
-    ns.Width = 640;
-    ns.Height = 256;
+    ns.Width = STDSCREENWIDTH;
+    ns.Height = STDSCREENHEIGHT;
     ns.Depth = 2;
     ns.DetailPen = 0;
     ns.BlockPen = 1;
     ns.Type = CUSTOMSCREEN;
     ns.ViewModes = HIRES;           /* the Workbench is a hires screen */
     ns.DefaultTitle = (UBYTE *)"Workbench Screen";
-    
+    if (ibase->HasScreenModePrefs)
+    {
+        const struct LxaIScreenModePrefs *sm = &ibase->ScreenModePrefs;
+
+        ns.ViewModes = (UWORD)(sm->smp_DisplayID & 0xffff);
+        if (sm->smp_Width != (UWORD)~0 && sm->smp_Width)
+            ns.Width = (WORD)sm->smp_Width;
+        if (sm->smp_Height != (UWORD)~0 && sm->smp_Height)
+            ns.Height = (WORD)sm->smp_Height;
+        if (sm->smp_Depth)
+            ns.Depth = sm->smp_Depth;
+        if (sm->smp_Control & 1)        /* SMF_AUTOSCROLL */
+            ns.Type |= AUTOSCROLL;
+        g_screen_display_id = sm->smp_DisplayID + 1;
+    }
+
     /* Phase 147a: tell the EMU_CALL_INT_OPEN_SCREEN site that this is
      * the Workbench screen so the host can suppress the screen's own
      * SDL window in rootless mode. */
     g_opening_workbench_screen = TRUE;
     wbscreen = _intuition_OpenScreen(IntuitionBase, &ns);
     g_opening_workbench_screen = FALSE;
+    g_screen_display_id = 0;
+    if (wbscreen && ibase->HasScreenModePrefs && wbscreen->ViewPort.ColorMap)
+        wbscreen->ViewPort.ColorMap->VPModeID = ibase->ScreenModePrefs.smp_DisplayID;
     
     if (wbscreen)
     {
@@ -10480,6 +10930,9 @@ ULONG _intuition_OpenWorkBench ( register struct IntuitionBase * IntuitionBase _
         if (stale_pub)
             _intuition_unregister_pubscreen(IntuitionBase, wbscreen);
         _intuition_register_pubscreen(IntuitionBase, wbscreen);
+        stale_pub = _intuition_find_pubscreen_by_screen(base, wbscreen);
+        if (stale_pub)
+            ((struct LXAPubScreenNode *)stale_pub)->default_font = TRUE;
         _render_screen_title_bar(wbscreen);
 
         DPRINTF (LOG_DEBUG, "_intuition: OpenWorkBench() - opened at 0x%08lx, Width=%d Height=%d\n", 
@@ -10913,7 +11366,9 @@ VOID _intuition_SetWindowTitles ( register struct IntuitionBase * IntuitionBase 
     if (windowTitle != (CONST_STRPTR)-1) {
         ULONG handle = _intuition_get_host_window_handle((struct LXAIntuitionBase *)IntuitionBase, window);
         window->Title = (UBYTE *)windowTitle;
-        _render_window_frame(window);
+        /* AmigaOS 3.1 redraws no application gadget here, not even a
+         * border gadget (tests/probes/intuition/gadinfo) */
+        _render_window_frame_ex(window, LXA_FRAME_NO_GADGETS);
         /* the host (rootless window, liblxa's tracked title) follows */
         if (handle)
             emucall2(EMU_CALL_INT_SET_TITLE, handle, (ULONG)windowTitle);
@@ -11003,6 +11458,15 @@ VOID _intuition_SizeWindow ( register struct IntuitionBase * IntuitionBase __asm
         {
             emucall3(EMU_CALL_INT_SIZE_WINDOW, window_handle, (ULONG)new_w, (ULONG)new_h);
         }
+    }
+
+    /* GM_LAYOUT (gpl_Initial FALSE) to the window's GREL_ gadgets before
+     * the window is redrawn (AmigaOS 3.1, tests/probes/intuition/gadinfo) */
+    {
+        struct Gadget *gad;
+
+        for (gad = window->FirstGadget; gad; gad = gad->NextGadget)
+            _layout_custom_gadget(window, NULL, gad, FALSE);
     }
 
     _clear_relative_gadget_trails(window, dx, dy);
@@ -12072,20 +12536,7 @@ static void _render_gadget(struct Window *window, struct Requester *req, struct 
              * Using the inner dimensions for non-GZZ windows causes BGUI to
              * double-subtract the border widths when resolving GA_RelWidth /
              * GA_RelHeight on the master group gadget, resulting in collapsed layout. */
-            if (window->Flags & WFLG_GIMMEZEROZERO)
-            {
-                gi.gi_Domain.Left   = window->BorderLeft;
-                gi.gi_Domain.Top    = window->BorderTop;
-                gi.gi_Domain.Width  = window->Width  - window->BorderLeft - window->BorderRight;
-                gi.gi_Domain.Height = window->Height - window->BorderTop  - window->BorderBottom;
-            }
-            else
-            {
-                gi.gi_Domain.Left   = 0;
-                gi.gi_Domain.Top    = 0;
-                gi.gi_Domain.Width  = window->Width;
-                gi.gi_Domain.Height = window->Height;
-            }
+            _intuition_gadget_domain(window, &gi.gi_Domain);
             gi.gi_DrInfo = _intuition_GetScreenDrawInfo((struct IntuitionBase *)NULL, window->WScreen);
 
             struct gpRender gpr;
@@ -12663,7 +13114,6 @@ VOID _intuition_RefreshGList ( register struct IntuitionBase * IntuitionBase __a
                                                         register WORD numGad __asm("d0"))
 {
     struct Gadget *gad = gadgets;
-    WORD count = 0;
     
     DPRINTF (LOG_DEBUG, "_intuition: RefreshGList() gadgets=0x%08lx win=0x%08lx req=0x%08lx num=%d\n",
              (ULONG)gadgets, (ULONG)window, (ULONG)requester, numGad);
@@ -12671,22 +13121,7 @@ VOID _intuition_RefreshGList ( register struct IntuitionBase * IntuitionBase __a
     if (!window || !gadgets) return;
 
     _gadtools_RefreshPass(TRUE);
-    while (gad && (numGad == -1 || count < numGad))
-    {
-        /* Don't render if disabled (unless we want to render disabled state - which we should) 
-         * But if GFLG_DISABLED is toggled, we probably render ghosted.
-         * For now, just render.
-         */
-         
-        /* Only render if it belongs to the window/requester context?
-         * Usually caller ensures valid list.
-         */
-         
-        _render_gadget(window, requester, gad);
-        
-        gad = gad->NextGadget;
-        count++;
-    }
+    _render_gadget_range_reverse(window, requester, gad, numGad, FALSE, TRUE);
     _gadtools_RefreshPass(FALSE);
 }
 
@@ -12829,8 +13264,10 @@ VOID _intuition_ActivateWindow ( register struct IntuitionBase * IntuitionBase _
         prevActive->Flags &= ~WFLG_WINDOWACTIVE;
         _post_idcmp_message(prevActive, IDCMP_INACTIVEWINDOW, 0, 0,
                             prevActive, 0, 0);
-        /* Re-render frame to show inactive title bar colors */
-        _render_window_frame(prevActive);
+        /* Re-render frame to show inactive title bar colors; of the
+         * application's gadgets 3.1 redraws only border gadgets
+         * (tests/probes/intuition/gadinfo) */
+        _render_window_frame_ex(prevActive, LXA_FRAME_BORDER_GADGETS);
     }
 
     /* Activate the new window; ActiveScreen is the screen of the active
@@ -12842,7 +13279,7 @@ VOID _intuition_ActivateWindow ( register struct IntuitionBase * IntuitionBase _
     _post_idcmp_message(window, IDCMP_ACTIVEWINDOW, 0, 0,
                         window, 0, 0);
     /* Re-render frame to show active title bar colors */
-    _render_window_frame(window);
+    _render_window_frame_ex(window, LXA_FRAME_BORDER_GADGETS);
 }
 
 VOID _intuition_RefreshWindowFrame ( register struct IntuitionBase * IntuitionBase __asm("a6"),
@@ -12947,29 +13384,22 @@ LONG _intuition_QueryOverscan ( register struct IntuitionBase * IntuitionBase __
                                                         register struct Rectangle * rect __asm("a1"),
                                                         register WORD oScanType __asm("d0"))
 {
+    struct DimensionInfo dims;
+
     if (!rect)
         return FALSE;
-    
-    /* The rectangle comes from the mode's DimensionInfo (AmigaOS 3.1
-     * reference, tests/probes/graphics/vpextra: TEXT and STANDARD are the
-     * mode's nominal size without overscan preferences). */
-    {
-        struct DimensionInfo dims;
-        struct Rectangle *r;
 
-        if (GetDisplayInfoData(NULL, (UBYTE *)&dims, sizeof(dims), DTAG_DIMS, displayID) == 0)
-            return FALSE;
-        switch (oScanType)
-        {
-            case OSCAN_TEXT:     r = &dims.TxtOScan;   break;
-            case OSCAN_STANDARD: r = &dims.StdOScan;   break;
-            case OSCAN_MAX:      r = &dims.MaxOScan;   break;
-            case OSCAN_VIDEO:    r = &dims.VideoOScan; break;
-            default:             return FALSE;
-        }
-        *rect = *r;
+    /* the overscan rectangles of the display database (AmigaOS 3.1
+     * reference: tests/probes/graphics/colormap) */
+    if (!GetDisplayInfoData(NULL, (UBYTE *)&dims, sizeof(dims), DTAG_DIMS, displayID))
+        return FALSE;
+    switch (oScanType) {
+        case OSCAN_TEXT:     *rect = dims.TxtOScan;   break;
+        case OSCAN_STANDARD: *rect = dims.StdOScan;   break;
+        case OSCAN_MAX:      *rect = dims.MaxOScan;   break;
+        case OSCAN_VIDEO:    *rect = dims.VideoOScan; break;
+        default:             return FALSE;
     }
-
     return TRUE;
 }
 
@@ -13466,10 +13896,6 @@ VOID _intuition_GadgetMouse ( register struct IntuitionBase * IntuitionBase __as
     }
 }
 
-VOID _intuition_private1 ( register struct IntuitionBase * IntuitionBase __asm("a6"))
-{
-    PRIVATE_FUNCTION_ERROR("_intuition", "private1");
-}
 
 VOID _intuition_GetDefaultPubScreen ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register STRPTR nameBuffer __asm("a0"))
@@ -14714,7 +15140,7 @@ struct Screen * _intuition_OpenScreenTagList ( register struct IntuitionBase * I
                                                         register const struct NewScreen * newScreen __asm("a0"),
                                                         register const struct TagItem * tagList __asm("a1"))
 {
-    LXA_UNIMPLEMENTED("intuition", "OpenScreenTagList", "partial: ignores SA_DClip, SA_Overscan, SA_Colors, SA_SysFont; SA_ErrorCode only for mode errors (Phase 256)");
+    LXA_UNIMPLEMENTED("intuition", "OpenScreenTagList", "partial: ignores SA_DClip, SA_Overscan, SA_Colors; SA_ErrorCode only for mode errors (Phase 256)");
 
     struct NewScreen ns;
     struct TagItem *tstate;
@@ -14729,6 +15155,8 @@ struct Screen * _intuition_OpenScreenTagList ( register struct IntuitionBase * I
     int tl;
     BOOL share_pens = FALSE;
     BOOL pub_name = FALSE;
+    BYTE sys_font = -1;
+    BOOL full_palette = FALSE;
 
     tag_lists[0] = NULL;
     tag_lists[1] = tagList;
@@ -14875,6 +15303,12 @@ struct Screen * _intuition_OpenScreenTagList ( register struct IntuitionBase * I
                     DPRINTF(LOG_DEBUG, "_intuition: OpenScreenTagList() SA_Colors32=0x%08lx\n",
                             (ULONG)tag->ti_Data);
                     break;
+                case SA_SysFont:
+                    sys_font = (BYTE)tag->ti_Data;
+                    break;
+                case SA_FullPalette:
+                    full_palette = tag->ti_Data ? TRUE : FALSE;
+                    break;
                 /* Tags we recognize but don't fully implement yet */
                 case SA_ErrorCode:
                     sa_error = (ULONG *)tag->ti_Data;
@@ -14882,7 +15316,6 @@ struct Screen * _intuition_OpenScreenTagList ( register struct IntuitionBase * I
                 case SA_DClip:
                 case SA_Overscan:
                 case SA_Colors:
-                case SA_SysFont:
                     DPRINTF(LOG_DEBUG, "_intuition: OpenScreenTagList() ignoring tag 0x%08lx (not yet implemented)\n",
                             tag->ti_Tag);
                     break;
@@ -14914,8 +15347,14 @@ struct Screen * _intuition_OpenScreenTagList ( register struct IntuitionBase * I
 
     /* Call our existing OpenScreen with the assembled NewScreen */
     g_screen_from_tags = TRUE;
+    g_screen_display_id = (sa_display_id != (ULONG)INVALID_ID) ? sa_display_id + 1 : 0;
+    g_screen_sysfont = sys_font;
+    g_screen_full_palette = full_palette;
     struct Screen *screen = _intuition_OpenScreen(IntuitionBase, &ns);
     g_screen_from_tags = FALSE;
+    g_screen_display_id = 0;
+    g_screen_sysfont = -1;
+    g_screen_full_palette = FALSE;
     if (!screen)
     {
         if (sa_error)
@@ -15357,6 +15796,22 @@ static struct IClass *_intuition_find_class(struct LXAIntuitionBase *base, CONST
     return NULL;
 }
 
+/* TRUE if cl is, or is derived from, one of the ROM's gadget classes
+ * that draw themselves on OM_SET on AmigaOS 3.1 (buttongclass, propgclass,
+ * strgclass) */
+static BOOL _intuition_is_builtin_gadget_class(struct IClass *cl)
+{
+    for (; cl; cl = cl->cl_Super)
+    {
+        ULONG (*entry)() = cl->cl_Dispatcher.h_Entry;
+        if (entry == (ULONG (*)())buttongclass_dispatch ||
+            entry == (ULONG (*)())propgclass_dispatch ||
+            entry == (ULONG (*)())strgclass_dispatch)
+            return TRUE;
+    }
+    return FALSE;
+}
+
 static ULONG _intuition_dispatch_method(struct IClass *cl, Object *obj, Msg msg)
 {
     if (!cl || !cl->cl_Dispatcher.h_Entry) {
@@ -15497,10 +15952,8 @@ ULONG _intuition_SetGadgetAttrsA ( register struct IntuitionBase * IntuitionBase
         gi.gi_Window = window;
         gi.gi_Requester = requester;
         gi.gi_RastPort = window->RPort;
-        gi.gi_Domain.Left = window->BorderLeft;
-        gi.gi_Domain.Top = window->BorderTop;
-        gi.gi_Domain.Width = window->Width - window->BorderLeft - window->BorderRight;
-        gi.gi_Domain.Height = window->Height - window->BorderTop - window->BorderBottom;
+        gi.gi_Layer = window->WLayer;
+        _intuition_gadget_domain(window, &gi.gi_Domain);
         gi.gi_DrInfo = _intuition_GetScreenDrawInfo(IntuitionBase, window->WScreen);
     }
     
@@ -15516,11 +15969,12 @@ ULONG _intuition_SetGadgetAttrsA ( register struct IntuitionBase * IntuitionBase
     
     ULONG result = _intuition_dispatch_method(cl, (Object *)gadget, (Msg)&ops);
 
-    /* Re-render the gadget if attrs changed and we have a window.  The
-     * gadget is then up to date, so (like the AmigaOS 3.1 classes, which
-     * render themselves when they get a GadgetInfo) report no further
-     * refresh need to the caller. */
-    if (result && window)
+    /* SetGadgetAttrsA() itself renders nothing on AmigaOS 3.1: a class
+     * redraws itself in OM_SET when it gets a GadgetInfo
+     * (tests/probes/intuition/gadinfo: a gadgetclass subclass sees no
+     * GM_RENDER).  lxa's built-in classes do not, so they are re-rendered
+     * here on their behalf (and then report no further refresh need). */
+    if (result && window && _intuition_is_builtin_gadget_class(cl))
     {
         struct RastPort *rp = window->RPort;
         if (rp)
@@ -16083,10 +16537,7 @@ ULONG _intuition_DoGadgetMethodA ( register struct IntuitionBase * IntuitionBase
             gi.gi_Requester = req;
             gi.gi_RastPort = win->RPort;
             gi.gi_Layer = win->WLayer;
-            gi.gi_Domain.Left = win->BorderLeft;
-            gi.gi_Domain.Top = win->BorderTop;
-            gi.gi_Domain.Width = win->Width - win->BorderLeft - win->BorderRight;
-            gi.gi_Domain.Height = win->Height - win->BorderTop - win->BorderBottom;
+            _intuition_gadget_domain(win, &gi.gi_Domain);
             gi.gi_DrInfo = _intuition_GetScreenDrawInfo(IntuitionBase, win->WScreen);
         }
 
@@ -16329,7 +16780,7 @@ APTR __g_lxa_intuition_FuncTab [] =
     _intuition_ObtainGIRPort, // offset = -558
     _intuition_ReleaseGIRPort, // offset = -564
     _intuition_GadgetMouse, // offset = -570
-    _intuition_private1, // offset = -576
+    _intuition_SetIPrefs, // offset = -576
     _intuition_GetDefaultPubScreen, // offset = -582
     _intuition_EasyRequestArgs, // offset = -588
     _intuition_BuildEasyRequestArgs, // offset = -594

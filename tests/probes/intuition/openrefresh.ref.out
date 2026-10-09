@@ -1,0 +1,10 @@
+-- smart refresh
+layerrefresh at open = 0
+layerrefresh +0.2s = 0
+messages: 0x00040000
+pixel after refresh draw = 1
+-- simple refresh
+layerrefresh at open = 0
+layerrefresh +0.2s = 0
+messages: 0x00040000
+pixel after refresh draw = 1

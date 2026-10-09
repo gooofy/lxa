@@ -867,8 +867,24 @@ TEST_F(AppsMiscScreenTest, DISABLED_DirectoryOpusCopiesFile) {
         return true;
     };
 
-    /* Give DOpus time to finish reading both listers from the patched config. */
-    settle(200);
+    /* DOpus reads its listers some time after the window opens: wait
+     * until the source file has been drawn in the left lister. */
+    static std::vector<std::string> drawn;
+    drawn.clear();
+    lxa_set_text_hook([](const char *s, int n, int, int, void *) {
+        drawn.emplace_back(s, n);
+    }, nullptr);
+    bool listed = false;
+    for (int i = 0; i < 100 && !listed; i++) {
+        settle(20);
+        for (const auto &t : drawn)
+            if (t.find("COPY") != std::string::npos)
+                listed = true;
+    }
+    lxa_clear_text_hook();
+    ASSERT_TRUE(listed) << "Directory Opus never listed RAM:s";
+    WaitForEventLoop(100, 10000);
+    settle(100);
 
     /* Select the first file of the left lister (its first row is at
      * screen y 48 on the canonical PAL screen: window y + 37). */

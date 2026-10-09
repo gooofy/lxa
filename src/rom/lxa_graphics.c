@@ -220,10 +220,11 @@ static ULONG graphics_vsprite_shadow_size(CONST struct VSprite *vSprite)
     return (ULONG)vSprite->Height * (ULONG)words_per_line * sizeof(WORD);
 }
 
-static ULONG graphics_vsprite_savebuffer_size(CONST struct VSprite *vSprite)
+/* RKRM: the SaveBuffer holds every plane of the RastPort's BitMap */
+static ULONG graphics_vsprite_savebuffer_size(CONST struct VSprite *vSprite, CONST struct RastPort *rp)
 {
     ULONG shadow_size = graphics_vsprite_shadow_size(vSprite);
-    WORD depth = graphics_vsprite_mask_depth(vSprite);
+    WORD depth = (rp && rp->BitMap) ? rp->BitMap->Depth : graphics_vsprite_mask_depth(vSprite);
 
     if (shadow_size == 0 || depth <= 0)
         return 0;
@@ -354,14 +355,29 @@ static ULONG _graphics_ObtainPen ( register struct GfxBase * GfxBase __asm("a6")
 
 static VOID graphics_cm_store_rgb32(struct ColorMap *cm, ULONG n, ULONG r, ULONG g, ULONG b);
 
+/*
+ * PaletteExtra as AmigaOS 3.1 keeps it (reference, Phase 222b): pe_RefCnt
+ * is an array of UWORD reference counts, pe_AllocList an array of UBYTE
+ * links (255 ends a list) whatever view.h declares.  pe_FirstFree and
+ * pe_FirstShared head the free and shared lists; an empty list reads as
+ * 255 (from a link) or 0xFFFF (never used).  Exclusive pens are in no
+ * list; their links are left as they were.
+ */
+#define GRAPHICS_PEN_END 0xFF
+
 static UWORD *graphics_palette_ref_counts(struct PaletteExtra *pe)
 {
     return (UWORD *)pe->pe_RefCnt;
 }
 
-static UWORD *graphics_palette_alloc_list(struct PaletteExtra *pe)
+static UBYTE *graphics_palette_alloc_list(struct PaletteExtra *pe)
 {
-    return (UWORD *)pe->pe_AllocList;
+    return (UBYTE *)pe->pe_AllocList;
+}
+
+static BOOL graphics_palette_list_end(UWORD pen)
+{
+    return (pen & 0xFF) == GRAPHICS_PEN_END;
 }
 
 static VOID graphics_color_get(CONST struct ColorMap *cm,
@@ -416,24 +432,24 @@ static ULONG graphics_color_distance(CONST struct ColorMap *cm,
     return (ULONG)(dr * dr) + (ULONG)(dg * dg) + (ULONG)(db * db);
 }
 
+/* unlink pen from the list at *head; FALSE if it is not in it */
 static BOOL graphics_palette_remove_pen(struct PaletteExtra *pe,
                                         UWORD *head,
                                         UWORD pen)
 {
-    UWORD *alloc_list = graphics_palette_alloc_list(pe);
-    UWORD prev = GRAPHICS_PEN_NONE;
+    UBYTE *alloc_list = graphics_palette_alloc_list(pe);
+    UWORD prev = 0xFFFF;
     UWORD cur = *head;
+    UWORD guard = 0;
 
-    while (cur != GRAPHICS_PEN_NONE)
+    while (!graphics_palette_list_end(cur) && guard++ < 256)
     {
         if (cur == pen)
         {
-            if (prev == GRAPHICS_PEN_NONE)
+            if (prev == 0xFFFF)
                 *head = alloc_list[cur];
             else
                 alloc_list[prev] = alloc_list[cur];
-
-            alloc_list[cur] = GRAPHICS_PEN_NONE;
             return TRUE;
         }
 
@@ -444,31 +460,13 @@ static BOOL graphics_palette_remove_pen(struct PaletteExtra *pe,
     return FALSE;
 }
 
-static BOOL graphics_palette_pen_in_list(struct PaletteExtra *pe,
-                                         UWORD head,
-                                         UWORD pen)
-{
-    UWORD *alloc_list = graphics_palette_alloc_list(pe);
-    UWORD cur = head;
-
-    while (cur != GRAPHICS_PEN_NONE)
-    {
-        if (cur == pen)
-            return TRUE;
-
-        cur = alloc_list[cur];
-    }
-
-    return FALSE;
-}
-
 static VOID graphics_palette_push_pen(struct PaletteExtra *pe,
                                       UWORD *head,
                                       UWORD pen)
 {
-    UWORD *alloc_list = graphics_palette_alloc_list(pe);
+    UBYTE *alloc_list = graphics_palette_alloc_list(pe);
 
-    alloc_list[pen] = *head;
+    alloc_list[pen] = (UBYTE)*head;
     *head = pen;
 }
 
@@ -890,6 +888,61 @@ static UWORD graphics_display_nominal_height(ULONG display_id)
     return height;
 }
 
+/* Overscan preferences (Phase 236): the text and standard overscan of a
+ * monitor, written through SetDisplayInfoData(DTAG_DIMS) - by IPrefs from
+ * ENV:Sys/overscan.prefs.  Kept per monitor in hires non-interlaced pixels
+ * and scaled to each mode's resolution. */
+struct GfxOscanPrefs
+{
+    BOOL             valid;
+    struct Rectangle txt;
+    struct Rectangle std;
+};
+
+#define GFX_OSCAN_MONITORS 2    /* 0: PAL (and the default monitor), 1: NTSC */
+static struct GfxOscanPrefs *g_oscan_prefs;     /* AllocMem'd on first use */
+
+static int graphics_oscan_slot(ULONG display_id)
+{
+    return ((display_id & MONITOR_ID_MASK) == NTSC_MONITOR_ID) ? 1 : 0;
+}
+
+/* one coordinate between mode pixels and hires non-interlaced pixels */
+static WORD graphics_oscan_conv(WORD v, WORD xscale, BOOL is_max, BOOL is_x, BOOL lace, BOOL to_mode)
+{
+    LONG r = v;
+    BOOL halve, twice;
+
+    if (is_x)
+    {
+        halve = (xscale == 1) == to_mode;
+        twice = (xscale == 4) == to_mode;
+        if (xscale == 2)
+            return v;
+    }
+    else
+    {
+        if (!lace)
+            return v;
+        halve = !to_mode;
+        twice = to_mode;
+    }
+    if (halve && !twice)
+        r = is_max ? ((r + 1) / 2) - 1 : r / 2;
+    else if (twice && !halve)
+        r = is_max ? (r + 1) * 2 - 1 : r * 2;
+    return (WORD)r;
+}
+
+static VOID graphics_oscan_rect(struct Rectangle *dst, const struct Rectangle *src,
+                                WORD xscale, BOOL lace, BOOL to_mode)
+{
+    dst->MinX = graphics_oscan_conv(src->MinX, xscale, FALSE, TRUE, lace, to_mode);
+    dst->MinY = graphics_oscan_conv(src->MinY, xscale, FALSE, FALSE, lace, to_mode);
+    dst->MaxX = graphics_oscan_conv(src->MaxX, xscale, TRUE, TRUE, lace, to_mode);
+    dst->MaxY = graphics_oscan_conv(src->MaxY, xscale, TRUE, FALSE, lace, to_mode);
+}
+
 static UWORD graphics_display_total_rows(ULONG display_id)
 {
     if ((display_id & MONITOR_ID_MASK) == PAL_MONITOR_ID)
@@ -1182,6 +1235,69 @@ static BOOL graphics_vsprites_old_bounds_overlap(CONST struct VSprite *left_vspr
              left_bottom < right_top || right_bottom < left_top);
 }
 
+/*
+ * Bob background save/restore (AmigaOS 3.1, measured on the reference):
+ * a SAVEBACK Bob's SaveBuffer holds the Width*16 x Height pixels at its
+ * position, every plane of the RastPort's BitMap one after the other
+ * (Width*Height words each, unaligned pixels shifted to bit 15).
+ */
+static BOOL graphics_bob_save_bitmap(struct RastPort *rp, struct VSprite *vSprite,
+                                     struct BitMap *save_bm)
+{
+    struct Bob *bob = vSprite->VSBob;
+    ULONG plane_size;
+    WORD depth;
+    WORD i;
+
+    if (!rp || !rp->BitMap || !bob || !bob->SaveBuffer || vSprite->Width <= 0 ||
+        vSprite->Height <= 0)
+        return FALSE;
+
+    depth = rp->BitMap->Depth > 8 ? 8 : rp->BitMap->Depth;
+    lxa_memset(save_bm, 0, sizeof(*save_bm));
+    save_bm->BytesPerRow = (UWORD)(vSprite->Width * 2);
+    save_bm->Rows = (UWORD)vSprite->Height;
+    save_bm->Depth = (UBYTE)depth;
+    plane_size = (ULONG)save_bm->BytesPerRow * save_bm->Rows;
+    for (i = 0; i < depth; i++)
+        save_bm->Planes[i] = (PLANEPTR)((UBYTE *)bob->SaveBuffer + i * plane_size);
+    return TRUE;
+}
+
+static VOID graphics_save_bob_background(struct RastPort *rp, struct VSprite *vSprite)
+{
+    struct BitMap save_bm;
+
+    if (!graphics_bob_save_bitmap(rp, vSprite, &save_bm))
+        return;
+
+    BltBitMapCore(rp->BitMap, vSprite->X, vSprite->Y, &save_bm, 0, 0,
+                  (WORD)(vSprite->Width << 4), vSprite->Height, 0xC0, 0xFF, NULL, 0);
+}
+
+/* put back the background a SAVEBACK Bob covered at OldX/OldY */
+static VOID graphics_restore_bob_background(struct RastPort *rp, struct VSprite *vSprite)
+{
+    struct BitMap save_bm;
+    struct Bob *bob = vSprite->VSBob;
+
+    if (!bob || (vSprite->Flags & VSPRITE))
+        return;
+
+    if ((vSprite->Flags & (SAVEBACK | BACKSAVED)) == (SAVEBACK | BACKSAVED) &&
+        (bob->Flags & SAVEBOB) == 0 && graphics_bob_save_bitmap(rp, vSprite, &save_bm))
+    {
+        BltBitMapCore(&save_bm, 0, 0, rp->BitMap, vSprite->OldX, vSprite->OldY,
+                      (WORD)(vSprite->Width << 4), vSprite->Height, 0xC0, 0xFF, NULL, 0);
+    }
+    vSprite->Flags &= ~BACKSAVED;
+}
+
+/*
+ * RemIBob(): the Bob and every Bob drawn after it that overlaps it get
+ * their backgrounds back (last drawn first) and lose BACKSAVED; Bobs
+ * without SAVEBACK are not erased at all (AmigaOS 3.1, reference).
+ */
 static VOID graphics_clear_bob_immediately(struct GfxBase *GfxBase,
                                            struct RastPort *rp,
                                            struct VSprite *vSprite,
@@ -1190,6 +1306,8 @@ static VOID graphics_clear_bob_immediately(struct GfxBase *GfxBase,
 {
     struct Bob *bob;
     struct VSprite *other;
+
+    (void)GfxBase;
 
     if (!vSprite || !vSprite->VSBob)
         return;
@@ -1201,26 +1319,16 @@ static VOID graphics_clear_bob_immediately(struct GfxBase *GfxBase,
         return;
     }
 
-    other = vSprite->NextVSprite;
-    while (other && other != tail)
+    if (tail)
     {
-        if (other->VSBob && graphics_vsprites_old_bounds_overlap(vSprite, other))
-            graphics_clear_bob_immediately(GfxBase, rp, other, tail, FALSE);
-        other = other->NextVSprite;
+        for (other = tail->PrevVSprite; other && other != vSprite; other = other->PrevVSprite)
+        {
+            if (other->VSBob && graphics_vsprites_old_bounds_overlap(vSprite, other))
+                graphics_restore_bob_background(rp, other);
+        }
     }
+    graphics_restore_bob_background(rp, vSprite);
 
-    if (rp && (bob->Flags & SAVEBOB) == 0 && vSprite->Width > 0 && vSprite->Height > 0)
-    {
-        _graphics_EraseRect(GfxBase,
-                            rp,
-                            vSprite->OldX,
-                            vSprite->OldY,
-                            (LONG)(vSprite->OldX + (vSprite->Width << 4) - 1),
-                            (LONG)(vSprite->OldY + vSprite->Height - 1));
-    }
-
-    /* only the removed Bob is retired; overlapping Bobs are just erased
-     * and redrawn by the next DrawGList() (AmigaOS 3.1, reference) */
     if (retire)
     {
         bob->Flags &= ~(BWAITING | BDRAWN);
@@ -1305,6 +1413,45 @@ static VOID graphics_draw_vsprite(struct GfxBase *GfxBase,
 
     if (!graphics_build_vsprite_bitmap(vSprite, &src_bm))
         return;
+
+    /*
+     * A Bob (AmigaOS 3.1, reference): the image planes go to the planes
+     * selected by PlanePick - through the ImageShadow with OVERLAY, as a
+     * whole rectangle without - and the other planes get their PlaneOnOff
+     * bit wherever the ImageShadow is set.
+     */
+    if (!(vSprite->Flags & VSPRITE) && vSprite->VSBob)
+    {
+        struct BitMap pick_bm;
+        PLANEPTR shadow = (PLANEPTR)vSprite->VSBob->ImageShadow;
+        UBYTE pick = vSprite->PlanePick;
+        WORD depth = rp->BitMap->Depth > 8 ? 8 : rp->BitMap->Depth;
+        WORD plane;
+        WORD image_plane = 0;
+
+        lxa_memset(&pick_bm, 0, sizeof(pick_bm));
+        pick_bm.BytesPerRow = src_bm.BytesPerRow;
+        pick_bm.Rows = src_bm.Rows;
+        pick_bm.Depth = (UBYTE)depth;
+        for (plane = 0; plane < depth; plane++)
+        {
+            if (pick & (1 << plane))
+                pick_bm.Planes[plane] = image_plane < src_bm.Depth ?
+                                        src_bm.Planes[image_plane++] : NULL;
+            else
+                pick_bm.Planes[plane] = (vSprite->PlaneOnOff & (1 << plane)) ?
+                                        (PLANEPTR)0xFFFFFFFF : NULL;
+        }
+
+        BltBitMapCore(&pick_bm, 0, 0, rp->BitMap, vSprite->X, vSprite->Y,
+                      (WORD)(vSprite->Width << 4), vSprite->Height, 0xC0, pick,
+                      (vSprite->Flags & OVERLAY) ? shadow : NULL, src_bm.BytesPerRow);
+        if (shadow)
+            BltBitMapCore(&pick_bm, 0, 0, rp->BitMap, vSprite->X, vSprite->Y,
+                          (WORD)(vSprite->Width << 4), vSprite->Height, 0xC0,
+                          (UBYTE)~pick, shadow, src_bm.BytesPerRow);
+        return;
+    }
 
     BltBitMapCore(&src_bm,
                   0,
@@ -3178,14 +3325,26 @@ static VOID _graphics_DrawGList ( register struct GfxBase * GfxBase __asm("a6"),
     current = rp->GelsInfo->gelHead->NextVSprite;
     tail = rp->GelsInfo->gelTail;
 
+    /* AmigaOS 3.1 (reference): first every saved background goes back,
+     * last drawn first, then each Bob saves its new background and is
+     * drawn; a Bob marked BOBSAWAY is removed from the list */
+    {
+        struct VSprite *head = rp->GelsInfo->gelHead;
+        struct VSprite *prev;
+
+        for (prev = tail->PrevVSprite; prev && prev != head; prev = prev->PrevVSprite)
+        {
+            if (prev->VSBob)
+                graphics_restore_bob_background(rp, prev);
+        }
+    }
+
     while (current && current != tail)
     {
         struct VSprite *next = current->NextVSprite;
 
         if (current->VSBob && (current->VSBob->Flags & BOBSAWAY))
         {
-            /* erase the retired Bob (restore its background) first */
-            graphics_clear_bob_immediately(GfxBase, rp, current, tail, TRUE);
             _graphics_RemVSprite(GfxBase, current);
             current->VSBob->Flags |= BOBNIX;
             current->VSBob->Flags &= ~BDRAWN;
@@ -3194,7 +3353,11 @@ static VOID _graphics_DrawGList ( register struct GfxBase * GfxBase __asm("a6"),
         }
 
         if ((current->Flags & GELGONE) == 0)
+        {
+            if (current->VSBob && (current->Flags & SAVEBACK))
+                graphics_save_bob_background(rp, current);
             graphics_draw_vsprite(GfxBase, rp, current);
+        }
 
         current->OldX = current->X;
         current->OldY = current->Y;
@@ -3605,7 +3768,7 @@ static BOOL _graphics_GetGBuffers ( register struct GfxBase * GfxBase __asm("a6"
                 return FALSE;
 
             shadow_size = graphics_vsprite_shadow_size(vSprite);
-            savebuffer_size = graphics_vsprite_savebuffer_size(vSprite);
+            savebuffer_size = graphics_vsprite_savebuffer_size(vSprite, rp);
 
             if (shadow_size == 0 || savebuffer_size == 0)
                 return FALSE;
@@ -6051,7 +6214,8 @@ static VOID _graphics_CBump ( register struct GfxBase * GfxBase __asm("a6"),
             if (!next)
                 return;
 
-            next->CopIns = (struct CopIns *)AllocMem(10 * sizeof(struct CopIns), MEMF_PUBLIC | MEMF_CLEAR);
+            /* AmigaOS 3.1 continues in blocks of 16 instructions (reference) */
+            next->CopIns = (struct CopIns *)AllocMem(16 * sizeof(struct CopIns), MEMF_PUBLIC | MEMF_CLEAR);
             if (!next->CopIns)
             {
                 FreeMem(next, sizeof(struct CopList));
@@ -6059,7 +6223,7 @@ static VOID _graphics_CBump ( register struct GfxBase * GfxBase __asm("a6"),
             }
 
             next->CopPtr = next->CopIns;
-            next->MaxCount = 10;
+            next->MaxCount = 16;
             current->Next = next;
         }
 
@@ -6097,8 +6261,10 @@ static LONG _graphics_CMove ( register struct GfxBase * GfxBase __asm("a6"),
     if (!copList || !copList->CopList)
         return FALSE;
 
+    /* AmigaOS 3.1 writes at CopPtr without checking Count: CBump() is
+     * what keeps a block from overflowing (reference) */
     current = copList->CopList;
-    if (!current->CopIns || !current->CopPtr || current->Count >= current->MaxCount)
+    if (!current->CopPtr)
         return FALSE;
 
     cop_ins = current->CopPtr;
@@ -6128,8 +6294,9 @@ static VOID _graphics_CWait ( register struct GfxBase * GfxBase __asm("a6"),
     if (!copList || !copList->CopList)
         return;
 
+    /* no Count check, as CMove() (AmigaOS 3.1, reference) */
     current = copList->CopList;
-    if (!current->CopIns || !current->CopPtr || current->Count >= current->MaxCount)
+    if (!current->CopPtr)
         return;
 
     cop_ins = current->CopPtr;
@@ -7286,7 +7453,17 @@ static VOID _graphics_FreeCopList ( register struct GfxBase * GfxBase __asm("a6"
                                                         register struct CopList * copList __asm("a0"))
 {
     DPRINTF(LOG_DEBUG, "_graphics: FreeCopList(copList=0x%08lx)\n", (ULONG)copList);
-    graphics_free_placeholder_coplist(copList);
+
+    /* the whole chain of blocks with their instruction buffers */
+    while (copList)
+    {
+        struct CopList *next = copList->Next;
+
+        if (copList->CopIns && copList->MaxCount > 0)
+            FreeMem(copList->CopIns, (ULONG)copList->MaxCount * sizeof(struct CopIns));
+        FreeMem(copList, sizeof(struct CopList));
+        copList = next;
+    }
 }
 
 static VOID _graphics_ClipBlit ( register struct GfxBase * GfxBase __asm("a6"),
@@ -7610,16 +7787,30 @@ static struct ColorMap * _graphics_GetColorMap ( register struct GfxBase * GfxBa
     cm->SpriteResolution = SPRITERESN_DEFAULT;
     cm->SpriteResDefault = SPRITERESN_ECS;
     cm->VPModeID = (ULONG)-1;
-    cm->SpriteBase_Even = 0x0001;
-    cm->SpriteBase_Odd = 0x0001;
+    cm->SpriteBase_Even = 0x0010;       /* AmigaOS 3.1 (reference) */
+    cm->SpriteBase_Odd = 0x0010;
     cm->Bp_1_base = 0x0008;
     
-    /* Initialize with default Amiga Workbench colors for first 4 entries */
-    if (entries > 0) colorTable[0] = 0x0AAA;  /* Light gray background */
-    if (entries > 1) colorTable[1] = 0x0000;  /* Black text */
-    if (entries > 2) colorTable[2] = 0x0FFF;  /* White */
-    if (entries > 3) colorTable[3] = 0x068B;  /* Blue highlights */
-    
+    /* The default palette of a fresh ColorMap (AmigaOS 3.1 reference,
+     * tests/probes/graphics/colormap): the classic 16 colours followed by
+     * a grey ramp.  All values are 4-bit exact (LowColorBits = ColorTable).
+     * Intuition puts the preferences colours into a screen's ColorMap. */
+    {
+        static const UWORD default_colors[32] = {
+            0x000, 0xf00, 0x0f0, 0xff0, 0x00f, 0xf0f, 0x0ff, 0xfff,
+            0x620, 0xe50, 0x9f1, 0xeb0, 0x55f, 0x92f, 0x0f8, 0xccc,
+            0x000, 0x111, 0x222, 0x333, 0x444, 0x555, 0x666, 0x777,
+            0x888, 0x999, 0xaaa, 0xbbb, 0xccc, 0xddd, 0xeee, 0xfff
+        };
+        LONG i;
+
+        for (i = 0; i < entries && i < 32; i++)
+        {
+            colorTable[i] = default_colors[i];
+            lowColorBits[i] = default_colors[i];
+        }
+    }
+
     return cm;
 }
 
@@ -7641,6 +7832,19 @@ static VOID _graphics_FreeColorMap ( register struct GfxBase * GfxBase __asm("a6
     /* Free the LowColorBits */
     if (colorMap->LowColorBits)
         FreeMem(colorMap->LowColorBits, colorMap->Count * sizeof(UWORD));
+
+    /* and the PalExtra of AttachPalExtra() (autodoc) */
+    if (colorMap->PalExtra)
+    {
+        struct PaletteExtra *pe = colorMap->PalExtra;
+
+        if (pe->pe_RefCnt)
+            FreeMem(pe->pe_RefCnt, colorMap->Count * sizeof(UWORD));
+        if (pe->pe_AllocList)
+            FreeMem(pe->pe_AllocList, colorMap->Count);
+        FreeMem(pe, sizeof(struct PaletteExtra));
+        colorMap->PalExtra = NULL;
+    }
     
     /* Free the ColorMap structure itself */
     FreeMem(colorMap, sizeof(struct ColorMap));
@@ -7695,11 +7899,17 @@ static struct CopList * _graphics_UCopperListInit ( register struct GfxBase * Gf
     if (!uCopList || n < 0)
         return NULL;
 
+    /* re-initialisation (AmigaOS 3.1, reference): the first block and its
+     * instruction buffer are reused, MaxCount takes the new size and the
+     * list continues at the first block; following blocks stay linked */
     if (uCopList->FirstCopList && uCopList->FirstCopList->MaxCount != 0 && uCopList->FirstCopList->CopIns)
     {
-        uCopList->FirstCopList->Count = 0;
-        uCopList->FirstCopList->CopPtr = uCopList->FirstCopList->CopIns;
-        return uCopList->FirstCopList;
+        copList = uCopList->FirstCopList;
+        copList->Count = 0;
+        copList->MaxCount = (WORD)n;
+        copList->CopPtr = copList->CopIns;
+        uCopList->CopList = copList;
+        return copList;
     }
 
     copList = (struct CopList *)AllocMem(sizeof(struct CopList), MEMF_PUBLIC | MEMF_CLEAR);
@@ -7759,25 +7969,22 @@ static VOID _graphics_FreeGBuffers ( register struct GfxBase * GfxBase __asm("a6
             }
 
             shadow_size = graphics_vsprite_shadow_size(vSprite);
-            savebuffer_size = graphics_vsprite_savebuffer_size(vSprite);
+            savebuffer_size = graphics_vsprite_savebuffer_size(vSprite, rp);
             borderline_size = (ULONG)graphics_vsprite_words_per_line(vSprite) * sizeof(WORD);
 
+            /* AmigaOS 3.1 frees the buffers but leaves the pointers in the
+             * Bob and VSprite unchanged (reference) */
             if (bob->ImageShadow && shadow_size > 0)
                 FreeMem(bob->ImageShadow, shadow_size);
 
             if (vSprite->CollMask && vSprite->CollMask != bob->ImageShadow && shadow_size > 0)
                 FreeMem(vSprite->CollMask, shadow_size);
 
-            bob->ImageShadow = NULL;
-            vSprite->CollMask = NULL;
-
             if (bob->SaveBuffer && savebuffer_size > 0)
                 FreeMem(bob->SaveBuffer, savebuffer_size);
-            bob->SaveBuffer = NULL;
 
             if (vSprite->BorderLine && borderline_size > 0)
                 FreeMem(vSprite->BorderLine, borderline_size);
-            vSprite->BorderLine = NULL;
 
             if (double_buffer && bob->DBuffer)
             {
@@ -7785,7 +7992,6 @@ static VOID _graphics_FreeGBuffers ( register struct GfxBase * GfxBase __asm("a6
                     FreeMem(bob->DBuffer->BufBuffer, savebuffer_size);
 
                 FreeMem(bob->DBuffer, sizeof(struct DBufPacket));
-                bob->DBuffer = NULL;
             }
 
             sequence_comp = sequence_comp->NextSeq;
@@ -8560,9 +8766,12 @@ static VOID _graphics_BitMapScale ( register struct GfxBase * GfxBase __asm("a6"
     destWidth = gfx_scale_count(srcWidth, bsa->bsa_XSrcFactor, bsa->bsa_XDestFactor);
     destHeight = gfx_scale_count(srcHeight, bsa->bsa_YSrcFactor, bsa->bsa_YDestFactor);
     
-    /* Store calculated results back in structure */
+    /* Store calculated results back in structure; AmigaOS 3.1 also notes
+     * in bsa_Flags which axes shrink (bit 0 X, bit 1 Y; reference) */
     bsa->bsa_DestWidth = destWidth;
     bsa->bsa_DestHeight = destHeight;
+    bsa->bsa_Flags = ((bsa->bsa_XSrcFactor > bsa->bsa_XDestFactor) ? 1 : 0) |
+                     ((bsa->bsa_YSrcFactor > bsa->bsa_YDestFactor) ? 2 : 0);
     
     if (destWidth == 0 || destHeight == 0)
         return;
@@ -8918,10 +9127,12 @@ static BOOL _graphics_VideoControl ( register struct GfxBase * GfxBase __asm("a6
             case VTAG_NORMAL_DISP_GET: tag->ti_Tag = VTAG_NORMAL_DISP_SET; tag->ti_Data = (ULONG)colorMap->NormalDisplayInfo; break;
             case VTAG_COERCE_DISP_SET: colorMap->CoerceDisplayInfo = (APTR)tag->ti_Data; break;
             case VTAG_COERCE_DISP_GET: tag->ti_Tag = VTAG_COERCE_DISP_SET; tag->ti_Data = (ULONG)colorMap->CoerceDisplayInfo; break;
-            case VTAG_PF1_BASE_SET: colorMap->Bp_0_base = (UWORD)tag->ti_Data; break;
-            case VTAG_PF1_BASE_GET: tag->ti_Tag = VTAG_PF1_BASE_SET; tag->ti_Data = colorMap->Bp_0_base; break;
-            case VTAG_PF2_BASE_SET: colorMap->Bp_1_base = (UWORD)tag->ti_Data; break;
-            case VTAG_PF2_BASE_GET: tag->ti_Tag = VTAG_PF2_BASE_SET; tag->ti_Data = colorMap->Bp_1_base; break;
+            /* playfield 1 is Bp_1_base, playfield 2 Bp_0_base (AmigaOS 3.1,
+             * reference) */
+            case VTAG_PF1_BASE_SET: colorMap->Bp_1_base = (UWORD)tag->ti_Data; break;
+            case VTAG_PF1_BASE_GET: tag->ti_Tag = VTAG_PF1_BASE_SET; tag->ti_Data = colorMap->Bp_1_base; break;
+            case VTAG_PF2_BASE_SET: colorMap->Bp_0_base = (UWORD)tag->ti_Data; break;
+            case VTAG_PF2_BASE_GET: tag->ti_Tag = VTAG_PF2_BASE_SET; tag->ti_Data = colorMap->Bp_0_base; break;
             case VTAG_SPEVEN_BASE_SET: colorMap->SpriteBase_Even = (UWORD)tag->ti_Data; break;
             case VTAG_SPEVEN_BASE_GET: tag->ti_Tag = VTAG_SPEVEN_BASE_SET; tag->ti_Data = colorMap->SpriteBase_Even; break;
             case VTAG_SPODD_BASE_SET: colorMap->SpriteBase_Odd = (UWORD)tag->ti_Data; break;
@@ -8952,8 +9163,9 @@ static BOOL _graphics_VideoControl ( register struct GfxBase * GfxBase __asm("a6
             case VTAG_FULLPALETTE_SET: colorMap->AuxFlags |= CMAF_FULLPALETTE; break;
             case VTAG_FULLPALETTE_CLR: colorMap->AuxFlags &= ~CMAF_FULLPALETTE; break;
             case VTAG_FULLPALETTE_GET:
-                /* the state is reported in the tag only (reference) */
-                tag->ti_Tag = (colorMap->AuxFlags & CMAF_FULLPALETTE) ? VTAG_FULLPALETTE_SET : VTAG_FULLPALETTE_CLR;
+                /* VTAG_FULLPALETTE_SET with the state as a boolean (reference) */
+                tag->ti_Tag = VTAG_FULLPALETTE_SET;
+                tag->ti_Data = (colorMap->AuxFlags & CMAF_FULLPALETTE) ? (ULONG)-1 : 0;
                 break;
             case VC_IntermediateCLUpdate:
                 if (tag->ti_Data) colorMap->AuxFlags &= ~CMAF_NO_INTERMED_UPDATE;
@@ -8988,7 +9200,8 @@ static BOOL _graphics_VideoControl ( register struct GfxBase * GfxBase __asm("a6
             case VTAG_VPMODEID_SET: colorMap->VPModeID = tag->ti_Data; break;
             case VTAG_VPMODEID_CLR: colorMap->VPModeID = INVALID_ID; break;
             case VTAG_VPMODEID_GET:
-                tag->ti_Tag = (colorMap->VPModeID == INVALID_ID) ? VTAG_VPMODEID_CLR : VTAG_VPMODEID_SET;
+                /* always VTAG_VPMODEID_SET, INVALID_ID when cleared (reference) */
+                tag->ti_Tag = VTAG_VPMODEID_SET;
                 tag->ti_Data = colorMap->VPModeID;
                 break;
             default:
@@ -8997,8 +9210,11 @@ static BOOL _graphics_VideoControl ( register struct GfxBase * GfxBase __asm("a6
         }
     }
 
+    /* the changes take effect at once only for a ColorMap attached to a
+     * ViewPort; otherwise the flag tells the caller to remake the display
+     * (AmigaOS 3.1, reference) */
     if (immediate)
-        *immediate = 0;
+        *immediate = colorMap->cm_vp ? 0 : 1;
 
     return result;
 }
@@ -9230,9 +9446,70 @@ static VOID _graphics_private3 ( register struct GfxBase * GfxBase __asm("a6"))
     PRIVATE_FUNCTION_ERROR("_graphics", "private3");
 }
 
-static VOID _graphics_private4 ( register struct GfxBase * GfxBase __asm("a6"))
+static ULONG _graphics_GetDisplayInfoData ( register struct GfxBase * GfxBase __asm("a6"),
+                                                        register CONST DisplayInfoHandle handle __asm("a0"),
+                                                        register APTR buf __asm("a1"),
+                                                        register ULONG size __asm("d0"),
+                                                        register ULONG tagID __asm("d1"),
+                                                        register ULONG displayID __asm("d2"));
+
+static VOID graphics_clip_rect(struct Rectangle *r, const struct Rectangle *max)
 {
-    PRIVATE_FUNCTION_ERROR("_graphics", "private4");
+    if (r->MinX < max->MinX) r->MinX = max->MinX;
+    if (r->MinY < max->MinY) r->MinY = max->MinY;
+    if (r->MaxX > max->MaxX) r->MaxX = max->MaxX;
+    if (r->MaxY > max->MaxY) r->MaxY = max->MaxY;
+}
+
+/* SetDisplayInfoData() (-750, system private in AmigaOS 3.1): writes data
+ * back to the display database.  lxa keeps the text and standard overscan
+ * of DTAG_DIMS (Phase 236: overscan preferences, applied by IPrefs through
+ * intuition); both are clipped to the mode's maximum overscan, as on the
+ * reference.  Returns the size used, 0 for data it does not keep. */
+static ULONG _graphics_SetDisplayInfoData ( register struct GfxBase * GfxBase __asm("a6"),
+                                            register CONST DisplayInfoHandle handle __asm("a0"),
+                                            register APTR buf __asm("a1"),
+                                            register ULONG size __asm("d0"),
+                                            register ULONG tagID __asm("d1"),
+                                            register ULONG displayID __asm("d2"))
+{
+    const struct DimensionInfo *in = (const struct DimensionInfo *)buf;
+    struct DimensionInfo cur;
+    struct GfxOscanPrefs *op;
+    struct Rectangle txt, std;
+    ULONG id;
+    WORD xscale;
+    BOOL lace;
+
+    if (displayID == INVALID_ID)
+        displayID = handle ? ((ULONG)handle) - 1 : INVALID_ID;
+    if (!buf || tagID != DTAG_DIMS || displayID == INVALID_ID ||
+        size < (ULONG)((UBYTE *)&in->VideoOScan - (UBYTE *)in))
+        return 0;
+    if (!_graphics_GetDisplayInfoData(GfxBase, NULL, (APTR)&cur, sizeof(cur), DTAG_DIMS, displayID))
+        return 0;
+    if (!g_oscan_prefs)
+    {
+        g_oscan_prefs = AllocMem(sizeof(struct GfxOscanPrefs) * GFX_OSCAN_MONITORS, MEMF_PUBLIC | MEMF_CLEAR);
+        if (!g_oscan_prefs)
+            return 0;
+    }
+
+    txt = in->TxtOScan;
+    std = in->StdOScan;
+    graphics_clip_rect(&txt, &cur.MaxOScan);
+    graphics_clip_rect(&std, &cur.MaxOScan);
+    if (txt.MaxX <= txt.MinX || txt.MaxY <= txt.MinY || std.MaxX <= std.MinX || std.MaxY <= std.MinY)
+        return 0;
+
+    id = cur.Header.DisplayID;
+    xscale = graphics_display_xscale(id);
+    lace = (id & LACE) ? TRUE : FALSE;
+    op = &g_oscan_prefs[graphics_oscan_slot(id)];
+    graphics_oscan_rect(&op->txt, &txt, xscale, lace, FALSE);
+    graphics_oscan_rect(&op->std, &std, xscale, lace, FALSE);
+    op->valid = TRUE;
+    return size;
 }
 
 static ULONG _graphics_GetDisplayInfoData ( register struct GfxBase * GfxBase __asm("a6"),
@@ -9363,11 +9640,24 @@ static ULONG _graphics_GetDisplayInfoData ( register struct GfxBase * GfxBase __
             dims.TxtOScan = dims.Nominal;
             dims.StdOScan = dims.Nominal;
             dims.MaxOScan.MinX = (WORD)(-36 * xscale);
-            dims.MaxOScan.MinY = (WORD)(-15 * yscale);
+            /* AmigaOS 3.1 reference (tests/probes/graphics/colormap):
+             * PAL -15..+12 lines, NTSC -23..+18 lines */
+            {
+                BOOL ntsc = ((actualDisplayID & MONITOR_ID_MASK) == NTSC_MONITOR_ID);
+                dims.MaxOScan.MinY = (WORD)((ntsc ? -23 : -15) * yscale);
+                dims.MaxOScan.MaxY = (WORD)(height - 1 + (ntsc ? 18 : 12) * yscale);
+            }
             dims.MaxOScan.MaxX = (WORD)(width - 1 + 6 * xscale);
-            dims.MaxOScan.MaxY = (WORD)(height - 1 + 12 * yscale);
             dims.VideoOScan = dims.MaxOScan;
             dims.VideoOScan.MaxX = (WORD)(width - 1 + 12 * xscale);
+            if (g_oscan_prefs && g_oscan_prefs[graphics_oscan_slot(actualDisplayID)].valid)
+            {
+                const struct GfxOscanPrefs *op = &g_oscan_prefs[graphics_oscan_slot(actualDisplayID)];
+                BOOL lace = (actualDisplayID & LACE) ? TRUE : FALSE;
+
+                graphics_oscan_rect(&dims.TxtOScan, &op->txt, xscale, lace, TRUE);
+                graphics_oscan_rect(&dims.StdOScan, &op->std, xscale, lace, TRUE);
+            }
 
             return graphics_copy_query(buf, size, &dims, 66);
         }
@@ -9529,6 +9819,40 @@ static void gfx_chunky_read(struct GfxBase *GfxBase, struct RastPort *rp, WORD x
 }
 
 /*
+ * AmigaOS 3.1 goes through the caller's temporary RastPort (reference):
+ * a written row is converted into line 0 of temprp->BitMap for the whole
+ * padded width, and a read row is copied there (width pixels) and
+ * converted back for the whole padded width - so the padding of a read
+ * row holds what the line held before.
+ */
+static BOOL gfx_temprp_usable(struct RastPort *temprp, UWORD stride)
+{
+    return temprp && temprp->BitMap && temprp->BitMap->Planes[0] &&
+           (ULONG)temprp->BitMap->BytesPerRow * 8 >= stride;
+}
+
+static void gfx_temprp_store(struct GfxBase *GfxBase, struct RastPort *temprp,
+                             const UBYTE *src, UWORD stride)
+{
+    struct RastPort t = *temprp;
+
+    t.Layer = NULL;
+    gfx_chunky_write(GfxBase, &t, 0, 0, src, stride);
+}
+
+static void gfx_temprp_read_row(struct GfxBase *GfxBase, struct RastPort *rp,
+                                struct RastPort *temprp, WORD x, WORD y,
+                                UBYTE *dst, UWORD width, UWORD stride)
+{
+    struct RastPort t = *temprp;
+
+    t.Layer = NULL;
+    gfx_chunky_read(GfxBase, rp, x, y, dst, width);
+    gfx_chunky_write(GfxBase, &t, 0, 0, dst, width);
+    gfx_chunky_read(GfxBase, &t, 0, 0, dst, stride);
+}
+
+/*
  * ReadPixelLine8 - Read a horizontal line of chunky pen values (offset -768)
  */
 static LONG _graphics_ReadPixelLine8 ( register struct GfxBase * GfxBase __asm("a6"),
@@ -9545,7 +9869,11 @@ static LONG _graphics_ReadPixelLine8 ( register struct GfxBase * GfxBase __asm("
     if (!rp || !rp->BitMap || !array || !width)
         return 0;
 
-    gfx_chunky_read(GfxBase, rp, (WORD)xstart, (WORD)ystart, array, gfx_chunky_stride(width));
+    if (gfx_temprp_usable(tempRP, gfx_chunky_stride(width)))
+        gfx_temprp_read_row(GfxBase, rp, tempRP, (WORD)xstart, (WORD)ystart, array, width,
+                            gfx_chunky_stride(width));
+    else
+        gfx_chunky_read(GfxBase, rp, (WORD)xstart, (WORD)ystart, array, gfx_chunky_stride(width));
     return (LONG)width;
 }
 
@@ -9575,7 +9903,14 @@ static LONG _graphics_ReadPixelArray8 ( register struct GfxBase * GfxBase __asm(
     width = (UWORD)(xstop - xstart + 1);
     stride = gfx_chunky_stride(width);
     for (y = ystart; y <= ystop; y++)
-        gfx_chunky_read(GfxBase, rp, (WORD)xstart, (WORD)y, array + (ULONG)(y - ystart) * stride, stride);
+    {
+        UBYTE *row = array + (ULONG)(y - ystart) * stride;
+
+        if (gfx_temprp_usable(temprp, stride))
+            gfx_temprp_read_row(GfxBase, rp, temprp, (WORD)xstart, (WORD)y, row, width, stride);
+        else
+            gfx_chunky_read(GfxBase, rp, (WORD)xstart, (WORD)y, row, stride);
+    }
 
     return (LONG)width * (LONG)(ystop - ystart + 1);
 }
@@ -9606,7 +9941,16 @@ static LONG _graphics_WritePixelArray8 ( register struct GfxBase * GfxBase __asm
     width = (UWORD)(xstop - xstart + 1);
     stride = gfx_chunky_stride(width);
     for (y = ystart; y <= ystop; y++)
-        gfx_chunky_write(GfxBase, rp, (WORD)xstart, (WORD)y, array + (ULONG)(y - ystart) * stride, width);
+    {
+        UBYTE *row = array + (ULONG)(y - ystart) * stride;
+
+        if (gfx_temprp_usable(temprp, stride))
+            gfx_temprp_store(GfxBase, temprp, row, stride);
+        gfx_chunky_write(GfxBase, rp, (WORD)xstart, (WORD)y, row, width);
+        /* AmigaOS 3.1 converts in place and leaves the array cleared,
+         * padding included (reference) */
+        lxa_memset(row, 0, stride);
+    }
 
     return (LONG)width * (LONG)(ystop - ystart + 1);
 }
@@ -9628,7 +9972,11 @@ static LONG _graphics_WritePixelLine8 ( register struct GfxBase * GfxBase __asm(
     if (!rp || !rp->BitMap || !array)
         return 0;
 
+    if (gfx_temprp_usable(tempRP, gfx_chunky_stride(width)))
+        gfx_temprp_store(GfxBase, tempRP, array, gfx_chunky_stride(width));
     gfx_chunky_write(GfxBase, rp, (WORD)xstart, (WORD)ystart, array, width);
+    /* the array is left cleared, as by WritePixelArray8() (reference) */
+    lxa_memset(array, 0, gfx_chunky_stride(width));
     return (LONG)width;
 }
 
@@ -9781,63 +10129,46 @@ static VOID _graphics_StripFont ( register struct GfxBase * GfxBase __asm("a6"),
     FreeMem(tfe, sizeof(struct TextFontExtension));
 }
 
-static ULONG graphics_calcivg_instruction_cycles(CONST struct CopIns *cop_ins)
+static ULONG graphics_calcivg_count(CONST struct CopList *cop_list)
 {
-    if (!cop_ins)
-        return 0;
-
-    switch (cop_ins->OpCode)
-    {
-        case CPRNXTBUF:
-            return 0;
-
-        case COPPER_WAIT:
-            return 3;
-
-        case COPPER_MOVE:
-        default:
-            return 2;
-    }
-}
-
-static ULONG graphics_calcivg_total_cycles(CONST struct CopList *cop_list)
-{
-    ULONG total_cycles = 0;
+    ULONG count = 0;
 
     while (cop_list)
     {
         if (cop_list->CopIns && cop_list->Count > 0)
-        {
-            UWORD i;
-
-            for (i = 0; i < (UWORD)cop_list->Count; i++)
-                total_cycles += graphics_calcivg_instruction_cycles(&cop_list->CopIns[i]);
-        }
-
+            count += (UWORD)cop_list->Count;
         cop_list = cop_list->Next;
     }
 
-    return total_cycles;
+    return count;
 }
 
 static UWORD _graphics_CalcIVG ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct View * v __asm("a0"),
                                                         register struct ViewPort * vp __asm("a1"))
 {
+    ULONG count;
+    ULONG lines;
+
     /*
      * Number of blank lines needed in front of a ViewPort for its copper
-     * instructions.  Measured on AmigaOS 3.1 (reference machine, 1 to 40
-     * instructions, any depth/width): 0 without instructions, else 1 line,
-     * 2 lines for an interlaced View/ViewPort.
+     * instructions.  Measured on AmigaOS 3.1 (reference, Phase 222b, 0 to
+     * 300 instructions): it depends only on the Count of the DspIns
+     * blocks - every instruction, MOVE or WAIT, takes 4 of the 226 colour
+     * clocks of a line (56 per line, 57 need two) - and doubles for an
+     * interlaced View/ViewPort; width and depth do not matter.
      */
     (void)GfxBase;
 
     DPRINTF (LOG_DEBUG, "_graphics: CalcIVG(view=0x%08lx, vp=0x%08lx)\n", (ULONG)v, (ULONG)vp);
 
-    if (!v || !vp || !vp->DspIns || graphics_calcivg_total_cycles(vp->DspIns) == 0)
+    if (!v || !vp || !vp->DspIns)
         return 0;
 
-    return ((v->Modes | vp->Modes) & LACE) ? 2 : 1;
+    count = graphics_calcivg_count(vp->DspIns);
+    lines = (count * 4 + 225) / 226;
+
+    return (UWORD)(((v->Modes | vp->Modes) & LACE) ? lines * 2 : lines);
 }
 
 static LONG _graphics_AttachPalExtra ( register struct GfxBase * GfxBase __asm("a6"),
@@ -9846,8 +10177,8 @@ static LONG _graphics_AttachPalExtra ( register struct GfxBase * GfxBase __asm("
 {
     struct PaletteExtra *pe;
     UWORD *ref_counts;
-    UWORD *alloc_list;
-    ULONG sharablecolors;
+    UBYTE *alloc_list;
+    ULONG colors;
     ULONG i;
 
     DPRINTF (LOG_DEBUG, "_graphics: AttachPalExtra() cm=0x%08lx vp=0x%08lx\n",
@@ -9864,59 +10195,43 @@ static LONG _graphics_AttachPalExtra ( register struct GfxBase * GfxBase __asm("
         return 1;
 
     ref_counts = (UWORD *)AllocMem(cm->Count * sizeof(UWORD), MEMF_PUBLIC | MEMF_CLEAR);
-    alloc_list = (UWORD *)AllocMem(cm->Count * sizeof(UWORD), MEMF_PUBLIC);
+    alloc_list = (UBYTE *)AllocMem(cm->Count, MEMF_PUBLIC);
     if (!ref_counts || !alloc_list)
     {
         if (ref_counts)
             FreeMem(ref_counts, cm->Count * sizeof(UWORD));
         if (alloc_list)
-            FreeMem(alloc_list, cm->Count * sizeof(UWORD));
+            FreeMem(alloc_list, cm->Count);
         FreeMem(pe, sizeof(struct PaletteExtra));
         return 1;
     }
 
     InitSemaphore(&pe->pe_Semaphore);
     pe->pe_RefCnt = (UBYTE *)ref_counts;
-    pe->pe_AllocList = (UBYTE *)alloc_list;
+    pe->pe_AllocList = alloc_list;
     pe->pe_ViewPort = vp;
 
-    /* Without a ViewPort BitMap AmigaOS 3.1 makes no pen available
-     * (verified on the reference machine) */
-    sharablecolors = 0;
+    /* The colors of the ViewPort's BitMap are available; without a BitMap
+     * AmigaOS 3.1 makes no pen available (reference) */
+    colors = 0;
     if (vp && vp->RasInfo && vp->RasInfo->BitMap)
     {
-        sharablecolors = (ULONG)cm->Count;
-
         ULONG bmdepth = (ULONG)vp->RasInfo->BitMap->Depth;
 
-        if (bmdepth < 8)
-        {
-            ULONG depth_colors = 1UL << bmdepth;
-
-            if (depth_colors < sharablecolors)
-                sharablecolors = depth_colors;
-        }
+        colors = (ULONG)cm->Count;
+        if (bmdepth < 8 && (1UL << bmdepth) < colors)
+            colors = 1UL << bmdepth;
     }
 
+    /* every pen is linked to the one below it, the free list starts at
+     * the highest available pen (reference) */
     for (i = 0; i < (ULONG)cm->Count; i++)
-        alloc_list[i] = GRAPHICS_PEN_NONE;
+        alloc_list[i] = (i == 0) ? GRAPHICS_PEN_END : (UBYTE)(i - 1);
 
-    if (sharablecolors > 0)
-    {
-        for (i = 0; i < sharablecolors; i++)
-            alloc_list[i] = (i == 0) ? GRAPHICS_PEN_NONE : (UWORD)(i - 1);
-
-        pe->pe_FirstFree = (UWORD)(sharablecolors - 1);
-        pe->pe_SharableColors = (UWORD)(sharablecolors - 1);
-    }
-    else
-    {
-        pe->pe_FirstFree = GRAPHICS_PEN_NONE;
-        pe->pe_SharableColors = 0;
-    }
-
-    pe->pe_NFree = (UWORD)sharablecolors;
-    pe->pe_FirstShared = GRAPHICS_PEN_NONE;
+    pe->pe_NFree = (UWORD)colors;
+    pe->pe_FirstFree = colors ? (UWORD)(colors - 1) : 0;
+    pe->pe_SharableColors = colors ? (UWORD)(colors - 1) : 0;
+    pe->pe_FirstShared = 0xFFFF;
     pe->pe_NShared = 0;
 
     cm->PalExtra = pe;
@@ -9931,22 +10246,27 @@ static LONG _graphics_ObtainBestPenA ( register struct GfxBase * GfxBase __asm("
                                                         register CONST struct TagItem * tags __asm("a1"))
 {
     struct PaletteExtra *pe;
+    UBYTE *alloc_list;
     LONG retval = -1;
     ULONG best_distance = (ULONG)-1;
-    ULONG precision;
+    LONG precision;
     ULONG fail_if_bad;
+    BOOL good;
     UWORD pen;
+    UWORD guard = 0;
 
     if (!cm || !cm->PalExtra)
         return -1;
 
-    precision = GetTagData(OBP_Precision, PRECISION_IMAGE, (struct TagItem *)tags);
+    precision = (LONG)GetTagData(OBP_Precision, PRECISION_IMAGE, (struct TagItem *)tags);
     fail_if_bad = GetTagData(OBP_FailIfBad, FALSE, (struct TagItem *)tags);
     pe = cm->PalExtra;
+    alloc_list = graphics_palette_alloc_list(pe);
     ObtainSemaphore(&pe->pe_Semaphore);
 
+    /* the closest shared pen (sum of the squared 8 bit differences) */
     pen = pe->pe_FirstShared;
-    while (pen != GRAPHICS_PEN_NONE)
+    while (!graphics_palette_list_end(pen) && guard++ < 256)
     {
         ULONG distance = graphics_color_distance(cm, r, g, b, pen);
 
@@ -9956,30 +10276,46 @@ static LONG _graphics_ObtainBestPenA ( register struct GfxBase * GfxBase __asm("
             retval = pen;
         }
 
-        pen = graphics_palette_alloc_list(pe)[pen];
+        pen = alloc_list[pen];
     }
 
-    if ((retval == -1) ||
-        ((LONG)precision == PRECISION_EXACT && best_distance != 0) ||
-        (best_distance * pe->pe_NFree > (precision * precision) * pe->pe_SharableColors))
+    /*
+     * Is it good enough?  Measured on AmigaOS 3.1 (reference, Phase 222b,
+     * 4400 samples over depths 3-5, 1-31 free pens, all precisions): with
+     * Q = 8 * (precision + pe_SharableColors) / pe_NFree, a pen at squared
+     * distance S is shared when S * 256 <= Q^4; PRECISION_EXACT needs S 0.
+     */
+    good = FALSE;
+    if (retval != -1)
     {
-        LONG tmp = _graphics_ObtainPen(GfxBase, cm, (ULONG)-1, r, g, b, 0);
-
-        if (tmp == -1)
-        {
-            if (fail_if_bad)
-                retval = -1;
-            else if (retval != -1)
-                graphics_palette_ref_counts(pe)[retval]++;
-        }
+        if (precision == PRECISION_EXACT)
+            good = best_distance == 0;
+        else if (pe->pe_NFree == 0)
+            good = TRUE;
         else
         {
-            retval = tmp;
+            LONG num = 8 * (precision + (LONG)pe->pe_SharableColors);
+            ULONG q = num > 0 ? (ULONG)num / pe->pe_NFree : 0;
+
+            /* 3 * 255^2 * 256 < 85^4: beyond that every pen is good */
+            good = (q >= 85) || (best_distance * 256 <= q * q * q * q);
         }
+    }
+
+    if (good)
+    {
+        graphics_palette_ref_counts(pe)[retval]++;
     }
     else
     {
-        graphics_palette_ref_counts(pe)[retval]++;
+        LONG tmp = _graphics_ObtainPen(GfxBase, cm, (ULONG)-1, r, g, b, 0);
+
+        if (tmp != -1)
+            retval = tmp;
+        else if (fail_if_bad || retval == -1)
+            retval = -1;
+        else
+            graphics_palette_ref_counts(pe)[retval]++;
     }
 
     ReleaseSemaphore(&pe->pe_Semaphore);
@@ -10475,31 +10811,15 @@ static VOID _graphics_ReleasePen ( register struct GfxBase * GfxBase __asm("a6")
     ref_counts = graphics_palette_ref_counts(pe);
     pen = (UWORD)n;
 
+    /* AmigaOS 3.1 (reference): the count is decremented unconditionally
+     * (a pen that was not obtained wraps to 0xFFFF); at zero the pen
+     * leaves the shared list and goes to the head of the free list */
     ObtainSemaphore(&pe->pe_Semaphore);
 
-    if (graphics_palette_pen_in_list(pe, pe->pe_FirstFree, pen))
+    if (--ref_counts[pen] == 0)
     {
-        ReleaseSemaphore(&pe->pe_Semaphore);
-        return;
-    }
-
-    if (ref_counts[pen] != 0)
-    {
-        ref_counts[pen]--;
-
-        if (ref_counts[pen] == 0)
-        {
-            if (graphics_palette_remove_pen(pe, &pe->pe_FirstShared, pen))
-            {
-                if (pe->pe_NShared > 0)
-                    pe->pe_NShared--;
-                graphics_palette_push_pen(pe, &pe->pe_FirstFree, pen);
-                pe->pe_NFree++;
-            }
-        }
-    }
-    else
-    {
+        if (graphics_palette_remove_pen(pe, &pe->pe_FirstShared, pen) && pe->pe_NShared > 0)
+            pe->pe_NShared--;
         graphics_palette_push_pen(pe, &pe->pe_FirstFree, pen);
         pe->pe_NFree++;
     }
@@ -10516,9 +10836,7 @@ static ULONG _graphics_ObtainPen ( register struct GfxBase * GfxBase __asm("a6")
                                                         register LONG f __asm("d4"))
 {
     struct PaletteExtra *pe;
-    UWORD *ref_counts;
-    ULONG retval = (ULONG)-1;
-    BOOL was_shared = FALSE;
+    UWORD pen;
 
     f = (LONG)(WORD)f;  /* sign-extend: GCC m68k move.w workaround */
 
@@ -10529,90 +10847,59 @@ static ULONG _graphics_ObtainPen ( register struct GfxBase * GfxBase __asm("a6")
         return (ULONG)-1;
 
     pe = cm->PalExtra;
-    ref_counts = graphics_palette_ref_counts(pe);
 
-    if ((pe->pe_SharableColors == GRAPHICS_PEN_NONE) ||
-        ((n != (ULONG)-1) && (n > (ULONG)pe->pe_SharableColors)))
-    {
+    if ((n != (ULONG)-1) && (n > (ULONG)pe->pe_SharableColors))
         return (ULONG)-1;
-    }
 
     ObtainSemaphore(&pe->pe_Semaphore);
 
-    if (n != (ULONG)-1)
+    /*
+     * AmigaOS 3.1 (reference): a pen comes from the free list - its head
+     * for n = -1, else pen n if it is free (an allocated pen cannot be
+     * obtained by number, even with a matching colour).  A shared pen goes
+     * to the head of the shared list; every obtained pen gets its count
+     * incremented.
+     */
+    if (n == (ULONG)-1)
     {
-        UWORD pen = (UWORD)n;
-
-        if (f & PENF_EXCLUSIVE)
+        if (pe->pe_NFree == 0 || graphics_palette_list_end(pe->pe_FirstFree))
         {
-            if (graphics_palette_remove_pen(pe, &pe->pe_FirstFree, pen))
-            {
-                if (pe->pe_NFree > 0)
-                    pe->pe_NFree--;
-                retval = pen;
-            }
+            ReleaseSemaphore(&pe->pe_Semaphore);
+            return (ULONG)-1;
         }
-        else
-        {
-            /* A pen that is already allocated (shared or exclusive) cannot
-             * be obtained by number, even with a matching colour: only
-             * ObtainBestPenA() shares pens (verified on the reference) */
-            if (graphics_palette_remove_pen(pe, &pe->pe_FirstFree, pen))
-            {
-                if (pe->pe_NFree > 0)
-                    pe->pe_NFree--;
-                graphics_palette_push_pen(pe, &pe->pe_FirstShared, pen);
-                pe->pe_NShared++;
-                ref_counts[pen] = 1;
-                retval = pen;
-            }
-        }
-    }
-    else if (f & PENF_EXCLUSIVE)
-    {
-        if (pe->pe_FirstFree != GRAPHICS_PEN_NONE)
-        {
-            UWORD pen = pe->pe_FirstFree;
-
-            if (graphics_palette_remove_pen(pe, &pe->pe_FirstFree, pen))
-            {
-                if (pe->pe_NFree > 0)
-                    pe->pe_NFree--;
-                retval = pen;
-            }
-        }
+        pen = pe->pe_FirstFree;
+        pe->pe_FirstFree = graphics_palette_alloc_list(pe)[pen];
     }
     else
     {
-        /* ObtainPen(-1) always allocates a new free pen; it does not reuse
-         * a shared pen of the same colour (verified on the reference) */
-        UWORD pen;
-
-        if (pe->pe_FirstFree != GRAPHICS_PEN_NONE)
+        pen = (UWORD)n;
+        if (!graphics_palette_remove_pen(pe, &pe->pe_FirstFree, pen))
         {
-            pen = pe->pe_FirstFree;
-            if (graphics_palette_remove_pen(pe, &pe->pe_FirstFree, pen))
-            {
-                if (pe->pe_NFree > 0)
-                    pe->pe_NFree--;
-                graphics_palette_push_pen(pe, &pe->pe_FirstShared, pen);
-                pe->pe_NShared++;
-                ref_counts[pen] = 1;
-                retval = pen;
-            }
+            ReleaseSemaphore(&pe->pe_Semaphore);
+            return (ULONG)-1;
         }
     }
 
-    if ((retval != (ULONG)-1) && !(f & PENF_NO_SETCOLOR) && !was_shared)
+    if (pe->pe_NFree > 0)
+        pe->pe_NFree--;
+
+    if (!(f & PENF_EXCLUSIVE))
+    {
+        graphics_palette_push_pen(pe, &pe->pe_FirstShared, pen);
+        pe->pe_NShared++;
+    }
+    graphics_palette_ref_counts(pe)[pen]++;
+
+    if (!(f & PENF_NO_SETCOLOR))
     {
         if (pe->pe_ViewPort)
-            _graphics_SetRGB32(GfxBase, pe->pe_ViewPort, retval, r, g, b);
+            _graphics_SetRGB32(GfxBase, pe->pe_ViewPort, pen, r, g, b);
         else
-            graphics_cm_store_rgb32(cm, retval, r, g, b);
+            graphics_cm_store_rgb32(cm, pen, r, g, b);
     }
 
     ReleaseSemaphore(&pe->pe_Semaphore);
-    return retval;
+    return pen;
 }
 
 static ULONG _graphics_GetBitMapAttr ( register struct GfxBase * GfxBase __asm("a6"),
@@ -10911,7 +11198,7 @@ static LONG _graphics_FindColor ( register struct GfxBase * GfxBase __asm("a6"),
 
     if (maxcolor < 0)
     {
-        if (cm->PalExtra && (cm->PalExtra->pe_SharableColors != GRAPHICS_PEN_NONE))
+        if (cm->PalExtra && (cm->PalExtra->pe_SharableColors != 0xFFFF))
             limit = cm->PalExtra->pe_SharableColors;
         else
             limit = (ULONG)cm->Count - 1;
@@ -11820,7 +12107,7 @@ APTR __g_lxa_graphics_FuncTab [] =
     _graphics_NextDisplayInfo, // offset = -732
     _graphics_private2, // offset = -738
     _graphics_private3, // offset = -744
-    _graphics_private4, // offset = -750
+    _graphics_SetDisplayInfoData, // offset = -750
     _graphics_GetDisplayInfoData, // offset = -756
     _graphics_FontExtent, // offset = -762
     _graphics_ReadPixelLine8, // offset = -768

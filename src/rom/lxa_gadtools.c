@@ -128,6 +128,7 @@ struct GTGadgetData
     BOOL lv_showsel;
     BOOL lv_readonly;
     WORD lv_scroll_w;
+    WORD lv_ih;          /* LISTVIEW line height: font + LAYOUTA_Spacing, or GTLV_ItemHeight */
     WORD level_x0;          /* slider level field, relative to the box */
     UWORD pal_depth;
     UWORD pal_offset;
@@ -396,10 +397,16 @@ static LONG gt_list_count(struct List *list)
 
 static void gt_scroller_values(LONG top, LONG total, LONG visible, UWORD *pot, UWORD *body);
 
+/* LISTVIEW line height (tests/probes/gadtools/lvspacing) */
+static WORD gt_lv_item_height(struct GTGadgetData *data)
+{
+    return data->lv_ih > 0 ? data->lv_ih : gt_font_ysize(data->font);
+}
+
 static WORD gt_lv_visible(struct GTGadgetData *data)
 {
-    WORD fh = gt_font_ysize(data->font);
-    return data->main ? (WORD)(data->main->Height / fh) : 0;
+    WORD ih = gt_lv_item_height(data);
+    return data->main ? (WORD)(data->main->Height / ih) : 0;
 }
 
 static void gt_lv_update_prop(struct GTGadgetData *data)
@@ -453,13 +460,11 @@ LONG _gadtools_HandleClick(register struct Gadget *gad __asm("a0"),
 {
     struct GTGadgetData *data = gt_get_data(gad);
     struct GTGad *g = gt_gad(gad);
-    WORD fh;
 
     if (!data)
         return -1;
     relx = (LONG)(WORD)relx;
     rely = (LONG)(WORD)rely;
-    fh = gt_font_ysize(data->font);
 
     if (g && (g->role == GT_ROLE_ARROW_DEC || g->role == GT_ROLE_ARROW_INC))
     {
@@ -499,7 +504,7 @@ LONG _gadtools_HandleClick(register struct Gadget *gad __asm("a0"),
         {
             struct List *list = (struct List *)data->aux;
             struct Node *n;
-            WORD i = (WORD)(rely / fh) + data->lv_top, k = 0;
+            WORD i = (WORD)(rely / gt_lv_item_height(data)) + data->lv_top, k = 0;
 
             if (data->lv_readonly || !list || list == (struct List *)~0)
                 return -1;
@@ -1885,8 +1890,16 @@ struct Gadget * _gadtools_CreateGadgetA ( register struct GadToolsBase *GadTools
                 avail = H - sdata->box_h - 2;
             else
                 sg = NULL;
-            frameH = ((avail - 4) / fh) * fh + 4;
-            ah = (frameH / 4 < fh) ? frameH / 4 : fh;
+            /* line height: the font plus LAYOUTA_Spacing, or GTLV_ItemHeight
+             * (V39); the list is cut to whole lines and the arrows are one
+             * line high (AmigaOS 3.1, tests/probes/gadtools/lvspacing) */
+            data->lv_ih = (WORD)GetTagData(GTLV_ItemHeight, 0, taglist);
+            if (data->lv_ih <= 0)
+                data->lv_ih = fh + (WORD)GetTagData(LAYOUTA_Spacing, 0, taglist);
+            if (data->lv_ih <= 0)
+                data->lv_ih = fh;
+            frameH = ((avail - 4) / data->lv_ih) * data->lv_ih + 4;
+            ah = (frameH / 4 < data->lv_ih) ? frameH / 4 : data->lv_ih;
             data->arrows = ah;
             data->lv_scroll_w = sw;
             data->box_h = frameH;
@@ -2642,19 +2655,20 @@ BOOL _gadtools_RenderGadget(register struct Window *win __asm("a0"),
 
             /* read-only lists sit in a recessed frame (AmigaOS 3.1) */
             lxa_draw_frame(rp, FRAME_BUTTON, data->lv_readonly, L, T, lw, H, IDS_NORMAL, TRUE, pens);
-            lines = mg->Height / fh;
+            WORD ih = gt_lv_item_height(data);
+            lines = mg->Height / ih;
             SetAPen(rp, pens[BACKGROUNDPEN]);
             RectFill(rp, L + 2, T + 2, L + lw - 3, T + H - 3);
             n = (list && list != (struct List *)~0) ? list->lh_Head : NULL;
             for (i = 0; n && n->ln_Succ && i < data->lv_top; i++)
                 n = n->ln_Succ;
-            for (i = 0, y = mgt; n && n->ln_Succ && i < lines; i++, y += fh, n = n->ln_Succ)
+            for (i = 0, y = mgt; n && n->ln_Succ && i < lines; i++, y += ih, n = n->ln_Succ)
             {
                 BOOL sel = data->lv_showsel && (data->lv_top + i == data->value);
                 if (sel)
                 {
                     SetAPen(rp, pens[FILLPEN]);
-                    RectFill(rp, L + 2, y, L + lw - 3, y + fh - 1);
+                    RectFill(rp, L + 2, y, L + lw - 3, y + ih - 1);
                 }
                 if (n->ln_Name)
                 {
@@ -4231,7 +4245,8 @@ APTR _gadtools_GetVisualInfoA ( register struct GadToolsBase *GadToolsBase __asm
         return NULL;
 
     vi->vi_Screen = screen;
-    vi->vi_DrawInfo = NULL;  /* Would get from GetScreenDrawInfo() */
+    /* the screen's pens - preferences pens on the Workbench (Phase 236) */
+    vi->vi_DrawInfo = screen ? GetScreenDrawInfo(screen) : NULL;
 
     DPRINTF (LOG_DEBUG, "_gadtools: GetVisualInfoA() -> 0x%08lx\n", (ULONG)vi);
     return vi;
@@ -4243,6 +4258,9 @@ void _gadtools_FreeVisualInfo ( register struct GadToolsBase *GadToolsBase __asm
 {
     DPRINTF (LOG_DEBUG, "_gadtools: FreeVisualInfo() vi=0x%08lx\n", (ULONG)vi);
     if (vi) {
+        struct VisualInfo *v = (struct VisualInfo *)vi;
+        if (v->vi_DrawInfo && v->vi_Screen)
+            FreeScreenDrawInfo(v->vi_Screen, v->vi_DrawInfo);
         FreeMem(vi, sizeof(struct VisualInfo));
     }
 }

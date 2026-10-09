@@ -46,10 +46,14 @@ class ManifestSchema(unittest.TestCase):
             self.assertNotEqual(corpus.validate(manifest(**bad), "Foo"), [], bad)
 
     def test_alias(self):
-        ms = {"Foo": manifest(), "FOO": {"dir": "FOO", "alias_of": "Foo"}, "Bad": {"dir": "B", "alias_of": "Nope"}}
+        ms = {"Foo": manifest(), "FOO_alias": {"dir": "FOO", "alias_of": "Foo"}, "Bad": {"dir": "B", "alias_of": "Nope"}}
         errs = corpus.check_schema(ms)
         self.assertEqual([e for e in errs if e.startswith("FOO")], [])
         self.assertTrue(any(e.startswith("Bad") for e in errs))
+
+    def test_case_colliding_manifest_names(self):
+        errs = corpus.check_schema({"Foo": manifest(), "FOO": {"dir": "FOO", "alias_of": "Foo"}})
+        self.assertTrue(any("differs only in case" in e for e in errs))
 
     def test_duplicate_dir(self):
         errs = corpus.check_schema({"A": manifest(), "B": manifest()})

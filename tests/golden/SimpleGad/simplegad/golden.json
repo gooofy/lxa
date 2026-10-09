@@ -13,7 +13,7 @@
      "field": "title",
      "kind": "window",
      "lxa": null,
-     "phase": 222,
+     "phase": 256,
      "ref": "",
      "where": "screen[Workbench Screen]/window[0]"
     }
