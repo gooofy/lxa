@@ -1145,7 +1145,7 @@ static void cmd_text(const char *cmd, char *args)
 /* ------------------------------------------------------------------ */
 
 #define TRACE_MAX_FN   64
-#define TRACE_LOG_MAX  4096
+#define TRACE_LOG_MAX  32768
 struct trace_fn { struct Library *lib; WORD lvo; APTR orig; UWORD *stub; char libname[24]; };
 /* str[i]: printable C string that d1, d2, a0, a1 point to (if any) */
 struct trace_rec { UBYTE fn; UBYTE ret; struct Task *task; ULONG regs[15]; char str[4][40]; };
