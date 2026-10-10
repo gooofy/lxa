@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(lxa VERSION 0.11.69 LANGUAGES C CXX ASM)
+project(lxa VERSION 0.11.70 LANGUAGES C CXX ASM)
 
 # Option to set installation prefix
 if(NOT DEFINED CMAKE_INSTALL_PREFIX)

@@ -7048,10 +7048,13 @@ static LONG lxa_dos_system(struct DosLibrary *DOSBase, CONST_STRPTR command,
      * variables, aliases, internal commands, command files).  A synchronous
      * System() starts SYS:System/Shell with the command line as its
      * arguments; the shell runs it and returns its return code (it also
-     * reports "Unknown command" and "failed returncode").
+     * reports "Unknown command" and "failed returncode").  An asynchronous
+     * System() runs its line in a shell too (Phase 237d: Fish Recorder
+     * starts itself with SYS_Asynch and "<name> <NIL: >>file PROCESS n";
+     * the redirections must not reach it as arguments).
      */
     BOOL via_shell = FALSE;
-    if (shell && !GetTagData(SYS_Asynch, FALSE, tags))
+    if (shell)
     {
         CONST_STRPTR sp = lxa_dos_shell_path(DOSBase);
         if (sp)

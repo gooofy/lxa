@@ -2786,7 +2786,20 @@ int _dos_info(uint32_t lock_id, uint32_t infodata68k)
     m68k_write_memory_32(infodata68k + ID_id_NumBlocksUsed, vfs.f_blocks - vfs.f_bfree);
     m68k_write_memory_32(infodata68k + ID_id_BytesPerBlock, vfs.f_bsize);
     m68k_write_memory_32(infodata68k + ID_id_DiskType, ID_DOS_DISK);
-    m68k_write_memory_32(infodata68k + ID_id_VolumeNode, 0);
+    /* the volume's DosList node, as on AmigaOS 3.1 (probe dos/infovol;
+     * Fish IInfo prints its name) */
+    {
+        char amiga[PATH_MAX];
+        uint32_t vol = 0;
+        if (vfs_path_to_amiga(lock->linux_path, amiga, sizeof(amiga))) {
+            char *c = strchr(amiga, ':');
+            if (c) {
+                *c = 0;
+                vol = _dos_volume_node(amiga);
+            }
+        }
+        m68k_write_memory_32(infodata68k + ID_id_VolumeNode, vol >> 2);
+    }
     m68k_write_memory_32(infodata68k + ID_id_InUse, 0);
     
     DPRINTF(LOG_DEBUG, "lxa: _dos_info(): success, blocks=%lu, used=%lu\n", 
