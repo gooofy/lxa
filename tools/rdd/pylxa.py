@@ -109,6 +109,9 @@ class Lxa:
                 os.symlink(target, os.path.join(root, name))
             elif name != "Tests":
                 os.makedirs(os.path.join(root, name))
+        # the drawers of a Workbench 3.1 DEVS: (Fish KeyMapEd locks DEVS:Keymaps)
+        for sub in ("DataTypes", "DOSDrivers", "Keymaps", "Monitors", "Printers"):
+            os.makedirs(os.path.join(root, "Devs", sub))
         envarc = os.path.join(root, "Prefs", "Env-Archive")
         if os.path.isdir(os.path.join(system, "Prefs", "Env-Archive")):
             shutil.copytree(os.path.join(system, "Prefs", "Env-Archive"), envarc, symlinks=True)

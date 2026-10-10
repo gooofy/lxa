@@ -1106,6 +1106,15 @@ bool vfs_setup_environment(void)
     
     if (!make_path(path, sizeof(path), "/System/Devs")) return false;
     if (!ensure_dir(path)) return false;
+
+    /* the drawers of a Workbench 3.1 DEVS: - programs lock DEVS:Keymaps */
+    static const char *devs_dirs[] = {"DataTypes", "DOSDrivers", "Keymaps", "Monitors", "Printers", NULL};
+    for (int i = 0; devs_dirs[i]; i++) {
+        char sub[64];
+        snprintf(sub, sizeof(sub), "/System/Devs/%s", devs_dirs[i]);
+        if (make_path(path, sizeof(path), sub))
+            ensure_dir(path);
+    }
     
     if (!make_path(path, sizeof(path), "/System/T")) return false;
     if (!ensure_dir(path)) return false;
