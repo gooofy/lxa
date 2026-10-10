@@ -42,6 +42,12 @@ static void __attribute__((unused)) _audio_init(void)
         return;
     }
 
+    /* muted: the samples are dropped, emulation is unaffected */
+    if (!config_get_audio_enabled())
+    {
+        return;
+    }
+
     if (!(SDL_WasInit(SDL_INIT_AUDIO) & SDL_INIT_AUDIO))
     {
         if (SDL_InitSubSystem(SDL_INIT_AUDIO) < 0)

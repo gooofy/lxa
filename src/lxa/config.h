@@ -16,4 +16,13 @@ int config_get_ram_size(void);
 bool config_get_rootless_mode(void);
 void config_set_rootless_mode(bool enable);
 
+/*
+ * Host sound output (the emulated audio hardware runs either way).
+ * Command line > config.ini [audio] enabled > LXA_AUDIO env (0/1, on/off) >
+ * default (on for interactive lxa; liblxa sets it off: tests run silently).
+ */
+void config_set_audio(bool enable);
+void config_set_audio_default(bool enable);
+bool config_get_audio_enabled(void);
+
 #endif

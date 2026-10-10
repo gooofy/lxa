@@ -404,6 +404,36 @@ void test_config_overwrite_value(void)
 }
 
 /*-------------------------------------------------------
+ * Host sound output switch
+ *-------------------------------------------------------*/
+
+void test_config_audio_precedence(void)
+{
+    config_reset();
+    unsetenv("LXA_AUDIO");
+    TEST_ASSERT_TRUE(config_get_audio_enabled());          /* interactive default */
+    config_set_audio_default(false);
+    TEST_ASSERT_FALSE(config_get_audio_enabled());         /* liblxa default */
+
+    setenv("LXA_AUDIO", "on", 1);
+    TEST_ASSERT_TRUE(config_get_audio_enabled());          /* env beats default */
+    setenv("LXA_AUDIO", "bogus", 1);
+    TEST_ASSERT_FALSE(config_get_audio_enabled());         /* unparsable env ignored */
+
+    setenv("LXA_AUDIO", "1", 1);
+    write_config("[audio]\nenabled = false\n");
+    TEST_ASSERT_TRUE(config_load(g_config_path));
+    TEST_ASSERT_FALSE(config_get_audio_enabled());         /* config file beats env */
+
+    config_set_audio(true);
+    TEST_ASSERT_TRUE(config_get_audio_enabled());          /* command line beats all */
+
+    unsetenv("LXA_AUDIO");
+    config_reset();
+    TEST_ASSERT_TRUE(config_get_audio_enabled());
+}
+
+/*-------------------------------------------------------
  * Main Test Runner
  *-------------------------------------------------------*/
 
@@ -441,6 +471,7 @@ int main(void)
     RUN_TEST(test_config_unknown_section_ignored);
     RUN_TEST(test_config_unknown_key_ignored);
     RUN_TEST(test_config_overwrite_value);
+    RUN_TEST(test_config_audio_precedence);
 
     return UNITY_END();
 }

@@ -102,6 +102,9 @@ DF0 = ~/.lxa/floppy0
 [display]
 rootless_mode = true
 
+[audio]
+enabled = true
+
 [assigns]
 KP2 = /path/to/kickpascal2
 LIBS = /path/to/kickpascal2/libs
@@ -144,8 +147,11 @@ lxa [options] [program]
 - `-a <name=path>` - Legacy alias for `--assign`
 - `-d` - Enable debug output
 - `-v` - Verbose mode
+- `--audio` / `--no-audio` - Play or mute host sound output
 
 `rootless_mode = true` keeps the Workbench screen hidden and exposes application windows as separate host windows, which is the recommended default for app launches.
+
+Sound: `[audio] enabled = false` (or `LXA_AUDIO=0`, or `--no-audio`) mutes lxa's host sound output; the emulated audio hardware keeps running, so programs behave the same. Precedence: command line > `config.ini` > `LXA_AUDIO` > default. The interactive `lxa` plays sound by default; liblxa (the test drivers, `pylxa` and the RDD twin/mass runners) is silent unless `LXA_AUDIO=1` or `[audio] enabled = true`.
 
 Examples:
 
@@ -230,6 +236,8 @@ Built-in C: commands with full AmigaDOS template support:
 - **[roadmap.md](roadmap.md)** - Project roadmap and status
 
 ## Current Status
+
+**Version 0.11.78** - Sound output is configurable: `--audio`/`--no-audio`, `LXA_AUDIO=0/1` or `config.ini` `[audio] enabled`. Automated tests and the RDD runners (everything built on liblxa) now run silently by default; the emulated audio hardware is unaffected.
 
 **Version 0.11.77** - Phase 237d closed: the Fred Fish residue II. Of the 9943 Fish programs, those that hang or lack the window they open on AmigaOS 3.1 went from 68 to 32, and no lxa-only crash happens to more than one program (`doc/sweeps/2026-10-10-fish-residue2.md`). New since 0.11.75, each checked by a probe on the reference: a task now sleeps during the time a file operation takes, so other tasks run meanwhile. System() sleeps until its child ends, Execute() runs a single shell, and Run starts a background CLI that loads the command itself. ReadArgs() keeps the defaults a program put in its array. AllocRemember() accepts a NULL key. There are two floppy drives with their trackdisk tasks and DF0:/DF1: nodes. A RawDoFmt() PutChProc can no longer upset RawDoFmt's registers. SetTaskPri() stores the low byte of the priority, and commands see the shell variables process, RC and Result2. Mass runs now run each batch of 25 programs as the reference does: a fresh system directory per batch, each program as LXAREF:p/<id>/<name>.
 
