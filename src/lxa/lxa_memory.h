@@ -180,6 +180,7 @@ static inline uint8_t mread8(uint32_t address)
                 result = (reg & 1) ? (g_intena & 0xFF) : ((g_intena >> 8) & 0xFF);
                 break;
             case CUSTOM_REG_INTREQR:  /* Interrupt request bits read */
+                paula_audio_update();
                 result = (reg & 1) ? (g_intreq & 0xFF) : ((g_intreq >> 8) & 0xFF);
                 break;
             case CUSTOM_REG_ADKCONR:  /* Audio/disk control read - return 0 */

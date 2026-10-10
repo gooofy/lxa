@@ -533,6 +533,71 @@ static void _blitter_execute (uint16_t width_words, uint16_t height)
              width_words, height, width_words * height);
 }
 
+
+/*
+ * Paula audio DMA timing (Phase 237c).  No sound is produced, but the
+ * channels run: a channel whose DMA is switched on loads AUDxLC/AUDxLEN
+ * and requests its interrupt (INTREQ bit 7 + x) at once, and again each
+ * time it has played the whole buffer (AUDxLEN words = 2 * AUDxLEN
+ * samples of AUDxPER colour clocks each) and restarts it (HRM, Audio
+ * Hardware: "the interrupt occurs when the location and length registers
+ * have been read").  Fish DeluxeBeep plays its sound by hitting the
+ * hardware and busy-waits on INTREQR for the audio interrupt bits.
+ * The requests are computed when INTREQR is read.
+ */
+static struct {
+    uint16_t len, per;
+    bool     on, last;
+    uint64_t next;          /* cycle of the next interrupt request */
+} g_aud[4];
+
+static uint64_t _aud_buffer_cycles(int ch)
+{
+    uint32_t cpf = vclock_cycles_per_frame();
+    uint64_t len = g_aud[ch].len ? g_aud[ch].len : 65536u;
+    uint64_t per = g_aud[ch].per < 124 ? 124 : g_aud[ch].per;
+    uint64_t c = len * 2u * per * cpf / (BEAM_LINES * BEAM_HCLOCKS);
+    return c ? c : 1;
+}
+
+static void _aud_dma_changed(uint16_t old_dmacon)
+{
+    for (int ch = 0; ch < 4; ch++) {
+        bool was = (old_dmacon & 0x0200) && (old_dmacon & (1u << ch));
+        bool is = (g_dmacon & 0x0200) && (g_dmacon & (1u << ch));
+        if (is && !was) {
+            g_aud[ch].on = true;
+            g_aud[ch].last = false;
+            g_aud[ch].next = vclock_cycles();
+        } else if (was && !is) {
+            /* manual mode: one more request when the word being played
+             * (two samples) is done - nobody writes AUDxDAT, so it is
+             * the last (probe exec/audioirq) */
+            uint32_t cpf = vclock_cycles_per_frame();
+            uint64_t per = g_aud[ch].per < 124 ? 124 : g_aud[ch].per;
+            g_aud[ch].on = true;
+            g_aud[ch].last = true;
+            g_aud[ch].next = vclock_cycles() + 2u * per * cpf / (BEAM_LINES * BEAM_HCLOCKS);
+        }
+    }
+}
+
+void paula_audio_update(void)
+{
+    uint64_t now = vclock_cycles();
+    for (int ch = 0; ch < 4; ch++) {
+        if (!g_aud[ch].on || now < g_aud[ch].next)
+            continue;
+        g_intreq |= (uint16_t)(0x0080u << ch);
+        if (g_aud[ch].last) {
+            g_aud[ch].on = false;
+            continue;
+        }
+        uint64_t step = _aud_buffer_cycles(ch);
+        g_aud[ch].next += ((now - g_aud[ch].next) / step + 1) * step;
+    }
+}
+
 void _handle_custom_write (uint16_t reg, uint16_t value);
 void _handle_custom_write_ext (uint16_t reg, uint16_t value)
 {
@@ -588,6 +653,7 @@ void _handle_custom_write (uint16_t reg, uint16_t value)
         {
             /* DMA control - update shadow register like INTENA (set/clear semantics) */
             DPRINTF (LOG_DEBUG, "lxa: _handle_custom_write: DMACON value=0x%04x\n", value);
+            uint16_t old_dmacon = g_dmacon;
             if (value & 0x8000)
             {
                 /* Set bits */
@@ -599,6 +665,7 @@ void _handle_custom_write (uint16_t reg, uint16_t value)
                 g_dmacon &= ~(value & 0x7fff);
             }
             DPRINTF (LOG_DEBUG, "lxa: _handle_custom_write -> DMACON=0x%04x\n", g_dmacon);
+            _aud_dma_changed(old_dmacon);
             break;
         }
         /* Phase 31: Additional custom chip registers (Denise, Agnus, Paula) - log and ignore */
@@ -640,6 +707,12 @@ void _handle_custom_write (uint16_t reg, uint16_t value)
             break;
         case CUSTOM_REG_COPCON:
             copper_set_copcon(value);
+            break;
+        case 0x0a4: case 0x0b4: case 0x0c4: case 0x0d4:     /* AUDxLEN */
+            g_aud[(reg - 0x0a0) >> 4].len = value;
+            break;
+        case 0x0a6: case 0x0b6: case 0x0c6: case 0x0d6:     /* AUDxPER */
+            g_aud[(reg - 0x0a0) >> 4].per = value;
             break;
         case CUSTOM_REG_ADKCON:
         case CUSTOM_REG_POTGO:

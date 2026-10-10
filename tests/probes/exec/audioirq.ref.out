@@ -1,0 +1,3 @@
+request at DMA start = TRUE
+request after the buffer (70..110 lines) = TRUE
+one more request after DMA off (2..8 lines) = TRUE
