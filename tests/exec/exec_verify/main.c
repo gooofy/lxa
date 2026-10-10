@@ -1,9 +1,10 @@
 /*
  * Exec AROS Verification Tests (Phase 78-A-1)
  *
- * Tests for bugs identified by systematic comparison of exec.c
- * against AROS reference source code. Each test verifies a specific
- * fix applied in Phase 78-A-1.
+ * Tests for bugs identified by a systematic review of exec.c against
+ * the documented behaviour (the program title predates Phase 245 and is
+ * kept because the reference output contains it). Each test verifies a
+ * specific fix applied in Phase 78-A-1.
  *
  * Tests:
  *   1. AllocMem MEMF_CLEAR returns zeroed memory

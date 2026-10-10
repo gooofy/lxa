@@ -7,9 +7,9 @@
  *
  *     ULONG SetIPrefs(APTR data, ULONG length, ULONG type)   (A0, D0, D1)
  *
- * The type codes and data layouts are the ones AROS documents for this
- * slot (compiler/include/intuition/iprefs.h), so the same calls work for
- * every IPrefs that follows that convention.  The default locale is
+ * The type codes and data layouts are the binary interface of this private
+ * slot (interface facts, not code): they must stay as they are so that every
+ * IPrefs that follows this convention works.  The default locale is
  * installed with the private locale.library function LocalePrefsUpdate()
  * (LVO -168, A0 = locale from OpenLocale("ENV:Sys/locale.prefs")).
  */

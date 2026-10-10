@@ -132,8 +132,8 @@
  * struct LxaBltBitMapArgs in src/rom/lxa_graphics.c). Returns the
  * planesAffected mask in D0.
  *
- * Mirrors the AROS hosted-port architecture: BltBitMap dispatches to
- * native host code, never to interpreted m68k. All 256 minterms supported.
+ * BltBitMap dispatches to native host code, never to interpreted m68k.
+ * All 256 minterms supported.
  */
 #define EMU_CALL_GFX_BLT_BITMAP    2050  /* Native BltBitMap: (args_ptr) -> planesAffected */
 

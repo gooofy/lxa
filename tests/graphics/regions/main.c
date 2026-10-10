@@ -412,7 +412,7 @@ int main(void)
     DisposeRegion(region);
     print("OK: DisposeRegion() completed\n");
 
-    /* RectInRegion()/PointInRegion() (AROS extensions) and NULL arguments
+    /* RectInRegion()/PointInRegion() (lxa extensions) and NULL arguments
      * are covered by the lxa-only program Tests/Graphics/RegionsExt. */
 
     /* Final result */

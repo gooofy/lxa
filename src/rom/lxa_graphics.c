@@ -511,7 +511,6 @@ static LONG _graphics_AreaDraw ( register struct GfxBase * GfxBase __asm("a6"),
                                  register struct RastPort * rp __asm("a1"),
                                  register LONG x __asm("d0"),
                                  register LONG y __asm("d1"));
-static void areaclosepolygon(struct AreaInfo *areainfo);
 static VOID _graphics_Draw ( register struct GfxBase * GfxBase __asm("a6"),
                              register struct RastPort * rp __asm("a1"),
                              register WORD x __asm("d0"),
@@ -590,12 +589,51 @@ static inline void gfx_reset_line(struct RastPort *rp)
 #define BMF_STANDARD (1L << 3)   /* BMB_STANDARD = 3 */
 #endif
 
-#ifndef AREAINFOFLAG_MOVE
-#define AREAINFOFLAG_MOVE      0x00
-#define AREAINFOFLAG_DRAW      0x01
-#define AREAINFOFLAG_CLOSEDRAW 0x02
-#define AREAINFOFLAG_ELLIPSE   0x03
-#endif
+/* tags of the AreaInfo flag table (see gfx_area_append()) */
+#define GFX_AREA_MOVE     0   /* start of a polygon */
+#define GFX_AREA_LINE     1   /* line end (AreaDraw) */
+#define GFX_AREA_CLOSE    2   /* closing line added by the next shape */
+#define GFX_AREA_ELLIPSE  3   /* centre, then radii (two entries) */
+
+/*
+ * The vector table of an AreaInfo (graphics.doc InitArea()): AreaMove(),
+ * AreaDraw() and AreaEllipse() append one coordinate pair per entry and tag
+ * it with one byte in the flag table; AreaEnd() walks both tables.  The tag
+ * values are lxa's own (the table is private to graphics.library).
+ */
+static inline BOOL gfx_area_room(const struct AreaInfo *ai, WORD entries)
+{
+    return (LONG)ai->Count + entries <= (LONG)ai->MaxCount;
+}
+
+static inline BYTE gfx_area_last_tag(const struct AreaInfo *ai)
+{
+    return ai->FlagPtr[-1];
+}
+
+static void gfx_area_append(struct AreaInfo *ai, WORD x, WORD y, BYTE tag)
+{
+    WORD *vec = ai->VctrPtr;
+
+    vec[0] = x;
+    vec[1] = y;
+    ai->VctrPtr = vec + 2;
+    *ai->FlagPtr++ = tag;
+    ai->Count++;
+}
+
+/* A polygon still open (its last entry is a line end away from the start
+ * point) gets a closing line back to FirstX/FirstY before the next shape
+ * starts; with the table full it stays open. */
+static void gfx_area_close_shape(struct AreaInfo *ai)
+{
+    if (ai->Count == 0 || gfx_area_last_tag(ai) != GFX_AREA_LINE)
+        return;
+    if (ai->VctrPtr[-2] == ai->FirstX && ai->VctrPtr[-1] == ai->FirstY)
+        return;
+    if (gfx_area_room(ai, 1))
+        gfx_area_append(ai, ai->FirstX, ai->FirstY, GFX_AREA_CLOSE);
+}
 
 /* Macros for flood fill tmpras access */
 #define WIDTH_TO_BYTES(w) ((((w) + 15) >> 4) << 1)
@@ -2050,10 +2088,8 @@ static BOOL PointVisibleInLayer(const struct Layer *layer, WORD x, WORD y)
  * m68k (very slow under Musashi - a single 146x56 plain-copy blit cost
  * enough cycles to throw test timing off), we marshal the parameters
  * into this packed struct on the m68k stack and dispatch to a native-C
- * implementation in src/lxa/lxa.c. This mirrors AROS's hosted-port
- * architecture (BltBitMap -> SDL_BlitSurface or memcpy via HIDD layer)
- * and FS-UAE's "fast blit" mode (BLTSIZE write -> entire blit on host
- * CPU in one shot).
+ * implementation in src/lxa/lxa.c, much like an emulator's "fast blit"
+ * mode (BLTSIZE write -> entire blit on the host CPU in one shot).
  *
  * Layout MUST match the field offsets read in lxa.c
  * (case EMU_CALL_GFX_BLT_BITMAP). Total size: 32 bytes.
@@ -3996,63 +4032,36 @@ static LONG _graphics_AreaEllipse ( register struct GfxBase * GfxBase __asm("a6"
                                                         register WORD a __asm("d2"),
                                                         register WORD b __asm("d3"))
 {
-    struct AreaInfo *areainfo;
+    struct AreaInfo *ai;
 
     DPRINTF (LOG_DEBUG, "_graphics: AreaEllipse() rp=0x%08lx, center=(%ld,%ld), a=%ld, b=%ld\n",
              (ULONG)rp, xCenter, yCenter, a, b);
 
     if (!rp || !rp->AreaInfo)
         return -1;
+    ai = rp->AreaInfo;
 
-    areainfo = rp->AreaInfo;
-
-    if (areainfo->Count + 2 > areainfo->MaxCount)
+    /* an ellipse takes two entries: centre, then the two radii */
+    if (!gfx_area_room(ai, 2))
         return -1;
 
-    if (areainfo->Count == 0)
+    if (ai->Count > 0)
     {
-        areainfo->VctrPtr[0] = xCenter;
-        areainfo->VctrPtr[1] = yCenter;
-        areainfo->FlagPtr[0] = AREAINFOFLAG_ELLIPSE;
+        gfx_area_close_shape(ai);
+        if (!gfx_area_room(ai, 2))
+            return -1;
 
-        areainfo->VctrPtr[2] = a;
-        areainfo->VctrPtr[3] = b;
-        areainfo->FlagPtr[1] = AREAINFOFLAG_ELLIPSE;
-
-        areainfo->VctrPtr = &areainfo->VctrPtr[4];
-        areainfo->FlagPtr = &areainfo->FlagPtr[2];
-        areainfo->Count += 2;
-
-        return 0;
+        /* a pending AreaMove() has no use any more: drop it */
+        if (gfx_area_last_tag(ai) == GFX_AREA_MOVE)
+        {
+            ai->VctrPtr -= 2;
+            ai->FlagPtr--;
+            ai->Count--;
+        }
     }
 
-    areaclosepolygon(areainfo);
-
-    if (areainfo->Count + 2 > areainfo->MaxCount)
-        return -1;
-
-    if (areainfo->FlagPtr[-1] == AREAINFOFLAG_MOVE)
-    {
-        areainfo->VctrPtr = &areainfo->VctrPtr[-2];
-        areainfo->FlagPtr--;
-        areainfo->Count--;
-    }
-
-    if (areainfo->Count + 2 > areainfo->MaxCount)
-        return -1;
-
-    areainfo->VctrPtr[0] = xCenter;
-    areainfo->VctrPtr[1] = yCenter;
-    areainfo->FlagPtr[0] = AREAINFOFLAG_ELLIPSE;
-
-    areainfo->VctrPtr[2] = a;
-    areainfo->VctrPtr[3] = b;
-    areainfo->FlagPtr[1] = AREAINFOFLAG_ELLIPSE;
-
-    areainfo->VctrPtr = &areainfo->VctrPtr[4];
-    areainfo->FlagPtr = &areainfo->FlagPtr[2];
-    areainfo->Count += 2;
-
+    gfx_area_append(ai, xCenter, yCenter, GFX_AREA_ELLIPSE);
+    gfx_area_append(ai, a, b, GFX_AREA_ELLIPSE);
     return 0;
 }
 
@@ -4128,11 +4137,12 @@ static VOID _graphics_InitRastPort ( register struct GfxBase * GfxBase __asm("a6
     rp->AreaInfo = NULL;
     rp->GelsInfo = NULL;
 
-    /* Set default values per AROS/RKRM specification */
+    /* Defaults as AmigaOS 3.1 sets them (tests/graphics/init_rastport,
+     * expected output captured on the reference) */
     rp->Mask = 0xFF;           /* All planes enabled for writing */
-    rp->FgPen = -1;            /* Foreground pen = -1 (0xFF) per AROS */
+    rp->FgPen = -1;            /* Foreground pen 0xFF */
     rp->BgPen = 0;             /* Background pen = 0 */
-    rp->AOlPen = -1;           /* Outline pen = -1 per AROS */
+    rp->AOlPen = -1;           /* Outline pen 0xFF */
     rp->DrawMode = JAM2;       /* Default drawing mode */
     rp->LinePtrn = 0xFFFF;     /* Solid line pattern */
     rp->Flags = 0;             /* AmigaOS 3.1 leaves Flags, PenWidth and PenHeight zero */
@@ -4157,8 +4167,8 @@ static VOID _graphics_InitRastPort ( register struct GfxBase * GfxBase __asm("a6
 static VOID _graphics_InitVPort ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct ViewPort * vp __asm("a0"))
 {
-    /* Initialize a ViewPort structure to default values.
-     * Based on AROS implementation.
+    /* graphics.doc InitVPort(): every field cleared, sprite priorities
+     * set to their default (0x24).
      */
     DPRINTF (LOG_DEBUG, "_graphics: InitVPort(vp=%p)\n", vp);
     
@@ -4579,115 +4589,47 @@ done:
     rp->cp_y = (WORD)y;
 }
 
-/* AreaInfo flag constants (from AROS graphics_intern.h) */
-#ifndef AREAINFOFLAG_MOVE
-#define AREAINFOFLAG_MOVE      0x00
-#define AREAINFOFLAG_DRAW      0x01
-#define AREAINFOFLAG_CLOSEDRAW 0x02
-#define AREAINFOFLAG_ELLIPSE   0x03
-#endif
-
-/* Helper function to close a polygon (simplified version from AROS) */
-static void areaclosepolygon(struct AreaInfo *areainfo)
-{
-    /* Only close if last operation was a draw and we're not already at the start */
-    if (areainfo->Count > 0 && areainfo->FlagPtr[-1] == AREAINFOFLAG_DRAW)
-    {
-        if ((areainfo->VctrPtr[-1] != areainfo->FirstY) ||
-            (areainfo->VctrPtr[-2] != areainfo->FirstX))
-        {
-            /* Add closing vertex if there's room */
-            if (areainfo->Count < areainfo->MaxCount)
-            {
-                areainfo->Count++;
-                areainfo->VctrPtr[0] = areainfo->FirstX;
-                areainfo->VctrPtr[1] = areainfo->FirstY;
-                areainfo->FlagPtr[0] = AREAINFOFLAG_CLOSEDRAW;
-                areainfo->VctrPtr = &areainfo->VctrPtr[2];
-                areainfo->FlagPtr++;
-            }
-        }
-    }
-}
-
 static LONG _graphics_AreaMove ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a1"),
                                                         register LONG x __asm("d0"),
                                                         register LONG y __asm("d1"))
 {
-    struct AreaInfo *areainfo;
-    WORD wx, wy;
+    struct AreaInfo *ai;
+    WORD px = (WORD)x;      /* coordinates arrive as WORDs (GCC m68k move.w) */
+    WORD py = (WORD)y;
 
-    x = (LONG)(WORD)x;     /* sign-extend: GCC m68k move.w workaround */
-    y = (LONG)(WORD)y;
-
-    wx = (WORD)x;
-    wy = (WORD)y;
-
-     DPRINTF (LOG_DEBUG, "_graphics: AreaMove() rp=0x%08lx, x=%ld, y=%ld\n",
-             (ULONG)rp, x, y);
+    DPRINTF (LOG_DEBUG, "_graphics: AreaMove() rp=0x%08lx, x=%ld, y=%ld\n",
+             (ULONG)rp, (LONG)px, (LONG)py);
 
     if (!rp || !rp->AreaInfo)
     {
         LPRINTF (LOG_ERROR, "_graphics: AreaMove() NULL RastPort or AreaInfo\n");
         return -1;
     }
+    ai = rp->AreaInfo;
 
-    areainfo = rp->AreaInfo;
-
-    /* Check if there's room for one entry */
-    if (areainfo->Count + 1 > areainfo->MaxCount)
+    if (!gfx_area_room(ai, 1))
         return -1;
 
-    /* Is this the first entry? */
-    if (areainfo->Count == 0)
+    if (ai->Count > 0 && gfx_area_last_tag(ai) == GFX_AREA_MOVE)
     {
-        areainfo->FirstX = wx;
-        areainfo->FirstY = wy;
-
-        areainfo->VctrPtr[0] = wx;
-        areainfo->VctrPtr[1] = wy;
-        areainfo->VctrPtr = &areainfo->VctrPtr[2];
-
-        areainfo->FlagPtr[0] = AREAINFOFLAG_MOVE;
-        areainfo->FlagPtr++;
-
-        areainfo->Count++;
+        /* two moves in a row: the later one replaces the pending start */
+        ai->VctrPtr[-2] = px;
+        ai->VctrPtr[-1] = py;
     }
     else
     {
-        /* If previous command was also AreaMove, replace it */
-        if (areainfo->FlagPtr[-1] == AREAINFOFLAG_MOVE)
+        if (ai->Count > 0)
         {
-            areainfo->FirstX = wx;
-            areainfo->FirstY = wy;
-
-            areainfo->VctrPtr[-2] = wx;
-            areainfo->VctrPtr[-1] = wy;
-        }
-        else
-        {
-            /* Close previous polygon if needed */
-            areaclosepolygon(areainfo);
-
-            /* Check again for room after potential close */
-            if (areainfo->Count + 1 > areainfo->MaxCount)
+            gfx_area_close_shape(ai);
+            if (!gfx_area_room(ai, 1))      /* the closing line took the room */
                 return -1;
-
-            areainfo->FirstX = wx;
-            areainfo->FirstY = wy;
-
-            areainfo->VctrPtr[0] = wx;
-            areainfo->VctrPtr[1] = wy;
-            areainfo->VctrPtr = &areainfo->VctrPtr[2];
-
-            areainfo->FlagPtr[0] = AREAINFOFLAG_MOVE;
-            areainfo->FlagPtr++;
-
-            areainfo->Count++;
         }
+        gfx_area_append(ai, px, py, GFX_AREA_MOVE);
     }
 
+    ai->FirstX = px;
+    ai->FirstY = py;
     return 0;
 }
 
@@ -4696,17 +4638,11 @@ static LONG _graphics_AreaDraw ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register LONG x __asm("d0"),
                                                         register LONG y __asm("d1"))
 {
-    struct AreaInfo *areainfo;
-    WORD wx, wy;
-
-    x = (LONG)(WORD)x;     /* sign-extend: GCC m68k move.w workaround */
-    y = (LONG)(WORD)y;
-
-    wx = (WORD)x;
-    wy = (WORD)y;
+    WORD px = (WORD)x;      /* coordinates arrive as WORDs (GCC m68k move.w) */
+    WORD py = (WORD)y;
 
     DPRINTF (LOG_DEBUG, "_graphics: AreaDraw() rp=0x%08lx, x=%ld, y=%ld\n",
-             (ULONG)rp, x, y);
+             (ULONG)rp, (LONG)px, (LONG)py);
 
     if (!rp || !rp->AreaInfo)
     {
@@ -4714,21 +4650,10 @@ static LONG _graphics_AreaDraw ( register struct GfxBase * GfxBase __asm("a6"),
         return -1;
     }
 
-    areainfo = rp->AreaInfo;
-
-    /* Check if there's room for one entry */
-    if (areainfo->Count + 1 > areainfo->MaxCount)
+    if (!gfx_area_room(rp->AreaInfo, 1))
         return -1;
 
-    /* Add point to vector list */
-    areainfo->Count++;
-    areainfo->VctrPtr[0] = wx;
-    areainfo->VctrPtr[1] = wy;
-    areainfo->FlagPtr[0] = AREAINFOFLAG_DRAW;
-
-    areainfo->VctrPtr = &areainfo->VctrPtr[2];
-    areainfo->FlagPtr++;
-
+    gfx_area_append(rp->AreaInfo, px, py, GFX_AREA_LINE);
     return 0;
 }
 
@@ -4892,7 +4817,7 @@ static void gfx_am_walk(struct gfx_area_mask *m, struct AreaInfo *ai, UWORD coun
     {
         UBYTE flag = (UBYTE)f[0];
 
-        if (flag == AREAINFOFLAG_ELLIPSE)
+        if (flag == GFX_AREA_ELLIPSE)
         {
             if (count < 2)
                 break;
@@ -4915,7 +4840,7 @@ static void gfx_am_walk(struct gfx_area_mask *m, struct AreaInfo *ai, UWORD coun
             continue;
         }
 
-        if (flag == AREAINFOFLAG_MOVE)
+        if (flag == GFX_AREA_MOVE)
         {
             if (open && op != 2)
                 gfx_am_line(m, lastx, lasty, firstx, firsty, op == 0);
@@ -4963,7 +4888,7 @@ static LONG _graphics_AreaEnd ( register struct GfxBase * GfxBase __asm("a6"),
 
     /* the last polygon is closed through the vector table: with no room
      * left for the closing vertex, 3.1 fails and draws nothing */
-    if (count >= ai->MaxCount && (UBYTE)ai->FlagPtr[-1] != AREAINFOFLAG_ELLIPSE &&
+    if (count >= ai->MaxCount && (UBYTE)ai->FlagPtr[-1] != GFX_AREA_ELLIPSE &&
         (ai->VctrPtr[-2] != ai->FirstX || ai->VctrPtr[-1] != ai->FirstY))
     {
         rc = -1;
@@ -4978,7 +4903,7 @@ static LONG _graphics_AreaEnd ( register struct GfxBase * GfxBase __asm("a6"),
     for (i = 0; i < count; )
     {
         WORD x0, y0, x1, y1;
-        if ((UBYTE)f[i] == AREAINFOFLAG_ELLIPSE && i + 1 < count)
+        if ((UBYTE)f[i] == GFX_AREA_ELLIPSE && i + 1 < count)
         {
             WORD a = v[2] < 0 ? -v[2] : v[2];
             WORD b = v[3] < 0 ? -v[3] : v[3];
@@ -5101,7 +5026,7 @@ static LONG _graphics_AreaEnd ( register struct GfxBase * GfxBase __asm("a6"),
         for (i = 0; i < count; )
         {
             UBYTE flag = (UBYTE)f[i];
-            if (flag == AREAINFOFLAG_ELLIPSE && i + 1 < count)
+            if (flag == GFX_AREA_ELLIPSE && i + 1 < count)
             {
                 if (open)
                     _graphics_Draw(GfxBase, rp, firstx, firsty);
@@ -5111,7 +5036,7 @@ static LONG _graphics_AreaEnd ( register struct GfxBase * GfxBase __asm("a6"),
                 i += 2;
                 continue;
             }
-            if (flag == AREAINFOFLAG_MOVE)
+            if (flag == GFX_AREA_MOVE)
             {
                 if (open)
                     _graphics_Draw(GfxBase, rp, firstx, firsty);
@@ -6198,8 +6123,8 @@ static VOID _graphics_SetDrMd ( register struct GfxBase * GfxBase __asm("a6"),
 static VOID _graphics_InitView ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct View * view __asm("a1"))
 {
-    /* Initialize a View structure to default values.
-     * Based on AROS implementation.
+    /* graphics.doc InitView(): no ViewPorts or copper lists, default
+     * display window offsets.
      */
     DPRINTF (LOG_DEBUG, "_graphics: InitView(view=%p)\n", view);
     
@@ -6358,9 +6283,8 @@ static VOID _graphics_InitBitMap ( register struct GfxBase * GfxBase __asm("a6")
     if (!bitMap)
         return;
 
-    /* Calculate bytes per row (word-aligned) per AROS:
-     * ((width + 15) >> 3) & ~0x1 is equivalent to ((width + 15) / 16) * 2 */
-    UWORD bytesPerRow = (((UWORD)width + 15) >> 3) & ~0x1;
+    /* rows are whole 16-bit words (graphics.doc InitBitMap()) */
+    UWORD bytesPerRow = (UWORD)((((UWORD)width + 15) / 16) * 2);
 
     bitMap->BytesPerRow = bytesPerRow;
     bitMap->Rows = (UWORD)height;
@@ -6368,8 +6292,8 @@ static VOID _graphics_InitBitMap ( register struct GfxBase * GfxBase __asm("a6")
     bitMap->Depth = (UBYTE)depth;
     bitMap->pad = 0;
 
-    /* Note: Planes[] are NOT cleared - caller must set them up.
-     * This matches AROS behavior where planes are left untouched. */
+    /* Planes[] stay as they are: the caller sets them up (AmigaOS 3.1,
+     * tests/graphics/init_bitmap). */
 }
 
 static struct BitMap * _graphics_AllocBitMap ( register struct GfxBase * GfxBase __asm("a6"),
@@ -6987,8 +6911,8 @@ static VOID _graphics_AskFont ( register struct GfxBase * GfxBase __asm("a6"),
 {
     struct TextFont *font;
 
-    /* Query the attributes of the current font in a RastPort.
-     * Based on AROS implementation.
+    /* graphics.doc AskFont(): describe the RastPort's current font
+     * in the caller's TextAttr.
      */
     DPRINTF (LOG_DEBUG, "_graphics: AskFont(rp=%p, textAttr=%p)\n", rp, textAttr);
     
@@ -7006,53 +6930,55 @@ static VOID _graphics_AskFont ( register struct GfxBase * GfxBase __asm("a6"),
 static VOID _graphics_AddFont ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct TextFont * textFont __asm("a1"))
 {
-    /* Add a font to the list of public fonts.
-     * Based on AROS implementation.
-     */
+    /* graphics.doc AddFont(): the font becomes public in GfxBase->TextFonts.
+     * It goes to the front of the list so OpenFont() finds it before older
+     * fonts of the same name and size. */
+    struct Node *node;
+
     DPRINTF (LOG_DEBUG, "_graphics: AddFont(textFont=%p)\n", textFont);
-    
+
     if (!textFont)
         return;
-    
-    textFont->tf_Message.mn_Node.ln_Type = NT_FONT;
-    textFont->tf_Accessors = 0;
-    textFont->tf_Flags &= ~FPF_REMOVED;
-    
+
+    node = &textFont->tf_Message.mn_Node;
+
     Forbid();
-    AddHead(&GfxBase->TextFonts, (struct Node *)textFont);
+    node->ln_Type = NT_FONT;
+    textFont->tf_Flags = (UBYTE)(textFont->tf_Flags & ~FPF_REMOVED);
+    textFont->tf_Accessors = 0;
+    AddHead(&GfxBase->TextFonts, node);
     Permit();
 }
 
 static VOID _graphics_RemFont ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct TextFont * textFont __asm("a1"))
 {
-    struct TextFontExtension *tfe;
+    /* graphics.doc RemFont(): take the font out of the public list and
+     * drop its TextFontExtension.  A font whose extension says
+     * TE0F_NOREMFONT stays where it is; a font already removed is only
+     * stripped. */
+    struct TextFontExtension *ext;
+    BOOL listed;
 
-    /* Remove a font from the list of public fonts.
-     * Based on AROS implementation.
-     */
     DPRINTF (LOG_DEBUG, "_graphics: RemFont(textFont=%p)\n", textFont);
-    
+
     if (!textFont)
         return;
-    
+
     Forbid();
 
-    tfe = graphics_text_font_extension(textFont);
-    if (tfe && (tfe->tfe_Flags0 & TE0F_NOREMFONT))
+    ext = graphics_text_font_extension(textFont);
+    if (!ext || !(ext->tfe_Flags0 & TE0F_NOREMFONT))
     {
-        Permit();
-        return;
-    }
-    
-    /* Only remove if not already removed */
-    if (!(textFont->tf_Flags & FPF_REMOVED)) {
-        textFont->tf_Flags |= FPF_REMOVED;
-        Remove(&textFont->tf_Message.mn_Node);
+        listed = (textFont->tf_Flags & FPF_REMOVED) == 0;
+        if (listed)
+        {
+            Remove(&textFont->tf_Message.mn_Node);
+            textFont->tf_Flags |= FPF_REMOVED;
+        }
+        _graphics_StripFont(GfxBase, textFont);
     }
 
-    _graphics_StripFont(GfxBase, textFont);
-    
     Permit();
 }
 
@@ -7801,8 +7727,9 @@ static VOID _graphics_FreeCprList ( register struct GfxBase * GfxBase __asm("a6"
 static struct ColorMap * _graphics_GetColorMap ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register LONG entries __asm("d0"))
 {
-    /* Allocate and initialize a ColorMap structure.
-     * Based on AROS implementation.
+    /* graphics.doc GetColorMap(): a V39 ColorMap with 'entries' colours;
+     * field values and default palette as on AmigaOS 3.1 (reference probe
+     * graphics/colormap).
      */
     struct ColorMap *cm;
     UWORD *colorTable, *lowColorBits;
@@ -7872,8 +7799,8 @@ static struct ColorMap * _graphics_GetColorMap ( register struct GfxBase * GfxBa
 static VOID _graphics_FreeColorMap ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct ColorMap * colorMap __asm("a0"))
 {
-    /* Free a ColorMap structure and all associated memory.
-     * Based on AROS implementation.
+    /* graphics.doc FreeColorMap(): the colour tables, an attached
+     * PaletteExtra and the ColorMap itself.
      */
     DPRINTF (LOG_DEBUG, "_graphics: FreeColorMap(cm=%p)\n", colorMap);
     
@@ -7909,9 +7836,8 @@ static ULONG _graphics_GetRGB4 ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct ColorMap * colorMap __asm("a0"),
                                                         register LONG entry __asm("d0"))
 {
-    /* Read a color value from the ColorMap.
-     * Returns 12-bit RGB (4 bits per gun).
-     * Based on AROS implementation.
+    /* graphics.doc GetRGB4(): the 12-bit RGB value (4 bits per gun) of
+     * a ColorMap entry, -1 for an invalid entry.
      */
     UWORD *ct;
 
@@ -8498,7 +8424,7 @@ REGION_REGION_WRAPPER(OrRegionRegion)
 REGION_REGION_WRAPPER(XorRegionRegion)
 REGION_REGION_WRAPPER(AndRegionRegion)
 
-/* RectInRegion() / PointInRegion(): lxa (AROS) extensions in private slots */
+/* RectInRegion() / PointInRegion(): lxa extensions in private slots (not in 3.1) */
 static BOOL _graphics_private0 ( register struct GfxBase * GfxBase __asm("a6"),
                                  register struct Region * region __asm("a0"),
                                  register struct Rectangle * rectangle __asm("a1"))
@@ -9783,67 +9709,59 @@ static VOID _graphics_FontExtent ( register struct GfxBase * GfxBase __asm("a6")
                                                         register CONST struct TextFont * font __asm("a0"),
                                                         register struct TextExtent * fontExtent __asm("a1"))
 {
-    /* Fill out a TextExtent structure with the maximum extent of all characters
-     * in the font. Based on AROS implementation.
-     */
-    WORD i;
-    WORD maxwidth = -32767;
-    WORD minwidth = 32767;
-    WORD width = 0;
-    
+    /* graphics.doc FontExtent(): the box every glyph of the font fits in,
+     * relative to the text origin, and the widest advance (the narrowest
+     * one for a FPF_REVPATH font, which writes right to left).  Glyph g
+     * starts at its kerning offset (tf_CharKern, else 0), its image is the
+     * low word of tf_CharLoc[g] pixels wide, and it advances the cursor by
+     * kern + tf_CharSpace[g] (proportional fonts) or kern + tf_XSize. */
+    const WORD  *kerning;
+    const WORD  *spacing;
+    const ULONG *location;
+    LONG glyphs, g;
+    WORD leftEdge = 0, rightEdge = 0, advance = 0;
+    BOOL haveGlyph = FALSE, haveImage = FALSE;
+
     DPRINTF (LOG_DEBUG, "_graphics: FontExtent(font=%p, fontExtent=%p)\n", font, fontExtent);
-    
+
     if (!font || !fontExtent)
         return;
-    
-    /* Loop through all characters in the font */
-    for (i = 0; i <= font->tf_HiChar - font->tf_LoChar; i++) {
-        WORD kern = 0;
-        WORD wspace;
-        
-        /* Get kerning value if available */
-        if (font->tf_CharKern)
-            kern = ((WORD *)font->tf_CharKern)[i];
-        
-        /* Track minimum (leftmost) position */
-        if (kern < minwidth)
-            minwidth = kern;
-        
-        /* Get character bitmap width from CharLoc */
-        if (font->tf_CharLoc) {
-            /* CharLoc is an array of ULONG, low 16 bits is width */
-            WORD charWidth = ((ULONG *)font->tf_CharLoc)[i] & 0xFFFF;
-            WORD right = kern + charWidth;
-            if (right > maxwidth)
-                maxwidth = right;
+
+    kerning  = (const WORD *)font->tf_CharKern;
+    spacing  = (const WORD *)font->tf_CharSpace;
+    location = (const ULONG *)font->tf_CharLoc;
+    glyphs   = (LONG)font->tf_HiChar - (LONG)font->tf_LoChar + 1;
+
+    for (g = 0; g < glyphs; g++)
+    {
+        WORD kern = kerning ? kerning[g] : 0;
+        WORD step = (WORD)(kern + (spacing ? spacing[g] : (WORD)font->tf_XSize));
+
+        if (!haveGlyph || kern < leftEdge)
+            leftEdge = kern;
+        haveGlyph = TRUE;
+
+        if (location)
+        {
+            WORD imageEnd = (WORD)(kern + (WORD)(location[g] & 0xFFFF));
+
+            if (!haveImage || imageEnd > rightEdge)
+                rightEdge = imageEnd;
+            haveImage = TRUE;
         }
-        
-        /* Calculate character spacing */
-        if (font->tf_CharSpace)
-            wspace = kern + ((WORD *)font->tf_CharSpace)[i];
-        else
-            wspace = kern + font->tf_XSize;
-        
-        /* Track width based on path direction */
-        if (font->tf_Flags & FPF_REVPATH) {
-            if (wspace < width)
-                width = wspace;
-        } else {
-            if (wspace > width)
-                width = wspace;
-        }
+
+        if ((font->tf_Flags & FPF_REVPATH) ? step < advance : step > advance)
+            advance = step;
     }
-    
-    /* Handle case where font has no characters or no CharLoc */
-    if (maxwidth == -32767)
-        maxwidth = font->tf_XSize;
-    if (minwidth == 32767)
-        minwidth = 0;
-    
-    fontExtent->te_Width = width;
-    fontExtent->te_Height = font->tf_YSize;
-    fontExtent->te_Extent.MinX = minwidth;
-    fontExtent->te_Extent.MaxX = maxwidth - 1;
+
+    /* without glyph images the box is one cell wide */
+    if (!haveImage)
+        rightEdge = font->tf_XSize;
+
+    fontExtent->te_Width       = advance;
+    fontExtent->te_Height      = font->tf_YSize;
+    fontExtent->te_Extent.MinX = leftEdge;
+    fontExtent->te_Extent.MaxX = rightEdge - 1;
     fontExtent->te_Extent.MinY = -font->tf_Baseline;
     fontExtent->te_Extent.MaxY = font->tf_YSize - font->tf_Baseline - 1;
 }

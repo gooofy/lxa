@@ -1133,14 +1133,6 @@ struct Library * _exec_MakeLibrary ( register struct ExecBase * SysBase __asm("a
     return library;
 }
 
-#define __AROS_GETJUMPVEC(lib,n)        (&(((struct JumpVec *)(lib))[-(n)]))
-
-#define __AROS_SETVECADDR(lib,n,addr)   (__AROS_SET_VEC(__AROS_GETJUMPVEC(lib,n),(APTR)(addr)))
-#define __AROS_INITVEC(lib,n)           __AROS_GETJUMPVEC(lib,n)->jmp = __AROS_ASMJMP, \
-                                        __AROS_SETVECADDR(lib,n,_aros_empty_vector | (n << 8) | 1)
-
-
-
 ULONG _exec_MakeFunctions ( register struct ExecBase * SysBase __asm("a6"),
                            register APTR ___target  __asm("a0"),
                            register const APTR ___functionArray  __asm("a1"),
@@ -1148,34 +1140,35 @@ ULONG _exec_MakeFunctions ( register struct ExecBase * SysBase __asm("a6"),
 {
     DPRINTF (LOG_DEBUG, "_exec: MakeFunctions called target=0x%08lx, functionArray=0x%08x, funcDispBase=0x%08x\n", ___target, ___functionArray, ___funcDispBase);
 
+    /* exec.doc MakeFunctions(): one JMP vector per entry, from -6 down.
+     * With funcDispBase the array holds WORD offsets from it, otherwise
+     * absolute function pointers; -1 ends either kind. */
+    struct JumpVec *vec = (struct JumpVec *)___target;
+    const WORD *offsets = (const WORD *)___functionArray;
+    const APTR *pointers = (const APTR *)___functionArray;
     ULONG n = 1;
-    //APTR lastvec;
 
-    if (___funcDispBase)
+    for (;;)
     {
-        WORD *fp = (WORD *)___functionArray;
+        APTR entry;
 
-        while (*fp != -1)
+        if (___funcDispBase)
         {
-            struct JumpVec  *jv = &(((struct JumpVec *)(___target))[-n]);
-            jv->jmp = JMPINSTR;
-            jv->vec = (APTR)((ULONG)___funcDispBase + *fp);
-            //DPRINTF (LOG_DEBUG, "                  I  n=%4d jv=0x%08lx jv->jmp=0x%04x jv->vec=0x%08lx\n", n, jv, jv->jmp, jv->vec);
-            fp++; n++;
+            if (*offsets == -1)
+                break;
+            entry = (APTR)((ULONG)___funcDispBase + *offsets++);
         }
-    }
-    else
-    {
-        APTR *fp = (APTR *)___functionArray;
+        else
+        {
+            if (*pointers == (APTR)-1)
+                break;
+            entry = *pointers++;
+        }
 
-        while (*fp != (APTR)-1)
-        {
-            struct JumpVec  *jv = &(((struct JumpVec *)(___target))[-n]);
-            jv->jmp = JMPINSTR;
-            jv->vec = *fp;
-            //DPRINTF (LOG_DEBUG, "                  II n=%4d jv=0x%08lx jv->jmp=0x%04x jv->vec=0x%08lx\n", n, jv, jv->jmp, jv->vec);
-            fp++; n++;
-        }
+        vec--;
+        vec->jmp = JMPINSTR;
+        vec->vec = entry;
+        n++;
     }
     DPRINTF (LOG_DEBUG, "_exec: MakeFunctions done, %d entries set.\n", n);
     /* result: size of the jump table built (reference-verified) */
@@ -1283,8 +1276,8 @@ void _exec_Alert ( register struct ExecBase *SysBase   __asm("a6"),
      *   Bits 16-23: General error type
      *   Bits 0-15:  Subsystem-specific object (AO_ExecLib, AO_DOSLib, etc.)
      *
-     * AROS behavior: AT_DeadEnd alerts are fatal (system halt/reboot).
-     * Recovery alerts display a message and return to caller.
+     * exec.doc Alert(): AT_DeadEnd alerts do not return (the system is
+     * rebooted); recovery alerts display a message and return to the caller.
      * In lxa we log the decoded alert and continue for recovery alerts.
      */
     LPRINTF (LOG_ERROR, "_exec: Alert 0x%08lx (%s)\n",
@@ -2660,7 +2653,7 @@ ULONG _exec_SetExcept ( register struct ExecBase * SysBase    __asm("a6"),
  * Process pending task exceptions. Called by the scheduler (from Dispatch
  * in exceptions.s) when TF_EXCEPT is set on a task that is about to resume.
  *
- * Per RKRM/AROS:
+ * Behaviour (exec.doc SetExcept(), RKRM "Exec: Exceptions"):
  * 1. Clear TF_EXCEPT flag
  * 2. Save and reset IDNestCnt to -1 (enable interrupts)
  * 3. Loop while there are exception signals (tc_SigRecvd & tc_SigExcept):
@@ -2680,59 +2673,53 @@ void _exec_Exception ( register struct ExecBase *SysBase __asm("a6"))
 
     Disable();
 
-    /* Clear the exception flag */
     task->tc_Flags &= ~TF_EXCEPT;
 
-    /* Save and reset IDNestCnt */
-    BYTE nestCnt = SysBase->IDNestCnt;
+    /* the handler runs with interrupts enabled, whatever the nesting
+     * level of the interrupted task was */
+    BYTE savedNest = SysBase->IDNestCnt;
     SysBase->IDNestCnt = -1;
 
-    ULONG flags;
-
-    /* Loop while there are pending exception signals */
-    while ((flags = (task->tc_SigExcept & task->tc_SigRecvd)))
+    for (;;)
     {
-        /* Clear the exception and received bits we're about to handle */
-        task->tc_SigExcept ^= flags;
-        task->tc_SigRecvd  ^= flags;
+        ULONG pending = task->tc_SigExcept & task->tc_SigRecvd;
+
+        if (!pending)
+            break;
+
+        /* the signals are consumed and their exceptions switched off
+         * until the handler enables them again */
+        task->tc_SigExcept &= ~pending;
+        task->tc_SigRecvd  &= ~pending;
 
         Enable();
 
-        /* Call the user's exception handler if set */
         if (task->tc_ExceptCode)
         {
             DPRINTF (LOG_DEBUG, "_exec: Exception() calling tc_ExceptCode=0x%08lx, flags=0x%08lx\n",
-                     task->tc_ExceptCode, flags);
+                     task->tc_ExceptCode, pending);
 
-            /*
-             * Call tc_ExceptCode with:
-             *   D0 = exception signal mask
-             *   A1 = tc_ExceptData
-             *   A6 = SysBase
-             * Return value (in D0) is OR'd back into tc_SigExcept
-             * to re-enable those exception signals.
-             */
-            register ULONG d0_flags __asm("d0") = flags;
+            /* handler(D0 = signals, A1 = tc_ExceptData, A6 = SysBase);
+             * D0 on return = the exception signals to enable again */
+            register ULONG d0_sigs __asm("d0") = pending;
             register APTR a1_data __asm("a1") = task->tc_ExceptData;
             register struct ExecBase *a6_sysbase __asm("a6") = SysBase;
 
             __asm volatile (
                 "   move.l  %3, %%a4    \n"
                 "   jsr     (%%a4)      \n"
-                : "+d" (d0_flags)
+                : "+d" (d0_sigs)
                 : "a" (a1_data), "a" (a6_sysbase), "g" (task->tc_ExceptCode)
                 : "d1", "a0", "a1", "a4", "memory"
             );
 
-            /* Re-enable exception signals returned by the handler */
-            task->tc_SigExcept |= d0_flags;
+            task->tc_SigExcept |= d0_sigs;
         }
 
         Disable();
     }
 
-    /* Restore IDNestCnt */
-    SysBase->IDNestCnt = nestCnt;
+    SysBase->IDNestCnt = savedNest;
 
     Enable();
 }
@@ -3722,28 +3709,21 @@ LONG _exec_WaitIO ( register struct ExecBase * SysBase __asm("a6"),
     if (!___ioRequest)
         return (LONG)(BYTE)(IOERR_BADADDRESS);
 
-    /*
-     * If IOF_QUICK is set, the I/O completed synchronously in BeginIO
-     * and there's nothing to wait for.
-     *
-     * Per AROS: wait while !(IOF_QUICK) && ln_Type == NT_MESSAGE.
-     * When the device replies, ln_Type changes from NT_MESSAGE to
-     * NT_REPLYMSG, breaking the loop.
-     */
-    while (!(___ioRequest->io_Flags & IOF_QUICK) &&
-           ___ioRequest->io_Message.mn_Node.ln_Type == NT_MESSAGE)
-    {
-        Wait(1 << ___ioRequest->io_Message.mn_ReplyPort->mp_SigBit);
-    }
+    struct Message *msg = &___ioRequest->io_Message;
 
-    /*
-     * If ln_Type is NT_REPLYMSG, the request was replied to the port
-     * and must be removed from the reply port's message list.
-     */
-    if (___ioRequest->io_Message.mn_Node.ln_Type == NT_REPLYMSG)
+    /* exec.doc WaitIO(): a quick request never went to the reply port.
+     * Otherwise sleep on the port's signal until the device has replied
+     * the request (ln_Type turns NT_REPLYMSG).  The port may also receive
+     * other messages, so the request itself is checked after every wake-up
+     * instead of using WaitPort(). */
+    while (!(___ioRequest->io_Flags & IOF_QUICK) && msg->mn_Node.ln_Type == NT_MESSAGE)
+        Wait(1UL << msg->mn_ReplyPort->mp_SigBit);
+
+    /* a replied request is still queued at the reply port: take it out */
+    if (msg->mn_Node.ln_Type == NT_REPLYMSG)
     {
         Disable();
-        Remove(&___ioRequest->io_Message.mn_Node);
+        Remove(&msg->mn_Node);
         Enable();
     }
 
@@ -4630,6 +4610,64 @@ void _exec_ObtainSemaphore ( register struct ExecBase * SysBase __asm("a6"),
     Permit();
 }
 
+/*
+ * Semaphore hand-over (exec.doc ObtainSemaphore()/ObtainSemaphoreShared()/
+ * Procure(), RKRM "Exec: Semaphores").  Each queued SemaphoreRequest names
+ * its waiting task in sr_Waiter, with bit 0 (SM_SHARED) set for a shared
+ * request.  A request without a task is a Procure() SemaphoreMessage, whose
+ * ssm_Semaphore field holds the bidding task until it is granted.
+ */
+static void exec_semaphore_grant(struct ExecBase *SysBase, struct SignalSemaphore *sem,
+                                 struct SemaphoreRequest *req, BOOL exclusive)
+{
+    struct Task *task = (struct Task *)((ULONG)req->sr_Waiter & ~SM_SHARED);
+
+    Remove((struct Node *)req);
+    req->sr_Waiter = task;
+    sem->ss_NestCount++;
+
+    if (task)
+    {
+        if (exclusive)
+            sem->ss_Owner = task;
+        Signal(task, SIGF_SINGLE);
+    }
+    else
+    {
+        struct SemaphoreMessage *bid = (struct SemaphoreMessage *)req;
+
+        if (exclusive)
+            sem->ss_Owner = (struct Task *)bid->ssm_Semaphore;
+        bid->ssm_Semaphore = sem;
+        ReplyMsg(&bid->ssm_Message);
+    }
+}
+
+/* The released semaphore goes to the first waiter.  If that one wants it
+ * shared, every shared request in the queue gets it at once (no single
+ * owner); exclusive requests keep their place. */
+static void exec_semaphore_wake(struct ExecBase *SysBase, struct SignalSemaphore *sem)
+{
+    struct MinNode *node = sem->ss_WaitQueue.mlh_Head;
+
+    if (!((ULONG)((struct SemaphoreRequest *)node)->sr_Waiter & SM_SHARED))
+    {
+        exec_semaphore_grant(SysBase, sem, (struct SemaphoreRequest *)node, TRUE);
+        return;
+    }
+
+    sem->ss_Owner = NULL;
+    while (node->mln_Succ)
+    {
+        struct MinNode *following = node->mln_Succ;
+        struct SemaphoreRequest *req = (struct SemaphoreRequest *)node;
+
+        if ((ULONG)req->sr_Waiter & SM_SHARED)
+            exec_semaphore_grant(SysBase, sem, req, FALSE);
+        node = following;
+    }
+}
+
 void _exec_ReleaseSemaphore ( register struct ExecBase * SysBase __asm("a6"),
                                                          register struct SignalSemaphore * ___sigSem  __asm("a0"))
 {
@@ -4649,67 +4687,19 @@ void _exec_ReleaseSemaphore ( register struct ExecBase * SysBase __asm("a6"),
 
     Forbid();
 
-    /* Decrement nest count and queue count */
-    ___sigSem->ss_NestCount--;
     ___sigSem->ss_QueueCount--;
-
-    if (___sigSem->ss_NestCount == 0)
+    if (--___sigSem->ss_NestCount == 0)
     {
-        /* Check if there are waiters */
-        if (___sigSem->ss_QueueCount >= 0 &&
-            ___sigSem->ss_WaitQueue.mlh_Head->mln_Succ != NULL)
+        if (___sigSem->ss_QueueCount < 0 ||
+            ___sigSem->ss_WaitQueue.mlh_Head->mln_Succ == NULL)
         {
-            /* Wake-up rules as in AROS releasesemaphore.c: a shared head
-             * request (sr_Waiter bit 0 = SM_SHARED) grants every shared
-             * waiter at once (ss_Owner NULL); an exclusive head request is
-             * granted alone.  sr_Waiter NULL (after clearing SM_SHARED)
-             * marks a Procure() SemaphoreMessage, which is replied. */
-            struct SemaphoreRequest *sr =
-                (struct SemaphoreRequest *)___sigSem->ss_WaitQueue.mlh_Head;
-
-            if (((ULONG)sr->sr_Waiter & SM_SHARED) == SM_SHARED)
-            {
-                struct SemaphoreRequest *next;
-                ___sigSem->ss_Owner = NULL;
-                for (; (next = (struct SemaphoreRequest *)sr->sr_Link.mln_Succ) != NULL; sr = next)
-                {
-                    if (((ULONG)sr->sr_Waiter & SM_SHARED) != SM_SHARED)
-                        continue;
-                    Remove((struct Node *)sr);
-                    sr->sr_Waiter = (struct Task *)((ULONG)sr->sr_Waiter & ~SM_SHARED);
-                    ___sigSem->ss_NestCount++;
-                    if (sr->sr_Waiter)
-                        Signal(sr->sr_Waiter, SIGF_SINGLE);
-                    else
-                    {
-                        ((struct SemaphoreMessage *)sr)->ssm_Semaphore = ___sigSem;
-                        ReplyMsg((struct Message *)sr);
-                    }
-                }
-            }
-            else
-            {
-                struct SemaphoreMessage *sm = (struct SemaphoreMessage *)sr;
-                Remove((struct Node *)sr);
-                ___sigSem->ss_NestCount++;
-                if (sr->sr_Waiter)
-                {
-                    ___sigSem->ss_Owner = sr->sr_Waiter;
-                    Signal(sr->sr_Waiter, SIGF_SINGLE);
-                }
-                else
-                {
-                    ___sigSem->ss_Owner = (struct Task *)sm->ssm_Semaphore;
-                    sm->ssm_Semaphore = ___sigSem;
-                    ReplyMsg((struct Message *)sr);
-                }
-            }
+            /* nobody waits: the semaphore is free */
+            ___sigSem->ss_Owner = NULL;
+            ___sigSem->ss_QueueCount = -1;
         }
         else
         {
-            /* No waiters, clear owner */
-            ___sigSem->ss_Owner = NULL;
-            ___sigSem->ss_QueueCount = -1;
+            exec_semaphore_wake(SysBase, ___sigSem);
         }
     }
 

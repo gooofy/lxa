@@ -5409,45 +5409,35 @@ LONG _intuition_DoubleClick ( register struct IntuitionBase * IntuitionBase __as
                                                         register ULONG cSeconds __asm("d2"),
                                                         register ULONG cMicros __asm("d3"))
 {
+    /* intuition.doc DoubleClick(): TRUE when the second click (current
+     * time) follows the first one (start time) within the preferences'
+     * double-click interval.  The order of the two times does not matter.
+     * Clicks more than four seconds apart never count, which also keeps
+     * the microsecond arithmetic below in range. */
     struct LXAIntuitionBase *base = (struct LXAIntuitionBase *)IntuitionBase;
-    /* Check if two times are within the double-click interval.
-     * Based on AROS implementation.
-     * 
-     * sSeconds, sMicros = first (start) click time
-     * cSeconds, cMicros = second (current) click time
-     */
-    ULONG sTotal, cTotal;
-    ULONG diff;
-    ULONG doubleClickTime;
-    
+    ULONG earlier, later, startUs, currentUs, gapUs, limitUs;
+
     DPRINTF (LOG_DEBUG, "_intuition: DoubleClick(s=%lu.%06lu c=%lu.%06lu)\n",
              sSeconds, sMicros, cSeconds, cMicros);
-    
-    /* If times are more than 4 seconds apart, definitely not a double-click */
-    if (sSeconds > cSeconds) {
-        if (sSeconds - cSeconds > 4)
-            return FALSE;
-    } else {
-        if (cSeconds - sSeconds > 4)
-            return FALSE;
-    }
-    
-    /* Convert to microseconds relative to the minimum second */
-    ULONG baseSeconds = (sSeconds < cSeconds) ? sSeconds : cSeconds;
-    sTotal = (sSeconds - baseSeconds) * 1000000 + sMicros;
-    cTotal = (cSeconds - baseSeconds) * 1000000 + cMicros;
-    
-    /* Calculate absolute difference */
-    diff = (sTotal > cTotal) ? (sTotal - cTotal) : (cTotal - sTotal);
-    
-    doubleClickTime = base->ActivePrefs.DoubleClick.tv_secs * 1000000UL +
-                      base->ActivePrefs.DoubleClick.tv_micro;
-    if (doubleClickTime == 0)
-        doubleClickTime = 500000;
-    
-    DPRINTF (LOG_DEBUG, "_intuition: DoubleClick diff=%lu threshold=%lu\n", diff, doubleClickTime);
-    
-    return (diff <= doubleClickTime);
+
+    earlier = sSeconds < cSeconds ? sSeconds : cSeconds;
+    later   = sSeconds < cSeconds ? cSeconds : sSeconds;
+    if (later - earlier > 4)
+        return FALSE;
+
+    /* both times in microseconds since the earlier full second */
+    startUs   = sMicros + (sSeconds - earlier) * 1000000UL;
+    currentUs = cMicros + (cSeconds - earlier) * 1000000UL;
+    gapUs     = currentUs >= startUs ? currentUs - startUs : startUs - currentUs;
+
+    limitUs = base->ActivePrefs.DoubleClick.tv_micro +
+              base->ActivePrefs.DoubleClick.tv_secs * 1000000UL;
+    if (limitUs == 0)
+        limitUs = 500000;   /* no preferences yet: half a second */
+
+    DPRINTF (LOG_DEBUG, "_intuition: DoubleClick gap=%lu limit=%lu\n", gapUs, limitUs);
+
+    return gapUs <= limitUs;
 }
 
 VOID _intuition_DrawBorder ( register struct IntuitionBase * IntuitionBase __asm("a6"),
@@ -5456,72 +5446,50 @@ VOID _intuition_DrawBorder ( register struct IntuitionBase * IntuitionBase __asm
                                                         register WORD leftOffset __asm("d0"),
                                                         register WORD topOffset __asm("d1"))
 {
-    /* Draw one or more borders in the specified RastPort.
-     * Based on AROS implementation.
-     */
-    UBYTE savedAPen, savedBPen, savedDrMd;
-    WORD *ptr;
-    WORD x, y;
-    int t;
-    
+    /* intuition.doc DrawBorder(): stroke every Border of the chain as a
+     * polyline of Count points (XY pairs relative to LeftEdge/TopEdge plus
+     * the offsets) in its own pens and draw mode.  The RastPort's pens and
+     * draw mode are the same afterwards. */
+    const struct Border *b;
+    UBYTE oldFg, oldBg, oldMode;
+
     DPRINTF (LOG_DEBUG, "_intuition: DrawBorder(rp=%p, border=%p, off=%d,%d)\n",
              rp, border, (int)leftOffset, (int)topOffset);
-    
+
     if (!rp || !border)
         return;
-    
-    /* Save current RastPort state */
-    savedAPen = rp->FgPen;
-    savedBPen = rp->BgPen;
-    savedDrMd = rp->DrawMode;
-    
-    /* Lock layer if present */
+
+    oldFg   = rp->FgPen;
+    oldBg   = rp->BgPen;
+    oldMode = rp->DrawMode;
+
     if (rp->Layer)
         LockLayerRom(rp->Layer);
-    
-    /* For all borders in the chain... */
-    for ( ; border; border = border->NextBorder)
+
+    for (b = border; b; b = b->NextBorder)
     {
-        /* Change RastPort to the colors/mode specified */
-        SetAPen(rp, border->FrontPen);
-        SetBPen(rp, border->BackPen);
-        SetDrMd(rp, border->DrawMode);
-        
-        /* Get base coords */
-        x = border->LeftEdge + leftOffset;
-        y = border->TopEdge + topOffset;
-        
-        /* Start of vector offsets */
-        ptr = border->XY;
-        
-        if (!ptr || border->Count <= 0)
+        const WORD *xy = b->XY;
+        WORD originX, originY, point;
+
+        SetAPen(rp, b->FrontPen);
+        SetBPen(rp, b->BackPen);
+        SetDrMd(rp, b->DrawMode);
+
+        if (!xy || b->Count <= 0)
             continue;
-        
-        for (t = 0; t < border->Count; t++)
-        {
-            /* Get vector offset */
-            WORD xoff = *ptr++;
-            WORD yoff = *ptr++;
-            
-            if (t == 0)
-            {
-                /* First point - just move */
-                Move(rp, x + xoff, y + yoff);
-            }
-            else
-            {
-                /* Draw line to this point */
-                Draw(rp, x + xoff, y + yoff);
-            }
-        }
+
+        originX = b->LeftEdge + leftOffset;
+        originY = b->TopEdge + topOffset;
+
+        Move(rp, originX + xy[0], originY + xy[1]);
+        for (point = 1; point < b->Count; point++)
+            Draw(rp, originX + xy[2 * point], originY + xy[2 * point + 1]);
     }
-    
-    /* Restore RastPort state */
-    SetAPen(rp, savedAPen);
-    SetBPen(rp, savedBPen);
-    SetDrMd(rp, savedDrMd);
-    
-    /* Unlock layer if present */
+
+    SetAPen(rp, oldFg);
+    SetBPen(rp, oldBg);
+    SetDrMd(rp, oldMode);
+
     if (rp->Layer)
         UnlockLayerRom(rp->Layer);
 }
@@ -6562,7 +6530,7 @@ static VOID _sniff_border_gadget(struct Window *window, struct Requester *req, s
  * Per AmigaOS convention keyboard shortcuts fire even when the menu or
  * item is disabled, so MENUENABLED/ITEMENABLED are NOT checked here.
  * CHECKIT toggle / mutual-exclude handling is applied when a match is
- * found (matching AROS behaviour).
+ * found, as for a menu selection with the mouse.
  */
 static UWORD _find_menu_commkey(struct Menu *strip, char key)
 {
@@ -7992,8 +7960,8 @@ static void _compute_idcmp_mouse_coords(struct Window *window, ULONG class,
  * lxa_notify_window_refresh - Send IDCMP_REFRESHWINDOW to a window.
  *
  * Called from lxa_layers.c when a layer is damaged (e.g. after a covering
- * window is deleted).  Mirrors AROS WindowNeedsRefresh() in
- * inputhandler_support.c.  'win' is APTR to avoid a circular include
+ * window is deleted), as Intuition does for damage on 3.1 (RKRM:
+ * IDCMP_REFRESHWINDOW).  'win' is APTR to avoid a circular include
  * dependency between layers.c and intuition.c.
  */
 void lxa_notify_window_refresh(APTR win)
@@ -9030,8 +8998,8 @@ VOID _intuition_ProcessInputEvents(struct Screen *hint_screen)
                      * post IDCMP_MENUPICK with the encoded FULLMENUNUM code
                      * instead of the normal RAWKEY/VANILLAKEY message.
                      *
-                     * Matches AROS behaviour: shortcuts fire even for
-                     * disabled items, and WFLG_RMBTRAP suppresses them.
+                     * Shortcuts fire even for disabled items, and
+                     * WFLG_RMBTRAP suppresses them.
                      */
                     if ((qualifier & IEQUALIFIER_RCOMMAND) &&
                         !(rawkey & IECODE_UP_PREFIX) &&
@@ -11267,9 +11235,8 @@ UWORD _intuition_RemoveGadget ( register struct IntuitionBase * IntuitionBase __
                                                         register struct Window * window __asm("a0"),
                                                         register struct Gadget * gadget __asm("a1"))
 {
-    /* Remove a single gadget from a window's gadget list.
-     * Returns the ordinal position or 0xFFFF if not found.
-     * Based on AROS implementation - simply calls RemoveGList with count=1.
+    /* intuition.doc RemoveGadget(): RemoveGList() of one gadget; returns
+     * the gadget's ordinal position or 0xFFFF if it is not in the list.
      */
     DPRINTF (LOG_DEBUG, "_intuition: RemoveGadget(window=%p, gadget=%p)\n", window, gadget);
     
@@ -11301,8 +11268,8 @@ VOID _intuition_ReportMouse ( register struct IntuitionBase * IntuitionBase __as
 {
     /* Enable or disable REPORTMOUSE flag for a window.
      * When enabled, window receives mouse movement IDCMP events.
-     * Based on AROS implementation.
-     * Note: Arguments are twisted (flag in D0, window in A0).
+     * Note: the arguments are swapped (flag in D0, window in A0; see
+     * intuition.doc ReportMouse()).
      */
     DPRINTF (LOG_DEBUG, "_intuition: ReportMouse(flag=%d, window=%p)\n", (int)flag, window);
     
@@ -12774,7 +12741,7 @@ static void _render_gadget(struct Window *window, struct Requester *req, struct 
             gi.gi_RastPort = brp;
             gi.gi_Layer = brp ? brp->Layer : NULL;
             /* gi_Domain is the coordinate domain for GFLG_REL* gadget geometry.
-             * Per AROS/Intuition: for normal window gadgets (non-GZZ), the domain
+             * For normal window gadgets (non-GZZ) the domain
              * is {0, 0, window->Width, window->Height}.  The GZZ inner-layer case
              * (WFLG_GIMMEZEROZERO) uses the inner dimensions instead.
              * Using the inner dimensions for non-GZZ windows causes BGUI to
@@ -12976,8 +12943,8 @@ static void _render_gadget(struct Window *window, struct Requester *req, struct 
     }
 
     /* Cycle gadget right-side dropdown arrow removed.
-     * RKRM specifies the icon+divider on the LEFT (drawn above).
-     * The old AROS-style right-side dropdown is not correct for AmigaOS. */
+     * RKRM specifies the icon+divider on the LEFT (drawn above);
+     * a right-side dropdown arrow is not the AmigaOS look. */
 
     /* GadTools CHECKBOX_KIND artwork — spec §11.4/§11.5.
      *
@@ -13246,8 +13213,8 @@ static void _render_gadget(struct Window *window, struct Requester *req, struct 
     }
 
     /* Cycle gadget right-side dropdown arrow removed.
-     * RKRM specifies the icon+divider on the LEFT (drawn above at line ~11659).
-     * The old AROS-style right-side dropdown is not correct for AmigaOS. */
+     * RKRM specifies the icon+divider on the LEFT (drawn above);
+     * a right-side dropdown arrow is not the AmigaOS look. */
 
     /* Render string gadget buffer contents.
      * Per RKRM, Intuition renders the string contents inside the gadget area.
@@ -14899,7 +14866,7 @@ struct Window * _intuition_OpenWindowTagList ( register struct IntuitionBase * I
     }
     else
     {
-        /* Initialize with defaults matching AmigaOS/AROS behavior:
+        /* Initialize with the AmigaOS defaults:
          * When newWindow is NULL, Flags start at 0.
          * Only the WA_* tags should set flags.
          * Width/Height default to ~0 (sentinel meaning "use screen dimensions").

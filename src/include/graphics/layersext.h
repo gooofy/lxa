@@ -34,9 +34,11 @@
 #define LA_WindowPtr    (LA_Dummy + 4)
 #define LA_SuperBitMap  (LA_Dummy + 5)
 
-#define LA_AROS         (TAG_USER + 1234)
-#define LA_Behind       (LA_AROS + 3)
-#define LA_ChildOf      (LA_AROS + 4)
+/* Further extension tags; the values are a binary interface that callers
+ * of CreateLayerTagList() may use, so they must not change. */
+#define LA_ExtBase      (TAG_USER + 1234)
+#define LA_Behind       (LA_ExtBase + 3)
+#define LA_ChildOf      (LA_ExtBase + 4)
 
 #ifndef LAYERS_BASE_NAME
 #define LAYERS_BASE_NAME LayersBase
