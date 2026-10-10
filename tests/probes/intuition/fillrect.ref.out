@@ -1,0 +1,12 @@
+plain = non-NULL
+pattern = non-NULL
+image box=0,0,30x12 depth=-1 pick=3 onoff=0
+image c box=4,2,20x10 pick=0 onoff=0
+plain hash=0xda94a380 apen=2 bpen=1 drmd=0 noareaptrn
+  IA_Width ==30
+pattern jam2 hash=0x951ed000 apen=2 bpen=1 drmd=0 noareaptrn
+  IA_Width ==40
+pattern jam1 offset hash=0x00000000 apen=2 bpen=1 drmd=0 noareaptrn
+  IA_Width ==20
+pattern selected hash=0x951ed000 apen=2 bpen=1 drmd=0 noareaptrn
+  IA_Width ==40

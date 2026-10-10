@@ -34,5 +34,9 @@ ULONG lxa_frameiclass_dispatch(register struct IClass *cl __asm("a0"),
                                register Msg msg __asm("a1"));
 extern const ULONG lxa_sysiclass_instsize;
 extern const ULONG lxa_frameiclass_instsize;
+ULONG lxa_fillrectclass_dispatch(register struct IClass *cl __asm("a0"),
+                                 register Object *obj __asm("a2"),
+                                 register Msg msg __asm("a1"));
+extern const ULONG lxa_fillrectclass_instsize;
 
 #endif

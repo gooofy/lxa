@@ -22,13 +22,13 @@ implementing the function, never by deleting the macro.
 | gadtools | 0 | 1 | 6 |
 | graphics | 0 | 7 | 7 |
 | icon | 0 | 2 | 0 |
-| intuition | 3 | 18 | 10 |
+| intuition | 3 | 16 | 10 |
 | rexxsyslib | 17 | 0 | 0 |
 | tapedeck.gadget | 0 | 1 | 0 |
 | translator | 1 | 0 | 0 |
 | utility | 0 | 0 | 7 |
 | workbench | 0 | 0 | 3 |
-| **total** | **62** | **34** | **44** |
+| **total** | **62** | **32** | **44** |
 
 ## amigaguide
 
@@ -86,19 +86,19 @@ implementing the function, never by deleting the macro.
 - `private6` — private/reserved slot (`src/rom/lxa_dos.c`)
 - `private7` — private/reserved slot (`src/rom/lxa_dos.c`)
 - `AbortPkt` — stub: packet not aborted (Phase 255) (`src/rom/lxa_dos.c`)
-- `BCPL callco` — stub: BCPL coroutines (GV 0x64) (`src/rom/bcpl/bcpl_support.c`)
-- `BCPL compareTime` — stub: BCPL compareTime (GV 0x1f8) (`src/rom/bcpl/bcpl_support.c`)
-- `BCPL cowait` — stub: BCPL coroutines (GV 0x68) (`src/rom/bcpl/bcpl_support.c`)
-- `BCPL createco` — stub: BCPL coroutines (GV 0x5c) (`src/rom/bcpl/bcpl_support.c`)
-- `BCPL deleteco` — stub: BCPL coroutines (GV 0x60) (`src/rom/bcpl/bcpl_support.c`)
-- `BCPL holdTask` — stub: BCPL holdTask (GV 0xb8) (`src/rom/bcpl/bcpl_support.c`)
-- `BCPL longjump` — stub: BCPL longjump (GV 0x50) (`src/rom/bcpl/bcpl_support.c`)
-- `BCPL makeGVarea` — stub: BCPL makeGVarea (GV 0x34) (`src/rom/bcpl/bcpl_support.c`)
-- `BCPL openDevInfo` — stub: BCPL handler start-up (GV 0x1c0) (`src/rom/bcpl/bcpl_support.c`)
-- `BCPL resumeco` — stub: BCPL coroutines (GV 0x6c) (`src/rom/bcpl/bcpl_support.c`)
-- `BCPL sysRequest` — stub: BCPL system requester (GV -0x84) (`src/rom/bcpl/bcpl_support.c`)
-- `BCPL systemRequest` — stub: BCPL system requester (GV 0xd0) (`src/rom/bcpl/bcpl_support.c`)
-- `BCPL tidyup` — stub: BCPL tidyup (GV 0x150) (`src/rom/bcpl/bcpl_support.c`)
+- `BCPL callco` — stub: BCPL coroutines (GV 0x64) (`src/rom/bcpl/bcpl_globals.c`)
+- `BCPL compareTime` — stub: BCPL compareTime (GV 0x1f8) (`src/rom/bcpl/bcpl_globals.c`)
+- `BCPL cowait` — stub: BCPL coroutines (GV 0x68) (`src/rom/bcpl/bcpl_globals.c`)
+- `BCPL createco` — stub: BCPL coroutines (GV 0x5c) (`src/rom/bcpl/bcpl_globals.c`)
+- `BCPL deleteco` — stub: BCPL coroutines (GV 0x60) (`src/rom/bcpl/bcpl_globals.c`)
+- `BCPL holdTask` — stub: BCPL holdTask (GV 0xb8) (`src/rom/bcpl/bcpl_globals.c`)
+- `BCPL longjump` — stub: BCPL longjump (GV 0x50) (`src/rom/bcpl/bcpl_globals.c`)
+- `BCPL makeGVarea` — stub: BCPL makeGVarea (GV 0x34) (`src/rom/bcpl/bcpl_globals.c`)
+- `BCPL openDevInfo` — stub: BCPL handler start-up (GV 0x1c0) (`src/rom/bcpl/bcpl_globals.c`)
+- `BCPL resumeco` — stub: BCPL coroutines (GV 0x6c) (`src/rom/bcpl/bcpl_globals.c`)
+- `BCPL sysRequest` — stub: BCPL system requester (GV -0x84) (`src/rom/bcpl/bcpl_globals.c`)
+- `BCPL systemRequest` — stub: BCPL system requester (GV 0xd0) (`src/rom/bcpl/bcpl_globals.c`)
+- `BCPL tidyup` — stub: BCPL tidyup (GV 0x150) (`src/rom/bcpl/bcpl_globals.c`)
 
 ## exec
 
@@ -144,7 +144,6 @@ implementing the function, never by deleting the macro.
 
 - `AllocScreenBuffer` — partial: sb_DBufInfo is NULL, no double-buffer sync messages (Phase 256) (`src/rom/lxa_intuition.c`)
 - `DisplayAlert` — partial: the alert box is not drawn (logged), waits for a mouse button (`src/rom/lxa_intuition.c`)
-- `IntuiTextLength` — partial: assumes 8 pixel Topaz width, ignores ITextFont (Phase 256) (`src/rom/lxa_intuition.c`)
 - `LockPubScreenList` — partial: list is returned without locking (Phase 256) (`src/rom/lxa_intuition.c`)
 - `ModifyProp` — partial: updates PropInfo but does not re-render the gadget (Phase 256) (`src/rom/lxa_intuition.c`)
 - `MoveScreen` — partial: screen position changes, display does not (Phase 256) (`src/rom/lxa_intuition.c`)
@@ -154,7 +153,6 @@ implementing the function, never by deleting the macro.
 - `OpenScreenTagList` — partial: ignores SA_DClip, SA_Overscan, SA_Colors; SA_ErrorCode only for mode errors (Phase 256) (`src/rom/lxa_intuition.c`)
 - `OpenWindow` — partial: title bar height ignores screen font height (Phase 256) (`src/rom/lxa_intuition.c`)
 - `OpenWindowTagList` — partial: ignores WA_BackFill, WA_RptQueue, WA_Pointer, WA_BusyPointer, WA_Checkmark, WA_HelpGroup (Phase 256) (`src/rom/lxa_intuition.c`)
-- `PrintIText` — partial: ignores IntuiText ITextFont, uses RastPort font (Phase 256) (`src/rom/lxa_intuition.c`)
 - `ScreenPosition` — partial: SPOS_MAKEVISIBLE ignored, display not updated (Phase 256) (`src/rom/lxa_intuition.c`)
 - `ScreenToBack` — partial: reorders screen list, display not updated (Phase 256) (`src/rom/lxa_intuition.c`)
 - `ScreenToFront` — partial: reorders screen list, display not updated (Phase 256) (`src/rom/lxa_intuition.c`)

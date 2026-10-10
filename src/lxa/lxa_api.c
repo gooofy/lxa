@@ -1792,7 +1792,7 @@ lxa_menu_strip_t *lxa_get_menu_strip(int window_index)
     if (!window_ptr)
         return NULL;
 
-    /* Window->MenuStrip is at offset 28 (standard Amiga struct, verified from NDK/AROS) */
+    /* Window->MenuStrip is at offset 28 (standard Amiga struct, NDK intuition/intuition.h) */
     uint32_t strip_ptr = m68k_read_memory_32(window_ptr + 28);
     if (!strip_ptr)
         return NULL;

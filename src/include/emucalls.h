@@ -135,8 +135,8 @@
  * struct LxaBltBitMapArgs in src/rom/lxa_graphics.c). Returns the
  * planesAffected mask in D0.
  *
- * Mirrors the AROS hosted-port architecture: BltBitMap dispatches to
- * native host code, never to interpreted m68k. All 256 minterms supported.
+ * BltBitMap dispatches to native host code, never to interpreted m68k.
+ * All 256 minterms supported.
  */
 #define EMU_CALL_GFX_BLT_BITMAP    2050  /* Native BltBitMap: (args_ptr) -> planesAffected */
 #define EMU_CALL_GFX_BLT_CLEAR     2052  /* BltClear fill: (addr, bytes, pattern word) */
@@ -326,5 +326,8 @@
  * the reference's LoadWB window).  d1=0 -> d0=1 if wanted; d1=window:
  * registers it (not an application window in tree dumps / window counts) */
 #define EMU_CALL_WB_WINDOW           5202
+/* Phase 244: d1=task - a system task that only waits (input.device,
+ * ramlib); like a held task it does not keep the emulation running */
+#define EMU_CALL_SYSTEM_TASK         5203
 
 #endif

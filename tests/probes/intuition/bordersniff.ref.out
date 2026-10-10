@@ -1,0 +1,372 @@
+-- plain
+  border = 4 11 4 2
+  size = 300 150
+  sys 0x40 = -22 0 24 11 act 0x8001
+  sys 0x80 = 0 0 20 11 act 0x8001
+  sys 0x20 = 0 0 0 10 act 0x8000
+-- plain + size
+  border = 4 11 18 2
+  size = 300 150
+  sys 0x40 = -22 0 24 11 act 0x8001
+  sys 0x10 = -17 -9 18 10 act 0x8001
+  sys 0x80 = 0 0 20 11 act 0x8001
+  sys 0x20 = 0 0 0 10 act 0x8000
+-- plain + size bbottom
+  border = 4 11 4 10
+  size = 300 150
+  sys 0x40 = -22 0 24 11 act 0x8001
+  sys 0x10 = -17 -9 18 10 act 0x8001
+  sys 0x80 = 0 0 20 11 act 0x8001
+  sys 0x20 = 0 0 0 10 act 0x8000
+-- bottom -9/10 + size
+  border = 4 11 18 10
+  size = 300 150
+  sys 0x40 = -22 0 24 11 act 0x8001
+  sys 0x10 = -17 -9 18 10 act 0x8001
+  sys 0x80 = 0 0 20 11 act 0x8001
+  sys 0x20 = 0 0 0 10 act 0x8000
+  gad 1 act = 0x8081 flags = 0x0008
+-- bottom -9/10
+  border = 4 11 4 10
+  size = 300 150
+  sys 0x40 = -22 0 24 11 act 0x8001
+  sys 0x80 = 0 0 20 11 act 0x8001
+  sys 0x20 = 0 0 0 10 act 0x8000
+  gad 1 act = 0x8081 flags = 0x0008
+-- bottom -10/11
+  border = 4 11 4 11
+  size = 300 150
+  sys 0x40 = -22 0 24 11 act 0x8001
+  sys 0x80 = 0 0 20 11 act 0x8001
+  sys 0x20 = 0 0 0 10 act 0x8000
+  gad 1 act = 0x8081 flags = 0x0008
+-- bottom -7/6
+  border = 4 11 4 8
+  size = 300 150
+  sys 0x40 = -22 0 24 11 act 0x8001
+  sys 0x80 = 0 0 20 11 act 0x8001
+  sys 0x20 = 0 0 0 10 act 0x8000
+  gad 1 act = 0x8081 flags = 0x0008
+-- bottom -20/5
+  border = 4 11 4 21
+  size = 300 150
+  sys 0x40 = -22 0 24 11 act 0x8001
+  sys 0x80 = 0 0 20 11 act 0x8001
+  sys 0x20 = 0 0 0 10 act 0x8000
+  gad 1 act = 0x8081 flags = 0x0008
+-- bottom -4/14
+  border = 4 11 4 5
+  size = 300 150
+  sys 0x40 = -22 0 24 11 act 0x8001
+  sys 0x80 = 0 0 20 11 act 0x8001
+  sys 0x20 = 0 0 0 10 act 0x8000
+  gad 1 act = 0x8081 flags = 0x0008
+-- bottom abs 140/10
+  border = 4 11 4 10
+  size = 300 150
+  sys 0x40 = -22 0 24 11 act 0x8001
+  sys 0x80 = 0 0 20 11 act 0x8001
+  sys 0x20 = 0 0 0 10 act 0x8000
+  gad 1 act = 0x8081 flags = 0x0000
+-- bottom two
+  border = 4 11 18 13
+  size = 300 150
+  sys 0x40 = -22 0 24 11 act 0x8001
+  sys 0x10 = -17 -9 18 10 act 0x8001
+  sys 0x80 = 0 0 20 11 act 0x8001
+  sys 0x20 = 0 0 0 10 act 0x8000
+  gad 1 act = 0x8081 flags = 0x0008
+  gad 2 act = 0x8081 flags = 0x0008
+-- top 10/10
+  border = 4 20 18 2
+  size = 300 150
+  sys 0x40 = -22 0 24 11 act 0x8001
+  sys 0x10 = -17 -9 18 10 act 0x8001
+  sys 0x80 = 0 0 20 11 act 0x8001
+  sys 0x20 = 0 0 0 19 act 0x8000
+  gad 1 act = 0x8041 flags = 0x0000
+-- top 0/15
+  border = 4 15 4 2
+  size = 300 150
+  sys 0x40 = -22 0 24 11 act 0x8001
+  sys 0x80 = 0 0 20 11 act 0x8001
+  sys 0x20 = 0 0 0 14 act 0x8000
+  gad 1 act = 0x8041 flags = 0x0000
+-- top 12/4
+  border = 4 16 4 2
+  size = 300 150
+  sys 0x40 = -22 0 24 11 act 0x8001
+  sys 0x80 = 0 0 20 11 act 0x8001
+  sys 0x20 = 0 0 0 15 act 0x8000
+  gad 1 act = 0x8041 flags = 0x0000
+-- top 3/4
+  border = 4 11 4 2
+  size = 300 150
+  sys 0x40 = -22 0 24 11 act 0x8001
+  sys 0x80 = 0 0 20 11 act 0x8001
+  sys 0x20 = 0 0 0 10 act 0x8000
+  gad 1 act = 0x8041 flags = 0x0000
+-- right -29/30
+  border = 4 11 30 2
+  size = 300 150
+  sys 0x40 = -22 0 24 11 act 0x8001
+  sys 0x80 = 0 0 20 11 act 0x8001
+  sys 0x20 = 0 0 0 10 act 0x8000
+  gad 1 act = 0x8011 flags = 0x0010
+-- right -40/10
+  border = 4 11 41 2
+  size = 300 150
+  sys 0x40 = -22 0 24 11 act 0x8001
+  sys 0x80 = 0 0 20 11 act 0x8001
+  sys 0x20 = 0 0 0 10 act 0x8000
+  gad 1 act = 0x8011 flags = 0x0010
+-- right -14/14 + size
+  border = 4 11 18 2
+  size = 300 150
+  sys 0x40 = -22 0 24 11 act 0x8001
+  sys 0x10 = -17 -9 18 10 act 0x8001
+  sys 0x80 = 0 0 20 11 act 0x8001
+  sys 0x20 = 0 0 0 10 act 0x8000
+  gad 1 act = 0x8011 flags = 0x0010
+-- right abs 250/50
+  border = 4 11 50 2
+  size = 300 150
+  sys 0x40 = -22 0 24 11 act 0x8001
+  sys 0x80 = 0 0 20 11 act 0x8001
+  sys 0x20 = 0 0 0 10 act 0x8000
+  gad 1 act = 0x8011 flags = 0x0000
+-- left 0/12
+  border = 12 11 4 2
+  size = 300 150
+  sys 0x40 = -22 0 24 11 act 0x8001
+  sys 0x80 = 0 0 20 11 act 0x8001
+  sys 0x20 = 0 0 0 10 act 0x8000
+  gad 1 act = 0x8021 flags = 0x0000
+-- left 10/5
+  border = 15 11 4 2
+  size = 300 150
+  sys 0x40 = -22 0 24 11 act 0x8001
+  sys 0x80 = 0 0 20 11 act 0x8001
+  sys 0x20 = 0 0 0 10 act 0x8000
+  gad 1 act = 0x8021 flags = 0x0000
+-- inner overlap
+  border = 4 11 4 2
+  size = 300 150
+  sys 0x40 = -22 0 24 11 act 0x8001
+  sys 0x80 = 0 0 20 11 act 0x8001
+  sys 0x20 = 0 0 0 10 act 0x8000
+  gad 1 act = 0x0001 flags = 0x0000
+-- inner
+  border = 4 11 4 2
+  size = 300 150
+  sys 0x40 = -22 0 24 11 act 0x8001
+  sys 0x80 = 0 0 20 11 act 0x8001
+  sys 0x20 = 0 0 0 10 act 0x8000
+  gad 1 act = 0x0001 flags = 0x0000
+-- inner overlap left
+  border = 4 11 4 2
+  size = 300 150
+  sys 0x40 = -22 0 24 11 act 0x8001
+  sys 0x80 = 0 0 20 11 act 0x8001
+  sys 0x20 = 0 0 0 10 act 0x8000
+  gad 1 act = 0x8001 flags = 0x0000
+-- inner overlap right
+  border = 4 11 4 2
+  size = 300 150
+  sys 0x40 = -22 0 24 11 act 0x8001
+  sys 0x80 = 0 0 20 11 act 0x8001
+  sys 0x20 = 0 0 0 10 act 0x8000
+  gad 1 act = 0x8001 flags = 0x0000
+-- inner overlap top
+  border = 4 11 4 2
+  size = 300 150
+  sys 0x40 = -22 0 24 11 act 0x8001
+  sys 0x80 = 0 0 20 11 act 0x8001
+  sys 0x20 = 0 0 0 10 act 0x8000
+  gad 1 act = 0x0001 flags = 0x0000
+-- inner overlap left, top - 1
+  border = 4 11 4 2
+  size = 300 150
+  sys 0x40 = -22 0 24 11 act 0x8001
+  sys 0x80 = 0 0 20 11 act 0x8001
+  sys 0x20 = 0 0 0 10 act 0x8000
+  gad 1 act = 0x8001 flags = 0x0000
+-- center x 4
+  border = 4 11 4 2
+  size = 300 150
+  sys 0x40 = -22 0 24 11 act 0x8001
+  sys 0x80 = 0 0 20 11 act 0x8001
+  sys 0x20 = 0 0 0 10 act 0x8000
+  gad 1 act = 0x0001 flags = 0x0000
+-- center x 3
+  border = 4 11 4 2
+  size = 300 150
+  sys 0x40 = -22 0 24 11 act 0x8001
+  sys 0x80 = 0 0 20 11 act 0x8001
+  sys 0x20 = 0 0 0 10 act 0x8000
+  gad 1 act = 0x8001 flags = 0x0000
+-- bottom overlap center y 143
+  border = 4 11 4 2
+  size = 300 150
+  sys 0x40 = -22 0 24 11 act 0x8001
+  sys 0x80 = 0 0 20 11 act 0x8001
+  sys 0x20 = 0 0 0 10 act 0x8000
+  gad 1 act = 0x0001 flags = 0x0000
+-- bottom overlap center y 145
+  border = 4 11 4 2
+  size = 300 150
+  sys 0x40 = -22 0 24 11 act 0x8001
+  sys 0x80 = 0 0 20 11 act 0x8001
+  sys 0x20 = 0 0 0 10 act 0x8000
+  gad 1 act = 0x0001 flags = 0x0000
+-- bottom overlap center y 147
+  border = 4 11 4 2
+  size = 300 150
+  sys 0x40 = -22 0 24 11 act 0x8001
+  sys 0x80 = 0 0 20 11 act 0x8001
+  sys 0x20 = 0 0 0 10 act 0x8000
+  gad 1 act = 0x8001 flags = 0x0000
+-- bottom overlap center y 148
+  border = 4 11 4 2
+  size = 300 150
+  sys 0x40 = -22 0 24 11 act 0x8001
+  sys 0x80 = 0 0 20 11 act 0x8001
+  sys 0x20 = 0 0 0 10 act 0x8000
+  gad 1 act = 0x8001 flags = 0x0000
+-- beyond bottom center y 148
+  border = 4 11 4 2
+  size = 300 150
+  sys 0x40 = -22 0 24 11 act 0x8001
+  sys 0x80 = 0 0 20 11 act 0x8001
+  sys 0x20 = 0 0 0 10 act 0x8000
+  gad 1 act = 0x0001 flags = 0x0000
+-- right overlap center x 295
+  border = 4 11 4 2
+  size = 300 150
+  sys 0x40 = -22 0 24 11 act 0x8001
+  sys 0x80 = 0 0 20 11 act 0x8001
+  sys 0x20 = 0 0 0 10 act 0x8000
+  gad 1 act = 0x0001 flags = 0x0000
+-- right overlap center x 295.5
+  border = 4 11 4 2
+  size = 300 150
+  sys 0x40 = -22 0 24 11 act 0x8001
+  sys 0x80 = 0 0 20 11 act 0x8001
+  sys 0x20 = 0 0 0 10 act 0x8000
+  gad 1 act = 0x0001 flags = 0x0000
+-- right overlap center x 296
+  border = 4 11 4 2
+  size = 300 150
+  sys 0x40 = -22 0 24 11 act 0x8001
+  sys 0x80 = 0 0 20 11 act 0x8001
+  sys 0x20 = 0 0 0 10 act 0x8000
+  gad 1 act = 0x8001 flags = 0x0000
+-- bottom overlap center y 146
+  border = 4 11 4 2
+  size = 300 150
+  sys 0x40 = -22 0 24 11 act 0x8001
+  sys 0x80 = 0 0 20 11 act 0x8001
+  sys 0x20 = 0 0 0 10 act 0x8000
+  gad 1 act = 0x8001 flags = 0x0000
+-- bottom overlap center y 146 h 8
+  border = 4 11 4 2
+  size = 300 150
+  sys 0x40 = -22 0 24 11 act 0x8001
+  sys 0x80 = 0 0 20 11 act 0x8001
+  sys 0x20 = 0 0 0 10 act 0x8000
+  gad 1 act = 0x0001 flags = 0x0000
+-- title bar center y 4
+  border = 4 11 4 2
+  size = 300 150
+  sys 0x40 = -22 0 24 11 act 0x8001
+  sys 0x80 = 0 0 20 11 act 0x8001
+  sys 0x20 = 0 0 0 10 act 0x8000
+  gad 1 act = 0x8001 flags = 0x0000
+-- title bar bottom 14
+  border = 4 11 4 2
+  size = 300 150
+  sys 0x40 = -22 0 24 11 act 0x8001
+  sys 0x80 = 0 0 20 11 act 0x8001
+  sys 0x20 = 0 0 0 10 act 0x8000
+  gad 1 act = 0x8001 flags = 0x0000
+-- title bar bottom 15
+  border = 4 11 4 2
+  size = 300 150
+  sys 0x40 = -22 0 24 11 act 0x8001
+  sys 0x80 = 0 0 20 11 act 0x8001
+  sys 0x20 = 0 0 0 10 act 0x8000
+  gad 1 act = 0x0001 flags = 0x0000
+-- title bar bottom 18
+  border = 4 11 4 2
+  size = 300 150
+  sys 0x40 = -22 0 24 11 act 0x8001
+  sys 0x80 = 0 0 20 11 act 0x8001
+  sys 0x20 = 0 0 0 10 act 0x8000
+  gad 1 act = 0x0001 flags = 0x0000
+-- beyond right center x 297
+  border = 4 11 4 2
+  size = 300 150
+  sys 0x40 = -22 0 24 11 act 0x8001
+  sys 0x80 = 0 0 20 11 act 0x8001
+  sys 0x20 = 0 0 0 10 act 0x8000
+  gad 1 act = 0x8001 flags = 0x0000
+-- beyond left center x 1
+  border = 4 11 4 2
+  size = 300 150
+  sys 0x40 = -22 0 24 11 act 0x8001
+  sys 0x80 = 0 0 20 11 act 0x8001
+  sys 0x20 = 0 0 0 10 act 0x8000
+  gad 1 act = 0x8001 flags = 0x0000
+-- center x 5 y 10
+  border = 4 11 4 2
+  size = 300 150
+  sys 0x40 = -22 0 24 11 act 0x8001
+  sys 0x80 = 0 0 20 11 act 0x8001
+  sys 0x20 = 0 0 0 10 act 0x8000
+  gad 1 act = 0x0001 flags = 0x0000
+-- gzz bottom -9/10
+  border = 4 11 4 10
+  size = 300 150
+  gzz = 292 129
+  sys 0x40 = -22 0 24 11 act 0x8001
+  sys 0x80 = 0 0 20 11 act 0x8001
+  sys 0x20 = 0 0 0 10 act 0x8000
+  gad 1 act = 0x8081 flags = 0x0008
+-- addglist bottom -9/10 + right
+  AddGList = 0
+  border = 4 11 18 2
+  size = 300 150
+  sys 0x40 = -22 0 24 11 act 0x8001
+  sys 0x10 = -17 -9 18 10 act 0x8001
+  sys 0x80 = 0 0 20 11 act 0x8001
+  sys 0x20 = 0 0 0 10 act 0x8000
+  gad 1 act = 0x8081 flags = 0x0008
+  gad 2 act = 0x8011 flags = 0x0010
+  gad 3 act = 0x0001 flags = 0x0000
+  after RemoveGList
+  border = 4 11 18 2
+  size = 300 150
+  sys 0x40 = -22 0 24 11 act 0x8001
+  sys 0x10 = -17 -9 18 10 act 0x8001
+  sys 0x80 = 0 0 20 11 act 0x8001
+  sys 0x20 = 0 0 0 10 act 0x8000
+  gad 1 act = 0x8081 flags = 0x0008
+  gad 2 act = 0x8011 flags = 0x0010
+  gad 3 act = 0x0001 flags = 0x0000
+-- addglist overlap
+  border = 4 11 4 2
+  size = 300 150
+  sys 0x40 = -22 0 24 11 act 0x8001
+  sys 0x80 = 0 0 20 11 act 0x8001
+  sys 0x20 = 0 0 0 10 act 0x8000
+  gad 1 act = 0x0001 flags = 0x0000
+  gad 2 act = 0x8001 flags = 0x0000
+  gad 3 act = 0x8001 flags = 0x0000
+-- addgadget bottom
+  AddGadget = 3
+  border = 4 11 4 2
+  size = 300 150
+  sys 0x40 = -22 0 24 11 act 0x8001
+  sys 0x80 = 0 0 20 11 act 0x8001
+  sys 0x20 = 0 0 0 10 act 0x8000
+  gad 1 act = 0x8081 flags = 0x0008

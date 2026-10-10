@@ -533,7 +533,7 @@ VOID _icon_FreeFreeList ( register struct IconBase *IconBase __asm("a6"),
     icon_free_free_list(freelist);
 }
 
-BOOL _icon_AddFreeList ( register struct IconBase *IconBase __asm("a6"),
+LONG _icon_AddFreeList ( register struct IconBase *IconBase __asm("a6"),
                          register struct FreeList *freelist __asm("a0"),
                          register CONST_APTR       mem      __asm("a1"),
                          register ULONG            size     __asm("a2"))
@@ -1246,7 +1246,7 @@ static BOOL icon_write_diskobject(BPTR fh, CONST struct DiskObject *dobj)
     return TRUE;
 }
 
-BOOL _icon_PutDiskObject ( register struct IconBase       *IconBase __asm("a6"),
+LONG _icon_PutDiskObject ( register struct IconBase       *IconBase __asm("a6"),
                            register CONST_STRPTR           name     __asm("a0"),
                            register CONST struct DiskObject *dobj   __asm("a1"))
 {
@@ -1295,7 +1295,7 @@ BOOL _icon_PutDiskObject ( register struct IconBase       *IconBase __asm("a6"),
     return TRUE;
 }
 
-BOOL _icon_PutDefDiskObject ( register struct IconBase       *IconBase  __asm("a6"),
+LONG _icon_PutDefDiskObject ( register struct IconBase       *IconBase  __asm("a6"),
                               register CONST struct DiskObject *dobj    __asm("a0"))
 {
     UBYTE default_name[32];
@@ -1321,7 +1321,7 @@ BOOL _icon_PutDefDiskObject ( register struct IconBase       *IconBase  __asm("a
     return _icon_PutDiskObject(IconBase, (CONST_STRPTR)default_name, dobj);
 }
 
-BOOL _icon_DeleteDiskObject ( register struct IconBase *IconBase __asm("a6"),
+LONG _icon_DeleteDiskObject ( register struct IconBase *IconBase __asm("a6"),
                               register CONST_STRPTR     name     __asm("a0"))
 {
     STRPTR info;
@@ -1406,7 +1406,7 @@ UBYTE * _icon_FindToolType ( register struct IconBase *IconBase      __asm("a6")
  * value must equal one element (ASCII case-insensitive, blanks are
  * significant).  An empty value only matches an empty last element.
  */
-BOOL _icon_MatchToolValue ( register struct IconBase *IconBase   __asm("a6"),
+LONG _icon_MatchToolValue ( register struct IconBase *IconBase   __asm("a6"),
                             register CONST_STRPTR     typeString __asm("a0"),
                             register CONST_STRPTR     value      __asm("a1"))
 {
@@ -1988,7 +1988,7 @@ VOID _icon_DrawIconStateA ( register struct IconBase       *IconBase   __asm("a6
     icon_release_draw_info(icon, draw_info, free_draw_info, IconBase);
 }
 
-BOOL _icon_GetIconRectangleA ( register struct IconBase       *IconBase __asm("a6"),
+LONG _icon_GetIconRectangleA ( register struct IconBase       *IconBase __asm("a6"),
                                register struct RastPort       *rp       __asm("a0"),
                                register CONST struct DiskObject *icon   __asm("a1"),
                                register CONST_STRPTR           label    __asm("a2"),
@@ -2030,7 +2030,7 @@ struct DiskObject * _icon_GetIconTagList ( register struct IconBase      *IconBa
     return _icon_GetDiskObjectNew(IconBase, name);
 }
 
-BOOL _icon_PutIconTagList ( register struct IconBase       *IconBase __asm("a6"),
+LONG _icon_PutIconTagList ( register struct IconBase       *IconBase __asm("a6"),
                             register CONST_STRPTR           name     __asm("a0"),
                             register CONST struct DiskObject *icon   __asm("a1"),
                             register CONST struct TagItem   *tags    __asm("a2"))
@@ -2041,7 +2041,7 @@ BOOL _icon_PutIconTagList ( register struct IconBase       *IconBase __asm("a6")
     return _icon_PutDiskObject(IconBase, name, icon);
 }
 
-BOOL _icon_LayoutIconA ( register struct IconBase      *IconBase __asm("a6"),
+LONG _icon_LayoutIconA ( register struct IconBase      *IconBase __asm("a6"),
                          register struct DiskObject    *icon     __asm("a0"),
                          register struct Screen        *screen   __asm("a1"),
                          register struct TagItem       *tags     __asm("a2"))

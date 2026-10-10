@@ -2,7 +2,7 @@
  * Test: graphics/regions_ext
  *
  * lxa-only coverage (tests/ref_suite.yaml): RectInRegion()/PointInRegion()
- * are AROS extensions that lxa provides in graphics.library's private LVO
+ * are extensions that lxa provides in graphics.library's private LVO
  * slots -642/-648; they do not exist in AmigaOS 3.1, so this program cannot
  * run on the reference machine.  Also checks lxa's NULL tolerance of
  * DisposeRegion()/ClearRegion().

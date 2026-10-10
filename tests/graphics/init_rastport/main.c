@@ -2,14 +2,14 @@
  * Test: graphics/init_rastport
  * Tests InitRastPort() function to verify correct defaults
  *
- * Per AROS/RKRM specification:
+ * Defaults as on AmigaOS 3.1 (expected.ref.out from the reference):
  * - Mask = 0xFF (all planes enabled)
  * - FgPen = -1 (0xFF)
  * - BgPen = 0
  * - AOlPen = -1 (0xFF)
  * - DrawMode = JAM2
  * - LinePtrn = 0xFFFF (solid line)
- * - Flags = FRST_DOT
+ * - Flags = 0 (FRST_DOT is only set by Move())
  */
 
 #include <exec/types.h>
@@ -76,7 +76,7 @@ int main(void)
         print("OK: Mask = 0xFF\n");
     }
 
-    /* Test default FgPen (foreground pen) - per AROS/RKRM should be -1 (0xFF) */
+    /* Test default FgPen (foreground pen) - AmigaOS 3.1 sets -1 (0xFF) */
     if (rp.FgPen != -1) {
         print("FAIL: FgPen != -1\n");
         errors++;
@@ -92,7 +92,7 @@ int main(void)
         print("OK: BgPen = 0\n");
     }
 
-    /* Test default AOlPen (outline pen for area fills) - per AROS/RKRM should be -1 */
+    /* Test default AOlPen (outline pen for area fills) - AmigaOS 3.1 sets -1 */
     if (rp.AOlPen != -1) {
         print("FAIL: AOlPen != -1\n");
         errors++;

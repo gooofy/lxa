@@ -32,7 +32,7 @@ protected:
 TEST_F(IntuiTextTest, WindowOpensFullScreen) {
     /* The RKM original opens with OpenWindowTags(NULL, WA_PubScreen, screen,
      * WA_RMBTrap, TRUE, TAG_END) — no WA_Width or WA_Height.
-     * Per AROS/AmigaOS behavior, this should default to full screen size. */
+     * Per AmigaOS behavior, this should default to full screen size. */
     lxa_screen_info_t screen_info;
     ASSERT_TRUE(lxa_get_screen_info(&screen_info));
 

@@ -77,15 +77,14 @@ set(ROM_C_SOURCES
     lxa_dev_trackdisk.c
     util.c
     amath.c
-    # BCPL support ported from AROS (Phase 239); gcc preprocesses the .S
-    bcpl/bcpl_support.c
-    bcpl/bcpl.S
+    # BCPL program support (Phases 239, 245); gcc preprocesses the .S
+    bcpl/bcpl_globals.c
+    bcpl/bcpl_cli.c
+    bcpl/bcpl_entry.S
 )
 
 set(ROM_HEADERS
-    ${CMAKE_CURRENT_SOURCE_DIR}/bcpl/bcpl.h
-    ${CMAKE_CURRENT_SOURCE_DIR}/bcpl/bcpl.inc
-    ${CMAKE_CURRENT_SOURCE_DIR}/bcpl/bcpl_support.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/bcpl/lxa_bcpl.h
 )
 
 set(ROM_ASM_SOURCES

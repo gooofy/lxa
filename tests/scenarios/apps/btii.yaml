@@ -6,6 +6,6 @@ app: {manifest: BTII}
 steps:
   - launch
   - wait_window: {title: "BECKERtext II", timeout: 30000}
-  - frames: 100
+  - frames: 300        # the reference needs > 2 s to finish loading (menus, Phase 244)
   - snapshot: startup
   - quit

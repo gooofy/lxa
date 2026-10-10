@@ -1,0 +1,10 @@
+-- screen font
+sys w=276 h=54 visitor=0x08000000
+easy w=282 h=56 visitor=0x08000000
+easy 3 lines w=130 h=74 visitor=0x08000000
+easy 3 lines 2 buttons w=130 h=74 visitor=0x08000000
+-- topaz 9 in the screen's RastPort
+sys w=330 visitor=0x08000000
+easy w=336 visitor=0x08000000
+easy 3 lines w=146 visitor=0x08000000
+easy 3 lines 2 buttons w=146 visitor=0x08000000

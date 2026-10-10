@@ -127,6 +127,56 @@ ULONG classlib_ExtFunc(void)
     return 0;
 }
 
+/* gadget helpers */
+
+void classlib_GadgetBox(struct Gadget *g, struct GadgetInfo *gi, struct IBox *box)
+{
+    box->Left   = g->LeftEdge;
+    box->Top    = g->TopEdge;
+    box->Width  = g->Width;
+    box->Height = g->Height;
+
+    if (!gi)
+        return;
+
+    /* relative positions count from the far edge, relative sizes are added */
+    if (g->Flags & GFLG_RELRIGHT)
+        box->Left += gi->gi_Domain.Width - 1;
+    if (g->Flags & GFLG_RELBOTTOM)
+        box->Top += gi->gi_Domain.Height - 1;
+    if (g->Flags & GFLG_RELWIDTH)
+        box->Width += gi->gi_Domain.Width;
+    if (g->Flags & GFLG_RELHEIGHT)
+        box->Height += gi->gi_Domain.Height;
+}
+
+void classlib_Render(Object *o, struct GadgetInfo *gi, ULONG mode)
+{
+    struct gpRender msg;
+    struct RastPort *rp;
+
+    if (!gi || !(rp = ObtainGIRPort(gi)))
+        return;
+
+    msg.MethodID   = GM_RENDER;
+    msg.gpr_GInfo  = gi;
+    msg.gpr_RPort  = rp;
+    msg.gpr_Redraw = mode;
+    CL_DoMethodA(o, (Msg)&msg);
+    ReleaseGIRPort(rp);
+}
+
+void classlib_Notify(Object *o, struct GadgetInfo *gi, struct TagItem *attrs, BOOL interim)
+{
+    struct opUpdate msg;
+
+    msg.MethodID     = OM_NOTIFY;
+    msg.opu_AttrList = attrs;
+    msg.opu_GInfo    = gi;
+    msg.opu_Flags    = interim ? OPUF_INTERIM : 0;
+    CL_DoMethodA(o, (Msg)&msg);
+}
+
 /* RomTag */
 
 struct ClassLibDataInit

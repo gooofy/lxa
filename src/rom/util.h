@@ -106,10 +106,12 @@ char *strcat(char *dest, const char *src);
                     (l)->lh_TailPred = (struct Node *)&(l)->lh_Head)
 
 /*
- * List accessor macros (matching AROS exec/lists.h semantics)
+ * List accessor macros (lxa's own helpers, not part of the NDK)
  *
  * These return the first/last/next/previous node in a list, or NULL
- * if the list is empty or the node is at the head/tail sentinel.
+ * if the list is empty or the node is at the head/tail sentinel
+ * (RKRM "Exec: Lists": a node is real when its ln_Succ, or for the
+ * backward direction its ln_Pred, is non-NULL).
  */
 #define GETHEAD(l)  (((struct List *)(l))->lh_Head->ln_Succ \
                      ? ((struct List *)(l))->lh_Head : (struct Node *)0)

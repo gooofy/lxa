@@ -1,28 +1,14 @@
 {
  "app": "DevPac",
  "disabled": null,
- "lxa_version": "0.11.28",
- "promoted": "2026-10-09",
+ "lxa_version": "0.11.45",
+ "promoted": "2026-10-10",
  "reference": "AmigaOS 3.1 (KS 40.70), profile aga",
  "requires_apps": true,
  "scenario": "devpac-edit",
  "snapshots": {
   "settings": {
-   "known_tree_diffs": [
-    {
-     "field": "text",
-     "kind": "gadget",
-     "lxa": [
-      ""
-     ],
-     "phase": 256,
-     "ref": [
-      "",
-      ""
-     ],
-     "where": "screen[Settings]/window[Settings]/gadget[11 id=12]"
-    }
-   ],
+   "known_tree_diffs": [],
    "pixel_budget": 2108,
    "pixel_phase": 256,
    "stdout_known_diff": null

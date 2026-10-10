@@ -87,12 +87,11 @@ The daily-driver system at `~/media/emu/amiga/FS-UAE/hdd/system` is **not** the 
 
 **Picasso96 source for the reference**: `/mnt/dagobert-home/media/sys/amiga/apps/Picasso96 Install v1.33 (1997)(T.Abt A.Kneer).adf`. It provides `rtg.library`, `Picasso96API.library`, the `Picasso96` monitor driver and `picture.datatype`. Phase 210 verifies that this version works with FS-UAE's uaegfx; if it does not, the user supplies a newer Picasso96 (2.x).
 
-### Reusing AROS code (decided 2026-10-02)
+### AROS code is a reference only (decided 2026-10-10, replaces the 2026-10-02 porting decision)
 
-AROS is a clean-room, open-source AmigaOS reimplementation, so porting its code does not conflict with the clean-room rule. Where AROS already implements a component lxa lacks, **port it instead of writing it from scratch**, then verify the port against the reference like any other code. Candidates: rexxsyslib.library plus Regina as the ARexx interpreter, commodities, datatype classes, amigaguide, BOOPSI image and gadget classes, lowlevel, nonvolatile and mathieeesingtrans.
-- **Licensing**: AROS code is under the AROS Public License 1.1 (MPL-based, file-level copyleft); Regina is LGPL. Ported files keep their original licence headers in their own directories (the same precedent as the vendored LGPL BGUI in `src/bgui`). lxa's own code stays MIT. Record every ported component in `doc/third-party-code.md`.
-- **Source**: the local snapshot `others/AROS-20231016-source` has only `rom/`, `arch/` and `compiler/`. `workbench/` (libraries, classes, commodities) and AROS-Contrib (Regina) must be fetched from the AROS GitHub repositories.
-- **Status**: ported AROS components count as *system implementations*, not third-party libraries. They are built from source into lxa, so the STOP-and-notify rule does not apply.
+AROS code must **not** be copied or ported into lxa: its licence (AROS Public License 1.1, MPL-based file-level copyleft) does not fit lxa's MIT licence. AROS may be read to understand a component, but every lxa implementation is lxa's own code, written from the RKRM/NDK and verified against the reference with probes. The earlier ports (BCPL support from Phase 239, the colorwheel/gradientslider/tapedeck classes from Phase 238) are replaced by Phase 245.
+- **LGPL code is allowed** (decided 2026-10-10; e.g. the vendored BGUI in `src/bgui`, Regina for ARexx). It keeps its licence headers in its own directory, and `doc/third-party-code.md` plus the README's License section must name every such part as not MIT licensed.
+- **Source**: the local snapshot `others/AROS-20231016-source` (`rom/`, `arch/`, `compiler/`) is the reading copy.
 
 ---
 
@@ -105,7 +104,7 @@ AROS is a clean-room, open-source AmigaOS reimplementation, so porting its code 
 | **M2** | Ground-truth the existing suite + conformance gallery | Quality → Compatibility | 220–224 |
 | **M3** | Breadth: app corpus, compat DB, sweeps, trace diff | Compatibility | 230–239, 244 |
 | **M4** | RTG / Picasso96 | Compatibility (reclassified, see M4) | 240–243 |
-| **M5** | Close the facades: system-library completeness (AROS ports where possible) | Compatibility | 250–258 |
+| **M5** | Close the facades: system-library completeness (own implementations; AROS as a reference only) | Compatibility | 250–258 |
 | **M6** | WINE-like desktop integration | New features | 260–265 |
 | **M7** | Dev platform, toolkits, performance | New features / Performance | 270–276 |
 
@@ -115,7 +114,7 @@ M0 and M1 are on the critical path: nothing in M2 and later is efficient without
 
 ## Next Phase
 
-> M3: **244**, then **237c**.
+> M3: **237c** (agent running); afterwards M4 (**240**) and M5 (**252**, **256** carry the corpus residue of Phase 244).
 
 ---
 
@@ -147,16 +146,9 @@ Complete (Phases 220–225, v0.11.28); see the summary table.
 - [ ] lxa-only crashes not owned elsewhere: DiskPerf x2 (divide by zero: file I/O takes no emulated time, the measured interval is 0), A-Render LATHE (the point loop runs past its count with stdin at EOF; ffp loop compare), Window (CHK after calling through the longword at $100, user vector 64, which is 0 on both systems), Password `loop` and CopperPrefs x2 (line-F at odd addresses: wild jumps), AntiCicloVir (illegal instruction).
 - [ ] BltBitMap() costs its 3.1 time since 237b (`graphics/blittime`); ClipBlit, BltBitMapRastPort, ScrollRaster and BltMaskBitMapRastPort do not - measure them on the reference and charge them alike (Fish Marble-Slide's ScrollRaster loop still takes ~40 host seconds per 300 frames).
 - [ ] Re-run `massrun lxa` + `report` after each fix (the reference results in a run directory stay valid); the lxa-only crash count must not grow.
+- [ ] (from Phase 244) Golden `cluster2-exit`: the editor's text cursor blinks on IntuiTicks counted from launch, so its phase differs between the systems (ignore region, owner 237c). A key press does not restart the blink and lxaprobe `WAIT_WINDOW ""` does not find the untitled editor window: extend lxaprobe (refsys rebuild, only when no other agent uses the pool) to wait for an untitled app window or for the app's n-th IntuiTick, snapshot a fixed number of ticks after it and drop the ignore region.
 
 **Test gate**: no lxa-only crash class with >= 3 programs; lxa-only hangs and missing windows halved.
-
-### Phase 244 — Corpus residue (from the Phase 238 sweep)
-**Class**: Compatibility. `doc/sweeps/2026-10-09-sweep.md` / `apps/compat.yaml` (v0.11.32): 2 platinum, 15 gold, 19 silver, no bronze/garbage/untested. Raise the silver apps, worst first (use the compat-sweep skill's parallel triage; tracediff before hypotheses).
-- [ ] Per-app divergences owned by this phase in `doc/sweeps/owners.yaml` (`Text() strings missing in lxa`, `stdout differs`): triage ADPro (477 tree diffs), AmiBlitz3 (editor area gray where 3.1 draws it white, missing editor scroller; 494602 px), SnoopDos, MaxonBASIC, DPaintV, ProWrite, Scout, SIGMAth/SIGMAth2, FontView, ReSource, FinalWriter_D, BTII, GFABasic, MaxonCPP into root causes and fix or re-own them.
-- [ ] Cluster2 golden (`cluster2-exit`): the editor's cursor blink phase depends on how long the launch takes on each system (ignore region) - start both runs at the same IntuiTicks phase or compare the cursor after a fixed number of ticks.
-- [ ] Re-run `python3 -m rdd sweep run` after each fix; ratings in `apps/compat.yaml` must not drop (`rdd compat --fail-on-drop`).
-
-**Test gate**: no corpus app below gold for a reason inside lxa or the scenarios.
 
 ---
 
@@ -181,6 +173,7 @@ Complete (Phases 220–225, v0.11.28); see the summary table.
 - [ ] Probe goldens from the `rtg` reference profile.
 
 ### Phase 243 — RTG app validation and the Workbench `rtg` profile
+- [ ] (from Phase 244) PPaint opens a depth-3 screen with Personal.font and its own palette where 3.1 (no RTG in the `aga` profile) stays on the Workbench (`apps/compat.yaml` silver: screen.count/depth/font, palette pens) - re-check once RTG exists.
 - [ ] PPaint, FinalWriter (re-enable `DISABLED_AcceptDialogOpensEditorWindow`), DPaint's "Choose Display Mode" list, and one more productivity app (Wordsworth / Amiga Writer). Each one ends with a golden.
 - [ ] lxa boots Workbench in the `rtg` profile, and the gallery matches the reference.
 
@@ -188,21 +181,24 @@ Complete (Phases 220–225, v0.11.28); see the summary table.
 
 ## M5 — Close the Facades (System-Library Completeness)
 
-The order below is provisional. After Phase 231/232 it is re-sorted by how often corpus programs hit each item. **Check AROS first** for every item, and port where it is viable (see "Reusing AROS code"). Every phase is verified with conformance probes against the reference (the Phase 222 pattern).
+The order below is provisional. After Phase 231/232 it is re-sorted by how often corpus programs hit each item. AROS may be read as a reference for every item, but the code is lxa's own (see "AROS code is a reference only"). Every phase is verified with conformance probes against the reference (the Phase 222 pattern).
 
-### Phase 250 — rexxsyslib.library + ARexx (AROS port)
-- [ ] Port AROS `workbench/libs/rexxsyslib` (APL) as an lxa disk library, replacing the 17-function facade in `lxa_rexxsyslib.c`.
-- [ ] Port Regina from AROS-Contrib (LGPL) as the ARexx interpreter (the RexxMast and `rx` equivalents), installed under `share/lxa/System`.
+### Phase 250 — rexxsyslib.library + ARexx
+- [ ] Implement rexxsyslib.library as an lxa disk library (own code; AROS `workbench/libs/rexxsyslib` as a reference only), replacing the 17-function facade in `lxa_rexxsyslib.c`.
+- [ ] Vendor Regina (LGPL, allowed) as the ARexx interpreter (the RexxMast and `rx` equivalents), installed under `share/lxa/System`; list it in `doc/third-party-code.md` and the README's License section as LGPL.
 - [ ] Gate: an app's ARexx port responds to a scripted `rx` message on both backends; rexxsyslib probe goldens pass.
 
 ### Phase 251 — commodities.library (currently a ~25-function facade)
-- [ ] Brokers, filters, senders, translators, `ParseIX`, `CxMsg*`, input-handler-chain integration, and hotkeys. Evaluate the AROS port first.
+- [ ] Brokers, filters, senders, translators, `ParseIX`, `CxMsg*`, input-handler-chain integration, and hotkeys. AROS as a reference only, own code.
 - [ ] Gate: the WB 3.1 `Exchange` commodity lists and controls a broker; probe goldens pass.
 
 ### Phase 252 — BOOPSI class completeness
-- [ ] frameiclass, fillrectclass, itexticlass, frbuttonclass, groupgclass, pointerclass; a complete sysiclass.
+- [ ] itexticlass, frbuttonclass, groupgclass, pointerclass; a complete sysiclass (frameiclass exists; fillrectclass done in Phase 244, probe `intuition/fillrect`).
+- [ ] (from Phase 244) buttongclass and propgclass objects are GTYP_CUSTOMGADGET on 3.1 with the GA_* flags applied and a default box of 80x40 (propgclass: GFLG_GADGIMAGE with a knob image, Activation 0 unless asked); lxa's OM_NEW overwrites them with BOOLGADGET/PROPGADGET, GADGHCOMP and RELVERIFY. Needs real GM_RENDER/GM_GOACTIVE/GM_HANDLEINPUT (prop: drive the built-in prop code). Reference values: write probe `intuition/gclassnew` (NewObject with GA_RelRight/GA_RelBottom/GA_Image/GA_*Border/GA_Highlight/PGA_* - captured in Phase 244: e.g. arrow button type 0x0005 flags 0x801c act 0x0083). Apps: SnoopDos (border arrows/scrollers), AmiBlitz3 (PED window), the `gallery-autorequest`/`gallery-easyrequest` goldens.
+- [ ] (from Phase 244) System requesters (BuildSysRequest/BuildEasyRequestArgs) use BOOPSI button gadgets with the caller's IntuiTexts (`GadgetText` = the pos/neg IntuiText, type 0x0005, flags 0x8004) plus a trailing empty gadget (type 0, flags 0x0007); 3.1 measures the body with the IntuiText's ITextFont (topaz 9 body: 330x45). ACE's AIDE alert. Write probe `intuition/sysreq` (captured in Phase 244).
+- [ ] (from Phase 245) Intuition never sends GM_GOACTIVE/GM_HANDLEINPUT to BOOPSI custom gadgets, so colorwheel, gradientslider and tapedeck objects ignore the mouse (their methods work when called directly); dispatch input to GTYP_CUSTOMGADGET objects as 3.1 does and add an interactive test.
+- [ ] (from Phase 244) groupgclass: MaxonCPP's about window ("Konnte Gadget nicht kreieren", NewObject("groupgclass") returns NULL in lxa; 3.1: 462x204 with 9 gadgets).
 - [ ] Old-look (pre-V39 / non-NewLook) window images and sysiclass images scaled for larger screen fonts (gallery-screen-oldlook, gallery-menus-oldlook pages, Phase 223).
-- [ ] colorwheel.gadget and gradientslider.gadget as disk classes (GadToolsBox3 needs colorwheel.gadget, Phase 230 compat run).
 - [ ] Gate: gallery pages (Phase 223) for each class match the reference.
 
 ### Phase 253 — datatypes: real class dispatch + WB 3.1 classes
@@ -212,7 +208,7 @@ The order below is provisional. After Phase 231/232 it is re-sorted by how often
 - [ ] Gate: MultiView-equivalent scenarios (ILBM, text) match the reference.
 
 ### Phase 254 — amigaguide.library + amigaguide.datatype
-- [ ] Open, display and navigate guides; synchronous and asynchronous APIs. Evaluate the AROS port first.
+- [ ] Open, display and navigate guides; synchronous and asynchronous APIs. AROS as a reference only, own code.
 - [ ] Gate: an app's Help menu opens its guide, matching the reference.
 
 ### Phase 255 — Missing libraries, resources & exec/dos slots
@@ -228,12 +224,18 @@ The order below is provisional. After Phase 231/232 it is re-sorted by how often
 - [ ] bullet.library (outline fonts) as a separately scoped sub-phase.
 
 - [ ] (from Phase 222) CON:/RAW: options AUTO, WAIT and SCREEN are ignored (`LXA_UNIMPLEMENTED`).
+- [ ] (from Phase 244) CON:/RAW: windows have no handler port (`fh_Type` NULL), so `pr_ConsoleTask` of a shell in a CON: window is NULL and `ACTION_DISK_INFO` (id_VolumeNode = window, id_InUse = console IORequest) cannot reach them: vim-5.3 never gets its window to call `SetWindowTitles("VIM -")`. Give every CON: handle its own (PA_IGNORE) handler port answering READ/WRITE/WAIT_CHAR/SCREEN_MODE/DISK_INFO; Open("*") must share the window. Probe `dos/condiskinfo` first.
+- [ ] (from Phase 244) SysInfo's three gadgets that 3.1 disables (GFLG_DISABLED, `gadget.flags` 2 vs 258) are enabled on lxa - the same missing resources/hardware probes as the DISABLED_ SysInfo tests below.
 - [ ] (from Phase 234) Re-enable `SysInfoTest.DISABLED_{Memory,Boards,Libraries,Speed}Gadget…` (`sysinfo_gtest.cpp`): SysInfo busy-waits for 60 ticks of CIA-A's time-of-day counter ($BFE801-$BFEA01) and its DRIVES scan needs a non-empty DOS device list (real `LockDosList`); battclock.resource is missing. Golden `SysInfo/sysinfo-gadgets` records the divergence.
 ### Phase 256 — intuition / graphics / gadtools remaining stubs
 - [ ] `DisplayBeep` (screen flash plus optional host bell), `MoveScreen`/`ScreenPosition`, `ModifyProp` refresh, `RethinkDisplay`, `GT_FilterIMsg`/`GT_PostFilterIMsg`, `LoadView`, `RPTAG_DrawBounds`, layers SuperBitMap sync.
 - [ ] Whatever else is in the stub inventory (Phase 203) for these libraries.
 - [ ] Gate: the stub inventory for intuition, graphics, gadtools and layers is empty.
 
+- [ ] (from Phase 244) DPaintV's Settings/History sub-items ("#?") are 37 wide on 3.1, 21 on lxa (LayoutMenusA with the same labels and font; the reference measures 16 more pixels - find the input with a probe that copies DPaint's NewMenu flags/command strings).
+- [ ] (from Phase 244) FinalWriter_D's buttons carry GFLG_IMAGEDISABLE on 3.1 (`gadget.flags` 6 vs 0x806); Intuition does not set it (probe `intuition/imagedisable`) - trace which call makes FinalWriter set it.
+- [ ] (from Phase 244) SnoopDos: Hotkey title `<invalid>` (commodities `ParseIX`, Phase 251), window 0/256 vs 12/244, the checked "Task priority" item, sub-item width 36 vs 37; AmiBlitz3's window keeps WFLG_WINDOWTICKED at the snapshot.
+- [ ] (from Phase 244) A system requester measures its body with the screen RastPort's current font on 3.1 (probe `intuition/reqfont`); with a font other than the screen font its height differs on lxa (+3/+5 instead of +2 for topaz 9) - the probe prints widths only for that case.
 - [ ] (from Phase 222) residual divergences recorded in goldens and sweep clusters (`doc/sweeps/owners.yaml`): SimpleGad window title, DevPac Settings gadget texts, AutoRequest `WFLG_VISITOR`, Typeface's BGUI scroller knob, DirectoryOpus pixels; re-promote as they are fixed.
 - [ ] (from Phase 222) `BitMapScale()` leaves its own DDA values in `bsa_XDDA`/`bsa_YDDA` on 3.1 (X 1:2 -> -3, 3:5 -> -5, 300:301 -> -342; Y 3:1 -> -5, 7:4 -> -8); another window moving off a GimmeZeroZero window's border redraws all its gadgets on 3.1, not on lxa.
 ### Phase 257 — Locale catalogs & non-English apps
@@ -268,7 +270,7 @@ The order below is provisional. After Phase 231/232 it is re-sorted by how often
 ### Phase 264 — Workbench
 - [ ] C:LoadWB (deferred from Phase 221). The harnesses already open LoadWB's backdrop window (`LXA_WB_WINDOW`, Phase 238); its desktop icons are missing.
 - [ ] Drawer icons (`.info`) for lxa's system partition: the reference's SYS: root holds 8 (DOpus lists them; `dopus-startup`/`dopus-select` scroller-knob ignore regions).
-- [ ] Decide the scope: a hosted `LoadWB` desktop versus relying on the host desktop. If a desktop is in scope, evaluate porting AROS Wanderer or its WB 3.x-style workbench.library parts.
+- [ ] Decide the scope: a hosted `LoadWB` desktop versus relying on the host desktop. If a desktop is in scope, write lxa's own (AROS Wanderer as a reference only).
 
 ### Phase 265 — Audio validation (was legacy 169)
 - [ ] Observable audio output (a captured sample buffer), checked against an audio-using app scenario on the reference.
@@ -362,4 +364,6 @@ The order below is provisional. After Phase 231/232 it is re-sorted by how often
 | 237 | Fred Fish crash classes: of the 299 Phase 232 lxa-only crashes 9 remain (owned by 237b/238/240/255; `doc/sweeps/2026-10-09-fish-crashlist.md`). Fixed, each with a 3.1 probe: entry registers, any-a6 dos, signed OpenLibrary versions, exec I/O returns and scratch registers, `pr_ReturnAddr`, ParentDir at assign roots (v0.11.21-26); address 0 = 0 and a full vector table (`exec/lowmem`, `exec/vectors`), CreateNewProc runs only higher-priority children first (`dos/newprocrun`), `dl_UtilityBase`/`dl_IntuitionBase`, OpenLibrary from the current directory (`exec/libpath`), FPU reported and the coprocessor core completed with task-switch context (`exec/fpu`), CIA-A buttons (`exec/buttons`), WaitBlit/OwnBlitter keep registers (`graphics/blitregs`), custom gadgets via the MutualExclude hook (`intuition/customhook`), PRT: (`dos/prt`), SuperState/UserState (`exec/superstate`), DisplayAlert waits for a button, ViewAddress' ViewPort list (`intuition/viewaddress`), console unit font (`console/conunit`), input handlers keep the writer's registers (`input/handlerregs`), InitResident of any type (`exec/initresident`); harness: `LXA_PROGDIR_ASSIGNS=0`, WB 3.1 fonts, `LXA_REF_POOL`, bounded invalid-write logging. | v0.11.31 |
 | 237b | Full Fred Fish mass re-run (`doc/sweeps/2026-10-10-fish-massrun.md`, first complete reference side: 9943 programs, instances 0-7): lxa-only crashes 299 -> 13, largest class 4 (gate < 5). Harness: lxa budget from program load + WAIT_EXIT margin, "running" = program not returned on both sides, reference retries, memory-dependent list. Fixed with 3.1 probes: VBR in fast RAM (`exec/superstate`, `exec/vectors`), misc.resource (`exec/miscres`), registers saved around foreign library/device vectors and InitSemaphore (`exec/initregs`, `exec/preserveregs`), GetCC from user mode (`exec/getcc`), unknown ILLEGAL = illegal instruction (`exec/illegal`), SPCmp/IEEE Tst condition codes (`math/cmpccr`), BltBitMap() call cost + byte-wise host blits (`graphics/blittime`), WaitForChar host SIGBUS. Residue owned by 237c/255. | v0.11.34 |
 | 238 | Corpus app failures: every corpus app reaches its window, none `garbage`/`untested` (`doc/sweeps/2026-10-09-sweep.md`, compat 2 platinum / 15 gold / 19 silver, was 6 garbage + 5 untested). Scout, Oberon, ADPro, Asm-One, AQB, BTII, SIGMAth(2) (v0.11.30: memory handlers, pools, 2 MB chip + fast RAM, AROS colorwheel/gradientslider/tapedeck, scenario `stack:`/`writable:`); AmiBlitz3: Disable/Enable/Forbid/Permit and the semaphore calls preserve all registers (`exec/preserveregs`; relay traces record the caller's `ra`); asl screen-mode requester identical to 3.1 (full display database, Control menu, Mode Properties, all ASLSM tags; goldens + probes `asl/smalloc`, `graphics/modedb`); volume names: boot volume "System", RAM: = "Ram Disk" with T:/ENV: (`dos/volnames`), twin-runner SYS: laid out like the 3.1 partition; harness Workbench backdrop window `LXA_WB_WINDOW` (`intuition/wbwindow`, Fish ISAM no longer crashes); ExAll no longer overruns small buffers; lxaprobe `MENU` reaches sub-items. Residue owned by 244/258/264. | v0.11.32 |
+| 244 | Corpus residue (`doc/sweeps/2026-10-10-sweep.md`): compat 2 platinum / 25 gold / 9 silver (was 15 gold / 19 silver), sweep tree-diff apps 19 -> 9. OpenWindow widens borders around GACT_*BORDER gadgets, GACT_BORDERSNIFF rules, AddGadget = AddGList (`intuition/bordersniff`; SIGMAth(2), BTII); LayoutMenusA moves items/sub-menus inside the screen and continues long menus in columns (`gadtools/menufit`; ADPro, MaxonBASIC, Scout); GT_Underscore underline IntuiTexts (`gadtools/underscore`); tag windows take the screen pens (`intuition/scrpens`; ReSource); "input.device"/"ramlib" system tasks (`exec/systasks`); IntuiTextLength/PrintIText use ITextFont (`intuition/itextfont`; FinalWriter); BuildSysRequest opens the Workbench before measuring, ownerless requesters are visitors (`intuition/reqfont`; ACE); fillrectclass (`intuition/fillrect`; reqtools/FontView); GetScreenData ignores the screen for WBENCHSCREEN, negative screen sizes fail (`intuition/screenzero`; GFA-BASIC); BOOL entry points return clean 32-bit D0 (`dos/boolret`; AmiBlitz3); scenarios: BTII waits for its menus, MaxonBASIC/ProWrite use WB 3.1 fonts; tracediff maps renamed app tasks. Residue owned by 237c/243/252/255/256 (`doc/sweeps/owners.yaml`). | v0.11.45 |
 | 239 | BCPL programs: AROS m68k BCPL support ported (`src/rom/bcpl/`, `doc/third-party-code.md`); every command gets a2 = global vector, a5/a6 = BCPL call/return, a1 = BCPL stack (as 3.1, verified with `dos/entryregs`); ROM console segment for 1.3 Run/NewCLI; probe `dos/bcpl`. All six BCPL programs of the Fish corpus exit like on 3.1. Remaining BCPL stubs (coroutines, longjump, requesters) are in the stub inventory. | v0.11.27 |
+| 245 | AROS code replaced by lxa's own (licensing: AROS is a reference only): BCPL support (`doc/bcpl.md`) and colorwheel/gradientslider/tapedeck gadget classes (`doc/gadget-classes.md`) rewritten, both APL LICENSE files and third-party rows gone; audit of every "based on AROS" site (`doc/aros-audit.md`): 10 rewritten (area vector collection, AddFont/RemFont, FontExtent, InitBitMap, DrawBorder, DoubleClick, MakeFunctions + dead `__AROS_*` macros, ReleaseSemaphore hand-over, Exception, WaitIO), 13 comments reworded to cite NDK/RKRM/3.1, 2 interface facts kept (`LA_*` tag values, SetIPrefs codes). Suite and `suite-ref --lxa-check` (338 programs) green. | v0.11.62 |

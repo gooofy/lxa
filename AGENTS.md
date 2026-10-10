@@ -26,7 +26,7 @@ Since v0.11 lxa is developed against a **real AmigaOS 3.1 reference machine** (F
 3. **Breadth before depth.** Sweep many apps shallowly, cluster divergences by root cause, fix in order of frequency (`compat-sweep` skill).
 4. **Goldens are never edited to match lxa.** A golden comes only from the reference backend. If you believe a golden is wrong, re-capture it on the reference.
    Goldens live in `tests/golden/<app>/<scenario>/` (`python3 -m rdd promote <scenario.yaml> --phase N` from `tools/`; CTest label `golden`, one test per golden). Each golden is a **ratchet**: the lxa divergence at promotion time (known tree diffs, pixel budget) is recorded with the phase that owns it; any new divergence fails, any improvement prints `tighten` — then re-promote. A golden may only be quarantined (`"disabled": {"phase": N}` in `golden.json`) by a phase whose objective is reaching equivalence; `golden_lint` enforces that every phase named exists.
-5. **Clean-room.** Observe AmigaOS only as a black box: run it, probe it, trace it. **Never consult leaked AmigaOS source or Kickstart disassembly** (material under `~/media/sys/amiga/os/` is off limits for implementation). Disassembling *applications* remains allowed (§6.20). Porting **AROS** code is allowed (it is a clean-room reimplementation); keep its licence headers and record it in `doc/third-party-code.md`.
+5. **Clean-room.** Observe AmigaOS only as a black box: run it, probe it, trace it. **Never consult leaked AmigaOS source or Kickstart disassembly** (material under `~/media/sys/amiga/os/` is off limits for implementation). Disassembling *applications* remains allowed (§6.20). **AROS** source may be read as a reference only: never copy or port AROS code into lxa (its APL licence does not fit lxa's MIT licence) - every implementation is lxa's own.
 
 ## 2. Standard Workflow
 1. Read `roadmap.md` and identify the active phase or the follow-up you are explicitly parking.
@@ -556,6 +556,13 @@ The built-in library stays private to lxa's ROM and `OpenLibrary()` loads `LIBS:
 - **"Preserves all registers" is ABI.** Disable/Enable/Forbid/Permit and ObtainSemaphore/ObtainSemaphoreShared/ReleaseSemaphore go through `EXEC_PRESERVE_ALL` wrappers (`exec.c`); GCC's C code may clobber D0/D1/A0/A1. AmiBlitz3 kept a list pointer in D0 across `Disable()` - the symptom was an `AllocPooled(NULL, …)` thousands of calls later. Relay traces carry `"ra"` (caller's return address): search the app's binaries for the bytes before it to find the call site.
 - **Volumes**: the boot volume is "System", RAM: is "Ram Disk" (`vfs_set_volume_name()`); NameFromLock/Examine use volume names and they work as path prefixes. Never assign a name that is also a volume name (the old `System:` assign). pylxa builds a private SYS: root laid out like the WB 3.1 partition; T:/ENV: live in RAM:.
 - **`LXA_WB_WINDOW=1`** (suite-ref and mass runs) opens LoadWB's backdrop window on the Workbench screen before the program starts, as on the reference; it is `app: false` in tree dumps and not in `lxa_get_window_count()`.
+
+### 6.30 Corpus Residue Lessons (Phase 244)
+
+- **Return registers are ABI, also for BOOL.** GCC returns a 16-bit BOOL in the low word of D0 and leaves the upper word undefined; programs test all 32 bits (AmiBlitz3: `MatchPatternNoCase()` "matched" with 0x004B0000). Library entry points return `LONG`, never `BOOL`/`BYTE` (probes `dos/boolret`, `exec/byteret`).
+- **The reference trace keeps only the last `TRACE` command** (lxaprobe resets its log per library) and at most 64 functions: trace one library per run, list functions by name instead of `lib:*`.
+- **tracediff picks the reference's busiest task**; when the app renames itself or the reference runs system tasks (input.device, Background CLI), name the task (`build`-local helper or `--task`).
+- **Calls from disk libraries count as the app's** on both systems (reqtools, diskfont): a missing ROM class shows up as `NewObjectA(..."fillrectclass") -> 0` inside a third-party library's call sequence.
 
 ## 7. Quick Start
 1. Check `roadmap.md`.

@@ -117,7 +117,7 @@ int main(void)
         print("OK: 1 pixel -> BytesPerRow=2 (minimum word)\n");
     }
 
-    /* Per AROS: InitBitMap() does NOT touch Planes[] - caller must set them.
+    /* AmigaOS 3.1: InitBitMap() does NOT touch Planes[] - caller must set them.
      * Verify this by pre-setting Planes to a known value and checking it's unchanged. */
     for (i = 0; i < 8; i++) {
         bm.Planes[i] = (PLANEPTR)(ULONG)(i + 1);  /* Set to non-NULL marker values */

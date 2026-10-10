@@ -1,6 +1,7 @@
 # Phase 230 launch scenario: the compat DB (apps/compat.yaml) derives the
 # rating of ProWrite from it.  Window title from the discovery twin run.
 name: app-prowrite
+fonts: wb31        # its Font menu lists the Workbench 3.1 fonts (Phase 244)
 app: {manifest: ProWrite}
 steps:
   - launch

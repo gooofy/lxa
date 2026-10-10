@@ -1450,7 +1450,7 @@ static VOID _layers_DisposeLayerInfo ( register struct LayersBase *LayersBase __
  * InvokeBackfillForNewLayer - Apply the layer's BackFill hook to all visible
  * ClipRects immediately after the layer is created and ClipRects are built.
  *
- * Per AROS rom/layers/createlayer.c: the backfill hook is called for every
+ * layers.doc CreateUpfrontHookLayer(): the backfill hook is called for every
  * newly-exposed region so that the fresh layer starts with a clean background
  * (pen 0) rather than inheriting whatever pixels were previously on screen.
  * Without this, dismissing one window and opening another at the same
@@ -1964,7 +1964,7 @@ static VOID _layers_ScrollLayer ( register struct LayersBase *LayersBase __asm("
  * Sets up ClipRects for rendering only to damaged areas.
  * Returns TRUE if there are areas to refresh, FALSE otherwise.
  *
- * Per RKRM/AROS: saves the current ClipRect list and replaces it with
+ * layers.doc BeginUpdate(): saves the current ClipRect list and replaces it with
  * ClipRects clipped to the damaged region. The application then draws
  * normally, but rendering is automatically clipped to damaged areas.
  */
@@ -2008,7 +2008,7 @@ static LONG _layers_BeginUpdate ( register struct LayersBase *LayersBase __asm("
 /*
  * EndUpdate - End rendering, restore ClipRects (offset -0x54)
  *
- * Per RKRM/AROS: restores the original ClipRect list saved by BeginUpdate,
+ * layers.doc EndUpdate(): restores the original ClipRect list saved by BeginUpdate,
  * frees the damage-specific ClipRects, and optionally clears the DamageList.
  */
 static VOID _layers_EndUpdate ( register struct LayersBase *LayersBase __asm("a6"),
@@ -2172,7 +2172,7 @@ static VOID _layers_UnlockLayerInfo ( register struct LayersBase *LayersBase __a
 /*
  * SwapBitsRastPortClipRect - Swap backing store with visible (offset -0x7e)
  *
- * Per RKRM/AROS: For LAYERSMART layers, swaps the bitmap contents between
+ * layers.doc SwapBitsRastPortClipRect(): swaps the bitmap contents between
  * the screen (rp->BitMap at cr->bounds position) and the ClipRect's
  * off-screen backing store (cr->BitMap). This is used during layer
  * operations to save/restore obscured content.
@@ -2566,7 +2566,7 @@ static struct Hook * _layers_InstallLayerInfoHook ( register struct LayersBase *
 /*
  * SortLayerCR - Sort ClipRects for scrolling (offset -0xd2)
  *
- * Per AROS: Sorts the layer's ClipRect linked list based on scroll direction
+ * layers.doc SortLayerCR(): sorts the layer's ClipRect list for the scroll direction
  * (dx, dy) so that blits happen in the correct order (back-to-front relative
  * to scroll direction) to prevent overwriting source data.
  *
@@ -2663,7 +2663,7 @@ static VOID _layers_SortLayerCR ( register struct LayersBase *LayersBase __asm("
 /*
  * DoHookClipRects - Call hook for each ClipRect (offset -0xd8)
  *
- * Per RKRM/AROS: Iterates over every ClipRect in the layer, clips the
+ * layers.doc DoHookClipRects(): iterates over every ClipRect in the layer, clips the
  * requested rectangle to each ClipRect's bounds, and calls the hook
  * for each non-empty intersection.
  *
@@ -2701,11 +2701,18 @@ static VOID _layers_DoHookClipRects ( register struct LayersBase    *LayersBase 
 
     ObtainSemaphore(&layer->Lock);
 
-    /* layer-relative rectangle -> screen, clipped to the layer */
-    boundrect.MinX = rect->MinX + layer->bounds.MinX - layer->Scroll_X;
-    boundrect.MinY = rect->MinY + layer->bounds.MinY - layer->Scroll_Y;
-    boundrect.MaxX = rect->MaxX + layer->bounds.MinX - layer->Scroll_X;
-    boundrect.MaxY = rect->MaxY + layer->bounds.MinY - layer->Scroll_Y;
+    /* the rectangle is relative to the layer's (scrolled) origin: move it
+     * to screen coordinates and clip it to the layer */
+    {
+        WORD originX = layer->bounds.MinX - layer->Scroll_X;
+        WORD originY = layer->bounds.MinY - layer->Scroll_Y;
+
+        boundrect = *rect;
+        boundrect.MinX += originX;
+        boundrect.MaxX += originX;
+        boundrect.MinY += originY;
+        boundrect.MaxY += originY;
+    }
     if (IntersectRectangles(&boundrect, &layer->bounds, &boundrect))
         LayerHookRect(layer, hook, &boundrect);
 

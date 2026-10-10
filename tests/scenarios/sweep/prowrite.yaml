@@ -1,6 +1,7 @@
 # Phase 231 sweep scenario, generated from tests/scenarios/apps/prowrite.yaml
 # by `python3 -m rdd sweep gen` - edit the app scenario, not this file.
 name: sweep-prowrite
+fonts: wb31        # its Font menu lists the Workbench 3.1 fonts (Phase 244)
 app: {manifest: ProWrite}
 steps:
   - launch

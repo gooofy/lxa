@@ -1,8 +1,8 @@
 /*
  * Exec Miscellaneous Verification Tests (Phase 78-A-6)
  *
- * Tests for remaining Exec miscellaneous functions verified against
- * AROS reference source code:
+ * Tests for remaining Exec miscellaneous functions (expected output
+ * captured on the AmigaOS 3.1 reference):
  *
  *   1. RawDoFmt maxwidth (string precision truncation)
  *   2. RawDoFmt %% at end of format string
@@ -132,8 +132,8 @@ static int format_and_check(const char *fmt, APTR args, const char *expected)
 }
 
 /*
- * List accessor macros matching AROS exec/lists.h semantics.
- * These are the inline versions that m68k programs would use.
+ * List accessor macros (the same semantics as lxa's GETHEAD() & co. in
+ * src/rom/util.h): first/last/next/previous real node, or NULL.
  */
 #define GetHead(l)  (((struct List *)(l))->lh_Head->ln_Succ \
                      ? ((struct List *)(l))->lh_Head : (struct Node *)0)

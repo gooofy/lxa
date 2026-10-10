@@ -38,7 +38,7 @@
 /* Full structure in devices/conunit.h but we inline the relevant fields */
 struct ConUnitPens {
     /* We need to reach cu_FgPen and cu_BgPen which are after other fields */
-    /* Offset calculation based on AROS conunit.h:
+    /* Offset calculation based on the NDK's devices/conunit.h:
      * - cu_MP (MsgPort): ~34 bytes
      * - cu_Window (4 bytes)
      * - cu_XCP through cu_YCCP (14 WORDs = 28 bytes)
