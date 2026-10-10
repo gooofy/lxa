@@ -231,6 +231,8 @@ Built-in C: commands with full AmigaDOS template support:
 
 ## Current Status
 
+**Version 0.11.64** - Phase 237c closed: the Fred Fish residue. Of 9943 Fish programs, those that hang or lack the window they open on AmigaOS 3.1 went from 194 to 68 and the lxa-only crashes from 13 to 6 (`doc/sweeps/2026-10-10-fish-residue.md`). Every fix is checked by a probe captured on the reference: overlaid executables and the rarer hunk types, dos results in D1, a real DosList with FileLocks, disk.resource, AllocTrap, Paula audio interrupt requests, BltClear patterns, the registers the text and drawing functions leave behind, disk libraries whose init returns no base, and OpenWindow() on the Workbench for WBENCHSCREEN windows. commodities.library is now lxa's own complete implementation.
+
 **Version 0.11.62** - Phase 245 closed: no AROS-derived code remains in lxa (AROS is a reference only). Besides the rewritten BCPL support and gadget classes, every former "based on AROS" site was audited (`doc/aros-audit.md`): area fills, AddFont/RemFont, FontExtent, DrawBorder, DoubleClick, MakeFunctions, semaphore hand-over, Exception and WaitIO are rewritten as lxa's own code with unchanged behaviour.
 
 **Version 0.11.61** - colorwheel.gadget, gradientslider.gadget and tapedeck.gadget rewritten as lxa's own code (Phase 245; `doc/gadget-classes.md`): the 3.1 probes still match, HSB/RGB conversion is bit-identical to before on ~250 million inputs, and no AROS-licensed file remains in lxa.

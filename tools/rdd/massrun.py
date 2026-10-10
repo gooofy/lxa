@@ -152,6 +152,18 @@ def run_lxa(progs, out, root, jobs, frames, build):
     sysdir = os.path.join(out, "system")
     shutil.rmtree(sysdir, ignore_errors=True)
     shutil.copytree(os.path.join(ROOT, "share", "lxa", "System"), sysdir)
+    # the same LIBS: as the reference: the third-party libraries that lxa's
+    # system directory carries for the app corpus (arp, req, reqtools,
+    # powerpacker ...) are not on the 3.1 reference (Phase 237c: Fish ATCopy
+    # and Helper exit there without arp/req.library, ReqTools' demo)
+    ref_libs = os.path.join(os.environ.get("LXA_REFSYS_DIR", os.path.expanduser("~/.cache/lxa/refsys")),
+                            "SYS-aga", "Libs")
+    if os.path.isdir(ref_libs):
+        for dirpath, _dirs, files in os.walk(os.path.join(sysdir, "Libs")):
+            rel = os.path.relpath(dirpath, os.path.join(sysdir, "Libs"))
+            for fn in files:
+                if not os.path.exists(os.path.join(ref_libs, rel, fn)):
+                    os.remove(os.path.join(dirpath, fn))
     env = dict(os.environ, PYTHONPATH=os.path.join(ROOT, "tools"), LXA_SYSTEM_DIR=sysdir)
 
     def one(p):
