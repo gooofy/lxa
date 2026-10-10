@@ -231,6 +231,8 @@ Built-in C: commands with full AmigaDOS template support:
 
 ## Current Status
 
+**Version 0.11.34** - Full Fred Fish mass run (Phase 237b closed): all 9943 Fish programs ran on lxa and, for the first time completely, on AmigaOS 3.1 (`doc/sweeps/2026-10-10-fish-massrun.md`). Only 13 programs still crash on lxa alone (was 299). Exception vectors now live in fast RAM as on the 68040 reference, misc.resource exists, foreign library and device code may clobber registers, `GetCC()`, the math libraries' condition codes and `BltBitMap()`'s cost match 3.1, and a stray ILLEGAL instruction is a program crash instead of a silent stop.
+
 **Version 0.11.32** - Corpus apps (Phase 238 closed): all 36 corpus apps now open their windows as on AmigaOS 3.1 - none is rated garbage or untested any more (2 platinum, 15 gold, 19 silver; `doc/sweeps/2026-10-09-sweep.md`). AmiBlitz3 starts (exec's Disable/Enable/Forbid/Permit and semaphore calls keep all registers, as documented), asl.library's screen-mode requester is identical to 3.1's, files are named by their volumes ("System:C", "Ram Disk:T") and the test harnesses get a Workbench laid out like the reference's.
 
 **Version 0.11.31** - Fred Fish compatibility (Phase 237 closed): of the 299 Fish programs that crashed only on lxa, 9 still do (`doc/sweeps/2026-10-09-fish-crashlist.md`). The FPU is reported and complete, low memory and the vector table look like AmigaOS 3.1's, new processes, custom gadgets, input handlers, `InitResident()`, `SuperState()`, `DisplayAlert()`, `PRT:`, the console unit's font and Intuition's View now behave as on the reference, each verified with a probe.

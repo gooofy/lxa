@@ -129,6 +129,12 @@ def run_lxa_one(rel, root, frames, build=None):
         res["rc"] = None if res["running"] else lxa.exit_code()
         res["windows"] = lxa.lib.lxa_get_window_count()
         res["exceptions"] = lxa.exceptions()
+        if not res["running"] and res["exceptions"]:
+            # the program returned: exceptions are other tasks' (a shell it
+            # started, a detached part); the reference's WAIT_EXIT reports
+            # the exit code then too (Phase 237b: Fish NewAUSH)
+            res["other_exceptions"] = res["exceptions"]
+            res["exceptions"] = []
         res["unimplemented"] = lxa.unimplemented()
         res["stdout"] = lxa.output()[:4000]
     except Exception as e:  # noqa: BLE001 - a load failure is a result too
@@ -323,11 +329,16 @@ def program_kind(rel):
     return "non-program" if NONPROGRAM_RX.search(rel) else "program"
 
 
-# Programs whose outcome depends on the bytes of the Kickstart ROM or of low
-# memory (they read or write through a NULL pointer into it): neither lxa
+# Programs whose outcome depends on the bytes of the Kickstart ROM, of low
+# memory or of the registers they are started with (they read or write
+# through a NULL pointer, or are modules of another program): neither lxa
 # nor the reference outcome says anything about compatibility.  Each entry
 # was established by disassembling the program.
 MEMORY_DEPENDENT = {
+    "fish-0734/PowerVisor/s/pv/GetCode": "PowerVisor function module: uses the A2 PowerVisor "
+                                         "calls it with (Phase 237b)",
+    "fish-0734/PowerVisor/s/pv/GetQual": "PowerVisor function module: uses the A2 PowerVisor "
+                                         "calls it with (Phase 237b)",
     "fish-0363/WO/wo1.0d": "reads IntuitionBase->ActiveScreen through a NULL IntuitionBase "
                            "(Kickstart code via the vector table, Phase 237)",
     "fish-0843/ParM/2.0/SetMouse": "parm.library's handler process runs (priority 5) before "
