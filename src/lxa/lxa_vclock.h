@@ -84,4 +84,12 @@ void     vclock_end_timeslice(void);
 /* Advance virtual time without executing (deterministic mode only). */
 void     vclock_advance_us(uint64_t us);
 
+/* Charge the running m68k code for work done on the host on its behalf
+ * (deterministic mode only): the CPU is busy for `cycles` more cycles,
+ * e.g. while it waits for the blitter (Phase 237b). */
+void     vclock_consume(uint32_t cycles);
+
+/* The virtual CPU clock in Hz. */
+uint32_t vclock_cpu_hz(void);
+
 #endif /* LXA_VCLOCK_H */

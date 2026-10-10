@@ -1,0 +1,5 @@
+OpenResource(misc.resource) = non-NULL
+alloc parallel port -> NULL
+alloc parallel port again -> "probe-a"
+alloc parallel bits -> NULL
+alloc parallel port after free -> NULL

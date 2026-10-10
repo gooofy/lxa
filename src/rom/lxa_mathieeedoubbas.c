@@ -147,6 +147,8 @@ asm(
 "   move.l  #5003, d0           | EMU_CALL_IEEEDP_TST         \n"
 "   illegal                                                   \n"
 "   move.l  (sp)+, d2           | restore d2                  \n"
+"   move.l  d0, d1              | X = sign (AmigaOS 3.1, probe \n"
+"   add.l   d1, d1              |   math/cmpccr)               \n"
 "   tst.l   d0                  | set condition codes         \n"
 "   rts                                                       \n"
 );

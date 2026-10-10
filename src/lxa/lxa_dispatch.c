@@ -203,6 +203,13 @@ static inline int isleap (int y)
 
 int op_illg(int level)
 {
+    /* Emulator calls are the ILLEGAL instruction ($4AFC) with the call
+     * number in D0.  Every other illegal opcode (and line-A/line-F words
+     * Musashi routes here) is the program's: it takes the exception, as
+     * on AmigaOS (Phase 237b). */
+    if ((level & 0xffff) != 0x4afc)
+        return 0;
+
     uint32_t d0 = m68k_get_reg(NULL, M68K_REG_D0);
     DPRINTF (LOG_INFO, "ILLEGAL, d=%d\n", d0);
 
@@ -1733,6 +1740,9 @@ int op_illg(int level)
 
         case EMU_CALL_GFX_BLT_BITMAP:
         {
+            /* BltBitMap() call cost measured on the reference */
+            #define BLIT_CALL_NS     205000ull
+            #define BLIT_WORD_NS     4ull
             /*
              * Phase 112: native host-C implementation of graphics.library
              * BltBitMap(). Argument struct (28 bytes) lives in m68k memory,
@@ -1783,6 +1793,7 @@ int op_illg(int level)
             uint16_t pixelMaskBpr  = m68k_read_memory_16(args_ptr + 22);
             uint32_t pixelMaskAddr = m68k_read_memory_32(args_ptr + 24);
             uint16_t maskMode      = m68k_read_memory_16(args_ptr + 28);
+            uint16_t flags         = m68k_read_memory_16(args_ptr + 30);
 
             #undef READ_W
 
@@ -1965,6 +1976,42 @@ int op_illg(int level)
                             pmRow[b] = m68k_read_memory_8(pm_addr + b);
                     }
 
+                    /* Byte-wise path (no pixel mask): the rows are buffered,
+                     * so each destination byte is the minterm of the shifted
+                     * source byte and the destination byte under the edge
+                     * mask.  The bit loop below costs a host second per few
+                     * hundred full-screen blits (Fish Marble-Slide). */
+                    if (!pixelMaskAddr && !maskMode) {
+                        int off = src_shift - dst_shift;
+                        int last_bit = dst_shift + aw - 1;
+                        for (int b = 0; b < dst_byte_count; b++) {
+                            int lo = b * 8, hi = b * 8 + 7;
+                            uint8_t m = 0xff;
+                            if (lo < dst_shift)
+                                m &= (uint8_t)(0xff >> (dst_shift - lo));
+                            if (hi > last_bit)
+                                m &= (uint8_t)(0xff << (hi - last_bit));
+                            int sp = lo + off;          /* source bit of this byte's MSB */
+                            uint32_t w = 0;
+                            for (int k = 0; k < 2; k++) {
+                                int sb = (sp >> 3) + k;
+                                if (sp < 0)
+                                    sb = ((sp - 7) / 8) + k;
+                                w = (w << 8) | ((sb >= 0 && sb < src_byte_count) ? srcRow[sb] : 0);
+                            }
+                            int sh = sp - ((sp < 0 ? ((sp - 7) / 8) : (sp >> 3)) * 8);
+                            uint8_t S = (uint8_t)(w >> (8 - sh));
+                            uint8_t D = dstRow[b];
+                            uint8_t N = 0;
+                            if (minterm & 0x80) N |= (uint8_t)( S &  D);
+                            if (minterm & 0x40) N |= (uint8_t)( S & ~D);
+                            if (minterm & 0x20) N |= (uint8_t)(~S &  D);
+                            if (minterm & 0x10) N |= (uint8_t)(~S & ~D);
+                            dstRow[b] = (uint8_t)((D & ~m) | (N & m));
+                        }
+                        goto blt_row_done;
+                    }
+
                     /* Bit loop */
                     int col_first, col_last, col_step_dir;
                     if (col_reverse) {
@@ -2026,6 +2073,7 @@ int op_illg(int level)
                             dstRow[d_byte] &= (uint8_t)~(1 << d_bit);
                     }
 
+                blt_row_done:
                     /* Write modified dst row back */
                     for (int b = 0; b < dst_byte_count; b++)
                         m68k_write_memory_8(dst_row_addr + b, dstRow[b]);
@@ -2033,6 +2081,22 @@ int op_illg(int level)
             }
 
             m68k_set_reg(M68K_REG_D0, (uint32_t)planesAffected);
+
+            /* A BltBitMap() call costs the caller time on AmigaOS 3.1:
+             * about 205 us plus 0.004 us per plane word on the reference
+             * machine (probe graphics/blittime: 240 us for 64x64x1, 275 us
+             * for 320x200x2, 380 us for 320x188x5; the copy itself runs on
+             * the host here).  Fish Marble-Slide paces its full-screen
+             * blit loop by it (Phase 237b).  Internal blits (layers, clip
+             * rects) are not charged. */
+            if (flags & 1)
+            {
+                uint64_t words = (uint64_t)(((dx + aw - 1) >> 4) - (dx >> 4) + 1) *
+                                 (uint64_t)ah * (uint64_t)planesAffected;
+                uint64_t ns = BLIT_CALL_NS + words * BLIT_WORD_NS;
+                vclock_consume((uint32_t)(ns * vclock_cpu_hz() / 1000000000ull));
+            }
+
             DPRINTF(LOG_DEBUG, "lxa_dispatch: BltBitMap srcBM=%08x destBM=%08x src=(%d,%d) dst=(%d,%d) size=%dx%d minterm=%02x mask=%02x srcBpr=%d srcRows=%d srcDepth=%d dstBpr=%d dstRows=%d dstDepth=%d aw=%d ah=%d planesAffected=%d\n",
                 srcBM, destBM, xSrc, ySrc, xDest, yDest, xSize, ySize,
                 (unsigned)minterm, (unsigned)planeMask,
@@ -3752,29 +3816,14 @@ int op_illg(int level)
         default:
         {
             /*
-             * Undefined EMU_CALL - this happens when the PC jumps to
-             * invalid/corrupt code. This typically occurs during the main
-             * process's libnix exit sequence when stack corruption happens
-             * due to multitasking timing issues.
-             * 
-             * When this happens during normal program exit (after the main
-             * task finishes its work), we should exit gracefully rather than
-             * crashing. The return value has already been set by g_rv from
-             * a previous EMU_CALL_EXIT or EMU_CALL_STOP.
+             * ILLEGAL without a known call number: a program executed
+             * $4AFC (Fred Fish Scrambler does on purpose).  It takes the
+             * illegal-instruction exception, as on AmigaOS 3.1, which
+             * shows a Software Failure (Phase 237b).
              */
-            DPRINTF (LOG_WARNING, "*** undefined EMU_CALL #%d (corrupt PC at 0x%08x)\n", 
+            DPRINTF (LOG_WARNING, "*** ILLEGAL with unknown EMU_CALL #%d at 0x%08x: illegal instruction exception\n",
                      d0, m68k_get_reg(NULL, M68K_REG_PC));
-            
-            /*
-             * Just exit the emulator. Any child tasks will be terminated
-             * along with the emulator. This is acceptable because:
-             * 1. The main task has already finished its work
-             * 2. Child tasks that didn't get to cleanup are acceptable loss
-             * 3. This prevents hangs from orphaned child tasks
-             */
-            vclock_end_timeslice();
-            g_running = FALSE;
-            break;
+            return 0;
         }
     }
 

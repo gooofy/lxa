@@ -1,0 +1,21 @@
+SPCmp(left 20, right 100): d0 -1 ccr -----
+SPCmp(left 100, right 20): d0 1 ccr -N--C
+SPCmp(left 20, right 20): d0 0 ccr --Z--
+SPCmp(left -3, right 20): d0 -1 ccr -N-VC
+SPTst(100): d0 1 ccr -----
+SPTst(-3): d0 -1 ccr -N---
+SPTst(0): d0 0 ccr --Z--
+IEEESPCmp(left 20, right 100): d0 -1 ccr -N---
+IEEESPCmp(left 100, right 20): d0 1 ccr -----
+IEEESPCmp(left 20, right 20): d0 0 ccr --Z--
+IEEESPCmp(left -3, right 20): d0 -1 ccr -N---
+IEEESPTst(100): d0 1 ccr -----
+IEEESPTst(-3): d0 -1 ccr XN---
+IEEESPTst(0): d0 0 ccr --Z--
+IEEEDPCmp(left 20, right 100): d0 -1 ccr -N---
+IEEEDPCmp(left 100, right 20): d0 1 ccr -----
+IEEEDPCmp(left 20, right 20): d0 0 ccr --Z--
+IEEEDPCmp(left -3, right 20): d0 -1 ccr -N---
+IEEEDPTst(100): d0 1 ccr -----
+IEEEDPTst(-3): d0 -1 ccr XN---
+IEEEDPTst(0): d0 0 ccr --Z--

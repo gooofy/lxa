@@ -198,12 +198,15 @@ asm(
 "         /* Use Scc to capture result immediately after cmp */   \n"
 "         slt       d1              | d1 = 0xff if lt, 0 otherwise\n"
 "         sgt       d0              | d0 = 0xff if gt, 0 otherwise\n"
+"         /* the CCR of the compare is the result for the caller's \n"
+"          * branch (probe math/cmpccr; Manx C branches on it) */  \n"
+"         .short    0x42e7          | move.w ccr,-(sp)            \n"
 "         ext.w     d1              | extend to word (-1 or 0)    \n"
 "         ext.l     d1              | extend to long (-1 or 0)    \n"
 "         ext.w     d0              | extend to word (-1 or 0)    \n"
 "         ext.l     d0              | extend to long (-1 or 0)    \n"
 "         sub.l     d1, d0          | d0 = gt - lt = result       \n"
-"         tst.l     d0              | set CCR for result          \n"
+"         move.w    (sp)+, ccr      | the compare's CCR           \n"
 "         rts                       |                             \n"
 );
 

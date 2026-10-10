@@ -557,7 +557,7 @@ if(BUILD_GTESTS AND GTEST_FOUND)
         foreach(_shard 0 1 2 3)
             add_test(
                 NAME ref_expected_outputs_${_shard}
-                COMMAND ${Python3_EXECUTABLE} -m rdd suite-ref --lxa-check
+                COMMAND ${Python3_EXECUTABLE} -m rdd suite-ref --lxa-check --timeout 60000
                     --shard ${_shard}/4 -j 4 --build ${CMAKE_BINARY_DIR}
                 WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/tools
             )

@@ -9,3 +9,4 @@ ReleaseSemaphore (shared): d0 kept, d1 kept, a0 kept, a1 kept
 Enable (nested): d0 kept, d1 kept, a0 kept, a1 kept
 Enable (last): d0 kept, d1 kept, a0 kept, a1 kept
 Permit (last): d0 kept, d1 kept, a0 kept, a1 kept
+InitSemaphore: d0 kept, d1 kept, a0 changed, a1 kept

@@ -38,6 +38,7 @@
 
 //#define ENABLE_DEBUG
 
+#include <resources/misc.h>
 #include "util.h"
 #include "exceptions.h"
 
@@ -409,6 +410,79 @@ static struct Library *exec_create_cia_resource(struct ExecBase *SysBase,
     return &cia->lib;
 }
 
+/*
+ * misc.resource (Kickstart ROM resource, NDK resources/misc.h): ownership
+ * of the serial and parallel port registers and bits.  AllocMiscResource()
+ * returns NULL when the unit was free (the caller owns it now), otherwise
+ * the name of the current owner; FreeMiscResource() releases it (probe
+ * exec/miscres - Fish voice.library opens it during its init).
+ */
+struct LxaMiscResource
+{
+    struct Library lib;
+    char *owners[MR_PARALLELBITS + 1];
+};
+
+static char g_misc_bad_unit[] = "invalid unit";
+
+static char *_misc_AllocMiscResource(register struct LxaMiscResource *misc __asm("a6"),
+                                     register ULONG unit __asm("d0"),
+                                     register char *name __asm("a1"))
+{
+    struct ExecBase *SysBase = *(struct ExecBase **)4;
+    char *owner;
+
+    if (unit > MR_PARALLELBITS)
+        return g_misc_bad_unit;
+    Forbid();
+    owner = misc->owners[unit];
+    if (!owner)
+        misc->owners[unit] = name;
+    Permit();
+    return owner;
+}
+
+static void _misc_FreeMiscResource(register struct LxaMiscResource *misc __asm("a6"),
+                                   register ULONG unit __asm("d0"))
+{
+    struct ExecBase *SysBase = *(struct ExecBase **)4;
+
+    if (unit > MR_PARALLELBITS)
+        return;
+    Forbid();
+    misc->owners[unit] = NULL;
+    Permit();
+}
+
+static struct Library *exec_create_misc_resource(struct ExecBase *SysBase)
+{
+    APTR raw;
+    struct LxaMiscResource *misc;
+    struct JumpVec *jump_table;
+
+    raw = AllocMem(sizeof(struct JumpVec) * 2 + sizeof(*misc), MEMF_CLEAR | MEMF_PUBLIC);
+    if (!raw)
+        return NULL;
+
+    jump_table = (struct JumpVec *)raw;
+    misc = (struct LxaMiscResource *)((UBYTE *)raw + sizeof(struct JumpVec) * 2);
+
+    /* LVO -6 AllocMiscResource, -12 FreeMiscResource */
+    jump_table[1].jmp = JMPINSTR;
+    jump_table[1].vec = _misc_AllocMiscResource;
+    jump_table[0].jmp = JMPINSTR;
+    jump_table[0].vec = _misc_FreeMiscResource;
+
+    misc->lib.lib_Node.ln_Type = NT_RESOURCE;
+    misc->lib.lib_Node.ln_Name = (char *)MISCNAME;
+    misc->lib.lib_Flags = LIBF_SUMUSED | LIBF_CHANGED;
+    misc->lib.lib_NegSize = sizeof(struct JumpVec) * 2;
+    misc->lib.lib_PosSize = sizeof(*misc);
+
+    AddTail(&SysBase->ResourceList, (struct Node *)&misc->lib);
+    return &misc->lib;
+}
+
 static void exec_init_int_vector_state(struct ExecBase *SysBase,
                                        LONG int_number)
 {
@@ -597,6 +671,39 @@ static struct List *exec_get_resident_target_list(struct ExecBase *SysBase,
     return NULL;
 }
 
+/* Call a library's init function.  Foreign init code does not always keep
+ * D2-D7/A2-A6 (Fred Fish midi.library's Manx C init trashes them, AmigaOS
+ * 3.1 copes: probe exec/initregs), so save every register around it. */
+struct Library *exec_call_lib_init(APTR fn, struct Library *lib, BPTR seglist, struct ExecBase *sysbase);
+asm(
+"_exec_call_lib_init:                            \n"
+"       movem.l     d2-d7/a2-a6,-(sp)           \n"
+"       move.l      48(sp),a1                   \n"   /* fn */
+"       move.l      52(sp),d0                   \n"   /* library */
+"       move.l      56(sp),a0                   \n"   /* segList */
+"       move.l      60(sp),a6                   \n"   /* SysBase */
+"       jsr         (a1)                        \n"
+"       movem.l     (sp)+,d2-d7/a2-a6           \n"
+"       rts                                     \n");
+
+/* Call a library or device vector (Open/Close/Expunge/BeginIO/AbortIO)
+ * with a6 = base, d0/d1/a1 as given.  Foreign vectors do not always keep
+ * D2-D7/A2-A6 (Fred Fish voice.library's Open leaves A5 = its base), and
+ * the C callers here keep their frame pointer in A5: save everything. */
+ULONG exec_call_vector(APTR fn, APTR base, ULONG d0, ULONG d1, APTR a1);
+asm(
+"_exec_call_vector:                              \n"
+"       movem.l     d2-d7/a2-a6,-(sp)           \n"
+"       move.l      48(sp),a2                   \n"   /* fn */
+"       move.l      52(sp),a6                   \n"   /* base */
+"       move.l      56(sp),d0                   \n"
+"       move.l      60(sp),d1                   \n"
+"       move.l      64(sp),a1                   \n"
+"       sub.l       a0,a0                       \n"
+"       jsr         (a2)                        \n"
+"       movem.l     (sp)+,d2-d7/a2-a6           \n"
+"       rts                                     \n");
+
 static struct Library *exec_register_resident_node(struct ExecBase *SysBase,
                                                    struct List *target_list,
                                                    const struct Resident *resident,
@@ -627,7 +734,7 @@ static struct Library *exec_register_resident_node(struct ExecBase *SysBase,
         lib_base->lib_IdString     = (APTR)resident->rt_IdString;
 
         if (init_tab->InitLibFn)
-            lib_base = ((libInitFn_t)init_tab->InitLibFn)(lib_base, seg_list, SysBase);
+            lib_base = exec_call_lib_init(init_tab->InitLibFn, lib_base, (BPTR)seg_list, SysBase);
 
         if (lib_base && target_list)
         {
@@ -970,7 +1077,7 @@ void _makeLibrary ( struct Library *library,
     {
         DPRINTF (LOG_DEBUG, "_exec: calling ___libInitFn at 0x%08lx\n", ___libInitFn);
 
-        library = ___libInitFn(library, ___segList, SysBase);
+        library = exec_call_lib_init((APTR)___libInitFn, library, (BPTR)___segList, SysBase);
         DPRINTF (LOG_DEBUG, "_exec: ___libInitFn returned library=0x%08lx\n", library);
     }
     DPRINTF (LOG_DEBUG, "_exec: _makeLibrary done.\n");
@@ -1265,6 +1372,20 @@ EXEC_PRESERVE_ALL(_exec_Permit)
 EXEC_PRESERVE_ALL(_exec_ObtainSemaphore)
 EXEC_PRESERVE_ALL(_exec_ObtainSemaphoreShared)
 EXEC_PRESERVE_ALL(_exec_ReleaseSemaphore)
+
+/* InitSemaphore() keeps D0/D1/A1 on AmigaOS 3.1 - A0 not (probe
+ * exec/preserveregs; Fish bsh.library's init returns the D0 it was called
+ * with across it).  A0 is left pointing at the semaphore's wait queue. */
+void _exec_InitSemaphore ( register struct ExecBase * SysBase __asm("a6"),
+                           register struct SignalSemaphore * ___sigSem __asm("a0"));
+extern void _exec_InitSemaphore_PreserveAll(void);
+asm(".text\n\t.even\n"
+    "__exec_InitSemaphore_PreserveAll:\n\t"
+    "movem.l d0-d1/a0-a1,-(sp)\n\t"
+    "jsr __exec_InitSemaphore\n\t"
+    "movem.l (sp)+,d0-d1/a0-a1\n\t"
+    "lea 16(a0),a0\n\t"
+    "rts\n");
 
 /*
  * SuperState(): continue in supervisor mode on the caller's stack and return
@@ -3216,7 +3337,7 @@ ULONG _exec_RemLibrary ( register struct ExecBase * SysBase __asm("a6"),
         DPRINTF (LOG_DEBUG, "_exec: Calling library expunge vector at 0x%08lx\n", (ULONG)expunge_fn);
         /* Call: BPTR Expunge(struct Library *lib __asm("d0")) */
         /* the Expunge result is RemLibrary's result (reference-verified) */
-        seglist = expunge_fn(___library);
+        seglist = (BPTR)exec_call_vector((APTR)expunge_fn, ___library, 0, 0, NULL);
         DPRINTF (LOG_DEBUG, "_exec: Expunge returned seglist=0x%08lx\n", (ULONG)seglist);
     }
     else
@@ -3251,7 +3372,7 @@ void _exec_CloseLibrary ( register struct ExecBase *SysBase  __asm("a6"),
         struct JumpVec *jv = &(((struct JumpVec *)(library))[-2]);
         libCloseFn_t closefn = jv->vec;
 
-        closefn(library);
+        exec_call_vector((APTR)closefn, library, 0, 0, NULL);
 
         Permit();
     }
@@ -3415,7 +3536,7 @@ void _exec_RemDevice ( register struct ExecBase * SysBase __asm("a6"),
     if (expunge_fn)
     {
         DPRINTF (LOG_DEBUG, "_exec: Calling device expunge vector at 0x%08lx\n", (ULONG)expunge_fn);
-        BPTR seglist = expunge_fn(&___device->dd_Library);
+        BPTR seglist = (BPTR)exec_call_vector((APTR)expunge_fn, &___device->dd_Library, 0, 0, NULL);
         DPRINTF (LOG_DEBUG, "_exec: Expunge returned seglist=0x%08lx\n", (ULONG)seglist);
     }
     else
@@ -3448,7 +3569,7 @@ LONG _exec_OpenDevice ( register struct ExecBase  *SysBase    __asm("a6"),
         struct JumpVec *jv = &(((struct JumpVec *)(ioRequest->io_Device))[-1]);
         devOpenFn_t openfn = jv->vec;
 
-        openfn (&ioRequest->io_Device->dd_Library, ioRequest, unit, flags);
+        exec_call_vector((APTR)openfn, &ioRequest->io_Device->dd_Library, unit, flags, ioRequest);
 
         if (ioRequest->io_Error)
             ioRequest->io_Device = NULL;
@@ -3478,7 +3599,7 @@ void _exec_CloseDevice ( register struct ExecBase  *SysBase   __asm("a6"),
         struct JumpVec *jv = &(((struct JumpVec *)(device))[-2]);
         devCloseFn_t closefn = jv->vec;
 
-        closefn (&device->dd_Library, ioRequest);
+        exec_call_vector((APTR)closefn, &device->dd_Library, 0, 0, ioRequest);
 
         // FIXME: expunge
 
@@ -3512,7 +3633,7 @@ LONG _exec_DoIO ( register struct ExecBase  *SysBase    __asm("a6"),
     struct JumpVec *jv = &(((struct JumpVec *)(ioRequest->io_Device))[-5]);
     devBeginIOFn_t beginiofn = jv->vec;
 
-    beginiofn (&ioRequest->io_Device->dd_Library, ioRequest);
+    exec_call_vector((APTR)beginiofn, &ioRequest->io_Device->dd_Library, 0, 0, ioRequest);
 
     if (! (ioRequest->io_Flags & IOF_QUICK))
         WaitIO(ioRequest);
@@ -3545,7 +3666,7 @@ void _exec_SendIO ( register struct ExecBase * SysBase __asm("a6"),
     struct JumpVec *jv = &(((struct JumpVec *)(___ioRequest->io_Device))[-5]);
     devBeginIOFn_t beginiofn = jv->vec;
 
-    beginiofn(&___ioRequest->io_Device->dd_Library, ___ioRequest);
+    exec_call_vector((APTR)beginiofn, &___ioRequest->io_Device->dd_Library, 0, 0, ___ioRequest);
 }
 
 /*
@@ -3662,7 +3783,7 @@ LONG _exec_AbortIO ( register struct ExecBase * SysBase __asm("a6"),
 
     if (abortfn)
     {
-        return (LONG)abortfn(&___ioRequest->io_Device->dd_Library, ___ioRequest);
+        return (LONG)exec_call_vector((APTR)abortfn, &___ioRequest->io_Device->dd_Library, 0, 0, ___ioRequest);
     }
 
     return 0;
@@ -4074,9 +4195,12 @@ APTR _exec_RawDoFmt ( register struct ExecBase * SysBase __asm("a6"),
 
 ULONG exec_GetCC ( register struct ExecBase * SysBase __asm("a6"));
 
+/* `move.w sr,<ea>` is privileged on the 68010 and later; exec uses
+ * `move.w ccr,d0` there (probe exec/getcc - Fish CanDo decks call GetCC()
+ * from user mode).  Encoded by hand: the ROM is assembled for the 68000. */
 asm(
 "_exec_GetCC:                    \n"
-"       move.w      sr, d0       \n"
+"       .short      0x42c0       \n"   /* move.w ccr,d0 */
 "       rts                      \n");
 
 ULONG _exec_TypeOfMem ( register struct ExecBase * SysBase __asm("a6"),
@@ -4252,7 +4376,7 @@ struct Library * _exec_OpenLibrary ( register struct ExecBase *SysBase __asm("a6
         struct JumpVec *jv = &(((struct JumpVec *)(lib))[-1]);
         libOpenFn_t openfn = (libOpenFn_t)jv->vec;
 
-        lib = openfn(version, lib);
+        lib = (struct Library *)exec_call_vector((APTR)openfn, lib, version, 0, NULL);
 
         DPRINTF (LOG_DEBUG, "_exec: OpenLibrary done libName=%s, version=%ld -> lib=0x%08lx\n", libName, version, lib);
     }
@@ -4399,7 +4523,7 @@ struct Library * _exec_OpenLibrary ( register struct ExecBase *SysBase __asm("a6
                     /* Call the library's Open function */
                     struct JumpVec *jv = &(((struct JumpVec *)(lib))[-1]);
                     libOpenFn_t openfn = (libOpenFn_t)jv->vec;
-                    lib = openfn(version, lib);
+                    lib = (struct Library *)exec_call_vector((APTR)openfn, lib, version, 0, NULL);
 
                     DPRINTF (LOG_DEBUG, "_exec: OpenLibrary: successfully loaded %s from disk, lib=0x%08lx\n", libName, lib);
                 }
@@ -6090,11 +6214,13 @@ void coldstart (void)
     p = (uint32_t*) 0x000000b8; *p = (uint32_t) handleTrap14;  // trap #14
     /* trap #15 (0xBC) is reserved for EMU_CALL - don't set it here */
 
-    /* the rest of the table (vectors 12..63): AmigaOS fills all of it
-     * (Phase 237, probe exec/vectors) */
-    for (p = (uint32_t *) 0x00000030; p < (uint32_t *) 0x00000100; p++)
+    /* the rest of the table (vectors 12..63 and the user vectors
+     * 66..255; 64 and 65 stay 0): AmigaOS fills all of it (Phase 237/237b,
+     * probe exec/vectors) */
+    for (p = (uint32_t *) 0x00000030; p < (uint32_t *) 0x00000400; p++)
     {
-        if (p == (uint32_t *) 0x000000bc || *p)
+        if (p == (uint32_t *) 0x000000bc || *p ||
+            p == (uint32_t *) 0x00000100 || p == (uint32_t *) 0x00000104)
             continue;
         if (p >= (uint32_t *) 0x00000060 && p < (uint32_t *) 0x00000080)
             *p = (uint32_t) handleIntIgnore;    /* spurious, autovectors 1-7 */
@@ -6220,7 +6346,7 @@ void coldstart (void)
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-540)].vec = _exec_Procure;
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-546)].vec = _exec_Vacate;
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-552)].vec = _exec_OpenLibrary;
-    g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-558)].vec = _exec_InitSemaphore;
+    g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-558)].vec = _exec_InitSemaphore_PreserveAll;
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-564)].vec = _exec_ObtainSemaphore_PreserveAll;
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-570)].vec = _exec_ReleaseSemaphore_PreserveAll;
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-576)].vec = _exec_AttemptSemaphore;
@@ -6373,6 +6499,27 @@ void coldstart (void)
     Enqueue (&SysBase->MemList, &g_Z3MemHeader.mh_Node);
     Enqueue (&SysBase->MemList, &g_MemHeader.mh_Node);
 
+    /* The exception vectors live in fast RAM, as on the 68040 reference
+     * (probe exec/superstate: VBR in fast RAM); the table at address 0
+     * stays filled for programs that read it.  Programs that write through
+     * a NULL pointer into low memory (Fish 60or80 sets a window title at
+     * NULL+32, the privilege violation vector) no longer break exec. */
+    {
+        uint32_t *vbr = (uint32_t *) AllocMem (256 * 4, MEMF_FAST | MEMF_PUBLIC);
+        uint32_t * volatile low = (uint32_t *) 0;   /* GCC traps a visible NULL */
+
+        if (vbr)
+        {
+            for (int i = 0; i < 256; i++)
+                vbr[i] = low[i];
+            vbr[0] = 0;
+            vbr[1] = 0;
+            __asm volatile ("move.l %0,a0\n\t"
+                            ".short 0x4e7b,0x8801"      /* movec a0,vbr */
+                            : : "d" (vbr) : "a0");
+        }
+    }
+
     // init and register built-in libraries
 
     DPRINTF (LOG_DEBUG, "coldstart: registering built-in libraries\n");
@@ -6485,6 +6632,10 @@ void coldstart (void)
 
     if (exec_create_cia_resource(SysBase, (CONST_STRPTR)"ciab.resource")) {
         DPRINTF (LOG_DEBUG, "coldstart: registered ciab.resource\n");
+    }
+
+    if (exec_create_misc_resource(SysBase)) {
+        DPRINTF (LOG_DEBUG, "coldstart: registered misc.resource\n");
     }
 
     DPRINTF (LOG_DEBUG, "coldstart: done registering built-in resources\n");

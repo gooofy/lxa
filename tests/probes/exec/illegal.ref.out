@@ -1,0 +1,3 @@
+ILLEGAL with d0 0x00000000: trap 4 count 1
+ILLEGAL with d0 0xdead0000: trap 4 count 1
+ILLEGAL with d0 0x0001869f: trap 4 count 1

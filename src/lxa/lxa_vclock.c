@@ -190,3 +190,22 @@ void vclock_advance_us(uint64_t us)
         return;
     s_total_cycles += (us * s_cpu_hz) / 1000000ull;
 }
+
+extern int m68ki_remaining_cycles;   /* Musashi (m68kcpu.c) */
+
+void vclock_consume(uint32_t cycles)
+{
+    if (!s_deterministic || !cycles)
+        return;
+    if (s_in_execute && s_slice_ended)
+        s_slice_used += (int)cycles;             /* the slice's length is fixed */
+    else if (s_in_execute)
+        m68ki_remaining_cycles -= (int)cycles;   /* Musashi's USE_CYCLES() */
+    else
+        s_total_cycles += cycles;
+}
+
+uint32_t vclock_cpu_hz(void)
+{
+    return (uint32_t)s_cpu_hz;
+}

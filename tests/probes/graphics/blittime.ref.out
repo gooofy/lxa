@@ -1,0 +1,7 @@
+-- BltBitMap duration
+320x188x5 copy: 256 .. 512 us
+640x256x4 copy: 256 .. 512 us
+320x200x2 invert: 256 .. 512 us
+320x200x2 xor: 256 .. 512 us
+320x200x2 clear: 256 .. 512 us
+64x64x1 copy: 128 .. 256 us

@@ -5,6 +5,7 @@
  * registers D0/D1/A0/A1 too.  AmiBlitz3's linked-list library keeps its
  * list pointer in D0 across Disable() and its result in D0 across
  * Enable(); without this it fails with "Could not build index cache".
+ * InitSemaphore() too (Phase 237b).
  */
 #include <exec/types.h>
 #include <exec/semaphores.h>
@@ -15,7 +16,7 @@
 
 extern struct ExecBase *SysBase;
 
-static struct SignalSemaphore sem;
+static struct SignalSemaphore sem, sem2;
 
 #define CALL(LVO, SEM)                                                          \
     do {                                                                        \
@@ -78,5 +79,9 @@ int main(void)
     Forbid();
     CALL(-138, 0);
     report("Permit (last)", r, a0v);
+    /* Phase 237b: Fish bsh.library's init returns the D0 it got across
+     * InitSemaphore() */
+    CALL(-558, &sem2);
+    report("InitSemaphore", r, a0v);
     return 0;
 }

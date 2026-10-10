@@ -63,3 +63,6 @@ vector 60 = rom
 vector 61 = rom
 vector 62 = rom
 vector 63 = rom
+-- user vectors
+vectors 64..65 = 0
+vectors 66..255 = rom

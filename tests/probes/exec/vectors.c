@@ -49,5 +49,24 @@ int main(void)
         probe_s(cls(lm[i]));
         probe_ch('\n');
     }
+
+    /* the user vectors 64..255 (Phase 237b: Fish Window calls through
+     * the longword at $100), as runs of equal class */
+    P_SECTION("user vectors");
+    {
+        int start = 64;
+        for (i = 65; i <= 256; i++) {
+            if (i == 256 || cls(lm[i]) != cls(lm[start])) {
+                probe_s("vectors ");
+                probe_dec(start);
+                probe_s("..");
+                probe_dec(i - 1);
+                probe_s(" = ");
+                probe_s(cls(lm[start]));
+                probe_ch('\n');
+                start = i;
+            }
+        }
+    }
     return 0;
 }

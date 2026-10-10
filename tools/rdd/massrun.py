@@ -205,6 +205,13 @@ def run_ref_chunk(chunk, root, rdir, seconds):
                 res = {"backend": "ref"}
                 prog = "LXAREF:p/%s/%s" % (p["id"], os.path.basename(p["rel"]))
                 try:
+                    prog.encode("latin-1")
+                except UnicodeEncodeError:   # not a name AmigaOS can be given
+                    with open(os.path.join(rdir, p["id"] + ".json"), "w") as f:
+                        json.dump({"backend": "ref", "harness": "harness: name not Latin-1"}, f)
+                    todo.pop(0)
+                    continue
+                try:
                     try:
                         agent.cmd('RUN >out/%s.txt "%s"' % (p["id"], prog))
                     except AgentError as e:
@@ -212,7 +219,10 @@ def run_ref_chunk(chunk, root, rdir, seconds):
                             raise
                         agent.cmd('RUN >out/%s.txt "%s"' % (p["id"], prog))
                     lines = agent.cmd("WAIT_EXIT %d" % (seconds * 1000), timeout=seconds + 30)
-                    res["rc"] = int([ln for ln in lines if ln.startswith("RC ")][0].split()[1])
+                    rcs = [ln for ln in lines if ln.startswith("RC ")]
+                    if not rcs:     # the agent's replies got out of step
+                        raise AgentError("harness: WAIT_EXIT without RC: %r" % lines[-3:])
+                    res["rc"] = int(rcs[0].split()[1])
                     res["running"] = False
                 except AgentError as e:
                     msg = str(e)
@@ -237,6 +247,12 @@ def run_ref_chunk(chunk, root, rdir, seconds):
                             agent.cmd("QUIT 2000", timeout=30)
                         except AgentError:
                             res["crash"] = "system hang"
+                    elif msg.startswith("harness:"):
+                        # reboot and run the program again (once)
+                        p["retries"] = p.get("retries", 0) + 1
+                        if p["retries"] <= 1:
+                            break
+                        res["harness"] = msg
                     elif "cannot load" in msg:
                         res["load_error"] = msg.split("->")[-1].strip()
                     else:
@@ -249,10 +265,15 @@ def run_ref_chunk(chunk, root, rdir, seconds):
                 if res.get("crash") or res.get("running"):
                     break      # reboot for a clean machine
         except (AgentError, OSError) as e:
+            # a boot or agent failure is not the program's: retry it on a
+            # fresh machine, then record it as a harness failure
             if todo:
-                p = todo.pop(0)
-                with open(os.path.join(rdir, p["id"] + ".json"), "w") as f:
-                    json.dump({"backend": "ref", "crash": "harness: %s" % e}, f)
+                p = todo[0]
+                p["retries"] = p.get("retries", 0) + 1
+                if p["retries"] > 2:
+                    todo.pop(0)
+                    with open(os.path.join(rdir, p["id"] + ".json"), "w") as f:
+                        json.dump({"backend": "ref", "harness": "harness: %s" % e}, f)
         finally:
             if agent:
                 try:
@@ -278,7 +299,7 @@ def run_ref(progs, out, root, jobs, seconds, chunk=25):
 # -- report ------------------------------------------------------------------------
 
 def classify(r):
-    if r is None:
+    if r is None or r.get("harness"):
         return "missing"
     if r.get("host_crash") or r.get("host_hang"):
         return "emulator-crash" if r.get("host_crash") else "emulator-hang"

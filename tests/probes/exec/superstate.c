@@ -1,7 +1,8 @@
 /*
  * Probe (Phase 237): SuperState()/UserState().  SuperState() enters
  * supervisor mode on the caller's stack and returns the old system stack,
- * UserState() goes back.  Fish ILBM_Killer reads the VBR in between.
+ * UserState() goes back.  Fish ILBM_Killer reads the VBR in between;
+ * where it points is printed as a class.
  */
 #include <exec/types.h>
 #include <exec/execbase.h>
@@ -36,9 +37,14 @@ int main(void)
     sr = read_sr();
     vbr = read_vbr();
     UserState(ssp);
-    (void)vbr;
     P_NULL("SuperState() result", ssp);
     P_BOOL("supervisor bit set after SuperState", sr & 0x2000);
     P_BOOL("continued after UserState", TRUE);
+    /* Phase 237b: where the exception vectors live - programs write through
+     * NULL pointers into low memory (Fish 60or80 sets a window title at
+     * NULL+32, i.e. the privilege violation vector at VBR 0) */
+    probe_s("VBR ");
+    probe_s(vbr == 0 ? "0" : (vbr < 0x00200000 ? "chip RAM" : (vbr >= 0x00f80000 && vbr < 0x01000000 ? "ROM" : "fast RAM")));
+    probe_ch('\n');
     return 0;
 }

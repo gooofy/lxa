@@ -2056,8 +2056,9 @@ static BOOL PointVisibleInLayer(const struct Layer *layer, WORD x, WORD y)
  * CPU in one shot).
  *
  * Layout MUST match the field offsets read in lxa.c
- * (case EMU_CALL_GFX_BLT_BITMAP). Total size: 28 bytes.
+ * (case EMU_CALL_GFX_BLT_BITMAP). Total size: 32 bytes.
  */
+#define LXA_BLT_TIMED 1     /* a BltBitMap() call: costs what it costs on 3.1 */
 struct LxaBltBitMapArgs
 {
     struct BitMap       *srcBM;     /* +0  */
@@ -2073,7 +2074,7 @@ struct LxaBltBitMapArgs
     UWORD                pixelMaskBpr; /* +22 */
     PLANEPTR             pixelMask; /* +24 */
     UWORD                maskMode;  /* +28: 1 = BltMaskBitMapRastPort semantics */
-    UWORD                pad;       /* +30 */
+    UWORD                flags;     /* +30: LXA_BLT_TIMED */
 };
 
 static LONG BltBitMapCoreMode(CONST struct BitMap *srcBitMap,
@@ -2088,7 +2089,8 @@ static LONG BltBitMapCoreMode(CONST struct BitMap *srcBitMap,
                               UBYTE planeMask,
                               CONST PLANEPTR pixelMask,
                               UWORD pixelMaskBpr,
-                              UWORD maskMode);
+                              UWORD maskMode,
+                              UWORD flags);
 
 static LONG BltBitMapCore(CONST struct BitMap *srcBitMap,
                           WORD xSrc,
@@ -2104,7 +2106,7 @@ static LONG BltBitMapCore(CONST struct BitMap *srcBitMap,
                           UWORD pixelMaskBpr)
 {
     return BltBitMapCoreMode(srcBitMap, xSrc, ySrc, destBitMap, xDest, yDest, xSize, ySize,
-                             minterm, planeMask, pixelMask, pixelMaskBpr, 0);
+                             minterm, planeMask, pixelMask, pixelMaskBpr, 0, 0);
 }
 
 static LONG BltBitMapCoreMode(CONST struct BitMap *srcBitMap,
@@ -2119,7 +2121,8 @@ static LONG BltBitMapCoreMode(CONST struct BitMap *srcBitMap,
                               UBYTE planeMask,
                               CONST PLANEPTR pixelMask,
                               UWORD pixelMaskBpr,
-                              UWORD maskMode)
+                              UWORD maskMode,
+                              UWORD flags)
 {
     /*
      * Phase 112: dispatch to host-side native-C implementation.
@@ -2140,7 +2143,7 @@ static LONG BltBitMapCoreMode(CONST struct BitMap *srcBitMap,
     args.pixelMaskBpr = pixelMaskBpr;
     args.pixelMask    = (PLANEPTR)pixelMask;
     args.maskMode     = maskMode;
-    args.pad          = 0;
+    args.flags        = flags;
 
     return (LONG)emucall1(EMU_CALL_GFX_BLT_BITMAP, (ULONG)&args);
 }
@@ -2251,18 +2254,20 @@ static LONG _graphics_BltBitMap ( register struct GfxBase * GfxBase __asm("a6"),
         return 0;
     }
 
-    planesAffected = BltBitMapCore(srcBitMap,
-                                   xSrc,
-                                   ySrc,
-                                   destBitMap,
-                                   xDest,
-                                   yDest,
-                                   xSize,
-                                   ySize,
-                                   minterm,
-                                   mask,
-                                   NULL,
-                                   0);
+    planesAffected = BltBitMapCoreMode(srcBitMap,
+                                       xSrc,
+                                       ySrc,
+                                       destBitMap,
+                                       xDest,
+                                       yDest,
+                                       xSize,
+                                       ySize,
+                                       minterm,
+                                       mask,
+                                       NULL,
+                                       0,
+                                       0,
+                                       LXA_BLT_TIMED);
 
     return planesAffected;
 }
@@ -8632,7 +8637,7 @@ static VOID _graphics_BltMaskBitMapRastPort ( register struct GfxBase * GfxBase 
                                   (UBYTE)minterm,
                                   0xFF,
                                   bltMask,
-                                  srcBitMap->BytesPerRow, 1);
+                                  srcBitMap->BytesPerRow, 1, 0);
                 }
                 else
                 {
@@ -8648,7 +8653,7 @@ static VOID _graphics_BltMaskBitMapRastPort ( register struct GfxBase * GfxBase 
                                   (UBYTE)minterm,
                                   0xFF,
                                   bltMask,
-                                  srcBitMap->BytesPerRow, 1);
+                                  srcBitMap->BytesPerRow, 1, 0);
                 }
             }
         }
@@ -8666,7 +8671,7 @@ static VOID _graphics_BltMaskBitMapRastPort ( register struct GfxBase * GfxBase 
                   (UBYTE)minterm,
                   0xFF,
                   bltMask,
-                  srcBitMap->BytesPerRow, 1);
+                  srcBitMap->BytesPerRow, 1, 0);
 }
 
 static BOOL __attribute__((optimize("O0"))) _graphics_AttemptLockLayerRom ( register struct GfxBase * GfxBase __asm("a6"),

@@ -146,6 +146,8 @@ asm(
 "   move.l  d0, d1              | d1 = float input             \n"
 "   move.l  #5103, d0           | EMU_CALL_IEEESP_TST          \n"
 "   illegal                                                    \n"
+"   move.l  d0, d1              | X = sign (AmigaOS 3.1, probe \n"
+"   add.l   d1, d1              |   math/cmpccr)               \n"
 "   tst.l   d0                  | set condition codes          \n"
 "   rts                                                        \n"
 );
