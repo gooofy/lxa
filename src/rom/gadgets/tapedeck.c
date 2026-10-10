@@ -1,25 +1,25 @@
 /*
-    Copyright (C) 2016, The AROS Development Team. All rights reserved.
-
-    AROS tapedeck gadget.
-
-    Ported to lxa from AROS workbench/classes/gadgets/tapedeck
-    (tapedeckclass.c).
-    lxa changes (see doc/third-party-code.md), observed on AmigaOS 3.1
-    (tests/probes/tapedeck/class.c, tests/probes/colorwheel/render.c):
-      - library frame in classlib.c, plain C BOOPSI helpers;
-      - a new object is 202 x 16 pixels whatever GA_Width/GA_Height say
-        (they can be changed later with OM_SET), GFLG_RELSPECIAL is set;
-      - defaults TDECK_Mode BUT_STOP, TDECK_Frames 10, TDECK_CurrentFrame 0;
-      - TDECK_Paused is kept (as a BOOL) and readable, TDECK_Mode accepts
-        BUT_REWIND .. BUT_STOP only, OM_SET returns 0;
-      - the animation controls look like 3.1's: three framed buttons
-        (rewind, play, fast forward; the button of the current mode drawn
-        pressed) and a framed frame-position indicator with a knob, instead
-        of AROS' prop gadget strip above centred symbols;
-      - the tape recorder look (TDECK_Tape) is not drawn yet: the
-        animation controls are used for it (LXA_UNIMPLEMENTED).
-*/
+ * lxa - tapedeck.gadget, the AmigaOS 3.1 BOOPSI tape deck / animation
+ * controller class (LIBS:gadgets/tapedeck.gadget).
+ *
+ * (C) 2026 by G. Bartsch. Licensed under the MIT License.
+ *
+ * Written from the NDK (gadgets/tapedeck.h, tapedeck_gc autodoc) and the
+ * behaviour of the 3.1 class (tests/probes/tapedeck/class.c,
+ * tests/probes/colorwheel/render.c); doc/gadget-classes.md lists the
+ * observed rules.  In short:
+ *
+ *   - a new object is always 202 x 16 pixels with GFLG_RELSPECIAL set;
+ *     GA_Width/GA_Height given to OM_SET do change the size later;
+ *   - TDECK_Mode defaults to BUT_STOP and only takes BUT_REWIND..BUT_STOP,
+ *     TDECK_Paused is kept as a boolean, TDECK_Frames defaults to 10;
+ *     TDECK_Tape cannot be read; OM_SET always returns 0;
+ *   - the animation controls are four parts side by side - rewind, play,
+ *     fast forward and the frame position - at 0, 27, 75 and 102 of 202
+ *     pixels; the button of the current mode is drawn selected.
+ *
+ * The tape recorder look (TDECK_Tape) is not drawn yet.
+ */
 
 #include <graphics/gfxmacros.h>
 #include <graphics/gfxbase.h>
@@ -29,30 +29,25 @@
 
 #include "classlib.h"
 
-/***********************************************************************************/
+#define DECK_WIDTH      202         /* the size of every new object */
+#define DECK_HEIGHT     16
 
-#define IM(o) ((struct Image *)(o))
-#define EG(o) ((struct Gadget *)(o))
+/* the parts of the animation controls, left to right */
+enum { SEG_REWIND, SEG_PLAY, SEG_FORWARD, SEG_FRAME, SEG_COUNT, SEG_NONE = -1 };
 
-#define TDECK_WIDTH      202
-#define TDECK_HEIGHT     16
+/* where each part starts, in pixels of a DECK_WIDTH wide deck */
+static const UBYTE seg_start[SEG_COUNT + 1] = { 0, 27, 75, 102, DECK_WIDTH };
 
-#define PART_REWIND      0
-#define PART_PLAY        1
-#define PART_FORWARD     2
-#define PART_POSITION    3
-#define PART_NONE        (-1)
-
-struct TapeDeckData
+struct Deck
 {
-    Object                      *tdd_Frame;
-    ULONG                       tdd_Mode;
-    ULONG                       tdd_ModeSaved;          /* while rewind/forward is held */
-    ULONG                       tdd_FrameCount;
-    ULONG                       tdd_FrameCurrent;
-    BYTE                        tdd_Pressed;            /* PART_* under the held button */
-    UBYTE                       tdd_Paused;
-    UBYTE                       tdd_Tape;
+    Object *frame;              /* frameiclass image for the buttons */
+    ULONG   mode;               /* TDECK_Mode */
+    ULONG   held_mode;          /* the mode while rewind/forward is held down */
+    ULONG   frames;             /* TDECK_Frames */
+    ULONG   current;            /* TDECK_CurrentFrame */
+    BYTE    pressed;            /* SEG_* the select button went down on */
+    UBYTE   paused;             /* TDECK_Paused */
+    UBYTE   tape;               /* TDECK_Tape */
 };
 
 const char  classlib_LibName[]    = "tapedeck.gadget";
@@ -60,7 +55,7 @@ const char  classlib_LibID[]      = "tapedeck 40.1 (12.10.2026)\r\n";
 const UWORD classlib_Version      = 40;
 const UWORD classlib_Revision     = 1;
 const char  classlib_SuperClass[] = "gadgetclass";
-const UWORD classlib_InstSize     = sizeof(struct TapeDeckData);
+const UWORD classlib_InstSize     = sizeof(struct Deck);
 
 APTR classlib_FuncTab[] =
 {
@@ -71,477 +66,406 @@ APTR classlib_FuncTab[] =
     (APTR)-1
 };
 
-/***********************************************************************************/
-/* geometry: 3.1 places the parts at 0, 27, 75 and 102 of 202 pixels                */
-/***********************************************************************************/
+/* --------------------------------------------------------------------------
+ * geometry
+ */
 
-struct DeckBox
+struct DeckLayout
 {
-    LONG left, top, width, height;
-    LONG x[5];      /* part p spans x[p] .. x[p+1] - 1 (the last one x[4] inclusive) */
+    struct IBox box;
+    LONG        edge[SEG_COUNT + 1];    /* absolute x where each part starts */
 };
 
-static VOID GetDeckBox(Object *o, struct GadgetInfo *gi, struct DeckBox *b)
+static void deck_layout(Object *o, struct GadgetInfo *gi, struct DeckLayout *l)
 {
-    static const UBYTE split[5] = { 0, 27, 75, 102, 202 };
-    LONG i;
+    int s;
 
-    b->left   = EG(o)->LeftEdge;
-    b->top    = EG(o)->TopEdge;
-    b->width  = EG(o)->Width;
-    b->height = EG(o)->Height;
+    classlib_GadgetBox((struct Gadget *)o, gi, &l->box);
+    for (s = 0; s <= SEG_COUNT; s++)
+        l->edge[s] = l->box.Left + seg_start[s] * l->box.Width / DECK_WIDTH;
+}
 
-    if (gi)
+/* rightmost pixel of a part: the frame position part ends on its edge */
+static LONG seg_right(struct DeckLayout *l, int s)
+{
+    return (s == SEG_FRAME) ? l->edge[SEG_COUNT] : l->edge[s + 1] - 1;
+}
+
+/* the part under a gadget relative position */
+static int deck_part_at(struct DeckLayout *l, LONG mx, LONG my)
+{
+    LONG x = l->box.Left + mx;
+    int  s;
+
+    if (mx < 0 || my < 0 || my >= l->box.Height - 1)
+        return SEG_NONE;
+    for (s = 0; s < SEG_COUNT; s++)
+        if (x >= l->edge[s] && x <= seg_right(l, s))
+            return s;
+    return SEG_NONE;
+}
+
+/* the frame position knob (6 pixels wide) moves between these x positions */
+static void frame_track(struct DeckLayout *l, LONG *first, LONG *range)
+{
+    *first = l->edge[SEG_FRAME] + 3;
+    *range = l->edge[SEG_COUNT] - 2 - 5 - *first;
+    if (*range < 0)
+        *range = 0;
+}
+
+/* --------------------------------------------------------------------------
+ * rendering
+ */
+
+/* an arrow head 8 pixels wide and 7 high, pointing left or right */
+static void draw_arrow(struct RastPort *rp, LONG x, LONG y, BOOL to_left)
+{
+    LONG row, len;
+
+    for (row = 0; row < 7; row++)
     {
-        if (EG(o)->Flags & GFLG_RELRIGHT)  b->left   += gi->gi_Domain.Width - 1;
-        if (EG(o)->Flags & GFLG_RELBOTTOM) b->top    += gi->gi_Domain.Height - 1;
-        if (EG(o)->Flags & GFLG_RELWIDTH)  b->width  += gi->gi_Domain.Width;
-        if (EG(o)->Flags & GFLG_RELHEIGHT) b->height += gi->gi_Domain.Height;
-    }
-
-    for (i = 0; i < 5; i++)
-        b->x[i] = b->left + split[i] * b->width / TDECK_WIDTH;
-}
-
-/* PART_* at a gadget relative mouse position */
-static LONG HitPart(struct DeckBox *b, LONG mx, LONG my)
-{
-    LONG x = b->left + mx, p;
-
-    if (my < 0 || my >= b->height - 1 || mx < 0)
-        return PART_NONE;
-    for (p = 0; p < 4; p++)
-        if (x >= b->x[p] && x < b->x[p + 1] + (p == 3))
-            return p;
-    return PART_NONE;
-}
-
-static VOID KnobRange(struct DeckBox *b, LONG *inner, LONG *travel)
-{
-    *inner  = b->x[3] + 3;
-    *travel = (b->x[4] - 2) - *inner - 5;
-    if (*travel < 0)
-        *travel = 0;
-}
-
-/* a 7 pixel high triangle (widths 2,4,6,8,6,4,2) */
-static VOID Triangle(struct RastPort *rp, LONG x, LONG y, BOOL left)
-{
-    LONG r, w;
-
-    for (r = 0; r < 7; r++)
-    {
-        w = 2 * (4 - (r < 3 ? 3 - r : r - 3));
-        if (left)
-            RectFill(rp, x + 8 - w, y + r, x + 7, y + r);
+        len = 8 - 2 * (row < 3 ? 3 - row : row - 3);
+        if (to_left)
+            RectFill(rp, x + 8 - len, y + row, x + 7, y + row);
         else
-            RectFill(rp, x, y + r, x + w - 1, y + r);
+            RectFill(rp, x, y + row, x + len - 1, y + row);
     }
 }
 
-static VOID DrawPart(struct TapeDeckData *data, struct RastPort *rp, struct DrawInfo *dri,
-                     struct DeckBox *b, LONG part)
+static BOOL seg_selected(struct Deck *d, int s)
 {
-    LONG x0 = b->x[part], x1 = (part == 3) ? b->x[4] : b->x[part + 1] - 1;
-    LONG h = b->height - 1, ty = b->top + (h - 7) / 2;
-    BOOL selected = FALSE;
+    static const UBYTE seg_mode[3] = { BUT_REWIND, BUT_PLAY, BUT_FORWARD };
 
-    if (h < 3 || x1 <= x0)
+    return d->pressed == s || d->mode == seg_mode[s];
+}
+
+static void draw_part(struct Deck *d, struct RastPort *rp, struct DrawInfo *dri,
+                      struct DeckLayout *l, int s)
+{
+    UWORD *pens = dri->dri_Pens;
+    LONG   left = l->edge[s], right = seg_right(l, s), width = right - left + 1;
+    LONG   top = l->box.Top, height = l->box.Height - 1;
+    LONG   arrow_y = top + (height - 7) / 2;
+
+    if (height < 3 || right <= left)
         return;
 
-    switch (part)
+    if (d->frame)
     {
-        case PART_REWIND:  selected = data->tdd_Pressed == part || data->tdd_Mode == BUT_REWIND;  break;
-        case PART_PLAY:    selected = data->tdd_Pressed == part || data->tdd_Mode == BUT_PLAY;    break;
-        case PART_FORWARD: selected = data->tdd_Pressed == part || data->tdd_Mode == BUT_FORWARD; break;
-    }
-
-    if (data->tdd_Frame)
-    {
-        struct TagItem ftags[] =
-        {
-            { IA_Width,  x1 - x0 + 1 },
-            { IA_Height, h           },
-            { TAG_DONE,  0           }
-        };
-        SetAttrsA(data->tdd_Frame, ftags);
-        DrawImageState(rp, IM(data->tdd_Frame), x0, b->top, selected ? IDS_SELECTED : IDS_NORMAL, dri);
+        SetAttrs(d->frame, IA_Width, width, IA_Height, height, TAG_DONE);
+        DrawImageState(rp, (struct Image *)d->frame, left, top,
+                       (s != SEG_FRAME && seg_selected(d, s)) ? IDS_SELECTED : IDS_NORMAL, dri);
     }
 
     SetDrMd(rp, JAM1);
-    SetAPen(rp, dri->dri_Pens[TEXTPEN]);
+    SetAPen(rp, pens[TEXTPEN]);
 
-    switch (part)
+    if (s == SEG_REWIND || s == SEG_FORWARD)
     {
-        case PART_REWIND:
-        {
-            LONG s = x0 + (x1 - x0 + 1) * 5 / 27;
-            Triangle(rp, s, ty, TRUE);
-            Triangle(rp, s + 9, ty, TRUE);
-            break;
-        }
-        case PART_PLAY:
-            Triangle(rp, x0 + (x1 - x0 + 1 - 8) / 2, ty, FALSE);
-            /* 3.1 draws the bottom edge of the play button one pixel to the right, in white */
-            SetAPen(rp, dri->dri_Pens[SHADOWPEN]);
-            RectFill(rp, x0, b->top + h - 1, x0, b->top + h - 1);
-            SetAPen(rp, dri->dri_Pens[SHINEPEN]);
-            RectFill(rp, x0 + 1, b->top + h - 1, x1 + 1, b->top + h - 1);
-            break;
-        case PART_FORWARD:
-        {
-            LONG s = x0 + (x1 - x0 + 1) * 5 / 27;
-            Triangle(rp, s, ty, FALSE);
-            Triangle(rp, s + 9, ty, FALSE);
-            break;
-        }
-        case PART_POSITION:
-        {
-            LONG inner, travel, kx;
-            ULONG cur = data->tdd_FrameCurrent;
+        /* two arrow heads, 9 pixels apart, a fifth of the part from the left */
+        LONG x = left + width * 5 / 27;
 
-            KnobRange(b, &inner, &travel);
-            if (cur > data->tdd_FrameCount)
-                cur = data->tdd_FrameCount;
-            kx = inner + (data->tdd_FrameCount ? (LONG)(cur * (ULONG)travel / data->tdd_FrameCount) : 0);
-            if (h > 4)
-                RectFill(rp, kx, b->top + 2, kx + 5, b->top + h - 3);
-            break;
-        }
+        draw_arrow(rp, x, arrow_y, s == SEG_REWIND);
+        draw_arrow(rp, x + 9, arrow_y, s == SEG_REWIND);
+    }
+    else if (s == SEG_PLAY)
+    {
+        draw_arrow(rp, left + (width - 8) / 2, arrow_y, FALSE);
+
+        /* 3.1's play button: its bottom edge is shifted one pixel to the
+           right and drawn in the shine pen (the next part covers the end) */
+        SetAPen(rp, pens[SHADOWPEN]);
+        WritePixel(rp, left, top + height - 1);
+        SetAPen(rp, pens[SHINEPEN]);
+        Move(rp, left + 1, top + height - 1);
+        Draw(rp, right + 1, top + height - 1);
+    }
+    else
+    {
+        LONG first, range, x;
+        ULONG pos = d->current < d->frames ? d->current : d->frames;
+
+        frame_track(l, &first, &range);
+        x = first + (d->frames ? (LONG)(pos * (ULONG)range / d->frames) : 0);
+        if (height > 4)
+            RectFill(rp, x, top + 2, x + 5, top + height - 3);
     }
 }
 
-static VOID DrawDisabledPattern(struct RastPort *rp, struct DeckBox *b, UWORD pen)
+static ULONG deck_render(Class *cl, Object *o, struct gpRender *msg)
 {
-    UWORD pattern[] = { 0x8888, 0x2222 };
+    static UWORD ghost[] = { 0x8888, 0x2222 };
+    struct Deck       *d = INST_DATA(cl, o);
+    struct RastPort   *rp = msg->gpr_RPort;
+    struct DrawInfo   *dri;
+    struct DeckLayout  l;
+    int                s;
 
-    SetDrMd(rp, JAM1);
-    SetAPen(rp, pen);
-    SetAfPt(rp, pattern, 1);
-    RectFill(rp, b->left, b->top, b->x[4], b->top + b->height - 2);
-    SetAfPt(rp, NULL, 0);
-}
+    if (!rp || !msg->gpr_GInfo || !(dri = msg->gpr_GInfo->gi_DrInfo))
+        return 0;
 
-/***********************************************************************************/
+    if (d->tape)
+        LXA_UNIMPLEMENTED("tapedeck.gadget", "GM_RENDER", "partial: TDECK_Tape drawn as animation controls");
 
-static VOID notify(Class *cl, Object *o, struct GadgetInfo *gi, BOOL interim)
-{
-    struct TapeDeckData *data = INST_DATA(cl, o);
-    struct opUpdate      opu;
-    struct TagItem       tags[] =
+    deck_layout(o, msg->gpr_GInfo, &l);
+    for (s = 0; s < SEG_COUNT; s++)
+        draw_part(d, rp, dri, &l, s);
+
+    if (((struct Gadget *)o)->Flags & GFLG_DISABLED)
     {
-        { GA_ID,              EG(o)->GadgetID         },
-        { TDECK_Mode,         data->tdd_Mode          },
-        { TDECK_Paused,       data->tdd_Paused        },
-        { TDECK_CurrentFrame, data->tdd_FrameCurrent  },
-        { TAG_DONE,           0                       }
-    };
-
-    opu.MethodID     = OM_NOTIFY;
-    opu.opu_AttrList = tags;
-    opu.opu_GInfo    = gi;
-    opu.opu_Flags    = interim ? OPUF_INTERIM : 0;
-    CL_DoMethodA(o, (Msg)&opu);
-}
-
-static VOID render(Object *o, struct GadgetInfo *gi, LONG mode)
-{
-    struct RastPort *rport;
-
-    if (gi && (rport = ObtainGIRPort(gi)))
-    {
-        struct gpRender gpr;
-
-        gpr.MethodID   = GM_RENDER;
-        gpr.gpr_GInfo  = gi;
-        gpr.gpr_RPort  = rport;
-        gpr.gpr_Redraw = mode;
-        CL_DoMethodA(o, (Msg)&gpr);
-        ReleaseGIRPort(rport);
+        SetDrMd(rp, JAM1);
+        SetAPen(rp, dri->dri_Pens[SHADOWPEN]);
+        SetAfPt(rp, ghost, 1);
+        RectFill(rp, l.box.Left, l.box.Top, l.edge[SEG_COUNT], l.box.Top + l.box.Height - 2);
+        SetAfPt(rp, NULL, 0);
     }
+    return 1;
 }
 
-static ULONG TapeDeck_GET(Class *cl, Object *o, struct opGet *msg)
+/* --------------------------------------------------------------------------
+ * attributes
+ */
+
+static void deck_notify(Object *o, struct Deck *d, struct GadgetInfo *gi, BOOL interim)
 {
-    struct TapeDeckData *data = INST_DATA(cl, o);
+    struct TagItem attrs[5];
 
-    switch (msg->opg_AttrID)
-    {
-        case TDECK_Mode:
-            *msg->opg_Storage = data->tdd_Mode;
-            return 1;
-
-        case TDECK_Paused:
-            *msg->opg_Storage = data->tdd_Paused;
-            return 1;
-
-        case TDECK_Frames:
-            *msg->opg_Storage = data->tdd_FrameCount;
-            return 1;
-
-        case TDECK_CurrentFrame:
-            *msg->opg_Storage = data->tdd_FrameCurrent;
-            return 1;
-
-        default:
-            return CL_DoSuperMethodA(cl, o, (Msg)msg);
-    }
+    attrs[0].ti_Tag = GA_ID;              attrs[0].ti_Data = ((struct Gadget *)o)->GadgetID;
+    attrs[1].ti_Tag = TDECK_Mode;         attrs[1].ti_Data = d->mode;
+    attrs[2].ti_Tag = TDECK_Paused;       attrs[2].ti_Data = d->paused;
+    attrs[3].ti_Tag = TDECK_CurrentFrame; attrs[3].ti_Data = d->current;
+    attrs[4].ti_Tag = TAG_DONE;           attrs[4].ti_Data = 0;
+    classlib_Notify(o, gi, attrs, interim);
 }
 
-static ULONG TapeDeck_SET(Class *cl, Object *o, struct opSet *msg, BOOL init)
+/* apply the attributes; TRUE if the look changed */
+static BOOL deck_apply(struct Deck *d, struct TagItem *attrs, BOOL creating)
 {
-    struct TapeDeckData *data = INST_DATA(cl, o);
-    struct TagItem      *tag, *taglist = msg->ops_AttrList;
-    BOOL                rerender = FALSE;
+    struct TagItem *state = attrs, *t;
+    BOOL            changed = FALSE;
 
-    if (!init)
-        CL_DoSuperMethodA(cl, o, (Msg)msg);
-
-    while ((tag = NextTagItem(&taglist)))
+    while ((t = NextTagItem(&state)))
     {
-        switch (tag->ti_Tag)
+        switch (t->ti_Tag)
         {
             case TDECK_Mode:
-                if (tag->ti_Data <= BUT_STOP)
+                /* 3.1 ignores BUT_PAUSE and above */
+                if (t->ti_Data <= BUT_STOP)
                 {
-                    data->tdd_Mode = tag->ti_Data;
-                    rerender = TRUE;
+                    d->mode = t->ti_Data;
+                    changed = TRUE;
                 }
                 break;
-
             case TDECK_Paused:
-                data->tdd_Paused = tag->ti_Data ? 1 : 0;
-                rerender = TRUE;
+                d->paused = t->ti_Data ? 1 : 0;
+                changed = TRUE;
                 break;
-
             case TDECK_Tape:
-                if (init)
-                    data->tdd_Tape = tag->ti_Data ? 1 : 0;
+                if (creating)
+                    d->tape = t->ti_Data ? 1 : 0;
                 break;
-
             case TDECK_Frames:
-                data->tdd_FrameCount = tag->ti_Data;
-                rerender = TRUE;
+                d->frames = t->ti_Data;
+                changed = TRUE;
                 break;
-
             case TDECK_CurrentFrame:
-                data->tdd_FrameCurrent = tag->ti_Data;
-                rerender = TRUE;
+                d->current = t->ti_Data;
+                changed = TRUE;
                 break;
-
             case GA_Disabled:
             case GA_Left:
             case GA_Top:
             case GA_Width:
             case GA_Height:
-                rerender = TRUE;
+                changed = TRUE;
                 break;
         }
     }
+    return changed;
+}
 
-    if (!init && rerender)
-        render(o, msg->ops_GInfo, GREDRAW_REDRAW);
+static ULONG deck_new(Class *cl, Object *o, struct opSet *msg)
+{
+    struct Gadget *g = (struct Gadget *)CL_DoSuperMethodA(cl, o, (Msg)msg);
+    struct Deck   *d;
 
+    if (!g)
+        return 0;
+
+    d = INST_DATA(cl, (Object *)g);
+    d->frame     = NewObject(NULL, (ClassID)FRAMEICLASS, IA_FrameType, FRAME_BUTTON,
+                             IA_EdgesOnly, FALSE, TAG_DONE);
+    d->mode      = BUT_STOP;
+    d->held_mode = BUT_STOP;
+    d->frames    = 10;
+    d->current   = 0;
+    d->pressed   = SEG_NONE;
+    d->paused    = 0;
+    d->tape      = 0;
+
+    /* 3.1 makes every deck 202 x 16, whatever size was asked for */
+    g->Width  = DECK_WIDTH;
+    g->Height = DECK_HEIGHT;
+    g->Flags |= GFLG_RELSPECIAL;
+
+    deck_apply(d, msg->ops_AttrList, TRUE);
+    return (ULONG)g;
+}
+
+static ULONG deck_set(Class *cl, Object *o, struct opSet *msg)
+{
+    struct Deck *d = INST_DATA(cl, o);
+
+    CL_DoSuperMethodA(cl, o, (Msg)msg);
+    if (deck_apply(d, msg->ops_AttrList, FALSE))
+        classlib_Render(o, msg->ops_GInfo, GREDRAW_REDRAW);
     return 0;
 }
 
-static ULONG TapeDeck_NEW(Class *cl, Object *o, struct opSet *msg)
+static ULONG deck_get(Class *cl, Object *o, struct opGet *msg)
 {
-    struct TagItem      frametags[] =
+    struct Deck *d = INST_DATA(cl, o);
+    ULONG       *store = msg->opg_Storage;
+
+    switch (msg->opg_AttrID)
     {
-        { IA_EdgesOnly,         FALSE           },
-        { IA_FrameType,         FRAME_BUTTON    },
-        { TAG_DONE,             0               }
-    };
-
-    o = (Object *)CL_DoSuperMethodA(cl, o, (Msg)msg);
-    if (o)
-    {
-        struct TapeDeckData *data = INST_DATA(cl, o);
-        UBYTE *p = (UBYTE *)data;
-        ULONG i;
-
-        for (i = 0; i < sizeof(*data); i++)
-            p[i] = 0;
-
-        EG(o)->Width  = TDECK_WIDTH;
-        EG(o)->Height = TDECK_HEIGHT;
-        EG(o)->Flags |= GFLG_RELSPECIAL;
-
-        data->tdd_Frame        = NewObjectA(NULL, (ClassID)FRAMEICLASS, frametags);
-        data->tdd_Mode         = BUT_STOP;
-        data->tdd_ModeSaved    = BUT_STOP;
-        data->tdd_FrameCount   = 10;
-        data->tdd_FrameCurrent = 0;
-        data->tdd_Pressed      = PART_NONE;
-
-        TapeDeck_SET(cl, o, msg, TRUE);
+        case TDECK_Mode:         *store = d->mode;    return 1;
+        case TDECK_Paused:       *store = d->paused;  return 1;
+        case TDECK_Frames:       *store = d->frames;  return 1;
+        case TDECK_CurrentFrame: *store = d->current; return 1;
     }
-
-    return (ULONG)o;
+    return CL_DoSuperMethodA(cl, o, (Msg)msg);
 }
 
-static ULONG TapeDeck_DISPOSE(Class *cl, Object *o, Msg msg)
+/* --------------------------------------------------------------------------
+ * input
+ */
+
+/* move the frame position to a gadget relative x position */
+static void deck_seek(struct Deck *d, struct DeckLayout *l, LONG mx)
 {
-    struct TapeDeckData *data = INST_DATA(cl, o);
+    LONG first, range, x;
 
-    if (data->tdd_Frame)
-        DisposeObject(data->tdd_Frame);
-
-    return CL_DoSuperMethodA(cl, o, msg);
+    frame_track(l, &first, &range);
+    x = l->box.Left + mx - first - 3;           /* the knob's centre follows the mouse */
+    if (x < 0)
+        x = 0;
+    if (x > range)
+        x = range;
+    d->current = range ? (ULONG)((x * d->frames + range / 2) / range) : 0;
 }
 
-static ULONG TapeDeck_RENDER(Class *cl, Object *o, struct gpRender *msg)
+static void deck_release(Object *o, struct Deck *d)
 {
-    struct TapeDeckData *data = INST_DATA(cl, o);
-    struct DrawInfo     *dri;
-    struct RastPort     *rp = msg->gpr_RPort;
-    struct DeckBox       b;
-    LONG                 part;
-
-    if (!rp || !msg->gpr_GInfo || !(dri = msg->gpr_GInfo->gi_DrInfo))
-        return 0;
-
-    if (data->tdd_Tape)
-        LXA_UNIMPLEMENTED("tapedeck.gadget", "GM_RENDER", "partial: TDECK_Tape drawn as animation controls");
-
-    GetDeckBox(o, msg->gpr_GInfo, &b);
-
-    for (part = 0; part < 4; part++)
-        DrawPart(data, rp, dri, &b, part);
-
-    if (EG(o)->Flags & GFLG_DISABLED)
-        DrawDisabledPattern(rp, &b, dri->dri_Pens[SHADOWPEN]);
-
-    return 1;
+    if (d->pressed == SEG_REWIND || d->pressed == SEG_FORWARD)
+        d->mode = d->held_mode;                 /* winding only lasts while held */
+    d->pressed = SEG_NONE;
+    ((struct Gadget *)o)->Flags &= ~GFLG_SELECTED;
 }
 
-static VOID SetFromMouse(struct TapeDeckData *data, struct DeckBox *b, LONG mx)
+static ULONG deck_goactive(Class *cl, Object *o, struct gpInput *msg)
 {
-    LONG inner, travel, pos;
+    struct Deck       *d = INST_DATA(cl, o);
+    struct DeckLayout  l;
+    int                s;
 
-    KnobRange(b, &inner, &travel);
-    pos = b->left + mx - inner - 3;
-    if (pos < 0)
-        pos = 0;
-    if (pos > travel)
-        pos = travel;
-    data->tdd_FrameCurrent = travel ? (ULONG)((pos * data->tdd_FrameCount + travel / 2) / travel) : 0;
-}
-
-static ULONG TapeDeck_GOACTIVE(Class *cl, Object *o, struct gpInput *msg)
-{
-    struct TapeDeckData *data = INST_DATA(cl, o);
-    struct DeckBox       b;
-    LONG                 part;
-
-    if (!msg->gpi_IEvent || (EG(o)->Flags & GFLG_DISABLED))
+    if (!msg->gpi_IEvent || (((struct Gadget *)o)->Flags & GFLG_DISABLED))
         return GMR_NOREUSE;
 
-    GetDeckBox(o, msg->gpi_GInfo, &b);
-    part = HitPart(&b, msg->gpi_Mouse.X, msg->gpi_Mouse.Y);
-    if (part == PART_NONE)
+    deck_layout(o, msg->gpi_GInfo, &l);
+    s = deck_part_at(&l, msg->gpi_Mouse.X, msg->gpi_Mouse.Y);
+    if (s == SEG_NONE)
         return GMR_NOREUSE;
 
-    data->tdd_Pressed = part;
-    EG(o)->Flags |= GFLG_SELECTED;
+    d->pressed = s;
+    ((struct Gadget *)o)->Flags |= GFLG_SELECTED;
 
-    switch (part)
+    if (s == SEG_REWIND || s == SEG_FORWARD)
     {
-        case PART_REWIND:
-        case PART_FORWARD:
-            /* winding lasts while the button is held */
-            data->tdd_ModeSaved = data->tdd_Mode;
-            data->tdd_Mode = (part == PART_REWIND) ? BUT_REWIND : BUT_FORWARD;
-            notify(cl, o, msg->gpi_GInfo, TRUE);
-            break;
-
-        case PART_POSITION:
-            SetFromMouse(data, &b, msg->gpi_Mouse.X);
-            notify(cl, o, msg->gpi_GInfo, TRUE);
-            break;
+        d->held_mode = d->mode;
+        d->mode = (s == SEG_REWIND) ? BUT_REWIND : BUT_FORWARD;
+        deck_notify(o, d, msg->gpi_GInfo, TRUE);
+    }
+    else if (s == SEG_FRAME)
+    {
+        deck_seek(d, &l, msg->gpi_Mouse.X);
+        deck_notify(o, d, msg->gpi_GInfo, TRUE);
     }
 
-    render(o, msg->gpi_GInfo, GREDRAW_UPDATE);
+    classlib_Render(o, msg->gpi_GInfo, GREDRAW_UPDATE);
     return GMR_MEACTIVE;
 }
 
-static ULONG TapeDeck_HANDLEINPUT(Class *cl, Object *o, struct gpInput *msg)
+static ULONG deck_handleinput(Class *cl, Object *o, struct gpInput *msg)
 {
-    struct TapeDeckData *data = INST_DATA(cl, o);
-    struct InputEvent   *ie = msg->gpi_IEvent;
-    struct DeckBox       b;
-    LONG                 part;
+    struct Deck       *d = INST_DATA(cl, o);
+    struct InputEvent *ie = msg->gpi_IEvent;
+    struct DeckLayout  l;
 
     if (!ie || ie->ie_Class != IECLASS_RAWMOUSE)
         return GMR_MEACTIVE;
 
-    GetDeckBox(o, msg->gpi_GInfo, &b);
+    deck_layout(o, msg->gpi_GInfo, &l);
 
-    switch (ie->ie_Code)
+    if (ie->ie_Code == IECODE_NOBUTTON)
     {
-        case IECODE_NOBUTTON:
-            if (data->tdd_Pressed == PART_POSITION)
+        if (d->pressed == SEG_FRAME)
+        {
+            ULONG before = d->current;
+
+            deck_seek(d, &l, msg->gpi_Mouse.X);
+            if (d->current != before)
             {
-                ULONG old = data->tdd_FrameCurrent;
-                SetFromMouse(data, &b, msg->gpi_Mouse.X);
-                if (old != data->tdd_FrameCurrent)
-                {
-                    notify(cl, o, msg->gpi_GInfo, TRUE);
-                    render(o, msg->gpi_GInfo, GREDRAW_UPDATE);
-                }
+                deck_notify(o, d, msg->gpi_GInfo, TRUE);
+                classlib_Render(o, msg->gpi_GInfo, GREDRAW_UPDATE);
             }
-            return GMR_MEACTIVE;
-
-        case SELECTUP:
-            part = HitPart(&b, msg->gpi_Mouse.X, msg->gpi_Mouse.Y);
-            switch (data->tdd_Pressed)
-            {
-                case PART_REWIND:
-                case PART_FORWARD:
-                    data->tdd_Mode = data->tdd_ModeSaved;
-                    break;
-
-                case PART_PLAY:
-                    if (part == PART_PLAY)
-                    {
-                        data->tdd_Mode = (data->tdd_Mode == BUT_PLAY) ? BUT_STOP : BUT_PLAY;
-                        data->tdd_Paused = 0;
-                    }
-                    break;
-            }
-            data->tdd_Pressed = PART_NONE;
-            EG(o)->Flags &= ~GFLG_SELECTED;
-            notify(cl, o, msg->gpi_GInfo, FALSE);
-            render(o, msg->gpi_GInfo, GREDRAW_UPDATE);
-            *msg->gpi_Termination = data->tdd_Mode;
-            return GMR_NOREUSE | GMR_VERIFY;
-
-        case MENUDOWN:
-            return GMR_NOREUSE;
+        }
+        return GMR_MEACTIVE;
     }
 
-    return GMR_MEACTIVE;
+    if (ie->ie_Code == MENUDOWN)
+        return GMR_NOREUSE;
+
+    if (ie->ie_Code != SELECTUP)
+        return GMR_MEACTIVE;
+
+    /* play toggles between playing and stopped when released over it */
+    if (d->pressed == SEG_PLAY &&
+        deck_part_at(&l, msg->gpi_Mouse.X, msg->gpi_Mouse.Y) == SEG_PLAY)
+    {
+        d->mode   = (d->mode == BUT_PLAY) ? BUT_STOP : BUT_PLAY;
+        d->paused = 0;
+    }
+    deck_release(o, d);
+    deck_notify(o, d, msg->gpi_GInfo, FALSE);
+    classlib_Render(o, msg->gpi_GInfo, GREDRAW_UPDATE);
+    *msg->gpi_Termination = d->mode;
+    return GMR_NOREUSE | GMR_VERIFY;
 }
 
-static ULONG TapeDeck_GOINACTIVE(Class *cl, Object *o, struct gpGoInactive *msg)
+static ULONG deck_goinactive(Class *cl, Object *o, struct gpGoInactive *msg)
 {
-    struct TapeDeckData *data = INST_DATA(cl, o);
-
-    if (data->tdd_Pressed == PART_REWIND || data->tdd_Pressed == PART_FORWARD)
-        data->tdd_Mode = data->tdd_ModeSaved;
-    data->tdd_Pressed = PART_NONE;
-    EG(o)->Flags &= ~GFLG_SELECTED;
-    render(o, msg->gpgi_GInfo, GREDRAW_UPDATE);
+    deck_release(o, INST_DATA(cl, o));
+    classlib_Render(o, msg->gpgi_GInfo, GREDRAW_UPDATE);
     return 0;
 }
 
-static ULONG TapeDeck_HITTEST(Class *cl, Object *o, struct gpHitTest *msg)
+static ULONG deck_hittest(Class *cl, Object *o, struct gpHitTest *msg)
 {
-    struct DeckBox b;
+    struct DeckLayout l;
 
-    GetDeckBox(o, msg->gpht_GInfo, &b);
-    return HitPart(&b, msg->gpht_Mouse.X, msg->gpht_Mouse.Y) != PART_NONE ? GMR_GADGETHIT : 0;
+    deck_layout(o, msg->gpht_GInfo, &l);
+    return deck_part_at(&l, msg->gpht_Mouse.X, msg->gpht_Mouse.Y) != SEG_NONE ? GMR_GADGETHIT : 0;
+}
+
+static ULONG deck_dispose(Class *cl, Object *o, Msg msg)
+{
+    struct Deck *d = INST_DATA(cl, o);
+
+    if (d->frame)
+        DisposeObject(d->frame);
+    return CL_DoSuperMethodA(cl, o, msg);
 }
 
 ULONG classlib_Dispatcher(register Class *cl __asm("a0"), register Object *o __asm("a2"),
@@ -549,16 +473,16 @@ ULONG classlib_Dispatcher(register Class *cl __asm("a0"), register Object *o __a
 {
     switch (msg->MethodID)
     {
-        case OM_NEW:          return TapeDeck_NEW(cl, o, (struct opSet *)msg);
-        case OM_DISPOSE:      return TapeDeck_DISPOSE(cl, o, msg);
+        case OM_NEW:         return deck_new(cl, o, (struct opSet *)msg);
+        case OM_DISPOSE:     return deck_dispose(cl, o, msg);
         case OM_SET:
-        case OM_UPDATE:       return TapeDeck_SET(cl, o, (struct opSet *)msg, FALSE);
-        case OM_GET:          return TapeDeck_GET(cl, o, (struct opGet *)msg);
-        case GM_RENDER:       return TapeDeck_RENDER(cl, o, (struct gpRender *)msg);
-        case GM_HITTEST:      return TapeDeck_HITTEST(cl, o, (struct gpHitTest *)msg);
-        case GM_GOACTIVE:     return TapeDeck_GOACTIVE(cl, o, (struct gpInput *)msg);
-        case GM_HANDLEINPUT:  return TapeDeck_HANDLEINPUT(cl, o, (struct gpInput *)msg);
-        case GM_GOINACTIVE:   return TapeDeck_GOINACTIVE(cl, o, (struct gpGoInactive *)msg);
-        default:              return CL_DoSuperMethodA(cl, o, msg);
+        case OM_UPDATE:      return deck_set(cl, o, (struct opSet *)msg);
+        case OM_GET:         return deck_get(cl, o, (struct opGet *)msg);
+        case GM_RENDER:      return deck_render(cl, o, (struct gpRender *)msg);
+        case GM_HITTEST:     return deck_hittest(cl, o, (struct gpHitTest *)msg);
+        case GM_GOACTIVE:    return deck_goactive(cl, o, (struct gpInput *)msg);
+        case GM_HANDLEINPUT: return deck_handleinput(cl, o, (struct gpInput *)msg);
+        case GM_GOINACTIVE:  return deck_goinactive(cl, o, (struct gpGoInactive *)msg);
     }
+    return CL_DoSuperMethodA(cl, o, msg);
 }
