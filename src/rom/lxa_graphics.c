@@ -2514,7 +2514,7 @@ static WORD graphics_text_char_index(CONST struct TextFont *font, UBYTE c)
     return (WORD)(c - font->tf_LoChar);
 }
 
-static WORD _graphics_TextLength ( register struct GfxBase * GfxBase __asm("a6"),
+WORD _graphics_TextLength ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a1"),
                                                         register CONST_STRPTR string __asm("a0"),
                                                         register UWORD count __asm("d0"))
@@ -9002,7 +9002,7 @@ static WORD gfx_text_plain_extent(struct RastPort *rp, struct TextFont *tf,
     return x;
 }
 
-static WORD _graphics_TextExtent ( register struct GfxBase * GfxBase __asm("a6"),
+WORD _graphics_TextExtent ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a1"),
                                                         register CONST_STRPTR string __asm("a0"),
                                                         register LONG count __asm("d0"),
@@ -9044,7 +9044,7 @@ static WORD _graphics_TextExtent ( register struct GfxBase * GfxBase __asm("a6")
     return width;
 }
 
-static ULONG _graphics_TextFit ( register struct GfxBase * GfxBase __asm("a6"),
+ULONG _graphics_TextFit ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a1"),
                                                         register CONST_STRPTR string __asm("a0"),
                                                         register ULONG strLen __asm("d0"),
@@ -12054,6 +12054,24 @@ struct InitTable __g_lxa_graphics_InitTab =
     (APTR)                __g_lxa_graphics_InitLib       // InitLibFn
 };
 
+/*
+ * A0 survives the text measuring functions (Phase 237c, probe
+ * graphics/textregs): on AmigaOS 3.1 TextLength(), TextExtent() and
+ * TextFit() return with A0 still pointing to the string.  Fish
+ * CopperPrefs takes the length of the string at A0 after TextFit().
+ */
+#define GFX_KEEP_A0(fn)                                        \
+    extern void fn##_A0(void);                                 \
+    asm(".text\n\t.even\n"                                     \
+        "_" #fn "_A0:\n\t"                                      \
+        "move.l a0,-(sp)\n\t"                                   \
+        "jsr _" #fn "\n\t"                                      \
+        "move.l (sp)+,a0\n\t"                                   \
+        "rts\n");
+GFX_KEEP_A0(_graphics_TextLength)
+GFX_KEEP_A0(_graphics_TextExtent)
+GFX_KEEP_A0(_graphics_TextFit)
+
 APTR __g_lxa_graphics_FuncTab [] =
 {
     __g_lxa_graphics_OpenLib,
@@ -12064,7 +12082,7 @@ APTR __g_lxa_graphics_FuncTab [] =
     _graphics_BltTemplate, // offset = -36
     _graphics_ClearEOL, // offset = -42
     _graphics_ClearScreen, // offset = -48
-    _graphics_TextLength, // offset = -54
+    _graphics_TextLength_A0, // offset = -54
     _graphics_Text, // offset = -60
     _graphics_SetFont, // offset = -66
     _graphics_OpenFont, // offset = -72
@@ -12170,8 +12188,8 @@ APTR __g_lxa_graphics_FuncTab [] =
     _graphics_GfxAssociate, // offset = -672
     _graphics_BitMapScale, // offset = -678
     _graphics_ScalerDiv, // offset = -684
-    _graphics_TextExtent, // offset = -690
-    _graphics_TextFit, // offset = -696
+    _graphics_TextExtent_A0, // offset = -690
+    _graphics_TextFit_A0, // offset = -696
     _graphics_GfxLookUp, // offset = -702
     _graphics_VideoControl, // offset = -708
     _graphics_OpenMonitor, // offset = -714
