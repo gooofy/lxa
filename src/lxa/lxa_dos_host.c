@@ -427,6 +427,86 @@ static int _lock_alloc(void)
 }
 
 /* Free a lock entry */
+/*
+ * Directory scans (Examine/ExNext): one per lock and FileInfoBlock, as the
+ * scan position lives in the FIB on AmigaOS.  A finished scan stays
+ * finished until the next Examine() (AmigaOS 3.1, probe dos/exnextend:
+ * Fred Fish DTree calls ExNext() once more after the end).
+ */
+#define MAX_EXSCANS 64
+typedef struct {
+    bool in_use;
+    bool fresh;         /* Examine()d, no ExNext() yet */
+    bool done;
+    int lock;
+    uint32_t fib;
+    DIR *dir;
+    uint32_t age;
+} exscan_t;
+static exscan_t g_exscans[MAX_EXSCANS];
+static uint32_t g_exscan_age;
+
+static void exscan_close(exscan_t *x)
+{
+    if (x->dir)
+        closedir(x->dir);
+    memset(x, 0, sizeof(*x));
+}
+
+void lxa_exscan_reset(void)
+{
+    for (int i = 0; i < MAX_EXSCANS; i++)
+        if (g_exscans[i].in_use)
+            exscan_close(&g_exscans[i]);
+    g_exscan_age = 0;
+}
+
+static void exscan_drop_lock(int lock)
+{
+    for (int i = 0; i < MAX_EXSCANS; i++)
+        if (g_exscans[i].in_use && g_exscans[i].lock == lock)
+            exscan_close(&g_exscans[i]);
+}
+
+static exscan_t *exscan_find(int lock, uint32_t fib)
+{
+    exscan_t *fresh = NULL;
+    for (int i = 0; i < MAX_EXSCANS; i++) {
+        exscan_t *x = &g_exscans[i];
+        if (!x->in_use || x->lock != lock)
+            continue;
+        if (x->fib == fib)
+            return x;
+        if (x->fresh && !fresh)
+            fresh = x;
+    }
+    if (fresh)              /* Examine() with one FIB, ExNext() with another */
+        fresh->fib = fib;
+    return fresh;
+}
+
+static exscan_t *exscan_new(int lock, uint32_t fib, const char *path)
+{
+    exscan_t *x = NULL;
+    for (int i = 0; i < MAX_EXSCANS && !x; i++)
+        if (!g_exscans[i].in_use)
+            x = &g_exscans[i];
+    if (!x) {               /* all taken: the oldest goes */
+        x = &g_exscans[0];
+        for (int i = 1; i < MAX_EXSCANS; i++)
+            if (g_exscans[i].age < x->age)
+                x = &g_exscans[i];
+        exscan_close(x);
+    }
+    x->in_use = true;
+    x->fresh = true;
+    x->lock = lock;
+    x->fib = fib;
+    x->dir = opendir(path);
+    x->age = ++g_exscan_age;
+    return x;
+}
+
 static void _lock_free(int lock_id)
 {
     lock_id = _lock_index((uint32_t)lock_id);
@@ -437,6 +517,7 @@ static void _lock_free(int lock_id)
         closedir(g_locks[lock_id].dir);
         g_locks[lock_id].dir = NULL;
     }
+    exscan_drop_lock(lock_id);
     g_locks[lock_id].in_use = false;
 }
 
@@ -2629,9 +2710,13 @@ int _dos_examine(uint32_t lock_id, uint32_t fib68k)
     
     _write_owner_info(fib68k, 0);
     
-    /* If this is a directory, open it for ExNext iteration */
-    if (S_ISDIR(st.st_mode) && !lock->dir) {
-        lock->dir = opendir(lock->linux_path);
+    /* a directory: ExNext() starts from its first entry */
+    if (S_ISDIR(st.st_mode)) {
+        int li = _lock_index(lock_id);
+        exscan_t *x = exscan_find(li, fib68k);
+        if (x)
+            exscan_close(x);
+        exscan_new(li, fib68k, lock->linux_path);
         DPRINTF(LOG_DEBUG, "lxa: _dos_examine(): opened dir handle for ExNext\n");
     }
     
@@ -2675,18 +2760,21 @@ int _dos_exnext(uint32_t lock_id, uint32_t fib68k)
         return 0;
     }
     
-    /* Open directory if not already open */
-    if (!lock->dir) {
-        lock->dir = opendir(lock->linux_path);
-        if (!lock->dir) {
-            DPRINTF(LOG_DEBUG, "lxa: _dos_exnext(): opendir failed: %s\n", strerror(errno));
-            return 0;
-        }
+    int li = _lock_index(lock_id);
+    exscan_t *x = exscan_find(li, fib68k);
+    if (!x)
+        x = exscan_new(li, fib68k, lock->linux_path);
+    x->fresh = false;
+    if (x->done)
+        return 0; /* ERROR_NO_MORE_ENTRIES, until the next Examine() */
+    if (!x->dir) {
+        DPRINTF(LOG_DEBUG, "lxa: _dos_exnext(): opendir failed: %s\n", strerror(errno));
+        return 0;
     }
     
     /* Read next entry, skipping . and .. */
     struct dirent *de;
-    while ((de = readdir(lock->dir)) != NULL) {
+    while ((de = readdir(x->dir)) != NULL) {
         if (strcmp(de->d_name, ".") == 0 || strcmp(de->d_name, "..") == 0)
             continue;
         if (is_uae_sidecar(lock->linux_path, de->d_name))
@@ -2696,8 +2784,9 @@ int _dos_exnext(uint32_t lock_id, uint32_t fib68k)
     
     if (!de) {
         DPRINTF(LOG_DEBUG, "lxa: _dos_exnext(): no more entries\n");
-        closedir(lock->dir);
-        lock->dir = NULL;
+        closedir(x->dir);
+        x->dir = NULL;
+        x->done = true;
         return 0; /* ERROR_NO_MORE_ENTRIES */
     }
     

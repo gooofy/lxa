@@ -470,6 +470,19 @@ static VOID graphics_palette_push_pen(struct PaletteExtra *pe,
     *head = pen;
 }
 
+/* the LVO: D0 = 0, D1 and A1 as the caller passed them, the flags X only
+ * (AmigaOS 3.1, probe graphics/bltclearcc; Fred Fish AmigaCOMAL branches on
+ * Z after it) */
+extern void _graphics_BltClear_Regs(void);
+asm(".text\n\t.even\n"
+    "__graphics_BltClear_Regs:\n\t"
+    "movem.l d1/a1,-(sp)\n\t"
+    "jsr __graphics_BltClear\n\t"
+    "movem.l (sp)+,d1/a1\n\t"
+    "moveq #0,d0\n\t"
+    "move.w #0x10,ccr\n\t"
+    "rts\n");
+
 static VOID _graphics_RectFill ( register struct GfxBase * GfxBase __asm("a6"),
                                  register struct RastPort * rp __asm("a1"),
                                  register WORD xMin __asm("d0"),
@@ -5282,7 +5295,7 @@ static VOID _graphics_QBSBlit ( register struct GfxBase * GfxBase __asm("a6"),
     graphics_process_queued_blits(GfxBase);
 }
 
-static VOID _graphics_BltClear ( register struct GfxBase * GfxBase __asm("a6"),
+static __attribute__((used)) VOID _graphics_BltClear ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register PLANEPTR memBlock __asm("a1"),
                                                         register ULONG byteCount __asm("d0"),
                                                         register ULONG flags __asm("d1"))
@@ -12060,7 +12073,7 @@ APTR __g_lxa_graphics_FuncTab [] =
     _graphics_InitArea, // offset = -282
     _graphics_SetRGB4, // offset = -288
     _graphics_QBSBlit, // offset = -294
-    _graphics_BltClear, // offset = -300
+    _graphics_BltClear_Regs, // offset = -300
     _graphics_RectFill, // offset = -306
     _graphics_BltPattern, // offset = -312
     _graphics_ReadPixel, // offset = -318

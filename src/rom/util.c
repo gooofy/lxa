@@ -982,7 +982,10 @@ void U_prepareProcess (struct Process *process, APTR initPC, APTR finalPC, ULONG
     process->pr_CLI                     = 0;
     process->pr_ReturnAddr				= 0;
     process->pr_PktWait                 = NULL;
-    process->pr_WindowPtr			    = (APTR) -1;
+    /* 0: DOS requesters on the default public screen, as for a command
+     * run from a 3.1 shell (probe dos/winptr; Fred Fish WatcherPrefs,
+     * BootPic) */
+    process->pr_WindowPtr			    = NULL;
     process->pr_HomeDir                 = 0;
     process->pr_Flags                   = 0;
     process->pr_ExitCode                = NULL;

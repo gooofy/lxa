@@ -560,6 +560,31 @@ static const char *resolve_amiga_path(const char *name, char *resolved)
 {
     if (!name || !resolved) return name;
     
+    /* ":name" is relative to the root of the current directory's volume
+     * (AmigaOS 3.1, probe dos/lockcolon; Fred Fish Seeker locks ":") */
+    if (name[0] == ':')
+    {
+        struct Process *me = U_getCurrentProcess();
+        char cur[256];
+        int i = 0, j;
+
+        if (me && me->pr_CurrentDir && NameFromLock(me->pr_CurrentDir, (STRPTR)cur, sizeof(cur)))
+        {
+            for (j = 0; cur[j] && cur[j] != ':' && i < 250; j++)
+                resolved[i++] = cur[j];
+        }
+        else
+        {
+            resolved[i++] = 'S';
+            resolved[i++] = 'Y';
+            resolved[i++] = 'S';
+        }
+        for (j = 0; name[j] && i < 255; j++)
+            resolved[i++] = name[j];
+        resolved[i] = '\0';
+        return resolved;
+    }
+
     /* Check if this is an absolute path (contains ':') */
     const char *p = name;
     while (*p) {

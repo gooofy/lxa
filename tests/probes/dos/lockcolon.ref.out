@@ -1,0 +1,3 @@
+Lock(":") succeeded = TRUE
+same as the root of the current directory = TRUE
+its name ends in ':' = TRUE

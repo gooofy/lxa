@@ -443,6 +443,11 @@ ENVIRONMENT_DEPENDENT = {
                            "opened the reqtools.library of its own drawer, which stays in memory",
     "fish-0638/ShellTimer/ShellTimerDaemon": "ShellTimer, run before it in the reference batch, had already "
                                              "started the daemon",
+    "fish-0422/PopUpMenu/PopUpMenu.run": "PopUpMenu, run before it in the reference batch, left its \"Reply\" "
+                                         "port: PopUpMenu.run sends it the quit message and exits; alone it "
+                                         "waits on the reference too",
+    "fish-0431/A68Kex/say": "the reference's Workbench 3.1 has no translator.library (say shows its \"not "
+                            "found\" requester), lxa has one; neither has narrator.device",
 }
 
 
