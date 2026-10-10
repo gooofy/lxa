@@ -1,0 +1,22 @@
+Input: d1 = d0
+Output: d1 = d0
+Open: d1 = d0
+Read: d1 = d0
+Seek: d1 = d0
+Write: d1 = d0
+Close: d1 other
+Lock: d1 = d0
+Lock (fails): d1 = d0
+DupLock: d1 other
+Examine: d1 other
+Info: d1 other
+ParentDir: d1 other
+IoErr: d1 = d0
+LoadSeg: d1 = d0
+LoadSeg (fails): d1 = d0
+DeviceProc: d1 other
+IsInteractive: d1 = d0
+DateStamp: d1 = d0
+DeleteFile: d1 = d0
+SetIoErr (V36): d1 = d0
+FilePart (V36): d1 other

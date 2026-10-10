@@ -3234,8 +3234,8 @@ static BPTR lxa_dos_loadseg_handle(struct DosLibrary *DOSBase,
 }
 
 /*
- * Overlaid executables (HUNK_OVERLAY, AmigaDOS manual; layout as in AROS'
- * internalloadseg_aos.c): LoadSeg() loads the root node, reads the overlay
+ * Overlaid executables (HUNK_OVERLAY, AmigaDOS manual; behaviour verified
+ * on AmigaOS 3.1 with probe dos/overlay): LoadSeg() loads the root node, reads the overlay
  * table and stops; the root's first hunk carries $ABCD in its third
  * longword, LoadSeg() fills in the open file (which stays open), the
  * overlay table, the hunk table (BPTR) and the global vector, and the
@@ -11688,44 +11688,84 @@ struct InitTable __g_lxa_dos_InitTab =
     (APTR)                __g_lxa_dos_InitLib           // InitLibFn
 };
 
+/*
+ * The result in D1 too (Phase 237c, probe dos/retd1): AmigaOS 3.1 returns
+ * these functions' result in D1 as well as in D0, and 1.x code relies on
+ * it (Fish Bbm's Manx overlay loader tests D1 after Seek() and LoadSeg()).
+ * The others leave something else in D1.
+ */
+#define DOS_RESULT_IN_D1(fn)                                   \
+    extern void fn##_D1(void);                                 \
+    asm(".text\n\t.even\n"                                     \
+        "_" #fn "_D1:\n\t"                                      \
+        "jsr _" #fn "\n\t"                                      \
+        "move.l d0,d1\n\t"                                      \
+        "rts\n");
+#define DOS_OTHER_IN_D1(fn)                                    \
+    extern void fn##_D1(void);                                 \
+    asm(".text\n\t.even\n"                                     \
+        "_" #fn "_D1:\n\t"                                      \
+        "jsr _" #fn "\n\t"                                      \
+        "move.l d0,d1\n\t"                                      \
+        "not.l d1\n\t"                                          \
+        "rts\n");
+DOS_RESULT_IN_D1(_dos_Open)
+DOS_RESULT_IN_D1(_dos_Read)
+DOS_RESULT_IN_D1(_dos_Write)
+DOS_RESULT_IN_D1(_dos_Input)
+DOS_RESULT_IN_D1(_dos_Output)
+DOS_RESULT_IN_D1(_dos_Seek)
+DOS_RESULT_IN_D1(_dos_DeleteFile)
+DOS_RESULT_IN_D1(_dos_Lock)
+DOS_RESULT_IN_D1(_dos_IoErr)
+DOS_RESULT_IN_D1(_dos_LoadSeg)
+DOS_RESULT_IN_D1(_dos_DateStamp)
+DOS_RESULT_IN_D1(_dos_IsInteractive)
+DOS_RESULT_IN_D1(_dos_SetIoErr)
+DOS_OTHER_IN_D1(_dos_DupLock)
+DOS_OTHER_IN_D1(_dos_Info)
+DOS_OTHER_IN_D1(_dos_ParentDir)
+DOS_OTHER_IN_D1(_dos_FilePart)
+
 APTR __g_lxa_dos_FuncTab [] =
+
 {
     __g_lxa_dos_OpenLib,
     __g_lxa_dos_CloseLib,
     __g_lxa_dos_ExpungeLib,
     __g_lxa_dos_ExtFuncLib,
-    _dos_Open, // offset = -30
+    _dos_Open_D1, // offset = -30
     _dos_Close, // offset = -36
-    _dos_Read, // offset = -42
-    _dos_Write, // offset = -48
-    _dos_Input, // offset = -54
-    _dos_Output, // offset = -60
-    _dos_Seek, // offset = -66
-    _dos_DeleteFile, // offset = -72
+    _dos_Read_D1, // offset = -42
+    _dos_Write_D1, // offset = -48
+    _dos_Input_D1, // offset = -54
+    _dos_Output_D1, // offset = -60
+    _dos_Seek_D1, // offset = -66
+    _dos_DeleteFile_D1, // offset = -72
     _dos_Rename, // offset = -78
-    _dos_Lock, // offset = -84
+    _dos_Lock_D1, // offset = -84
     _dos_UnLock, // offset = -90
-    _dos_DupLock, // offset = -96
+    _dos_DupLock_D1, // offset = -96
     _dos_Examine, // offset = -102
     _dos_ExNext, // offset = -108
-    _dos_Info, // offset = -114
+    _dos_Info_D1, // offset = -114
     _dos_CreateDir, // offset = -120
     _dos_CurrentDir, // offset = -126
-    _dos_IoErr, // offset = -132
+    _dos_IoErr_D1, // offset = -132
     _dos_CreateProc, // offset = -138
     _dos_Exit, // offset = -144
-    _dos_LoadSeg, // offset = -150
+    _dos_LoadSeg_D1, // offset = -150
     _dos_UnLoadSeg, // offset = -156
     _dos_private0, // offset = -162
     _dos_private1, // offset = -168
     _dos_DeviceProc, // offset = -174
     _dos_SetComment, // offset = -180
     _dos_SetProtection, // offset = -186
-    _dos_DateStamp, // offset = -192
+    _dos_DateStamp_D1, // offset = -192
     _dos_Delay, // offset = -198
     _dos_WaitForChar, // offset = -204
-    _dos_ParentDir, // offset = -210
-    _dos_IsInteractive, // offset = -216
+    _dos_ParentDir_D1, // offset = -210
+    _dos_IsInteractive_D1, // offset = -216
     _dos_Execute, // offset = -222
     _dos_AllocDosObject, // offset = -228
     _dos_FreeDosObject, // offset = -234
@@ -11766,7 +11806,7 @@ APTR __g_lxa_dos_FuncTab [] =
     _dos_MakeLink, // offset = -444
     _dos_ChangeMode, // offset = -450
     _dos_SetFileSize, // offset = -456
-    _dos_SetIoErr, // offset = -462
+    _dos_SetIoErr_D1, // offset = -462
     _dos_Fault, // offset = -468
     _dos_PrintFault, // offset = -474
     _dos_ErrorReport, // offset = -480
@@ -11834,7 +11874,7 @@ APTR __g_lxa_dos_FuncTab [] =
     _dos_private3, // offset = -852
     _dos_FreeArgs, // offset = -858
     _dos_private4, // offset = -864
-    _dos_FilePart, // offset = -870
+    _dos_FilePart_D1, // offset = -870
     _dos_PathPart, // offset = -876
     _dos_AddPart, // offset = -882
     _dos_StartNotify, // offset = -888
