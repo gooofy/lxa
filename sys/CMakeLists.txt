@@ -98,15 +98,15 @@ add_disk_library(datatypes_disklib datatypes.library
         ${CMAKE_CURRENT_SOURCE_DIR}/../src/rom/lxa_datatypes.c
 )
 
-# AmigaOS 3.1 BOOPSI gadget classes (LIBS:gadgets/, ported from AROS,
-# see doc/third-party-code.md)
+# AmigaOS 3.1 BOOPSI gadget classes (LIBS:gadgets/, lxa own code,
+# see doc/gadget-classes.md)
 add_disk_library(colorwheel_disklib gadgets/colorwheel.gadget
     SOURCES
         ${CMAKE_CURRENT_SOURCE_DIR}/../src/rom/gadgets/classlib.c
         ${CMAKE_CURRENT_SOURCE_DIR}/../src/rom/gadgets/colorwheel.c
     HEADERS
         ${CMAKE_CURRENT_SOURCE_DIR}/../src/rom/gadgets/classlib.h
-        ${CMAKE_CURRENT_SOURCE_DIR}/../src/rom/gadgets/colorwheel_fixmath.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/../src/rom/gadgets/colorwheel_math.h
 )
 
 add_disk_library(gradientslider_disklib gadgets/gradientslider.gadget

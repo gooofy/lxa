@@ -86,4 +86,15 @@ static inline ULONG CL_DoMethodA(Object *o, Msg msg)
     return CL_CoerceMethodA(OCLASS(o), o, msg);
 }
 
+/* gadget helpers shared by the classes (classlib.c) */
+
+/* the gadget's box in its domain, GFLG_REL* resolved (gi may be NULL) */
+void classlib_GadgetBox(struct Gadget *g, struct GadgetInfo *gi, struct IBox *box);
+
+/* send GM_RENDER to the object through a RastPort from ObtainGIRPort() */
+void classlib_Render(Object *o, struct GadgetInfo *gi, ULONG mode);
+
+/* send OM_NOTIFY with the given attributes; OPUF_INTERIM when interim */
+void classlib_Notify(Object *o, struct GadgetInfo *gi, struct TagItem *attrs, BOOL interim);
+
 #endif
