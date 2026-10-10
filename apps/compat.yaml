@@ -2,12 +2,12 @@
 # from twin runs of the app scenarios - never edit ratings by hand.
 # Ratings: platinum > gold > silver > bronze > garbage; untested = no oracle/run.
 # Each divergence names the roadmap phase that owns it (231 = triage).
-generated: '2026-10-09'
-lxa_version: 0.11.31
+generated: '2026-10-10'
+lxa_version: 0.11.45
 ratings:
   platinum: 2
-  gold: 15
-  silver: 19
+  gold: 25
+  silver: 9
   bronze: 0
   garbage: 0
   untested: 0
@@ -16,7 +16,7 @@ apps:
     name: ACE BASIC (AIDE)
     version: 2.4b / AIDE 2.04
     rating: silver
-    last_tested: 0.11.31
+    last_tested: 0.11.45
     scenarios:
       tests/scenarios/apps/ace.yaml:
         lxa: ok
@@ -25,60 +25,36 @@ apps:
           startup: tree
         rating: silver
     divergences:
-    - signature: gadget geometry (left) differs
-      phase: 256
-      owned: true
     - signature: 'gadget.type: lxa lacks 0x4'
-      phase: 256
-      owned: true
-    - signature: 'app-ace: Text() strings missing in lxa'
-      phase: 244
+      phase: 252
       owned: true
     - signature: 'gadget.count: lxa 3, reference 4'
-      phase: 256
+      phase: 252
       owned: true
     - signature: 'gadget.flags: lxa lacks 0x8004'
       phase: 256
       owned: true
-    - signature: 'window.flags: lxa lacks 0x8000000'
-      phase: 256
-      owned: true
-    - signature: 'window.max_width: lxa 152, reference 276'
-      phase: 256
-      owned: true
-    - signature: 'window.min_width: lxa 152, reference 276'
-      phase: 256
-      owned: true
-    - signature: 'window.width: lxa 152, reference 276'
-      phase: 231
-      owned: false
   ADPro:
     name: Art Department Professional
     version: 2.5.1
-    rating: silver
-    last_tested: 0.11.31
+    rating: gold
+    last_tested: 0.11.45
     scenarios:
       tests/scenarios/apps/adpro.yaml:
         lxa: ok
         ref: ok
         verdicts:
-          startup: tree
-        rating: silver
+          startup: pixels
+        rating: gold
     divergences:
-    - signature: item geometry (left) differs
-      phase: 256
-      owned: true
-    - signature: gadget.text differs
-      phase: 256
-      owned: true
     - signature: 'app-adpro: Text() strings missing in lxa'
-      phase: 244
+      phase: 256
       owned: true
   AmiBlitz3:
     name: AmiBlitz 3
     version: 3.7.4
     rating: silver
-    last_tested: 0.11.31
+    last_tested: 0.11.45
     scenarios:
       tests/scenarios/apps/amiblitz3.yaml:
         lxa: ok
@@ -87,9 +63,6 @@ apps:
           startup: tree
         rating: silver
     divergences:
-    - signature: 'gadget.activation: lxa adds 0x8000'
-      phase: 256
-      owned: true
     - signature: 'gadget.flags: lxa lacks 0x801c'
       phase: 256
       owned: true
@@ -99,11 +72,8 @@ apps:
     - signature: 'gadget.flags: lxa lacks 0x8054'
       phase: 256
       owned: true
-    - signature: item.text differs
-      phase: 256
-      owned: true
     - signature: 'app-amiblitz3: Text() strings missing in lxa'
-      phase: 244
+      phase: 252
       owned: true
     - signature: 'gadget.activation: lxa lacks 0x8010'
       phase: 256
@@ -121,13 +91,10 @@ apps:
       phase: 256
       owned: true
     - signature: 'gadget.type: lxa lacks 0x2004'
-      phase: 256
+      phase: 252
       owned: true
     - signature: 'gadget.type: lxa lacks 0x2004 lxa adds 0x2'
-      phase: 256
-      owned: true
-    - signature: 'item.count: lxa 9, reference 8'
-      phase: 256
+      phase: 252
       owned: true
     - signature: 'window.flags: lxa adds 0x4000000'
       phase: 256
@@ -136,7 +103,7 @@ apps:
     name: AmigaBASIC
     version: '1.2'
     rating: gold
-    last_tested: 0.11.31
+    last_tested: 0.11.45
     scenarios:
       tests/scenarios/apps/amigabasic.yaml:
         lxa: ok
@@ -146,13 +113,13 @@ apps:
         rating: gold
     divergences:
     - signature: 'app-amigabasic: Text() strings missing in lxa'
-      phase: 244
+      phase: 256
       owned: true
   AQB:
     name: AQB
     version: 0.9.0a1
     rating: platinum
-    last_tested: 0.11.31
+    last_tested: 0.11.45
     scenarios:
       tests/scenarios/apps/aqb.yaml:
         lxa: ok
@@ -165,7 +132,7 @@ apps:
     name: ASM-One
     version: '1.48'
     rating: gold
-    last_tested: 0.11.31
+    last_tested: 0.11.45
     scenarios:
       tests/scenarios/apps/asm-one.yaml:
         lxa: ok
@@ -175,13 +142,13 @@ apps:
         rating: gold
     divergences:
     - signature: 'app-asm-one: Text() strings missing in lxa'
-      phase: 244
+      phase: 256
       owned: true
   ASMPro:
     name: Asm-Pro
     version: '1.17'
     rating: gold
-    last_tested: 0.11.31
+    last_tested: 0.11.45
     scenarios:
       tests/scenarios/apps/asmpro.yaml:
         lxa: ok
@@ -191,13 +158,13 @@ apps:
         rating: gold
     divergences:
     - signature: 'app-asmpro: Text() strings missing in lxa'
-      phase: 244
+      phase: 256
       owned: true
   AztecC:
     name: Aztec C
     version: 5.x
     rating: platinum
-    last_tested: 0.11.31
+    last_tested: 0.11.45
     scenarios:
       tests/scenarios/apps/aztecc.yaml:
         lxa: ok
@@ -210,7 +177,7 @@ apps:
     name: Blitz Basic 1
     version: 1.x
     rating: gold
-    last_tested: 0.11.31
+    last_tested: 0.11.45
     scenarios:
       tests/scenarios/apps/blitzbasic1.yaml:
         lxa: ok
@@ -220,13 +187,13 @@ apps:
         rating: gold
     divergences:
     - signature: 'app-blitzbasic1: Text() strings missing in lxa'
-      phase: 244
+      phase: 256
       owned: true
   BlitzBasic2:
     name: Blitz Basic 2
     version: 1.x
     rating: gold
-    last_tested: 0.11.31
+    last_tested: 0.11.45
     scenarios:
       tests/scenarios/apps/blitzbasic2.yaml:
         lxa: ok
@@ -238,36 +205,24 @@ apps:
   BTII:
     name: BeckerText II
     version: 2.x
-    rating: silver
-    last_tested: 0.11.31
+    rating: gold
+    last_tested: 0.11.45
     scenarios:
       tests/scenarios/apps/btii.yaml:
         lxa: ok
         ref: ok
         verdicts:
-          startup: tree
-        rating: silver
+          startup: pixels
+        rating: gold
     divergences:
     - signature: 'app-btii: Text() strings missing in lxa'
-      phase: 244
-      owned: true
-    - signature: 'menu.count: lxa 5, reference 0'
-      phase: 256
-      owned: true
-    - signature: 'sysgadget.height: lxa 10, reference 19'
-      phase: 231
-      owned: false
-    - signature: 'window.border: lxa [4, 11, 18, 2], reference [4, 20, 18, 11]'
-      phase: 256
-      owned: true
-    - signature: 'window.flags: lxa lacks 0x10000'
       phase: 256
       owned: true
   Cluster2:
     name: Cluster 2
     version: 2.x
     rating: gold
-    last_tested: 0.11.31
+    last_tested: 0.11.45
     scenarios:
       tests/scenarios/apps/cluster2.yaml:
         lxa: ok
@@ -277,13 +232,13 @@ apps:
         rating: gold
     divergences:
     - signature: 'app-cluster2: Text() strings missing in lxa'
-      phase: 244
+      phase: 256
       owned: true
   DevPac:
     name: Devpac
     version: '3.18'
     rating: gold
-    last_tested: 0.11.31
+    last_tested: 0.11.45
     scenarios:
       tests/scenarios/apps/devpac.yaml:
         lxa: ok
@@ -293,13 +248,13 @@ apps:
         rating: gold
     divergences:
     - signature: 'app-devpac: Text() strings missing in lxa'
-      phase: 244
+      phase: 256
       owned: true
   DirectoryOpus:
     name: Directory Opus
     version: '4.16'
     rating: gold
-    last_tested: 0.11.31
+    last_tested: 0.11.45
     scenarios:
       tests/scenarios/apps/directoryopus.yaml:
         lxa: ok
@@ -309,13 +264,13 @@ apps:
         rating: gold
     divergences:
     - signature: 'app-directoryopus: Text() strings missing in lxa'
-      phase: 244
+      phase: 256
       owned: true
   DPaintV:
     name: Deluxe Paint V
     version: '5.2'
     rating: silver
-    last_tested: 0.11.31
+    last_tested: 0.11.45
     scenarios:
       tests/scenarios/apps/dpaintv.yaml:
         lxa: ok
@@ -328,13 +283,13 @@ apps:
       phase: 256
       owned: true
     - signature: 'app-dpaintv: Text() strings missing in lxa'
-      phase: 244
+      phase: 256
       owned: true
   EdWordPro:
     name: EdWord Professional
     version: '6.0'
     rating: gold
-    last_tested: 0.11.31
+    last_tested: 0.11.45
     scenarios:
       tests/scenarios/apps/edwordpro.yaml:
         lxa: ok
@@ -344,13 +299,13 @@ apps:
         rating: gold
     divergences:
     - signature: 'app-edwordpro: Text() strings missing in lxa'
-      phase: 244
+      phase: 256
       owned: true
   FinalWriter_D:
     name: Final Writer (German)
     version: 4.x
     rating: silver
-    last_tested: 0.11.31
+    last_tested: 0.11.45
     scenarios:
       tests/scenarios/apps/finalwriter-d.yaml:
         lxa: ok
@@ -359,120 +314,30 @@ apps:
           startup: tree
         rating: silver
     divergences:
-    - signature: gadget geometry (left) differs
-      phase: 256
-      owned: true
-    - signature: gadget geometry (width) differs
-      phase: 256
-      owned: true
     - signature: 'gadget.flags: lxa lacks 0x800'
       phase: 256
       owned: true
-    - signature: 'window.left: lxa 86, reference 80'
-      phase: 231
-      owned: false
-    - signature: 'window.max_width: lxa 467, reference 480'
-      phase: 256
-      owned: true
-    - signature: 'window.min_width: lxa 467, reference 480'
-      phase: 256
-      owned: true
-    - signature: 'window.width: lxa 467, reference 480'
-      phase: 231
-      owned: false
   FontView:
     name: FontView
     version: '3.1'
-    rating: silver
-    last_tested: 0.11.31
+    rating: gold
+    last_tested: 0.11.45
     scenarios:
       tests/scenarios/apps/fontview.yaml:
         lxa: ok
         ref: ok
         verdicts:
-          startup: tree
-        rating: silver
+          startup: pixels
+        rating: gold
     divergences:
-    - signature: gadget geometry (left) differs
-      phase: 256
-      owned: true
-    - signature: gadget geometry (width) differs
-      phase: 256
-      owned: true
     - signature: 'app-fontview: Text() strings missing in lxa'
-      phase: 244
-      owned: true
-    - signature: gadget geometry (height) differs
       phase: 256
       owned: true
-    - signature: gadget geometry (top) differs
-      phase: 256
-      owned: true
-    - signature: 'gadget.activation: lxa adds 0x1'
-      phase: 256
-      owned: true
-    - signature: 'gadget.count: lxa 18, reference 6'
-      phase: 256
-      owned: true
-    - signature: 'gadget.flags: lxa lacks 0x1'
-      phase: 256
-      owned: true
-    - signature: 'gadget.id: lxa 0, reference 1'
-      phase: 256
-      owned: true
-    - signature: 'gadget.type: lxa lacks 0x1'
-      phase: 256
-      owned: true
-    - signature: 'menu.count: lxa 1, reference 0'
-      phase: 256
-      owned: true
-    - signature: 'window.block_pen: lxa 1, reference 0'
-      phase: 231
-      owned: false
-    - signature: 'window.count: lxa 1, reference 2'
-      phase: 256
-      owned: true
-    - signature: 'window.flags: lxa lacks 0x10040 lxa adds 0x8'
-      phase: 256
-      owned: true
-    - signature: 'window.flags: lxa lacks 0x4000 lxa adds 0x2000'
-      phase: 256
-      owned: true
-    - signature: 'window.height: lxa 159, reference 84'
-      phase: 231
-      owned: false
-    - signature: 'window.idcmp: lxa adds 0x200328'
-      phase: 231
-      owned: false
-    - signature: 'window.left: lxa 26, reference 93'
-      phase: 231
-      owned: false
-    - signature: 'window.max_height: lxa 159, reference 84'
-      phase: 256
-      owned: true
-    - signature: 'window.max_width: lxa 589, reference 454'
-      phase: 256
-      owned: true
-    - signature: 'window.min_height: lxa 159, reference 84'
-      phase: 256
-      owned: true
-    - signature: 'window.min_width: lxa 589, reference 454'
-      phase: 256
-      owned: true
-    - signature: 'window.title: lxa FontView, reference Unregistered...'
-      phase: 256
-      owned: true
-    - signature: 'window.top: lxa 17, reference 86'
-      phase: 231
-      owned: false
-    - signature: 'window.width: lxa 589, reference 454'
-      phase: 231
-      owned: false
   GadToolsBox3:
     name: GadToolsBox
     version: '3.0'
     rating: gold
-    last_tested: 0.11.31
+    last_tested: 0.11.45
     scenarios:
       tests/scenarios/apps/gadtoolsbox3.yaml:
         lxa: ok
@@ -484,42 +349,24 @@ apps:
   GFABasic:
     name: GFA-BASIC
     version: 3.x
-    rating: silver
-    last_tested: 0.11.31
+    rating: gold
+    last_tested: 0.11.45
     scenarios:
       tests/scenarios/apps/gfabasic.yaml:
         lxa: ok
         ref: ok
         verdicts:
-          startup: tree
-        rating: silver
+          startup: pixels
+        rating: gold
     divergences:
     - signature: 'app-gfabasic: Text() strings missing in lxa'
-      phase: 244
-      owned: true
-    - signature: 'screen.count: lxa 1, reference 2'
-      phase: 231
-      owned: false
-    - signature: 'screen.depth: lxa 2, reference 1'
-      phase: 231
-      owned: false
-    - signature: 'screen.flags: lxa lacks 0xe lxa adds 0x400'
-      phase: 256
-      owned: true
-    - signature: 'window.count: lxa 146, reference 0'
-      phase: 256
-      owned: true
-    - signature: 'window.count: lxa 146, reference 1'
-      phase: 256
-      owned: true
-    - signature: 'window.flags: lxa adds 0x8000000'
       phase: 256
       owned: true
   kickpascal2:
     name: KickPascal 2
     version: '2.0'
     rating: gold
-    last_tested: 0.11.31
+    last_tested: 0.11.45
     scenarios:
       tests/scenarios/apps/kickpascal2.yaml:
         lxa: ok
@@ -529,38 +376,29 @@ apps:
         rating: gold
     divergences:
     - signature: 'app-kickpascal2: Text() strings missing in lxa'
-      phase: 244
+      phase: 256
       owned: true
   MaxonBASIC:
     name: MaxonBASIC
     version: '3.00'
-    rating: silver
-    last_tested: 0.11.31
+    rating: gold
+    last_tested: 0.11.45
     scenarios:
       tests/scenarios/apps/maxonbasic.yaml:
         lxa: ok
         ref: ok
         verdicts:
-          startup: tree
-        rating: silver
+          startup: pixels
+        rating: gold
     divergences:
-    - signature: item geometry (left) differs
-      phase: 256
-      owned: true
     - signature: 'app-maxonbasic: Text() strings missing in lxa'
-      phase: 244
-      owned: true
-    - signature: 'window.font: lxa topaz.font/9, reference topaz.font/11'
-      phase: 231
-      owned: false
-    - signature: 'window.min_width: lxa 122, reference 102'
       phase: 256
       owned: true
   MaxonCPP:
     name: MaxonDevelop (Maxon C++ 4 Pro)
     version: '4.0'
     rating: silver
-    last_tested: 0.11.31
+    last_tested: 0.11.45
     scenarios:
       tests/scenarios/apps/maxoncpp.yaml:
         lxa: ok
@@ -570,10 +408,10 @@ apps:
         rating: silver
     divergences:
     - signature: 'app-maxoncpp: Text() strings missing in lxa'
-      phase: 244
+      phase: 252
       owned: true
     - signature: 'gadget.count: lxa 3, reference 9'
-      phase: 256
+      phase: 252
       owned: true
     - signature: 'window.count: lxa 2, reference 1'
       phase: 256
@@ -582,11 +420,11 @@ apps:
       phase: 256
       owned: true
     - signature: 'window.height: lxa 163, reference 204'
-      phase: 231
-      owned: false
+      phase: 256
+      owned: true
     - signature: 'window.left: lxa 171, reference 89'
-      phase: 231
-      owned: false
+      phase: 256
+      owned: true
     - signature: 'window.max_height: lxa 163, reference 204'
       phase: 256
       owned: true
@@ -600,16 +438,16 @@ apps:
       phase: 256
       owned: true
     - signature: 'window.top: lxa 52, reference 31'
-      phase: 231
-      owned: false
+      phase: 256
+      owned: true
     - signature: 'window.width: lxa 298, reference 462'
-      phase: 231
-      owned: false
+      phase: 256
+      owned: true
   Oberon:
     name: AmigaOberon (OEd)
     version: '3.10'
     rating: gold
-    last_tested: 0.11.31
+    last_tested: 0.11.45
     scenarios:
       tests/scenarios/apps/oberon.yaml:
         lxa: ok
@@ -619,13 +457,13 @@ apps:
         rating: gold
     divergences:
     - signature: 'app-oberon: Text() strings missing in lxa'
-      phase: 244
+      phase: 256
       owned: true
   ppaint:
     name: Personal Paint
     version: 6.x
     rating: silver
-    last_tested: 0.11.31
+    last_tested: 0.11.45
     scenarios:
       tests/scenarios/apps/ppaint.yaml:
         lxa: ok
@@ -641,50 +479,41 @@ apps:
       phase: 240
       owned: true
     - signature: 'screen.count: lxa 2, reference 1'
-      phase: 231
-      owned: false
+      phase: 243
+      owned: true
     - signature: 'screen.depth: lxa 3, reference 2'
-      phase: 231
-      owned: false
+      phase: 243
+      owned: true
     - signature: 'screen.flags: lxa lacks 0x400 lxa adds 0x408e'
       phase: 256
       owned: true
     - signature: 'screen.font: lxa Personal.font/8, reference topaz.font/8'
-      phase: 231
-      owned: false
+      phase: 243
+      owned: true
     - signature: 'window.count: lxa 3, reference 0'
       phase: 256
       owned: true
   ProWrite:
     name: ProWrite
     version: '3.3'
-    rating: silver
-    last_tested: 0.11.31
+    rating: gold
+    last_tested: 0.11.45
     scenarios:
       tests/scenarios/apps/prowrite.yaml:
         lxa: ok
         ref: ok
         verdicts:
-          startup: tree
-        rating: silver
+          startup: pixels
+        rating: gold
     divergences:
-    - signature: 'item.flags: lxa adds 0x100'
-      phase: 256
-      owned: true
-    - signature: item.text differs
-      phase: 256
-      owned: true
     - signature: 'app-prowrite: Text() strings missing in lxa'
-      phase: 244
-      owned: true
-    - signature: 'item.count: lxa 3, reference 6'
       phase: 256
       owned: true
   ReDit:
     name: ReDit
     version: '2.0'
     rating: gold
-    last_tested: 0.11.31
+    last_tested: 0.11.45
     scenarios:
       tests/scenarios/apps/redit.yaml:
         lxa: ok
@@ -694,98 +523,71 @@ apps:
         rating: gold
     divergences:
     - signature: 'app-redit: Text() strings missing in lxa'
-      phase: 244
+      phase: 256
       owned: true
   ReSource:
     name: ReSource
     version: '6.06'
-    rating: silver
-    last_tested: 0.11.31
+    rating: gold
+    last_tested: 0.11.45
     scenarios:
       tests/scenarios/apps/resource.yaml:
         lxa: ok
         ref: ok
         verdicts:
-          startup: tree
-        rating: silver
-    divergences:
-    - signature: 'window.block_pen: lxa 1, reference 2'
-      phase: 231
-      owned: false
-    - signature: 'window.detail_pen: lxa 0, reference 1'
-      phase: 231
-      owned: false
+          startup: pixels
+        rating: gold
+    divergences: []
   Scout:
     name: Scout
     version: '37.290'
-    rating: silver
-    last_tested: 0.11.31
+    rating: gold
+    last_tested: 0.11.45
     scenarios:
       tests/scenarios/apps/scout.yaml:
         lxa: ok
         ref: ok
         verdicts:
-          startup: tree
-        rating: silver
+          startup: pixels
+        rating: gold
     divergences:
-    - signature: item geometry (left) differs
-      phase: 256
-      owned: true
-    - signature: item geometry (width) differs
-      phase: 256
-      owned: true
     - signature: 'app-scout: Text() strings missing in lxa'
-      phase: 244
-      owned: true
-    - signature: item geometry (top) differs
       phase: 256
       owned: true
   SIGMAth:
     name: SIGMAth (demo)
     version: '2.2'
-    rating: silver
-    last_tested: 0.11.31
+    rating: gold
+    last_tested: 0.11.45
     scenarios:
       tests/scenarios/apps/sigmath.yaml:
         lxa: ok
         ref: ok
         verdicts:
-          startup: tree
-        rating: silver
-    divergences:
-    - signature: 'gadget.activation: lxa lacks 0x8000'
-      phase: 256
-      owned: true
-    - signature: 'window.border: lxa [4, 11, 18, 2], reference [4, 11, 18, 10]'
-      phase: 256
-      owned: true
+          startup: pixels
+        rating: gold
+    divergences: []
   SIGMAth2:
     name: SIGMAth 2
     version: '2.0'
-    rating: silver
-    last_tested: 0.11.31
+    rating: gold
+    last_tested: 0.11.45
     scenarios:
       tests/scenarios/apps/sigmath2.yaml:
         lxa: ok
         ref: ok
         verdicts:
-          startup: tree
-        rating: silver
+          startup: pixels
+        rating: gold
     divergences:
-    - signature: 'gadget.activation: lxa lacks 0x8000'
-      phase: 256
-      owned: true
-    - signature: 'window.border: lxa [4, 11, 18, 2], reference [4, 11, 18, 10]'
-      phase: 256
-      owned: true
     - signature: 'app-sigmath2: Text() strings missing in lxa'
-      phase: 244
+      phase: 256
       owned: true
   SnoopDos:
     name: SnoopDos
     version: '3.11'
     rating: silver
-    last_tested: 0.11.31
+    last_tested: 0.11.45
     scenarios:
       tests/scenarios/apps/snoopdos.yaml:
         lxa: ok
@@ -794,12 +596,6 @@ apps:
           startup: tree
         rating: silver
     divergences:
-    - signature: item geometry (width) differs
-      phase: 256
-      owned: true
-    - signature: 'gadget.activation: lxa adds 0x8000'
-      phase: 256
-      owned: true
     - signature: 'gadget.flags: lxa lacks 0x801c'
       phase: 256
       owned: true
@@ -809,17 +605,17 @@ apps:
     - signature: 'gadget.flags: lxa lacks 0x8054'
       phase: 256
       owned: true
-    - signature: gadget.text differs
-      phase: 256
-      owned: true
     - signature: 'gadget.type: lxa lacks 0x4'
-      phase: 256
+      phase: 252
       owned: true
-    - signature: 'item.flags: lxa adds 0x100'
+    - signature: item geometry (width) differs
       phase: 256
       owned: true
     - signature: 'app-snoopdos: Text() strings missing in lxa'
-      phase: 244
+      phase: 252
+      owned: true
+    - signature: 'gadget.activation: lxa adds 0x8000'
+      phase: 256
       owned: true
     - signature: 'gadget.activation: lxa lacks 0x12'
       phase: 256
@@ -834,26 +630,29 @@ apps:
       phase: 256
       owned: true
     - signature: 'gadget.type: lxa lacks 0x4 lxa adds 0x2'
+      phase: 252
+      owned: true
+    - signature: 'item.flags: lxa adds 0x100'
       phase: 256
       owned: true
     - signature: 'item.flags: lxa lacks 0x100'
       phase: 256
       owned: true
     - signature: 'window.height: lxa 244, reference 256'
-      phase: 231
-      owned: false
+      phase: 256
+      owned: true
     - signature: 'window.title: lxa SnoopDos 3.11 © Eddy Carroll, August 2021. Hotkey=<invalid>, reference SnoopDos
         3.11 © Eddy Carroll, August 2021. Hotkey=<ctrl alt d>'
       phase: 256
       owned: true
     - signature: 'window.top: lxa 12, reference 0'
-      phase: 231
-      owned: false
+      phase: 256
+      owned: true
   Sonix2:
     name: Sonix
     version: '2.0'
     rating: gold
-    last_tested: 0.11.31
+    last_tested: 0.11.45
     scenarios:
       tests/scenarios/apps/sonix2.yaml:
         lxa: ok
@@ -863,13 +662,13 @@ apps:
         rating: gold
     divergences:
     - signature: 'app-sonix2: Text() strings missing in lxa'
-      phase: 244
+      phase: 256
       owned: true
   SysInfo:
     name: SysInfo
     version: '4.4'
     rating: silver
-    last_tested: 0.11.31
+    last_tested: 0.11.45
     scenarios:
       tests/scenarios/apps/sysinfo.yaml:
         lxa: ok
@@ -879,7 +678,7 @@ apps:
         rating: silver
     divergences:
     - signature: 'app-sysinfo: Text() strings missing in lxa'
-      phase: 244
+      phase: 255
       owned: true
     - signature: 'gadget.flags: lxa adds 0x100'
       phase: 256
@@ -891,7 +690,7 @@ apps:
     name: Typeface
     version: '1.24'
     rating: gold
-    last_tested: 0.11.31
+    last_tested: 0.11.45
     scenarios:
       tests/scenarios/apps/typeface.yaml:
         lxa: ok
@@ -904,7 +703,7 @@ apps:
     name: Vim
     version: '5.3'
     rating: silver
-    last_tested: 0.11.31
+    last_tested: 0.11.45
     scenarios:
       tests/scenarios/apps/vim-5.3.yaml:
         lxa: ok
@@ -914,7 +713,7 @@ apps:
         rating: silver
     divergences:
     - signature: 'app-vim-53: Text() strings missing in lxa'
-      phase: 244
+      phase: 255
       owned: true
     - signature: 'window.title: lxa , reference VIM -'
       phase: 256

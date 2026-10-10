@@ -115,7 +115,7 @@ M0 and M1 are on the critical path: nothing in M2 and later is efficient without
 
 ## Next Phase
 
-> M3: **237b** (agent running), then **244**.
+> M3: **237b** (agent running); afterwards M4 (**240**) and M5 (**252**, **256** carry the corpus residue of Phase 244).
 
 ---
 
@@ -144,17 +144,10 @@ Complete (Phases 220–225, v0.11.28); see the summary table.
 - [ ] Re-run the whole mass run (all 9943 programs, both sides; `LXA_REF_POOL` picks free reference instances) with the calibrated harness (`LXA_PROGDIR_ASSIGNS=0`, WB 3.1 fonts) and publish the report; cluster new lxa-only crash classes into phases.
 - [ ] Triage the hangs and missing windows it lists, starting with Fish SetMouse (lxa keeps running without its window), DW and VChess (lxa: window/exit, 3.1: exit/hang), Scrambler (emulator hang where 3.1 crashes).
 - [ ] Harness: lxa's `running` is the emulator, the reference's is the launched program (WAIT_EXIT) - Fish ISAM's detached server keeps its window, so lxa reports `window` where 3.1 reports `exit` (no crash since Phase 238's harness Workbench window); compare both on the launched program.
+- [ ] (from Phase 244) Golden `cluster2-exit`: the editor's text cursor blinks on IntuiTicks counted from launch, so its phase differs between the systems (ignore region, owner 237). A key press does not restart the blink and lxaprobe `WAIT_WINDOW ""` does not find the untitled editor window: extend lxaprobe (refsys rebuild, only when no other agent uses the pool) to wait for an untitled app window or for the app's n-th IntuiTick, snapshot a fixed number of ticks after it and drop the ignore region.
 - [ ] Harness: programs that sleep exactly the run time (Fish DumpWB `Delay(300)`) end as `hang` on lxa because loading takes emulated time - give the lxa side the reference's load-time margin or compare them as equal.
 
 **Test gate**: the full mass-run report shows no lxa-only crash class with >= 5 programs.
-
-### Phase 244 — Corpus residue (from the Phase 238 sweep)
-**Class**: Compatibility. `doc/sweeps/2026-10-09-sweep.md` / `apps/compat.yaml` (v0.11.32): 2 platinum, 15 gold, 19 silver, no bronze/garbage/untested. Raise the silver apps, worst first (use the compat-sweep skill's parallel triage; tracediff before hypotheses).
-- [ ] Per-app divergences owned by this phase in `doc/sweeps/owners.yaml` (`Text() strings missing in lxa`, `stdout differs`): triage ADPro (477 tree diffs), AmiBlitz3 (editor area gray where 3.1 draws it white, missing editor scroller; 494602 px), SnoopDos, MaxonBASIC, DPaintV, ProWrite, Scout, SIGMAth/SIGMAth2, FontView, ReSource, FinalWriter_D, BTII, GFABasic, MaxonCPP into root causes and fix or re-own them.
-- [ ] Cluster2 golden (`cluster2-exit`): the editor's cursor blink phase depends on how long the launch takes on each system (ignore region) - start both runs at the same IntuiTicks phase or compare the cursor after a fixed number of ticks.
-- [ ] Re-run `python3 -m rdd sweep run` after each fix; ratings in `apps/compat.yaml` must not drop (`rdd compat --fail-on-drop`).
-
-**Test gate**: no corpus app below gold for a reason inside lxa or the scenarios.
 
 ---
 
@@ -180,6 +173,7 @@ Complete (Phases 220–225, v0.11.28); see the summary table.
 - [ ] Probe goldens from the `rtg` reference profile.
 
 ### Phase 243 — RTG app validation and the Workbench `rtg` profile
+- [ ] (from Phase 244) PPaint opens a depth-3 screen with Personal.font and its own palette where 3.1 (no RTG in the `aga` profile) stays on the Workbench (`apps/compat.yaml` silver: screen.count/depth/font, palette pens) - re-check once RTG exists.
 - [ ] PPaint, FinalWriter (re-enable `DISABLED_AcceptDialogOpensEditorWindow`), DPaint's "Choose Display Mode" list, and one more productivity app (Wordsworth / Amiga Writer). Each one ends with a golden.
 - [ ] lxa boots Workbench in the `rtg` profile, and the gallery matches the reference.
 
@@ -199,7 +193,10 @@ The order below is provisional. After Phase 231/232 it is re-sorted by how often
 - [ ] Gate: the WB 3.1 `Exchange` commodity lists and controls a broker; probe goldens pass.
 
 ### Phase 252 — BOOPSI class completeness
-- [ ] frameiclass, fillrectclass, itexticlass, frbuttonclass, groupgclass, pointerclass; a complete sysiclass.
+- [ ] itexticlass, frbuttonclass, groupgclass, pointerclass; a complete sysiclass (frameiclass exists; fillrectclass done in Phase 244, probe `intuition/fillrect`).
+- [ ] (from Phase 244) buttongclass and propgclass objects are GTYP_CUSTOMGADGET on 3.1 with the GA_* flags applied and a default box of 80x40 (propgclass: GFLG_GADGIMAGE with a knob image, Activation 0 unless asked); lxa's OM_NEW overwrites them with BOOLGADGET/PROPGADGET, GADGHCOMP and RELVERIFY. Needs real GM_RENDER/GM_GOACTIVE/GM_HANDLEINPUT (prop: drive the built-in prop code). Reference values: write probe `intuition/gclassnew` (NewObject with GA_RelRight/GA_RelBottom/GA_Image/GA_*Border/GA_Highlight/PGA_* - captured in Phase 244: e.g. arrow button type 0x0005 flags 0x801c act 0x0083). Apps: SnoopDos (border arrows/scrollers), AmiBlitz3 (PED window), the `gallery-autorequest`/`gallery-easyrequest` goldens.
+- [ ] (from Phase 244) System requesters (BuildSysRequest/BuildEasyRequestArgs) use BOOPSI button gadgets with the caller's IntuiTexts (`GadgetText` = the pos/neg IntuiText, type 0x0005, flags 0x8004) plus a trailing empty gadget (type 0, flags 0x0007); 3.1 measures the body with the IntuiText's ITextFont (topaz 9 body: 330x45). ACE's AIDE alert. Write probe `intuition/sysreq` (captured in Phase 244).
+- [ ] (from Phase 244) groupgclass: MaxonCPP's about window ("Konnte Gadget nicht kreieren", NewObject("groupgclass") returns NULL in lxa; 3.1: 462x204 with 9 gadgets).
 - [ ] Old-look (pre-V39 / non-NewLook) window images and sysiclass images scaled for larger screen fonts (gallery-screen-oldlook, gallery-menus-oldlook pages, Phase 223).
 - [ ] colorwheel.gadget and gradientslider.gadget as disk classes (GadToolsBox3 needs colorwheel.gadget, Phase 230 compat run).
 - [ ] Gate: gallery pages (Phase 223) for each class match the reference.
@@ -227,12 +224,18 @@ The order below is provisional. After Phase 231/232 it is re-sorted by how often
 - [ ] bullet.library (outline fonts) as a separately scoped sub-phase.
 
 - [ ] (from Phase 222) CON:/RAW: options AUTO, WAIT and SCREEN are ignored (`LXA_UNIMPLEMENTED`).
+- [ ] (from Phase 244) CON:/RAW: windows have no handler port (`fh_Type` NULL), so `pr_ConsoleTask` of a shell in a CON: window is NULL and `ACTION_DISK_INFO` (id_VolumeNode = window, id_InUse = console IORequest) cannot reach them: vim-5.3 never gets its window to call `SetWindowTitles("VIM -")`. Give every CON: handle its own (PA_IGNORE) handler port answering READ/WRITE/WAIT_CHAR/SCREEN_MODE/DISK_INFO; Open("*") must share the window. Probe `dos/condiskinfo` first.
+- [ ] (from Phase 244) SysInfo's three gadgets that 3.1 disables (GFLG_DISABLED, `gadget.flags` 2 vs 258) are enabled on lxa - the same missing resources/hardware probes as the DISABLED_ SysInfo tests below.
 - [ ] (from Phase 234) Re-enable `SysInfoTest.DISABLED_{Memory,Boards,Libraries,Speed}Gadget…` (`sysinfo_gtest.cpp`): SysInfo busy-waits for 60 ticks of CIA-A's time-of-day counter ($BFE801-$BFEA01) and its DRIVES scan needs a non-empty DOS device list (real `LockDosList`); battclock.resource is missing. Golden `SysInfo/sysinfo-gadgets` records the divergence.
 ### Phase 256 — intuition / graphics / gadtools remaining stubs
 - [ ] `DisplayBeep` (screen flash plus optional host bell), `MoveScreen`/`ScreenPosition`, `ModifyProp` refresh, `RethinkDisplay`, `GT_FilterIMsg`/`GT_PostFilterIMsg`, `LoadView`, `RPTAG_DrawBounds`, layers SuperBitMap sync.
 - [ ] Whatever else is in the stub inventory (Phase 203) for these libraries.
 - [ ] Gate: the stub inventory for intuition, graphics, gadtools and layers is empty.
 
+- [ ] (from Phase 244) DPaintV's Settings/History sub-items ("#?") are 37 wide on 3.1, 21 on lxa (LayoutMenusA with the same labels and font; the reference measures 16 more pixels - find the input with a probe that copies DPaint's NewMenu flags/command strings).
+- [ ] (from Phase 244) FinalWriter_D's buttons carry GFLG_IMAGEDISABLE on 3.1 (`gadget.flags` 6 vs 0x806); Intuition does not set it (probe `intuition/imagedisable`) - trace which call makes FinalWriter set it.
+- [ ] (from Phase 244) SnoopDos: Hotkey title `<invalid>` (commodities `ParseIX`, Phase 251), window 0/256 vs 12/244, the checked "Task priority" item, sub-item width 36 vs 37; AmiBlitz3's window keeps WFLG_WINDOWTICKED at the snapshot.
+- [ ] (from Phase 244) A system requester measures its body with the screen RastPort's current font on 3.1 (probe `intuition/reqfont`); with a font other than the screen font its height differs on lxa (+3/+5 instead of +2 for topaz 9) - the probe prints widths only for that case.
 - [ ] (from Phase 222) residual divergences recorded in goldens and sweep clusters (`doc/sweeps/owners.yaml`): SimpleGad window title, DevPac Settings gadget texts, AutoRequest `WFLG_VISITOR`, Typeface's BGUI scroller knob, DirectoryOpus pixels; re-promote as they are fixed.
 - [ ] (from Phase 222) `BitMapScale()` leaves its own DDA values in `bsa_XDDA`/`bsa_YDDA` on 3.1 (X 1:2 -> -3, 3:5 -> -5, 300:301 -> -342; Y 3:1 -> -5, 7:4 -> -8); another window moving off a GimmeZeroZero window's border redraws all its gadgets on 3.1, not on lxa.
 ### Phase 257 — Locale catalogs & non-English apps
@@ -360,4 +363,5 @@ The order below is provisional. After Phase 231/232 it is re-sorted by how often
 | 236 | Prefs fidelity: `C:IPrefs` (input, locale, overscan, font, palette, pointer, icontrol, screenmode from `ENV:Sys/*.prefs`, run at boot), `OpenLocale()` reads locale prefs, 3.1 defaults (ColorMap, overscan, Preferences, Workbench/pointer colours), fonts/palette/pens applied as on 3.1; goldens `Prefs/gallery-prefs-{default,fontpal,sys}` (scenario keys `prefs:`, `keymaps: wb31`). Open: wbpattern and icon font (264), live prefs changes, pointer image drawing. | v0.11.27 |
 | 237 | Fred Fish crash classes: of the 299 Phase 232 lxa-only crashes 9 remain (owned by 237b/238/240/255; `doc/sweeps/2026-10-09-fish-crashlist.md`). Fixed, each with a 3.1 probe: entry registers, any-a6 dos, signed OpenLibrary versions, exec I/O returns and scratch registers, `pr_ReturnAddr`, ParentDir at assign roots (v0.11.21-26); address 0 = 0 and a full vector table (`exec/lowmem`, `exec/vectors`), CreateNewProc runs only higher-priority children first (`dos/newprocrun`), `dl_UtilityBase`/`dl_IntuitionBase`, OpenLibrary from the current directory (`exec/libpath`), FPU reported and the coprocessor core completed with task-switch context (`exec/fpu`), CIA-A buttons (`exec/buttons`), WaitBlit/OwnBlitter keep registers (`graphics/blitregs`), custom gadgets via the MutualExclude hook (`intuition/customhook`), PRT: (`dos/prt`), SuperState/UserState (`exec/superstate`), DisplayAlert waits for a button, ViewAddress' ViewPort list (`intuition/viewaddress`), console unit font (`console/conunit`), input handlers keep the writer's registers (`input/handlerregs`), InitResident of any type (`exec/initresident`); harness: `LXA_PROGDIR_ASSIGNS=0`, WB 3.1 fonts, `LXA_REF_POOL`, bounded invalid-write logging. | v0.11.31 |
 | 238 | Corpus app failures: every corpus app reaches its window, none `garbage`/`untested` (`doc/sweeps/2026-10-09-sweep.md`, compat 2 platinum / 15 gold / 19 silver, was 6 garbage + 5 untested). Scout, Oberon, ADPro, Asm-One, AQB, BTII, SIGMAth(2) (v0.11.30: memory handlers, pools, 2 MB chip + fast RAM, AROS colorwheel/gradientslider/tapedeck, scenario `stack:`/`writable:`); AmiBlitz3: Disable/Enable/Forbid/Permit and the semaphore calls preserve all registers (`exec/preserveregs`; relay traces record the caller's `ra`); asl screen-mode requester identical to 3.1 (full display database, Control menu, Mode Properties, all ASLSM tags; goldens + probes `asl/smalloc`, `graphics/modedb`); volume names: boot volume "System", RAM: = "Ram Disk" with T:/ENV: (`dos/volnames`), twin-runner SYS: laid out like the 3.1 partition; harness Workbench backdrop window `LXA_WB_WINDOW` (`intuition/wbwindow`, Fish ISAM no longer crashes); ExAll no longer overruns small buffers; lxaprobe `MENU` reaches sub-items. Residue owned by 244/258/264. | v0.11.32 |
+| 244 | Corpus residue (`doc/sweeps/2026-10-10-sweep.md`): compat 2 platinum / 25 gold / 9 silver (was 15 gold / 19 silver), sweep tree-diff apps 19 -> 9. OpenWindow widens borders around GACT_*BORDER gadgets, GACT_BORDERSNIFF rules, AddGadget = AddGList (`intuition/bordersniff`; SIGMAth(2), BTII); LayoutMenusA moves items/sub-menus inside the screen and continues long menus in columns (`gadtools/menufit`; ADPro, MaxonBASIC, Scout); GT_Underscore underline IntuiTexts (`gadtools/underscore`); tag windows take the screen pens (`intuition/scrpens`; ReSource); "input.device"/"ramlib" system tasks (`exec/systasks`); IntuiTextLength/PrintIText use ITextFont (`intuition/itextfont`; FinalWriter); BuildSysRequest opens the Workbench before measuring, ownerless requesters are visitors (`intuition/reqfont`; ACE); fillrectclass (`intuition/fillrect`; reqtools/FontView); GetScreenData ignores the screen for WBENCHSCREEN, negative screen sizes fail (`intuition/screenzero`; GFA-BASIC); BOOL entry points return clean 32-bit D0 (`dos/boolret`; AmiBlitz3); scenarios: BTII waits for its menus, MaxonBASIC/ProWrite use WB 3.1 fonts; tracediff maps renamed app tasks. Residue owned by 237b/243/252/255/256 (`doc/sweeps/owners.yaml`). | v0.11.45 |
 | 239 | BCPL programs: AROS m68k BCPL support ported (`src/rom/bcpl/`, `doc/third-party-code.md`); every command gets a2 = global vector, a5/a6 = BCPL call/return, a1 = BCPL stack (as 3.1, verified with `dos/entryregs`); ROM console segment for 1.3 Run/NewCLI; probe `dos/bcpl`. All six BCPL programs of the Fish corpus exit like on 3.1. Remaining BCPL stubs (coroutines, longjump, requesters) are in the stub inventory. | v0.11.27 |
