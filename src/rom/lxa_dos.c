@@ -125,7 +125,8 @@ struct lxa_dos_inject
     BOOL   own, writing, eof, empty;
 };
 
-/* dos buffered I/O state of a FileHandle (in fh_Port): the buffer holds
+/* dos buffered I/O state of a FileHandle (in fh_Func2: offset 4, fh_Port,
+ * is the interactive flag programs read - probe dos/fhport): the buffer holds
  * either read-ahead data [pos, end) or pending output [0, pos) (flag
  * LXA_DOS_BF_WRITE) */
 struct lxa_dos_buffer_state
@@ -339,6 +340,15 @@ struct MsgPort *lxa_dos_host_console_port(void)
     return g_lxa_host_console_port;
 }
 
+static BOOL lxa_dos_fh_interactive(struct FileHandle *fh);
+
+/* offset 4 (fh_Port): DOSTRUE for an interactive handle, else 0 */
+void lxa_dos_fh_set_port(struct FileHandle *fh)
+{
+    if (fh)
+        fh->fh_Port = lxa_dos_fh_interactive(fh) ? (struct MsgPort *)DOSTRUE : NULL;
+}
+
 static BPTR lxa_dos_alloc_temp_console_handle(LONG arg1, struct FileHandle **fh_out)
 {
     struct FileHandle *fh;
@@ -353,6 +363,7 @@ static BPTR lxa_dos_alloc_temp_console_handle(LONG arg1, struct FileHandle **fh_
     fh->fh_Func3 = FILE_KIND_CONSOLE;
     fh->fh_Type = lxa_dos_host_console_port();
     fh->fh_Arg1 = arg1;
+    lxa_dos_fh_set_port(fh);
 
     if (fh_out)
         *fh_out = fh;
@@ -1693,10 +1704,10 @@ static LONG con_write(struct ConHandle *ch, CONST APTR buffer, LONG length)
 
 static struct lxa_dos_buffer_state *lxa_dos_buffer_state_from_fh(struct FileHandle *fh)
 {
-    if (!fh || !fh->fh_Port)
+    if (!fh || !fh->fh_Func2)
         return NULL;
 
-    struct lxa_dos_buffer_state *state = (struct lxa_dos_buffer_state *)fh->fh_Port;
+    struct lxa_dos_buffer_state *state = (struct lxa_dos_buffer_state *)fh->fh_Func2;
     if (state->magic != LXA_DOS_BUFFER_MAGIC)
         return NULL;
 
@@ -1736,7 +1747,7 @@ static void lxa_dos_buffer_state_discard(struct FileHandle *fh)
 
     state->magic = 0;
     FreeVec(state);
-    fh->fh_Port = NULL;
+    fh->fh_Func2 = 0;
 }
 
 static struct lxa_dos_buffer_state *lxa_dos_buffer_state_ensure(struct FileHandle *fh)
@@ -1758,7 +1769,7 @@ static struct lxa_dos_buffer_state *lxa_dos_buffer_state_ensure(struct FileHandl
     state->size = LXA_DOS_BUFFER_DEFAULT_SIZE;
     state->mode = BUF_LINE;
     state->unget_char = -1;
-    fh->fh_Port = (struct MsgPort *)state;
+    fh->fh_Func2 = (LONG)state;
 
     return state;
 }
@@ -2601,6 +2612,7 @@ BPTR _dos_Open ( register struct DosLibrary * __dos_a6        __asm("a6"),
                   (___name[2] | 0x20) == 'l' && ___name[3] == ':'))
                 fh->fh_Type = lxa_dos_fs_port();     /* NIL: has none (probe dos/nilread) */
 
+            lxa_dos_fh_set_port(fh);
             if (!lxa_dos_buffer_state_ensure(fh))
             {
                 if (fh->fh_Func3 == FILE_KIND_CON)
@@ -5439,6 +5451,7 @@ BPTR _dos_OpenFromLock ( register struct DosLibrary * __dos_a6 __asm("a6"),
         SetIoErr(ERROR_OBJECT_NOT_FOUND);
         return 0;
     }
+    lxa_dos_fh_set_port(fh);
 
     return MKBADDR(fh);
 }

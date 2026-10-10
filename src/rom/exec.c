@@ -6480,6 +6480,8 @@ void _exec_TaskHeld(void)
         Wait(0);
 }
 
+void lxa_dos_fh_set_port(struct FileHandle *fh);
+
 /*
  * AmigaOS 3.1 leaves a1 = the IORequest after these calls, and d1 = 0
  * after OpenDevice()/CloseDevice() (tests/probes/exec/scratchregs.c).
@@ -7071,6 +7073,7 @@ void coldstart (void)
     emucall1 (EMU_CALL_DOS_INPUT, (ULONG) fh);
     if (fh->fh_Func3 == 23 && !fh->fh_Type)
         fh->fh_Type = lxa_dos_host_console_port();
+    lxa_dos_fh_set_port(fh);
     rootProc->pr_CIS = MKBADDR (fh);
     rootProc->pr_ConsoleTask = fh->fh_Type;
 
@@ -7078,6 +7081,7 @@ void coldstart (void)
     emucall1 (EMU_CALL_DOS_OUTPUT, (ULONG) fh);
     if (fh->fh_Func3 == 23 && !fh->fh_Type)
         fh->fh_Type = lxa_dos_host_console_port();
+    lxa_dos_fh_set_port(fh);
     rootProc->pr_COS = MKBADDR (fh);
 
     // cli
@@ -7100,6 +7104,10 @@ void coldstart (void)
      * (Allocated here: utility.library tags are not available this early.) */
     struct CommandLineInterface *cli = (struct CommandLineInterface *) AllocDosObject (DOS_CLI, (struct TagItem *)NULL);
     cli->cli_DefaultStack = 32768 / 4;  /* what the reference runner (lxaprobe RUN) gives programs */
+    /* the CLI's standard handles are the process's (probe dos/fhport;
+     * Fred Fish SiliCon sends packets to cli_StandardOutput's handler) */
+    cli->cli_StandardInput = cli->cli_CurrentInput = rootProc->pr_CIS;
+    cli->cli_StandardOutput = cli->cli_CurrentOutput = rootProc->pr_COS;
 
     {
         LONG name_cap = binlen > 102 ? binlen : 102;

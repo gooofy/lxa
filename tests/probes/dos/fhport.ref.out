@@ -1,0 +1,8 @@
+file: offset 4 = 0, IsInteractive 0
+NIL:: offset 4 = 0, IsInteractive 0
+Input(): offset 4 = 0, IsInteractive 0
+Output(): offset 4 = 0, IsInteractive 0
+cli_StandardInput vs Input(): the same
+cli_CurrentInput vs Input(): the same
+cli_StandardOutput vs Output(): the same
+cli_CurrentOutput vs Output(): the same
