@@ -348,6 +348,8 @@ static BPTR lxa_dos_alloc_temp_console_handle(LONG arg1, struct FileHandle **fh_
     return MKBADDR(fh);
 }
 
+static BOOL lxa_dos_con_port_packet(struct MsgPort *port, struct Message *message);
+
 BOOL lxa_dos_try_handle_special_port(struct MsgPort *port, struct Message *message)
 {
     struct DosPacket *dp;
@@ -416,6 +418,9 @@ BOOL lxa_dos_try_handle_special_port(struct MsgPort *port, struct Message *messa
         _dos_ReplyPkt(DOSBase, dp, res1, res2);
         return TRUE;
     }
+
+    if (lxa_dos_con_port_packet(port, message))
+        return TRUE;
 
     if (!port || port != lxa_dos_host_console_port())
         return FALSE;
@@ -1154,7 +1159,92 @@ struct ConHandle {
     WORD              ch_Zoom[4];     /* WA_Zoom box (Intuition keeps the pointer) */
     LONG              ch_LineLen;     /* cooked mode: typed input not read yet */
     char              ch_Line[256];
+    struct MsgPort    ch_Port;        /* the window's handler port (fh_Type):
+                                         packets are answered in
+                                         lxa_dos_try_handle_special_port() */
 };
+
+/* ln_Name of every console handler port: identifies them in PutMsg() */
+static const char lxa_con_port_name[] = "CON";
+
+/* a packet to a CON:/RAW: window's handler port (probe dos/conpkt) */
+static BOOL lxa_dos_con_port_packet(struct MsgPort *port, struct Message *message)
+{
+    struct DosPacket *dp;
+    LONG res1 = DOSFALSE;
+    LONG res2 = 0;
+
+    if (!port || port->mp_Node.ln_Name != (char *)lxa_con_port_name)
+        return FALSE;
+    {
+        /* a CON:/RAW: window's handler (probe dos/conpkt) */
+        struct ConHandle *ch = (struct ConHandle *)((UBYTE *)port - offsetof(struct ConHandle, ch_Port));
+        struct FileHandle *tfh;
+        struct Process *pme = U_getCurrentProcess();
+
+        dp = message ? lxa_dos_packet_from_message(message) : NULL;
+        if (!dp)
+        {
+            if (message && message->mn_ReplyPort)
+                ReplyMsg(message);
+            return TRUE;
+        }
+        switch (dp->dp_Type)
+        {
+            case ACTION_READ:
+            case ACTION_WRITE:
+            case ACTION_WAIT_CHAR:
+                tfh = (struct FileHandle *)AllocDosObject(DOS_FILEHANDLE, NULL);
+                if (!tfh)
+                {
+                    res2 = ERROR_NO_FREE_STORE;
+                    break;
+                }
+                tfh->fh_Func3 = FILE_KIND_CON;
+                tfh->fh_Type = port;
+                tfh->fh_Arg1 = (LONG)ch;
+                if (dp->dp_Type == ACTION_READ)
+                    res1 = _dos_Read(DOSBase, MKBADDR(tfh), (APTR)dp->dp_Arg2, dp->dp_Arg3);
+                else if (dp->dp_Type == ACTION_WRITE)
+                    res1 = _dos_Write(DOSBase, MKBADDR(tfh), (CONST APTR)dp->dp_Arg2, dp->dp_Arg3);
+                else
+                    res1 = _dos_WaitForChar(DOSBase, MKBADDR(tfh), dp->dp_Arg1);
+                res2 = pme ? pme->pr_Result2 : 0;
+                tfh->fh_Arg1 = 0;
+                FreeDosObject(DOS_FILEHANDLE, tfh);
+                break;
+            case ACTION_SCREEN_MODE:
+                ch->ch_RawMode = dp->dp_Arg1 ? TRUE : FALSE;
+                res1 = DOSTRUE;
+                break;
+            case ACTION_DISK_INFO:
+            {
+                struct InfoData *id = (struct InfoData *)BADDR(dp->dp_Arg1);
+                if (id)
+                {
+                    UBYTE *b = (UBYTE *)id;
+                    ULONG k;
+                    for (k = 0; k < sizeof(*id); k++)
+                        b[k] = 0;
+                    id->id_DiskState = ID_VALIDATED;
+                    id->id_DiskType = ch->ch_RawMode ? 0x52415700 : 0x434f4e00;   /* 'RAW\0' / 'CON\0' */
+                    id->id_VolumeNode = (BPTR)ch->ch_Window;
+                    id->id_InUse = (LONG)ch->ch_IORequest;
+                    res1 = DOSTRUE;
+                }
+                break;
+            }
+            case ACTION_IS_FILESYSTEM:
+                res1 = DOSFALSE;
+                break;
+            default:
+                res2 = ERROR_ACTION_NOT_KNOWN;
+                break;
+        }
+        _dos_ReplyPkt(DOSBase, dp, res1, res2);
+        return TRUE;
+    }
+}
 
 /*
  * A parsed CON:/RAW: specification: "CON:x/y/w/h/title/option/option...".
@@ -2452,6 +2542,14 @@ BPTR _dos_Open ( register struct DosLibrary * __dos_a6        __asm("a6"),
                 }
                 /* Store ConHandle pointer in fh_Arg1 for Read/Write/Close */
                 fh->fh_Arg1 = (LONG)ch;
+                /* the window's handler port, as on AmigaOS 3.1 (probe
+                 * dos/conpkt; Fish Mon finds its window with
+                 * ACTION_DISK_INFO) */
+                ch->ch_Port.mp_Node.ln_Type = NT_MSGPORT;
+                ch->ch_Port.mp_Node.ln_Name = (char *)lxa_con_port_name;
+                ch->ch_Port.mp_Flags = PA_IGNORE;
+                NEWLIST(&ch->ch_Port.mp_MsgList);
+                fh->fh_Type = &ch->ch_Port;
                 DPRINTF (LOG_DEBUG, "_dos: Open() CON: window opened, ch=0x%08lx\n", ch);
             }
 

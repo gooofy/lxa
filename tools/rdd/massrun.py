@@ -119,8 +119,10 @@ def run_lxa_one(rel, root, frames, build=None):
             boot += 1
         res["load_frames"] = boot
         step = 10
+        seen_windows = 0
         for _ in range(0, frames + LXA_MARGIN_FRAMES, step):
             lxa.frames(step)
+            seen_windows = max(seen_windows, lxa.lib.lxa_get_window_count())
             if lxa.program_exited():
                 break
         # as the reference's WAIT_EXIT: the program itself has returned
@@ -128,6 +130,8 @@ def run_lxa_one(rel, root, frames, build=None):
         res["running"] = not lxa.program_exited()
         res["rc"] = None if res["running"] else lxa.exit_code()
         res["windows"] = lxa.lib.lxa_get_window_count()
+        # windows the program had open at some point of its run (Phase 237d)
+        res["seen_windows"] = max(seen_windows, res["windows"])
         res["exceptions"] = lxa.exceptions()
         if not res["running"] and res["exceptions"]:
             # the program returned: exceptions are other tasks' (a shell it
@@ -371,9 +375,22 @@ ENVIRONMENT_DEPENDENT = {
                                             "batch) it exits",
     "fish-0638/ShellTimer/ShellTimerDaemon": "ShellTimer, run before it in the reference batch, had "
                                              "already loaded the daemon",
+    "fish-0224/MoreIsBetter/V": "runs SYS:Utilities/More, a Workbench 3.1 program lxa does not ship",
+    "fish-0429/V/V": "runs SYS:Utilities/More, a Workbench 3.1 program lxa does not ship",
+    "fish-0763/MidiSyn/MidiSyn": "the reference's serial port is held by lxaprobe (\"Serialport not available\")",
     "fish-0162/CLI_Utilities/Tree/Tree": "lists the whole volume of its current directory: on lxa the "
                                          "Fish collection (10 000 drawers), on the reference the small "
                                          "exchange volume LXAREF:",
+}
+
+
+# Programs that do their whole job and return within the run time on lxa
+# while the reference is still busy with the window open - lxa's emulated
+# rendering is faster than the reference's.  Each entry was checked by its
+# trace (Phase 237d).
+FINISHED_SOONER = {
+    "fish-0305/PrFont/prfont": "renders every font of FONTS: into its window, prints it and quits",
+    "fish-0606/PrFont/PrFont": "renders every font of FONTS: into its window, prints it and quits",
 }
 
 
@@ -403,7 +420,8 @@ def build_report(out, md=None):
         kind = ("memory-dependent" if p["rel"] in MEMORY_DEPENDENT else
                 "environment-dependent" if p["rel"] in ENVIRONMENT_DEPENDENT else program_kind(p["rel"]))
         row = {"id": p["id"], "rel": p["rel"], "lxa": cl, "ref": cr, "kind": kind,
-               "lxa_rc": (lx or {}).get("rc"), "ref_rc": (rf or {}).get("rc")}
+               "lxa_rc": (lx or {}).get("rc"), "ref_rc": (rf or {}).get("rc"),
+               "lxa_seen_windows": (lx or {}).get("seen_windows", 0)}
         for u in (lx or {}).get("unimplemented", []):
             k = "%s/%s" % (u["lib"], u["function"])
             unimpl[k] += 1
@@ -429,6 +447,9 @@ def build_report(out, md=None):
             return 1 if r["kind"] == "program" else 6
         if r["lxa"] == "hang" and r["ref"] in ("exit", "window"):
             return 2
+        if r["rel"] in FINISHED_SOONER and r["ref"] == "window" and r["lxa"] == "exit" \
+                and r.get("lxa_seen_windows"):
+            return 8      # finished sooner: its window was there, see the list
         if r["ref"] == "window" and r["lxa"] != "window":
             return 3
         if r["lxa"] == r["ref"] == "exit" and r["lxa_rc"] != r["ref_rc"]:
@@ -490,7 +511,12 @@ def _write_md(path, summary, rows, rank):
           "Their reference outcome depends on libraries other programs of the same reference batch "
           "installed (`ENVIRONMENT_DEPENDENT` in massrun.py).", ""]
     L += ["- %s (lxa %s, 3.1 %s): %s" % (r["rel"], r["lxa"], r["ref"], ENVIRONMENT_DEPENDENT[r["rel"]])
-          for r in rows if rank(r) == 8]
+          for r in rows if rank(r) == 8 and r["rel"] in ENVIRONMENT_DEPENDENT]
+    L += ["", "## Finished sooner", "",
+          "Programs that opened their window on lxa and finished their work within the run time, while "
+          "the reference was still at it (`FINISHED_SOONER` in massrun.py, each checked).", ""]
+    L += ["- %s: %s" % (r["rel"], FINISHED_SOONER[r["rel"]]) for r in rows
+          if rank(r) == 8 and r["rel"] in FINISHED_SOONER]
     L += ["", "## lxa-only hangs and missing windows", "", "| program | lxa | AmigaOS 3.1 |", "|---|---|---|"]
     L += ["| %s | %s | %s |" % (r["rel"], r["lxa"], r["ref"]) for r in rows if rank(r) in (2, 3)]
     L += ["", "## Exit code and output differences", "",

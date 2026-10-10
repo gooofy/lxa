@@ -1,0 +1,20 @@
+CON:0/0/320/100/probe con
+  fh_Type set = TRUE
+  ACTION_DISK_INFO = TRUE
+  window title: probe con
+  id_InUse is an IORequest on console.device = TRUE
+  id_DiskType = 0x434f4e00
+  ACTION_SCREEN_MODE raw = TRUE
+  ACTION_SCREEN_MODE cooked = TRUE
+  ACTION_WAIT_CHAR = 0
+  ACTION_WRITE = 5
+RAW:0/0/320/100/probe raw
+  fh_Type set = TRUE
+  ACTION_DISK_INFO = TRUE
+  window title: probe raw
+  id_InUse is an IORequest on console.device = TRUE
+  id_DiskType = 0x52415700
+  ACTION_SCREEN_MODE raw = TRUE
+  ACTION_SCREEN_MODE cooked = TRUE
+  ACTION_WAIT_CHAR = 0
+  ACTION_WRITE = 5
