@@ -1,0 +1,5 @@
+RC = "0"
+Result2 = "0"
+process found = TRUE
+process is a CLI number = TRUE
+FindVar(process, LV_VAR) = TRUE

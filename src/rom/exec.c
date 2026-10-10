@@ -2752,12 +2752,20 @@ LONG _exec_SetTaskPri ( register struct ExecBase * SysBase __asm("a6"),
     /* Get the old priority */
     BYTE oldPri = ___task->tc_Node.ln_Pri;
 
-    /* Clamp priority to valid range (-128 to 127) */
-    if (___priority > 127) ___priority = 127;
-    if (___priority < -128) ___priority = -128;
+    /* the low byte is the priority (probe exec/taskprilow: 1005 -> -19) */
+    ___priority = (LONG)(BYTE)___priority;
 
     /* Set the new priority */
     ___task->tc_Node.ln_Pri = (BYTE)___priority;
+
+    /* A "task" in the exception vector table (Fred Fish Joey swaps the
+     * arguments: SetTaskPri(127, 1005)) is on no list: 3.1 only writes the
+     * byte there (probe exec/taskprilow); its tc_State byte is part of a
+     * vector here and must not send lxa into the task lists */
+    if ((ULONG)___task < 0x400) {
+        Enable();
+        return (LONG)(UBYTE)oldPri;
+    }
 
     /* If the task is in the ready queue, we need to requeue it
      * to maintain priority ordering */
@@ -4110,6 +4118,17 @@ APTR _exec_OpenResource ( register struct ExecBase * SysBase __asm("a6"),
 
 #define RDF_MAXARGS 64
 
+/* the LVO: the caller's D2-D7 go on the stack, D1 points to them (the
+ * registers the PutChProc sees) */
+extern void _exec_RawDoFmt_Regs(void);
+asm(".text\n\t.even\n"
+    "__exec_RawDoFmt_Regs:\n\t"
+    "movem.l d2-d7,-(sp)\n\t"
+    "move.l sp,d1\n\t"
+    "jsr __exec_RawDoFmt\n\t"
+    "lea 24(sp),sp\n\t"
+    "rts\n");
+
 struct rdf_spec
 {
     const UBYTE *next;      /* format position after the conversion   */
@@ -4214,7 +4233,8 @@ APTR _exec_RawDoFmt ( register struct ExecBase * SysBase __asm("a6"),
                                                         register CONST_STRPTR ___formatString  __asm("a0"),
                                                         register const APTR ___dataStream  __asm("a1"),
                                                         register VOID (*___putChProc)()  __asm("a2"),
-                                                        register APTR ___putChData  __asm("a3"))
+                                                        register APTR ___putChData  __asm("a3"),
+                                                        register ULONG *___regs  __asm("d1"))
 {
     DPRINTF (LOG_DEBUG, "_exec: RawDoFmt called fmt='%s', dataStream=0x%08lx\n",
              ___formatString, ___dataStream);
@@ -4225,15 +4245,27 @@ APTR _exec_RawDoFmt ( register struct ExecBase * SysBase __asm("a6"),
     UWORD cur, i, maxarg = 0, total = 0;
     struct rdf_spec sp;
 
-    /* Helper to output a character via putChProc */
+    /* Helper to output a character via putChProc.  The PutChProc sees
+     * D2-D7 as it left them (they start as the caller's; probe
+     * exec/rdfregs: 3.1 passes D3-D5 through), and nothing it does to
+     * them, A2 or A4-A6 reaches RawDoFmt's own state (Fred Fish PhxAss
+     * counts in D7) */
     #define PUT_CHAR(ch) do { \
         register UBYTE __ch __asm("d0") = (ch); \
         register APTR __data __asm("a3") = ___putChData; \
         register void (*__proc)() __asm("a2") = ___putChProc; \
         __asm volatile ( \
-            "jsr (%%a2)" \
+            "move.l %3,-(sp)\n\t" \
+            "movem.l d2-d7/a2/a4-a6,-(sp)\n\t" \
+            "move.l 40(sp),a0\n\t" \
+            "movem.l (a0),d2-d7\n\t" \
+            "jsr (a2)\n\t" \
+            "move.l 40(sp),a0\n\t" \
+            "movem.l d2-d7,(a0)\n\t" \
+            "movem.l (sp)+,d2-d7/a2/a4-a6\n\t" \
+            "addq.l #4,sp" \
             : "+a"(__data) \
-            : "d"(__ch), "a"(__proc) \
+            : "d"(__ch), "a"(__proc), "g"(___regs) \
             : "d1", "a0", "a1", "cc", "memory" \
         ); \
         ___putChData = __data; \
@@ -6292,6 +6324,24 @@ void _bootstrap(void)
         }
     }
 
+    /* the shell's local variables, as for a command run from a 3.1 CLI
+     * (probe dos/procvar; Fred Fish ShellTimer reads "process") */
+    {
+        struct Process *me = U_getCurrentProcess();
+        char num[12];
+        int k = sizeof(num) - 1;
+        ULONG n = me->pr_TaskNum;
+
+        num[k] = 0;
+        do {
+            num[--k] = '0' + n % 10;
+            n /= 10;
+        } while (n && k > 0);
+        SetVar((STRPTR)"process", (STRPTR)(num + k), -1, LV_VAR | GVF_LOCAL_ONLY);
+        SetVar((STRPTR)"RC", (STRPTR)"0", -1, LV_VAR | GVF_LOCAL_ONLY);
+        SetVar((STRPTR)"Result2", (STRPTR)"0", -1, LV_VAR | GVF_LOCAL_ONLY);
+    }
+
     emucall0 (EMU_CALL_LOADED);
 
     /* The program's seglist goes into pr_SegList[3] (and cli_Module), as for
@@ -6640,7 +6690,7 @@ void coldstart (void)
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-486)].vec = _exec_AddResource;
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-492)].vec = _exec_RemResource;
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-498)].vec = _exec_OpenResource;
-    g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-522)].vec = _exec_RawDoFmt;
+    g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-522)].vec = _exec_RawDoFmt_Regs;
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-528)].vec = exec_GetCC;
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-534)].vec = _exec_TypeOfMem;
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-540)].vec = _exec_Procure;

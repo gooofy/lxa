@@ -90,7 +90,7 @@ def load_programs(out, filt=None, limit=None, ids_file=None):
 
 # -- lxa ---------------------------------------------------------------------------
 
-def run_lxa_one(rel, root, frames, build=None):
+def run_lxa_one(rel, root, frames, build=None, drive="FISH"):
     from rdd.pylxa import Lxa
     # the reference starts programs with RUN >file (stdin NIL:)
     os.environ["LXA_STDIO_FILE"] = "1"
@@ -108,8 +108,13 @@ def run_lxa_one(rel, root, frames, build=None):
                                   "SYS-aga", "Fonts")
         if os.path.isdir(wb31_fonts):
             lxa.assign("FONTS", wb31_fonts)
-        lxa.assign("FISH", root)
-        lxa.run("FISH:" + rel.replace(os.sep, "/"), "")
+        if drive == "FISH":
+            lxa.assign(drive, root)
+        else:
+            # a volume, as the reference's exchange drive: its root has no
+            # parent (Fish Mkid builds its current directory's path)
+            lxa.drive(drive, root)
+        lxa.run(drive + ":" + rel.replace(os.sep, "/"), "")
         # the reference's run time starts when RUN returns, i.e. after
         # LoadSeg(); on lxa booting and loading take emulated time too, so
         # the budget starts once the program is loaded (Phase 237b: Fish
@@ -179,16 +184,19 @@ def run_lxa(progs, out, root, jobs, frames, build):
         tmp = dst + ".tmp"
         progroot = os.path.join(work, "root-" + p["id"])
         res = None
+        # under the name the reference gives it: LXAREF:p/<id>/<name>
+        # (Fish Mkid fid/lid copy their own name into a small buffer)
+        prel = "p/%s/%s" % (p["id"], os.path.basename(p["rel"]))
         try:
             reldir = os.path.dirname(p["rel"])
-            shutil.copytree(os.path.join(root, reldir), os.path.join(progroot, reldir),
+            shutil.copytree(os.path.join(root, reldir), os.path.join(progroot, "p", p["id"]),
                             symlinks=True, ignore=shutil.ignore_patterns("*.uaem"))
         except OSError as e:
             res = {"backend": "lxa", "error": "harness: cannot copy the directory: %s" % e,
                    "harness": "copy failed"}
         if res is None:
             env = dict(os.environ, PYTHONPATH=os.path.join(ROOT, "tools"), LXA_SYSTEM_DIR=sysdir)
-            cmd = [sys.executable, "-m", "rdd.massrun", "lxa-one", p["rel"], "--root", progroot,
+            cmd = [sys.executable, "-m", "rdd.massrun", "lxa-one", prel, "--root", progroot, "--drive", "LXAREF",
                    "--frames", str(frames), "--result", tmp] + (["--build", build] if build else [])
             try:
                 r = subprocess.run(cmd, capture_output=True, encoding="latin-1", env=env, cwd=ROOT,
@@ -223,7 +231,8 @@ def run_lxa(progs, out, root, jobs, frames, build):
                         os.remove(os.path.join(dirpath, fn))
         for p in bt:
             one(p, sysdir, work)
-        shutil.rmtree(work, ignore_errors=True)
+        if not os.environ.get("LXA_MASSRUN_KEEP"):     # for a look at what the batch left
+            shutil.rmtree(work, ignore_errors=True)
         return len(bt)
 
     t0 = time.time()
@@ -409,6 +418,10 @@ MEMORY_DEPENDENT = {
                                            "(\\n): the outcome depends on the caller's buffer - on the "
                                            "reference a line feed follows 8 bytes later in lxaprobe's "
                                            "memory, on lxa none (Phase 237d)",
+    "fish-0365/Password/loop": "its VTBeep task starts with A4 = 0 (as on 3.1, probe exec/taskregs) and "
+                               "compares its stack pointer with the vector at 744(A4): on the reference "
+                               "the stack is in fast RAM above the ROM, on lxa below it, so lxa takes "
+                               "the stack-overflow path (memory map, Phase 240)",
 }
 
 
@@ -421,6 +434,15 @@ ENVIRONMENT_DEPENDENT = {
     "fish-0763/MidiSyn/MidiSyn": "the reference's serial port is held by lxaprobe (\"Serialport not available\")",
     "fish-0101/Midi/util/mm": "midi.library cannot route from MidiIn on the reference: lxaprobe holds the "
                               "serial port",
+    # what an earlier program of the batch left in memory: lxa runs every
+    # program in a fresh emulator (Phase 237d)
+    "fish-0398/Formatter/Formatter": "needs arp.library V39+: on the reference DClock, run before it in the "
+                                     "same batch, opened the arp.library of its own drawer, which stays in "
+                                     "memory",
+    "fish-0896/Riff/riff": "needs reqtools.library: on the reference DA2.5, run before it in the same batch, "
+                           "opened the reqtools.library of its own drawer, which stays in memory",
+    "fish-0638/ShellTimer/ShellTimerDaemon": "ShellTimer, run before it in the reference batch, had already "
+                                             "started the daemon",
 }
 
 
@@ -587,6 +609,7 @@ def main(argv=None):
     ap.add_argument("--ids-file", help="only the program ids listed (one per line)")
     ap.add_argument("--md")
     ap.add_argument("--result", help="lxa-one: write the result JSON here")
+    ap.add_argument("--drive", default="FISH", help="lxa-one: the name --root is assigned to")
     a = ap.parse_args(argv)
     if a.build:
         a.build = os.path.abspath(a.build)
@@ -595,7 +618,7 @@ def main(argv=None):
     if a.result:
         a.result = os.path.abspath(a.result)
     if a.cmd == "lxa-one":
-        res = run_lxa_one(a.rel, a.root, a.frames, a.build)
+        res = run_lxa_one(a.rel, a.root, a.frames, a.build, a.drive)
         with open(a.result, "w") as f:      # not stdout: the program writes there too
             json.dump(res, f)
         return 0
