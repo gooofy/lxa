@@ -1,0 +1,5 @@
+100 x Delay(1): 20/10 of the nominal time
+50 x Delay(2): 15/10 of the nominal time
+20 x Delay(5): 12/10 of the nominal time
+4 x Delay(50): 10/10 of the nominal time
+100 x Delay(0): no wait

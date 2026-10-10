@@ -3963,10 +3963,30 @@ void _dos_Delay ( register struct DosLibrary * __libBase __asm("a6"),
         return;
     }
 
-    /* Convert ticks (1/50th second) to seconds + microseconds */
-    tr->tr_node.io_Command = TR_ADDREQUEST;
-    tr->tr_time.tv_secs    = ticks / 50;
-    tr->tr_time.tv_micro   = (ticks % 50) * 20000;
+    /* AmigaOS 3.1 ends a Delay() at the first vertical blank by which
+     * the time has passed, i.e. at the end of the tick in which it runs
+     * out: Delay(1) takes up to two ticks (probe dos/delayticks: 100 x
+     * Delay(1) = 200 ticks, 4 x Delay(50) = 204).  The system clock's
+     * ticks start on whole seconds, so round the end time up to the next
+     * multiple of 20 ms. */
+    {
+        ULONG secs, micro, end_micro;
+
+        tr->tr_node.io_Command = TR_GETSYSTIME;
+        DoIO((struct IORequest *)tr);
+        secs = tr->tr_time.tv_secs;
+        micro = tr->tr_time.tv_micro;
+
+        end_micro = micro + (ticks % 50) * 20000;
+        secs = ticks / 50;
+        if (end_micro % 20000)
+            end_micro += 20000 - end_micro % 20000;
+        end_micro -= micro;              /* time from now, < 2 s */
+        secs += end_micro / 1000000;
+        tr->tr_node.io_Command = TR_ADDREQUEST;
+        tr->tr_time.tv_secs    = secs;
+        tr->tr_time.tv_micro   = end_micro % 1000000;
+    }
 
     DPRINTF(LOG_DEBUG, "_dos: Delay() - DoIO with %lu.%06lu secs\n",
             tr->tr_time.tv_secs, tr->tr_time.tv_micro);
