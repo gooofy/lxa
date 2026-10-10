@@ -1115,6 +1115,11 @@ int op_illg(int level)
             break;
         }
 
+        case EMU_CALL_DOS_DEVICE_LIST:
+            m68k_set_reg(M68K_REG_D0, (uint32_t)_dos_device_list(m68k_get_reg(NULL, M68K_REG_D1),
+                                                                 m68k_get_reg(NULL, M68K_REG_D2)));
+            break;
+
         case EMU_CALL_DOS_ASSIGN_INFO:
         {
             uint32_t name = m68k_get_reg(NULL, M68K_REG_D1);

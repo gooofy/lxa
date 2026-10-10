@@ -193,6 +193,8 @@ static void lxa_dos_process_exit_cleanup(LONG return_code, LONG exit_data);
 
 struct MsgPort *lxa_dos_host_console_port(void);
 BOOL lxa_dos_try_handle_special_port(struct MsgPort *port, struct Message *message);
+static struct MsgPort *g_lxa_fs_port;
+struct DosList * _dos_MakeDosEntry ( register struct DosLibrary * __dos_a6 __asm("a6"), register CONST_STRPTR name __asm("d1"), register LONG type __asm("d2"));
 
 static BPTR lxa_dos_alloc_temp_console_handle(LONG arg1, struct FileHandle **fh_out);
 
@@ -349,6 +351,38 @@ BOOL lxa_dos_try_handle_special_port(struct MsgPort *port, struct Message *messa
     struct Process *me;
     struct FileHandle *fh = NULL;
     BPTR temp_fh = 0;
+
+    if (port && port == g_lxa_fs_port)
+    {
+        /* packets to a DosList device's handler: lxa's file system has no
+         * handler process (files are host files); answer the queries */
+        dp = message ? lxa_dos_packet_from_message(message) : NULL;
+        if (!dp)
+        {
+            if (message && message->mn_ReplyPort)
+                ReplyMsg(message);
+            return TRUE;
+        }
+        switch (dp->dp_Type)
+        {
+            case ACTION_IS_FILESYSTEM:
+                res1 = DOSTRUE;
+                break;
+            case ACTION_DISK_INFO:
+            {
+                BPTR l = Lock((STRPTR)"SYS:", SHARED_LOCK);
+                res1 = l ? Info(l, (struct InfoData *)BADDR(dp->dp_Arg1)) : DOSFALSE;
+                if (l)
+                    UnLock(l);
+                break;
+            }
+            default:
+                res2 = ERROR_ACTION_NOT_KNOWN;
+                break;
+        }
+        _dos_ReplyPkt(DOSBase, dp, res1, res2);
+        return TRUE;
+    }
 
     if (!port || port != lxa_dos_host_console_port())
         return FALSE;
@@ -2222,15 +2256,13 @@ static BOOL lxa_dos_lookup_device_name(struct MsgPort *task, STRPTR buffer, ULON
         return FALSE;
 
     dol = LockDosList(flags);
-    while (dol)
+    while (dol && (dol = NextDosEntry(dol, LDF_DEVICES)))
     {
-        if (dol->dol_Type == DLT_DEVICE && dol->dol_Task == task)
+        if (dol->dol_Task == task)
         {
             found = lxa_dos_copy_bstr(dol->dol_Name, buffer, size);
             break;
         }
-
-        dol = (struct DosList *)BADDR(dol->dol_Next);
     }
 
     UnLockDosList(flags);
@@ -3177,12 +3209,48 @@ static BOOL lxa_ld_read_string(struct DosLibrary *DOSBase, const LONG *funcs, BP
     return TRUE;
 }
 
+#define HUNK_TYPE_OVERLAY 0x3F5
+#define HUNK_TYPE_DREL32  0x3F7
+#define HUNK_TYPE_RELOC32SHORT 0x3FC
+#define HUNK_TYPE_RELRELOC32   0x3FD
+#define HUNK_TYPE_BREAK   0x3F6
+#define LXA_OVERLAY_MAGIC 0x0000ABCD
+
+static BPTR lxa_dos_loadseg_handle_ovl(struct DosLibrary *DOSBase,
+                                       BPTR fh,
+                                       CONST_STRPTR debug_name,
+                                       BOOL close_handle,
+                                       const LONG *funcs,
+                                       ULONG *node_table);
+
 static BPTR lxa_dos_loadseg_handle(struct DosLibrary *DOSBase,
                                    BPTR fh,
                                    CONST_STRPTR debug_name,
                                    BOOL close_handle,
                                    const LONG *funcs)
 {
+    return lxa_dos_loadseg_handle_ovl(DOSBase, fh, debug_name, close_handle, funcs, NULL);
+}
+
+/*
+ * Overlaid executables (HUNK_OVERLAY, AmigaDOS manual; layout as in AROS'
+ * internalloadseg_aos.c): LoadSeg() loads the root node, reads the overlay
+ * table and stops; the root's first hunk carries $ABCD in its third
+ * longword, LoadSeg() fills in the open file (which stays open), the
+ * overlay table, the hunk table (BPTR) and the global vector, and the
+ * program's overlay manager later loads nodes with LoadSeg(NULL) and
+ * D2 = hunk table, D3 = file, the file positioned at the node (Phase 237c:
+ * Fred Fish's "Movie" players, MRBackup, DataEasy ... are overlaid).
+ * node_table: load one node into that hunk table (up to HUNK_BREAK).
+ */
+static BPTR lxa_dos_loadseg_handle_ovl(struct DosLibrary *DOSBase,
+                                       BPTR fh,
+                                       CONST_STRPTR debug_name,
+                                       BOOL close_handle,
+                                       const LONG *funcs,
+                                       ULONG *node_table)
+{
+    ULONG *overlay_table = NULL;
     BOOL success = FALSE;
     ULONG table_size = 0;
     ULONG hunk_first_slot = 0;
@@ -3234,19 +3302,26 @@ static BPTR lxa_dos_loadseg_handle(struct DosLibrary *DOSBase,
             "_dos: LoadSeg() reading hunk header, table_size=%ld, hunk_first_slot=%ld, last_hunk_slot=%ld\n",
             table_size, hunk_first_slot, last_hunk_slot);
 
-    /* the hunk table is allocated (and freed) through the loader's
-     * AllocFunc/FreeFunc too, as on AmigaOS 3.1 */
-    hunk_table = lxa_ld_alloc(DOSBase, funcs, (table_size + 2) * 4, MEMF_PUBLIC | MEMF_CLEAR);
-    if (!hunk_table)
+    if (node_table)
     {
-        SetIoErr(ERROR_NO_FREE_STORE);
-        goto finish;
+        hunk_table = node_table;
     }
-    hunk_table++;
+    else
     {
-        ULONG k;
-        for (k = 0; k <= table_size; k++)
-            hunk_table[k] = 0;
+        /* the hunk table is allocated (and freed) through the loader's
+         * AllocFunc/FreeFunc too, as on AmigaOS 3.1 */
+        hunk_table = lxa_ld_alloc(DOSBase, funcs, (table_size + 2) * 4, MEMF_PUBLIC | MEMF_CLEAR);
+        if (!hunk_table)
+        {
+            SetIoErr(ERROR_NO_FREE_STORE);
+            goto finish;
+        }
+        hunk_table++;
+        {
+            ULONG k;
+            for (k = 0; k <= table_size; k++)
+                hunk_table[k] = 0;
+        }
     }
 
     {
@@ -3381,6 +3456,86 @@ static BPTR lxa_dos_loadseg_handle(struct DosLibrary *DOSBase,
                 case HUNK_TYPE_END:
                     break;
 
+                case HUNK_TYPE_NAME:
+                {
+                    /* skipped (AmigaOS 3.1, probe dos/hunks) */
+                    ULONG cnt, skip;
+                    if (lxa_ld_read(DOSBase, funcs, fh, &cnt, 4) != 4)
+                        goto finish;
+                    while (cnt--)
+                        if (lxa_ld_read(DOSBase, funcs, fh, &skip, 4) != 4)
+                            goto finish;
+                    break;
+                }
+
+                case HUNK_TYPE_RELOC32SHORT:
+                case HUNK_TYPE_DREL32:          /* a short relocation in load files */
+                case HUNK_TYPE_RELRELOC32:      /* PC-relative, same layout */
+                {
+                    /* UWORD count, hunk, offsets...; count 0 ends; padded
+                     * to a longword (AmigaOS 3.1, probe dos/hunks) */
+                    ULONG words = 0;
+                    UWORD w;
+                    while (TRUE)
+                    {
+                        UWORD cnt, hunk_id;
+                        if (lxa_ld_read(DOSBase, funcs, fh, &cnt, 2) != 2)
+                            goto finish;
+                        words++;
+                        if (!cnt)
+                            break;
+                        if (lxa_ld_read(DOSBase, funcs, fh, &hunk_id, 2) != 2)
+                            goto finish;
+                        words++;
+                        while (cnt--)
+                        {
+                            UWORD offset;
+                            ULONG *addr;
+                            if (lxa_ld_read(DOSBase, funcs, fh, &offset, 2) != 2)
+                                goto finish;
+                            words++;
+                            addr = (ULONG *)(BADDR(hunk_table[hunk_last] + 1) + offset);
+                            if (hunk_type == HUNK_TYPE_RELRELOC32)
+                                *addr += (ULONG)BADDR(hunk_table[hunk_id] + 1) - (ULONG)addr;
+                            else
+                                *addr += (ULONG)BADDR(hunk_table[hunk_id] + 1);
+                        }
+                    }
+                    if (words & 1)
+                        if (lxa_ld_read(DOSBase, funcs, fh, &w, 2) != 2)
+                            goto finish;
+                    break;
+                }
+
+                case HUNK_TYPE_OVERLAY:
+                {
+                    ULONG cnt;
+                    if (node_table || overlay_table)
+                    {
+                        SetIoErr(ERROR_BAD_HUNK);
+                        goto finish;
+                    }
+                    if (lxa_ld_read(DOSBase, funcs, fh, &cnt, 4) != 4)
+                        goto finish;
+                    overlay_table = AllocVec(cnt * 4 + 8, MEMF_PUBLIC | MEMF_CLEAR);
+                    if (!overlay_table)
+                    {
+                        SetIoErr(ERROR_NO_FREE_STORE);
+                        goto finish;
+                    }
+                    if (lxa_ld_read(DOSBase, funcs, fh, overlay_table, cnt * 4 + 4) != (LONG)(cnt * 4 + 4))
+                        goto finish;
+                    goto loaded;
+                }
+
+                case HUNK_TYPE_BREAK:
+                    if (!node_table)
+                    {
+                        SetIoErr(ERROR_BAD_HUNK);
+                        goto finish;
+                    }
+                    goto loaded;
+
                 case HUNK_TYPE_DEBUG:
                 {
                     ULONG cnt;
@@ -3397,20 +3552,41 @@ static BPTR lxa_dos_loadseg_handle(struct DosLibrary *DOSBase,
                 }
 
                 default:
-                    SetIoErr(ERROR_FILE_NOT_OBJECT);
+                    SetIoErr(ERROR_BAD_HUNK);       /* AmigaOS 3.1, probe dos/hunks */
                     LPRINTF(LOG_ERROR, "_dos: LoadSeg() unknown hunk type 0x%08lx in file %s\n", hunk_type, load_name);
                     goto finish;
             }
         }
     }
 
+loaded:
     success = TRUE;
+
+    if (overlay_table)
+    {
+        ULONG *h = (ULONG *)BADDR(hunk_table[hunk_first_slot]);
+
+        if (h && h[2] == LXA_OVERLAY_MAGIC)
+        {
+            h[3] = (ULONG)fh;
+            h[4] = (ULONG)overlay_table;
+            h[5] = (ULONG)MKBADDR(hunk_table);
+            h[6] = (ULONG)DOSBase->dl_GV;
+            return hunk_first;          /* file and hunk table stay */
+        }
+        FreeVec(overlay_table);
+        overlay_table = NULL;
+        SetIoErr(ERROR_BAD_HUNK);
+        success = FALSE;
+    }
 
 finish:
     {
         LONG err = IoErr();
         ULONG i;
 
+        if (overlay_table)
+            FreeVec(overlay_table);
         if (close_handle)
             Close(fh);
 
@@ -3423,13 +3599,18 @@ finish:
                 for (i = hunk_first_slot; i <= last_hunk_slot; i++)
                 {
                     if (hunk_table[i])
+                    {
                         lxa_ld_free(DOSBase, funcs, (ULONG *)BADDR(hunk_table[i]) - 1);
+                        if (node_table)
+                            hunk_table[i] = 0;
+                    }
                 }
-                lxa_ld_free(DOSBase, funcs, hunk_table - 1);
+                if (!node_table)
+                    lxa_ld_free(DOSBase, funcs, hunk_table - 1);
             }
             hunk_first = 0;
         }
-        else if (hunk_table)
+        else if (hunk_table && !node_table)
         {
             lxa_ld_free(DOSBase, funcs, hunk_table - 1);
         }
@@ -3439,11 +3620,25 @@ finish:
 }
 
 BPTR _dos_LoadSeg ( register struct DosLibrary * __dos_a6 __asm("a6"),
-                    register CONST_STRPTR        ___name   __asm("d1"))
+                    register CONST_STRPTR        ___name   __asm("d1"),
+                    register BPTR                ___table  __asm("d2"),
+                    register BPTR                ___ovfh   __asm("d3"))
 {
     BPTR f;
 
     DPRINTF(LOG_INFO, "_dos: LoadSeg() called, name=%s\n", STRORNULL(___name));
+
+    /* an overlay manager loading a node of its program (see above) */
+    if (!___name)
+    {
+        if (!___table || !___ovfh)
+        {
+            SetIoErr(ERROR_REQUIRED_ARG_MISSING);
+            return 0;
+        }
+        return lxa_dos_loadseg_handle_ovl(DOSBase, ___ovfh, (CONST_STRPTR)"<overlay node>", FALSE, NULL,
+                                          (ULONG *)BADDR(___table));
+    }
 
     f = Open(___name, MODE_OLDFILE);
     if (!f)
@@ -3472,6 +3667,21 @@ void _dos_UnLoadSeg ( register struct DosLibrary * __libBase __asm("a6"),
      */
     BPTR seg = ___seglist;
     int count = 0;
+
+    {
+        ULONG *h = (ULONG *)BADDR(___seglist);
+        struct DosLibrary *db = (struct DosLibrary *)__libBase;
+
+        if (h[2] == LXA_OVERLAY_MAGIC && h[6] == (ULONG)db->dl_GV && h[3] && h[5])
+        {
+            /* an overlaid program: its file, overlay and hunk tables */
+            Close((BPTR)h[3]);
+            if (h[4])
+                FreeVec((APTR)h[4]);
+            FreeMem((ULONG *)BADDR(h[5]) - 1, ((ULONG *)BADDR(h[5]))[-1]);
+            h[3] = h[4] = h[5] = 0;
+        }
+    }
 
     while (seg)
     {
@@ -6796,7 +7006,7 @@ static LONG lxa_dos_system(struct DosLibrary *DOSBase, CONST_STRPTR command,
     }
 
     /* Try to load */
-    BPTR seglist = _dos_LoadSeg(DOSBase, (STRPTR)bin_name);
+    BPTR seglist = _dos_LoadSeg(DOSBase, (STRPTR)bin_name, 0, 0);
     if (!seglist) {
         /* Try C: prefix if no path component */
         int has_colon = 0;
@@ -6816,7 +7026,7 @@ static LONG lxa_dos_system(struct DosLibrary *DOSBase, CONST_STRPTR command,
               while(*n) *d++ = *n++;
               *d = 0;
 
-              seglist = _dos_LoadSeg(DOSBase, (STRPTR)tmp);
+              seglist = _dos_LoadSeg(DOSBase, (STRPTR)tmp, 0, 0);
          }
 
     }
@@ -7271,67 +7481,199 @@ VOID _dos_FreeDeviceProc ( register struct DosLibrary * __dos_a6 __asm("a6"),
     FreeMem(dp, sizeof(struct DevProc));
 }
 
+/*
+ * The DosList (Phase 237c, probe dos/devlist): lxa's drives (DLT_DEVICE),
+ * their volumes (DLT_VOLUME) and the assigns (DLT_DIRECTORY) live in
+ * rn_Info->di_DevInfo like on AmigaOS, so programs that walk it (1.x
+ * programs under Forbid(), LockDosList()/NextDosEntry() ones such as Fish
+ * ReOrg) see them.  The host-side state is the truth: the list is brought
+ * up to date by every LockDosList().  It is not filled at boot: programs
+ * that walk di_DevInfo without LockDosList() (Directory Opus) look up the
+ * volume of a lock through fl_Volume, and lxa's locks are not yet real
+ * FileLocks (Phase 255).  Entries others add with
+ * AddDosEntry() stay.  Device and volume entries carry the lxa file system
+ * port as their handler (packets: lxa_dos_try_handle_special_port()).
+ */
+#define LXA_MAX_DOSLIST 96
+static struct DosList **g_lxa_dosents;    /* LXA_MAX_DOSLIST entries, allocated (ROM bss is small) */
+static int g_lxa_ndosents;
+
+struct MsgPort *lxa_dos_fs_port(void)
+{
+    if (!g_lxa_fs_port)
+    {
+        g_lxa_fs_port = (struct MsgPort *)AllocMem(sizeof(struct MsgPort), MEMF_CLEAR | MEMF_PUBLIC);
+        if (!g_lxa_fs_port)
+            return NULL;
+        g_lxa_fs_port->mp_Node.ln_Type = NT_MSGPORT;
+        g_lxa_fs_port->mp_Flags = PA_IGNORE;
+        NEWLIST(&g_lxa_fs_port->mp_MsgList);
+        g_lxa_fs_port->mp_MsgList.lh_Type = NT_MESSAGE;
+    }
+    return g_lxa_fs_port;
+}
+
+static void lxa_dos_free_entry(struct DosList *dl)
+{
+    if (dl->dol_Type == DLT_DIRECTORY && dl->dol_Lock)
+        UnLock(dl->dol_Lock);
+    if (dl->dol_Name)
+        FreeVec(BADDR(dl->dol_Name));
+    FreeVec(dl);
+}
+
+static void lxa_dos_sync_doslist(struct DosLibrary *DOSBase)
+{
+    struct RootNode *root = initRootNode();
+    struct DosInfo *info;
+    UBYTE *buf, *p;
+    int i;
+
+    if (!root || !(info = (struct DosInfo *)BADDR(root->rn_Info)))
+        return;
+    if (!g_lxa_dosents &&
+        !(g_lxa_dosents = AllocMem(LXA_MAX_DOSLIST * sizeof(struct DosList *), MEMF_CLEAR | MEMF_PUBLIC)))
+        return;
+    buf = AllocVec(4096, MEMF_CLEAR | MEMF_PUBLIC);
+    if (!buf)
+        return;
+    emucall2(EMU_CALL_DOS_DEVICE_LIST, (ULONG)buf, 4096);
+
+    Forbid();
+    /* take our previous entries out of the list */
+    for (i = 0; i < g_lxa_ndosents; i++)
+    {
+        BPTR *link = &info->di_DevInfo;
+        while (*link)
+        {
+            struct DosList *d = (struct DosList *)BADDR(*link);
+            if (d == g_lxa_dosents[i])
+            {
+                *link = d->dol_Next;
+                break;
+            }
+            link = &d->dol_Next;
+        }
+    }
+    Permit();
+    for (i = 0; i < g_lxa_ndosents; i++)
+        lxa_dos_free_entry(g_lxa_dosents[i]);
+    g_lxa_ndosents = 0;
+
+    /* the new entries, in host order, in front of the others */
+    {
+        struct DosList *first = NULL, *last = NULL;
+
+        for (p = buf; *p && g_lxa_ndosents < LXA_MAX_DOSLIST; p += strlen((char *)p) + 1)
+        {
+            UBYTE kind = p[0];
+            LONG type = kind == 'D' ? DLT_DEVICE : kind == 'V' ? DLT_VOLUME : DLT_DIRECTORY;
+            struct DosList *dl = _dos_MakeDosEntry(DOSBase, (CONST_STRPTR)(p + 1), type);
+
+            if (!dl)
+                continue;
+            if (type == DLT_DIRECTORY)
+            {
+                char path[128];
+                int n = 0;
+                for (UBYTE *q = p + 1; *q && n < (int)sizeof(path) - 2; q++)
+                    path[n++] = *q;
+                path[n++] = ':';
+                path[n] = 0;
+                dl->dol_Lock = Lock((STRPTR)path, SHARED_LOCK);
+                dl->dol_Task = lxa_dos_fs_port();
+            }
+            else
+            {
+                dl->dol_Task = lxa_dos_fs_port();
+                if (type == DLT_VOLUME)
+                {
+                    dl->dol_misc.dol_volume.dol_DiskType = ID_DOS_DISK;
+                    DateStamp(&dl->dol_misc.dol_volume.dol_VolumeDate);
+                }
+            }
+            g_lxa_dosents[g_lxa_ndosents++] = dl;
+            if (last)
+                last->dol_Next = MKBADDR(dl);
+            else
+                first = dl;
+            last = dl;
+        }
+        if (first)
+        {
+            Forbid();
+            last->dol_Next = info->di_DevInfo;
+            info->di_DevInfo = MKBADDR(first);
+            Permit();
+        }
+    }
+    FreeVec(buf);
+}
+
+/* the fake head LockDosList() returns: its dol_Next is di_DevInfo */
+static struct DosList *lxa_dos_list_head(void)
+{
+    struct RootNode *root = initRootNode();
+    struct DosInfo *info = root ? (struct DosInfo *)BADDR(root->rn_Info) : NULL;
+    return info ? (struct DosList *)&info->di_DevInfo : NULL;
+}
+
+static BOOL lxa_dos_entry_matches(const struct DosList *dl, ULONG flags)
+{
+    switch (dl->dol_Type)
+    {
+        case DLT_DEVICE:
+            return (flags & LDF_DEVICES) != 0;
+        case DLT_VOLUME:
+            return (flags & LDF_VOLUMES) != 0;
+        case DLT_DIRECTORY:
+        case DLT_LATE:
+        case DLT_NONBINDING:
+            return (flags & LDF_ASSIGNS) != 0;
+        default:
+            return FALSE;
+    }
+}
+
 struct DosList * _dos_LockDosList ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                         register ULONG flags __asm("d1"))
 {
-    LXA_UNIMPLEMENTED("dos", "LockDosList", "stub: returns a dummy marker, no real DosList or locking (Phase 255)");
+    struct RootNode *root = initRootNode();
+    struct DosInfo *info = root ? (struct DosInfo *)BADDR(root->rn_Info) : NULL;
 
-    /*
-     * LockDosList - Lock the DosList for read or write access
-     *
-     * This implementation provides a simplified DosList that returns
-     * a dummy pointer. The actual device/volume/assign enumeration
-     * happens in NextDosEntry.
-     *
-     * flags bits:
-     *   LDF_READ (bit 0)    - Read access (shared)
-     *   LDF_WRITE (bit 1)   - Write access (exclusive)
-     *   LDF_DEVICES (bit 2) - Include devices
-     *   LDF_VOLUMES (bit 3) - Include volumes
-     *   LDF_ASSIGNS (bit 4) - Include assigns
-     *
-     * Returns: Pointer to first DosList entry, or NULL on error
-     */
     DPRINTF(LOG_DEBUG, "_dos: LockDosList(flags=0x%lx)\n", flags);
-    
-    /* We return a special marker value to indicate the start of enumeration.
-     * The actual list building happens in NextDosEntry. */
-    
-    /* For read access, we don't need to do any locking since
-     * the host VFS handles concurrency. For write access,
-     * we would need a semaphore but for now we just allow it. */
-    
-    /* Return a special non-NULL value that NextDosEntry recognizes as "start" */
-    return (struct DosList *)0xFFFFFFFF;
+    if (!info)
+        return NULL;
+    lxa_dos_sync_doslist(__dos_a6);
+    ObtainSemaphore(&info->di_DevLock);
+    return lxa_dos_list_head();
 }
 
 VOID _dos_UnLockDosList ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                         register ULONG flags __asm("d1"))
 {
-    LXA_UNIMPLEMENTED("dos", "UnLockDosList", "partial: DosList locking is simulated (Phase 255)");
+    struct RootNode *root = initRootNode();
+    struct DosInfo *info = root ? (struct DosInfo *)BADDR(root->rn_Info) : NULL;
 
-    /*
-     * UnLockDosList - Release DosList lock
-     *
-     * In our simplified implementation, this is a no-op since we don't
-     * actually hold any locks.
-     */
     DPRINTF(LOG_DEBUG, "_dos: UnLockDosList(flags=0x%lx)\n", flags);
-    /* Nothing to do */
+    if (info)
+        ReleaseSemaphore(&info->di_DevLock);
 }
 
 struct DosList * _dos_AttemptLockDosList ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                         register ULONG flags __asm("d1"))
 {
-    LXA_UNIMPLEMENTED("dos", "AttemptLockDosList", "stub: returns a dummy marker, no real DosList or locking (Phase 255)");
+    struct RootNode *root = initRootNode();
+    struct DosInfo *info = root ? (struct DosInfo *)BADDR(root->rn_Info) : NULL;
 
-    /*
-     * AttemptLockDosList - Try to lock DosList without blocking
-     *
-     * Same as LockDosList in our implementation since we don't block.
-     */
-    DPRINTF(LOG_DEBUG, "_dos: AttemptLockDosList(flags=0x%lx)\n", flags);
-    return _dos_LockDosList(DOSBase, flags);
+    if (!info)
+        return NULL;
+    if (!AttemptSemaphore(&info->di_DevLock))
+        return NULL;
+    ReleaseSemaphore(&info->di_DevLock);
+    lxa_dos_sync_doslist(__dos_a6);
+    ObtainSemaphore(&info->di_DevLock);
+    return lxa_dos_list_head();
 }
 
 LONG _dos_RemDosEntry ( register struct DosLibrary * __dos_a6 __asm("a6"),
@@ -7441,68 +7783,31 @@ struct DosList * _dos_FindDosEntry ( register struct DosLibrary * __dos_a6 __asm
                                                         register CONST_STRPTR name __asm("d2"),
                                                         register ULONG flags __asm("d3"))
 {
-    LXA_UNIMPLEMENTED("dos", "FindDosEntry", "stub: always returns NULL (Phase 255)");
+    const struct DosList *dl;
+    ULONG len = 0;
 
-    /*
-     * FindDosEntry - Find a specific entry in the DosList by name
-     *
-     * Searches the DosList starting from 'dlist' for an entry matching
-     * 'name' and 'flags' (device type filter).
-     *
-     * Returns: Matching DosList entry, or NULL if not found
-     *
-     * Note: This implementation queries the host VFS for assigns.
-     * Device and volume enumeration is limited.
-     */
-    DPRINTF(LOG_DEBUG, "_dos: FindDosEntry(dlist=%p, name=%s, flags=0x%lx)\n",
-            dlist, name ? (char*)name : "NULL", flags);
-    
-    if (!name)
-    {
+    if (!dlist || !name)
         return NULL;
-    }
-    
-    /* For assigns, check if the name exists on the host */
-    if (flags & LDF_ASSIGNS)
+    while (name[len] && name[len] != ':')
+        len++;
+    for (dl = (const struct DosList *)BADDR(dlist->dol_Next); dl; dl = (const struct DosList *)BADDR(dl->dol_Next))
     {
-        /* Query host for the assign - use Lock to check if it exists */
-        UBYTE path[256];
-        UBYTE *p = path;
-        const char *n = (const char *)name;
-        while (*n && p < path + sizeof(path) - 2)
+        const UBYTE *b = (const UBYTE *)BADDR(dl->dol_Name);
+        ULONG i;
+
+        if (!b || !lxa_dos_entry_matches(dl, flags) || b[0] != len)
+            continue;
+        for (i = 0; i < len; i++)
         {
-            *p++ = *n++;
+            UBYTE a = name[i], c = b[i + 1];
+            if (a >= 'a' && a <= 'z') a -= 32;
+            if (c >= 'a' && c <= 'z') c -= 32;
+            if (a != c)
+                break;
         }
-        *p++ = ':';
-        *p = '\0';
-        
-        BPTR lock = Lock(path, SHARED_LOCK);
-        if (lock)
-        {
-            UnLock(lock);
-            /* Assign exists - but we don't maintain a DosList structure
-             * for it. This is a limitation of our simplified implementation. */
-            DPRINTF(LOG_DEBUG, "_dos: FindDosEntry() found assign %s\n", name);
-            /* For now, return NULL as we don't have DosList structures */
-        }
+        if (i == len)
+            return (struct DosList *)dl;
     }
-    
-    /* SYS: is always available as a device/volume */
-    if ((flags & (LDF_DEVICES | LDF_VOLUMES)))
-    {
-        /* Check for SYS */
-        if (name[0] == 'S' || name[0] == 's')
-        {
-            if ((name[1] == 'Y' || name[1] == 'y') &&
-                (name[2] == 'S' || name[2] == 's') &&
-                (name[3] == '\0' || name[3] == ':'))
-            {
-                DPRINTF(LOG_DEBUG, "_dos: FindDosEntry() found SYS:\n");
-                /* Return NULL for now - we don't maintain DosList structures */
-            }
-        }
-    }
-    
     return NULL;
 }
 
@@ -7510,27 +7815,13 @@ struct DosList * _dos_NextDosEntry ( register struct DosLibrary * __dos_a6 __asm
                                                         register const struct DosList * dlist __asm("d1"),
                                                         register ULONG flags __asm("d2"))
 {
-    LXA_UNIMPLEMENTED("dos", "NextDosEntry", "stub: always returns NULL (Phase 255)");
+    const struct DosList *dl;
 
-    /*
-     * NextDosEntry - Get next entry in DosList
-     *
-     * Iterates through the DosList starting from 'dlist'.
-     * If dlist is our special start marker (0xFFFFFFFF), starts from beginning.
-     *
-     * Returns: Next DosList entry matching flags, or NULL at end
-     *
-     * Note: This implementation is limited. In a full implementation,
-     * we would maintain actual DosList structures. For now, we return
-     * NULL to indicate end of list.
-     */
-    DPRINTF(LOG_DEBUG, "_dos: NextDosEntry(dlist=%p, flags=0x%lx)\n", dlist, flags);
-    
-    /* Our simplified implementation doesn't maintain a DosList,
-     * so we always return NULL indicating no (more) entries.
-     * Programs that need to enumerate assigns should use the
-     * ASSIGN command which uses EMU_CALL_DOS_ASSIGN_LIST directly. */
-    
+    if (!dlist)
+        return NULL;
+    for (dl = (const struct DosList *)BADDR(dlist->dol_Next); dl; dl = (const struct DosList *)BADDR(dl->dol_Next))
+        if (lxa_dos_entry_matches(dl, flags))
+            return (struct DosList *)dl;
     return NULL;
 }
 
@@ -8391,7 +8682,7 @@ BPTR _dos_NewLoadSeg ( register struct DosLibrary * __dos_a6 __asm("a6"),
 {
     (void)tags;
 
-    return _dos_LoadSeg(DOSBase, file);
+    return _dos_LoadSeg(DOSBase, file, 0, 0);
 }
 
 ULONG _dos_GetSegListInfo ( register struct DosLibrary * __dos_a6 __asm("a6"),

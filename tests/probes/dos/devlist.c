@@ -1,8 +1,9 @@
 /*
- * Probe (Phase 237b): the device list as 1.x programs walk it - through
- * DOSBase->dl_Root->rn_Info->di_DevInfo under Forbid(), without
- * LockDosList().  Fred Fish ANIMBuild copies every DLT_DEVICE name with a
- * handler task into a 32-byte buffer.  Only properties are printed (the
+ * Probe (Phase 237b/c): the device list in DOSBase->dl_Root->rn_Info->
+ * di_DevInfo, walked through dol_Next after LockDosList() (Fish ReOrg
+ * walks it with NextDosEntry(), ANIMBuild raw under Forbid()).  Fred Fish
+ * ANIMBuild copies every DLT_DEVICE name with a handler task into a
+ * 32-byte buffer.  Only properties are printed (the
  * devices themselves differ between machines); with an argument every
  * entry is listed.
  */
@@ -22,7 +23,7 @@ int main(int argc, char **argv)
     struct DosList *dl;
     int devices = 0, with_task = 0, longest = 0, volumes = 0, assigns = 0, bad = 0;
 
-    Forbid();
+    LockDosList(LDF_READ | LDF_ALL);
     for (dl = (struct DosList *)BADDR(info->di_DevInfo); dl; dl = (struct DosList *)BADDR(dl->dol_Next)) {
         UBYTE *name = (UBYTE *)BADDR(dl->dol_Name);
         int len = name ? name[0] : -1;
@@ -54,7 +55,7 @@ int main(int argc, char **argv)
         else
             assigns++;
     }
-    Permit();
+    UnLockDosList(LDF_READ | LDF_ALL);
     P_BOOL("has devices", devices > 0);
     P_BOOL("has a device with a handler task", with_task > 0);
     P_BOOL("has volumes", volumes > 0);

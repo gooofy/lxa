@@ -1,0 +1,12 @@
+OpenResource(disk.resource) = non-NULL
+unit 0: GetUnitID 0x00000000 ReadUnitID 0x00000000
+unit 1: GetUnitID 0x00000000 ReadUnitID 0x00000000
+unit 2: GetUnitID 0xffffffff ReadUnitID 0xffffffff
+unit 3: GetUnitID 0xffffffff ReadUnitID 0xffffffff
+AllocUnit(1) = 0
+AllocUnit(1) again = 0
+AllocUnit(1) after FreeUnit = 255
+AllocUnit(3) = 255
+GetUnit() result non-NULL = TRUE
+GetUnit() result is our unit = FALSE
+GiveUnit() done = TRUE

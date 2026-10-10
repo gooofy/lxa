@@ -341,9 +341,6 @@ MEMORY_DEPENDENT = {
                                          "calls it with (Phase 237b)",
     "fish-0363/WO/wo1.0d": "reads IntuitionBase->ActiveScreen through a NULL IntuitionBase "
                            "(Kickstart code via the vector table, Phase 237)",
-    "fish-0843/ParM/2.0/SetMouse": "parm.library's handler process runs (priority 5) before "
-                                   "CreateNewProc() returns and stores its port: it calls "
-                                   "WaitPort(NULL)/GetMsg(NULL) on the vector table (Phase 237b)",
 }
 
 

@@ -298,6 +298,20 @@ void vfs_init(void) {
     }
 }
 
+/* the drive names, oldest first (Phase 237c: dos DosList) */
+int vfs_drive_list(const char **names, int max_count)
+{
+    int n = 0, i;
+    for (drive_map_t *m = g_drive_maps; m; m = m->next)
+        n++;
+    if (n > max_count)
+        n = max_count;
+    i = n;
+    for (drive_map_t *m = g_drive_maps; m && i > 0; m = m->next)
+        names[--i] = m->amiga_name;
+    return n;
+}
+
 bool vfs_add_drive(const char *amiga_name, const char *linux_path) {
     drive_map_t *map;
     char normalized_path[PATH_MAX];

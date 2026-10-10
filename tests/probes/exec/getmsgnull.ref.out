@@ -1,0 +1,2 @@
+GetMsg(NULL) returned messages: 1
+the longword at $14 changed = TRUE

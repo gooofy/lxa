@@ -1,0 +1,2 @@
+WaitPort with head->succ set, tail-pred empty: returned at once
+returned the head node = TRUE

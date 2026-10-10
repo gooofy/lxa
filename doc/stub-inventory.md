@@ -17,8 +17,8 @@ implementing the function, never by deleting the macro.
 | commodities | 26 | 0 | 4 |
 | console | 1 | 0 | 0 |
 | datatypes | 5 | 0 | 0 |
-| dos | 18 | 2 | 10 |
-| exec | 5 | 2 | 0 |
+| dos | 14 | 1 | 10 |
+| exec | 3 | 2 | 0 |
 | gadtools | 0 | 1 | 6 |
 | graphics | 0 | 7 | 7 |
 | icon | 0 | 2 | 0 |
@@ -28,7 +28,7 @@ implementing the function, never by deleting the macro.
 | translator | 1 | 0 | 0 |
 | utility | 0 | 0 | 7 |
 | workbench | 0 | 0 | 3 |
-| **total** | **94** | **35** | **47** |
+| **total** | **88** | **34** | **47** |
 
 ## amigaguide
 
@@ -104,7 +104,6 @@ implementing the function, never by deleting the macro.
 ## dos
 
 - `CON:` — partial: AUTO, WAIT and SCREEN options are ignored (`src/rom/lxa_dos.c`)
-- `UnLockDosList` — partial: DosList locking is simulated (Phase 255) (`src/rom/lxa_dos.c`)
 - `ClearVec` — private/reserved slot (`src/rom/lxa_dos.c`)
 - `NoReqLoadSeg` — private/reserved slot (`src/rom/lxa_dos.c`)
 - `private0` — private/reserved slot (`src/rom/lxa_dos.c`)
@@ -116,7 +115,6 @@ implementing the function, never by deleting the macro.
 - `private6` — private/reserved slot (`src/rom/lxa_dos.c`)
 - `private7` — private/reserved slot (`src/rom/lxa_dos.c`)
 - `AbortPkt` — stub: packet not aborted (Phase 255) (`src/rom/lxa_dos.c`)
-- `AttemptLockDosList` — stub: returns a dummy marker, no real DosList or locking (Phase 255) (`src/rom/lxa_dos.c`)
 - `BCPL callco` — stub: BCPL coroutines (GV 0x64) (`src/rom/bcpl/bcpl_support.c`)
 - `BCPL compareTime` — stub: BCPL compareTime (GV 0x1f8) (`src/rom/bcpl/bcpl_support.c`)
 - `BCPL cowait` — stub: BCPL coroutines (GV 0x68) (`src/rom/bcpl/bcpl_support.c`)
@@ -130,9 +128,6 @@ implementing the function, never by deleting the macro.
 - `BCPL sysRequest` — stub: BCPL system requester (GV -0x84) (`src/rom/bcpl/bcpl_support.c`)
 - `BCPL systemRequest` — stub: BCPL system requester (GV 0xd0) (`src/rom/bcpl/bcpl_support.c`)
 - `BCPL tidyup` — stub: BCPL tidyup (GV 0x150) (`src/rom/bcpl/bcpl_support.c`)
-- `FindDosEntry` — stub: always returns NULL (Phase 255) (`src/rom/lxa_dos.c`)
-- `LockDosList` — stub: returns a dummy marker, no real DosList or locking (Phase 255) (`src/rom/lxa_dos.c`)
-- `NextDosEntry` — stub: always returns NULL (Phase 255) (`src/rom/lxa_dos.c`)
 
 ## exec
 
@@ -140,9 +135,7 @@ implementing the function, never by deleting the macro.
 - `SetExcept` — partial: pending exception deferred to next task switch instead of immediate (Phase 255) (`src/rom/exec.c`)
 - `<lvo_name>` — stub: empty exec.library vector (Phase 255) (`src/rom/exec.c`)
 - `Alert` — stub: no alert display or recovery (Phase 255) (`src/rom/exec.c`)
-- `AllocTrap` — stub: always fails (`src/rom/exec.c`)
 - `Debug` — stub: no ROM debugger (`src/rom/exec.c`)
-- `FreeTrap` — stub: trap allocation not tracked (`src/rom/exec.c`)
 
 ## gadtools
 

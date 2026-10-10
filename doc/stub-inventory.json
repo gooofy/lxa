@@ -144,22 +144,6 @@
   "symbol": "_exec_SetExcept"
  },
  {
-  "lib": "exec",
-  "function": "AllocTrap",
-  "kind": "stub",
-  "detail": "stub: always fails",
-  "file": "src/rom/exec.c",
-  "symbol": "_exec_AllocTrap"
- },
- {
-  "lib": "exec",
-  "function": "FreeTrap",
-  "kind": "stub",
-  "detail": "stub: trap allocation not tracked",
-  "file": "src/rom/exec.c",
-  "symbol": "_exec_FreeTrap"
- },
- {
   "lib": "tapedeck.gadget",
   "function": "GM_RENDER",
   "kind": "partial",
@@ -630,46 +614,6 @@
   "detail": "stub: packet not aborted (Phase 255)",
   "file": "src/rom/lxa_dos.c",
   "symbol": "_dos_AbortPkt"
- },
- {
-  "lib": "dos",
-  "function": "LockDosList",
-  "kind": "stub",
-  "detail": "stub: returns a dummy marker, no real DosList or locking (Phase 255)",
-  "file": "src/rom/lxa_dos.c",
-  "symbol": "_dos_LockDosList"
- },
- {
-  "lib": "dos",
-  "function": "UnLockDosList",
-  "kind": "partial",
-  "detail": "partial: DosList locking is simulated (Phase 255)",
-  "file": "src/rom/lxa_dos.c",
-  "symbol": "_dos_UnLockDosList"
- },
- {
-  "lib": "dos",
-  "function": "AttemptLockDosList",
-  "kind": "stub",
-  "detail": "stub: returns a dummy marker, no real DosList or locking (Phase 255)",
-  "file": "src/rom/lxa_dos.c",
-  "symbol": "_dos_AttemptLockDosList"
- },
- {
-  "lib": "dos",
-  "function": "FindDosEntry",
-  "kind": "stub",
-  "detail": "stub: always returns NULL (Phase 255)",
-  "file": "src/rom/lxa_dos.c",
-  "symbol": "_dos_FindDosEntry"
- },
- {
-  "lib": "dos",
-  "function": "NextDosEntry",
-  "kind": "stub",
-  "detail": "stub: always returns NULL (Phase 255)",
-  "file": "src/rom/lxa_dos.c",
-  "symbol": "_dos_NextDosEntry"
  },
  {
   "lib": "dos",

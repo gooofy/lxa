@@ -832,6 +832,9 @@ void U_prepareTask (struct Task *task, APTR initPC, APTR finalPC, char *args)
     if (!task->tc_SigAlloc)
         task->tc_SigAlloc = SysBase->TaskSigAlloc;
 
+    if (!task->tc_TrapAlloc)
+        task->tc_TrapAlloc = SysBase->TaskTrapAlloc;    /* trap #15: system (probe exec/alloctrap) */
+
     if (!task->tc_TrapCode)
         task->tc_TrapCode = SysBase->TaskTrapCode;
 

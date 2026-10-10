@@ -1,0 +1,16 @@
+LoadSeg root = TRUE
+h[2] magic = 0x0000abcd
+h[3] file set = TRUE
+h[4] overlay table set = TRUE
+table[0] = 0xa1a1a1a1
+table[2] = 0xc3c3c3c3
+h[5] hunk table set = TRUE
+h[6] global vector set = TRUE
+root has two hunks = TRUE
+hunk table [0] is the root = TRUE
+hunk table [2] empty = TRUE
+node loaded = TRUE
+node data = 0x22222222
+node relocated to root hunk 1 = TRUE
+hunk table [2] is the node = TRUE
+unloaded = TRUE

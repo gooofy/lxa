@@ -39,6 +39,7 @@
 //#define ENABLE_DEBUG
 
 #include <resources/misc.h>
+#include <resources/disk.h>
 #include "util.h"
 #include "exceptions.h"
 
@@ -481,6 +482,104 @@ static struct Library *exec_create_misc_resource(struct ExecBase *SysBase)
 
     AddTail(&SysBase->ResourceList, (struct Node *)&misc->lib);
     return &misc->lib;
+}
+
+/*
+ * disk.resource (Kickstart ROM resource, NDK resources/disk.h) for the two
+ * floppy drives of the reference machine: units 0 and 1 are 3.5" DD drives
+ * (DRT_AMIGA) owned by trackdisk.device, 2 and 3 are empty (probe
+ * exec/diskres - Fish SuperDuper opens it before its window).  The disk
+ * hardware is not emulated: GetUnit() always gets the controller.
+ */
+struct LxaDiskResource
+{
+    struct DiscResource dr;
+    UBYTE owned[4];
+    struct DiscResourceUnit trackdisk_dru;  /* trackdisk.device's unit */
+};
+
+static UBYTE _disk_AllocUnit(register struct LxaDiskResource *disk __asm("a6"),
+                             register ULONG unit __asm("d0"))
+{
+    struct ExecBase *SysBase = *(struct ExecBase **)4;
+    UBYTE ok = 0;
+
+    if (unit > 3)
+        return 0;
+    Forbid();
+    if (!disk->owned[unit])
+    {
+        disk->owned[unit] = 1;
+        ok = 0xff;
+    }
+    Permit();
+    return ok;
+}
+
+static void _disk_FreeUnit(register struct LxaDiskResource *disk __asm("a6"),
+                           register ULONG unit __asm("d0"))
+{
+    if (unit <= 3)
+        disk->owned[unit] = 0;
+}
+
+static struct DiscResourceUnit *_disk_GetUnit(register struct LxaDiskResource *disk __asm("a6"),
+                                              register struct DiscResourceUnit *dru __asm("a1"))
+{
+    /* the unit that last had the controller (trackdisk's at first) */
+    struct DiscResourceUnit *last = disk->dr.dr_Current ? disk->dr.dr_Current : &disk->trackdisk_dru;
+
+    disk->dr.dr_Current = dru;
+    disk->dr.dr_CurrTask = (*(struct ExecBase **)4)->ThisTask;
+    return last;
+}
+
+static void _disk_GiveUnit(register struct LxaDiskResource *disk __asm("a6"))
+{
+    disk->dr.dr_CurrTask = NULL;
+}
+
+static ULONG _disk_GetUnitID(register struct LxaDiskResource *disk __asm("a6"),
+                             register ULONG unit __asm("d0"))
+{
+    return unit <= 3 ? disk->dr.dr_UnitID[unit] : DRT_EMPTY;
+}
+
+static struct Library *exec_create_disk_resource(struct ExecBase *SysBase)
+{
+    APTR raw;
+    struct LxaDiskResource *disk;
+    struct JumpVec *jt;
+
+    raw = AllocMem(sizeof(struct JumpVec) * 6 + sizeof(*disk), MEMF_CLEAR | MEMF_PUBLIC);
+    if (!raw)
+        return NULL;
+    jt = (struct JumpVec *)raw;
+    disk = (struct LxaDiskResource *)((UBYTE *)raw + sizeof(struct JumpVec) * 6);
+
+    /* LVO -6 AllocUnit ... -36 ReadUnitID: jt[5] is LVO -6 */
+    jt[5].jmp = JMPINSTR; jt[5].vec = _disk_AllocUnit;
+    jt[4].jmp = JMPINSTR; jt[4].vec = _disk_FreeUnit;
+    jt[3].jmp = JMPINSTR; jt[3].vec = _disk_GetUnit;
+    jt[2].jmp = JMPINSTR; jt[2].vec = _disk_GiveUnit;
+    jt[1].jmp = JMPINSTR; jt[1].vec = _disk_GetUnitID;
+    jt[0].jmp = JMPINSTR; jt[0].vec = _disk_GetUnitID;     /* ReadUnitID */
+
+    disk->dr.dr_Library.lib_Node.ln_Type = NT_RESOURCE;
+    disk->dr.dr_Library.lib_Node.ln_Name = (char *)DISKNAME;
+    disk->dr.dr_Library.lib_Flags = LIBF_SUMUSED | LIBF_CHANGED;
+    disk->dr.dr_Library.lib_NegSize = sizeof(struct JumpVec) * 6;
+    disk->dr.dr_Library.lib_PosSize = sizeof(*disk);
+    disk->dr.dr_SysLib = (struct Library *)SysBase;
+    disk->dr.dr_UnitID[0] = DRT_AMIGA;
+    disk->dr.dr_UnitID[1] = DRT_AMIGA;
+    disk->dr.dr_UnitID[2] = DRT_EMPTY;
+    disk->dr.dr_UnitID[3] = DRT_EMPTY;
+    NEWLIST(&disk->dr.dr_Waiting);
+    disk->owned[0] = disk->owned[1] = 1;    /* trackdisk.device's drives */
+
+    AddTail(&SysBase->ResourceList, (struct Node *)&disk->dr.dr_Library);
+    return &disk->dr.dr_Library;
 }
 
 static void exec_init_int_vector_state(struct ExecBase *SysBase,
@@ -2197,8 +2296,10 @@ struct Node * _exec_RemHead ( register struct ExecBase *SysBase __asm("a6"),
 {
     DPRINTF (LOG_DEBUG, "_exec: RemHead called, list=0x%08lx\n", list);
 
-    /* Validate list pointer */
-    if (!list || (ULONG)list == 0xFFFFFFFF || (ULONG)list < 0x1000)
+    /* Validate list pointer.  A list in low memory is taken as it is:
+     * GetMsg(NULL) works on the vector table at $14 (AmigaOS 3.1, probe
+     * exec/getmsgnull - Fish ParM, BrowserII). */
+    if (!list || (ULONG)list == 0xFFFFFFFF)
         return NULL;
 
     /* Validate list head pointer - check for uninitialized/corrupt list */
@@ -3041,31 +3142,45 @@ void _exec_FreeSignal ( register struct ExecBase *SysBase   __asm("a6"),
     }
 }
 
+/* AllocTrap()/FreeTrap(): the task's trap numbers in tc_TrapAlloc; -1
+ * takes the highest free one; trap #15 is the system's (AmigaOS 3.1,
+ * probe exec/alloctrap - Fish Dk, Cursor).  The TRAP instructions reach
+ * tc_TrapCode with the exception number (32 + n). */
 LONG _exec_AllocTrap ( register struct ExecBase * SysBase __asm("a6"),
                                                         register LONG ___trapNum  __asm("d0"))
 {
-    LXA_UNIMPLEMENTED("exec", "AllocTrap", "stub: always fails");
+    struct Task *me = SysBase->ThisTask;
+    LONG n;
 
     ___trapNum = (LONG)(WORD)___trapNum; /* sign-extend: GCC m68k move.w workaround */
 
-    DPRINTF (LOG_DEBUG, "_exec: AllocTrap called, trapNum=%ld\n", ___trapNum);
-    
-    /* In emulation, we don't support 68k trap vectors */
-    /* Return -1 to indicate no trap available */
-    return -1;
+    if (!me)
+        return -1;
+    if (___trapNum == -1)
+    {
+        for (n = 15; n >= 0; n--)
+            if (!(me->tc_TrapAlloc & (1 << n)))
+            {
+                me->tc_TrapAlloc |= (UWORD)(1 << n);
+                return n;
+            }
+        return -1;
+    }
+    if (___trapNum < 0 || ___trapNum > 15 || (me->tc_TrapAlloc & (1 << ___trapNum)))
+        return -1;
+    me->tc_TrapAlloc |= (UWORD)(1 << ___trapNum);
+    return ___trapNum;
 }
 
 void _exec_FreeTrap ( register struct ExecBase * SysBase __asm("a6"),
                                                         register LONG ___trapNum  __asm("d0"))
 {
-    LXA_UNIMPLEMENTED("exec", "FreeTrap", "stub: trap allocation not tracked");
+    struct Task *me = SysBase->ThisTask;
 
     ___trapNum = (LONG)(WORD)___trapNum; /* sign-extend: GCC m68k move.w workaround */
 
-    DPRINTF (LOG_DEBUG, "_exec: FreeTrap called, trapNum=%ld\n", ___trapNum);
-    
-    /* In emulation, we don't support 68k trap vectors */
-    /* This is a no-op */
+    if (me && ___trapNum >= 0 && ___trapNum <= 15)
+        me->tc_TrapAlloc &= (UWORD)~(1 << ___trapNum);
 }
 
 void _exec_AddPort ( register struct ExecBase * SysBase __asm("a6"),
@@ -3250,8 +3365,10 @@ struct Message * _exec_WaitPort ( register struct ExecBase * SysBase __asm("a6")
      * bit as soon as the current task entered WaitPort().
      */
 
-    /* Is messageport empty? */
-    while (___port->mp_MsgList.lh_TailPred == (struct Node *)&___port->mp_MsgList)
+    /* Is messageport empty?  AmigaOS 3.1 tests lh_Head->ln_Succ (probe
+     * exec/waitport; Fish ParM/BrowserII WaitPort(NULL) on the vector
+     * table) */
+    while (!___port->mp_MsgList.lh_Head->ln_Succ)
     {
         DPRINTF (LOG_DEBUG, "_exec: WaitPort() msg list empty, waiting for signal...\n");
 
@@ -6634,6 +6751,10 @@ void coldstart (void)
         DPRINTF (LOG_DEBUG, "coldstart: registered ciab.resource\n");
     }
 
+    if (exec_create_disk_resource(SysBase)) {
+        DPRINTF (LOG_DEBUG, "coldstart: registered disk.resource\n");
+    }
+
     if (exec_create_misc_resource(SysBase)) {
         DPRINTF (LOG_DEBUG, "coldstart: registered misc.resource\n");
     }
@@ -6670,6 +6791,7 @@ void coldstart (void)
 
     SysBase->TaskExitCode = _defaultTaskExit;
     SysBase->TaskSigAlloc = 0xFFFF;
+    SysBase->TaskTrapAlloc = 0x8000;
     SysBase->Quantum      = DEFAULT_SCHED_QUANTUM;
     SysBase->Elapsed      = DEFAULT_SCHED_QUANTUM;
     SysBase->SysFlags     = 0;

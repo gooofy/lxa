@@ -1,0 +1,4 @@
+Type WBENCHSCREEN hires: screen (new) type 0x01 size 640x200 depth 2
+Type WBENCHSCREEN lores: screen (new) type 0x01 size 640x200 depth 2
+Type CUSTOMSCREEN hires: screen (new) type 0x0f size 640x197 depth 2
+Type 0: screen (new) type 0x0f size 640x197 depth 2

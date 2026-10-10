@@ -3501,6 +3501,36 @@ int _dos_assign_info(uint32_t name68k, uint32_t buf68k, uint32_t buflen)
 }
 
 /* List assigns - returns count and writes packed strings to buffer */
+/* Phase 237c: the entries of the dos DosList - devices (drives), their
+ * volumes and the assigns - as "D<name>\0V<name>\0A<name>\0...\0". */
+int _dos_device_list(uint32_t buf68k, uint32_t buflen)
+{
+    const char *drives[64], *names[64], *paths[64];
+    int nd = vfs_drive_list(drives, 64);
+    int na = vfs_assign_list(names, paths, 64);
+    uint32_t off = 0;
+    int count = 0;
+
+    #define PUT(t, str) do { size_t l_ = strlen(str); \
+        if (off + l_ + 3 >= buflen) goto full; \
+        m68k_write_memory_8(buf68k + off++, (t)); \
+        for (size_t j_ = 0; j_ < l_; j_++) m68k_write_memory_8(buf68k + off++, (str)[j_]); \
+        m68k_write_memory_8(buf68k + off++, 0); count++; } while (0)
+
+    if (!buf68k || buflen < 4)
+        return nd * 2 + na;
+    for (int i = 0; i < nd; i++)
+        PUT('D', drives[i]);
+    for (int i = 0; i < nd; i++)
+        PUT('V', vfs_volume_of(drives[i]));
+    for (int i = 0; i < na; i++)
+        PUT('A', names[i]);
+full:
+    #undef PUT
+    m68k_write_memory_8(buf68k + off, 0);
+    return count;
+}
+
 int _dos_assign_list(uint32_t buf68k, uint32_t buflen)
 {
     DPRINTF(LOG_DEBUG, "lxa: _dos_assign_list(): buf=0x%08x, buflen=%d\n", buf68k, buflen);

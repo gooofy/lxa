@@ -1,0 +1,8 @@
+plain: loads, code[0] unchanged
+HUNK_NAME before the hunk: loads, code[0] unchanged
+HUNK_NAME after the code: loads, code[0] unchanged
+HUNK_UNIT before the hunk: fails, IoErr 235
+HUNK_RELOC32: loads, code[0] relocated to the data hunk
+HUNK_RELOC32SHORT: loads, code[0] relocated to the data hunk
+HUNK_DREL32: loads, code[0] relocated to the data hunk
+HUNK_RELRELOC32: loads, code[0] relocated PC-relative

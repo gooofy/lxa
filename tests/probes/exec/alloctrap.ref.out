@@ -1,0 +1,9 @@
+tc_TrapAlloc at start = 0x00008000
+AllocTrap(7) = 7
+AllocTrap(7) again = -1
+AllocTrap(-1) = 14
+AllocTrap(-1) again = 13
+AllocTrap(15) = -1
+tc_TrapAlloc = 0x0000e080
+tc_TrapAlloc after FreeTrap(7) = 0x0000e000
+AllocTrap(-1) after = 12

@@ -828,12 +828,32 @@ static int _intuition_ascii_casecmp(const char *a, const char *b)
     return (int)((unsigned char)*a - (unsigned char)*b);
 }
 
+/*
+ * Screens a program opened with NewScreen.Type WBENCHSCREEN: AmigaOS 3.1
+ * opens a screen of their own (640x200, type WBENCHSCREEN in Flags; probe
+ * intuition/wbtype - Fish Jed).  They carry the Workbench type but are not
+ * the Workbench screen.
+ */
+#define LXA_MAX_WBTYPE_SCREENS 8
+static struct Screen *g_wbtype_screens[LXA_MAX_WBTYPE_SCREENS];
+
+static BOOL _intuition_screen_is_wb(const struct Screen *screen)
+{
+    int i;
+    if (!screen || (screen->Flags & SCREENTYPE) != WBENCHSCREEN)
+        return FALSE;
+    for (i = 0; i < LXA_MAX_WBTYPE_SCREENS; i++)
+        if (g_wbtype_screens[i] == screen)
+            return FALSE;
+    return TRUE;
+}
+
 static const char *_intuition_pubscreen_name_for_screen(const struct Screen *screen)
 {
     if (!screen)
         return "Workbench";
 
-    if ((screen->Flags & SCREENTYPE) == WBENCHSCREEN)
+    if (_intuition_screen_is_wb(screen))
         return "Workbench";
 
     if (screen->Title && screen->Title[0] != '\0')
@@ -854,7 +874,7 @@ static struct Screen *_intuition_find_workbench_screen(struct IntuitionBase *Int
 
     for (screen = IntuitionBase->FirstScreen; screen; screen = screen->NextScreen)
     {
-        if ((screen->Flags & SCREENTYPE) == WBENCHSCREEN)
+        if (_intuition_screen_is_wb(screen))
             return screen;
     }
 
@@ -1293,7 +1313,7 @@ static VOID _intuition_register_pubscreen(struct IntuitionBase *IntuitionBase, s
     entry->drawInfo.dri_Resolution.X = (screen->Flags & SCREENHIRES) ? 22 : 44;
     entry->drawInfo.dri_Resolution.Y = (screen->ViewPort.Modes & LACE) ? 22 : 44;
     entry->drawInfo.dri_Flags      = DRIF_NEWLOOK;
-    if ((screen->Flags & SCREENTYPE) != WBENCHSCREEN)
+    if (!_intuition_screen_is_wb(screen))
         _intuition_set_oldlook_pens(entry);
     else
         _intuition_set_wb_pens(entry, screen);
@@ -1304,7 +1324,7 @@ static VOID _intuition_register_pubscreen(struct IntuitionBase *IntuitionBase, s
 
     /* Only the Workbench screen is public by itself; a custom screen becomes
      * public through SA_PubName (AmigaOS 3.1 reference). */
-    if ((screen->Flags & SCREENTYPE) == WBENCHSCREEN)
+    if (_intuition_screen_is_wb(screen))
     {
         AddTail(&base->PubScreenList, &entry->pub.psn_Node);
         entry->is_public = TRUE;
@@ -5063,6 +5083,19 @@ VOID _intuition_ClearPointer ( register struct IntuitionBase * IntuitionBase __a
     window->YOffset = 0;
 }
 
+/* OpenScreen() as programs call it: a NewScreen Type of 0 opens a
+ * CUSTOMSCREEN (AmigaOS 3.1, probe intuition/wbtype).  Intuition's own
+ * callers keep the type they pass. */
+struct Screen * _intuition_OpenScreen_lvo ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+                                            register const struct NewScreen * newScreen __asm("a0"))
+{
+    struct Screen *screen = _intuition_OpenScreen(IntuitionBase, newScreen);
+
+    if (screen && newScreen && (newScreen->Type & SCREENTYPE) == 0 && (screen->Flags & SCREENTYPE) == 0)
+        screen->Flags |= CUSTOMSCREEN;
+    return screen;
+}
+
 BOOL _intuition_CloseScreen ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Screen * screen __asm("a0"))
 {
@@ -5174,6 +5207,10 @@ BOOL _intuition_CloseScreen ( register struct IntuitionBase * IntuitionBase __as
     }
 
     _intuition_unregister_pubscreen(IntuitionBase, screen);
+
+    for (i = 0; i < LXA_MAX_WBTYPE_SCREENS; i++)
+        if (g_wbtype_screens[i] == screen)
+            g_wbtype_screens[i] = NULL;
 
     /* Free the Screen structure */
     FreeMem(screen, sizeof(struct Screen));
@@ -9495,13 +9532,31 @@ struct Screen * _intuition_OpenScreen ( register struct IntuitionBase * Intuitio
                                             ((const struct ExtNewScreen *)newScreen)->Extension);
     }
 
-    /* Per RKRM: apps must not call OpenScreen() with Type=WBENCHSCREEN.
-     * Only Intuition itself opens the Workbench screen via OpenWorkbench().
-     * Return NULL as real Intuition does when an app tries this. */
+    /* Type WBENCHSCREEN from a program: AmigaOS 3.1 opens a 640x200 hires
+     * screen of the program's own with the Workbench type in Flags
+     * (probe intuition/wbtype; 1.x programs such as Fish Jed do this). */
     if ((newScreen->Type & SCREENTYPE) == WBENCHSCREEN)
     {
-        DPRINTF (LOG_DEBUG, "_intuition: OpenScreen() rejecting WBENCHSCREEN request (use LockPubScreen instead)\n");
-        return NULL;
+        struct NewScreen ns = *newScreen;
+        struct Screen *ws;
+        int i;
+
+        ns.Width = 640;
+        ns.Height = 200;
+        ns.ViewModes |= HIRES;
+        ns.Type = (ns.Type & ~SCREENTYPE) | CUSTOMSCREEN;
+        ws = _intuition_OpenScreen(IntuitionBase, &ns);
+        if (ws)
+        {
+            for (i = 0; i < LXA_MAX_WBTYPE_SCREENS; i++)
+                if (!g_wbtype_screens[i])
+                {
+                    g_wbtype_screens[i] = ws;
+                    break;
+                }
+            ws->Flags = (ws->Flags & ~SCREENTYPE) | WBENCHSCREEN;
+        }
+        return ws;
     }
 
     /* Get screen dimensions */
@@ -10474,7 +10529,7 @@ static BOOL _window_uses_native_host(struct Screen *screen, BOOL rootless_mode)
 {
     if (!rootless_mode || !screen)
         return FALSE;
-    return ((screen->Flags & SCREENTYPE) == WBENCHSCREEN);
+    return _intuition_screen_is_wb(screen);
 }
 
 struct Window * _intuition_OpenWindow ( register struct IntuitionBase * IntuitionBase __asm("a6"),
@@ -10551,7 +10606,7 @@ struct Window * _intuition_OpenWindow ( register struct IntuitionBase * Intuitio
         screen = IntuitionBase->FirstScreen;
         while (screen)
         {
-            if ((screen->Flags & SCREENTYPE) == WBENCHSCREEN)
+            if (_intuition_screen_is_wb(screen))
                 break;
             screen = screen->NextScreen;
         }
@@ -10569,7 +10624,7 @@ struct Window * _intuition_OpenWindow ( register struct IntuitionBase * Intuitio
             screen = IntuitionBase->FirstScreen;
             while (screen)
             {
-                if ((screen->Flags & SCREENTYPE) == WBENCHSCREEN)
+                if (_intuition_screen_is_wb(screen))
                     break;
                 screen = screen->NextScreen;
             }
@@ -11015,7 +11070,7 @@ ULONG _intuition_OpenWorkBench ( register struct IntuitionBase * IntuitionBase _
     wbscreen = IntuitionBase->FirstScreen;
     while (wbscreen)
     {
-        if ((wbscreen->Flags & SCREENTYPE) == WBENCHSCREEN)
+        if (_intuition_screen_is_wb(wbscreen))
         {
             DPRINTF (LOG_DEBUG, "_intuition: OpenWorkBench() - Workbench already open at 0x%08lx\n", (ULONG)wbscreen);
             return (ULONG)wbscreen;
@@ -15118,7 +15173,7 @@ struct Window * _intuition_OpenWindowTagList ( register struct IntuitionBase * I
             screen = IntuitionBase->FirstScreen;
             while (screen)
             {
-                if ((screen->Flags & SCREENTYPE) == WBENCHSCREEN)
+                if (_intuition_screen_is_wb(screen))
                     break;
                 screen = screen->NextScreen;
             }
@@ -15128,7 +15183,7 @@ struct Window * _intuition_OpenWindowTagList ( register struct IntuitionBase * I
                 screen = IntuitionBase->FirstScreen;
                 while (screen)
                 {
-                    if ((screen->Flags & SCREENTYPE) == WBENCHSCREEN)
+                    if (_intuition_screen_is_wb(screen))
                         break;
                     screen = screen->NextScreen;
                 }
@@ -15194,7 +15249,7 @@ struct Window * _intuition_OpenWindowTagList ( register struct IntuitionBase * I
             adjust_screen = IntuitionBase->FirstScreen;
             while (adjust_screen)
             {
-                if ((adjust_screen->Flags & SCREENTYPE) == WBENCHSCREEN)
+                if (_intuition_screen_is_wb(adjust_screen))
                     break;
                 adjust_screen = adjust_screen->NextScreen;
             }
@@ -16869,7 +16924,7 @@ APTR __g_lxa_intuition_FuncTab [] =
     _intuition_OffMenu, // offset = -180
     _intuition_OnGadget, // offset = -186
     _intuition_OnMenu, // offset = -192
-    _intuition_OpenScreen, // offset = -198
+    _intuition_OpenScreen_lvo, // offset = -198
     _intuition_OpenWindow, // offset = -204
     _intuition_OpenWorkBench, // offset = -210
     _intuition_PrintIText, // offset = -216
