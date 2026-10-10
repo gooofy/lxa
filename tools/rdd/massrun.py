@@ -345,6 +345,9 @@ MEMORY_DEPENDENT = {
                                          "calls it with (Phase 237b)",
     "fish-0363/WO/wo1.0d": "reads IntuitionBase->ActiveScreen through a NULL IntuitionBase "
                            "(Kickstart code via the vector table, Phase 237)",
+    "fish-0099/A-Render/programs/LATHE": "parses its stdin buffer (AllocMem(1032) without MEMF_CLEAR) "
+                                         "although Read() returned 0 at end of file: the answers are "
+                                         "whatever the memory held (Phase 237d)",
     "fish-0842/AntiCicloVir/AntiCicloVir": "copies its argument string up to the next line feed after "
                                            "the first character, past the end of an empty command line "
                                            "(\\n): the outcome depends on the caller's buffer - on the "

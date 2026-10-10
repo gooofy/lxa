@@ -1,0 +1,6 @@
+OpenResource(potgo.resource) = TRUE
+AllocPotBits($f000) = 0x0000f000
+AllocPotBits($f000) again = 0x00000000
+AllocPotBits($0f01) = 0x00000001
+AllocPotBits($00fe) = 0x00000000
+AllocPotBits($ff01) after FreePotBits = 0x0000f001

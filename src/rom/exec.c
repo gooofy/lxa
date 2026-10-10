@@ -485,6 +485,85 @@ static struct Library *exec_create_misc_resource(struct ExecBase *SysBase)
 }
 
 /*
+ * potgo.resource (Kickstart ROM resource, NDK resources/potgo.h): the bits
+ * of the POTGO register.  Only the START bit (0) and bits 8-15 exist; the
+ * system keeps the bits of the mouse port (8-11) for itself.  AllocPotBits()
+ * grants the free bits it is asked for and returns them, FreePotBits()
+ * gives them back, WritePotgo() changes the masked bits of the register
+ * (probe exec/potgores - Fish JoyDemo opens it before its window).
+ */
+struct LxaPotgoResource
+{
+    struct Library lib;
+    UWORD owned;
+    UWORD value;
+};
+
+static UWORD _potgo_AllocPotBits(register struct LxaPotgoResource *pr __asm("a6"),
+                                 register UWORD bits __asm("d0"))
+{
+    struct ExecBase *SysBase = *(struct ExecBase **)4;
+    UWORD got;
+
+    Disable();
+    got = bits & 0xff01 & ~pr->owned;
+    pr->owned |= got;
+    Enable();
+    return got;
+}
+
+static void _potgo_FreePotBits(register struct LxaPotgoResource *pr __asm("a6"),
+                               register UWORD bits __asm("d0"))
+{
+    struct ExecBase *SysBase = *(struct ExecBase **)4;
+
+    Disable();
+    pr->owned &= ~(bits & 0xf001);     /* the mouse port's bits stay the system's */
+    Enable();
+}
+
+static void _potgo_WritePotgo(register struct LxaPotgoResource *pr __asm("a6"),
+                              register UWORD word __asm("d0"),
+                              register UWORD mask __asm("d1"))
+{
+    struct ExecBase *SysBase = *(struct ExecBase **)4;
+
+    Disable();
+    pr->value = (pr->value & ~mask) | (word & mask);
+    ((volatile struct Custom *)0xdff000)->potgo = pr->value;
+    Enable();
+}
+
+static struct Library *exec_create_potgo_resource(struct ExecBase *SysBase)
+{
+    APTR raw;
+    struct LxaPotgoResource *pr;
+    struct JumpVec *jt;
+
+    raw = AllocMem(sizeof(struct JumpVec) * 3 + sizeof(*pr), MEMF_CLEAR | MEMF_PUBLIC);
+    if (!raw)
+        return NULL;
+    jt = (struct JumpVec *)raw;
+    pr = (struct LxaPotgoResource *)((UBYTE *)raw + sizeof(struct JumpVec) * 3);
+
+    /* LVO -6 AllocPotBits, -12 FreePotBits, -18 WritePotgo */
+    jt[2].jmp = JMPINSTR; jt[2].vec = _potgo_AllocPotBits;
+    jt[1].jmp = JMPINSTR; jt[1].vec = _potgo_FreePotBits;
+    jt[0].jmp = JMPINSTR; jt[0].vec = _potgo_WritePotgo;
+
+    pr->owned = 0x0f00;
+    pr->value = 0xff00;
+    pr->lib.lib_Node.ln_Type = NT_RESOURCE;
+    pr->lib.lib_Node.ln_Name = (char *)"potgo.resource";
+    pr->lib.lib_Flags = LIBF_SUMUSED | LIBF_CHANGED;
+    pr->lib.lib_NegSize = sizeof(struct JumpVec) * 3;
+    pr->lib.lib_PosSize = sizeof(*pr);
+
+    AddTail(&SysBase->ResourceList, (struct Node *)&pr->lib);
+    return &pr->lib;
+}
+
+/*
  * disk.resource (Kickstart ROM resource, NDK resources/disk.h) for the two
  * floppy drives of the reference machine: units 0 and 1 are 3.5" DD drives
  * (DRT_AMIGA) owned by trackdisk.device, 2 and 3 are empty (probe
@@ -6829,6 +6908,10 @@ void coldstart (void)
 
     if (exec_create_misc_resource(SysBase)) {
         DPRINTF (LOG_DEBUG, "coldstart: registered misc.resource\n");
+    }
+
+    if (exec_create_potgo_resource(SysBase)) {
+        DPRINTF (LOG_DEBUG, "coldstart: registered potgo.resource\n");
     }
 
     DPRINTF (LOG_DEBUG, "coldstart: done registering built-in resources\n");
