@@ -1,0 +1,13 @@
+~0: NULL
+~0 & ~MEMF_TOTAL: NULL
+MEMF_CHIP|MEMF_FAST: NULL
+MEMF_CHIP|MEMF_FAST|MEMF_CLEAR: NULL
+MEMF_LARGEST: ok fast
+MEMF_TOTAL: ok fast
+MEMF_REVERSE: ok fast
+bit 3 (unused): NULL
+bit 12 (unused): NULL
+0x10000 | bit 20: ok fast cleared
+MEMF_KICK: ok fast
+MEMF_24BITDMA: ok chip
+MEMF_LOCAL: ok fast

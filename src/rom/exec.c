@@ -1465,6 +1465,21 @@ EXEC_PRESERVE_ALL(_exec_ObtainSemaphore)
 EXEC_PRESERVE_ALL(_exec_ObtainSemaphoreShared)
 EXEC_PRESERVE_ALL(_exec_ReleaseSemaphore)
 
+/* AllocMem(): AmigaOS 3.1 returns with A1 = the result and, after a
+ * MEMF_CLEAR allocation, D1 = 0 (probe exec/allocregs).  Fish AskFirst
+ * and SofTrack call AllocMem() a second time without setting D1. */
+extern void _exec_AllocMem_Regs(void);
+asm(".text\n\t.even\n"
+    "__exec_AllocMem_Regs:\n\t"
+    "move.l d1,-(sp)\n\t"
+    "jsr __exec_AllocMem\n\t"
+    "move.l (sp)+,d1\n\t"
+    "move.l d0,a1\n\t"
+    "btst #16,d1\n\t"
+    "beq.s 1f\n\t"
+    "moveq #0,d1\n"
+    "1:\trts\n");
+
 /* InitSemaphore() keeps D0/D1/A1 on AmigaOS 3.1 - A0 not (probe
  * exec/preserveregs; Fish bsh.library's init returns the D0 it was called
  * with across it).  A0 is left pointing at the semaphore's wait queue. */
@@ -6455,7 +6470,7 @@ void coldstart (void)
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-180)].vec = _exec_Cause;
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-186)].vec = _exec_Allocate;
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-192)].vec = _exec_Deallocate;
-    g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-198)].vec = _exec_AllocMem;
+    g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-198)].vec = _exec_AllocMem_Regs;
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-204)].vec = _exec_AllocAbs;
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-210)].vec = _exec_FreeMem;
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-216)].vec = _exec_AvailMem;
