@@ -1,0 +1,81 @@
+-- library
+lib_Version >= 37 = 1
+-- CxBroker
+ProbeA = non-NULL
+error = 0
+CxObjType = 6
+CxObjError = 0
+after create no messages
+ProbeA again (UNIQUE|NOTIFY) = NULL
+error = 2
+ProbeA port msg 0: type=0x40 id=25 data=NULL
+ProbeA again (UNIQUE) = NULL
+error = 2
+ProbeA port no messages
+PROBEA (UNIQUE|NOTIFY, other case) = non-NULL
+error = 0
+ProbeA port no messages
+ProbeA port after delete no messages
+ProbeA again (DUPLICATE) = non-NULL
+error = 0
+ProbeA port no messages
+ProbeB, error NULL = non-NULL
+ProbeC long, pri 5, no port = non-NULL
+error = 0
+-- CxBroker nb_Version
+nb_Version 0: non-NULL error 0
+nb_Version 4: non-NULL error 0
+nb_Version 6: non-NULL error 0
+nb_Version 127: non-NULL error 0
+-- broker list
+list: "ProbeC with a name long" title="A title that is longer than the forty c" descr="Probe description" flags=0x0001 nodename=bc_Name task=me port=NULL
+list: "ProbeA" title="Probe title" descr="Probe description" flags=0x0005 nodename=bc_Name task=me port=mine
+list: "ProbeA" title="Probe title" descr="Probe description" flags=0x0001 nodename=bc_Name task=me port=other
+list: "ProbeB" title="Probe title" descr="Probe description" flags=0x0001 nodename=bc_Name task=me port=other
+list: probe brokers = 4, count >= mine: yes
+list: list empty after FreeBrokerList: yes
+-- ActivateCxObj
+ActivateCxObj(b1, TRUE) = 0
+ActivateCxObj(b1, TRUE) = 2
+ActivateCxObj(b1, FALSE) = 2
+ActivateCxObj(b1, FALSE) = 0
+ActivateCxObj(b1, 5) = 0
+ActivateCxObj(NULL, TRUE) = 0
+ProbeA port no messages
+after activate: "ProbeC with a name long" title="A title that is longer than the forty c" descr="Probe description" flags=0x0001 nodename=bc_Name task=me port=NULL
+after activate: "ProbeA" title="Probe title" descr="Probe description" flags=0x0007 nodename=bc_Name task=me port=mine
+after activate: "ProbeA" title="Probe title" descr="Probe description" flags=0x0001 nodename=bc_Name task=me port=other
+after activate: "ProbeB" title="Probe title" descr="Probe description" flags=0x0001 nodename=bc_Name task=me port=other
+after activate: probe brokers = 4, count >= mine: yes
+after activate: list empty after FreeBrokerList: yes
+-- SetCxObjPri
+SetCxObjPri(b3, 10) = 0
+SetCxObjPri(b3, -3) = 10
+SetCxObjPri(b3, 0) = 253
+SetCxObjPri(NULL, 1) = 0
+after pri: "ProbeC with a name long" title="A title that is longer than the forty c" descr="Probe description" flags=0x0001 nodename=bc_Name task=me port=NULL
+after pri: "ProbeA" title="Probe title" descr="Probe description" flags=0x0007 nodename=bc_Name task=me port=mine
+after pri: "ProbeA" title="Probe title" descr="Probe description" flags=0x0001 nodename=bc_Name task=me port=other
+after pri: "ProbeB" title="Probe title" descr="Probe description" flags=0x0001 nodename=bc_Name task=me port=other
+after pri: probe brokers = 4, count >= mine: yes
+after pri: list empty after FreeBrokerList: yes
+-- BrokerCommand
+BrokerCommand(ProbeA, CXCMD_DISABLE) = 0
+ProbeA port msg 0: type=0x40 id=15 data=NULL
+BrokerCommand(ProbeA, CXCMD_APPEAR) = 0
+BrokerCommand(ProbeA, 1234) = 0
+ProbeA port msg 0: type=0x40 id=19 data=NULL
+ProbeA port msg 1: type=0x40 id=1234 data=NULL
+BrokerCommand(probea, CXCMD_ENABLE) = -1
+ProbeA port no messages
+BrokerCommand(NoSuchBroker, CXCMD_ENABLE) = -1
+BrokerCommand(ProbeC..., CXCMD_APPEAR) (no port) = -2
+ProbeB port no messages
+-- DeleteCxObj
+ProbeA port no messages
+after delete: "ProbeA" title="Probe title" descr="Probe description" flags=0x0007 nodename=bc_Name task=me port=mine
+after delete: probe brokers = 1, count >= mine: yes
+after delete: list empty after FreeBrokerList: yes
+after delete all: probe brokers = 0, count >= mine: yes
+after delete all: list empty after FreeBrokerList: yes
+-- done

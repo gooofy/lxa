@@ -50,6 +50,7 @@ struct InputBase
     UWORD          ib_ActQualifier;
     UWORD          ib_MousePort;
     UBYTE          ib_MouseType;
+    struct timeval ib_NextTimer;    /* when the next IECLASS_TIMER event is due */
 };
 
 static struct InputBase *g_input_base = NULL;
@@ -69,6 +70,8 @@ static void input_init_defaults(struct InputBase *inputbase)
     inputbase->ib_ActQualifier = 0;
     inputbase->ib_MousePort = 0;
     inputbase->ib_MouseType = 0;
+    inputbase->ib_NextTimer.tv_secs = 0;
+    inputbase->ib_NextTimer.tv_micro = 0;
 }
 
 static void input_update_qualifier(struct InputBase *inputbase,
@@ -201,17 +204,16 @@ static void input_prepare_event(struct InputBase *inputbase,
 
 extern VOID _intuition_input_device_events(struct InputEvent *iEvent);
 
-static LONG input_dispatch_single_event(struct InputBase *inputbase,
-                                        struct InputEvent *event)
+static struct InputEvent *input_dispatch_single_event(struct InputBase *inputbase,
+                                                      struct InputEvent *event)
 {
     if (!inputbase || !event)
     {
-        return IOERR_BADADDRESS;
+        return event;
     }
 
     input_prepare_event(inputbase, event);
-    input_forward_handlers(inputbase, event);
-    return 0;
+    return input_forward_handlers(inputbase, event);
 }
 
 /* IND_WRITEEVENT: an application-written event passes the handler chain
@@ -238,14 +240,109 @@ static LONG input_write_event(struct InputBase *inputbase,
     return 0;
 }
 
-void _input_device_dispatch_event(struct InputEvent *event)
+/* a keyboard/mouse event: returns what the handler chain left of it (NULL
+ * if a handler - e.g. a commodity - swallowed it) */
+struct InputEvent *_input_device_dispatch_event(struct InputEvent *event)
 {
     if (!g_input_base || !event)
+    {
+        return event;
+    }
+
+    return input_dispatch_single_event(g_input_base, event);
+}
+
+/* events that enter the stream like IND_WRITEEVENT ones (commodities'
+ * AddIEvents()) */
+void _input_device_inject(struct InputEvent *event)
+{
+    if (g_input_base && event)
+    {
+        input_write_event(g_input_base, event);
+    }
+}
+
+/*
+ * Called every VBlank: input.device sends an IECLASS_TIMER event through
+ * the handler chain ten times a second (AmigaOS 3.1, probe
+ * commodities/stream; screen blankers count them).
+ */
+void _input_device_VBlankHook(void)
+{
+    struct InputBase *inputbase = g_input_base;
+    struct InputEvent timer, *rest, *ie, *head = NULL, *tail = NULL;
+    struct timeval now;
+
+    if (!inputbase)
+    {
+        return;
+    }
+    /* the VBlank interrupt is not a time base (test harnesses trigger
+     * extra ones): ten events per second of system time */
+    U_getSysTime(&now);
+    if (now.tv_secs < inputbase->ib_NextTimer.tv_secs ||
+        (now.tv_secs == inputbase->ib_NextTimer.tv_secs &&
+         now.tv_micro < inputbase->ib_NextTimer.tv_micro))
+    {
+        return;
+    }
+    inputbase->ib_NextTimer.tv_micro += 100000;
+    if (inputbase->ib_NextTimer.tv_micro >= 1000000)
+    {
+        inputbase->ib_NextTimer.tv_micro -= 1000000;
+        inputbase->ib_NextTimer.tv_secs++;
+    }
+    if (inputbase->ib_NextTimer.tv_secs < now.tv_secs ||
+        (inputbase->ib_NextTimer.tv_secs == now.tv_secs &&
+         inputbase->ib_NextTimer.tv_micro <= now.tv_micro))
+    {
+        /* far behind (start-up, a long interrupt): resynchronise */
+        inputbase->ib_NextTimer = now;
+        inputbase->ib_NextTimer.tv_micro += 100000;
+        if (inputbase->ib_NextTimer.tv_micro >= 1000000)
+        {
+            inputbase->ib_NextTimer.tv_micro -= 1000000;
+            inputbase->ib_NextTimer.tv_secs++;
+        }
+    }
+    if (!GETHEAD(&inputbase->ib_HandlerList))
     {
         return;
     }
 
-    input_dispatch_single_event(g_input_base, event);
+    timer.ie_NextEvent = NULL;
+    timer.ie_Class = IECLASS_TIMER;
+    timer.ie_SubClass = 0;
+    timer.ie_Code = 0;
+    timer.ie_Qualifier = inputbase->ib_ActQualifier;
+    timer.ie_X = 0;
+    timer.ie_Y = 0;
+    timer.ie_TimeStamp = now;
+
+    rest = input_forward_handlers(inputbase, &timer);
+
+    /* events a handler put into the stream go on to Intuition */
+    for (ie = rest; ie; ie = ie->ie_NextEvent)
+    {
+        if (ie == &timer || ie->ie_Class == IECLASS_TIMER)
+        {
+            continue;
+        }
+        if (tail)
+        {
+            tail->ie_NextEvent = ie;
+        }
+        else
+        {
+            head = ie;
+        }
+        tail = ie;
+    }
+    if (head)
+    {
+        tail->ie_NextEvent = NULL;
+        _intuition_input_device_events(head);
+    }
 }
 
 BOOL _input_device_add_handler(struct Interrupt *handler)

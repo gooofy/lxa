@@ -1,0 +1,32 @@
+-- setup
+broker = non-NULL
+-- translator order
+F9: recorded 3: 0x12 0x11 0x10
+F9 no messages
+-- unmatched key passes
+F1: recorded 1: 0x50
+F1 no messages
+-- custom changes the event
+F8: recorded 1: 0x22
+custom id = 5
+F8 msg 0: type=0x20 id=3 class=0x01 code=0x0022 qual=0x0018
+-- sender copy
+id = 4
+data is the written event = FALSE
+ie_NextEvent NULL = TRUE
+ie_Class = 0x00000001
+ie_Code = 0x00000056
+F7: recorded 1: 0x56
+-- AddIEvents chain
+a F9 s: recorded 5: 0x20 0x12 0x11 0x10 0x21
+a F9 s no messages
+NULL: recorded 0:
+-- inactive broker
+F9 inactive: recorded 1: 0x58
+F9 inactive no messages
+-- timer events
+handler saw 8..12 timer events in a second = TRUE
+sender got 8..14 timer messages = TRUE
+timer class = 0x00000006
+timer code = 0x00000000
+-- done

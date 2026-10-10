@@ -1,0 +1,47 @@
+-- setup
+broker = non-NULL
+broker2 = non-NULL
+broker error = 0
+fA error = 0
+ActivateCxObj(broker, TRUE) = 0
+after activate no messages
+-- F9: sender, translator
+F9 msg 0: type=0x20 id=1 class=0x01 code=0x0058 qual=0x0018
+custom calls = 0
+custom id = 0
+custom type = 0
+custom code = 0x00000000
+signal = FALSE
+-- F8 directly
+F8 msg 0: type=0x20 id=2 class=0x01 code=0x0057 qual=0x0018
+custom calls = 1
+signal = TRUE
+-- F8 upstroke
+F8 up msg 0: type=0x20 id=99 class=0x01 code=0x00d7 qual=0x0018
+-- F7, filter active / inactive
+F7 msg 0: type=0x20 id=4 class=0x01 code=0x0056 qual=0x0018
+ActivateCxObj(fC, FALSE) = 2
+F7 inactive msg 0: type=0x20 id=99 class=0x01 code=0x0056 qual=0x0018
+ActivateCxObj(fC, TRUE) = 0
+-- F6: custom DisposeCxMsg
+F6 no messages
+custom calls = 1
+-- F5: custom RouteCxMsg
+F5 msg 0: type=0x20 id=7 class=0x01 code=0x0054 qual=0x0018
+custom calls = 1
+-- F4: custom DivertCxMsg
+F4 msg 0: type=0x20 id=8 class=0x01 code=0x0053 qual=0x0018
+F4 msg 1: type=0x20 id=9 class=0x01 code=0x0053 qual=0x0018
+custom calls = 1
+-- unmatched key: catch-all
+A msg 0: type=0x20 id=99 class=0x01 code=0x0020 qual=0x0018
+-- AddIEvents
+AddIEvents F7 msg 0: type=0x20 id=4 class=0x01 code=0x0056 qual=0x0018
+-- inactive broker
+ActivateCxObj(broker, FALSE) = 2
+inactive no messages
+-- BrokerCommand to our broker
+BrokerCommand(ProbeRouting, CXCMD_KILL) = 0
+command msg 0: type=0x40 id=23 data=NULL
+after delete no messages
+-- done

@@ -1,0 +1,50 @@
+-- CreateCxObj
+CxFilter("rawkey control a"): type=1 error=0
+CxFilter(NULL): type=1 error=4
+CxFilter(bad): type=1 error=4
+CX_TYPEFILTER: type=2 error=0
+CxSender: type=3 error=0
+CxSignal: type=4 error=0
+CxTranslate(NULL): type=5 error=0
+CxDebug: type=7 error=0
+CxCustom: type=8 error=0
+CX_ZERO: type=9 error=0
+CX_INVALID: type=0 error=0
+CxObjType(NULL) = 0
+CxObjError(NULL) = 1
+-- ActivateCxObj on a filter
+ActivateCxObj(filt, FALSE) = 2
+ActivateCxObj(filt, FALSE) = 0
+ActivateCxObj(filt, TRUE) = 0
+ActivateCxObj(filt, TRUE) = 2
+-- SetCxObjPri
+SetCxObjPri(send, 5) = 0
+SetCxObjPri(send, -7) = 5
+SetCxObjPri(send, 127) = 249
+SetCxObjPri(send, 0) = 127
+-- SetFilter
+SetFilter(filt, good): type=1 error=0
+SetFilter(filt, bad): type=1 error=4
+SetFilter(filt, good again): type=1 error=0
+ClearCxObjError(filt): type=1 error=0
+SetFilter(filtbad, good): type=1 error=0
+SetFilter(filt0, NULL): type=1 error=4
+SetFilter(sender, ...): type=3 error=8
+-- SetFilterIX
+SetFilterIX(filt0, v2): type=1 error=0
+SetFilterIX(filt0, v1): type=1 error=4
+SetFilterIX(filt0, v3): type=1 error=4
+SetFilterIX(filt0, v2 again): type=1 error=0
+SetFilterIX(translator): type=5 error=8
+-- SetTranslate
+SetTranslate(trans, NULL): type=5 error=0
+SetTranslate(filter, NULL): type=1 error=8
+-- attach NULL
+AttachCxObj(filt, NULL): type=1 error=2
+EnqueueCxObj(filt, NULL): type=1 error=2
+InsertCxObj(filt, NULL, NULL): type=1 error=2
+-- attach
+filt after attaching 4: type=1 error=0
+filt after RemoveCxObj twice: type=1 error=0
+removed sig: type=4 error=0
+-- done

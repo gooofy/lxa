@@ -1,7 +1,7 @@
 /*
  * stub_probe - exercises stub telemetry (Phase 203)
  *
- * Calls a known stub (commodities.library CreateCxObj) and an empty
+ * Calls a known stub (commodities.library's reserved slot Private1) and an empty
  * exec.library vector (ObtainQuickVector, LVO -786), printing a marker
  * after each call.  Under --strict-unimplemented the run must stop at the
  * first call.
@@ -19,6 +19,15 @@
 extern struct ExecBase *SysBase;
 struct Library *CxBase;
 
+/* commodities.library's reserved slot commoditiesPrivate1 (LVO -108) */
+static ULONG call_cx_lvo_108(void)
+{
+    register struct Library *a6 __asm("a6") = CxBase;
+    register ULONG d0 __asm("d0") = 0;
+    __asm volatile ("jsr -108(a6)" : "+r"(d0) : "r"(a6) : "d1", "a0", "a1", "cc", "memory");
+    return d0;
+}
+
 static ULONG call_exec_lvo_786(void)
 {
     register struct ExecBase *a6 __asm("a6") = SysBase;
@@ -30,8 +39,6 @@ static ULONG call_exec_lvo_786(void)
 
 int main(void)
 {
-    CxObj *obj;
-
     printf("stub_probe: start\n");
 
     CxBase = OpenLibrary((STRPTR)"commodities.library", 37);
@@ -41,10 +48,8 @@ int main(void)
         return 20;
     }
 
-    obj = CreateCxObj(CX_FILTER, (LONG)"rawkey a", 0);
-    printf("stub_probe: after CreateCxObj (%s)\n", obj ? "object" : "NULL");
-    if (obj)
-        DeleteCxObj(obj);
+    call_cx_lvo_108();
+    printf("stub_probe: after Private1\n");
     CloseLibrary(CxBase);
 
     call_exec_lvo_786();

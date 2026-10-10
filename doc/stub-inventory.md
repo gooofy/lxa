@@ -14,7 +14,7 @@ implementing the function, never by deleting the macro.
 |---|---|---|---|
 | amigaguide | 18 | 0 | 0 |
 | asl | 0 | 2 | 0 |
-| commodities | 26 | 0 | 4 |
+| commodities | 0 | 0 | 1 |
 | console | 1 | 0 | 0 |
 | datatypes | 5 | 0 | 0 |
 | dos | 14 | 1 | 10 |
@@ -28,7 +28,7 @@ implementing the function, never by deleting the macro.
 | translator | 1 | 0 | 0 |
 | utility | 0 | 0 | 7 |
 | workbench | 0 | 0 | 3 |
-| **total** | **88** | **34** | **47** |
+| **total** | **62** | **34** | **44** |
 
 ## amigaguide
 
@@ -59,35 +59,6 @@ implementing the function, never by deleting the macro.
 ## commodities
 
 - `Private1` — private/reserved slot (`src/rom/lxa_commodities.c`)
-- `Private2` — private/reserved slot (`src/rom/lxa_commodities.c`)
-- `Private3` — private/reserved slot (`src/rom/lxa_commodities.c`)
-- `Private4` — private/reserved slot (`src/rom/lxa_commodities.c`)
-- `ActivateCxObj` — stub: commodities.library not implemented (Phase 251) (`src/rom/lxa_commodities.c`)
-- `AddIEvents` — stub: commodities.library not implemented (Phase 251) (`src/rom/lxa_commodities.c`)
-- `AttachCxObj` — stub: commodities.library not implemented (Phase 251) (`src/rom/lxa_commodities.c`)
-- `ClearCxObjError` — stub: commodities.library not implemented (Phase 251) (`src/rom/lxa_commodities.c`)
-- `CreateCxObj` — stub: commodities.library not implemented (Phase 251) (`src/rom/lxa_commodities.c`)
-- `CxBroker` — stub: commodities.library not implemented (Phase 251) (`src/rom/lxa_commodities.c`)
-- `CxMsgData` — stub: commodities.library not implemented (Phase 251) (`src/rom/lxa_commodities.c`)
-- `CxMsgID` — stub: commodities.library not implemented (Phase 251) (`src/rom/lxa_commodities.c`)
-- `CxMsgType` — stub: commodities.library not implemented (Phase 251) (`src/rom/lxa_commodities.c`)
-- `CxObjError` — stub: commodities.library not implemented (Phase 251) (`src/rom/lxa_commodities.c`)
-- `CxObjType` — stub: commodities.library not implemented (Phase 251) (`src/rom/lxa_commodities.c`)
-- `DeleteCxObj` — stub: commodities.library not implemented (Phase 251) (`src/rom/lxa_commodities.c`)
-- `DeleteCxObjAll` — stub: commodities.library not implemented (Phase 251) (`src/rom/lxa_commodities.c`)
-- `DisposeCxMsg` — stub: commodities.library not implemented (Phase 251) (`src/rom/lxa_commodities.c`)
-- `DivertCxMsg` — stub: commodities.library not implemented (Phase 251) (`src/rom/lxa_commodities.c`)
-- `EnqueueCxObj` — stub: commodities.library not implemented (Phase 251) (`src/rom/lxa_commodities.c`)
-- `InsertCxObj` — stub: commodities.library not implemented (Phase 251) (`src/rom/lxa_commodities.c`)
-- `InvertKeyMap` — stub: commodities.library not implemented (Phase 251) (`src/rom/lxa_commodities.c`)
-- `MatchIX` — stub: commodities.library not implemented (Phase 251) (`src/rom/lxa_commodities.c`)
-- `ParseIX` — stub: commodities.library not implemented (Phase 251) (`src/rom/lxa_commodities.c`)
-- `RemoveCxObj` — stub: commodities.library not implemented (Phase 251) (`src/rom/lxa_commodities.c`)
-- `RouteCxMsg` — stub: commodities.library not implemented (Phase 251) (`src/rom/lxa_commodities.c`)
-- `SetCxObjPri` — stub: commodities.library not implemented (Phase 251) (`src/rom/lxa_commodities.c`)
-- `SetFilter` — stub: commodities.library not implemented (Phase 251) (`src/rom/lxa_commodities.c`)
-- `SetFilterIX` — stub: commodities.library not implemented (Phase 251) (`src/rom/lxa_commodities.c`)
-- `SetTranslate` — stub: commodities.library not implemented (Phase 251) (`src/rom/lxa_commodities.c`)
 
 ## console
 

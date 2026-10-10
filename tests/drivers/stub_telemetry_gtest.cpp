@@ -49,8 +49,8 @@ TEST_F(StubTelemetryTest, StubAndEmptyVectorAreRecorded)
     EXPECT_NE(out.find("stub_probe: done"), std::string::npos) << out;
 
     auto log = GetLog();
-    const lxa_unimplemented_t *cx = FindEntry(log, "commodities", "CreateCxObj");
-    ASSERT_NE(cx, nullptr) << "CreateCxObj stub not recorded";
+    const lxa_unimplemented_t *cx = FindEntry(log, "commodities", "Private1");
+    ASSERT_NE(cx, nullptr) << "Private1 stub not recorded";
     EXPECT_EQ(cx->count, 1);
     EXPECT_EQ(strncmp(cx->detail, "stub:", 5), 0) << cx->detail;
     EXPECT_STREQ(cx->first_task, "exec bootstrap");
@@ -80,13 +80,13 @@ TEST_F(StrictUnimplementedTest, StrictModeStopsAtFirstStub)
 
     EXPECT_EQ(rc, LXA_EXIT_UNIMPLEMENTED) << out;
     EXPECT_NE(out.find("stub_probe: start"), std::string::npos) << out;
-    EXPECT_EQ(out.find("after CreateCxObj"), std::string::npos)
+    EXPECT_EQ(out.find("after Private1"), std::string::npos)
         << "strict mode must stop before the stub returns\n" << out;
     EXPECT_FALSE(lxa_is_running());
 
     auto log = GetLog();
     ASSERT_EQ(log.size(), 1u);
-    EXPECT_STREQ(log[0].function, "CreateCxObj");
+    EXPECT_STREQ(log[0].function, "Private1");
 }
 
 TEST_F(StrictUnimplementedTest, StrictModeIgnoresCleanPrograms)

@@ -285,6 +285,9 @@ _handleIRQ3:
     /* This ensures IDCMP messages are delivered even when app doesn't use WaitTOF */
     jsr         __intuition_VBlankInputHook
 
+    /* input.device: IECLASS_TIMER events through the handler chain */
+    jsr         __input_device_VBlankHook
+
     /* Process expired timer requests via Timer hook */
     /* This calls ReplyMsg() for expired timers, properly waking up waiting tasks */
     jsr         __timer_VBlankHook

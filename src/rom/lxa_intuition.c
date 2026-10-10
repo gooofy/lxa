@@ -45,7 +45,7 @@
 #include <graphics/displayinfo.h>
 #include <graphics/modeid.h>
 
-extern void _input_device_dispatch_event(struct InputEvent *event);
+extern struct InputEvent *_input_device_dispatch_event(struct InputEvent *event);
 extern void _keyboard_device_record_event(UWORD rawkey, UWORD qualifier);
 extern VOID _gadtools_UpdateSliderLevelDisplay(register struct Gadget *gad __asm("a0"),
                                                register LONG level __asm("d0"));
@@ -8944,8 +8944,21 @@ VOID _intuition_ProcessInputEvents(struct Screen *hint_screen)
                 input_event.ie_Class = IECLASS_RAWKEY;
                 input_event.ie_Code = rawkey;
                 input_event.ie_Qualifier = qualifier;
-                _input_device_dispatch_event(&input_event);
-                _keyboard_device_record_event(rawkey, qualifier);
+                {
+                    struct InputEvent *kept = _input_device_dispatch_event(&input_event);
+
+                    _keyboard_device_record_event(rawkey, qualifier);
+
+                    /* an input handler (e.g. a commodity's hotkey) swallowed
+                     * the key or put other events in its place: those go
+                     * through Intuition like written events */
+                    if (kept != &input_event || input_event.ie_NextEvent)
+                    {
+                        if (kept)
+                            _intuition_input_device_events(kept);
+                        break;
+                    }
+                }
 
                 /*
                  * Phase 135: Keyboard events go to the ACTIVE window, not
