@@ -2660,7 +2660,7 @@ void _asl_FreeFileRequest ( register struct AslBase *AslBase __asm("a6"),
 }
 
 /* RequestFile - Obsolete, use AslRequest instead */
-BOOL _asl_RequestFile ( register struct AslBase *AslBase __asm("a6"),
+LONG _asl_RequestFile ( register struct AslBase *AslBase __asm("a6"),
                         register APTR fileReq __asm("a0") )
 {
     struct LXAFileRequester *fr = (struct LXAFileRequester *)fileReq;
@@ -2761,7 +2761,7 @@ void _asl_FreeAslRequest ( register struct AslBase *AslBase __asm("a6"),
 }
 
 /* AslRequest - Display a requester */
-BOOL _asl_AslRequest ( register struct AslBase *AslBase __asm("a6"),
+LONG _asl_AslRequest ( register struct AslBase *AslBase __asm("a6"),
                        register APTR requester __asm("a0"),
                        register struct TagItem *tagList __asm("a1") )
 {

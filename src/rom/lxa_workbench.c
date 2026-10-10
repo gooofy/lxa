@@ -859,7 +859,7 @@ APTR _workbench_AddAppWindowA ( register struct WorkbenchBase *WorkbenchBase __a
 }
 
 /* RemoveAppWindow - Remove an AppWindow */
-BOOL _workbench_RemoveAppWindow ( register struct WorkbenchBase *WorkbenchBase __asm("a6"),
+LONG _workbench_RemoveAppWindow ( register struct WorkbenchBase *WorkbenchBase __asm("a6"),
                                   register APTR appWindow __asm("a0") )
 {
     struct lxa_workbench_app_object *obj;
@@ -901,7 +901,7 @@ APTR _workbench_AddAppIconA ( register struct WorkbenchBase *WorkbenchBase __asm
 }
 
 /* RemoveAppIcon - Remove an AppIcon */
-BOOL _workbench_RemoveAppIcon ( register struct WorkbenchBase *WorkbenchBase __asm("a6"),
+LONG _workbench_RemoveAppIcon ( register struct WorkbenchBase *WorkbenchBase __asm("a6"),
                                 register APTR appIcon __asm("a0") )
 {
     DPRINTF (LOG_DEBUG, "_workbench: RemoveAppIcon() appIcon=0x%08lx\n", (ULONG)appIcon);
@@ -933,7 +933,7 @@ APTR _workbench_AddAppMenuItemA ( register struct WorkbenchBase *WorkbenchBase _
 }
 
 /* RemoveAppMenuItem - Remove a menu item */
-BOOL _workbench_RemoveAppMenuItem ( register struct WorkbenchBase *WorkbenchBase __asm("a6"),
+LONG _workbench_RemoveAppMenuItem ( register struct WorkbenchBase *WorkbenchBase __asm("a6"),
                                     register APTR appMenuItem __asm("a0") )
 {
     DPRINTF (LOG_DEBUG, "_workbench: RemoveAppMenuItem() appMenuItem=0x%08lx\n", (ULONG)appMenuItem);
@@ -1017,7 +1017,7 @@ ULONG _workbench_WBInfo ( register struct WorkbenchBase *WorkbenchBase __asm("a6
  */
 
 /* OpenWorkbenchObjectA - Open an object as Workbench would */
-BOOL _workbench_OpenWorkbenchObjectA ( register struct WorkbenchBase *WorkbenchBase __asm("a6"),
+LONG _workbench_OpenWorkbenchObjectA ( register struct WorkbenchBase *WorkbenchBase __asm("a6"),
                                        register CONST_STRPTR name __asm("a0"),
                                        register struct TagItem *tags __asm("a1") )
 {
@@ -1084,7 +1084,7 @@ BOOL _workbench_OpenWorkbenchObjectA ( register struct WorkbenchBase *WorkbenchB
 }
 
 /* CloseWorkbenchObjectA - Close an opened Workbench object */
-BOOL _workbench_CloseWorkbenchObjectA ( register struct WorkbenchBase *WorkbenchBase __asm("a6"),
+LONG _workbench_CloseWorkbenchObjectA ( register struct WorkbenchBase *WorkbenchBase __asm("a6"),
                                         register CONST_STRPTR name __asm("a0"),
                                         register struct TagItem *tags __asm("a1") )
 {
@@ -1121,7 +1121,7 @@ BOOL _workbench_CloseWorkbenchObjectA ( register struct WorkbenchBase *Workbench
     return FALSE;
 }
 
-BOOL _workbench_WorkbenchControlA ( register struct WorkbenchBase *WorkbenchBase __asm("a6"),
+LONG _workbench_WorkbenchControlA ( register struct WorkbenchBase *WorkbenchBase __asm("a6"),
                                     register CONST_STRPTR name __asm("a0"),
                                     register CONST struct TagItem *tags __asm("a1") )
 {
@@ -1518,7 +1518,7 @@ struct AppWindowDropZone * _workbench_AddAppWindowDropZoneA ( register struct Wo
     return (struct AppWindowDropZone *)zone;
 }
 
-BOOL _workbench_RemoveAppWindowDropZone ( register struct WorkbenchBase *WorkbenchBase __asm("a6"),
+LONG _workbench_RemoveAppWindowDropZone ( register struct WorkbenchBase *WorkbenchBase __asm("a6"),
                                           register struct AppWindow *aw __asm("a0"),
                                           register struct AppWindowDropZone *dropZone __asm("a1") )
 {
@@ -1544,7 +1544,7 @@ BOOL _workbench_RemoveAppWindowDropZone ( register struct WorkbenchBase *Workben
     return TRUE;
 }
 
-BOOL _workbench_ChangeWorkbenchSelectionA ( register struct WorkbenchBase *WorkbenchBase __asm("a6"),
+LONG _workbench_ChangeWorkbenchSelectionA ( register struct WorkbenchBase *WorkbenchBase __asm("a6"),
                                             register CONST_STRPTR name __asm("a0"),
                                             register struct Hook *hook __asm("a1"),
                                             register CONST struct TagItem *tags __asm("a2") )
@@ -1640,7 +1640,7 @@ BOOL _workbench_ChangeWorkbenchSelectionA ( register struct WorkbenchBase *Workb
     return TRUE;
 }
 
-BOOL _workbench_MakeWorkbenchObjectVisibleA ( register struct WorkbenchBase *WorkbenchBase __asm("a6"),
+LONG _workbench_MakeWorkbenchObjectVisibleA ( register struct WorkbenchBase *WorkbenchBase __asm("a6"),
                                               register CONST_STRPTR name __asm("a0"),
                                               register CONST struct TagItem *tags __asm("a1") )
 {

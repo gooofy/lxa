@@ -5026,7 +5026,7 @@ UWORD _intuition_AddGadget ( register struct IntuitionBase * IntuitionBase __asm
     return _intuition_AddGList(IntuitionBase, window, gadget, position, 1, NULL);
 }
 
-BOOL _intuition_ClearDMRequest ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+LONG _intuition_ClearDMRequest ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Window * window __asm("a0"))
 {
     DPRINTF (LOG_DEBUG, "_intuition: ClearDMRequest() window=0x%08lx\n", (ULONG)window);
@@ -5074,7 +5074,7 @@ VOID _intuition_ClearPointer ( register struct IntuitionBase * IntuitionBase __a
     window->YOffset = 0;
 }
 
-BOOL _intuition_CloseScreen ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+LONG _intuition_CloseScreen ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Screen * screen __asm("a0"))
 {
     ULONG display_handle;
@@ -5349,7 +5349,7 @@ VOID _intuition_CurrentTime ( register struct IntuitionBase * IntuitionBase __as
             tv.tv_secs, tv.tv_micro);
 }
 
-BOOL _intuition_DisplayAlert ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+LONG _intuition_DisplayAlert ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register ULONG alertNumber __asm("d0"),
                                                         register CONST_STRPTR string __asm("a0"),
                                                         register UWORD height __asm("d1"))
@@ -5403,7 +5403,7 @@ VOID _intuition_DisplayBeep ( register struct IntuitionBase * IntuitionBase __as
     DPRINTF (LOG_DEBUG, "_intuition: DisplayBeep() screen=0x%08lx (no-op)\n", (ULONG)screen);
 }
 
-BOOL _intuition_DoubleClick ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+LONG _intuition_DoubleClick ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register ULONG sSeconds __asm("d0"),
                                                         register ULONG sMicros __asm("d1"),
                                                         register ULONG cSeconds __asm("d2"),
@@ -5717,7 +5717,7 @@ struct MenuItem * _intuition_ItemAddress ( register struct IntuitionBase * Intui
     return item;
 }
 
-BOOL _intuition_ModifyIDCMP ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+LONG _intuition_ModifyIDCMP ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Window * window __asm("a0"),
                                                         register ULONG flags __asm("d0"))
 {
@@ -11357,7 +11357,7 @@ static void _render_requester(struct Window *window, struct Requester *req)
         _intuition_RefreshGList(IntuitionBase, req->ReqGadget, window, req, -1);
 }
 
-BOOL _intuition_Request ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+LONG _intuition_Request ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Requester * requester __asm("a0"),
                                                         register struct Window * window __asm("a1"))
 {
@@ -11494,7 +11494,7 @@ VOID _intuition_ScreenToFront ( register struct IntuitionBase * IntuitionBase __
     /* TODO: RethinkDisplay / Update View */
 }
 
-BOOL _intuition_SetDMRequest ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+LONG _intuition_SetDMRequest ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Window * window __asm("a0"),
                                                         register struct Requester * requester __asm("a1"))
 {
@@ -11511,7 +11511,7 @@ BOOL _intuition_SetDMRequest ( register struct IntuitionBase * IntuitionBase __a
     return TRUE;
 }
 
-BOOL _intuition_SetMenuStrip ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+LONG _intuition_SetMenuStrip ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Window * window __asm("a0"),
                                                         register struct Menu * menu __asm("a1"))
 {
@@ -11853,7 +11853,7 @@ VOID _intuition_WindowToFront ( register struct IntuitionBase * IntuitionBase __
      * changes (the depth gadget handler posts CWCODE_DEPTH itself) */
 }
 
-BOOL _intuition_WindowLimits ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+LONG _intuition_WindowLimits ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Window * window __asm("a0"),
                                                         register LONG widthMin __asm("d0"),
                                                         register LONG heightMin __asm("d1"),
@@ -11950,7 +11950,7 @@ LONG _intuition_IntuiTextLength ( register struct IntuitionBase * IntuitionBase 
     return width;
 }
 
-BOOL _intuition_WBenchToBack ( register struct IntuitionBase * IntuitionBase __asm("a6"))
+LONG _intuition_WBenchToBack ( register struct IntuitionBase * IntuitionBase __asm("a6"))
 {
     struct Screen *wbscreen;
 
@@ -11964,7 +11964,7 @@ BOOL _intuition_WBenchToBack ( register struct IntuitionBase * IntuitionBase __a
     return TRUE;
 }
 
-BOOL _intuition_WBenchToFront ( register struct IntuitionBase * IntuitionBase __asm("a6"))
+LONG _intuition_WBenchToFront ( register struct IntuitionBase * IntuitionBase __asm("a6"))
 {
     struct Screen *wbscreen;
     
@@ -11990,7 +11990,7 @@ BOOL _intuition_WBenchToFront ( register struct IntuitionBase * IntuitionBase __
     return TRUE;
 }
 
-BOOL _intuition_AutoRequest ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+LONG _intuition_AutoRequest ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Window * window __asm("a0"),
                                                         register const struct IntuiText * body __asm("a1"),
                                                         register const struct IntuiText * posText __asm("a2"),
@@ -13512,7 +13512,7 @@ VOID _intuition_RefreshWindowFrame ( register struct IntuitionBase * IntuitionBa
     }
 }
 
-BOOL _intuition_ActivateGadget ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+LONG _intuition_ActivateGadget ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Gadget * gadget __asm("a0"),
                                                         register struct Window * window __asm("a1"),
                                                         register struct Requester * requester __asm("a2"))
@@ -15957,7 +15957,7 @@ VOID _intuition_DrawImageState ( register struct IntuitionBase * IntuitionBase _
         UnlockLayerRom(rp->Layer);
 }
 
-BOOL _intuition_PointInImage ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+LONG _intuition_PointInImage ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register ULONG point __asm("d0"),
                                                         register struct Image * image __asm("a0"))
 {
@@ -16457,7 +16457,7 @@ VOID _intuition_FreeScreenDrawInfo ( register struct IntuitionBase * IntuitionBa
     }
 }
 
-BOOL _intuition_ResetMenuStrip ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+LONG _intuition_ResetMenuStrip ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Window * window __asm("a0"),
                                                         register struct Menu * menu __asm("a1"))
 {
@@ -16502,7 +16502,7 @@ VOID _intuition_RemoveClass ( register struct IntuitionBase * IntuitionBase __as
     }
 }
 
-BOOL _intuition_FreeClass ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+LONG _intuition_FreeClass ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct IClass * classPtr __asm("a0"))
 {
     if (!classPtr)
@@ -16852,7 +16852,7 @@ VOID _intuition_SetWindowPointerA ( register struct IntuitionBase * IntuitionBas
         _intuition_ClearPointer(IntuitionBase, win);
 }
 
-BOOL _intuition_TimedDisplayAlert ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+LONG _intuition_TimedDisplayAlert ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register ULONG alertNumber __asm("d0"),
                                                         register CONST_STRPTR string __asm("a0"),
                                                         register UWORD height __asm("d1"),

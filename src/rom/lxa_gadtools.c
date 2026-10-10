@@ -3959,7 +3959,7 @@ void _gadtools_FreeMenus ( register struct GadToolsBase *GadToolsBase __asm("a6"
 }
 
 /* LayoutMenuItemsA - Layout menu items */
-BOOL _gadtools_LayoutMenuItemsA ( register struct GadToolsBase *GadToolsBase __asm("a6"),
+LONG _gadtools_LayoutMenuItemsA ( register struct GadToolsBase *GadToolsBase __asm("a6"),
                                   register struct MenuItem *firstitem __asm("a0"),
                                   register APTR vi __asm("a1"),
                                   register struct TagItem *taglist __asm("a2") )
@@ -3979,7 +3979,7 @@ BOOL _gadtools_LayoutMenuItemsA ( register struct GadToolsBase *GadToolsBase __a
 }
 
 /* LayoutMenusA - Layout entire menu structure */
-BOOL _gadtools_LayoutMenusA ( register struct GadToolsBase *GadToolsBase __asm("a6"),
+LONG _gadtools_LayoutMenusA ( register struct GadToolsBase *GadToolsBase __asm("a6"),
                               register struct Menu *firstmenu __asm("a0"),
                               register APTR vi __asm("a1"),
                               register struct TagItem *taglist __asm("a2") )

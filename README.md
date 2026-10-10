@@ -231,6 +231,8 @@ Built-in C: commands with full AmigaDOS template support:
 
 ## Current Status
 
+**Version 0.11.45** - Corpus residue (Phase 244): library functions that return a BOOL leave a clean 32-bit D0 (42 entry points in dos, intuition, gadtools, icon, locale, workbench, asl, commodities, rexxsyslib); AmiBlitz3's template menu no longer lists StormWizard_App.wizard (probe dos/boolret).
+
 **Version 0.11.44** - Corpus residue (Phase 244): GetScreenData() ignores the screen argument for WBENCHSCREEN and OpenScreen() refuses negative sizes other than STDSCREENWIDTH/HEIGHT as on AmigaOS 3.1 - GFA-BASIC opens its editor screen instead of 146 Workbench windows (probe intuition/screenzero).
 
 **Version 0.11.43** - Corpus residue (Phase 244): Intuition's fillrectclass image class exists, so reqtools.library requesters open (FontView's shareware requester, tree-equal to AmigaOS 3.1; probe intuition/fillrect).

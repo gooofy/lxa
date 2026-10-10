@@ -355,7 +355,7 @@ void _commodities_DisposeCxMsg ( register struct CommoditiesBase *CxBase __asm("
 }
 
 /* InvertKeyMap - Invert a keymap translation */
-BOOL _commodities_InvertKeyMap ( register struct CommoditiesBase *CxBase __asm("a6"),
+LONG _commodities_InvertKeyMap ( register struct CommoditiesBase *CxBase __asm("a6"),
                                  register ULONG ansiCode __asm("d0"),
                                  register struct InputEvent *event __asm("a0"),
                                  register struct KeyMap *km __asm("a1") )
@@ -396,7 +396,7 @@ ULONG _commodities_Private4 ( register struct CommoditiesBase *CxBase __asm("a6"
 }
 
 /* MatchIX - Match an input event against an IX (V38+) */
-BOOL _commodities_MatchIX ( register struct CommoditiesBase *CxBase __asm("a6"),
+LONG _commodities_MatchIX ( register struct CommoditiesBase *CxBase __asm("a6"),
                             register struct InputEvent *event __asm("a0"),
                             register IX *ix __asm("a1") )
 {
