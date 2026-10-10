@@ -6035,6 +6035,18 @@ void _bootstrap(void)
         }
     }
 
+    /* the DosList (devices, volumes, assigns) for programs that walk
+     * di_DevInfo without LockDosList() (Phase 237c: Fish ANIMBuild) */
+    {
+        struct DosLibrary *DOSBase = (struct DosLibrary *) OpenLibrary ((STRPTR)"dos.library", 0);
+        if (DOSBase)
+        {
+            LockDosList (LDF_READ | LDF_ALL);
+            UnLockDosList (LDF_READ | LDF_ALL);
+            CloseLibrary ((struct Library *)DOSBase);
+        }
+    }
+
     if (emucall1 (EMU_CALL_WB_WINDOW, 0))
     {
         wb_window_parent = FindTask (NULL);
@@ -6749,6 +6761,11 @@ void coldstart (void)
 
     if (exec_create_cia_resource(SysBase, (CONST_STRPTR)"ciab.resource")) {
         DPRINTF (LOG_DEBUG, "coldstart: registered ciab.resource\n");
+    }
+
+    {
+        extern void lxa_dos_init_lock_tables(void);
+        lxa_dos_init_lock_tables();
     }
 
     if (exec_create_disk_resource(SysBase)) {

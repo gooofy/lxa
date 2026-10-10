@@ -450,6 +450,8 @@ int _dos_assign_add(uint32_t name68k, uint32_t path68k, uint32_t type);
 int _dos_assign_remove(uint32_t name68k);
 int _dos_assign_list(uint32_t buf68k, uint32_t buflen);
 int _dos_device_list(uint32_t buf68k, uint32_t buflen);
+void _dos_set_lock_tables(uint32_t locks68k, uint32_t vols68k, uint32_t port68k);
+uint32_t _dos_volume_node(const char *name);
 int _dos_assign_info(uint32_t name68k, uint32_t buf68k, uint32_t buflen);
 int _dos_assign_remove_path(uint32_t name68k, uint32_t path68k);
 int _dos_getdevproc(uint32_t name68k, uint32_t dp68k, uint32_t err68k);

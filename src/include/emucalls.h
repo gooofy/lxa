@@ -75,6 +75,8 @@
 #define EMU_CALL_DOS_UNLOCKRECORD  1055  /* UnLockRecord(fh, offset, length) -> success */
 #define EMU_CALL_DOS_CHANGEMODE    1056  /* ChangeMode(type, object, newmode, errptr) -> success */
 #define EMU_CALL_DOS_SETOWNER      1057  /* SetOwner(name, owner_info, errptr) -> success */
+#define EMU_CALL_DOS_LOCK_TABLES   1072  /* (locks, volumes, fs port): FileLock and volume node tables (Phase 237c) */
+#define EMU_CALL_DOS_VOLNODE       1073  /* (name) -> the DLT_VOLUME node of a volume */
 #define EMU_CALL_DOS_DEVICE_LIST   1071  /* (buf, buflen) -> count; "D"/"V"/"A" + name, NUL-separated (Phase 237c) */
 #define EMU_CALL_DOS_ISINTERACTIVE 1070  /* (host fd of a console handle) -> 0/1; LXA_STDIO_FILE=1 makes stdin/stdout "files" */
 #define EMU_CALL_DOS_LASTERROR     1069  /* () -> AmigaDOS error code of the last failed

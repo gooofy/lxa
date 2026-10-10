@@ -1,0 +1,7 @@
+RAM:: access -2 task set (DeviceProc) volume type 2 name "Ram Disk" task=lock's
+  DupLock: new lock, same volume, same key
+SYS:: access -2 task set (DeviceProc) volume type 2 name "System" task=lock's
+  DupLock: new lock, same volume, same key
+SYS:C: access -2 task set (DeviceProc) volume type 2 name "System" task=lock's
+  DupLock: new lock, same volume, same key
+SYS:C and SYS:Libs keys differ = TRUE

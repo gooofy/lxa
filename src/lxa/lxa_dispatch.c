@@ -1115,6 +1115,15 @@ int op_illg(int level)
             break;
         }
 
+        case EMU_CALL_DOS_LOCK_TABLES:
+            _dos_set_lock_tables(m68k_get_reg(NULL, M68K_REG_D1), m68k_get_reg(NULL, M68K_REG_D2),
+                                 m68k_get_reg(NULL, M68K_REG_D3));
+            break;
+
+        case EMU_CALL_DOS_VOLNODE:
+            m68k_set_reg(M68K_REG_D0, _dos_volume_node(_mgetstr(m68k_get_reg(NULL, M68K_REG_D1))));
+            break;
+
         case EMU_CALL_DOS_DEVICE_LIST:
             m68k_set_reg(M68K_REG_D0, (uint32_t)_dos_device_list(m68k_get_reg(NULL, M68K_REG_D1),
                                                                  m68k_get_reg(NULL, M68K_REG_D2)));

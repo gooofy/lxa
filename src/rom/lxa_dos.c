@@ -194,6 +194,7 @@ static void lxa_dos_process_exit_cleanup(LONG return_code, LONG exit_data);
 struct MsgPort *lxa_dos_host_console_port(void);
 BOOL lxa_dos_try_handle_special_port(struct MsgPort *port, struct Message *message);
 static struct MsgPort *g_lxa_fs_port;
+struct MsgPort *lxa_dos_fs_port(void);
 struct DosList * _dos_MakeDosEntry ( register struct DosLibrary * __dos_a6 __asm("a6"), register CONST_STRPTR name __asm("d1"), register LONG type __asm("d2"));
 
 static BPTR lxa_dos_alloc_temp_console_handle(LONG arg1, struct FileHandle **fh_out);
@@ -3745,7 +3746,9 @@ struct MsgPort * _dos_DeviceProc ( register struct DosLibrary * __libBase __asm(
     }
     else if (dvp->dvp_Lock && me && me->pr_Task.tc_Node.ln_Type == NT_PROCESS)
     {
-        result = &me->pr_MsgPort;
+        /* a host file system object: the file system port, which is also
+         * every lock's fl_Task (AmigaOS 3.1, probe dos/lockfields) */
+        result = lxa_dos_fs_port();
         ioerr = (LONG)dvp->dvp_Lock;
     }
 
@@ -7487,10 +7490,8 @@ VOID _dos_FreeDeviceProc ( register struct DosLibrary * __dos_a6 __asm("a6"),
  * rn_Info->di_DevInfo like on AmigaOS, so programs that walk it (1.x
  * programs under Forbid(), LockDosList()/NextDosEntry() ones such as Fish
  * ReOrg) see them.  The host-side state is the truth: the list is brought
- * up to date by every LockDosList().  It is not filled at boot: programs
- * that walk di_DevInfo without LockDosList() (Directory Opus) look up the
- * volume of a lock through fl_Volume, and lxa's locks are not yet real
- * FileLocks (Phase 255).  Entries others add with
+ * up to date at boot and by every LockDosList().  Volume entries are the
+ * nodes the locks' fl_Volume points to.  Entries others add with
  * AddDosEntry() stay.  Device and volume entries carry the lxa file system
  * port as their handler (packets: lxa_dos_try_handle_special_port()).
  */
@@ -7502,9 +7503,18 @@ struct MsgPort *lxa_dos_fs_port(void)
 {
     if (!g_lxa_fs_port)
     {
-        g_lxa_fs_port = (struct MsgPort *)AllocMem(sizeof(struct MsgPort), MEMF_CLEAR | MEMF_PUBLIC);
-        if (!g_lxa_fs_port)
+        /* a handler's port is its process's pr_MsgPort: programs reach the
+         * process from DeviceProc()'s result (Directory Opus); the lxa
+         * file system process is not scheduled, packets are answered by
+         * lxa_dos_try_handle_special_port() */
+        struct Process *fsproc = (struct Process *)AllocMem(sizeof(struct Process), MEMF_CLEAR | MEMF_PUBLIC);
+        if (!fsproc)
             return NULL;
+        fsproc->pr_Task.tc_Node.ln_Type = NT_PROCESS;
+        fsproc->pr_Task.tc_Node.ln_Name = (char *)"File System";
+        fsproc->pr_Task.tc_State = TS_WAIT;
+        g_lxa_fs_port = &fsproc->pr_MsgPort;
+        g_lxa_fs_port->mp_SigTask = &fsproc->pr_Task;
         g_lxa_fs_port->mp_Node.ln_Type = NT_MSGPORT;
         g_lxa_fs_port->mp_Flags = PA_IGNORE;
         NEWLIST(&g_lxa_fs_port->mp_MsgList);
@@ -7513,8 +7523,31 @@ struct MsgPort *lxa_dos_fs_port(void)
     return g_lxa_fs_port;
 }
 
+/* FileLock and volume node tables in emulated memory (see the host's
+ * lxa_dos_host.c: locks are BPTRs to these FileLocks, Phase 237c) */
+#define LXA_MAX_LOCKS     256
+#define LXA_MAX_VOLNODES  16
+#define LXA_VOLNODE_SIZE  80
+static UBYTE *g_lxa_volnodes;
+
+void lxa_dos_init_lock_tables(void)
+{
+    APTR locks = AllocMem(LXA_MAX_LOCKS * 20, MEMF_PUBLIC | MEMF_CLEAR);
+    g_lxa_volnodes = AllocMem(LXA_MAX_VOLNODES * LXA_VOLNODE_SIZE, MEMF_PUBLIC | MEMF_CLEAR);
+    if (locks && g_lxa_volnodes)
+        emucall3(EMU_CALL_DOS_LOCK_TABLES, (ULONG)locks, (ULONG)g_lxa_volnodes, (ULONG)lxa_dos_fs_port());
+}
+
+static BOOL lxa_dos_is_volnode(struct DosList *dl)
+{
+    return g_lxa_volnodes && (UBYTE *)dl >= g_lxa_volnodes &&
+           (UBYTE *)dl < g_lxa_volnodes + LXA_MAX_VOLNODES * LXA_VOLNODE_SIZE;
+}
+
 static void lxa_dos_free_entry(struct DosList *dl)
 {
+    if (lxa_dos_is_volnode(dl))
+        return;             /* the host's volume node, shared with the locks */
     if (dl->dol_Type == DLT_DIRECTORY && dl->dol_Lock)
         UnLock(dl->dol_Lock);
     if (dl->dol_Name)
@@ -7568,7 +7601,22 @@ static void lxa_dos_sync_doslist(struct DosLibrary *DOSBase)
         {
             UBYTE kind = p[0];
             LONG type = kind == 'D' ? DLT_DEVICE : kind == 'V' ? DLT_VOLUME : DLT_DIRECTORY;
-            struct DosList *dl = _dos_MakeDosEntry(DOSBase, (CONST_STRPTR)(p + 1), type);
+            struct DosList *dl;
+
+            /* a volume is the node its locks' fl_Volume points to */
+            if (type == DLT_VOLUME && (dl = (struct DosList *)emucall1(EMU_CALL_DOS_VOLNODE, (ULONG)(p + 1))))
+            {
+                dl->dol_Next = 0;
+                DateStamp(&dl->dol_misc.dol_volume.dol_VolumeDate);
+                g_lxa_dosents[g_lxa_ndosents++] = dl;
+                if (last)
+                    last->dol_Next = MKBADDR(dl);
+                else
+                    first = dl;
+                last = dl;
+                continue;
+            }
+            dl = _dos_MakeDosEntry(DOSBase, (CONST_STRPTR)(p + 1), type);
 
             if (!dl)
                 continue;

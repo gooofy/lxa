@@ -311,6 +311,101 @@ uint32_t _timer_get_expired(void)
 
 #define AMIGA_EPOCH_OFFSET 252460800
 
+/*
+ * Locks are BPTRs to struct FileLock (Phase 237c, probe dos/lockfields).
+ * The ROM hands the host a table of MAX_LOCKS FileLocks in emulated memory
+ * (EMU_CALL_DOS_LOCK_TABLES); the lock a program sees is the BPTR of the
+ * entry of its slot, whose fl_Key (the object), fl_Access, fl_Task (the
+ * file system port) and fl_Volume (a DLT_VOLUME node in the volume table,
+ * named like the volume NameFromLock() reports) are filled in.  Programs
+ * read them directly: Modula-2 programs take the volume name from
+ * fl_Volume (Fish calendarfactory, AmigaPunt, Pennywise).  Locks made
+ * before the tables exist keep their slot number as their value.
+ */
+#define LXA_FILELOCK_SIZE 20
+#define LXA_MAX_VOLNODES  16
+#define LXA_VOLNODE_SIZE  80        /* struct DosList (44) + BSTR name (36) */
+static uint32_t g_lock_table68k, g_vol_table68k, g_fs_port68k;
+static char g_volnode_names[LXA_MAX_VOLNODES][32];
+
+static int _lock_index(uint32_t id)
+{
+    if (id < MAX_LOCKS)
+        return (int)id;
+    if (g_lock_table68k) {
+        uint32_t a = id << 2;
+        if (a >= g_lock_table68k && a < g_lock_table68k + MAX_LOCKS * LXA_FILELOCK_SIZE &&
+            (a - g_lock_table68k) % LXA_FILELOCK_SIZE == 0)
+            return (int)((a - g_lock_table68k) / LXA_FILELOCK_SIZE);
+    }
+    return -1;
+}
+
+/* the DLT_VOLUME node of a volume name (created on first use) */
+uint32_t _dos_volume_node(const char *name)
+{
+    int i;
+    if (!g_vol_table68k || !name || !*name)
+        return 0;
+    for (i = 0; i < LXA_MAX_VOLNODES; i++)
+        if (g_volnode_names[i][0] && !strcasecmp(g_volnode_names[i], name))
+            return g_vol_table68k + i * LXA_VOLNODE_SIZE;
+    for (i = 0; i < LXA_MAX_VOLNODES; i++)
+        if (!g_volnode_names[i][0]) {
+            uint32_t n = g_vol_table68k + i * LXA_VOLNODE_SIZE, b = n + 44;
+            size_t l = strlen(name);
+            if (l > 30)
+                l = 30;
+            snprintf(g_volnode_names[i], sizeof(g_volnode_names[i]), "%.*s", (int)l, name);
+            for (uint32_t k = 0; k < LXA_VOLNODE_SIZE; k += 4)
+                m68k_write_memory_32(n + k, 0);
+            m68k_write_memory_32(n + 4, 2);                 /* dol_Type = DLT_VOLUME */
+            m68k_write_memory_32(n + 8, g_fs_port68k);      /* dol_Task */
+            m68k_write_memory_32(n + 32, 0x444F5300);       /* dol_DiskType 'DOS\0' */
+            m68k_write_memory_32(n + 40, b >> 2);           /* dol_Name */
+            m68k_write_memory_8(b, (uint8_t)l);
+            for (size_t k = 0; k < l; k++)
+                m68k_write_memory_8(b + 1 + k, (uint8_t)name[k]);
+            return n;
+        }
+    return 0;
+}
+
+/* the lock value of slot idx, its FileLock filled in */
+static uint32_t _lock_export(int idx)
+{
+    uint32_t fl;
+    struct stat st;
+    char amiga[PATH_MAX];
+    uint32_t vol = 0;
+
+    if (idx <= 0 || !g_lock_table68k)
+        return (uint32_t)idx;
+    fl = g_lock_table68k + (uint32_t)idx * LXA_FILELOCK_SIZE;
+    if (vfs_path_to_amiga(g_locks[idx].linux_path, amiga, sizeof(amiga))) {
+        char *c = strchr(amiga, ':');
+        if (c) {
+            *c = 0;
+            vol = _dos_volume_node(amiga);
+        }
+    }
+    m68k_write_memory_32(fl + 0, 0);                                    /* fl_Link */
+    m68k_write_memory_32(fl + 4, stat(g_locks[idx].linux_path, &st) == 0
+                                 ? (uint32_t)(st.st_ino ? st.st_ino : 1) : (uint32_t)idx);   /* fl_Key */
+    m68k_write_memory_32(fl + 8, (uint32_t)(g_locks[idx].access_mode == EXCLUSIVE_LOCK ? -1 : -2));
+    m68k_write_memory_32(fl + 12, g_fs_port68k);                        /* fl_Task */
+    m68k_write_memory_32(fl + 16, vol >> 2);                            /* fl_Volume */
+    return fl >> 2;
+}
+
+void _dos_set_lock_tables(uint32_t locks68k, uint32_t vols68k, uint32_t port68k)
+{
+    g_lock_table68k = locks68k;
+    g_vol_table68k = vols68k;
+    g_fs_port68k = port68k;
+    memset(g_volnode_names, 0, sizeof(g_volnode_names));
+}
+
 /* Allocate a new lock entry */
 static int _lock_alloc(void)
 {
@@ -328,6 +423,7 @@ static int _lock_alloc(void)
 /* Free a lock entry */
 static void _lock_free(int lock_id)
 {
+    lock_id = _lock_index((uint32_t)lock_id);
     if (lock_id <= 0 || lock_id >= MAX_LOCKS) return;
     if (!g_locks[lock_id].in_use) return;
     
@@ -341,6 +437,7 @@ static void _lock_free(int lock_id)
 /* Get lock entry */
 static lock_entry_t *_lock_get(int lock_id)
 {
+    lock_id = _lock_index((uint32_t)lock_id);
     if (lock_id <= 0 || lock_id >= MAX_LOCKS) return NULL;
     if (!g_locks[lock_id].in_use) return NULL;
     return &g_locks[lock_id];
@@ -543,6 +640,7 @@ static void _open_file_unregister(uint32_t fh68k)
 /* true when an access of the given kind to (dev, ino) collides with an
  * existing lock or open file; skip_lock / skip_fh exclude the object
  * whose own mode is being changed */
+static int _lock_index(uint32_t id);
 static bool _object_in_use(dev_t dev, ino_t ino, bool exclusive, uint32_t skip_lock, uint32_t skip_fh)
 {
     for (int i = 1; i < MAX_LOCKS; i++)
@@ -550,7 +648,7 @@ static bool _object_in_use(dev_t dev, ino_t ino, bool exclusive, uint32_t skip_l
         lock_entry_t *entry = &g_locks[i];
         struct stat st;
 
-        if (!entry->in_use || (uint32_t)i == skip_lock)
+        if (!entry->in_use || (skip_lock && i == _lock_index(skip_lock)))
             continue;
         if (!exclusive && entry->access_mode != EXCLUSIVE_LOCK)
             continue;
@@ -692,6 +790,8 @@ bool _dos_change_mode(uint32_t type, uint32_t object, int32_t new_mode, uint32_t
         }
 
         lock->access_mode = new_mode;
+        if (_lock_index(object) > 0 && object >= MAX_LOCKS)
+            m68k_write_memory_32((object << 2) + 8, (uint32_t)(new_mode == EXCLUSIVE_LOCK ? -1 : -2));
         DPRINTF(LOG_DEBUG, "lxa: _dos_change_mode(): lock %u access now %d\n", object, new_mode);
     }
 
@@ -2220,7 +2320,7 @@ uint32_t _dos_lock(uint32_t name68k, int32_t mode)
     
     DPRINTF(LOG_DEBUG, "lxa: _dos_lock: allocated lock_id=%d\n", lock_id);
     
-    return lock_id;
+    return _lock_export(lock_id);
 }
 
 /* Unlock a file or directory */
@@ -2265,7 +2365,7 @@ uint32_t _dos_duplock(uint32_t lock_id)
     new_lock->access_mode = SHARED_LOCK;
     
     DPRINTF(LOG_DEBUG, "lxa: _dos_duplock(): new_lock_id=%d\n", new_lock_id);
-    return new_lock_id;
+    return _lock_export(new_lock_id);
 }
 
 uint32_t _dos_lockrecord(uint32_t fh68k, uint32_t offset, uint32_t length,
@@ -2796,7 +2896,7 @@ uint32_t _dos_parentdir(uint32_t lock_id)
     new_lock->access_mode = SHARED_LOCK;
     
     DPRINTF(LOG_DEBUG, "lxa: _dos_parentdir(): parent=%s, amiga=%s, new_lock_id=%d\n", parent_path, parent_amiga, new_lock_id);
-    return new_lock_id;
+    return _lock_export(new_lock_id);
 }
 
 /* Create a directory */
@@ -2831,7 +2931,7 @@ uint32_t _dos_createdir(uint32_t name68k)
     lock->access_mode = EXCLUSIVE_LOCK;
     
     DPRINTF(LOG_DEBUG, "lxa: _dos_createdir(): success, lock_id=%d\n", lock_id);
-    return lock_id;
+    return _lock_export(lock_id);
 }
 
 /* Delete a file or directory */
@@ -3623,7 +3723,7 @@ static uint32_t _dos_make_lock_for_path(const char *linux_path, const char *amig
 
     lock->is_dir = S_ISDIR(st.st_mode);
     lock->dir = NULL;
-    return (uint32_t)lock_id;
+    return _lock_export(lock_id);
 }
 
 int _dos_assign_remove_path(uint32_t name68k, uint32_t path68k)
@@ -3933,7 +4033,7 @@ uint32_t _dos_duplockfromfh(uint32_t fh68k)
     lock->access_mode = SHARED_LOCK;
     
     DPRINTF(LOG_DEBUG, "lxa: _dos_duplockfromfh(): returning lock_id=%d\n", lock_id);
-    return lock_id;
+    return _lock_export(lock_id);
 }
 
 /* ExamineFH - Examine an open file handle */
@@ -4101,7 +4201,7 @@ uint32_t _dos_parentoffh(uint32_t fh68k)
     lock->access_mode = SHARED_LOCK;
     
     DPRINTF(LOG_DEBUG, "lxa: _dos_parentoffh(): returning lock_id=%d\n", lock_id);
-    return lock_id;
+    return _lock_export(lock_id);
 }
 
 /* OpenFromLock - Convert a lock to a file handle (lock is consumed) */
