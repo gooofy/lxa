@@ -870,6 +870,54 @@ void vfs_setup_dynamic_drives(void)
     }
 }
 
+/*
+ * A standard assign whose drawer the system directory lacks still exists
+ * on AmigaOS (FONTS:, ENV:, ...): it points to an empty drawer of this
+ * run (Phase 237e: since Lock() of a missing volume brings up the "Please
+ * insert volume" requester, a missing FONTS: stopped Typeface's Preview).
+ */
+static char g_std_root[PATH_MAX];
+
+static void std_root_remove(void)
+{
+    char cmd[PATH_MAX + 16];
+    if (!g_std_root[0])
+        return;
+    DIR *d = opendir(g_std_root);
+    if (d) {
+        struct dirent *e;
+        while ((e = readdir(d)) != NULL) {
+            if (e->d_name[0] == '.')
+                continue;
+            snprintf(cmd, sizeof(cmd), "%s/%s", g_std_root, e->d_name);
+            rmdir(cmd);     /* only empty drawers: what a program wrote stays */
+        }
+        closedir(d);
+    }
+    rmdir(g_std_root);
+    g_std_root[0] = 0;
+}
+
+static bool std_empty_dir(const char *subdir, char *out, size_t outlen)
+{
+    if (!g_std_root[0]) {
+        const char *tmp = getenv("TMPDIR");
+        snprintf(g_std_root, sizeof(g_std_root), "%s/lxa-sys-XXXXXX", tmp && *tmp ? tmp : "/tmp");
+        if (!mkdtemp(g_std_root)) {
+            g_std_root[0] = 0;
+            return false;
+        }
+        atexit(std_root_remove);
+    }
+    int n = snprintf(out, outlen, "%s/%s", g_std_root, subdir);
+    if (n < 0 || (size_t)n >= outlen)
+        return false;
+    for (char *c = out + strlen(g_std_root) + 1; *c; c++)
+        if (*c == '/')
+            *c = '-';
+    return mkdir(out, 0755) == 0 || errno == EEXIST;
+}
+
 void vfs_setup_default_assigns(void)
 {
     /*
@@ -923,9 +971,10 @@ void vfs_setup_default_assigns(void)
         /* Check if the directory exists (don't create assigns to non-existent dirs) */
         struct stat st;
         if (stat(subdir_path, &st) != 0 || !S_ISDIR(st.st_mode)) {
-            DPRINTF(LOG_DEBUG, "vfs: %s: subdirectory %s doesn't exist, skipping\n", 
+            DPRINTF(LOG_DEBUG, "vfs: %s: subdirectory %s doesn't exist, an empty drawer instead\n",
                     default_assigns[i].name, subdir_path);
-            continue;
+            if (!std_empty_dir(default_assigns[i].subdir, subdir_path, sizeof(subdir_path)))
+                continue;
         }
         
         /* Create the assign */

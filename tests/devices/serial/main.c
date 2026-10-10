@@ -131,14 +131,15 @@ int main(void)
         CloseDevice((struct IORequest *)req);
     }
 
+    /* AmigaOS 3.1 does not check mn_Length (probe exec/serlen) */
     error = OpenDevice((STRPTR)SERIALNAME, 0, (struct IORequest *)small_req, 0);
-    if (error != 0)
-        test_ok("OpenDevice rejects undersized IORequest");
-    else
+    if (error == 0)
     {
-        test_fail_msg("OpenDevice rejects undersized IORequest");
+        test_ok("OpenDevice accepts a short IORequest");
         CloseDevice((struct IORequest *)small_req);
     }
+    else
+        test_fail_msg("OpenDevice accepts a short IORequest");
 
     req->io_SerFlags = 0;
     error = OpenDevice((STRPTR)SERIALNAME, 0, (struct IORequest *)req, 0);

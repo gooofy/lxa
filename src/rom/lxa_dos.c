@@ -2907,6 +2907,45 @@ LONG _dos_Rename ( register struct DosLibrary * __libBase __asm("a6"),
     return DOSTRUE;
 }
 
+LONG _dos_ErrorReport ( register struct DosLibrary * __dos_a6 __asm("a6"),
+                                                        register LONG code __asm("d1"),
+                                                        register LONG type __asm("d2"),
+                                                        register ULONG arg1 __asm("d3"),
+                                                        register struct MsgPort * device __asm("d4"));
+BPTR _dos_Lock ( register struct DosLibrary * __libBase __asm("a6"),
+                                                        register CONST_STRPTR ___name  __asm("d1"),
+                                                        register LONG ___type  __asm("d2"));
+
+/*
+ * Lock() as programs call it: a volume that is not there brings up the
+ * "Please insert volume" requester (unless pr_WindowPtr is -1); Retry
+ * tries again, Cancel fails with ERROR_DEVICE_NOT_MOUNTED (AmigaOS 3.1,
+ * probe dos/volreq; Fred Fish hack locks "hack_game:").  lxa's own code
+ * calls _dos_Lock() and never asks.
+ */
+BPTR _dos_LockLVO ( register struct DosLibrary * __libBase __asm("a6"),
+                                                        register CONST_STRPTR ___name  __asm("d1"),
+                                                        register LONG ___type  __asm("d2"))
+{
+    struct DosLibrary *DOSBase = __libBase;
+
+    for (;;)
+    {
+        BPTR l = _dos_Lock(__libBase, ___name, ___type);
+        const char *c;
+
+        if (l || IoErr() != ERROR_DEVICE_NOT_MOUNTED || !___name)
+            return l;
+        for (c = (const char *)___name; *c && *c != ':'; c++)
+            ;
+        if (*c != ':' || c == (const char *)___name)
+            return l;
+        LPRINTF(LOG_INFO, "DBGVOLREQ %s\n", ___name);
+        if (_dos_ErrorReport(DOSBase, ERROR_DEVICE_NOT_MOUNTED, REPORT_INSERT, (ULONG)___name, NULL) != DOSFALSE)
+            return 0;
+    }
+}
+
 BPTR _dos_Lock ( register struct DosLibrary * __libBase __asm("a6"),
                                                         register CONST_STRPTR ___name  __asm("d1"),
                                                         register LONG ___type  __asm("d2"))
@@ -2915,10 +2954,10 @@ BPTR _dos_Lock ( register struct DosLibrary * __libBase __asm("a6"),
 
     DPRINTF (LOG_DEBUG, "_dos: Lock() called, name=%s, type=%ld\n", ___name ? (char *)___name : "NULL", ___type);
 
-    if (!___name) {
-        SetIoErr(ERROR_OBJECT_NOT_FOUND);
-        return 0;
-    }
+    /* a NULL name is the empty one: the current directory (AmigaOS 3.1,
+     * probe dos/locknull; Fred Fish Slideshow) */
+    if (!___name)
+        ___name = (CONST_STRPTR)"";
 
     /* Resolve relative paths */
     char resolved_path[256];
@@ -12108,7 +12147,7 @@ DOS_RESULT_IN_D1(_dos_Input)
 DOS_RESULT_IN_D1(_dos_Output)
 DOS_IO_RESULT_IN_D1(_dos_Seek)
 DOS_IO_RESULT_IN_D1(_dos_DeleteFile)
-DOS_IO_RESULT_IN_D1(_dos_Lock)
+DOS_IO_RESULT_IN_D1(_dos_LockLVO)
 DOS_RESULT_IN_D1(_dos_IoErr)
 DOS_IO_RESULT_IN_D1(_dos_LoadSeg)
 DOS_RESULT_IN_D1(_dos_DateStamp)
@@ -12137,7 +12176,7 @@ APTR __g_lxa_dos_FuncTab [] =
     _dos_Seek_D1, // offset = -66
     _dos_DeleteFile_D1, // offset = -72
     _dos_Rename, // offset = -78
-    _dos_Lock_D1, // offset = -84
+    _dos_LockLVO_D1, // offset = -84
     _dos_UnLock_IO, // offset = -90
     _dos_DupLock_D1, // offset = -96
     _dos_Examine, // offset = -102

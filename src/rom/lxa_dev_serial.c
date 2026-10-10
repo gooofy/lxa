@@ -138,7 +138,9 @@ static void serial_fill_request_config(struct SerialBase *serialbase,
 
 static BOOL serial_request_is_valid(const struct IORequest *ioreq)
 {
-    return ioreq && ioreq->io_Message.mn_Length >= sizeof(struct IOExtSer);
+    /* mn_Length is not checked: 1.x programs leave it 0 (AmigaOS 3.1,
+     * probe exec/serlen; Fred Fish PANL) */
+    return ioreq != NULL;
 }
 
 static struct SerialUnit *serial_get_unit(struct IORequest *ioreq)

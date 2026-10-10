@@ -1,0 +1,7 @@
+Lock() returned without a requester = FALSE
+requester title = "System Request"
+gadget 1: Retry
+gadget 0: Cancel
+Lock() returned after Cancel = TRUE
+Lock() succeeded = FALSE
+IoErr() = 218

@@ -12027,6 +12027,15 @@ LONG _intuition_WBenchToFront ( register struct IntuitionBase * IntuitionBase __
     return TRUE;
 }
 
+struct Window * _intuition_BuildSysRequest ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+                                                        register struct Window * window __asm("a0"),
+                                                        register struct IntuiText * bodyText __asm("a1"),
+                                                        register struct IntuiText * posText __asm("a2"),
+                                                        register struct IntuiText * negText __asm("a3"),
+                                                        register ULONG flags __asm("d0"),
+                                                        register UWORD width __asm("d1"),
+                                                        register UWORD height __asm("d2"));
+
 LONG _intuition_AutoRequest ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Window * window __asm("a0"),
                                                         register const struct IntuiText * body __asm("a1"),
@@ -12038,189 +12047,44 @@ LONG _intuition_AutoRequest ( register struct IntuitionBase * IntuitionBase __as
                                                         register UWORD height __asm("d3"))
 {
     /*
-     * AutoRequest() displays a modal requester with positive/negative buttons.
-     * Per RKRM, it opens a window on the same screen as the reference window,
-     * renders body text, creates two gadgets, and blocks until the user clicks
-     * one of them or pFlag/nFlag IDCMP events arrive at the original window.
-     *
-     * Returns TRUE for positive (left) button, FALSE for negative (right) button.
+     * AutoRequest() is BuildSysRequest(), SysReqHandler() until the user
+     * answers and FreeSysRequest() (RKRM; on AmigaOS 3.1 its window is the
+     * system requester: title "System Request" without a reference window,
+     * probe dos/volreq).  TRUE for the positive gadget or a pFlag event,
+     * FALSE for the negative one or an nFlag event.
      */
-    struct Screen *screen;
-    struct NewWindow nw;
-    struct Window *reqWin;
-    struct Gadget *posGad = NULL, *negGad = NULL;
-    struct IntuiMessage *msg;
-    BOOL result = TRUE;
-    WORD gad_width, gad_height, gad_y;
+    struct Window *w;
+    LONG result = FALSE;
 
     DPRINTF (LOG_DEBUG, "_intuition: AutoRequest() window=0x%08lx pFlag=0x%08lx nFlag=0x%08lx %dx%d\n",
              (ULONG)window, pFlag, nFlag, (int)width, (int)height);
 
-    /* Print the body text chain to debug output */
+    w = _intuition_BuildSysRequest(IntuitionBase, window, (struct IntuiText *)body,
+                                   (struct IntuiText *)posText, (struct IntuiText *)negText,
+                                   pFlag | nFlag, width, height);
+    if (!w || w == (struct Window *)1)
+        return w ? TRUE : FALSE;
+    for (;;)
     {
-        const struct IntuiText *it = body;
-        while (it)
+        ULONG idcmp = 0;
+        LONG r;
+
+        WaitPort(w->UserPort);
+        r = _intuition_SysReqHandler(IntuitionBase, w, &idcmp, FALSE);
+        if (r >= 0)
         {
-            if (it->IText)
-            {
-                DPRINTF (LOG_DEBUG, "_intuition: AutoRequest body: %s\n", (char *)it->IText);
-            }
-            it = it->NextText;
+            result = r != 0;
+            break;
         }
-    }
-
-    /* Determine which screen to use */
-    if (window)
-        screen = window->WScreen;
-    else
-        screen = IntuitionBase->FirstScreen;
-
-    if (!screen)
-    {
-        LPRINTF(LOG_WARNING, "_intuition: AutoRequest() no screen available\n");
-        return TRUE;
-    }
-
-    /* Ensure minimum dimensions */
-    if (width < 100) width = 100;
-    if (height < 50) height = 50;
-
-    /* Clamp to screen dimensions */
-    if (width > screen->Width) width = screen->Width;
-    if (height > screen->Height) height = screen->Height;
-
-    /* Create the requester window */
-    memset(&nw, 0, sizeof(nw));
-    nw.LeftEdge = (screen->Width - width) / 2;
-    nw.TopEdge = (screen->Height - height) / 2;
-    nw.Width = width;
-    nw.Height = height;
-    nw.DetailPen = 0;
-    nw.BlockPen = 1;
-    nw.IDCMPFlags = IDCMP_GADGETUP;
-    nw.Flags = WFLG_DRAGBAR | WFLG_ACTIVATE | WFLG_SMART_REFRESH;
-    nw.Title = (STRPTR)"Request";
-    nw.Screen = screen;
-    nw.Type = CUSTOMSCREEN;
-
-    reqWin = _intuition_OpenWindow(IntuitionBase, &nw);
-    if (!reqWin)
-    {
-        LPRINTF(LOG_WARNING, "_intuition: AutoRequest() failed to open window\n");
-        return TRUE;
-    }
-
-    /* Create positive and negative gadgets */
-    gad_width = (width - 40) / 2;
-    if (gad_width < 40) gad_width = 40;
-    if (gad_width > 120) gad_width = 120;
-    gad_height = 12;
-    gad_y = height - reqWin->BorderBottom - gad_height - 4;
-
-    if (posText)
-    {
-        posGad = (struct Gadget *)AllocMem(sizeof(struct Gadget), MEMF_PUBLIC | MEMF_CLEAR);
-        if (posGad)
+        if (idcmp & pFlag)
         {
-            posGad->LeftEdge = 10;
-            posGad->TopEdge = gad_y;
-            posGad->Width = gad_width;
-            posGad->Height = gad_height;
-            posGad->Flags = GFLG_GADGHCOMP;
-            posGad->Activation = GACT_RELVERIFY | GACT_ENDGADGET;
-            posGad->GadgetType = GTYP_BOOLGADGET;
-            posGad->GadgetText = (struct IntuiText *)posText;
-            posGad->GadgetID = 1;  /* Positive */
-            _intuition_AddGadget(IntuitionBase, reqWin, posGad, -1);
+            result = TRUE;
+            break;
         }
+        if (idcmp & nFlag)
+            break;
     }
-    if (negText)
-    {
-        negGad = (struct Gadget *)AllocMem(sizeof(struct Gadget), MEMF_PUBLIC | MEMF_CLEAR);
-        if (negGad)
-        {
-            negGad->LeftEdge = width - gad_width - 10;
-            negGad->TopEdge = gad_y;
-            negGad->Width = gad_width;
-            negGad->Height = gad_height;
-            negGad->Flags = GFLG_GADGHCOMP;
-            negGad->Activation = GACT_RELVERIFY | GACT_ENDGADGET;
-            negGad->GadgetType = GTYP_BOOLGADGET;
-            negGad->GadgetText = (struct IntuiText *)negText;
-            negGad->GadgetID = 0;  /* Negative */
-            _intuition_AddGadget(IntuitionBase, reqWin, negGad, -1);
-        }
-    }
-
-    /* Refresh gadgets so they're rendered */
-    _intuition_RefreshGadgets(IntuitionBase, reqWin->FirstGadget, reqWin, NULL);
-
-    /* Render body text */
-    if (body && reqWin->RPort)
-    {
-        _intuition_PrintIText(IntuitionBase, reqWin->RPort, (struct IntuiText *)body,
-                   reqWin->BorderLeft + 8, reqWin->BorderTop + 4);
-    }
-
-    /* Event loop: wait for gadget click */
-    {
-        BOOL done = FALSE;
-        while (!done)
-        {
-            WaitPort(reqWin->UserPort);
-            while ((msg = (struct IntuiMessage *)GetMsg(reqWin->UserPort)))
-            {
-                ULONG cls = msg->Class;
-                APTR iaddr = msg->IAddress;
-                ReplyMsg((struct Message *)msg);
-
-                if (cls == IDCMP_GADGETUP)
-                {
-                    struct Gadget *gad = (struct Gadget *)iaddr;
-                    result = (gad->GadgetID == 1) ? TRUE : FALSE;
-                    done = TRUE;
-                    break;
-                }
-            }
-
-            /* Also check the original window for pFlag/nFlag events */
-            if (!done && window && window->UserPort)
-            {
-                while ((msg = (struct IntuiMessage *)GetMsg(window->UserPort)))
-                {
-                    ULONG cls = msg->Class;
-                    ReplyMsg((struct Message *)msg);
-
-                    if (cls & pFlag)
-                    {
-                        result = TRUE;
-                        done = TRUE;
-                        break;
-                    }
-                    if (cls & nFlag)
-                    {
-                        result = FALSE;
-                        done = TRUE;
-                        break;
-                    }
-                }
-            }
-        }
-    }
-
-    /* Clean up: remove gadgets, close window */
-    if (posGad)
-    {
-        _intuition_RemoveGadget(IntuitionBase, reqWin, posGad);
-        FreeMem(posGad, sizeof(struct Gadget));
-    }
-    if (negGad)
-    {
-        _intuition_RemoveGadget(IntuitionBase, reqWin, negGad);
-        FreeMem(negGad, sizeof(struct Gadget));
-    }
-    _intuition_CloseWindow(IntuitionBase, reqWin);
-
+    _intuition_FreeSysRequest(IntuitionBase, w);
     DPRINTF(LOG_DEBUG, "_intuition: AutoRequest() -> %s\n", result ? "TRUE" : "FALSE");
     return result;
 }
