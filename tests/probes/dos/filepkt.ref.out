@@ -1,0 +1,7 @@
+fh_Type set = TRUE
+ACTION_WRITE = 11
+ACTION_SEEK (old position) = 11
+ACTION_READ = 5
+read: world
+Read() after Close = 11
+file: hello world

@@ -101,6 +101,10 @@ LONG _dos_Write ( register struct DosLibrary * __dos_a6 __asm("a6"),
 LONG _dos_WaitForChar ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                         register BPTR file __asm("d1"),
                                         register LONG timeout __asm("d2"));
+LONG _dos_Seek ( register struct DosLibrary * __libBase __asm("a6"),
+                 register BPTR file __asm("d1"),
+                 register LONG position __asm("d2"),
+                 register LONG mode __asm("d3"));
 LONG _dos_FPutC ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                  register BPTR fh __asm("d1"),
                                  register LONG ch __asm("d2"));
@@ -369,6 +373,34 @@ BOOL lxa_dos_try_handle_special_port(struct MsgPort *port, struct Message *messa
             case ACTION_IS_FILESYSTEM:
                 res1 = DOSTRUE;
                 break;
+            /* packets for a file: dp_Arg1 is the handle's fh_Arg1 (the host
+             * file, Phase 237d - Fish asendpacket writes with ACTION_WRITE
+             * to fh_Type) */
+            case ACTION_READ:
+            case ACTION_WRITE:
+            case ACTION_SEEK:
+            {
+                struct FileHandle *tfh = (struct FileHandle *)AllocDosObject(DOS_FILEHANDLE, NULL);
+                struct Process *pme = U_getCurrentProcess();
+                if (!tfh)
+                {
+                    res2 = ERROR_NO_FREE_STORE;
+                    break;
+                }
+                tfh->fh_Func3 = FILE_KIND_REGULAR;
+                tfh->fh_Type = g_lxa_fs_port;
+                tfh->fh_Arg1 = dp->dp_Arg1;
+                if (dp->dp_Type == ACTION_READ)
+                    res1 = _dos_Read(DOSBase, MKBADDR(tfh), (APTR)dp->dp_Arg2, dp->dp_Arg3);
+                else if (dp->dp_Type == ACTION_WRITE)
+                    res1 = _dos_Write(DOSBase, MKBADDR(tfh), (CONST APTR)dp->dp_Arg2, dp->dp_Arg3);
+                else
+                    res1 = _dos_Seek(DOSBase, MKBADDR(tfh), dp->dp_Arg2, dp->dp_Arg3);
+                res2 = pme ? pme->pr_Result2 : 0;
+                tfh->fh_Arg1 = 0;
+                FreeDosObject(DOS_FILEHANDLE, tfh);
+                break;
+            }
             case ACTION_DISK_INFO:
             {
                 BPTR l = Lock((STRPTR)"SYS:", SHARED_LOCK);
@@ -2425,6 +2457,10 @@ BPTR _dos_Open ( register struct DosLibrary * __dos_a6        __asm("a6"),
 
             if (fh->fh_Func3 == FILE_KIND_CONSOLE && !fh->fh_Type)
                 fh->fh_Type = lxa_dos_host_console_port();
+            /* a file's handler port, as on AmigaOS 3.1: programs send it
+             * packets (ACTION_WRITE ...) themselves */
+            if (fh->fh_Func3 == FILE_KIND_REGULAR && !fh->fh_Type)
+                fh->fh_Type = lxa_dos_fs_port();
 
             if (!lxa_dos_buffer_state_ensure(fh))
             {
