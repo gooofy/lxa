@@ -1,6 +1,6 @@
-134, MEMF_CLEAR: ok, a1 = result, d1 = 0
-134, MEMF_ANY: ok, a1 = result
-134, MEMF_PUBLIC|MEMF_CLEAR: ok, a1 = result, d1 = 0
-134, MEMF_CHIP: ok, a1 = result
-4000, MEMF_CLEAR: ok, a1 = result, d1 = 0
-too large: NULL, a1 = result
+134, MEMF_CLEAR: ok, a1 = result, d1 = 0, Z = (d0 == 0)
+134, MEMF_ANY: ok, a1 = result, Z = (d0 == 0)
+134, MEMF_PUBLIC|MEMF_CLEAR: ok, a1 = result, d1 = 0, Z = (d0 == 0)
+134, MEMF_CHIP: ok, a1 = result, Z = (d0 == 0)
+4000, MEMF_CLEAR: ok, a1 = result, d1 = 0, Z = (d0 == 0)
+too large: NULL, a1 = result, Z = (d0 == 0)

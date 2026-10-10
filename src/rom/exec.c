@@ -1473,12 +1473,15 @@ asm(".text\n\t.even\n"
     "__exec_AllocMem_Regs:\n\t"
     "move.l d1,-(sp)\n\t"
     "jsr __exec_AllocMem\n\t"
-    "move.l (sp)+,d1\n\t"
+    "move.w ccr,-(sp)\n\t"          /* the condition codes stay as they were */
     "move.l d0,a1\n\t"
+    "move.l 2(sp),d1\n\t"
     "btst #16,d1\n\t"
     "beq.s 1f\n\t"
     "moveq #0,d1\n"
-    "1:\trts\n");
+    "1:\tmove.w (sp)+,ccr\n\t"
+    "addq.l #4,sp\n\t"
+    "rts\n");
 
 /* InitSemaphore() keeps D0/D1/A1 on AmigaOS 3.1 - A0 not (probe
  * exec/preserveregs; Fish bsh.library's init returns the D0 it was called
