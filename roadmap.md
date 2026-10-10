@@ -152,9 +152,9 @@ Complete (Phases 220–225, v0.11.28); see the summary table.
 
 ### Phase 245 — Replace the ported AROS code with lxa's own implementations
 **Class**: Quality (licensing). AROS code may only be a reference (decided 2026-10-10). Two components were ported in M2/M3 and must be rewritten as lxa's own MIT code, keeping their behaviour as verified on the 3.1 reference.
-- [ ] BCPL support (`src/rom/bcpl/`, Phase 239): global vector, BCPL call/return, runtime routines, writef, rdargs, CLI start-up of BCPL processes, ROM console segment. Gate: `dos/bcpl` and `dos/entryregs` probes, the six BCPL Fish programs (`massrun lxa-one`) and the shell tests behave as before.
+- [x] BCPL support (`src/rom/bcpl/`, Phase 239) is lxa's own code (`doc/bcpl.md`): global vector, BCPL call/return, runtime routines, writef, rdargs, CLI start-up of BCPL processes, ROM console segment. `dos/bcpl`, `dos/entryregs` and all probes/shell parity scripts match the reference; the Fish BCPL programs behave as before (DeliTracker `c/EndCLI` now exits like on 3.1 instead of crashing).
 - [ ] colorwheel.gadget, gradientslider.gadget, tapedeck.gadget (`src/rom/gadgets/`, Phase 238; `classlib.[ch]` is already lxa's). Gate: the `colorwheel`/`gradientslider`/`tapedeck` probes and GadToolsBox3's goldens/scenario behave as before.
-- [ ] Remove `src/rom/bcpl/LICENSE`, `src/rom/gadgets/LICENSE` and their rows in `doc/third-party-code.md`; check the remaining "Based on AROS implementation" comments in `lxa_graphics.c`/`lxa_intuition.c`/`lxa_layers.c`/`exec.c` and rewrite any code that was copied rather than written from the RKRM.
+- [ ] Remove `src/rom/gadgets/LICENSE` and its row in `doc/third-party-code.md` (the BCPL ones are gone); check the remaining "Based on AROS implementation" comments in `lxa_graphics.c`/`lxa_intuition.c`/`lxa_layers.c`/`exec.c` and rewrite any code that was copied rather than written from the RKRM.
 
 **Test gate**: no AROS-licensed file remains (`git grep -l "AROS Public License"` lists none outside `others/`); full suite green.
 

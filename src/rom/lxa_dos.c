@@ -39,7 +39,7 @@
 
 //#define ENABLE_DEBUG
 #include "util.h"
-#include "bcpl/bcpl_support.h"
+#include "bcpl/lxa_bcpl.h"
 
 #define FILE_KIND_REGULAR    42
 #define FILE_KIND_CONSOLE    23
@@ -3784,7 +3784,7 @@ static CONST_STRPTR lxa_dos_shell_path(struct DosLibrary *DOSBase)
     return NULL;
 }
 
-/* the shell binary, for the BCPL console segment (bcpl/bcpl_support.c) */
+/* the shell binary, for the BCPL console segment (bcpl/bcpl_cli.c) */
 CONST_STRPTR lxa_dos_shell_name(void)
 {
     return lxa_dos_shell_path(DOSBase);
@@ -6264,8 +6264,8 @@ asm(
 "        move.l     a2, sp                                                                  \n"
 "        move.l     sp, a4                          | a4 near sp                            \n"
 "        move.l     a6, a2                          | a2 = global vector                    \n"
-"        lea        _BCPL_jsr, a5                   | a5 = BCPL call                        \n"
-"        lea        _BCPL_rts, a6                   | a6 = BCPL return                      \n"
+"        lea        _lxa_bcpl_jsr, a5               | a5 = BCPL call                        \n"
+"        lea        _lxa_bcpl_rts, a6               | a6 = BCPL return                      \n"
 "        jsr        (a3)                                                                    \n"
 "        move.l     4(sp), sp                       | back to the caller stack              \n"
 "        movem.l    (sp)+, d2-d7/a2-a6                                                      \n"
