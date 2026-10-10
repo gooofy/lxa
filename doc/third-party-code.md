@@ -4,6 +4,9 @@ lxa's own code is MIT licensed. Code ported from other projects keeps its
 original licence header and lives in its own directory together with the
 licence text. Every ported component is listed here.
 
+**These parts are not MIT licensed.** LGPL code (BGUI, later Regina) is allowed
+and stays under its own licence; the README's License section names it too.
+
 **AROS code may not be ported (decided 2026-10-10).** AROS is a reference
 only. The two AROS components below predate that decision and are being
 replaced by lxa's own implementations in Phase 245.

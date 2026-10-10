@@ -90,7 +90,7 @@ The daily-driver system at `~/media/emu/amiga/FS-UAE/hdd/system` is **not** the 
 ### AROS code is a reference only (decided 2026-10-10, replaces the 2026-10-02 porting decision)
 
 AROS code must **not** be copied or ported into lxa: its licence (AROS Public License 1.1, MPL-based file-level copyleft) does not fit lxa's MIT licence. AROS may be read to understand a component, but every lxa implementation is lxa's own code, written from the RKRM/NDK and verified against the reference with probes. The earlier ports (BCPL support from Phase 239, the colorwheel/gradientslider/tapedeck classes from Phase 238) are replaced by Phase 245.
-- **Other open-source code** (e.g. the vendored LGPL BGUI in `src/bgui`, Regina for ARexx) is a separate decision per component and is recorded in `doc/third-party-code.md`.
+- **LGPL code is allowed** (decided 2026-10-10; e.g. the vendored BGUI in `src/bgui`, Regina for ARexx). It keeps its licence headers in its own directory, and `doc/third-party-code.md` plus the README's License section must name every such part as not MIT licensed.
 - **Source**: the local snapshot `others/AROS-20231016-source` (`rom/`, `arch/`, `compiler/`) is the reading copy.
 
 ---
@@ -193,7 +193,7 @@ The order below is provisional. After Phase 231/232 it is re-sorted by how often
 
 ### Phase 250 — rexxsyslib.library + ARexx
 - [ ] Implement rexxsyslib.library as an lxa disk library (own code; AROS `workbench/libs/rexxsyslib` as a reference only), replacing the 17-function facade in `lxa_rexxsyslib.c`.
-- [ ] ARexx interpreter: decide with the user whether Regina (LGPL, an independent project, vendored like BGUI) may be used or lxa writes its own (the RexxMast and `rx` equivalents), installed under `share/lxa/System`.
+- [ ] Vendor Regina (LGPL, allowed) as the ARexx interpreter (the RexxMast and `rx` equivalents), installed under `share/lxa/System`; list it in `doc/third-party-code.md` and the README's License section as LGPL.
 - [ ] Gate: an app's ARexx port responds to a scripted `rx` message on both backends; rexxsyslib probe goldens pass.
 
 ### Phase 251 — commodities.library (currently a ~25-function facade)

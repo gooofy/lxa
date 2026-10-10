@@ -462,7 +462,9 @@ See [doc/architecture.md](doc/architecture.md) for technical details.
 
 ## License
 
-MIT License - See [LICENSE](LICENSE) for details.
+lxa's own code is under the MIT License - see [LICENSE](LICENSE) for details.
+
+Some parts are third-party code under other licences and are **not** MIT licensed: BGUI (`src/bgui/`) is under the LGPL. Each such part keeps its original licence in its own directory; [doc/third-party-code.md](doc/third-party-code.md) lists them all.
 
 ## Contribution Areas
 
