@@ -24,9 +24,18 @@ extern struct ExecBase *SysBase;
 
 static ULONG lines_now(void)
 {
-    /* vertical beam position, 9 bits */
-    volatile UWORD *vposr = (volatile UWORD *)0xdff004, *vhposr = (volatile UWORD *)0xdff006;
-    return ((ULONG)(*vposr & 1) << 8) | (*vhposr >> 8);
+    /* vertical beam position, 9 bits (V8 in VPOSR, V7-V0 in VHPOSR).  Read
+     * both registers as one long and until two reads agree: reading them
+     * one after the other straddles the end of a frame now and then (the
+     * line then jumps by a whole frame - Phase 237d, the "flaky" probe
+     * depended on where in the frame the probe started). */
+    volatile ULONG *vpos = (volatile ULONG *)0xdff004;
+    ULONG a, b;
+    do {
+        a = *vpos;
+        b = *vpos;
+    } while ((a ^ b) & 0x1ff00);
+    return (a >> 8) & 0x1ff;
 }
 
 /* wait for the AUD0 request; returns raster lines elapsed or -1 */
