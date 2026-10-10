@@ -16903,6 +16903,23 @@ struct InitTable __g_lxa_intuition_InitTab =
     (APTR)                __g_lxa_intuition_InitLib       // InitLibFn
 };
 
+/*
+ * D0 after the VOID drawing functions (Phase 237c, probe intuition/drawd0):
+ * AmigaOS 3.1 returns from PrintIText() with D0 = 1 and from DrawBorder()
+ * and DrawImage() with D0 = 0.  Fish BizCalc returns PrintIText()'s D0
+ * from a C function without a return statement and tests it.
+ */
+#define INTUI_D0(fn, val)                                      \
+    extern void fn##_D0(void);                                 \
+    asm(".text\n\t.even\n"                                     \
+        "_" #fn "_D0:\n\t"                                      \
+        "jsr _" #fn "\n\t"                                      \
+        "moveq #" #val ",d0\n\t"                                \
+        "rts\n");
+INTUI_D0(_intuition_PrintIText, 1)
+INTUI_D0(_intuition_DrawBorder, 0)
+INTUI_D0(_intuition_DrawImage, 0)
+
 APTR __g_lxa_intuition_FuncTab [] =
 {
     __g_lxa_intuition_OpenLib,
@@ -16922,8 +16939,8 @@ APTR __g_lxa_intuition_FuncTab [] =
     _intuition_DisplayAlert, // offset = -90
     _intuition_DisplayBeep, // offset = -96
     _intuition_DoubleClick, // offset = -102
-    _intuition_DrawBorder, // offset = -108
-    _intuition_DrawImage, // offset = -114
+    _intuition_DrawBorder_D0, // offset = -108
+    _intuition_DrawImage_D0, // offset = -114
     _intuition_EndRequest, // offset = -120
     _intuition_GetDefPrefs, // offset = -126
     _intuition_GetPrefs, // offset = -132
@@ -16940,7 +16957,7 @@ APTR __g_lxa_intuition_FuncTab [] =
     _intuition_OpenScreen_lvo, // offset = -198
     _intuition_OpenWindow, // offset = -204
     _intuition_OpenWorkBench, // offset = -210
-    _intuition_PrintIText, // offset = -216
+    _intuition_PrintIText_D0, // offset = -216
     _intuition_RefreshGadgets, // offset = -222
     _intuition_RemoveGadget, // offset = -228
     _intuition_ReportMouse, // offset = -234

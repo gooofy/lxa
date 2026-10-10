@@ -1,0 +1,6 @@
+PrintIText (2 texts): d0 small 0x00000001
+PrintIText (1 text): d0 small 0x00000001
+PrintIText (1 text, 5 chars): d0 small 0x00000001
+PrintIText (empty text): d0 small 0x00000001
+DrawBorder (2 borders): d0 0
+DrawImage: d0 0
