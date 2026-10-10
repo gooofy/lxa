@@ -6,4 +6,5 @@ write 32768: 2^16 us
 read 512: 2^10 us
 read 32768: 2^12 us
 seek: 2^10 us
+read 1: 2^10 us
 delete file: 2^15 us

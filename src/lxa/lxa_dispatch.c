@@ -202,24 +202,76 @@ static inline int isleap (int y)
 }
 
 /*
- * dos.library file operations cost emulated time, as on AmigaOS 3.1's RAM:
- * disk (probe dos/iotime, microseconds per call on the reference: open +
- * close 5975, create 17913, lock + unlock 4835, Read 1088 + 0.2/byte, Write
- * 1150 + 2.8/byte, Seek 1250, DeleteFile 34153).  Only operations on host
- * files are charged; console I/O is not.  Fish DiskPerf divides by the time
- * a batch of them takes (Phase 237d).
+ * dos.library file operations cost emulated time, as on the AmigaOS 3.1
+ * reference (Phase 237d, probe dos/iotime, microseconds per call):
+ *   RAM: (ram-handler):  open + close 5975, create 17913, lock + unlock 4835,
+ *                        Read 1088 + 0.2/byte, Write 1150 + 2.8/byte,
+ *                        Seek 1250, DeleteFile 34153
+ *   other volumes:       the reference's program directories are FS-UAE
+ *                        directory drives (measured once on LXAREF:): open +
+ *                        close 8079, create 13599, lock + unlock 6072, Read
+ *                        1800, Write 3100 + 0.016/byte, Seek 1679, DeleteFile
+ *                        5281 - lxa's host directories are charged alike.
+ * Only operations on host files are charged; console I/O is not.  Fish
+ * DiskPerf divides by the time a batch of them takes.
  */
-#define DOS_COST_OPEN_US        3000u
-#define DOS_COST_CREATE_US      14900u
-#define DOS_COST_CLOSE_US       3000u
-#define DOS_COST_LOCK_US        2500u
-#define DOS_COST_UNLOCK_US      2300u
-#define DOS_COST_READ_US        1090u
-#define DOS_COST_READ_NS_BYTE   200u
-#define DOS_COST_WRITE_US       1150u
-#define DOS_COST_WRITE_NS_BYTE  2830u
-#define DOS_COST_SEEK_US        1250u
-#define DOS_COST_DELETE_US      34000u
+struct dos_cost
+{
+    uint32_t open_us, create_us, close_us, lock_us, unlock_us;
+    uint32_t read_us, read_ns_byte, write_us, write_ns_byte, seek_us, delete_us;
+};
+static const struct dos_cost dos_costs[2] = {
+    /* volume */ { 4000, 9600, 4000, 3000, 3000, 1800, 0, 3100, 16, 1680, 5300 },
+    /* RAM:   */ { 3000, 14900, 3000, 2500, 2300, 1090, 200, 1150, 2830, 1250, 34000 },
+};
+#define DOS_COST_MAX_FD 4096
+static uint8_t dos_fd_ram[DOS_COST_MAX_FD];
+
+/* is the host path inside the RAM: drive? */
+static int dos_path_is_ram(const char *host)
+{
+    char ram[PATH_MAX];
+    size_t n;
+
+    if (!host || !vfs_resolve_path("RAM:", ram, sizeof(ram)))
+        return 0;
+    n = strlen(ram);
+    while (n > 1 && ram[n - 1] == '/')
+        n--;
+    return !strncmp(host, ram, n) && (host[n] == '/' || host[n] == 0);
+}
+
+static int dos_name_is_ram(uint32_t name68k)
+{
+    char host[PATH_MAX];
+    const char *name = name68k ? _mgetstr(name68k) : NULL;
+
+    if (!name || !strchr(name, ':') || !vfs_resolve_path(name, host, sizeof(host)))
+        return 0;
+    return dos_path_is_ram(host);
+}
+
+static int dos_fd_kind(uint32_t fh68k)
+{
+    int fd = (int)m68k_read_memory_32(fh68k + 36);
+    return (fd >= 0 && fd < DOS_COST_MAX_FD) ? dos_fd_ram[fd] : 0;
+}
+
+static void dos_fd_note(uint32_t fh68k)
+{
+    int fd = (int)m68k_read_memory_32(fh68k + 36);
+    char link[64], host[PATH_MAX];
+    ssize_t l;
+
+    if (fd < 0 || fd >= DOS_COST_MAX_FD)
+        return;
+    snprintf(link, sizeof(link), "/proc/self/fd/%d", fd);
+    l = readlink(link, host, sizeof(host) - 1);
+    if (l < 0)
+        l = 0;
+    host[l] = 0;
+    dos_fd_ram[fd] = (uint8_t)dos_path_is_ram(host);
+}
 
 static int      dos_cost_batched;     /* LoadSeg: count instead of charging */
 static uint64_t dos_cost_batch_bytes;
@@ -831,9 +883,14 @@ int op_illg(int level)
             uint32_t res = _dos_open (d1, d2, d3);
 
             if (res == 0 && dos_fh_is_file(d3))
-                dos_charge_ns((uint64_t)(d2 == 1006 /* MODE_NEWFILE */ ? DOS_COST_CREATE_US : DOS_COST_OPEN_US) * 1000u);
+            {
+                const struct dos_cost *c;
+                dos_fd_note(d3);
+                c = &dos_costs[dos_fd_kind(d3)];
+                dos_charge_ns((uint64_t)(d2 == 1006 /* MODE_NEWFILE */ ? c->create_us : c->open_us) * 1000u);
+            }
             else if (res != 0)
-                dos_charge_ns((uint64_t)DOS_COST_LOCK_US * 1000u);
+                dos_charge_ns((uint64_t)dos_costs[dos_name_is_ram(d1)].lock_us * 1000u);
 
             m68k_set_reg(M68K_REG_D0, res);
 
@@ -854,8 +911,8 @@ int op_illg(int level)
             {
                 if (dos_cost_batched && (int32_t)res > 0)
                     dos_cost_batch_bytes += res;
-                dos_charge_ns((uint64_t)DOS_COST_READ_US * 1000u +
-                              ((int32_t)res > 0 ? (uint64_t)res * DOS_COST_READ_NS_BYTE : 0));
+                dos_charge_ns((uint64_t)dos_costs[dos_fd_kind(d1)].read_us * 1000u +
+                              ((int32_t)res > 0 ? (uint64_t)res * dos_costs[dos_fd_kind(d1)].read_ns_byte : 0));
             }
 
             m68k_set_reg(M68K_REG_D0, res);
@@ -874,7 +931,7 @@ int op_illg(int level)
             uint32_t res = _dos_seek (d1, d2, d3);
 
             if (dos_fh_is_file(d1))
-                dos_charge_ns((uint64_t)DOS_COST_SEEK_US * 1000u);
+                dos_charge_ns((uint64_t)dos_costs[dos_fd_kind(d1)].seek_us * 1000u);
 
             m68k_set_reg(M68K_REG_D0, res);
 
@@ -888,7 +945,7 @@ int op_illg(int level)
             DPRINTF (LOG_DEBUG, "lxa: op_illg(): EMU_CALL_DOS_CLOSE file=0x%08x\n", d1);
 
             if (dos_fh_is_file(d1))
-                dos_charge_ns((uint64_t)DOS_COST_CLOSE_US * 1000u);
+                dos_charge_ns((uint64_t)dos_costs[dos_fd_kind(d1)].close_us * 1000u);
 
             uint32_t res = _dos_close (d1);
 
@@ -924,11 +981,12 @@ int op_illg(int level)
             DPRINTF (LOG_DEBUG, "lxa: op_illg(): EMU_CALL_DOS_WRITE file=0x%08x, buffer=0x%08x, len=%d\n", d1, d2, d3);
 
             bool is_file = dos_fh_is_file(d1);
+            int kind = is_file ? dos_fd_kind(d1) : 0;
             uint32_t res = _dos_write (d1, d2, d3);
 
             if (is_file)
-                dos_charge_ns((uint64_t)DOS_COST_WRITE_US * 1000u +
-                              ((int32_t)res > 0 ? (uint64_t)res * DOS_COST_WRITE_NS_BYTE : 0));
+                dos_charge_ns((uint64_t)dos_costs[kind].write_us * 1000u +
+                              ((int32_t)res > 0 ? (uint64_t)res * dos_costs[kind].write_ns_byte : 0));
 
             m68k_set_reg(M68K_REG_D0, res);
 
@@ -946,7 +1004,7 @@ int op_illg(int level)
             DPRINTF(LOG_DEBUG, "lxa: op_illg(): EMU_CALL_DOS_LOCK name=0x%08x, mode=%d\n", name, mode);
 
             uint32_t res = _dos_lock(name, mode);
-            dos_charge_ns((uint64_t)DOS_COST_LOCK_US * 1000u);
+            dos_charge_ns((uint64_t)dos_costs[dos_name_is_ram(name)].lock_us * 1000u);
             m68k_set_reg(M68K_REG_D0, res);
             break;
         }
@@ -958,7 +1016,7 @@ int op_illg(int level)
             DPRINTF(LOG_DEBUG, "lxa: op_illg(): EMU_CALL_DOS_UNLOCK lock_id=%d\n", lock_id);
 
             _dos_unlock(lock_id);
-            dos_charge_ns((uint64_t)DOS_COST_UNLOCK_US * 1000u);
+            dos_charge_ns((uint64_t)dos_costs[0].unlock_us * 1000u);
             break;
         }
 
@@ -1077,7 +1135,7 @@ int op_illg(int level)
             DPRINTF(LOG_DEBUG, "lxa: op_illg(): EMU_CALL_DOS_DELETE name=0x%08x\n", name);
 
             uint32_t res = _dos_deletefile(name);
-            dos_charge_ns((uint64_t)DOS_COST_DELETE_US * 1000u);
+            dos_charge_ns((uint64_t)dos_costs[dos_name_is_ram(name)].delete_us * 1000u);
             m68k_set_reg(M68K_REG_D0, res);
             break;
         }
@@ -1194,7 +1252,7 @@ int op_illg(int level)
             {
                 /* what the batch would have cost read in 4 KB blocks */
                 uint64_t blocks = (dos_cost_batch_bytes + 4095) / 4096;
-                dos_charge_ns(blocks * DOS_COST_READ_US * 1000u + dos_cost_batch_bytes * DOS_COST_READ_NS_BYTE);
+                dos_charge_ns(blocks * dos_costs[0].read_us * 1000u + dos_cost_batch_bytes * dos_costs[0].read_ns_byte);
             }
             break;
 

@@ -3,6 +3,8 @@
  * the RAM: disk of AmigaOS 3.1.  Fred Fish DiskPerf (disks 48, 187) divides
  * by the time a batch of file operations took; on lxa they took no
  * emulated time at all and the program died with a divide by zero.
+ * (Other volumes are charged as FS-UAE directory drives, measured once on
+ * the reference's LXAREF: - see lxa_dispatch.c.)
  * Measured with ReadEClock(); printed as the power of two of the
  * microseconds per operation (bucket n: 2^n <= us < 2^(n+1)), so the
  * output does not depend on small timing differences.  Run with an
@@ -113,6 +115,15 @@ int main(int argc, char **argv)
         Seek(fh, (i * 7919) % 400000, OFFSET_BEGINNING);
     report("seek", now_us() - t0, 200);
     Close(fh);
+
+    fh = Open((STRPTR)name, MODE_OLDFILE);
+    if (fh) {
+        t0 = now_us();
+        for (i = 0; i < 200; i++)
+            Read(fh, buf, 1);
+        report("read 1", now_us() - t0, 200);
+        Close(fh);
+    }
 
     t0 = now_us();
     for (i = 0; i < 26; i++) {

@@ -364,6 +364,16 @@ ENVIRONMENT_DEPENDENT = {
     "fish-0561/ReqTools/demo/demo": "needs reqtools.library, which the reference batch did not have",
     "fish-0575/ReqTools/demo/demo": "needs reqtools.library, which the reference batch did not have",
     "fish-0623/ReqTools/demo/demo": "needs reqtools.library, which the reference batch did not have",
+    "fish-0369/Flip/Flip": "needs arp.library V33+, which the reference batch did not have",
+    "fish-0355/LoadImage/LoadImage": "needs arp.library V39+, which the reference batch did not have",
+    "fish-0284/ARPTools/bin/Mr": "needs arp.library, which the reference batch did not have",
+    "fish-0754/XPK/XFH/patcharp/patcharp": "patches arp.library and stays; without it (the reference "
+                                            "batch) it exits",
+    "fish-0638/ShellTimer/ShellTimerDaemon": "ShellTimer, run before it in the reference batch, had "
+                                             "already loaded the daemon",
+    "fish-0162/CLI_Utilities/Tree/Tree": "lists the whole volume of its current directory: on lxa the "
+                                         "Fish collection (10 000 drawers), on the reference the small "
+                                         "exchange volume LXAREF:",
 }
 
 
