@@ -231,6 +231,8 @@ Built-in C: commands with full AmigaDOS template support:
 
 ## Current Status
 
+**Version 0.11.60** - BCPL support rewritten as lxa's own code (Phase 245, licensing: AROS code is a reference only). The BCPL global vector, call/return, runtime routines, rdargs and CLI start-up of 1.x BCPL programs are lxa's MIT code (`src/rom/bcpl/`, `doc/bcpl.md`); all probes and BCPL programs behave as before, and DeliTracker's 1.3 `EndCLI` now exits as on AmigaOS 3.1.
+
 **Version 0.11.45** - Corpus residue (Phase 244 closed): 25 of 36 corpus apps are now gold, 2 platinum, 9 silver (was 15 gold, 19 silver; `doc/sweeps/2026-10-10-sweep.md`) - the rest waits for BOOPSI classes, console handler ports and RTG. Library functions that return a BOOL leave a clean 32-bit D0 (42 entry points in dos, intuition, gadtools, icon, locale, workbench, asl, commodities, rexxsyslib); AmiBlitz3's template menu no longer lists StormWizard_App.wizard (probe dos/boolret).
 
 **Version 0.11.44** - Corpus residue (Phase 244): GetScreenData() ignores the screen argument for WBENCHSCREEN and OpenScreen() refuses negative sizes other than STDSCREENWIDTH/HEIGHT as on AmigaOS 3.1 - GFA-BASIC opens its editor screen instead of 146 Workbench windows (probe intuition/screenzero).
