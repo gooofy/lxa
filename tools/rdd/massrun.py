@@ -152,18 +152,6 @@ def run_lxa(progs, out, root, jobs, frames, build):
     sysdir = os.path.join(out, "system")
     shutil.rmtree(sysdir, ignore_errors=True)
     shutil.copytree(os.path.join(ROOT, "share", "lxa", "System"), sysdir)
-    # the same LIBS: as the reference: the third-party libraries that lxa's
-    # system directory carries for the app corpus (arp, req, reqtools,
-    # powerpacker ...) are not on the 3.1 reference (Phase 237c: Fish ATCopy
-    # and Helper exit there without arp/req.library, ReqTools' demo)
-    ref_libs = os.path.join(os.environ.get("LXA_REFSYS_DIR", os.path.expanduser("~/.cache/lxa/refsys")),
-                            "SYS-aga", "Libs")
-    if os.path.isdir(ref_libs):
-        for dirpath, _dirs, files in os.walk(os.path.join(sysdir, "Libs")):
-            rel = os.path.relpath(dirpath, os.path.join(sysdir, "Libs"))
-            for fn in files:
-                if not os.path.exists(os.path.join(ref_libs, rel, fn)):
-                    os.remove(os.path.join(dirpath, fn))
     env = dict(os.environ, PYTHONPATH=os.path.join(ROOT, "tools"), LXA_SYSTEM_DIR=sysdir)
 
     def one(p):
@@ -353,6 +341,29 @@ MEMORY_DEPENDENT = {
                                          "calls it with (Phase 237b)",
     "fish-0363/WO/wo1.0d": "reads IntuitionBase->ActiveScreen through a NULL IntuitionBase "
                            "(Kickstart code via the vector table, Phase 237)",
+    "fish-0842/AntiCicloVir/AntiCicloVir": "copies its argument string up to the next line feed after "
+                                           "the first character, past the end of an empty command line "
+                                           "(\\n): the outcome depends on the caller's buffer - on the "
+                                           "reference a line feed follows 8 bytes later in lxaprobe's "
+                                           "memory, on lxa none (Phase 237d)",
+}
+
+
+# Programs whose reference outcome depends on what other programs of the same
+# reference batch installed: lxa's LIBS: has the third-party libraries of
+# share/lxa/System/Libs (arp, req, reqtools ...), the reference's has them only
+# if an earlier Fish installer in its batch of 25 put them there (Phase 237d:
+# Fish Formatter and Riff run on the reference with arp/reqtools.library that
+# earlier programs installed).  Each entry was checked by running it on lxa
+# without the library: it then behaves as on the reference.
+ENVIRONMENT_DEPENDENT = {
+    "fish-0429/ATCopy/ATCopy": "needs arp.library V39+, which the reference batch did not have",
+    "fish-0429/ATCopy/ATCopyD": "needs arp.library V39+, which the reference batch did not have",
+    "fish-0332/Helper/Helper": "needs req.library, which the reference batch did not have",
+    "fish-0332/Helper/Helper_NTSC": "needs req.library, which the reference batch did not have",
+    "fish-0561/ReqTools/demo/demo": "needs reqtools.library, which the reference batch did not have",
+    "fish-0575/ReqTools/demo/demo": "needs reqtools.library, which the reference batch did not have",
+    "fish-0623/ReqTools/demo/demo": "needs reqtools.library, which the reference batch did not have",
 }
 
 
@@ -379,7 +390,8 @@ def build_report(out, md=None):
                 return json.load(f)
         lx, rf = load("lxa"), load("ref")
         cl, cr = classify(lx), classify(rf)
-        kind = "memory-dependent" if p["rel"] in MEMORY_DEPENDENT else program_kind(p["rel"])
+        kind = ("memory-dependent" if p["rel"] in MEMORY_DEPENDENT else
+                "environment-dependent" if p["rel"] in ENVIRONMENT_DEPENDENT else program_kind(p["rel"]))
         row = {"id": p["id"], "rel": p["rel"], "lxa": cl, "ref": cr, "kind": kind,
                "lxa_rc": (lx or {}).get("rc"), "ref_rc": (rf or {}).get("rc")}
         for u in (lx or {}).get("unimplemented", []):
@@ -401,6 +413,8 @@ def build_report(out, md=None):
             return 0
         if r["kind"] == "memory-dependent":
             return 7 if r["lxa"] != r["ref"] else 9
+        if r["kind"] == "environment-dependent":
+            return 8 if r["lxa"] != r["ref"] else 9
         if r["lxa"] == "crash" and r["ref"] not in ("crash", "noload", "missing"):
             return 1 if r["kind"] == "program" else 6
         if r["lxa"] == "hang" and r["ref"] in ("exit", "window"):
@@ -420,6 +434,7 @@ def build_report(out, md=None):
         "ref": dict(collections.Counter(r["ref"] for r in rows)),
         "pairs": dict(collections.Counter("%s/%s" % (r["lxa"], r["ref"]) for r in rows)),
         "lxa_only_crash": sum(1 for r in rows if rank(r) <= 1),
+        "lxa_only_hang_or_missing_window": sum(1 for r in rows if rank(r) in (2, 3)),
         "lxa_only_crash_classes": dict(collections.Counter(crash_class(r.get("exception") or {})
                                                            for r in rows if rank(r) == 1)),
         "unimplemented_top": [{"function": k, "programs": len(unimpl_progs[k]), "calls_records": v}
@@ -461,6 +476,11 @@ def _write_md(path, summary, rows, rank):
           "Their outcome depends on the bytes of the Kickstart ROM or low memory (`MEMORY_DEPENDENT` in massrun.py).", ""]
     L += ["- %s (lxa %s, 3.1 %s): %s" % (r["rel"], r["lxa"], r["ref"], MEMORY_DEPENDENT[r["rel"]])
           for r in rows if rank(r) == 7]
+    L += ["", "## Environment-dependent programs", "",
+          "Their reference outcome depends on libraries other programs of the same reference batch "
+          "installed (`ENVIRONMENT_DEPENDENT` in massrun.py).", ""]
+    L += ["- %s (lxa %s, 3.1 %s): %s" % (r["rel"], r["lxa"], r["ref"], ENVIRONMENT_DEPENDENT[r["rel"]])
+          for r in rows if rank(r) == 8]
     L += ["", "## lxa-only hangs and missing windows", "", "| program | lxa | AmigaOS 3.1 |", "|---|---|---|"]
     L += ["| %s | %s | %s |" % (r["rel"], r["lxa"], r["ref"]) for r in rows if rank(r) in (2, 3)]
     L += ["", "## Exit code and output differences", "",
