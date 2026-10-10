@@ -1,0 +1,4 @@
+"": NAME default-name, QUIET untouched, NUM untouched, FILES NULL
+"QUIET": NAME default-name, QUIET TRUE, NUM untouched, FILES NULL
+"NAME=xyz NUM=3": NAME xyz, QUIET untouched, NUM set, FILES NULL
+"a b": NAME default-name, QUIET untouched, NUM untouched, FILES set

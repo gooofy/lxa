@@ -3041,6 +3041,34 @@ static void exec_preempt(struct ExecBase *SysBase)
     Enable();
 }
 
+/*
+ * lxa_io_wake() - ready the tasks asleep in a file operation (dos.library
+ * lxa_dos_io_settle()) whose emulated time has passed.  idle: no task is
+ * ready, the clock may skip to the next one (exec's dispatcher, Phase 237d).
+ * Returns the number of tasks made ready.  Called with interrupts off.
+ */
+ULONG lxa_io_sleeping;     /* tasks asleep in lxa_dos_io_settle() */
+
+ULONG lxa_io_wake(ULONG idle)
+{
+    struct ExecBase *SysBase = *(struct ExecBase **)4;
+    struct Task *t;
+    ULONG n = 0;
+
+    while ((t = (struct Task *)emucall1(EMU_CALL_DOS_IOWAKE, idle)) != NULL)
+    {
+        lxa_io_sleeping--;
+        if (t->tc_State != TS_WAIT)
+            continue;
+        Remove(&t->tc_Node);
+        t->tc_State = TS_READY;
+        Enqueue(&SysBase->TaskReady, &t->tc_Node);
+        idle = 0;
+        n++;
+    }
+    return n;
+}
+
 void _exec_Signal ( register struct ExecBase * SysBase __asm("a6"),
                                                         register struct Task * ___task  __asm("a1"),
                                                         register ULONG ___signalSet  __asm("d0"))
@@ -6088,6 +6116,15 @@ static void create_system_tasks(void)
     if (!FindTask((STRPTR)"input.device") &&
         (t = U_createTask((STRPTR)"input.device", 20, (APTR)sys_wait_task, 4096)))
         emucall1(EMU_CALL_SYSTEM_TASK, (ULONG)t);
+    /* one trackdisk.device task per floppy drive, priority 5 (probe
+     * exec/tdunits: two drives; Fred Fish NoClick2 looks for them) */
+    if (!FindTask((STRPTR)"trackdisk.device"))
+    {
+        int i;
+        for (i = 0; i < 2; i++)
+            if ((t = U_createTask((STRPTR)"trackdisk.device", 5, (APTR)sys_wait_task, 4096)))
+                emucall1(EMU_CALL_SYSTEM_TASK, (ULONG)t);
+    }
     if (!FindTask((STRPTR)"ramlib") &&
         (t = (struct Task *)CreateNewProcTags(NP_Entry, (ULONG)sys_wait_task, NP_Name, (ULONG)"ramlib",
                                               NP_Priority, 0, NP_StackSize, 4096, NP_Input, 0,

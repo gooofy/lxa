@@ -92,4 +92,7 @@ void     vclock_consume(uint32_t cycles);
 /* The virtual CPU clock in Hz. */
 uint32_t vclock_cpu_hz(void);
 
+/* the cycle count at which the current execution slice ends */
+uint64_t vclock_slice_end(void);
+
 #endif /* LXA_VCLOCK_H */

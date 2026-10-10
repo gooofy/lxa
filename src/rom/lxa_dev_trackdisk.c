@@ -47,6 +47,7 @@ char __aligned _g_trackdisk_VERSTRING [] = "\0$VER: " EXDEVNAME EXDEVVER;
 
 extern struct ExecBase *SysBase;
 #define NUMUNITS  4
+#define TD_DRIVES 2     /* DF0: and DF1: */
 
 struct TDUnit;
 
@@ -367,6 +368,15 @@ static void __g_lxa_trackdisk_Open ( register struct Library   *dev   __asm("a6"
     {
         DPRINTF (LOG_DEBUG, "_trackdisk: Open() bad unit %lu\n", unit);
         ioreq->io_Error = TDERR_BadUnitNum;
+        ioreq->io_Unit = NULL;
+        ioreq->io_Device = NULL;
+        return;
+    }
+    /* the reference machine has two drives: units 2 and 3 have none
+     * (probe exec/tdunits) */
+    if (unit >= TD_DRIVES)
+    {
+        ioreq->io_Error = TDERR_BadDriveType;
         ioreq->io_Unit = NULL;
         ioreq->io_Device = NULL;
         return;

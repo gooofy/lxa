@@ -11,6 +11,7 @@
 
 #include <dos/dos.h>
 #include <dos/dosextens.h>
+#include <dos/filehandler.h>
 #include <dos/dostags.h>
 #include <dos/dosasl.h>
 #include <dos/exall.h>
@@ -191,6 +192,8 @@ struct lxa_dos_exit_cleanup
 struct lxa_dos_runcommand_block
 {
     LONG *result_ptr;
+    struct Task *waiter;    /* System(): signalled (SIGF_SINGLE) at the end */
+    BOOL *done;
 };
 
 static void lxa_dos_process_exit_cleanup(LONG return_code, LONG exit_data);
@@ -203,6 +206,8 @@ struct DosList * _dos_MakeDosEntry ( register struct DosLibrary * __dos_a6 __asm
 
 static BPTR lxa_dos_alloc_temp_console_handle(LONG arg1, struct FileHandle **fh_out);
 
+void lxa_dos_io_discard(void);
+
 static void lxa_dos_runcommand_exit_cleanup(LONG return_code, LONG exit_data)
 {
     struct lxa_dos_runcommand_block *blk =
@@ -212,6 +217,13 @@ static void lxa_dos_runcommand_exit_cleanup(LONG return_code, LONG exit_data)
     {
         if (blk->result_ptr)
             *blk->result_ptr = return_code;
+        if (blk->waiter)
+        {
+            /* no switch before RemTask(): the caller frees what we use */
+            Forbid();
+            *blk->done = TRUE;
+            Signal(blk->waiter, SIGF_SINGLE);
+        }
         FreeVec(blk);
     }
 }
@@ -2058,6 +2070,8 @@ static LONG lxa_dos_buffer_state_setvbuf(struct DosLibrary *DOSBase, struct File
  */
 /* SystemTagList(SYS_Asynch): the caller keeps its input buffer */
 static BOOL lxa_dos_no_inject;
+/* Execute(): the command line is in the input buffer already */
+static BOOL lxa_dos_preinjected;
 
 BOOL lxa_dos_inject_input(BPTR fh, CONST_STRPTR args, LONG len)
 {
@@ -4210,13 +4224,14 @@ LONG _dos_Execute ( register struct DosLibrary * __dos_a6 __asm("a6"),
     tags[1].ti_Tag = TAG_DONE;
     tags[1].ti_Data = 0;
 
-    if (___string && *___string)
+    if (___string && *___string && !___file)
     {
         lxa_dos_system(DOSBase, ___string, tags, TRUE);
     }
 
     if (___file)
     {
+        BOOL injected = FALSE;
         CONST_STRPTR shell = lxa_dos_shell_path(DOSBase);
 
         if (!shell)
@@ -4231,8 +4246,32 @@ LONG _dos_Execute ( register struct DosLibrary * __dos_a6 __asm("a6"),
         tags[2].ti_Tag = TAG_DONE;
         tags[2].ti_Data = 0;
 
-        if (lxa_dos_system(DOSBase, shell, tags, FALSE) == -1)
+        /* one shell, as on 3.1: the command line comes first in its input
+         * (Phase 237d, probe dos/runload: no second shell delays the
+         * caller) */
+        if (___string && *___string)
+        {
+            LONG len = strlen((const char *)___string);
+            UBYTE *line = AllocVec(len + 2, MEMF_ANY);
+            if (line)
+            {
+                CopyMem((APTR)___string, line, len);
+                line[len] = '\n';
+                injected = lxa_dos_inject_input(___file, (CONST_STRPTR)line, len + 1);
+                FreeVec(line);
+            }
+            if (!injected)
+                lxa_dos_system(DOSBase, ___string, tags, TRUE);
+        }
+        lxa_dos_preinjected = injected;
+        LONG rc = lxa_dos_system(DOSBase, shell, tags, FALSE);
+        lxa_dos_preinjected = FALSE;
+        if (rc == -1)
+        {
+            if (injected)
+                lxa_dos_inject_restore(___file);
             return DOSFALSE;
+        }
     }
 
     return DOSTRUE;
@@ -7197,6 +7236,14 @@ static LONG lxa_dos_system(struct DosLibrary *DOSBase, CONST_STRPTR command,
 
     /* Try to load */
     BPTR seglist = _dos_LoadSeg(DOSBase, (STRPTR)bin_name, 0, 0);
+    {
+        /* the 3.1 shell is resident: starting one reads nothing from disk
+         * (Phase 237d, probe dos/runload: Execute() returns while the
+         * command started with Run is still loading) */
+        CONST_STRPTR sp = lxa_dos_shell_path(DOSBase);
+        if (seglist && sp && !strcmp((const char *)sp, bin_name))
+            lxa_dos_io_discard();
+    }
     if (!seglist) {
         /* Try C: prefix if no path component */
         int has_colon = 0;
@@ -7273,11 +7320,15 @@ static LONG lxa_dos_system(struct DosLibrary *DOSBase, CONST_STRPTR command,
     /* Synchronous runs collect the command's return code through the same
      * exit hook RunCommand() uses. */
     LONG result = 0;
+    BOOL done = FALSE;
     struct lxa_dos_runcommand_block *blk = NULL;
     if (!asynch) {
         blk = (struct lxa_dos_runcommand_block *)AllocVec(sizeof(*blk), MEMF_CLEAR | MEMF_PUBLIC);
-        if (blk)
+        if (blk) {
             blk->result_ptr = &result;
+            blk->waiter = FindTask(NULL);
+            blk->done = &done;
+        }
     }
 
     struct TagItem procTags[] = {
@@ -7299,7 +7350,7 @@ static LONG lxa_dos_system(struct DosLibrary *DOSBase, CONST_STRPTR command,
 
     /* the child finds its arguments in its input buffer as well; an
      * asynchronous child shares nothing with the caller's buffer */
-    lxa_dos_no_inject = asynch;
+    lxa_dos_no_inject = asynch || lxa_dos_preinjected;
     struct Process *proc = _dos_CreateNewProc(DOSBase, procTags);
     lxa_dos_no_inject = FALSE;
     if (!proc) {
@@ -7350,7 +7401,15 @@ static LONG lxa_dos_system(struct DosLibrary *DOSBase, CONST_STRPTR command,
 
     DPRINTF(LOG_DEBUG, "_dos: SystemTagList wait loop starting, taskNum=%ld\n", taskNum);
 
-    while (1) {
+    /* the child signals its end (exit hook): sleep until then, as 3.1
+     * System() does - polling kept the CPU from the other tasks */
+    if (blk) {
+        SetSignal(0, SIGF_SINGLE);
+        while (!done)
+            Wait(SIGF_SINGLE);
+        SetSignal(0, SIGF_SINGLE);
+    }
+    while (!blk) {
         ULONG *taskArray = (ULONG *)BADDR(root->rn_TaskArray);
         if (!taskArray) {
             DPRINTF(LOG_DEBUG, "_dos: SystemTagList wait: taskArray is NULL\n");
@@ -7742,6 +7801,57 @@ static void lxa_dos_free_entry(struct DosList *dl)
     FreeVec(dl);
 }
 
+/*
+ * DF0: and DF1: - the device nodes of the two floppy drives, with the
+ * startup message that names trackdisk.device and the unit, at the end
+ * of the list (probe exec/tdunits; Fred Fish NoClick toggles the drives'
+ * click through them).  lxa has no disks in them: the nodes have no
+ * handler.
+ */
+static void lxa_dos_add_floppies(struct DosLibrary *DOSBase, struct DosInfo *info)
+{
+    static BOOL done;
+    static const ULONG env[] = {
+        16, 128, 0, 2, 1, 11, 2, 0, 0, 0, 79, 5, MEMF_CHIP, 0x00200000, 0x7ffffffe, 0, ID_DOS_DISK
+    };
+    int i;
+
+    if (done)
+        return;
+    done = TRUE;
+    for (i = 0; i < 2; i++)
+    {
+        struct DosList *dl;
+        struct FileSysStartupMsg *fssm;
+        UBYTE *dev;
+        ULONG *de;
+        BPTR *link;
+
+        dl = _dos_MakeDosEntry(DOSBase, (CONST_STRPTR)(i ? "DF1" : "DF0"), DLT_DEVICE);
+        fssm = AllocVec(sizeof(*fssm) + 20 + sizeof(env) + 4, MEMF_PUBLIC | MEMF_CLEAR);
+        if (!dl || !fssm)
+            return;
+        dev = (UBYTE *)(fssm + 1);
+        dev[0] = 17;        /* the name and its NUL, as on 3.1 */
+        CopyMem((APTR)"trackdisk.device", dev + 1, 17);
+        de = (ULONG *)(((ULONG)dev + 20 + 3) & ~3UL);
+        CopyMem((APTR)env, de, sizeof(env));
+        fssm->fssm_Unit = i;
+        fssm->fssm_Device = MKBADDR(dev);
+        fssm->fssm_Environ = MKBADDR(de);
+        dl->dol_misc.dol_handler.dol_Startup = MKBADDR(fssm);
+        dl->dol_misc.dol_handler.dol_StackSize = 600;
+        dl->dol_misc.dol_handler.dol_Priority = 10;
+        Forbid();
+        link = &info->di_DevInfo;
+        while (*link)
+            link = &((struct DosList *)BADDR(*link))->dol_Next;
+        *link = MKBADDR(dl);
+        dl->dol_Next = 0;
+        Permit();
+    }
+}
+
 static void lxa_dos_sync_doslist(struct DosLibrary *DOSBase)
 {
     struct RootNode *root = initRootNode();
@@ -7843,6 +7953,7 @@ static void lxa_dos_sync_doslist(struct DosLibrary *DOSBase)
         }
     }
     FreeVec(buf);
+    lxa_dos_add_floppies(DOSBase, info);
 }
 
 /* the fake head LockDosList() returns: its dol_Next is di_DevInfo */
@@ -9544,6 +9655,7 @@ struct RDArgs * _dos_ReadArgs ( register struct DosLibrary * __dos_a6 __asm("a6"
     struct ra_mem mem;
     STRPTR tmp;
     UBYTE *filled;
+    LONG *saved;
     APTR *multi;
     LONG nmulti = 0, multi_item = -1;
     BOOL prompted = FALSE;
@@ -9557,7 +9669,8 @@ struct RDArgs * _dos_ReadArgs ( register struct DosLibrary * __dos_a6 __asm("a6"
     }
 
     items = (TemplateItem *)AllocVec(RA_MAX_ITEMS * sizeof(TemplateItem) + RA_ITEM_LEN +
-                                     RA_MAX_ITEMS + (RA_MAX_MULTI + 1) * sizeof(APTR),
+                                     RA_MAX_ITEMS + (RA_MAX_MULTI + 1) * sizeof(APTR) +
+                                     RA_MAX_ITEMS * sizeof(LONG),
                                      MEMF_ANY | MEMF_CLEAR);
     if (!items) {
         SetIoErr(ERROR_NO_FREE_STORE);
@@ -9566,8 +9679,14 @@ struct RDArgs * _dos_ReadArgs ( register struct DosLibrary * __dos_a6 __asm("a6"
     tmp = (STRPTR)(items + RA_MAX_ITEMS);
     filled = (UBYTE *)(tmp + RA_ITEM_LEN);
     multi = (APTR *)(((ULONG)(filled + RA_MAX_ITEMS) + 3) & ~3UL);
+    saved = (LONG *)(multi + RA_MAX_MULTI + 1);
 
     num_items = _parse_template(arg_template, items, RA_MAX_ITEMS);
+    /* the entries of arguments that are not given stay as the caller set
+     * them - programs put their defaults there (AmigaOS 3.1, probe
+     * dos/readargsdef; Fish Leggi's PortName); /M ones become NULL */
+    for (i = 0; i < num_items; i++)
+        saved[i] = array[i];
     for (i = 0; i < num_items; i++)
         if (items[i].flags & TEMPLATE_MULTIPLE) {
             multi_item = i;
@@ -9585,7 +9704,7 @@ struct RDArgs * _dos_ReadArgs ( register struct DosLibrary * __dos_a6 __asm("a6"
 
 restart:
     for (i = 0; i < num_items; i++) {
-        array[i] = 0;
+        array[i] = saved[i];
         filled[i] = 0;
     }
     nmulti = 0;
@@ -9784,6 +9903,10 @@ restart:
                 break;
             }
     }
+    if (!err)
+        for (i = 0; i < num_items; i++)
+            if ((items[i].flags & TEMPLATE_MULTIPLE) && !filled[i])
+                array[i] = 0;
 
     FreeVec(items);
 
@@ -11875,6 +11998,64 @@ struct InitTable __g_lxa_dos_InitTab =
     (APTR)                __g_lxa_dos_InitLib           // InitLibFn
 };
 
+/* forget the time of the file operations just done (a resident command) */
+void lxa_dos_io_discard(void)
+{
+    ULONG end[2];
+
+    emucall1(EMU_CALL_DOS_IOCOST_TAKE, (ULONG)end);
+}
+
+/* wait for the emulated time of the file operations just done.  A 3.1
+ * task sleeps while its handler works and the other tasks run: here it
+ * sleeps until that time has passed (exec wakes it: lxa_io_wake()), or,
+ * when it may not give up the CPU, spends the time busy (Phase 237d,
+ * probe dos/runload). */
+void lxa_io_wake(ULONG idle);
+extern ULONG lxa_io_sleeping;
+
+void lxa_dos_io_settle(void)
+{
+    struct ExecBase *SysBase = *(struct ExecBase **)4;
+    struct Task *me = SysBase->ThisTask;
+    ULONG end[2];
+
+    if (!emucall1(EMU_CALL_DOS_IOCOST_TAKE, (ULONG)end))
+        return;
+    if (me && SysBase->TDNestCnt < 0 && SysBase->IDNestCnt < 0 && me->tc_State == TS_RUN &&
+        !emucall0(EMU_CALL_SUPERVISOR))
+    {
+        ULONG sigwait = me->tc_SigWait;
+
+        Disable();
+        if (emucall3(EMU_CALL_DOS_IOSLEEP, (ULONG)me, end[0], end[1]))
+        {
+            lxa_io_sleeping++;
+            /* others whose time has come meanwhile */
+            lxa_io_wake(0);
+            me->tc_SigWait = 0;         /* no Signal() wakes it */
+            me->tc_TDNestCnt = SysBase->TDNestCnt;
+            SysBase->TDNestCnt = -1;
+            me->tc_State = TS_WAIT;
+            Enqueue(&SysBase->TaskWait, &me->tc_Node);
+            asm volatile (
+                "   move.l  a5, -(a7)               \n"
+                "   move.l  4, a6                   \n"
+                "   move.l  #_exec_Switch, a5       \n"
+                "   jsr     -30(a6)                 \n"
+                "   move.l  (a7)+, a5               \n"
+                : : : "cc", "d0", "d1", "a0", "a1", "a6", "memory");
+            SysBase->TDNestCnt = me->tc_TDNestCnt;
+            me->tc_SigWait = sigwait;
+            /* woken early (a task exception): no wake-up later */
+            if (emucall2(EMU_CALL_DOS_IOWAKE, 2, (ULONG)me))
+                lxa_io_sleeping--;
+        }
+        Enable();
+    }
+    emucall2(EMU_CALL_DOS_IOCOST_BUSY, end[0], end[1]);
+}
+
 /*
  * The result in D1 too (Phase 237c, probe dos/retd1): AmigaOS 3.1 returns
  * these functions' result in D1 as well as in D0, and 1.x code relies on
@@ -11888,6 +12069,30 @@ struct InitTable __g_lxa_dos_InitTab =
         "jsr _" #fn "\n\t"                                      \
         "move.l d0,d1\n\t"                                      \
         "rts\n");
+/* the file operations: their AmigaOS 3.1 time is waited for after the
+ * call (lxa_dos_io_settle()) - the task sleeps like a 3.1 task waiting
+ * for its handler, and other tasks run (Phase 237d, probe dos/iowait:
+ * Fish Wicon deletes its port while the copy it started with Run is
+ * still loading) */
+#define DOS_IO_RESULT_IN_D1(fn)                                \
+    extern void fn##_D1(void);                                 \
+    asm(".text\n\t.even\n"                                     \
+        "_" #fn "_D1:\n\t"                                      \
+        "jsr _" #fn "\n\t"                                      \
+        "movem.l d0,-(sp)\n\t"                                  \
+        "jsr _lxa_dos_io_settle\n\t"                            \
+        "movem.l (sp)+,d0\n\t"                                  \
+        "move.l d0,d1\n\t"                                      \
+        "rts\n");
+#define DOS_IO_KEEP(fn)                                        \
+    extern void fn##_IO(void);                                 \
+    asm(".text\n\t.even\n"                                     \
+        "_" #fn "_IO:\n\t"                                      \
+        "jsr _" #fn "\n\t"                                      \
+        "movem.l d0-d1/a0-a1,-(sp)\n\t"                         \
+        "jsr _lxa_dos_io_settle\n\t"                            \
+        "movem.l (sp)+,d0-d1/a0-a1\n\t"                         \
+        "rts\n");
 #define DOS_OTHER_IN_D1(fn)                                    \
     extern void fn##_D1(void);                                 \
     asm(".text\n\t.even\n"                                     \
@@ -11896,19 +12101,21 @@ struct InitTable __g_lxa_dos_InitTab =
         "move.l d0,d1\n\t"                                      \
         "not.l d1\n\t"                                          \
         "rts\n");
-DOS_RESULT_IN_D1(_dos_Open)
-DOS_RESULT_IN_D1(_dos_Read)
-DOS_RESULT_IN_D1(_dos_Write)
+DOS_IO_RESULT_IN_D1(_dos_Open)
+DOS_IO_RESULT_IN_D1(_dos_Read)
+DOS_IO_RESULT_IN_D1(_dos_Write)
 DOS_RESULT_IN_D1(_dos_Input)
 DOS_RESULT_IN_D1(_dos_Output)
-DOS_RESULT_IN_D1(_dos_Seek)
-DOS_RESULT_IN_D1(_dos_DeleteFile)
-DOS_RESULT_IN_D1(_dos_Lock)
+DOS_IO_RESULT_IN_D1(_dos_Seek)
+DOS_IO_RESULT_IN_D1(_dos_DeleteFile)
+DOS_IO_RESULT_IN_D1(_dos_Lock)
 DOS_RESULT_IN_D1(_dos_IoErr)
-DOS_RESULT_IN_D1(_dos_LoadSeg)
+DOS_IO_RESULT_IN_D1(_dos_LoadSeg)
 DOS_RESULT_IN_D1(_dos_DateStamp)
 DOS_RESULT_IN_D1(_dos_IsInteractive)
 DOS_RESULT_IN_D1(_dos_SetIoErr)
+DOS_IO_KEEP(_dos_Close)
+DOS_IO_KEEP(_dos_UnLock)
 DOS_OTHER_IN_D1(_dos_DupLock)
 DOS_OTHER_IN_D1(_dos_Info)
 DOS_OTHER_IN_D1(_dos_ParentDir)
@@ -11922,7 +12129,7 @@ APTR __g_lxa_dos_FuncTab [] =
     __g_lxa_dos_ExpungeLib,
     __g_lxa_dos_ExtFuncLib,
     _dos_Open_D1, // offset = -30
-    _dos_Close, // offset = -36
+    _dos_Close_IO, // offset = -36
     _dos_Read_D1, // offset = -42
     _dos_Write_D1, // offset = -48
     _dos_Input_D1, // offset = -54
@@ -11931,7 +12138,7 @@ APTR __g_lxa_dos_FuncTab [] =
     _dos_DeleteFile_D1, // offset = -72
     _dos_Rename, // offset = -78
     _dos_Lock_D1, // offset = -84
-    _dos_UnLock, // offset = -90
+    _dos_UnLock_IO, // offset = -90
     _dos_DupLock_D1, // offset = -96
     _dos_Examine, // offset = -102
     _dos_ExNext, // offset = -108

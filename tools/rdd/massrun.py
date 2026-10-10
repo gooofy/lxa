@@ -34,6 +34,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
 
 from rdd.scenario import ROOT
@@ -148,43 +149,89 @@ def run_lxa_one(rel, root, frames, build=None):
     return res
 
 
+REF_BATCH = 25      # programs per reference boot (run_ref's chunk)
+
+
 def run_lxa(progs, out, root, jobs, frames, build):
+    """Run the programs on lxa in the environment the reference gives them
+    (Phase 237d): the reference boots a fresh SYS: for every batch of
+    REF_BATCH programs (in crawl order) and runs them one after the other,
+    each from its own copy of its directory - so what an installer puts into
+    LIBS:, FONTS: or ENV:, or a daemon it leaves, is there for the programs
+    after it in the batch, and only for them.  lxa does the same: one fresh
+    copy of its system directory per batch, the batch's programs in order,
+    each from a fresh copy of its directory.  A program asked for alone is
+    run with its whole batch."""
     rdir = os.path.join(out, "lxa")
     os.makedirs(rdir, exist_ok=True)
-    # programs (installers!) write into LIBS:/SYS: - give them a private
-    # copy of lxa's system directory, never the checked-in one
-    sysdir = os.path.join(out, "system")
-    shutil.rmtree(sysdir, ignore_errors=True)
-    shutil.copytree(os.path.join(ROOT, "share", "lxa", "System"), sysdir)
-    env = dict(os.environ, PYTHONPATH=os.path.join(ROOT, "tools"), LXA_SYSTEM_DIR=sysdir)
+    allp = load_programs(out)
+    index = {q["id"]: i for i, q in enumerate(allp)}
+    wanted = sorted({index[q["id"]] // REF_BATCH for q in progs if q["id"] in index})
+    batches = [allp[k * REF_BATCH:(k + 1) * REF_BATCH] for k in wanted]
+    systemplate = os.path.join(ROOT, "share", "lxa", "System")
+    scratch = os.path.join(out, "scratch")
+    shutil.rmtree(scratch, ignore_errors=True)
+    os.makedirs(scratch)
+    total = sum(len(bt) for bt in batches)
 
-    def one(p):
+    def one(p, sysdir, work):
         dst = os.path.join(rdir, p["id"] + ".json")
         tmp = dst + ".tmp"
-        cmd = [sys.executable, "-m", "rdd.massrun", "lxa-one", p["rel"], "--root", root,
-               "--frames", str(frames), "--result", tmp] + (["--build", build] if build else [])
+        progroot = os.path.join(work, "root-" + p["id"])
+        res = None
         try:
-            r = subprocess.run(cmd, capture_output=True, encoding="latin-1", env=env, cwd=ROOT,
-                               timeout=120)
-            with open(tmp) as f:
-                res = json.load(f)
-            os.unlink(tmp)
-        except subprocess.TimeoutExpired:
-            res = {"backend": "lxa", "error": "wall-clock timeout (emulator hang)", "host_hang": True}
-        except (OSError, ValueError):
-            res = {"backend": "lxa", "error": "emulator died (rc %s): %s" % (r.returncode, r.stderr[-300:]),
-                   "host_crash": True}
+            reldir = os.path.dirname(p["rel"])
+            shutil.copytree(os.path.join(root, reldir), os.path.join(progroot, reldir),
+                            symlinks=True, ignore=shutil.ignore_patterns("*.uaem"))
+        except OSError as e:
+            res = {"backend": "lxa", "error": "harness: cannot copy the directory: %s" % e,
+                   "harness": "copy failed"}
+        if res is None:
+            env = dict(os.environ, PYTHONPATH=os.path.join(ROOT, "tools"), LXA_SYSTEM_DIR=sysdir)
+            cmd = [sys.executable, "-m", "rdd.massrun", "lxa-one", p["rel"], "--root", progroot,
+                   "--frames", str(frames), "--result", tmp] + (["--build", build] if build else [])
+            try:
+                r = subprocess.run(cmd, capture_output=True, encoding="latin-1", env=env, cwd=ROOT,
+                                   timeout=120)
+                with open(tmp) as f:
+                    res = json.load(f)
+                os.unlink(tmp)
+            except subprocess.TimeoutExpired:
+                res = {"backend": "lxa", "error": "wall-clock timeout (emulator hang)", "host_hang": True}
+            except (OSError, ValueError):
+                res = {"backend": "lxa", "error": "emulator died (rc %s): %s" % (r.returncode, r.stderr[-300:]),
+                       "host_crash": True}
+        shutil.rmtree(progroot, ignore_errors=True)
         with open(dst, "w") as f:
             json.dump(res, f)
-        return p["id"], res
+
+    def batch(bt):
+        work = tempfile.mkdtemp(prefix="batch-", dir=scratch)
+        sysdir = os.path.join(work, "system")
+        shutil.copytree(systemplate, sysdir)
+        # LIBS: as on the reference's fresh SYS:: none of the third-party
+        # libraries lxa's system directory carries for the app corpus (arp,
+        # req, reqtools, powerpacker ...) - an installer in the batch adds
+        # them for the programs after it, as there
+        ref_libs = os.path.join(os.environ.get("LXA_REFSYS_DIR", os.path.expanduser("~/.cache/lxa/refsys")),
+                                "SYS-aga", "Libs")
+        if os.path.isdir(ref_libs):
+            for dirpath, _dirs, files in os.walk(os.path.join(sysdir, "Libs")):
+                rel = os.path.relpath(dirpath, os.path.join(sysdir, "Libs"))
+                for fn in files:
+                    if not os.path.exists(os.path.join(ref_libs, rel, fn)):
+                        os.remove(os.path.join(dirpath, fn))
+        for p in bt:
+            one(p, sysdir, work)
+        shutil.rmtree(work, ignore_errors=True)
+        return len(bt)
 
     t0 = time.time()
     n = 0
     with concurrent.futures.ThreadPoolExecutor(max_workers=jobs) as ex:
-        for _ in ex.map(one, progs):
-            n += 1
-            if n % 200 == 0:
-                print("lxa: %d/%d (%.0f s)" % (n, len(progs), time.time() - t0), flush=True)
+        for k in ex.map(batch, batches):
+            n += k
+            print("lxa: %d/%d (%.0f s)" % (n, total, time.time() - t0), flush=True)
 
 
 # -- reference ---------------------------------------------------------------------
@@ -294,11 +341,20 @@ def run_ref_chunk(chunk, root, rdir, seconds):
             lock.close()
 
 
-def run_ref(progs, out, root, jobs, seconds, chunk=25):
+def run_ref(progs, out, root, jobs, seconds, whole_batches=False):
+    """Batches of REF_BATCH programs in crawl order, one fresh boot each
+    (run_lxa reproduces the same batches).  whole_batches: run every
+    program of the batches the given programs belong to, again - so that
+    their environment is the one of a full batch (Phase 237d)."""
     rdir = os.path.join(out, "ref")
     os.makedirs(rdir, exist_ok=True)
-    progs = [p for p in progs if not os.path.exists(os.path.join(rdir, p["id"] + ".json"))]
-    chunks = [progs[i:i + chunk] for i in range(0, len(progs), chunk)]
+    allp = load_programs(out)
+    index = {q["id"]: i for i, q in enumerate(allp)}
+    wanted = sorted({index[q["id"]] // REF_BATCH for q in progs if q["id"] in index})
+    chunks = [allp[k * REF_BATCH:(k + 1) * REF_BATCH] for k in wanted]
+    if not whole_batches:
+        chunks = [[p for p in c if not os.path.exists(os.path.join(rdir, p["id"] + ".json"))] for c in chunks]
+        chunks = [c for c in chunks if c]
     t0 = time.time()
     with concurrent.futures.ThreadPoolExecutor(max_workers=jobs) as ex:
         for k, _ in enumerate(ex.map(lambda c: run_ref_chunk(c, root, rdir, seconds), chunks)):
@@ -356,38 +412,15 @@ MEMORY_DEPENDENT = {
 }
 
 
-# Programs whose reference outcome depends on what other programs of the same
-# reference batch installed: lxa's LIBS: has the third-party libraries of
-# share/lxa/System/Libs (arp, req, reqtools ...), the reference's has them only
-# if an earlier Fish installer in its batch of 25 put them there (Phase 237d:
-# Fish Formatter and Riff run on the reference with arp/reqtools.library that
-# earlier programs installed).  Each entry was checked by running it on lxa
-# without the library: it then behaves as on the reference.
+# Programs whose reference outcome depends on the reference machine itself
+# rather than on lxa (Phase 237d; what earlier programs of a batch install or
+# leave behind is reproduced by run_lxa's batches).  Each entry was checked.
 ENVIRONMENT_DEPENDENT = {
-    "fish-0429/ATCopy/ATCopy": "needs arp.library V39+, which the reference batch did not have",
-    "fish-0429/ATCopy/ATCopyD": "needs arp.library V39+, which the reference batch did not have",
-    "fish-0332/Helper/Helper": "needs req.library, which the reference batch did not have",
-    "fish-0332/Helper/Helper_NTSC": "needs req.library, which the reference batch did not have",
-    "fish-0561/ReqTools/demo/demo": "needs reqtools.library, which the reference batch did not have",
-    "fish-0575/ReqTools/demo/demo": "needs reqtools.library, which the reference batch did not have",
-    "fish-0623/ReqTools/demo/demo": "needs reqtools.library, which the reference batch did not have",
-    "fish-0369/Flip/Flip": "needs arp.library V33+, which the reference batch did not have",
-    "fish-0355/LoadImage/LoadImage": "needs arp.library V39+, which the reference batch did not have",
-    "fish-0284/ARPTools/bin/Mr": "needs arp.library, which the reference batch did not have",
-    "fish-0754/XPK/XFH/patcharp/patcharp": "patches arp.library and stays; without it (the reference "
-                                            "batch) it exits",
-    "fish-0638/ShellTimer/ShellTimerDaemon": "ShellTimer, run before it in the reference batch, had "
-                                             "already loaded the daemon",
     "fish-0224/MoreIsBetter/V": "runs SYS:Utilities/More, a Workbench 3.1 program lxa does not ship",
     "fish-0429/V/V": "runs SYS:Utilities/More, a Workbench 3.1 program lxa does not ship",
     "fish-0763/MidiSyn/MidiSyn": "the reference's serial port is held by lxaprobe (\"Serialport not available\")",
     "fish-0101/Midi/util/mm": "midi.library cannot route from MidiIn on the reference: lxaprobe holds the "
                               "serial port",
-    "fish-0238/DMouse/dmouse-handler": "the window seen on the reference is CWDemo's (\"Color Window "
-                                       "Demonstration\"), run before it in the same batch",
-    "fish-0162/CLI_Utilities/Tree/Tree": "lists the whole volume of its current directory: on lxa the "
-                                         "Fish collection (10 000 drawers), on the reference the small "
-                                         "exchange volume LXAREF:",
 }
 
 
@@ -575,7 +608,8 @@ def main(argv=None):
     elif a.cmd == "lxa":
         run_lxa(load_programs(a.out, a.filter, a.limit, a.ids_file), a.out, a.root, a.jobs, a.frames, a.build)
     elif a.cmd == "ref":
-        run_ref(load_programs(a.out, a.filter, a.limit, a.ids_file), a.out, a.root, a.jobs, a.seconds)
+        run_ref(load_programs(a.out, a.filter, a.limit, a.ids_file), a.out, a.root, a.jobs, a.seconds,
+                whole_batches=bool(a.ids_file))
     elif a.cmd == "report":
         s, _ = build_report(a.out, a.md and os.path.abspath(a.md))
         print(json.dumps({k: v for k, v in s.items() if k != "unimplemented_top"}, indent=1))

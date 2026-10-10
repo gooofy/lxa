@@ -220,9 +220,10 @@ struct dos_cost
     uint32_t open_us, create_us, close_us, lock_us, unlock_us;
     uint32_t read_us, read_ns_byte, write_us, write_ns_byte, seek_us, delete_us;
 };
-static const struct dos_cost dos_costs[2] = {
+static const struct dos_cost dos_costs[3] = {
     /* volume */ { 4000, 9600, 4000, 3000, 3000, 1800, 0, 3100, 16, 1680, 5300 },
     /* RAM:   */ { 3000, 14900, 3000, 2500, 2300, 1090, 200, 1150, 2830, 1250, 34000 },
+    /* NIL:   */ { 0 },     /* no handler: dos.library answers itself */
 };
 #define DOS_COST_MAX_FD 4096
 static uint8_t dos_fd_ram[DOS_COST_MAX_FD];
@@ -270,17 +271,34 @@ static void dos_fd_note(uint32_t fh68k)
     if (l < 0)
         l = 0;
     host[l] = 0;
-    dos_fd_ram[fd] = (uint8_t)dos_path_is_ram(host);
+    dos_fd_ram[fd] = !strcmp(host, "/dev/null") ? 2 : (uint8_t)dos_path_is_ram(host);
 }
 
 static int      dos_cost_batched;     /* LoadSeg: count instead of charging */
 static uint64_t dos_cost_batch_bytes;
 
+/* the time is not spent here: the calling task waits for it in the ROM
+ * (lxa_dos_io_settle()), so other tasks run meanwhile, as while a 3.1
+ * program waits for its handler's reply */
+static uint64_t dos_cost_pending_ns;
+
+/* tasks asleep until their file operations' time has passed */
+#define DOS_IO_SLEEPERS 64
+static struct { uint32_t task; uint64_t end, seq; } dos_io_sleepers[DOS_IO_SLEEPERS];
+static uint64_t dos_io_seq;
+
+void lxa_dos_io_reset(void)
+{
+    memset(dos_io_sleepers, 0, sizeof(dos_io_sleepers));
+    dos_io_seq = 0;
+    dos_cost_pending_ns = 0;
+}
+
 static void dos_charge_ns(uint64_t ns)
 {
     if (dos_cost_batched)
         return;
-    vclock_consume((uint32_t)(ns * vclock_cpu_hz() / 1000000000ull));
+    dos_cost_pending_ns += ns;
 }
 
 static bool dos_fh_is_file(uint32_t fh68k)
@@ -1241,6 +1259,100 @@ int op_illg(int level)
             _dos_set_lock_tables(m68k_get_reg(NULL, M68K_REG_D1), m68k_get_reg(NULL, M68K_REG_D2),
                                  m68k_get_reg(NULL, M68K_REG_D3));
             break;
+
+        case EMU_CALL_DOS_IOCOST_TAKE:
+        {
+            /* (buf) the file operations' time not yet waited for: the end
+             * of the wait (emulated cycles, hi/lo) goes to buf; d0 = 0 when
+             * there is nothing to wait for */
+            uint32_t buf = m68k_get_reg(NULL, M68K_REG_D1);
+            uint64_t cyc = dos_cost_pending_ns * vclock_cpu_hz() / 1000000000ull;
+            uint64_t end = vclock_cycles() + cyc;
+            dos_cost_pending_ns = 0;
+            m68k_write_memory_32(buf, (uint32_t)(end >> 32));
+            m68k_write_memory_32(buf + 4, (uint32_t)end);
+            m68k_set_reg(M68K_REG_D0, cyc ? 1 : 0);
+            break;
+        }
+
+        case EMU_CALL_DOS_IOCOST_BUSY:
+        {
+            /* (hi, lo) wait until then; time other tasks ran meanwhile counts */
+            uint64_t end = ((uint64_t)m68k_get_reg(NULL, M68K_REG_D1) << 32) |
+                           m68k_get_reg(NULL, M68K_REG_D2);
+            uint64_t now = vclock_cycles();
+            if (end > now)
+                vclock_consume((uint32_t)(end - now > 0x7fffffffu ? 0x7fffffffu : end - now));
+            break;
+        }
+
+        case EMU_CALL_DOS_IOSLEEP:
+        {
+            uint32_t task = m68k_get_reg(NULL, M68K_REG_D1);
+            uint64_t end = ((uint64_t)m68k_get_reg(NULL, M68K_REG_D2) << 32) |
+                           m68k_get_reg(NULL, M68K_REG_D3);
+            int i;
+            for (i = 0; i < DOS_IO_SLEEPERS; i++)
+                if (!dos_io_sleepers[i].task)
+                    break;
+            if (i == DOS_IO_SLEEPERS)
+            {
+                m68k_set_reg(M68K_REG_D0, 0);
+                break;
+            }
+            dos_io_sleepers[i].task = task;
+            dos_io_sleepers[i].end = end;
+            dos_io_sleepers[i].seq = ++dos_io_seq;
+            m68k_set_reg(M68K_REG_D0, 1);
+            break;
+        }
+
+        case EMU_CALL_DOS_IOWAKE:
+        {
+            uint32_t mode = m68k_get_reg(NULL, M68K_REG_D1);
+            bool idle = mode == 1;
+            int best = -1;
+            if (mode == 2)
+            {
+                /* (2, task): the task is awake already (an exception) */
+                uint32_t t = m68k_get_reg(NULL, M68K_REG_D2), found = 0;
+                for (int i = 0; i < DOS_IO_SLEEPERS; i++)
+                    if (dos_io_sleepers[i].task == t)
+                    {
+                        dos_io_sleepers[i].task = 0;
+                        found = 1;
+                    }
+                m68k_set_reg(M68K_REG_D0, found);
+                break;
+            }
+            for (int i = 0; i < DOS_IO_SLEEPERS; i++)
+            {
+                if (!dos_io_sleepers[i].task)
+                    continue;
+                if (best < 0 || dos_io_sleepers[i].end < dos_io_sleepers[best].end ||
+                    (dos_io_sleepers[i].end == dos_io_sleepers[best].end &&
+                     dos_io_sleepers[i].seq < dos_io_sleepers[best].seq))
+                    best = i;
+            }
+            uint32_t task = 0;
+            if (best >= 0)
+            {
+                uint64_t now = vclock_cycles();
+                uint64_t end = dos_io_sleepers[best].end;
+                if (end <= now)
+                    task = dos_io_sleepers[best].task;
+                else if (idle && (!vclock_deterministic() || end < vclock_slice_end()))
+                {
+                    /* nothing else to do until then: the time passes */
+                    vclock_consume((uint32_t)(end - now));
+                    task = dos_io_sleepers[best].task;
+                }
+                if (task)
+                    dos_io_sleepers[best].task = 0;
+            }
+            m68k_set_reg(M68K_REG_D0, task);
+            break;
+        }
 
         case EMU_CALL_DOS_IOCOST:
             if (m68k_get_reg(NULL, M68K_REG_D1) == 0)

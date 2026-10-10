@@ -63,103 +63,40 @@ static void out_num(LONG num)
     out_str(p);
 }
 
-/* Load and run a command without waiting */
+/*
+ * Run a command line without waiting: as on AmigaOS 3.1 a new background
+ * CLI process is started for it (an asynchronous System()), and that CLI
+ * loads and runs the command - so the command is loaded in the new
+ * process, not in the shell that ran RUN (Phase 237d: Fish Wicon deletes
+ * its port while its copy is still being loaded).
+ */
 static LONG run_background(const char *command)
 {
-    char bin_name[256];
-    char *args = NULL;
-    int i = 0;
-    
-    /* Skip leading spaces */
-    while (*command == ' ') command++;
-    
-    /* Parse command name */
-    while (*command && *command != ' ' && *command != '\n' && i < 255) {
-        bin_name[i++] = *command++;
-    }
-    bin_name[i] = '\0';
-    
-    /* Rest is arguments */
-    if (*command) args = (char *)command;
-    
-    /* If no args, provide at least a newline (Amiga startup convention) */
-    if (!args || !*args) {
-        args = "\n";
-    }
-    
-    /* Try to load the program */
-    BPTR seglist = LoadSeg((STRPTR)bin_name);
-    if (!seglist) {
-        /* Try C: prefix if no path component */
-        int has_colon = 0;
-        int has_slash = 0;
-        for (int j = 0; bin_name[j]; j++) {
-            if (bin_name[j] == ':') has_colon = 1;
-            if (bin_name[j] == '/') has_slash = 1;
-        }
-        
-        if (!has_colon && !has_slash) {
-            char tmp[280];
-            char *s = "SYS:C/";
-            char *d = tmp;
-            while (*s) *d++ = *s++;
-            char *n = bin_name;
-            while (*n) *d++ = *n++;
-            *d = '\0';
-            
-            seglist = LoadSeg((STRPTR)tmp);
-        }
-    }
-    
-    if (!seglist) {
-        out_str("RUN: Can't find '");
-        out_str(bin_name);
-        out_str("'\n");
-        return RETURN_ERROR;
-    }
-    
-    /* 
-     * Open NIL: for input/output - background process shouldn't
-     * interfere with the shell's I/O.
-     * On real AmigaOS, you'd typically use NEWCLI for a new console.
-     */
     BPTR nilIn = Open((STRPTR)"NIL:", MODE_OLDFILE);
     BPTR nilOut = Open((STRPTR)"NIL:", MODE_NEWFILE);
-    
-    if (!nilIn || !nilOut) {
-        /* Fall back to using parent's I/O if NIL: isn't available */
-        struct Process *me = (struct Process *)FindTask(NULL);
-        if (!nilIn) nilIn = me->pr_CIS;
-        if (!nilOut) nilOut = me->pr_COS;
-    }
-    
-    /* Create the background process */
-    struct TagItem procTags[] = {
-        { NP_Seglist, (ULONG)seglist },
-        { NP_Name, (ULONG)bin_name },
-        { NP_StackSize, 8192 },          /* Generous stack for background */
-        { NP_Cli, TRUE },
-        { NP_Input, (ULONG)nilIn },
-        { NP_Output, (ULONG)nilOut },
-        { NP_Arguments, (ULONG)args },
-        { NP_FreeSeglist, TRUE },        /* Free seglist on exit */
-        { TAG_DONE, 0 }
-    };
-    
-    struct Process *proc = CreateNewProc(procTags);
-    if (!proc) {
+    struct TagItem tags[5];
+    LONG rc;
+
+    while (*command == ' ')
+        command++;
+    tags[0].ti_Tag = SYS_Input;    tags[0].ti_Data = (ULONG)nilIn;
+    tags[1].ti_Tag = SYS_Output;   tags[1].ti_Data = (ULONG)nilOut;
+    tags[2].ti_Tag = SYS_Asynch;   tags[2].ti_Data = TRUE;
+    tags[3].ti_Tag = NP_StackSize; tags[3].ti_Data = 8192;
+    tags[4].ti_Tag = TAG_DONE;     tags[4].ti_Data = 0;
+    rc = SystemTagList((STRPTR)command, tags);
+    if (rc == -1) {
         out_str("RUN: Failed to create process\n");
-        UnLoadSeg(seglist);
-        if (nilIn) Close(nilIn);
-        if (nilOut) Close(nilOut);
+        if (nilIn)
+            Close(nilIn);
+        if (nilOut)
+            Close(nilOut);
         return RETURN_ERROR;
     }
-    
     /* Report the CLI number of the new process */
     out_str("[CLI ");
-    out_num(proc->pr_TaskNum);
+    out_num(MaxCli());
     out_str("]\n");
-    
     return RETURN_OK;
 }
 

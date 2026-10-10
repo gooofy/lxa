@@ -1,0 +1,6 @@
+calling AllocRemember(NULL)
+AllocRemember(NULL, 30) returned memory = TRUE
+address 0 changed = TRUE
+node at address 0 has the memory = TRUE
+node RememberSize = 30
+node NextRemember is the old address 0 = TRUE

@@ -205,6 +205,11 @@ void vclock_consume(uint32_t cycles)
         s_total_cycles += cycles;
 }
 
+uint64_t vclock_slice_end(void)
+{
+    return s_in_execute ? s_total_cycles + (uint64_t)s_slice_budget : s_next_frame;
+}
+
 uint32_t vclock_cpu_hz(void)
 {
     return (uint32_t)s_cpu_hz;

@@ -1009,10 +1009,45 @@ static LONG cmd_endif(char *args, const char *name);
 static LONG cmd_skip(char *args, const char *name);
 static LONG run_external(const char *cmdname, char *args);
 
-/* Run/NewShell/NewCLI are internal on AmigaOS; lxa runs them from C: */
+/* NewShell/NewCLI are internal on AmigaOS; lxa runs them from C: */
 static LONG cmd_delegate(char *args, const char *name)
 {
     return run_external(name, args);
+}
+
+/* Run: internal as on AmigaOS 3.1 - the shell starts a background CLI for
+ * the command line (an asynchronous System()), which loads and runs the
+ * command itself; nothing is loaded from disk here, so the shell finishes
+ * while the new CLI still loads (Phase 237d, probe dos/runload: Fish Wicon) */
+static LONG cmd_run(char *args, const char *name)
+{
+    BPTR in = Open((STRPTR)"NIL:", MODE_OLDFILE);
+    BPTR out = Open((STRPTR)"NIL:", MODE_NEWFILE);
+    struct TagItem tags[5];
+    char *p = args;
+
+    (void)name;
+    while (*p == ' ' || *p == '\t')
+        p++;
+    if (!*p) {
+        out_str("RUN: No command specified\n");
+        return RETURN_ERROR;
+    }
+    tags[0].ti_Tag = SYS_Input;    tags[0].ti_Data = (ULONG)in;
+    tags[1].ti_Tag = SYS_Output;   tags[1].ti_Data = (ULONG)out;
+    tags[2].ti_Tag = SYS_Asynch;   tags[2].ti_Data = TRUE;
+    tags[3].ti_Tag = NP_StackSize; tags[3].ti_Data = 8192;
+    tags[4].ti_Tag = TAG_DONE;     tags[4].ti_Data = 0;
+    if (SystemTagList((STRPTR)p, tags) == -1) {
+        out_str("RUN: Failed to create process\n");
+        if (in)
+            Close(in);
+        if (out)
+            Close(out);
+        return RETURN_ERROR;
+    }
+    out_fmt("[CLI %ld]\n", (LONG)MaxCli());
+    return RETURN_OK;
 }
 
 struct Builtin {
@@ -1043,7 +1078,7 @@ static const struct Builtin builtins[] = {
     { "Prompt",   cmd_prompt },
     { "Quit",     cmd_quit },
     { "Resident", cmd_resident },
-    { "Run",      cmd_delegate },
+    { "Run",      cmd_run },
     { "Set",      cmd_set },
     { "Setenv",   cmd_setenv },
     { "Skip",     cmd_skip },

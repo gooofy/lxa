@@ -207,6 +207,17 @@ __dispatch:
     move.l   (a3), d0                               | ->ln_Succ -> d0
     bne.s    2f                                     | not empty -> launch this task
 
+    /* a task asleep in a file operation whose time comes first (Phase 237d) */
+    tst.l    _lxa_io_sleeping
+    beq.s    9f
+    movem.l  a0/a6, -(sp)
+    pea      1
+    jsr      _lxa_io_wake
+    addq.l   #4, sp
+    movem.l  (sp)+, a0/a6
+    tst.l    d0
+    bne.s    1b
+9:
     move.w   #0x2000, sr                            | enable cpu interrupts to allow VBlank
     move.l   #EMU_CALL_WAIT, d0                     | #EMU_CALL_WAIT -> d0
     illegal                                         | emucall
@@ -291,6 +302,17 @@ _handleIRQ3:
     /* Process expired timer requests via Timer hook */
     /* This calls ReplyMsg() for expired timers, properly waking up waiting tasks */
     jsr         __timer_VBlankHook
+
+    /* tasks asleep in a file operation whose time has passed (Phase 237d) */
+    tst.l       _lxa_io_sleeping
+    beq.s       9f
+    move.w      sr, -(sp)
+    move.w      #0x2700, sr
+    clr.l       -(sp)
+    jsr         _lxa_io_wake
+    addq.l      #4, sp
+    move.w      (sp)+, sr
+9:
 
     /* Process audio playback timing and end-of-sample interrupts */
     jsr         __audio_VBlankHook

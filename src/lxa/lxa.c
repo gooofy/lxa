@@ -411,6 +411,7 @@ void lxa_reset_host_state(void)
     memset(g_locks, 0, sizeof(lock_entry_t) * MAX_LOCKS);
     memset(g_record_locks, 0, sizeof(record_lock_entry_t) * MAX_RECORD_LOCKS);
     memset(g_timer_queue, 0, sizeof(timer_request_t) * MAX_TIMER_REQUESTS);
+    lxa_dos_io_reset();
     memset(g_notify_requests, 0, sizeof(notify_entry_t) * MAX_NOTIFY_REQUESTS);
     memset(g_console_input_queue, 0, sizeof(g_console_input_queue));
     g_console_input_head = 0;

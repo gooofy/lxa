@@ -12543,10 +12543,10 @@ APTR _intuition_AllocRemember ( register struct IntuitionBase * IntuitionBase __
     
     DPRINTF (LOG_DEBUG, "_intuition: AllocRemember() rememberKey=0x%08lx, size=%ld, flags=0x%08lx\n",
              (ULONG)rememberKey, size, flags);
-    
-    if (!rememberKey)
-        return NULL;
-    
+
+    /* a NULL key is not refused: AmigaOS 3.1 links the node at address 0
+     * (probe intuition/remnull; Fred Fish show and LifeCycles rely on it) */
+
     /* Allocate the memory */
     mem = AllocMem(size, flags);
     if (!mem)

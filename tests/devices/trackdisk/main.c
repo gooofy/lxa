@@ -652,7 +652,19 @@ int main(void)
         NEWLIST(&missing_port->mp_MsgList);
         missing_req->iotd_Req.io_Message.mn_ReplyPort = missing_port;
         missing_req->iotd_Req.io_Message.mn_Length = sizeof(struct IOExtTD);
+        /* AmigaOS 3.1 with two drives: unit 2 has none (probe exec/tdunits) */
         error = OpenDevice("trackdisk.device", 2, (struct IORequest *)missing_req, 0);
+        if (error == TDERR_BadDriveType)
+            test_ok("OpenDevice unit 2 has no drive");
+        else {
+            test_fail_msg("OpenDevice unit 2 has no drive");
+            if (error == 0)
+                CloseDevice((struct IORequest *)missing_req);
+        }
+        /* DF1: without its disk image */
+        SetProtection("DF1:trackdisk_test.adf", 0);
+        DeleteFile("DF1:trackdisk_test.adf");
+        error = OpenDevice("trackdisk.device", 1, (struct IORequest *)missing_req, 0);
         if (error == 0) {
             missing_req->iotd_Req.io_Command = CMD_READ;
             missing_req->iotd_Req.io_Flags = IOF_QUICK;
@@ -666,7 +678,7 @@ int main(void)
                 test_fail_msg("CMD_READ missing disk image");
             CloseDevice((struct IORequest *)missing_req);
         } else {
-            test_fail_msg("OpenDevice unit 2");
+            test_fail_msg("OpenDevice unit 1 without disk");
         }
     } else {
         test_fail_msg("Allocate missing-disk request");
