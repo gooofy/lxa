@@ -22,13 +22,13 @@ implementing the function, never by deleting the macro.
 | gadtools | 0 | 1 | 6 |
 | graphics | 0 | 7 | 7 |
 | icon | 0 | 2 | 0 |
-| intuition | 3 | 18 | 10 |
+| intuition | 3 | 16 | 10 |
 | rexxsyslib | 17 | 0 | 0 |
 | tapedeck.gadget | 0 | 1 | 0 |
 | translator | 1 | 0 | 0 |
 | utility | 0 | 0 | 7 |
 | workbench | 0 | 0 | 3 |
-| **total** | **94** | **35** | **47** |
+| **total** | **94** | **33** | **47** |
 
 ## amigaguide
 
@@ -180,7 +180,6 @@ implementing the function, never by deleting the macro.
 
 - `AllocScreenBuffer` — partial: sb_DBufInfo is NULL, no double-buffer sync messages (Phase 256) (`src/rom/lxa_intuition.c`)
 - `DisplayAlert` — partial: the alert box is not drawn (logged), waits for a mouse button (`src/rom/lxa_intuition.c`)
-- `IntuiTextLength` — partial: assumes 8 pixel Topaz width, ignores ITextFont (Phase 256) (`src/rom/lxa_intuition.c`)
 - `LockPubScreenList` — partial: list is returned without locking (Phase 256) (`src/rom/lxa_intuition.c`)
 - `ModifyProp` — partial: updates PropInfo but does not re-render the gadget (Phase 256) (`src/rom/lxa_intuition.c`)
 - `MoveScreen` — partial: screen position changes, display does not (Phase 256) (`src/rom/lxa_intuition.c`)
@@ -190,7 +189,6 @@ implementing the function, never by deleting the macro.
 - `OpenScreenTagList` — partial: ignores SA_DClip, SA_Overscan, SA_Colors; SA_ErrorCode only for mode errors (Phase 256) (`src/rom/lxa_intuition.c`)
 - `OpenWindow` — partial: title bar height ignores screen font height (Phase 256) (`src/rom/lxa_intuition.c`)
 - `OpenWindowTagList` — partial: ignores WA_BackFill, WA_RptQueue, WA_Pointer, WA_BusyPointer, WA_Checkmark, WA_HelpGroup (Phase 256) (`src/rom/lxa_intuition.c`)
-- `PrintIText` — partial: ignores IntuiText ITextFont, uses RastPort font (Phase 256) (`src/rom/lxa_intuition.c`)
 - `ScreenPosition` — partial: SPOS_MAKEVISIBLE ignored, display not updated (Phase 256) (`src/rom/lxa_intuition.c`)
 - `ScreenToBack` — partial: reorders screen list, display not updated (Phase 256) (`src/rom/lxa_intuition.c`)
 - `ScreenToFront` — partial: reorders screen list, display not updated (Phase 256) (`src/rom/lxa_intuition.c`)

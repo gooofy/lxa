@@ -3773,6 +3773,32 @@ struct IntuitionBase * __g_lxa_intuition_InitLib    ( register struct IntuitionB
         }
     }
 
+    /* Create fillrectclass (subclass of imageclass) */
+    {
+        struct IClass *fillrect = AllocMem(sizeof(struct IClass) + sizeof(FILLRECTCLASS), MEMF_PUBLIC | MEMF_CLEAR);
+        if (fillrect && base->ImageClass) {
+            UBYTE *id = (UBYTE *)(fillrect + 1);
+            strcpy((char *)id, FILLRECTCLASS);
+
+            fillrect->cl_ID = (ClassID)id;
+            fillrect->cl_Super = base->ImageClass;
+            fillrect->cl_Dispatcher.h_Entry = (ULONG (*)())lxa_fillrectclass_dispatch;
+            fillrect->cl_InstOffset = base->ImageClass->cl_InstOffset + base->ImageClass->cl_InstSize;
+            fillrect->cl_InstSize = lxa_fillrectclass_instsize;
+            base->ImageClass->cl_SubclassCount++;
+            {
+                struct LXAClassNode *node = AllocMem(sizeof(struct LXAClassNode), MEMF_PUBLIC | MEMF_CLEAR);
+                if (node) {
+                    node->class_ptr = fillrect;
+                    node->node.ln_Type = NT_UNKNOWN;
+                    node->node.ln_Name = (char *)id;
+                    AddTail(&base->ClassList, &node->node);
+                    fillrect->cl_Flags |= CLF_INLIST;
+                }
+            }
+        }
+    }
+
     /* Create icclass (subclass of rootclass) */
     struct IClass *icclass = AllocMem(sizeof(struct IClass) + sizeof("icclass"), MEMF_PUBLIC | MEMF_CLEAR);
     if (icclass && base->RootClass)
@@ -4975,6 +5001,15 @@ VOID _intuition_input_device_events(struct InputEvent *iEvent)
     _intuition_process_input_events(IntuitionBase, iEvent, FALSE);
 }
 
+UWORD _intuition_AddGList ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+                            register struct Window * window __asm("a0"),
+                            register struct Gadget * gadget __asm("a1"),
+                            register UWORD position __asm("d0"),
+                            register WORD numGad __asm("d1"),
+                            register struct Requester * requester __asm("a2"));
+
+/* AddGadget() is AddGList() for one gadget (autodoc); it initialises the
+ * gadget like AddGList() does (GACT_BORDERSNIFF, probe intuition/bordersniff) */
 UWORD _intuition_AddGadget ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Window * window __asm("a0"),
                                                         register struct Gadget * gadget __asm("a1"),
@@ -4988,34 +5023,10 @@ UWORD _intuition_AddGadget ( register struct IntuitionBase * IntuitionBase __asm
 
     /* Ensure gadget is not linked to another list */
     gadget->NextGadget = NULL;
-
-    /* Count existing gadgets and find insertion point */
-    UWORD count = 0;
-    struct Gadget *prev = NULL;
-    struct Gadget *curr = window->FirstGadget;
-    
-    while (curr && count < position) {
-        count++;
-        prev = curr;
-        curr = curr->NextGadget;
-    }
-    
-    /* Insert the gadget */
-    if (!prev) {
-        /* Insert at beginning */
-        gadget->NextGadget = window->FirstGadget;
-        window->FirstGadget = gadget;
-    } else {
-        /* Insert after prev */
-        gadget->NextGadget = prev->NextGadget;
-        prev->NextGadget = gadget;
-    }
-    
-    /* Return the actual position where gadget was inserted */
-    return count;
+    return _intuition_AddGList(IntuitionBase, window, gadget, position, 1, NULL);
 }
 
-BOOL _intuition_ClearDMRequest ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+LONG _intuition_ClearDMRequest ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Window * window __asm("a0"))
 {
     DPRINTF (LOG_DEBUG, "_intuition: ClearDMRequest() window=0x%08lx\n", (ULONG)window);
@@ -5063,7 +5074,7 @@ VOID _intuition_ClearPointer ( register struct IntuitionBase * IntuitionBase __a
     window->YOffset = 0;
 }
 
-BOOL _intuition_CloseScreen ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+LONG _intuition_CloseScreen ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Screen * screen __asm("a0"))
 {
     ULONG display_handle;
@@ -5338,7 +5349,7 @@ VOID _intuition_CurrentTime ( register struct IntuitionBase * IntuitionBase __as
             tv.tv_secs, tv.tv_micro);
 }
 
-BOOL _intuition_DisplayAlert ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+LONG _intuition_DisplayAlert ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register ULONG alertNumber __asm("d0"),
                                                         register CONST_STRPTR string __asm("a0"),
                                                         register UWORD height __asm("d1"))
@@ -5392,7 +5403,7 @@ VOID _intuition_DisplayBeep ( register struct IntuitionBase * IntuitionBase __as
     DPRINTF (LOG_DEBUG, "_intuition: DisplayBeep() screen=0x%08lx (no-op)\n", (ULONG)screen);
 }
 
-BOOL _intuition_DoubleClick ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+LONG _intuition_DoubleClick ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register ULONG sSeconds __asm("d0"),
                                                         register ULONG sMicros __asm("d1"),
                                                         register ULONG cSeconds __asm("d2"),
@@ -5706,7 +5717,7 @@ struct MenuItem * _intuition_ItemAddress ( register struct IntuitionBase * Intui
     return item;
 }
 
-BOOL _intuition_ModifyIDCMP ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+LONG _intuition_ModifyIDCMP ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Window * window __asm("a0"),
                                                         register ULONG flags __asm("d0"))
 {
@@ -6472,6 +6483,43 @@ static VOID _layout_custom_gadget(struct Window *window, struct Requester *req, 
 }
 
 /*
+ * OpenWindow widens the borders around the application's border gadgets
+ * (GACT_*BORDER, the window's initial gadget list only; AddGList() does
+ * not resize).  Each border grows to reach the gadget's far edge: a
+ * GACT_BOTTOMBORDER gadget whose top row is y makes BorderBottom at least
+ * Height - y, a GACT_TOPBORDER gadget BorderTop at least y + height, and
+ * likewise for the side borders (probe intuition/bordersniff: SIGMAth's
+ * 10 pixel bottom border, BECKERtext II's 20 pixel top border).  The
+ * window's own size counts, also on a GimmeZeroZero window.
+ */
+static VOID _sniff_window_borders(struct Window *window, WORD *bl, WORD *bt, WORD *br, WORD *bb)
+{
+    struct Gadget *gad;
+
+    for (gad = window->FirstGadget; gad; gad = gad->NextGadget)
+    {
+        LONG x, y, w, h;
+        UWORD act = gad->Activation;
+
+        if ((gad->GadgetType & GTYP_SYSGADGET) ||
+            !(act & (GACT_RIGHTBORDER | GACT_LEFTBORDER | GACT_TOPBORDER | GACT_BOTTOMBORDER)))
+            continue;
+        x = gad->LeftEdge + ((gad->Flags & GFLG_RELRIGHT) ? window->Width - 1 : 0);
+        y = gad->TopEdge + ((gad->Flags & GFLG_RELBOTTOM) ? window->Height - 1 : 0);
+        w = gad->Width + ((gad->Flags & GFLG_RELWIDTH) ? window->Width : 0);
+        h = gad->Height + ((gad->Flags & GFLG_RELHEIGHT) ? window->Height : 0);
+        if ((act & GACT_TOPBORDER) && y + h > *bt)
+            *bt = (WORD)(y + h);
+        if ((act & GACT_BOTTOMBORDER) && window->Height - y > *bb)
+            *bb = (WORD)(window->Height - y);
+        if ((act & GACT_LEFTBORDER) && x + w > *bl)
+            *bl = (WORD)(x + w);
+        if ((act & GACT_RIGHTBORDER) && window->Width - x > *br)
+            *br = (WORD)(window->Width - x);
+    }
+}
+
+/*
  * AmigaOS 3.1 marks every gadget that reaches into the window border with
  * GACT_BORDERSNIFF when it joins a window (reference: dopus-startup and
  * devpac-edit goldens): border gadgets (GACT_*BORDER) and gadgets whose box
@@ -6481,19 +6529,25 @@ static VOID _sniff_border_gadget(struct Window *window, struct Requester *req, s
 {
     LONG l, t, w, h;
 
-    if (!window || req || !gad || (gad->GadgetType & GTYP_SYSGADGET) ||
-        (window->Flags & WFLG_GIMMEZEROZERO))
+    if (!window || req || !gad || (gad->GadgetType & GTYP_SYSGADGET))
         return;
     if (gad->Activation & (GACT_RIGHTBORDER | GACT_LEFTBORDER | GACT_TOPBORDER | GACT_BOTTOMBORDER))
     {
         gad->Activation |= GACT_BORDERSNIFF;
         return;
     }
+    if (window->Flags & WFLG_GIMMEZEROZERO)
+        return;
     _calculate_gadget_box(window, NULL, gad, &l, &t, &w, &h);
+    /* a gadget that lies against a border is marked: it ends at most 3
+     * pixels inside the left/top border's inner edge or starts at most 4
+     * pixels before the right/bottom border's (probe intuition/bordersniff;
+     * DirectoryOpus' lister scroll strips) */
     if (w > 0 && h > 0 &&
-        (l < window->BorderLeft || t < window->BorderTop ||
-         l + w > window->Width - window->BorderRight ||
-         t + h > window->Height - window->BorderBottom))
+        (l + w <= window->BorderLeft + 3 ||
+         t + h <= window->BorderTop + 3 ||
+         l >= window->Width - window->BorderRight - 4 ||
+         t >= window->Height - window->BorderBottom - 4))
         gad->Activation |= GACT_BORDERSNIFF;
 }
 
@@ -9516,7 +9570,9 @@ struct Screen * _intuition_OpenScreen ( register struct IntuitionBase * Intuitio
      */
     /* AmigaOS 3.1 refuses a zero width or height
      * (tests/probes/intuition/screens) */
-    if (requested_width == 0 || requested_height == 0)
+    if (requested_width == 0 || requested_height == 0 ||
+        (requested_width < 0 && requested_width != STDSCREENWIDTH) ||
+        (requested_height < 0 && requested_height != STDSCREENHEIGHT))
     {
         DPRINTF (LOG_DEBUG, "_intuition: OpenScreen() zero size %dx%d\n",
                  (int)requested_width, (int)requested_height);
@@ -10076,8 +10132,18 @@ static void _create_window_sys_gadgets(struct Window *window)
     h = window->BorderTop;
     /* a borderless window keeps its system gadgets; depth, zoom and close
      * are as high as on a bordered window, the drag bar spans the
-     * (thinner) title bar (AmigaOS 3.1, probe dos/conwindow) */
-    gh = borderless ? window->WScreen->WBorTop + _screen_font_height(window->WScreen) + 1 : h;
+     * (thinner) title bar (AmigaOS 3.1, probe dos/conwindow).  A top
+     * border widened around a GACT_TOPBORDER gadget only stretches the
+     * drag bar (probe intuition/bordersniff). */
+    if (borderless)
+        gh = window->WScreen->WBorTop + _screen_font_height(window->WScreen) + 1;
+    else
+    {
+        WORD sbl, sbt, sbr, sbb;
+
+        _window_compute_borders(window->WScreen, window->Flags, window->Title, &sbl, &sbt, &sbr, &sbb);
+        gh = (sbt < h) ? sbt : h;
+    }
 
     if (window->Flags & WFLG_DEPTHGADGET)
     {
@@ -10736,6 +10802,7 @@ struct Window * _intuition_OpenWindow ( register struct IntuitionBase * Intuitio
         WORD bl, bt, br, bb;
 
         _window_compute_borders(screen, window->Flags, window->Title, &bl, &bt, &br, &bb);
+        _sniff_window_borders(window, &bl, &bt, &br, &bb);
         window->BorderLeft = bl;
         window->BorderTop = bt;
         window->BorderRight = br;
@@ -11110,8 +11177,6 @@ VOID _intuition_PrintIText ( register struct IntuitionBase * IntuitionBase __asm
                                                         register WORD left __asm("d0"),
                                                         register WORD top __asm("d1"))
 {
-    LXA_UNIMPLEMENTED("intuition", "PrintIText", "partial: ignores IntuiText ITextFont, uses RastPort font (Phase 256)");
-
     DPRINTF (LOG_DEBUG, "_intuition: PrintIText() rp=0x%08lx iText=0x%08lx at %d,%d\n",
              (ULONG)rp, (ULONG)iText, (int)left, (int)top);
     
@@ -11126,6 +11191,13 @@ VOID _intuition_PrintIText ( register struct IntuitionBase * IntuitionBase __asm
             BYTE oldAPen = rp->FgPen;
             BYTE oldBPen = rp->BgPen;
             BYTE oldDrMd = rp->DrawMode;
+            /* the text's own font for this text only (AmigaOS 3.1, probe
+             * intuition/itextfont: the RastPort keeps its font) */
+            struct TextFont *oldFont = rp->Font;
+            struct TextFont *itFont = iText->ITextFont ? OpenFont(iText->ITextFont) : NULL;
+
+            if (itFont)
+                SetFont(rp, itFont);
             
             /* Set colors and drawmode from IntuiText */
             SetAPen(rp, iText->FrontPen);
@@ -11139,8 +11211,6 @@ VOID _intuition_PrintIText ( register struct IntuitionBase * IntuitionBase __asm
             DPRINTF (LOG_DEBUG, "_intuition: PrintIText() text='%s' leftEdge=%d topEdge=%d -> x=%d y=%d\n",
                      (const char *)iText->IText, (int)iText->LeftEdge, (int)iText->TopEdge, (int)x, (int)y);
             
-            /* If a font is specified, try to use it */
-            /* For now, just use the rastport's current font */
             
             /* Move to position and render text.
              * TopEdge is the top of the character cell (per RKRM),
@@ -11165,6 +11235,12 @@ VOID _intuition_PrintIText ( register struct IntuitionBase * IntuitionBase __asm
             SetAPen(rp, oldAPen);
             SetBPen(rp, oldBPen);
             SetDrMd(rp, oldDrMd);
+            if (itFont)
+            {
+                if (oldFont)
+                    SetFont(rp, oldFont);
+                CloseFont(itFont);
+            }
         }
         
         iText = iText->NextText;
@@ -11281,7 +11357,7 @@ static void _render_requester(struct Window *window, struct Requester *req)
         _intuition_RefreshGList(IntuitionBase, req->ReqGadget, window, req, -1);
 }
 
-BOOL _intuition_Request ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+LONG _intuition_Request ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Requester * requester __asm("a0"),
                                                         register struct Window * window __asm("a1"))
 {
@@ -11418,7 +11494,7 @@ VOID _intuition_ScreenToFront ( register struct IntuitionBase * IntuitionBase __
     /* TODO: RethinkDisplay / Update View */
 }
 
-BOOL _intuition_SetDMRequest ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+LONG _intuition_SetDMRequest ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Window * window __asm("a0"),
                                                         register struct Requester * requester __asm("a1"))
 {
@@ -11435,7 +11511,7 @@ BOOL _intuition_SetDMRequest ( register struct IntuitionBase * IntuitionBase __a
     return TRUE;
 }
 
-BOOL _intuition_SetMenuStrip ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+LONG _intuition_SetMenuStrip ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Window * window __asm("a0"),
                                                         register struct Menu * menu __asm("a1"))
 {
@@ -11777,7 +11853,7 @@ VOID _intuition_WindowToFront ( register struct IntuitionBase * IntuitionBase __
      * changes (the depth gadget handler posts CWCODE_DEPTH itself) */
 }
 
-BOOL _intuition_WindowLimits ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+LONG _intuition_WindowLimits ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Window * window __asm("a0"),
                                                         register LONG widthMin __asm("d0"),
                                                         register LONG heightMin __asm("d1"),
@@ -11847,33 +11923,34 @@ struct Preferences  * _intuition_SetPrefs ( register struct IntuitionBase * Intu
 LONG _intuition_IntuiTextLength ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register const struct IntuiText * iText __asm("a0"))
 {
-    LXA_UNIMPLEMENTED("intuition", "IntuiTextLength", "partial: assumes 8 pixel Topaz width, ignores ITextFont (Phase 256)");
-
     /*
-     * IntuiTextLength() returns the pixel width of an IntuiText string.
-     * This is used for layout calculations before rendering.
+     * The width of the text in its own font (ITextFont, opened from the
+     * fonts in memory, best match by size), else in the default font
+     * (AmigaOS 3.1, probe intuition/itextfont; FinalWriter's buttons).
      */
+    struct RastPort rp;
+    struct TextFont *f = NULL;
+    LONG width;
+    UWORD len = 0;
+
     DPRINTF (LOG_DEBUG, "_intuition: IntuiTextLength() iText=0x%08lx\n", (ULONG)iText);
-    
-    if (!iText || !iText->IText) {
+
+    if (!iText || !iText->IText)
         return 0;
-    }
-    
-    /* Count string length */
-    const char *s = (const char *)iText->IText;
-    int len = 0;
-    while (s[len]) len++;
-    
-    /* Default to 8 pixels per char (Topaz 8) - ITextFont is a TextAttr, not TextFont */
-    UWORD char_width = 8;
-    
-    /* Could look up font from TextAttr if needed, but for now use default */
-    (void)iText->ITextFont;  /* Unused - would need to open font to get metrics */
-    
-    return (LONG)(len * char_width);
+    while (iText->IText[len])
+        len++;
+    InitRastPort(&rp);
+    if (iText->ITextFont)
+        f = OpenFont(iText->ITextFont);
+    if (f)
+        SetFont(&rp, f);
+    width = TextLength(&rp, iText->IText, len);
+    if (f)
+        CloseFont(f);
+    return width;
 }
 
-BOOL _intuition_WBenchToBack ( register struct IntuitionBase * IntuitionBase __asm("a6"))
+LONG _intuition_WBenchToBack ( register struct IntuitionBase * IntuitionBase __asm("a6"))
 {
     struct Screen *wbscreen;
 
@@ -11887,7 +11964,7 @@ BOOL _intuition_WBenchToBack ( register struct IntuitionBase * IntuitionBase __a
     return TRUE;
 }
 
-BOOL _intuition_WBenchToFront ( register struct IntuitionBase * IntuitionBase __asm("a6"))
+LONG _intuition_WBenchToFront ( register struct IntuitionBase * IntuitionBase __asm("a6"))
 {
     struct Screen *wbscreen;
     
@@ -11913,7 +11990,7 @@ BOOL _intuition_WBenchToFront ( register struct IntuitionBase * IntuitionBase __
     return TRUE;
 }
 
-BOOL _intuition_AutoRequest ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+LONG _intuition_AutoRequest ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Window * window __asm("a0"),
                                                         register const struct IntuiText * body __asm("a1"),
                                                         register const struct IntuiText * posText __asm("a2"),
@@ -12226,7 +12303,13 @@ struct Window * _intuition_BuildSysRequest ( register struct IntuitionBase * Int
     {
         struct Screen *scr = (window && window->WScreen) ? window->WScreen
                                                          : _intuition_find_workbench_screen(IntuitionBase);
-        struct RastPort *srp = scr ? &scr->RastPort : NULL;
+        struct RastPort *srp;
+
+        /* the requester opens the Workbench when it is not open yet (ACE's
+         * AIDE alert is its first window): measure on it, not on nothing */
+        if (!scr && _intuition_OpenWorkBench(IntuitionBase))
+            scr = _intuition_find_workbench_screen(IntuitionBase);
+        srp = scr ? &scr->RastPort : NULL;
         WORD fh = (srp && srp->TxHeight) ? (WORD)srp->TxHeight : 8;
         WORD ew = 0, eh = 0, ml = 0x7fff, mt = 0x7fff;
 
@@ -12538,11 +12621,13 @@ LONG _intuition_GetScreenData ( register struct IntuitionBase * IntuitionBase __
         return FALSE;
     }
     
-    const struct Screen *src = screen;
+    /* the screen argument counts for CUSTOMSCREEN only: GFA-BASIC passes
+     * garbage with WBENCHSCREEN (probe intuition/screenzero) */
+    const struct Screen *src = ((type & SCREENTYPE) == WBENCHSCREEN) ? NULL : screen;
     
     /* If screen is NULL, get screen based on type */
     if (!src) {
-        if (type == 1) {  /* WBENCHSCREEN */
+        if ((type & SCREENTYPE) == WBENCHSCREEN) {
             /* the Workbench screen; AmigaOS 3.1 always has it open (an
              * application sizing its screen from it - BlitzBasic2 - needs
              * real data) */
@@ -13427,7 +13512,7 @@ VOID _intuition_RefreshWindowFrame ( register struct IntuitionBase * IntuitionBa
     }
 }
 
-BOOL _intuition_ActivateGadget ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+LONG _intuition_ActivateGadget ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Gadget * gadget __asm("a0"),
                                                         register struct Window * window __asm("a1"),
                                                         register struct Requester * requester __asm("a2"))
@@ -14632,6 +14717,10 @@ struct Window * _intuition_BuildEasyRequestArgs ( register struct IntuitionBase 
         FreeMem(gad_buf, gad_len + 1);
         return (struct Window *)1; /* 1 = could not open window */
     }
+    /* without a reference window the requester visits the Workbench
+     * (AmigaOS 3.1, probe intuition/reqfont; ACE's AIDE alert) */
+    if (!window && (scr->Flags & SCREENTYPE) == WBENCHSCREEN)
+        reqWindow->Flags |= WFLG_VISITOR;
 
     /* Store cleanup data in UserData */
     reqWindow->UserData = (BYTE *)erd;
@@ -14814,14 +14903,14 @@ struct Window * _intuition_OpenWindowTagList ( register struct IntuitionBase * I
          * When newWindow is NULL, Flags start at 0.
          * Only the WA_* tags should set flags.
          * Width/Height default to ~0 (sentinel meaning "use screen dimensions").
-         * DetailPen/BlockPen default to 0xFF (use screen defaults) per AROS,
-         * but we use 0/1 for backward compatibility.
+         * DetailPen/BlockPen default to 0xFF: the window takes the
+         * screen's pens (AmigaOS 3.1, probe intuition/scrpens; ReSource).
          */
         memset(&nw, 0, sizeof(nw));
         nw.Width = (WORD)~0;
         nw.Height = (WORD)~0;
-        nw.DetailPen = 0;
-        nw.BlockPen = 1;
+        nw.DetailPen = 0xFF;
+        nw.BlockPen = 0xFF;
         nw.Flags = 0;  /* Tags will set the flags */
         nw.Type = WBENCHSCREEN;  /* Default to opening on Workbench */
     }
@@ -15868,7 +15957,7 @@ VOID _intuition_DrawImageState ( register struct IntuitionBase * IntuitionBase _
         UnlockLayerRom(rp->Layer);
 }
 
-BOOL _intuition_PointInImage ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+LONG _intuition_PointInImage ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register ULONG point __asm("d0"),
                                                         register struct Image * image __asm("a0"))
 {
@@ -16368,7 +16457,7 @@ VOID _intuition_FreeScreenDrawInfo ( register struct IntuitionBase * IntuitionBa
     }
 }
 
-BOOL _intuition_ResetMenuStrip ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+LONG _intuition_ResetMenuStrip ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Window * window __asm("a0"),
                                                         register struct Menu * menu __asm("a1"))
 {
@@ -16413,7 +16502,7 @@ VOID _intuition_RemoveClass ( register struct IntuitionBase * IntuitionBase __as
     }
 }
 
-BOOL _intuition_FreeClass ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+LONG _intuition_FreeClass ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct IClass * classPtr __asm("a0"))
 {
     if (!classPtr)
@@ -16763,7 +16852,7 @@ VOID _intuition_SetWindowPointerA ( register struct IntuitionBase * IntuitionBas
         _intuition_ClearPointer(IntuitionBase, win);
 }
 
-BOOL _intuition_TimedDisplayAlert ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+LONG _intuition_TimedDisplayAlert ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register ULONG alertNumber __asm("d0"),
                                                         register CONST_STRPTR string __asm("a0"),
                                                         register UWORD height __asm("d1"),

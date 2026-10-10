@@ -17,9 +17,9 @@
    "ignore_regions": [
     {
      "h": 4,
-     "phase": 244,
+     "phase": 237,
      "w": 8,
-     "why": "text cursor: the editor blinks it on IntuiTicks counted from launch, and launch takes different time on the two systems (blink phase)",
+     "why": "text cursor: the editor blinks it on IntuiTicks counted from launch, and launch takes different time on the two systems (blink phase); a key press does not restart the blink (Phase 244), lxaprobe WAIT_WINDOW cannot wait for the untitled editor window",
      "x": 0,
      "y": 17
     }

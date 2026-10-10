@@ -283,6 +283,10 @@ int op_illg(int level)
             break;
         }
 
+        case EMU_CALL_SYSTEM_TASK:
+            lxa_note_held_task(m68k_get_reg(NULL, M68K_REG_D1));
+            break;
+
         case EMU_CALL_STOP:
         {
             g_rv = m68k_get_reg(NULL, M68K_REG_D1);

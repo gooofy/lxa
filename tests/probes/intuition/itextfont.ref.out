@@ -1,0 +1,13 @@
+helvetica 11 = non-NULL
+null len=88
+topaz 8 len=88
+topaz 9 len=110
+helvetica 11 len=58
+helvetica 13 not in memory len=58
+missing len=88
+topaz 8 bold len=88
+print null hash=0xe2538703 apen=3 bpen=0 drmd=0 font kept cpx=92 cpy=9
+print topaz 8 hash=0xe2538703 apen=3 bpen=0 drmd=0 font kept cpx=92 cpy=9
+print topaz 9 hash=0xd795cac1 apen=3 bpen=0 drmd=0 font kept cpx=114 cpy=9
+print helvetica 11 hash=0x6ae65742 apen=3 bpen=0 drmd=0 font kept cpx=64 cpy=16
+print missing hash=0xe2538703 apen=3 bpen=0 drmd=0 font kept cpx=92 cpy=9

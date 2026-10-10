@@ -1,6 +1,7 @@
 # Phase 231 sweep scenario, generated from tests/scenarios/apps/maxonbasic.yaml
 # by `python3 -m rdd sweep gen` - edit the app scenario, not this file.
 name: sweep-maxonbasic
+fonts: wb31        # the editor uses topaz 11 from the Workbench 3.1 FONTS: (Phase 244)
 app: {manifest: MaxonBASIC}
 steps:
   - launch

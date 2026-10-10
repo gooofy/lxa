@@ -152,7 +152,7 @@ void _rexxsyslib_ClearRexxMsg ( register struct RxsLib *RexxBase __asm("a6"),
 }
 
 /* FillRexxMsg - Fill REXX message argument slots */
-BOOL _rexxsyslib_FillRexxMsg ( register struct RxsLib *RexxBase __asm("a6"),
+LONG _rexxsyslib_FillRexxMsg ( register struct RxsLib *RexxBase __asm("a6"),
                                register struct RexxMsg *msgptr __asm("a0"),
                                register ULONG count __asm("d0"),
                                register ULONG mask __asm("d1") )
@@ -165,7 +165,7 @@ BOOL _rexxsyslib_FillRexxMsg ( register struct RxsLib *RexxBase __asm("a6"),
 }
 
 /* IsRexxMsg - Check if message is a REXX message */
-BOOL _rexxsyslib_IsRexxMsg ( register struct RxsLib *RexxBase __asm("a6"),
+LONG _rexxsyslib_IsRexxMsg ( register struct RxsLib *RexxBase __asm("a6"),
                              register struct RexxMsg *msgptr __asm("a0") )
 {
     LXA_UNIMPLEMENTED("rexxsyslib", "IsRexxMsg", "stub: rexxsyslib.library not implemented (Phase 250)");

@@ -231,6 +231,18 @@ Built-in C: commands with full AmigaDOS template support:
 
 ## Current Status
 
+**Version 0.11.45** - Corpus residue (Phase 244 closed): 25 of 36 corpus apps are now gold, 2 platinum, 9 silver (was 15 gold, 19 silver; `doc/sweeps/2026-10-10-sweep.md`) - the rest waits for BOOPSI classes, console handler ports and RTG. Library functions that return a BOOL leave a clean 32-bit D0 (42 entry points in dos, intuition, gadtools, icon, locale, workbench, asl, commodities, rexxsyslib); AmiBlitz3's template menu no longer lists StormWizard_App.wizard (probe dos/boolret).
+
+**Version 0.11.44** - Corpus residue (Phase 244): GetScreenData() ignores the screen argument for WBENCHSCREEN and OpenScreen() refuses negative sizes other than STDSCREENWIDTH/HEIGHT as on AmigaOS 3.1 - GFA-BASIC opens its editor screen instead of 146 Workbench windows (probe intuition/screenzero).
+
+**Version 0.11.43** - Corpus residue (Phase 244): Intuition's fillrectclass image class exists, so reqtools.library requesters open (FontView's shareware requester, tree-equal to AmigaOS 3.1; probe intuition/fillrect).
+
+**Version 0.11.42** - Corpus residue (Phase 244): IntuiTextLength() and PrintIText() use the IntuiText's own font (FinalWriter's dialog now has 3.1's geometry), system requesters opened before the Workbench measure their text and visit the Workbench screen (ACE's AIDE alert). New probes for requester fonts, proportional text metrics and missing fonts.
+
+**Version 0.11.41** - Corpus residue (Phase 244): ADPro, MaxonBASIC, ProWrite and ReSource are tree-equal to AmigaOS 3.1 - GadTools labels with GT_Underscore always carry the underline text, windows opened by tags take their screen's pens, and "input.device" and "ramlib" exist as system tasks (each verified with a probe); MaxonBASIC and ProWrite now run with the Workbench 3.1 fonts as on the reference.
+
+**Version 0.11.40** - Corpus residue (Phase 244): OpenWindow widens the borders around an application's border gadgets and marks them GACT_BORDERSNIFF as AmigaOS 3.1 does (SIGMAth, BECKERtext II), and GadTools keeps menus on the screen - items move left at the right edge, long menus continue in a second column (ADPro, MaxonBASIC, Scout). Both verified with new reference probes.
+
 **Version 0.11.34** - Full Fred Fish mass run (Phase 237b closed): all 9943 Fish programs ran on lxa and, for the first time completely, on AmigaOS 3.1 (`doc/sweeps/2026-10-10-fish-massrun.md`). Only 13 programs still crash on lxa alone (was 299). Exception vectors now live in fast RAM as on the 68040 reference, misc.resource exists, foreign library and device code may clobber registers, `GetCC()`, the math libraries' condition codes and `BltBitMap()`'s cost match 3.1, and a stray ILLEGAL instruction is a program crash instead of a silent stop.
 
 **Version 0.11.32** - Corpus apps (Phase 238 closed): all 36 corpus apps now open their windows as on AmigaOS 3.1 - none is rated garbage or untested any more (2 platinum, 15 gold, 19 silver; `doc/sweeps/2026-10-09-sweep.md`). AmiBlitz3 starts (exec's Disable/Enable/Forbid/Permit and semaphore calls keep all registers, as documented), asl.library's screen-mode requester is identical to 3.1's, files are named by their volumes ("System:C", "Ram Disk:T") and the test harnesses get a Workbench laid out like the reference's.

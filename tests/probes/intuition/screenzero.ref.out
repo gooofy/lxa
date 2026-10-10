@@ -1,0 +1,10 @@
+screendata 640x256 vp 640x256 off 0,0 modes 0xc000
+screendata junk screen 640x256
+640x0 hires: NULL
+640x0 modes 0: NULL
+320x0 lores: NULL
+0x200 hires: NULL
+640x0 hires lace: NULL
+640x-1 hires: 640x256 depth 1 rows 256
+640x-5 hires: NULL
+0x0 hires: NULL

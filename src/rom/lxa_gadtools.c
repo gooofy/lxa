@@ -1071,7 +1071,7 @@ static WORD gt_font_ysize(struct TextFont *font)
 /* Helper: create a stripped copy of a label string.
  * Removes all occurrences of the underscore prefix character 'us'.
  * Returns allocated string or NULL. Also returns the character index
- * (in the stripped string) of the first underlined character via *ul_pos.
+ * (in the stripped string) of the underlined character via *ul_pos.
  * *ul_pos is set to -1 if no underscore is found.
  */
 static STRPTR gt_strip_underscore(CONST_STRPTR label, UBYTE us, WORD *ul_pos)
@@ -1091,9 +1091,10 @@ static STRPTR gt_strip_underscore(CONST_STRPTR label, UBYTE us, WORD *ul_pos)
     {
         if (us && label[src] == us)
         {
-            /* Mark next character as underlined (first occurrence only) */
-            if (*ul_pos < 0 && label[src + 1])
-                *ul_pos = dst;
+            /* the character after the last underscore is underlined; a
+             * trailing underscore underlines the terminating NUL (AmigaOS
+             * 3.1, probe gadtools/underscore) */
+            *ul_pos = dst;
             /* Skip the underscore prefix itself */
             continue;
         }
@@ -1222,19 +1223,26 @@ static struct IntuiText * gt_create_label(CONST_STRPTR text, ULONG flags,
     it->NextText  = NULL;
 
     textWidth = gt_label_text_width(font, displayText, gt_strlen(displayText));
-    fh = gt_font_ysize(font);
+    /* an empty label has no height (probe gadtools/underscore: "_") */
+    fh = displayText[0] ? gt_font_ysize(font) : 0;
     gt_label_pos(gt_label_place(flags, defaultPlace), gadWidth, gadHeight, textWidth, fh,
                  &it->LeftEdge, &it->TopEdge);
 
     /* GT_Underscore: AmigaOS 3.1 chains a second IntuiText with the
-     * underlined character in an underlined copy of the font */
-    if (ul_pos >= 0)
+     * underlined character in an underlined copy of the font - an empty
+     * one at the label's start when the label has no underscore (probe
+     * gadtools/underscore; ADPro's and SnoopDos' TEXT_KIND labels) */
+    if (us)
     {
+        BOOL none = ul_pos < 0;
+
+        if (none)
+            ul_pos = 0;
         struct GTULText *u = (struct GTULText *)AllocMem(sizeof(struct GTULText), MEMF_CLEAR | MEMF_PUBLIC);
         STRPTR c = (STRPTR)AllocMem(2, MEMF_CLEAR | MEMF_PUBLIC);
         if (u && c)
         {
-            c[0] = displayText[ul_pos];
+            c[0] = none ? 0 : displayText[ul_pos];
             u->it = *it;
             u->it.IText = c;
             u->it.LeftEdge = it->LeftEdge + gt_text_width(font, displayText, ul_pos);
@@ -1256,7 +1264,7 @@ static struct IntuiText * gt_create_label(CONST_STRPTR text, ULONG flags,
     }
 
     if (ul)
-        *ul = ul_pos;
+        *ul = (ul_pos >= 0 && displayText[ul_pos]) ? ul_pos : -1;
     return it;
 }
 
@@ -1428,8 +1436,14 @@ static void gt_label(struct gt_build *b, struct Gadget *gad, ULONG defplace, WOR
             b->failed = TRUE;
             return;
         }
-        it->LeftEdge += bx - gad->LeftEdge;
-        it->TopEdge += by - gad->TopEdge;
+        {
+            struct IntuiText *t;
+            for (t = it; t; t = t->NextText)
+            {
+                t->LeftEdge += bx - gad->LeftEdge;
+                t->TopEdge += by - gad->TopEdge;
+            }
+        }
         gad->GadgetText = it;
         data->label_gad = gad;
         data->underline_pos = ul;
@@ -1512,7 +1526,7 @@ struct Gadget * _gadtools_CreateGadgetA ( register struct GadToolsBase *GadTools
             /* the label is part of the button imagery (no GadgetText) */
             data->label = gt_strip_underscore(ng->ng_GadgetText, us, &ul_pos);
             data->label_pen = (ng->ng_Flags & NG_HIGHLABEL) ? HIGHLIGHTTEXTPEN : TEXTPEN;
-            data->underline_pos = ul_pos;
+            data->underline_pos = (data->label && ul_pos >= 0 && data->label[ul_pos]) ? ul_pos : -1;
             tw = data->label ? gt_label_text_width(font, data->label, gt_strlen(data->label)) : 0;
             gt_label_pos(place, W, H, tw, fh, &data->label_x, &data->label_y);
             data->label_in = (place & (PLACETEXT_LEFT | PLACETEXT_RIGHT | PLACETEXT_ABOVE | PLACETEXT_BELOW)) == 0;
@@ -3430,14 +3444,32 @@ static void gt_menu_layout_done(struct gt_menu_layout *ml)
 }
 
 static BOOL gt_layout_menu_item_chain(struct gt_menu_layout *ml, struct MenuItem *firstitem,
-                                      WORD left_edge, WORD top_edge, WORD min_width)
+                                      WORD left_edge, WORD top_edge, WORD min_width,
+                                      WORD max_bottom);
+
+/* height of an item: separators 6, image items one line below the image
+ * (AmigaOS 3.1), text items the font height + 1 */
+static WORD gt_menu_item_height(struct gt_menu_layout *ml, struct MenuItem *item)
+{
+    if (gt_is_separator_item(item))
+        return 6;
+    if (!(item->Flags & ITEMTEXT) && item->ItemFill)
+    {
+        struct Image *im = (struct Image *)item->ItemFill;
+        return (WORD)(im->TopEdge + im->Height);
+    }
+    return ml->item_height;
+}
+
+/* width of the items first .. stop (exclusive) */
+static WORD gt_menu_column_width(struct gt_menu_layout *ml, struct MenuItem *first,
+                                 struct MenuItem *stop, WORD min_width)
 {
     struct MenuItem *item;
     WORD max_label = 0, max_right = 0;
     WORD width;
-    WORD y = top_edge;
 
-    for (item = firstitem; item; item = item->NextItem)
+    for (item = first; item != stop; item = item->NextItem)
     {
         WORD left = 2, text = 0, right = 0;
 
@@ -3474,16 +3506,27 @@ static BOOL gt_layout_menu_item_chain(struct gt_menu_layout *ml, struct MenuItem
     if (max_label == 0)
         max_label = 2;
 
+    if (max_label == 0)
+        max_label = 2;
+
     width = max_label + max_right + 3;
     if (width < min_width)
         width = min_width;
+    return width;
+}
 
-    for (item = firstitem; item; item = item->NextItem)
+static BOOL gt_layout_menu_column(struct gt_menu_layout *ml, struct MenuItem *first,
+                                  struct MenuItem *stop, WORD left_edge, WORD top_edge, WORD width)
+{
+    struct MenuItem *item;
+    WORD y = top_edge;
+
+    for (item = first; item != stop; item = item->NextItem)
     {
         item->LeftEdge = left_edge;
         item->TopEdge = y;
         item->Width = width;
-        item->Height = gt_is_separator_item(item) ? 6 : ml->item_height;
+        item->Height = gt_menu_item_height(ml, item);
         if (gt_is_separator_item(item))
         {
             struct Image *im = (struct Image *)item->ItemFill;
@@ -3498,7 +3541,6 @@ static BOOL gt_layout_menu_item_chain(struct gt_menu_layout *ml, struct MenuItem
             /* image items (AmigaOS 3.1): image at 2,1, item one line taller */
             struct Image *im = (struct Image *)item->ItemFill;
             im->LeftEdge = (item->Flags & CHECKIT) ? ml->check_width + 2 : 2;
-            item->Height = im->TopEdge + im->Height;
         }
 
         if ((item->Flags & ITEMTEXT) && item->ItemFill)
@@ -3523,13 +3565,48 @@ static BOOL gt_layout_menu_item_chain(struct gt_menu_layout *ml, struct MenuItem
 
         if (item->SubItem)
         {
-            if (!gt_layout_menu_item_chain(ml, item->SubItem, width - width / 4, -1, 0))
+            if (!gt_layout_menu_item_chain(ml, item->SubItem, width - width / 4, -1, 0, 0))
                 return FALSE;
         }
 
         y += item->Height;
     }
 
+    return TRUE;
+}
+
+/*
+ * Lay out an item chain.  With max_bottom > 0 (top-level items) the chain
+ * continues in a new column, 8 pixels right of the previous one, before an
+ * item would end below max_bottom; every column is as wide as its own
+ * widest item (AmigaOS 3.1, probe gadtools/menufit; Scout's "List" menu).
+ */
+static BOOL gt_layout_menu_item_chain(struct gt_menu_layout *ml, struct MenuItem *firstitem,
+                                      WORD left_edge, WORD top_edge, WORD min_width,
+                                      WORD max_bottom)
+{
+    struct MenuItem *first = firstitem;
+
+    while (first)
+    {
+        struct MenuItem *stop = first->NextItem;
+        WORD y = top_edge + gt_menu_item_height(ml, first);
+        WORD width;
+
+        while (stop)
+        {
+            WORD h = gt_menu_item_height(ml, stop);
+            if (max_bottom > 0 && y + h > max_bottom)
+                break;
+            y += h;
+            stop = stop->NextItem;
+        }
+        width = gt_menu_column_width(ml, first, stop, min_width);
+        if (!gt_layout_menu_column(ml, first, stop, left_edge, top_edge, width))
+            return FALSE;
+        left_edge += width + 8;
+        first = stop;
+    }
     return TRUE;
 }
 
@@ -3882,7 +3959,7 @@ void _gadtools_FreeMenus ( register struct GadToolsBase *GadToolsBase __asm("a6"
 }
 
 /* LayoutMenuItemsA - Layout menu items */
-BOOL _gadtools_LayoutMenuItemsA ( register struct GadToolsBase *GadToolsBase __asm("a6"),
+LONG _gadtools_LayoutMenuItemsA ( register struct GadToolsBase *GadToolsBase __asm("a6"),
                                   register struct MenuItem *firstitem __asm("a0"),
                                   register APTR vi __asm("a1"),
                                   register struct TagItem *taglist __asm("a2") )
@@ -3896,13 +3973,13 @@ BOOL _gadtools_LayoutMenuItemsA ( register struct GadToolsBase *GadToolsBase __a
         return FALSE;
 
     gt_menu_layout_init(&ml, (struct VisualInfo *)vi, taglist, &ok);
-    ok = gt_layout_menu_item_chain(&ml, firstitem, 0, 0, 0);
+    ok = gt_layout_menu_item_chain(&ml, firstitem, 0, 0, 0, 0);
     gt_menu_layout_done(&ml);
     return ok;
 }
 
 /* LayoutMenusA - Layout entire menu structure */
-BOOL _gadtools_LayoutMenusA ( register struct GadToolsBase *GadToolsBase __asm("a6"),
+LONG _gadtools_LayoutMenusA ( register struct GadToolsBase *GadToolsBase __asm("a6"),
                               register struct Menu *firstmenu __asm("a0"),
                               register APTR vi __asm("a1"),
                               register struct TagItem *taglist __asm("a2") )
@@ -3921,26 +3998,42 @@ BOOL _gadtools_LayoutMenusA ( register struct GadToolsBase *GadToolsBase __asm("
 
     for (menu = firstmenu; menu && ok; menu = menu->NextMenu)
     {
+        struct Screen *scr = vi ? ((struct VisualInfo *)vi)->vi_Screen : NULL;
+        WORD max_bottom = 0;
+
         menu->LeftEdge = left;
         menu->Width = gt_menu_text_width(&ml, menu->MenuName) + 8;
 
+        /* items that would leave the bottom of the screen continue in a new
+         * column (probe gadtools/menufit) */
+        if (scr)
+            max_bottom = scr->Height - scr->BarHeight - 1 - scr->MenuVBorder;
         if (menu->FirstItem)
-            ok = gt_layout_menu_item_chain(&ml, menu->FirstItem, 0, 0, menu->Width + 1);
+            ok = gt_layout_menu_item_chain(&ml, menu->FirstItem, 0, 0, menu->Width + 1, max_bottom);
 
-        /* sub-menus that would leave the screen move left (AmigaOS 3.1
-         * reference: devpac-edit golden) */
-        if (ok && vi && ((struct VisualInfo *)vi)->vi_Screen)
+        /* AmigaOS 3.1 keeps a menu inside the screen, right edge at most
+         * Width - 2 * MenuHBorder - 1 (probe gadtools/menufit; ADPro,
+         * MaxonBASIC, devpac-edit golden): the items move left as a block,
+         * then each sub-menu that would still leave the screen moves left */
+        if (ok && scr)
         {
-            struct Screen *scr = ((struct VisualInfo *)vi)->vi_Screen;
             WORD limit = scr->Width - menu->LeftEdge - 2 * scr->MenuHBorder - 1;
+            WORD right = 0;
             struct MenuItem *it, *sub;
+
+            for (it = menu->FirstItem; it; it = it->NextItem)
+                if (it->LeftEdge + it->Width > right)
+                    right = it->LeftEdge + it->Width;
+            if (right > limit)
+                for (it = menu->FirstItem; it; it = it->NextItem)
+                    it->LeftEdge -= right - limit;
 
             for (it = menu->FirstItem; it; it = it->NextItem)
             {
                 WORD maxleft;
                 if (!it->SubItem)
                     continue;
-                maxleft = limit - it->SubItem->Width;
+                maxleft = limit - it->LeftEdge - it->SubItem->Width;
                 if (it->SubItem->LeftEdge > maxleft)
                     for (sub = it->SubItem; sub; sub = sub->NextItem)
                         sub->LeftEdge = maxleft;

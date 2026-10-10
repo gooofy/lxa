@@ -557,6 +557,13 @@ The built-in library stays private to lxa's ROM and `OpenLibrary()` loads `LIBS:
 - **Volumes**: the boot volume is "System", RAM: is "Ram Disk" (`vfs_set_volume_name()`); NameFromLock/Examine use volume names and they work as path prefixes. Never assign a name that is also a volume name (the old `System:` assign). pylxa builds a private SYS: root laid out like the WB 3.1 partition; T:/ENV: live in RAM:.
 - **`LXA_WB_WINDOW=1`** (suite-ref and mass runs) opens LoadWB's backdrop window on the Workbench screen before the program starts, as on the reference; it is `app: false` in tree dumps and not in `lxa_get_window_count()`.
 
+### 6.30 Corpus Residue Lessons (Phase 244)
+
+- **Return registers are ABI, also for BOOL.** GCC returns a 16-bit BOOL in the low word of D0 and leaves the upper word undefined; programs test all 32 bits (AmiBlitz3: `MatchPatternNoCase()` "matched" with 0x004B0000). Library entry points return `LONG`, never `BOOL`/`BYTE` (probes `dos/boolret`, `exec/byteret`).
+- **The reference trace keeps only the last `TRACE` command** (lxaprobe resets its log per library) and at most 64 functions: trace one library per run, list functions by name instead of `lib:*`.
+- **tracediff picks the reference's busiest task**; when the app renames itself or the reference runs system tasks (input.device, Background CLI), name the task (`build`-local helper or `--task`).
+- **Calls from disk libraries count as the app's** on both systems (reqtools, diskfont): a missing ROM class shows up as `NewObjectA(..."fillrectclass") -> 0` inside a third-party library's call sequence.
+
 ## 7. Quick Start
 1. Check `roadmap.md`.
 2. Load `lxa-workflow` to understand the process.

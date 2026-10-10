@@ -1,0 +1,35 @@
+kind 1 label="Plain" us=95 place=0x00
+kind 13 label="Plain" us=95 place=0x01
+  itext text="Plain" left=-48 top=3 fpen=1 font style=0x00
+  itext text="" left=-48 top=3 fpen=1 font style=0x01
+kind 1 label="Trail_" us=95 place=0x00
+kind 13 label="Trail_" us=95 place=0x01
+  itext text="Trail" left=-48 top=3 fpen=1 font style=0x00
+  itext text="" left=-8 top=3 fpen=1 font style=0x01
+kind 1 label="Mid_dle" us=95 place=0x00
+kind 13 label="Mid_dle" us=95 place=0x01
+  itext text="Middle" left=-56 top=3 fpen=1 font style=0x00
+  itext text="d" left=-32 top=3 fpen=1 font style=0x01
+kind 1 label="__Dbl" us=95 place=0x00
+kind 13 label="__Dbl" us=95 place=0x01
+  itext text="Dbl" left=-32 top=3 fpen=1 font style=0x00
+  itext text="D" left=-32 top=3 fpen=1 font style=0x01
+kind 1 label="_" us=95 place=0x00
+kind 13 label="_" us=95 place=0x01
+  itext text="" left=-8 top=7 fpen=1 font style=0x00
+  itext text="" left=-8 top=7 fpen=1 font style=0x01
+kind 1 label="a_b_c" us=95 place=0x00
+kind 13 label="a_b_c" us=95 place=0x01
+  itext text="abc" left=-32 top=3 fpen=1 font style=0x00
+  itext text="c" left=-16 top=3 fpen=1 font style=0x01
+kind 13 label="Plain" us=0 place=0x01
+  itext text="Plain" left=-48 top=3 fpen=1 font style=0x00
+kind 13 label="Plain" us=126 place=0x04
+  itext text="Plain" left=40 top=-12 fpen=1 font style=0x00
+  itext text="" left=40 top=-12 fpen=1 font style=0x01
+kind 12 label="Plain" us=95 place=0x00
+  itext text="Plain" left=-54 top=0 fpen=1 font style=0x00
+  itext text="" left=-54 top=0 fpen=1 font style=0x01
+kind 2 label="Plain" us=95 place=0x00
+  itext text="Plain" left=-48 top=2 fpen=1 font style=0x00
+  itext text="" left=-48 top=2 fpen=1 font style=0x01

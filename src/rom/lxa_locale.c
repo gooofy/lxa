@@ -1843,7 +1843,7 @@ STRPTR _locale_GetLocaleStr ( register struct MyLocaleBase *LocaleBase __asm("a6
 }
 
 /* Character classification functions */
-BOOL _locale_IsAlNum ( register struct MyLocaleBase *LocaleBase __asm("a6"),
+LONG _locale_IsAlNum ( register struct MyLocaleBase *LocaleBase __asm("a6"),
                        register struct Locale       *locale     __asm("a0"),
                        register ULONG                character  __asm("d0"))
 {
@@ -1852,7 +1852,7 @@ BOOL _locale_IsAlNum ( register struct MyLocaleBase *LocaleBase __asm("a6"),
     return _loc_class(character, LC_ALNUM);
 }
 
-BOOL _locale_IsAlpha ( register struct MyLocaleBase *LocaleBase __asm("a6"),
+LONG _locale_IsAlpha ( register struct MyLocaleBase *LocaleBase __asm("a6"),
                        register struct Locale       *locale     __asm("a0"),
                        register ULONG                character  __asm("d0"))
 {
@@ -1861,7 +1861,7 @@ BOOL _locale_IsAlpha ( register struct MyLocaleBase *LocaleBase __asm("a6"),
     return _loc_class(character, LC_ALPHA);
 }
 
-BOOL _locale_IsCntrl ( register struct MyLocaleBase *LocaleBase __asm("a6"),
+LONG _locale_IsCntrl ( register struct MyLocaleBase *LocaleBase __asm("a6"),
                        register struct Locale       *locale     __asm("a0"),
                        register ULONG                character  __asm("d0"))
 {
@@ -1870,7 +1870,7 @@ BOOL _locale_IsCntrl ( register struct MyLocaleBase *LocaleBase __asm("a6"),
     return _loc_class(character, LC_CNTRL);
 }
 
-BOOL _locale_IsDigit ( register struct MyLocaleBase *LocaleBase __asm("a6"),
+LONG _locale_IsDigit ( register struct MyLocaleBase *LocaleBase __asm("a6"),
                        register struct Locale       *locale     __asm("a0"),
                        register ULONG                character  __asm("d0"))
 {
@@ -1879,7 +1879,7 @@ BOOL _locale_IsDigit ( register struct MyLocaleBase *LocaleBase __asm("a6"),
     return _loc_class(character, LC_DIGIT);
 }
 
-BOOL _locale_IsGraph ( register struct MyLocaleBase *LocaleBase __asm("a6"),
+LONG _locale_IsGraph ( register struct MyLocaleBase *LocaleBase __asm("a6"),
                        register struct Locale       *locale     __asm("a0"),
                        register ULONG                character  __asm("d0"))
 {
@@ -1888,7 +1888,7 @@ BOOL _locale_IsGraph ( register struct MyLocaleBase *LocaleBase __asm("a6"),
     return _loc_class(character, LC_GRAPH);
 }
 
-BOOL _locale_IsLower ( register struct MyLocaleBase *LocaleBase __asm("a6"),
+LONG _locale_IsLower ( register struct MyLocaleBase *LocaleBase __asm("a6"),
                        register struct Locale       *locale     __asm("a0"),
                        register ULONG                character  __asm("d0"))
 {
@@ -1897,7 +1897,7 @@ BOOL _locale_IsLower ( register struct MyLocaleBase *LocaleBase __asm("a6"),
     return _loc_class(character, LC_LOWER);
 }
 
-BOOL _locale_IsPrint ( register struct MyLocaleBase *LocaleBase __asm("a6"),
+LONG _locale_IsPrint ( register struct MyLocaleBase *LocaleBase __asm("a6"),
                        register struct Locale       *locale     __asm("a0"),
                        register ULONG                character  __asm("d0"))
 {
@@ -1906,7 +1906,7 @@ BOOL _locale_IsPrint ( register struct MyLocaleBase *LocaleBase __asm("a6"),
     return _loc_class(character, LC_PRINT);
 }
 
-BOOL _locale_IsPunct ( register struct MyLocaleBase *LocaleBase __asm("a6"),
+LONG _locale_IsPunct ( register struct MyLocaleBase *LocaleBase __asm("a6"),
                        register struct Locale       *locale     __asm("a0"),
                        register ULONG                character  __asm("d0"))
 {
@@ -1915,7 +1915,7 @@ BOOL _locale_IsPunct ( register struct MyLocaleBase *LocaleBase __asm("a6"),
     return _loc_class(character, LC_PUNCT);
 }
 
-BOOL _locale_IsSpace ( register struct MyLocaleBase *LocaleBase __asm("a6"),
+LONG _locale_IsSpace ( register struct MyLocaleBase *LocaleBase __asm("a6"),
                        register struct Locale       *locale     __asm("a0"),
                        register ULONG                character  __asm("d0"))
 {
@@ -1924,7 +1924,7 @@ BOOL _locale_IsSpace ( register struct MyLocaleBase *LocaleBase __asm("a6"),
     return _loc_class(character, LC_SPACE);
 }
 
-BOOL _locale_IsUpper ( register struct MyLocaleBase *LocaleBase __asm("a6"),
+LONG _locale_IsUpper ( register struct MyLocaleBase *LocaleBase __asm("a6"),
                        register struct Locale       *locale     __asm("a0"),
                        register ULONG                character  __asm("d0"))
 {
@@ -1933,7 +1933,7 @@ BOOL _locale_IsUpper ( register struct MyLocaleBase *LocaleBase __asm("a6"),
     return _loc_class(character, LC_UPPER);
 }
 
-BOOL _locale_IsXDigit ( register struct MyLocaleBase *LocaleBase __asm("a6"),
+LONG _locale_IsXDigit ( register struct MyLocaleBase *LocaleBase __asm("a6"),
                         register struct Locale       *locale     __asm("a0"),
                         register ULONG                character  __asm("d0"))
 {
@@ -2146,7 +2146,7 @@ static BOOL _loc_pdate_invalid(const struct LocPDate *d)
            d->yinvalid || d->year < 1978;
 }
 
-BOOL _locale_ParseDate ( register struct MyLocaleBase    *LocaleBase  __asm("a6"),
+LONG _locale_ParseDate ( register struct MyLocaleBase    *LocaleBase  __asm("a6"),
                          register CONST struct Locale    *locale      __asm("a0"),
                          register struct DateStamp       *date        __asm("a1"),
                          register CONST_STRPTR            fmtTemplate __asm("a2"),

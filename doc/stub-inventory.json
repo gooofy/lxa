@@ -985,14 +985,6 @@
  },
  {
   "lib": "intuition",
-  "function": "PrintIText",
-  "kind": "partial",
-  "detail": "partial: ignores IntuiText ITextFont, uses RastPort font (Phase 256)",
-  "file": "src/rom/lxa_intuition.c",
-  "symbol": "_intuition_PrintIText"
- },
- {
-  "lib": "intuition",
   "function": "ScreenToBack",
   "kind": "partial",
   "detail": "partial: reorders screen list, display not updated (Phase 256)",
@@ -1006,14 +998,6 @@
   "detail": "partial: reorders screen list, display not updated (Phase 256)",
   "file": "src/rom/lxa_intuition.c",
   "symbol": "_intuition_ScreenToFront"
- },
- {
-  "lib": "intuition",
-  "function": "IntuiTextLength",
-  "kind": "partial",
-  "detail": "partial: assumes 8 pixel Topaz width, ignores ITextFont (Phase 256)",
-  "file": "src/rom/lxa_intuition.c",
-  "symbol": "_intuition_IntuiTextLength"
  },
  {
   "lib": "intuition",

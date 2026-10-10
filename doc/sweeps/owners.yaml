@@ -10,6 +10,13 @@
 - {match: '^sysgadget ', phase: 256, why: "(was 222d) system gadget set (fixed in Phase 223; residue)"}
 - {match: '^window\.(border|count|flags|min_|max_|title)', phase: 256, why: "(was 222d) OpenWindowTags defaults and border geometry"}
 - {match: '^(menu|item)[ .]', phase: 256, why: "(was 222e/222d) menu and item layout (LayoutMenusA, SetMenuStrip)"}
+- {match: '^gadget\.(type|count)', phase: 252, why: "(Phase 244 triage) buttongclass/propgclass objects are GTYP_BOOLGADGET/PROPGADGET in lxa, custom gadgets on 3.1 (SnoopDos, AmiBlitz3, system requester buttons in ACE); groupgclass is missing (MaxonCPP)"}
 - {match: '^gadget[ .]', phase: 256, why: "(was 222e) GadTools gadget creation and geometry"}
-- {match: 'Text\(\) strings missing in lxa', phase: 244, why: "per-app missing content, triaged per app"}
-- {match: 'stdout differs', phase: 244, why: "per-app output, triaged per app"}
+- {match: '^(app|sweep)-(ace|amiblitz3|maxoncpp|snoopdos): Text\(\) strings missing', phase: 252, why: "(Phase 244 triage) content of BOOPSI gadgets/groups lxa does not create as 3.1 does"}
+- {match: '^(app|sweep)-(sysinfo|vim-53): Text\(\) strings missing', phase: 255, why: "(Phase 244 triage) SysInfo's hardware/resource probes; vim's console window title (CON: handler packets)"}
+- {match: '^(app|sweep)-ppaint: Text\(\) strings missing', phase: 243, why: "PPaint needs RTG"}
+- {match: 'Text\(\) strings missing in lxa', phase: 256, why: "(Phase 244 triage) text drawn differently: fonts, gadget imagery and redraw order (pixel-level, the apps are tree-equal)"}
+- {match: 'stdout differs', phase: 255, why: "(Phase 244 triage) DOS/console output of an app"}
+- {match: '^window\.(left|top|width|height|font|block_pen|detail_pen|idcmp)', phase: 256, why: "(Phase 244 triage) window placement and size follow from gadget/requester layout (MaxonCPP group gadget: 252)"}
+- {match: '^screen\.(count|depth|font)', phase: 243, why: "(Phase 244 triage) PPaint opens an RTG screen on 3.1's Workbench setup"}
+- {match: '^sysgadget\.', phase: 256, why: "system gadget geometry"}
