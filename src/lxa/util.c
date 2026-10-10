@@ -9,6 +9,7 @@
 
 FILE    *g_logf                          = NULL;
 bool     g_debug                         = false;
+bool     g_library_mode                  = false;
 
 static pthread_mutex_t g_log_mutex;
 static pthread_once_t g_log_mutex_once = PTHREAD_ONCE_INIT;

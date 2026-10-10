@@ -6,6 +6,7 @@
 #include "lxa_relay.h"
 #include "lxa_override.h"
 #include "lxa_unimpl.h"
+#include <unistd.h>
 
 
 #define RAM_START   0x000000
@@ -991,6 +992,14 @@ void _debug(uint32_t pcFinal)
     _debug_disassemble (5, pcFinal);
 
     _debug_machine_state ();
+
+    /* interactive only on a terminal: otherwise (tests, pylxa) a debugger
+     * prompt would read whatever the shared stdin holds, or wait for it */
+    if (g_library_mode || !isatty(STDIN_FILENO))
+    {
+        in_debug = FALSE;
+        return;
+    }
 
     // interactive debugger loop
 

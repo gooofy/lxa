@@ -336,7 +336,11 @@ static inline void mwrite8(uint32_t address, uint8_t value)
         if (invalid_write_count < 10) {
             invalid_write_count++;
             printf("ERROR: mwrite8 at invalid address 0x%08x\n", address);
-            _debug(m68k_get_reg(NULL, M68K_REG_PC));
+            /* the interactive debugger only with -d: in a test it read the
+             * shared stdin (Phase 237e: exec/getmsgnull writes through ROM
+             * code bytes taken as list pointers; a stray "s" made it step) */
+            if (g_debug)
+                _debug(m68k_get_reg(NULL, M68K_REG_PC));
         }
         assert (false);
     }

@@ -544,6 +544,7 @@ int lxa_init(const lxa_config_t *config)
 
     g_running = true;
     g_api_initialized = true;
+    g_library_mode = true;
     g_output_len = 0;
     s_display_dirty = true;
 

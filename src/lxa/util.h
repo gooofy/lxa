@@ -51,6 +51,7 @@ void  vlprintf (int level, const char *format, va_list ap);
 
 extern FILE    *g_logf;
 extern bool     g_debug;
+extern bool     g_library_mode;   /* liblxa: tests, pylxa - never prompts */
 
 void hexdump (int lvl, uint32_t offset, uint32_t len);
 
