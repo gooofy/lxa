@@ -1,0 +1,3 @@
+AllocAbs($7D000) succeeds = TRUE
+the copy reads back = TRUE
+AllocAbs() of the same block again fails = TRUE

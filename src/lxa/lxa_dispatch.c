@@ -201,6 +201,41 @@ static inline int isleap (int y)
     return y % 4 == 0 && (y % 100 != 0 || y % 400 == 0);
 }
 
+/*
+ * dos.library file operations cost emulated time, as on AmigaOS 3.1's RAM:
+ * disk (probe dos/iotime, microseconds per call on the reference: open +
+ * close 5975, create 17913, lock + unlock 4835, Read 1088 + 0.2/byte, Write
+ * 1150 + 2.8/byte, Seek 1250, DeleteFile 34153).  Only operations on host
+ * files are charged; console I/O is not.  Fish DiskPerf divides by the time
+ * a batch of them takes (Phase 237d).
+ */
+#define DOS_COST_OPEN_US        3000u
+#define DOS_COST_CREATE_US      14900u
+#define DOS_COST_CLOSE_US       3000u
+#define DOS_COST_LOCK_US        2500u
+#define DOS_COST_UNLOCK_US      2300u
+#define DOS_COST_READ_US        1090u
+#define DOS_COST_READ_NS_BYTE   200u
+#define DOS_COST_WRITE_US       1150u
+#define DOS_COST_WRITE_NS_BYTE  2830u
+#define DOS_COST_SEEK_US        1250u
+#define DOS_COST_DELETE_US      34000u
+
+static int      dos_cost_batched;     /* LoadSeg: count instead of charging */
+static uint64_t dos_cost_batch_bytes;
+
+static void dos_charge_ns(uint64_t ns)
+{
+    if (dos_cost_batched)
+        return;
+    vclock_consume((uint32_t)(ns * vclock_cpu_hz() / 1000000000ull));
+}
+
+static bool dos_fh_is_file(uint32_t fh68k)
+{
+    return fh68k && m68k_read_memory_32(fh68k + 32) == FILE_KIND_REGULAR;
+}
+
 int op_illg(int level)
 {
     /* Emulator calls are the ILLEGAL instruction ($4AFC) with the call
@@ -795,6 +830,11 @@ int op_illg(int level)
 
             uint32_t res = _dos_open (d1, d2, d3);
 
+            if (res == 0 && dos_fh_is_file(d3))
+                dos_charge_ns((uint64_t)(d2 == 1006 /* MODE_NEWFILE */ ? DOS_COST_CREATE_US : DOS_COST_OPEN_US) * 1000u);
+            else if (res != 0)
+                dos_charge_ns((uint64_t)DOS_COST_LOCK_US * 1000u);
+
             m68k_set_reg(M68K_REG_D0, res);
 
             break;
@@ -809,6 +849,14 @@ int op_illg(int level)
             DPRINTF (LOG_DEBUG, "lxa: op_illg(): EMU_CALL_DOS_READ file=0x%08x, buffer=0x%08x, len=%d\n", d1, d2, d3);
 
             uint32_t res = _dos_read (d1, d2, d3);
+
+            if (dos_fh_is_file(d1))
+            {
+                if (dos_cost_batched && (int32_t)res > 0)
+                    dos_cost_batch_bytes += res;
+                dos_charge_ns((uint64_t)DOS_COST_READ_US * 1000u +
+                              ((int32_t)res > 0 ? (uint64_t)res * DOS_COST_READ_NS_BYTE : 0));
+            }
 
             m68k_set_reg(M68K_REG_D0, res);
 
@@ -825,6 +873,9 @@ int op_illg(int level)
 
             uint32_t res = _dos_seek (d1, d2, d3);
 
+            if (dos_fh_is_file(d1))
+                dos_charge_ns((uint64_t)DOS_COST_SEEK_US * 1000u);
+
             m68k_set_reg(M68K_REG_D0, res);
 
             break;
@@ -835,6 +886,9 @@ int op_illg(int level)
             uint32_t d1 = m68k_get_reg(NULL, M68K_REG_D1);
 
             DPRINTF (LOG_DEBUG, "lxa: op_illg(): EMU_CALL_DOS_CLOSE file=0x%08x\n", d1);
+
+            if (dos_fh_is_file(d1))
+                dos_charge_ns((uint64_t)DOS_COST_CLOSE_US * 1000u);
 
             uint32_t res = _dos_close (d1);
 
@@ -869,9 +923,12 @@ int op_illg(int level)
 
             DPRINTF (LOG_DEBUG, "lxa: op_illg(): EMU_CALL_DOS_WRITE file=0x%08x, buffer=0x%08x, len=%d\n", d1, d2, d3);
 
+            bool is_file = dos_fh_is_file(d1);
             uint32_t res = _dos_write (d1, d2, d3);
 
-            //_debug(m68k_get_reg(NULL, M68K_REG_PC));
+            if (is_file)
+                dos_charge_ns((uint64_t)DOS_COST_WRITE_US * 1000u +
+                              ((int32_t)res > 0 ? (uint64_t)res * DOS_COST_WRITE_NS_BYTE : 0));
 
             m68k_set_reg(M68K_REG_D0, res);
 
@@ -889,6 +946,7 @@ int op_illg(int level)
             DPRINTF(LOG_DEBUG, "lxa: op_illg(): EMU_CALL_DOS_LOCK name=0x%08x, mode=%d\n", name, mode);
 
             uint32_t res = _dos_lock(name, mode);
+            dos_charge_ns((uint64_t)DOS_COST_LOCK_US * 1000u);
             m68k_set_reg(M68K_REG_D0, res);
             break;
         }
@@ -900,6 +958,7 @@ int op_illg(int level)
             DPRINTF(LOG_DEBUG, "lxa: op_illg(): EMU_CALL_DOS_UNLOCK lock_id=%d\n", lock_id);
 
             _dos_unlock(lock_id);
+            dos_charge_ns((uint64_t)DOS_COST_UNLOCK_US * 1000u);
             break;
         }
 
@@ -1018,6 +1077,7 @@ int op_illg(int level)
             DPRINTF(LOG_DEBUG, "lxa: op_illg(): EMU_CALL_DOS_DELETE name=0x%08x\n", name);
 
             uint32_t res = _dos_deletefile(name);
+            dos_charge_ns((uint64_t)DOS_COST_DELETE_US * 1000u);
             m68k_set_reg(M68K_REG_D0, res);
             break;
         }
@@ -1122,6 +1182,20 @@ int op_illg(int level)
         case EMU_CALL_DOS_LOCK_TABLES:
             _dos_set_lock_tables(m68k_get_reg(NULL, M68K_REG_D1), m68k_get_reg(NULL, M68K_REG_D2),
                                  m68k_get_reg(NULL, M68K_REG_D3));
+            break;
+
+        case EMU_CALL_DOS_IOCOST:
+            if (m68k_get_reg(NULL, M68K_REG_D1) == 0)
+            {
+                if (!dos_cost_batched++)
+                    dos_cost_batch_bytes = 0;
+            }
+            else if (dos_cost_batched && !--dos_cost_batched)
+            {
+                /* what the batch would have cost read in 4 KB blocks */
+                uint64_t blocks = (dos_cost_batch_bytes + 4095) / 4096;
+                dos_charge_ns(blocks * DOS_COST_READ_US * 1000u + dos_cost_batch_bytes * DOS_COST_READ_NS_BYTE);
+            }
             break;
 
         case EMU_CALL_DOS_VOLNODE:

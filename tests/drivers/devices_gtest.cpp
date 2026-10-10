@@ -83,7 +83,9 @@ protected:
         EXPECT_TRUE(passed) << "Test " << name << " did not report success";
     }
 
-    void RunTrackdiskTest(int timeout_ms = 5000) {
+    /* writing the two 880 KB disk images takes about 10 emulated seconds:
+     * file writes cost their AmigaOS 3.1 time (Phase 237d, dos/iotime) */
+    void RunTrackdiskTest(int timeout_ms = 30000) {
         char df0_dir[] = "/tmp/lxa_test_DF0_XXXXXX";
         char df1_dir[] = "/tmp/lxa_test_DF1_XXXXXX";
         ASSERT_NE(mkdtemp(df0_dir), nullptr);

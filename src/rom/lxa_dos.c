@@ -3244,12 +3244,40 @@ static BPTR lxa_dos_loadseg_handle(struct DosLibrary *DOSBase,
  * Fred Fish's "Movie" players, MRBackup, DataEasy ... are overlaid).
  * node_table: load one node into that hunk table (up to HUNK_BREAK).
  */
+static BPTR lxa_dos_loadseg_handle_ovl_inner(struct DosLibrary *DOSBase,
+                                             BPTR fh,
+                                             CONST_STRPTR debug_name,
+                                             BOOL close_handle,
+                                             const LONG *funcs,
+                                             ULONG *node_table);
+
+/* LoadSeg() reads its file in large buffered blocks on AmigaOS 3.1; lxa's
+ * loader reads every longword with Read().  While it loads, the host
+ * charges the file operations' emulated time as for 4 KB reads (Phase
+ * 237d, probe dos/iotime) instead of per call. */
 static BPTR lxa_dos_loadseg_handle_ovl(struct DosLibrary *DOSBase,
                                        BPTR fh,
                                        CONST_STRPTR debug_name,
                                        BOOL close_handle,
                                        const LONG *funcs,
                                        ULONG *node_table)
+{
+    BPTR r;
+
+    if (funcs)
+        return lxa_dos_loadseg_handle_ovl_inner(DOSBase, fh, debug_name, close_handle, funcs, node_table);
+    emucall1(EMU_CALL_DOS_IOCOST, 0);
+    r = lxa_dos_loadseg_handle_ovl_inner(DOSBase, fh, debug_name, close_handle, funcs, node_table);
+    emucall1(EMU_CALL_DOS_IOCOST, 1);
+    return r;
+}
+
+static BPTR lxa_dos_loadseg_handle_ovl_inner(struct DosLibrary *DOSBase,
+                                             BPTR fh,
+                                             CONST_STRPTR debug_name,
+                                             BOOL close_handle,
+                                             const LONG *funcs,
+                                             ULONG *node_table)
 {
     ULONG *overlay_table = NULL;
     BOOL success = FALSE;
