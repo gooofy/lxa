@@ -424,6 +424,10 @@ int lxa_init(const lxa_config_t *config)
     /* Initialize utilities */
     util_init();
 
+    /* liblxa (test drivers, twin runner) is silent unless LXA_AUDIO=1 or
+       config.ini [audio] enabled = true asks for sound */
+    config_set_audio_default(false);
+
     /* Set up VFS */
     if (!config->config_path) {
         vfs_setup_environment();

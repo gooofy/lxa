@@ -106,6 +106,16 @@ DF2 = /mnt/nfs/amiga/floppies
 - No actual floppy hardware emulation
 - Directories work the same as hard drive mappings
 
+#### [audio]
+
+Host sound output. The emulated audio hardware (audio.device, Paula DMA and its interrupts) always runs; this only decides whether the samples reach the host's speakers, so programs behave the same either way.
+
+**enabled**
+- Values: `true`/`false` (also `1`/`0`, `on`/`off`, `yes`/`no`)
+- Default: `true` for the interactive `lxa`; `false` for liblxa (GTest drivers, `pylxa`, the RDD twin and mass runners), so automated tests run silently
+- Example: `enabled = false`
+- Also: `--audio`/`--no-audio` on the command line, `LXA_AUDIO=0/1` in the environment
+
 #### [debug]
 
 Debug and diagnostic options.
@@ -172,6 +182,10 @@ lxa [options] <program>
 - Warning: Extremely verbose
 - Example: `lxa -t myapp`
 
+**--audio / --no-audio**
+- Play or mute host sound output (see `[audio]`)
+- Example: `lxa --no-audio myapp`
+
 **-b <addr|symbol>**
 - Set breakpoint at address or symbol
 - Can be specified multiple times
@@ -197,6 +211,10 @@ lxa -r /tmp/test.rom myapp
 ```
 
 ## Environment Variables
+
+### LXA_AUDIO
+
+`0`/`off` mutes, `1`/`on` enables host sound output (see `[audio]`; a `config.ini` setting or `--audio`/`--no-audio` takes precedence).
 
 ### LXA_PREFIX
 

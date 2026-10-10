@@ -1210,6 +1210,8 @@ static void print_usage(char *argv[])
     fprintf(stderr, "    -d             enable debug output\n");
     fprintf(stderr, "    --strict-unimplemented  stop (exit 125) when a stub or unimplemented\n");
     fprintf(stderr, "                      system-library function is called\n");
+    fprintf(stderr, "    --audio, --no-audio  play / mute host sound output (default: on;\n");
+    fprintf(stderr, "                      also LXA_AUDIO=0/1 or config.ini [audio] enabled)\n");
     fprintf(stderr, "    --deterministic   run on the virtual clock (time derived from emulated\n");
     fprintf(stderr, "                      cycles, idle time skipped; reproducible runs)\n");
     fprintf(stderr, "    -h, --help     display this help and exit\n");
@@ -1358,6 +1360,12 @@ int main(int argc, char **argv, char **envp)
         if (strcmp(argv[optind], "--deterministic") == 0)
         {
             deterministic = true;
+            continue;
+        }
+
+        if (strcmp(argv[optind], "--audio") == 0 || strcmp(argv[optind], "--no-audio") == 0)
+        {
+            config_set_audio(argv[optind][2] == 'a');
             continue;
         }
 

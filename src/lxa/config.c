@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
+#include <strings.h>
 #include "config.h"
 #include "vfs.h"
 #include "util.h"
@@ -9,6 +10,26 @@
 static char *g_rom_path = NULL;
 static int g_ram_size = 10 * 1024 * 1024;
 static bool g_rootless_mode = true;  /* Phase 15: Rootless windowing mode */
+
+/*
+ * Host sound output.  The emulated audio hardware always runs; this only
+ * decides whether its samples reach the host's speakers.  Precedence:
+ * command line (--audio/--no-audio) > config.ini [audio] enabled >
+ * LXA_AUDIO environment variable > built-in default (on for the interactive
+ * lxa, off for liblxa, i.e. the test drivers and the twin runner).
+ */
+static int  g_audio_cli = -1;      /* -1: not given */
+static int  g_audio_ini = -1;
+static bool g_audio_default = true;
+
+static int parse_bool(const char *val)
+{
+    if (!strcasecmp(val, "1") || !strcasecmp(val, "true") || !strcasecmp(val, "on") || !strcasecmp(val, "yes"))
+        return 1;
+    if (!strcasecmp(val, "0") || !strcasecmp(val, "false") || !strcasecmp(val, "off") || !strcasecmp(val, "no"))
+        return 0;
+    return -1;
+}
 
 static char *trim(char *str) {
     char *end;
@@ -55,6 +76,10 @@ bool config_load(const char *path) {
             } else if (strcmp(section, "assigns") == 0) {
                 /* Phase 18: Support [assigns] section for library/device paths */
                 vfs_assign_add(key, val, ASSIGN_LOCK);
+            } else if (strcmp(section, "audio") == 0) {
+                if (strcmp(key, "enabled") == 0) {
+                    g_audio_ini = parse_bool(val);
+                }
             } else if (strcmp(section, "display") == 0) {
                 if (strcmp(key, "rootless_mode") == 0) {
                     g_rootless_mode = (strcmp(val, "true") == 0 || strcmp(val, "1") == 0);
@@ -75,6 +100,9 @@ void config_reset(void) {
 
     g_ram_size = 10 * 1024 * 1024;
     g_rootless_mode = true;
+    g_audio_cli = -1;
+    g_audio_ini = -1;
+    g_audio_default = true;
 }
 
 const char *config_get_rom_path(void) {
@@ -91,4 +119,25 @@ bool config_get_rootless_mode(void) {
 
 void config_set_rootless_mode(bool enable) {
     g_rootless_mode = enable;
+}
+
+void config_set_audio(bool enable) {
+    g_audio_cli = enable ? 1 : 0;
+}
+
+void config_set_audio_default(bool enable) {
+    g_audio_default = enable;
+}
+
+bool config_get_audio_enabled(void) {
+    const char *env;
+
+    if (g_audio_cli >= 0)
+        return g_audio_cli;
+    if (g_audio_ini >= 0)
+        return g_audio_ini;
+    env = getenv("LXA_AUDIO");
+    if (env && parse_bool(env) >= 0)
+        return parse_bool(env);
+    return g_audio_default;
 }
