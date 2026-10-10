@@ -4635,6 +4635,23 @@ struct Library * _exec_OpenLibrary ( register struct ExecBase *SysBase __asm("a6
                 /* Initialize the library using InitResident */
                 lib = (struct Library *)InitResident(res, segList);
 
+                /* The library is looked up by name once its init routine
+                 * has run: AmigaOS 3.1 opens it even when the routine
+                 * returns something else than the base (probe
+                 * exec/libinit; Fish mmv8.library returns 1). */
+                {
+                    const char *base = (const char *)libName, *c;
+                    struct Library *found;
+                    for (c = base; *c; c++)
+                        if (*c == ':' || *c == '/')
+                            base = c + 1;
+                    Forbid();
+                    found = (struct Library *)FindName(&SysBase->LibList, (STRPTR)base);
+                    Permit();
+                    if (found)
+                        lib = found;
+                }
+
                 if (lib && (WORD)lib->lib_Version >= (WORD)version)
                 {
                     /* Call the library's Open function */
