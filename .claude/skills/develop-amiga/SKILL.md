@@ -17,13 +17,13 @@ This skill covers the core principles, rules, and conventions for developing Ami
 **CRITICAL**: Consult these sources in order of priority when implementing any component:
 1. **RKRM Documentation** (`~/projects/amiga/rkrm/`) - Official behavior spec.
 2. **RKRM Sample Code** (`~/projects/amiga/sample-code/rkm/`) - Official usage patterns.
-3. **AROS Source Code** (`~/projects/amiga/lxa/src/lxa/others/AROS-20231016-source`) - Reference (Clean Room only).
+3. **AROS Source Code** (`~/projects/amiga/lxa/src/lxa/others/AROS-20231016-source`) - Reference only: read it to understand behaviour, never copy or port its code (licence).
 4. **NDK/SDK** (`/opt/amiga/src/amiga-gcc/projects/NDK3.2`) - Headers/Autodocs (also in markdown format).
 
 **Implementation Checklist:**
 - [ ] Read RKRM documentation
 - [ ] Study RKRM sample code
-- [ ] Review AROS implementation
+- [ ] Review AROS implementation (reference only - write lxa's own code)
 - [ ] Verify behavior matches RKRM
 - [ ] Ensure sample programs work
 

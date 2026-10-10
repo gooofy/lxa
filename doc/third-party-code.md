@@ -4,6 +4,10 @@ lxa's own code is MIT licensed. Code ported from other projects keeps its
 original licence header and lives in its own directory together with the
 licence text. Every ported component is listed here.
 
+**AROS code may not be ported (decided 2026-10-10).** AROS is a reference
+only. The two AROS components below predate that decision and are being
+replaced by lxa's own implementations in Phase 245.
+
 | Component | Directory | Origin | Licence | Phase |
 |---|---|---|---|---|
 | BCPL support for dos.library (global vector, BCPL call/return, BCPL runtime routines, writef, rdargs, CLI start-up of BCPL processes) | `src/rom/bcpl/` | AROS `arch/m68k-all/dos/` (`bcpl.S`, `bcpl.inc`, `bcpl.h`, `bcpl_writef.S`, `bcpl_support.c`, `bcpl_patches.c`, `bcpl_readargs.c`, `bcpl_putpkt.c`, `callentry.S`), `rom/dos/newcliproc.c` (BCPL CliInit handling) | AROS Public License 1.1 (`src/rom/bcpl/LICENSE`) | 239 |
