@@ -1,0 +1,7 @@
+Open(NIL:) = TRUE
+Read = 0
+IoErr = 0
+Read again = 0
+IsInteractive = 0
+Write = 3
+fh_Type set = FALSE

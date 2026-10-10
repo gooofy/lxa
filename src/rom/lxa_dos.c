@@ -2557,8 +2557,10 @@ BPTR _dos_Open ( register struct DosLibrary * __dos_a6        __asm("a6"),
                 fh->fh_Type = lxa_dos_host_console_port();
             /* a file's handler port, as on AmigaOS 3.1: programs send it
              * packets (ACTION_WRITE ...) themselves */
-            if (fh->fh_Func3 == FILE_KIND_REGULAR && !fh->fh_Type)
-                fh->fh_Type = lxa_dos_fs_port();
+            if (fh->fh_Func3 == FILE_KIND_REGULAR && !fh->fh_Type &&
+                !((___name[0] | 0x20) == 'n' && (___name[1] | 0x20) == 'i' &&
+                  (___name[2] | 0x20) == 'l' && ___name[3] == ':'))
+                fh->fh_Type = lxa_dos_fs_port();     /* NIL: has none (probe dos/nilread) */
 
             if (!lxa_dos_buffer_state_ensure(fh))
             {

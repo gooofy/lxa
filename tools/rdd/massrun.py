@@ -378,6 +378,10 @@ ENVIRONMENT_DEPENDENT = {
     "fish-0224/MoreIsBetter/V": "runs SYS:Utilities/More, a Workbench 3.1 program lxa does not ship",
     "fish-0429/V/V": "runs SYS:Utilities/More, a Workbench 3.1 program lxa does not ship",
     "fish-0763/MidiSyn/MidiSyn": "the reference's serial port is held by lxaprobe (\"Serialport not available\")",
+    "fish-0101/Midi/util/mm": "midi.library cannot route from MidiIn on the reference: lxaprobe holds the "
+                              "serial port",
+    "fish-0238/DMouse/dmouse-handler": "the window seen on the reference is CWDemo's (\"Color Window "
+                                       "Demonstration\"), run before it in the same batch",
     "fish-0162/CLI_Utilities/Tree/Tree": "lists the whole volume of its current directory: on lxa the "
                                          "Fish collection (10 000 drawers), on the reference the small "
                                          "exchange volume LXAREF:",
