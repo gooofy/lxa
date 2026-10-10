@@ -139,6 +139,7 @@
  * native host code, never to interpreted m68k. All 256 minterms supported.
  */
 #define EMU_CALL_GFX_BLT_BITMAP    2050  /* Native BltBitMap: (args_ptr) -> planesAffected */
+#define EMU_CALL_GFX_BLT_CLEAR     2052  /* BltClear fill: (addr, bytes, pattern word) */
 
 /* Query Functions */
 #define EMU_CALL_GFX_GET_SIZE      2040  /* Get display size: (handle) -> packed w/h/d */

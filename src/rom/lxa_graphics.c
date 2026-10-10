@@ -5363,39 +5363,30 @@ static VOID _graphics_BltClear ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register ULONG flags __asm("d1"))
 {
     /*
-     * BltClear() clears a block of memory using the blitter.
-     * byteCount's format depends on flags:
-     *   If flags bit 1 set: high word = rows, low word = bytes per row
-     *   Otherwise: byteCount is total bytes
-     * flags bit 0: 0 = wait for completion, 1 = return immediately
-     * flags bit 2: 0 = clear to 0, 1 = fill with $FF (set)
-     * 
-     * In emulation we use CPU memset (no real blitter).
+     * BltClear() (RKRM; probe graphics/bltclear):
+     *   flags bit 0: return before the blit is done (no difference here)
+     *   flags bit 1: byteCount = rows << 16 | bytes per row, else bytes
+     *   flags bit 2: fill with the upper word of flags instead of 0
+     * The blitter works in words: odd byte counts (per row) are rounded
+     * down.  The fill runs on the host.
      */
     ULONG totalBytes;
-    UBYTE fillValue;
-    
+    UWORD pattern;
+
     DPRINTF (LOG_DEBUG, "_graphics: BltClear() memBlock=0x%08lx byteCount=0x%08lx flags=0x%08lx\n",
              (ULONG)memBlock, byteCount, flags);
-    
+
     if (!memBlock)
         return;
-    
-    /* Determine fill value */
-    fillValue = (flags & 0x04) ? 0xFF : 0x00;
-    
-    /* Calculate total bytes */
-    if (flags & 0x02) {
-        /* Row format: high word = rows, low word = bytes per row */
-        UWORD rows = (byteCount >> 16) & 0xFFFF;
-        UWORD bytesPerRow = byteCount & 0xFFFF;
-        totalBytes = (ULONG)rows * (ULONG)bytesPerRow;
-    } else {
-        totalBytes = byteCount;
-    }
-    
-    /* Clear the memory */
-    lxa_memset(memBlock, fillValue, totalBytes);
+
+    pattern = (flags & 0x04) ? (UWORD)(flags >> 16) : 0;
+    if (flags & 0x02)
+        totalBytes = ((byteCount >> 16) & 0xFFFF) * ((byteCount & 0xFFFF) & ~1UL);
+    else
+        totalBytes = byteCount & ~1UL;
+
+    if (totalBytes)
+        emucall3(EMU_CALL_GFX_BLT_CLEAR, (ULONG)memBlock, totalBytes, pattern);
 }
 
 static VOID _graphics_RectFill ( register struct GfxBase * GfxBase __asm("a6"),

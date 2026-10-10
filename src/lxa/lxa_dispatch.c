@@ -1752,6 +1752,35 @@ int op_illg(int level)
             break;
         }
 
+        case EMU_CALL_GFX_BLT_CLEAR:
+        {
+            /* BltClear(): fill `bytes` (even) at `addr` with a big-endian
+             * pattern word, on the host (Fish CPUClr SpeedTest clears
+             * 36 MB in a loop) */
+            uint32_t addr = m68k_get_reg(NULL, M68K_REG_D1);
+            uint32_t bytes = m68k_get_reg(NULL, M68K_REG_D2);
+            uint32_t pat = m68k_get_reg(NULL, M68K_REG_D3);
+            uint8_t hi = (uint8_t)(pat >> 8), lo = (uint8_t)pat;
+            if (addr < RAM_SIZE && bytes <= RAM_SIZE - addr)
+            {
+                uint8_t *p = &g_ram[addr];
+                if (hi == lo)
+                    memset(p, hi, bytes);
+                else
+                    for (uint32_t i = 0; i + 1 < bytes; i += 2)
+                    {
+                        p[i] = hi;
+                        p[i + 1] = lo;
+                    }
+            }
+            else
+            {
+                for (uint32_t i = 0; i + 1 < bytes; i += 2)
+                    m68k_write_memory_16(addr + i, pat & 0xffff);
+            }
+            break;
+        }
+
         case EMU_CALL_GFX_BLT_BITMAP:
         {
             /* BltBitMap() call cost measured on the reference */
