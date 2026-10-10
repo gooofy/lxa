@@ -5,8 +5,9 @@
  * Real AmigaOS 3.1 does not tolerate these (a negative WA_Height hangs the
  * machine, a bogus NW_EXTENDED Extension pointer is dereferenced, a
  * negative SA_Height other than STDSCREENHEIGHT fails), so this program is
- * lxa-only (tests/ref_suite.yaml).  lxa sanitizes such values instead of
- * wrapping them into huge unsigned sizes.
+ * lxa-only (tests/ref_suite.yaml).  lxa sanitizes window values instead of
+ * wrapping them into huge unsigned sizes; a negative screen height other
+ * than STDSCREENHEIGHT fails as on 3.1 (probe intuition/screenzero).
  */
 
 #include <exec/types.h>
@@ -114,7 +115,8 @@ int main(void)
 
     CloseScreen(screen);
 
-    /* Negative height values must not wrap to huge unsigned sizes */
+    /* A negative screen height other than STDSCREENHEIGHT fails, as on
+     * AmigaOS 3.1 (probe intuition/screenzero) - it never wraps */
     {
         struct TagItem tags[] = {
             { SA_Width, 640 },
@@ -124,17 +126,13 @@ int main(void)
         };
 
         screen = OpenScreenTagList(NULL, tags);
-        if (!screen) {
-            print("FAIL: OpenScreenTagList(NULL, negative-height tags) returned NULL\n");
+        if (screen) {
+            print("FAIL: OpenScreenTagList(NULL, negative-height tags) opened a screen\n");
             errors++;
-        } else if (screen->Width != 640 || screen->Height != 256 || screen->BitMap.Depth != 2) {
-            print("FAIL: OpenScreenTagList(NULL, negative-height tags) did not sanitize height\n");
-            errors++;
-        } else {
-            print("OK: OpenScreenTagList() sanitizes negative height values\n");
-        }
-        if (screen)
             CloseScreen(screen);
+        } else {
+            print("OK: OpenScreenTagList() refuses negative height values\n");
+        }
     }
 
     if (errors == 0) {

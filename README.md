@@ -231,6 +231,8 @@ Built-in C: commands with full AmigaDOS template support:
 
 ## Current Status
 
+**Version 0.11.44** - Corpus residue (Phase 244): GetScreenData() ignores the screen argument for WBENCHSCREEN and OpenScreen() refuses negative sizes other than STDSCREENWIDTH/HEIGHT as on AmigaOS 3.1 - GFA-BASIC opens its editor screen instead of 146 Workbench windows (probe intuition/screenzero).
+
 **Version 0.11.43** - Corpus residue (Phase 244): Intuition's fillrectclass image class exists, so reqtools.library requesters open (FontView's shareware requester, tree-equal to AmigaOS 3.1; probe intuition/fillrect).
 
 **Version 0.11.42** - Corpus residue (Phase 244): IntuiTextLength() and PrintIText() use the IntuiText's own font (FinalWriter's dialog now has 3.1's geometry), system requesters opened before the Workbench measure their text and visit the Workbench screen (ACE's AIDE alert). New probes for requester fonts, proportional text metrics and missing fonts.

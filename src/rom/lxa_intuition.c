@@ -9570,7 +9570,9 @@ struct Screen * _intuition_OpenScreen ( register struct IntuitionBase * Intuitio
      */
     /* AmigaOS 3.1 refuses a zero width or height
      * (tests/probes/intuition/screens) */
-    if (requested_width == 0 || requested_height == 0)
+    if (requested_width == 0 || requested_height == 0 ||
+        (requested_width < 0 && requested_width != STDSCREENWIDTH) ||
+        (requested_height < 0 && requested_height != STDSCREENHEIGHT))
     {
         DPRINTF (LOG_DEBUG, "_intuition: OpenScreen() zero size %dx%d\n",
                  (int)requested_width, (int)requested_height);
@@ -12619,11 +12621,13 @@ LONG _intuition_GetScreenData ( register struct IntuitionBase * IntuitionBase __
         return FALSE;
     }
     
-    const struct Screen *src = screen;
+    /* the screen argument counts for CUSTOMSCREEN only: GFA-BASIC passes
+     * garbage with WBENCHSCREEN (probe intuition/screenzero) */
+    const struct Screen *src = ((type & SCREENTYPE) == WBENCHSCREEN) ? NULL : screen;
     
     /* If screen is NULL, get screen based on type */
     if (!src) {
-        if (type == 1) {  /* WBENCHSCREEN */
+        if ((type & SCREENTYPE) == WBENCHSCREEN) {
             /* the Workbench screen; AmigaOS 3.1 always has it open (an
              * application sizing its screen from it - BlitzBasic2 - needs
              * real data) */
