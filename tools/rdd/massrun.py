@@ -480,8 +480,11 @@ def main(argv=None):
     ap.add_argument("--out", default=OUT)
     ap.add_argument("--build")
     ap.add_argument("-j", "--jobs", type=int, default=16)
-    # 300 frames = 6 s, the reference's --seconds (equal run time on both)
-    ap.add_argument("--frames", type=int, default=300)
+    # the reference's run time: lxaprobe's WAIT_EXIT 6000 polls 300 times
+    # with Delay(1), and a Delay(1) takes two ticks on AmigaOS 3.1 (probe
+    # dos/delayticks), so programs run 12 s there (measured: `C:Wait 12`
+    # returns within WAIT_EXIT 6000, `Wait 13` does not; Phase 237d)
+    ap.add_argument("--frames", type=int, default=600)
     ap.add_argument("--seconds", type=int, default=6)
     ap.add_argument("--filter")
     ap.add_argument("--limit", type=int)

@@ -254,11 +254,35 @@ class Lxa:
     def wait_windows(self, count=1, timeout_ms=10000):
         return self.lib.lxa_wait_windows(count, timeout_ms)
 
+    def wait_pixel(self, x, y, pen, timeout_ms=10000, hold=1):
+        """Like lxaprobe WAIT_PIXEL: until the front screen has had `pen` at
+        (x, y) for `hold` frames in a row, checked once per frame."""
+        start = self.lib.lxa_get_time_us()
+        p = ctypes.c_int()
+        seen = 0
+        while self.lib.lxa_get_time_us() - start < timeout_ms * 1000:
+            self.lib.lxa_flush_display()
+            seen = seen + 1 if self.lib.lxa_read_pixel(x, y, ctypes.byref(p)) and p.value == pen else 0
+            if seen >= hold:
+                return True
+            if not self.running():
+                break
+            self.frames(1)
+        return False
+
     def wait_window_title(self, substr, timeout_ms=10000):
         """Like lxaprobe WAIT_WINDOW: index of the first window whose title
         contains substr, or -1."""
         start = self.lib.lxa_get_time_us()
         polls = 0
+        if substr == "*":       # any window of the program, also untitled
+            while self.lib.lxa_get_time_us() - start < timeout_ms * 1000:
+                if self.lib.lxa_get_window_count() > 0:
+                    return 0
+                if not self.running():
+                    break
+                self.frames(1)
+            return 0 if self.lib.lxa_get_window_count() > 0 else -1
         while self.lib.lxa_get_time_us() - start < timeout_ms * 1000:
             for i in range(self.lib.lxa_get_window_count()):
                 info = LxaWindowInfo()

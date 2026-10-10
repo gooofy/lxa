@@ -1,8 +1,9 @@
 {
  "app": "Cluster2",
  "disabled": null,
- "lxa_version": "0.11.28",
- "promoted": "2026-10-09",
+ "lxa_version": "0.11.65",
+ "note": "Phase 237d: startup snapshot taken in an on phase of the cursor; no ignore region",
+ "promoted": "2026-10-10",
  "reference": "AmigaOS 3.1 (KS 40.70), profile aga",
  "requires_apps": true,
  "scenario": "cluster2-exit",
@@ -14,16 +15,6 @@
    "stdout_known_diff": null
   },
   "startup": {
-   "ignore_regions": [
-    {
-     "h": 4,
-     "phase": 237,
-     "w": 8,
-     "why": "text cursor: the editor blinks it on IntuiTicks counted from launch, and launch takes different time on the two systems (blink phase); a key press does not restart the blink (Phase 244), lxaprobe WAIT_WINDOW cannot wait for the untitled editor window",
-     "x": 0,
-     "y": 17
-    }
-   ],
    "known_tree_diffs": [],
    "pixel_budget": 0,
    "pixel_phase": null,

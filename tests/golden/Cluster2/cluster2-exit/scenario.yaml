@@ -3,11 +3,15 @@
 # the click of cluster2_gtest.cpp ExitButtonResponds.
 name: cluster2-exit
 app: {manifest: Cluster2}
+# The editor blinks its text cursor (8x2 at 0,18), and when the blink
+# phase is reached differs between the systems: the startup snapshot is
+# taken once the cursor has been on for 5 frames (Phase 237d).
 steps:
   - launch
-  - frames: 150
+  - wait_window: {title: "*", timeout: 20000}
   - frames: 100
-  - snapshot: startup
+  - wait_pixel: {xy: [2, 18], pen: 0}
+  - snapshot: {name: startup, when_pixel: {xy: [2, 18], pen: 1, hold: 5}}
   - click: {xy: [607, 249]}
   - frames: 100
   - snapshot: {name: exit, screen: false}   # the editor has quit: no screen of its own is left (lxa opens no Workbench screen by itself)

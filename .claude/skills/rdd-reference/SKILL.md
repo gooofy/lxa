@@ -37,7 +37,8 @@ for manual work, 20–39 belong to the twin runner pool. Never `pkill -f`
 (it matches your own shell); use `refctl stop`.
 
 Agent commands (`tools/refsys/agent/lxaprobe.c` header): PING, RUN, ASSIGN,
-DELAY, WAIT_WINDOW, WAIT_IDLE, DUMP_TREE, SNAP, MOVE/CLICK/PRESS/RELEASE,
+DELAY, WAIT_WINDOW (`*` = any window of the program), WAIT_PIXEL (pen at a
+point for n frames, optionally SNAP at once - blinking cursors), WAIT_IDLE, DUMP_TREE, SNAP, MOVE/CLICK/PRESS/RELEASE,
 KEY, TYPE, MENU, TEXT_START/DUMP/STOP, TRACE/TRACE_DUMP/TRACE_STOP, MODES,
 QUIT, SETCLOCK, BYE.
 

@@ -58,13 +58,21 @@ tools/refsys/refctl cmd --id 0 "SETCLOCK 1704067200" "RUN SYS:Utilities/Clock" \
     "WAIT_WINDOW Clock" "WAIT_IDLE" "DUMP_TREE tree.json" "SNAP screen.snap" "QUIT"
 ```
 
-Commands: `PING`, `RUN`, `WAIT_WINDOW`, `WAIT_IDLE`, `DUMP_TREE` (schema
+Commands: `PING`, `RUN`, `WAIT_WINDOW` (`*`: any window of the program),
+`WAIT_PIXEL` (until a pen shows at a point, optionally `SNAP` at once), `WAIT_IDLE`, `DUMP_TREE` (schema
 `lxa-tree/1`), `SNAP` (`LXASNAP1` pen indices + palette), `MOVE`/`CLICK`/
 `PRESS`/`RELEASE`/`KEY`/`TYPE`/`MENU` (input.device), `TEXT_START`/
 `TEXT_DUMP`/`TEXT_STOP` (Text() hook), `TRACE`/`TRACE_DUMP`/`TRACE_STOP`
 (SetFunction relay logging arguments and return values), `MODES`, `QUIT`
 (reports surviving tasks and the flushed `AvailMem` delta), `SETCLOCK`,
 `BYE`. See the header of `lxaprobe.c` for the syntax.
+
+Timing: the reference runs much faster than real time, and a `Delay(1)`
+takes up to two ticks on AmigaOS 3.1 (probe `dos/delayticks`), so
+`WAIT_EXIT 6000` lets a program run about 12 emulated seconds and every
+host round trip between two commands lets an unknown amount of emulated
+time pass. Whatever must happen at a precise moment (a blinking cursor's
+snapshot) belongs into one agent command (`WAIT_PIXEL ... SNAP`).
 
 `tools/refsys/selftest.py` (ctest `refsys_selftest`, label `refsys`) runs
 the Clock scenario end to end; it is skipped without the user's media.

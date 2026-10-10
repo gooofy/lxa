@@ -103,6 +103,10 @@ def run(scn, out_dir, build=None):
                 elif kind == "wait_window":
                     if lxa.wait_window_title(args.get("title", ""), args.get("timeout", 10000)) < 0:
                         raise RuntimeError("no window %r" % args.get("title"))
+                elif kind == "wait_pixel":
+                    if not lxa.wait_pixel(args["xy"][0], args["xy"][1], args["pen"], args.get("timeout", 10000),
+                                          args.get("hold", 1)):
+                        raise RuntimeError("pixel %r never had pen %d" % (args["xy"], args["pen"]))
                 elif kind == "wait_idle":
                     lxa.wait_idle()
                     lxa.frames(2)
@@ -150,6 +154,10 @@ def run(scn, out_dir, build=None):
                     lxa.key(args["rawkey"], args.get("qualifier", 0))
                     lxa.wait_idle()
                 elif kind == "snapshot":
+                    when = args.get("when_pixel")
+                    if when and not lxa.wait_pixel(when["xy"][0], when["xy"][1], when["pen"],
+                                                   when.get("timeout", 10000), when.get("hold", 1)):
+                        raise RuntimeError("pixel %r never had pen %d" % (when["xy"], when["pen"]))
                     snapshot(args["name"], args)
                 elif kind == "menus":
                     t = tree()

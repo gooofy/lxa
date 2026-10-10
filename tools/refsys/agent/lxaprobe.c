@@ -15,6 +15,10 @@
  *   ASSIGN <name> <path> [ADD]   create or extend a logical assign
  *   DELAY <ticks>                let <ticks> frames (1/50 s) pass
  *   WAIT_WINDOW <substr> [ms]    wait for a window whose title contains substr
+ *                                ("*": any window the program opened, also untitled)
+ *   WAIT_PIXEL x y pen [ms [hold [SNAP <file> ...]]]
+ *                                wait until the front screen has had pen at
+ *                                (x, y) for hold frames, then optionally SNAP
  *   WAIT_IDLE [ms]               wait until the program's tasks all wait and
  *                                their window ports are empty
  *   DUMP_TREE <file>             screens/windows/gadgets/menus as JSON
@@ -476,7 +480,8 @@ static struct Window *find_window(const char *substr)
     ULONG lock = LockIBase(0);
     for (s = IntuitionBase->FirstScreen; s && !found; s = s->NextScreen)
         for (w = s->FirstWindow; w; w = w->NextWindow)
-            if (w->Title && strstr((char *)w->Title, substr))
+            if (!strcmp(substr, "*") ? is_app_window(w)
+                                     : (w->Title && strstr((char *)w->Title, substr)))
             {
                 found = w;
                 break;
@@ -505,11 +510,54 @@ static void cmd_wait_window(char *args)
             reply("ERR timeout waiting for window '%s'", sub);
             return;
         }
-        delay_ticks(2);
-        waited += 40;
+        /* one tick at a time: scenarios time their snapshots from here
+         * (a Delay(1) takes up to two ticks) */
+        WaitTOF();
+        waited += 20;
     }
     reply("WINDOW %08lx %d %d %d %d", (ULONG)w, w->LeftEdge, w->TopEdge, w->Width, w->Height);
     reply("OK");
+}
+
+static void cmd_snap(char *args);
+
+/* WAIT_PIXEL x y pen [ms [hold [SNAP args]]]: until the front screen has
+ * had pen at (x, y) for `hold` frames in a row (default 1), checked once
+ * per frame (Phase 237d: a blinking cursor's on phase); with SNAP the
+ * screen is captured at once, before the host's next command - the
+ * reference runs much faster than real time, so even a serial round trip
+ * lets the cursor blink */
+static void cmd_wait_pixel(char *args)
+{
+    int x = 0, y = 0, pen = 0, ms = 10000, hold = 1, seen = 0;
+    LONG waited = 0;
+    struct Screen *s;
+    char *snap = strstr(args, "SNAP ");
+
+    sscanf(args, "%d %d %d %d %d", &x, &y, &pen, &ms, &hold);
+    for (;;)
+    {
+        LONG got;
+        ULONG lock = LockIBase(0);
+        s = IntuitionBase->FirstScreen;
+        got = s ? ReadPixel(&s->RastPort, x, y) : -1;
+        UnlockIBase(lock);
+        seen = (got == pen) ? seen + 1 : 0;
+        if (seen >= hold)
+            break;
+        if (waited >= ms)
+        {
+            reply("ERR timeout waiting for pen %ld at %ld,%ld (is %ld)", (LONG)pen, (LONG)x, (LONG)y, got);
+            return;
+        }
+        WaitTOF();
+        waited += 20;
+    }
+    reply("WAITED %ld", waited);
+    if (snap)
+        cmd_snap(snap + 5);
+    else
+        reply("OK");
 }
 
 static BOOL app_idle(void)
@@ -784,14 +832,38 @@ static void cmd_snap(char *args)
         c[2] = rgb[2] >> 24;
         out_raw(c, 3);
     }
-    line = AllocVec(w + 16, MEMF_ANY);
-    for (y = 0; y < h; y++)
+    /* all pixels at once with ReadPixelArray8() before anything is written:
+     * pixel by pixel interleaved with the file output took long enough for
+     * a blinking cursor to change while the screen was read (Phase 237d) */
     {
-        for (x = 0; x < w; x++)
-            line[x] = (UBYTE)ReadPixel(rp, x0 + x, y0 + y);
-        out_raw(line, w);
+        UWORD mod = (w + 15) & ~15;
+        UBYTE *all = AllocVec((ULONG)mod * h, MEMF_ANY);
+        struct BitMap *tbm = AllocBitMap(mod, 1, s->BitMap.Depth, 0, NULL);
+        if (all && tbm)
+        {
+            struct RastPort trp = *rp;
+            trp.Layer = NULL;
+            trp.BitMap = tbm;
+            ReadPixelArray8(rp, x0, y0, x0 + w - 1, y0 + h - 1, all, &trp);
+            for (y = 0; y < h; y++)
+                out_raw(all + (ULONG)y * mod, w);
+        }
+        else
+        {
+            line = AllocVec(w + 16, MEMF_ANY);
+            for (y = 0; y < h; y++)
+            {
+                for (x = 0; x < w; x++)
+                    line[x] = (UBYTE)ReadPixel(rp, x0 + x, y0 + y);
+                out_raw(line, w);
+            }
+            FreeVec(line);
+        }
+        if (tbm)
+            FreeBitMap(tbm);
+        if (all)
+            FreeVec(all);
     }
-    FreeVec(line);
     out_close();
     reply("OK");
 }
@@ -1594,6 +1666,8 @@ int main(void)
             cmd_wait_exit(args);
         else if (!strcmp(cmd, "WAIT_WINDOW"))
             cmd_wait_window(args);
+        else if (!strcmp(cmd, "WAIT_PIXEL"))
+            cmd_wait_pixel(args);
         else if (!strcmp(cmd, "WAIT_IDLE"))
             cmd_wait_idle(args);
         else if (!strcmp(cmd, "DUMP_TREE"))

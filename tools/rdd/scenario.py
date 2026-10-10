@@ -35,10 +35,16 @@ A scenario is one YAML file, executed unchanged on both backends:
       - type: "hello"
       - key: {rawkey: 0x44, qualifier: 0}
       - snapshot: startup               # or {name: x, window: "title"}
+                                        # + when_pixel: {xy: [x, y], pen: n}: take it
+                                        # as soon as the front screen has that pen
+                                        # there (a blinking cursor; Phase 237d)
       - press: {anchor: size_gadget, window: "x", button: L}   # mouse button down
       - move: {anchor: size_gadget, window: "x", xy: [40, 20]} # (anchor: title|inside|
       - release: {xy: [300, 200], button: L}                    #  size_gadget|center)
       - wait_output: "READY"            # until stdout contains the text ({text, timeout})
+      - wait_pixel: {xy: [2, 18], pen: 1}   # until the front screen has that pen
+                                        # there ({timeout: ms}); e.g. a blinking
+                                        # cursor's on phase (Phase 237d)
       - menus                           # open every menu of the window (RMB held on
                                         # its title), snapshot "menu<N>", cancel
                                         # (or {window: "title"}) - Phase 231
@@ -64,7 +70,7 @@ APPS_DIR = os.environ.get("LXA_APPS", os.path.normpath(os.path.join(ROOT, "..", 
 
 STEP_KINDS = {"launch", "wait_window", "wait_idle", "frames", "click", "menu", "type",
               "key", "snapshot", "quit", "trace", "menus", "move", "press", "release",
-              "wait_output"}
+              "wait_output", "wait_pixel"}
 
 # assigns that exist on a stock system and are extended, not replaced
 SYSTEM_ASSIGNS = {"LIBS", "FONTS", "DEVS", "S", "L", "C", "KEYMAPS", "LOCALE", "HELP",

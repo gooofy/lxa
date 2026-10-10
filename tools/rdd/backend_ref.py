@@ -185,9 +185,17 @@ def run(scn, out_dir, build=None, use_cache=True):
                 cmd += " WINDOW %d" % window
             snap = None
             if args.get("screen", True):
-                agent.cmd(cmd)
+                when = args.get("when_pixel")
+                if when:
+                    agent.cmd("WAIT_PIXEL %d %d %d %d %d %s" % (when["xy"][0], when["xy"][1], when["pen"],
+                                                                when.get("timeout", 10000), when.get("hold", 1), cmd),
+                              timeout=when.get("timeout", 10000) / 1000 + 30)
+                else:
+                    agent.cmd(cmd)
                 with open(os.path.join(exch, "rdd-snap.bin"), "rb") as f:
                     snap = f.read()
+            if t is None:
+                tree()      # after the pixels: dumping the tree takes time
             agent.cmd("TEXT_DUMP rdd-text.jsonl")
             stdout_path = os.path.join(exch, "rdd-stdout.txt")
             stdout = open(stdout_path, encoding="latin-1").read() if os.path.exists(stdout_path) else ""
@@ -226,6 +234,10 @@ def run(scn, out_dir, build=None, use_cache=True):
                               timeout=args.get("timeout", 10000) / 1000 + 30)
                 elif kind == "wait_idle":
                     agent.cmd("WAIT_IDLE %d" % args.get("timeout", 10000))
+                elif kind == "wait_pixel":
+                    step["reply"] = agent.cmd("WAIT_PIXEL %d %d %d %d %d" % (args["xy"][0], args["xy"][1], args["pen"],
+                                                                         args.get("timeout", 10000), args.get("hold", 1)),
+                              timeout=args.get("timeout", 10000) / 1000 + 30)
                 elif kind == "frames":
                     agent.cmd("DELAY %d" % args["count"])
                 elif kind == "click":
@@ -276,7 +288,9 @@ def run(scn, out_dir, build=None, use_cache=True):
                     agent.cmd("KEY %x %x" % (args["rawkey"], args.get("qualifier", 0)))
                     settle()
                 elif kind == "snapshot":
-                    snapshot(args["name"], args, tree())
+                    # the pixels first, then the tree (Phase 237d: a blinking
+                    # cursor changed while DUMP_TREE ran)
+                    snapshot(args["name"], args, tree() if "window" in args else None)
                 elif kind == "menus":
                     t = tree()      # dumped before the menu opens (no LockIBase while it is held)
                     pts = geometry.menu_title_points(t, args.get("window"))
