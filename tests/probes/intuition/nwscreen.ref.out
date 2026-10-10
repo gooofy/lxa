@@ -1,0 +1,3 @@
+Screen NULL: on the Workbench screen
+Screen = a zeroed buffer: on the Workbench screen
+Screen = a GetScreenData() copy: on the Workbench screen

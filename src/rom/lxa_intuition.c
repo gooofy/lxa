@@ -10642,8 +10642,10 @@ struct Window * _intuition_OpenWindow ( register struct IntuitionBase * Intuitio
         DPRINTF (LOG_DEBUG, "  Title string: '%s'\n", (char *)newWindow->Title);
     }
 
-    /* Get the target screen */
-    screen = newWindow->Screen;
+    /* Get the target screen.  With Type WBENCHSCREEN the Screen field is
+     * not looked at (AmigaOS 3.1, probe intuition/nwscreen: GFA-BASIC
+     * programs leave their GetScreenData() buffer there). */
+    screen = ((newWindow->Type & SCREENTYPE) == WBENCHSCREEN) ? NULL : newWindow->Screen;
     if (!screen)
     {
         /* No screen specified - use the Workbench screen (open it if needed) */

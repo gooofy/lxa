@@ -45,7 +45,7 @@ static LONG wait_aud0(void)
     return -1;
 }
 
-int main(void)
+int main(int argc, char **argv)
 {
     UBYTE *sample = AllocMem(64, MEMF_CHIP | MEMF_CLEAR);
     LONG first, second, off;
@@ -75,5 +75,6 @@ int main(void)
     P_BOOL("request at DMA start", first >= 0 && first < 4);
     P_BOOL("request after the buffer (70..110 lines)", second >= 70 && second <= 110);
     P_BOOL("one more request after DMA off (2..8 lines)", off >= 2 && off <= 8);
+    if (argc > 1) { P_LONG("first", first); P_LONG("second", second); P_LONG("off", off); }
     return 0;
 }
