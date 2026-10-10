@@ -14998,7 +14998,8 @@ struct Window * _intuition_OpenWindowTagList ( register struct IntuitionBase * I
                     DPRINTF(LOG_DEBUG, "_intuition: OpenWindowTagList() WA_PubScreenName='%s'\n",
                             pub_name ? pub_name : "(null)");
 
-                    if (pub_name)
+                    /* a NULL name is the default public screen (AmigaOS
+                     * 3.1, probe intuition/pubnull; Fred Fish JEd) */
                     {
                         pub_screen = _intuition_LockPubScreen(IntuitionBase, (CONST_STRPTR)pub_name);
                         if (pub_screen)
