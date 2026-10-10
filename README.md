@@ -231,6 +231,8 @@ Built-in C: commands with full AmigaDOS template support:
 
 ## Current Status
 
+**Version 0.11.62** - Phase 245 closed: no AROS-derived code remains in lxa (AROS is a reference only). Besides the rewritten BCPL support and gadget classes, every former "based on AROS" site was audited (`doc/aros-audit.md`): area fills, AddFont/RemFont, FontExtent, DrawBorder, DoubleClick, MakeFunctions, semaphore hand-over, Exception and WaitIO are rewritten as lxa's own code with unchanged behaviour.
+
 **Version 0.11.61** - colorwheel.gadget, gradientslider.gadget and tapedeck.gadget rewritten as lxa's own code (Phase 245; `doc/gadget-classes.md`): the 3.1 probes still match, HSB/RGB conversion is bit-identical to before on ~250 million inputs, and no AROS-licensed file remains in lxa.
 
 **Version 0.11.60** - BCPL support rewritten as lxa's own code (Phase 245, licensing: AROS code is a reference only). The BCPL global vector, call/return, runtime routines, rdargs and CLI start-up of 1.x BCPL programs are lxa's MIT code (`src/rom/bcpl/`, `doc/bcpl.md`); all probes and BCPL programs behave as before, and DeliTracker's 1.3 `EndCLI` now exits as on AmigaOS 3.1.
