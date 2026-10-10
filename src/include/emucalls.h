@@ -147,6 +147,7 @@
  */
 #define EMU_CALL_GFX_BLT_BITMAP    2050  /* Native BltBitMap: (args_ptr) -> planesAffected */
 #define EMU_CALL_GFX_BLT_CLEAR     2052  /* BltClear fill: (addr, bytes, pattern word) */
+#define EMU_CALL_GFX_CHARGE        2053  /* (us, plane words): a RastPort blit's 3.1 time (Phase 237e) */
 
 /* Query Functions */
 #define EMU_CALL_GFX_GET_SIZE      2040  /* Get display size: (handle) -> packed w/h/d */

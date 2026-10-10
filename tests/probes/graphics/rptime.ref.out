@@ -1,0 +1,9 @@
+-- RastPort blit duration
+ClipBlit 320x200x2: 512 .. 1024 us
+ClipBlit 64x64x1: 512 .. 1024 us
+BltBitMapRastPort 320x200x2: 512 .. 1024 us
+BltBitMapRastPort 64x64x1: 512 .. 1024 us
+BltMaskBitMapRastPort 320x200x2: 1024 .. 2048 us
+BltMaskBitMapRastPort 64x64x1: 1024 .. 2048 us
+ScrollRaster 320x200x2: 512 .. 1024 us
+ScrollRaster 64x64x1: 512 .. 1024 us

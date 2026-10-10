@@ -2000,6 +2000,15 @@ int op_illg(int level)
             break;
         }
 
+        case EMU_CALL_GFX_CHARGE:
+        {
+            /* graphics/rptime: base time of the call plus 4 ns per plane word */
+            uint64_t ns = (uint64_t)m68k_get_reg(NULL, M68K_REG_D1) * 1000ull +
+                          (uint64_t)m68k_get_reg(NULL, M68K_REG_D2) * 4ull;
+            vclock_consume((uint32_t)(ns * vclock_cpu_hz() / 1000000000ull));
+            break;
+        }
+
         case EMU_CALL_GFX_BLT_CLEAR:
         {
             /* BltClear(): fill `bytes` (even) at `addr` with a big-endian

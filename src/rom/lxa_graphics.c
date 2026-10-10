@@ -6375,6 +6375,28 @@ static void gfx_scroll_layer(struct GfxBase *GfxBase, struct RastPort *rp, LONG 
     _graphics_FreeBitMap(GfxBase, img);
 }
 
+/*
+ * The time a RastPort blit costs a program on AmigaOS 3.1, beyond what
+ * lxa's own code for it takes (probe graphics/rptime: per call about
+ * 0.77 ms for ClipBlit(), 0.67 ms for BltBitMapRastPort(), 1.4 ms for
+ * BltMaskBitMapRastPort(), 0.9 ms for ScrollRaster(), plus about 4 ns per
+ * plane word as BltBitMap(); the copy runs on the host here).  Calls from
+ * lxa's own ROM code (console, Intuition) are not charged.
+ */
+static void gfx_app_charge(ULONG base_us, LONG w, LONG h, struct RastPort *rp, APTR ret)
+{
+    ULONG words = 0;
+
+    if ((ULONG)ret >= 0x00f80000 && (ULONG)ret < 0x01000000)
+        return;
+    w = (LONG)(WORD)w;
+    h = (LONG)(WORD)h;
+    if (w > 0 && h > 0)
+        words = (ULONG)(((w + 15) >> 4) + 1) * (ULONG)h *
+                (rp && rp->BitMap ? rp->BitMap->Depth : 1);
+    emucall2(EMU_CALL_GFX_CHARGE, base_us, words);
+}
+
 static VOID _graphics_ScrollRaster ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a1"),
                                                         register LONG dx __asm("d0"),
@@ -6390,6 +6412,8 @@ static VOID _graphics_ScrollRaster ( register struct GfxBase * GfxBase __asm("a6
     LONG clearX1, clearY1, clearX2, clearY2;
     BYTE savedAPen;
     UWORD savedFlags;
+
+    gfx_app_charge(500, 0, 0, rp, __builtin_return_address(0));
 
     /* GCC m68k inline stubs may use move.w for d-register args, leaving
      * upper 16 bits with garbage.  Sign-extend from WORD to LONG. */
@@ -7452,6 +7476,8 @@ static VOID _graphics_ClipBlit ( register struct GfxBase * GfxBase __asm("a6"),
     struct Layer *srcLayer;
     struct Layer *destLayer;
 
+    gfx_app_charge(690, xSize, ySize, destRP, __builtin_return_address(0));
+
     /* GCC m68k inline stubs may use move.w for d-register args, leaving
      * upper 16 bits with garbage.  Sign-extend from WORD to LONG. */
     xSrc  = (LONG)(WORD)xSrc;
@@ -7988,6 +8014,7 @@ static VOID _graphics_BltBitMapRastPort ( register struct GfxBase * GfxBase __as
                                                         register LONG ySize __asm("d5"),
                                                         register ULONG minterm __asm("d6"))
 {
+    gfx_app_charge(590, xSize, ySize, destRP, __builtin_return_address(0));
     /* GCC m68k inline stubs may use move.w for d-register args, leaving
      * upper 16 bits with garbage.  Sign-extend from WORD to LONG. */
     xSrc  = (LONG)(WORD)xSrc;
@@ -8497,6 +8524,7 @@ static VOID _graphics_BltMaskBitMapRastPort ( register struct GfxBase * GfxBase 
                                                         register ULONG minterm __asm("d6"),
                                                         register CONST PLANEPTR bltMask __asm("a2"))
 {
+    gfx_app_charge(1300, xSize, ySize, destRP, __builtin_return_address(0));
     /* GCC m68k inline stubs may use move.w for d-register args, leaving
      * upper 16 bits with garbage.  Sign-extend from WORD to LONG. */
     xSrc  = (LONG)(WORD)xSrc;
