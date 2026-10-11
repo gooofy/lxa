@@ -13,6 +13,11 @@ lxa's own code in Phase 245: the BCPL support (`doc/bcpl.md`) and the
 colorwheel, gradientslider and tapedeck gadget classes
 (`doc/gadget-classes.md`).
 
+**Artwork is lxa's own too.** The images of icon.library's built-in default
+icons (`GetDefDiskObject()`) were byte copies of the AmigaOS 3.1 icons until
+v0.11.90; they are now drawn by `tools/gen_icon_defaults.py` (MIT). Only their
+sizes and depth follow 3.1.
+
 | Component | Directory | Origin | Licence | Phase |
 |---|---|---|---|---|
 | BGUI | `src/bgui/` | BGUI | LGPL | - |

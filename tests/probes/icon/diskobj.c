@@ -235,6 +235,7 @@ int main(void)
     hide_defaults();
 
     P_SECTION("GetDefDiskObject");
+    p_hide_pixels = TRUE;
     for (t = -1; t <= 10; t++) {
         char lab[32];
         int k = 0;
@@ -253,22 +254,11 @@ int main(void)
         d = GetDefDiskObject(t);
         p_diskobj(lab, d);
         if (d) {
-            if (d->do_Gadget.GadgetRender) {
-                struct Image *im = (struct Image *)d->do_Gadget.GadgetRender;
-                if (im->ImageData && im->Width > 0 && im->Height > 0 && im->Depth > 0)
-                    P_BYTES("  render data", im->ImageData,
-                            ((im->Width + 15) / 16) * 2 * im->Height * im->Depth);
-            }
-            if (d->do_Gadget.SelectRender) {
-                struct Image *im = (struct Image *)d->do_Gadget.SelectRender;
-                if (im->ImageData && im->Width > 0 && im->Height > 0 && im->Depth > 0)
-                    P_BYTES("  select data", im->ImageData,
-                            ((im->Width + 15) / 16) * 2 * im->Height * im->Depth);
-            }
             roundtrip("  put default", "T:icprobe_def", d);
             FreeDiskObject(d);
         }
     }
+    p_hide_pixels = FALSE;
 
     P_SECTION("hand-built icons");
     init_dobj(&hand, WBTOOL);
@@ -590,7 +580,9 @@ int main(void)
             probe_s("GetDiskObjectNew(");
             probe_s(names[i]);
             probe_s(")");
+            p_hide_pixels = TRUE;            /* built-in defaults */
             p_diskobj("", d);
+            p_hide_pixels = FALSE;
             if (d)
                 FreeDiskObject(d);
         }

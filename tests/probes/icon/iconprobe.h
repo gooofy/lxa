@@ -19,6 +19,10 @@
 extern struct ExecBase *SysBase;
 extern struct Library *IconBase;
 
+/* TRUE: print image sizes but no pixel hashes (the built-in default
+ * icons: their artwork is lxa's own, only the structure must match) */
+static BOOL p_hide_pixels;
+
 static void p_kv(const char *k, LONG v)
 {
     probe_s(" ");
@@ -60,7 +64,7 @@ static void p_image(const char *label, struct Image *im)
     p_kh("onoff", im->PlaneOnOff, 2);
     p_kp("data", im->ImageData);
     p_kp("next", im->NextImage);
-    if (im->ImageData && im->Width > 0 && im->Height > 0 && im->Depth > 0) {
+    if (im->ImageData && im->Width > 0 && im->Height > 0 && im->Depth > 0 && !p_hide_pixels) {
         LONG bytes = ((im->Width + 15) / 16) * 2 * im->Height * im->Depth;
         p_kh("hash", probe_hash(im->ImageData, bytes), 8);
     }
@@ -223,7 +227,8 @@ static LONG walk_image(const UBYTE *b, LONG pos, LONG size, int num)
     probe_s("  image");
     probe_dec(num);
     p_kv("databytes", bytes);
-    p_kh("hash", probe_hash(b + pos, bytes), 8);
+    if (!p_hide_pixels)
+        p_kh("hash", probe_hash(b + pos, bytes), 8);
     probe_ch('\n');
     return pos + bytes;
 }
