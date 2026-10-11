@@ -411,6 +411,7 @@ void lxa_note_held_task(uint32_t task);
 void lxa_reset_held_tasks(void);
 void lxa_dos_io_reset(void);
 void lxa_exscan_reset(void);
+void lxa_fd_reset(void);
 
 int _timer_check_expired(void);
 /* Timer internals called by op_illg */

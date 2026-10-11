@@ -410,6 +410,7 @@ void lxa_reset_host_state(void)
     g_sysroot = NULL;
     g_last_event = (display_event_t){0};
     lxa_exscan_reset();
+    lxa_fd_reset();
     memset(g_locks, 0, sizeof(lock_entry_t) * MAX_LOCKS);
     memset(g_record_locks, 0, sizeof(record_lock_entry_t) * MAX_RECORD_LOCKS);
     memset(g_timer_queue, 0, sizeof(timer_request_t) * MAX_TIMER_REQUESTS);

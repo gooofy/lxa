@@ -1137,6 +1137,40 @@ static bool _is_printer_path(const char *amiga_path)
 #define MAX_DEVICE_FDS 1024
 static uint8_t g_fd_interactive[MAX_DEVICE_FDS];
 
+/*
+ * The host file descriptor of an emulated file lives in fh_Args, where
+ * programs and lxa's own ROM code see it (and leave it in registers).  So
+ * that a run does not depend on what else the host process has open (a
+ * GTest driver runs one emulator after another), files get descriptors
+ * from LXA_FD_BASE up, and a new run closes those of the run before
+ * (Phase 237e: SIGMAth2 behaved differently after another test).
+ */
+#define LXA_FD_BASE 600
+#define LXA_FD_SPAN 400
+
+static int lxa_fd_virtualize(int fd)
+{
+    int n;
+    if (fd < 0 || fd >= LXA_FD_BASE)
+        return fd;
+    n = fcntl(fd, F_DUPFD_CLOEXEC, LXA_FD_BASE);
+    if (n < 0)
+        return fd;
+    close(fd);
+    return n;
+}
+
+void lxa_fd_reset(void)
+{
+    for (int fd = LXA_FD_BASE; fd < LXA_FD_BASE + LXA_FD_SPAN; fd++)
+        if (fcntl(fd, F_GETFD) >= 0)
+            close(fd);
+    memset(g_fd_interactive, 0, sizeof(g_fd_interactive));
+    /* the previous run's open files (exclusive opens, keyed by handle
+     * addresses that the next run uses again) */
+    memset(g_open_files, 0, sizeof(g_open_files));
+}
+
 bool _dos_fd_interactive(int fd)
 {
     return fd >= 0 && fd < MAX_DEVICE_FDS && g_fd_interactive[fd];
@@ -1167,7 +1201,7 @@ int _dos_open (uint32_t path68k, uint32_t accessMode, uint32_t fh68k)
     }
     else if (_is_printer_path (amiga_path))
     {
-        int fd = open ("/dev/null", O_RDWR);
+        int fd = lxa_fd_virtualize(open ("/dev/null", O_RDWR));
         if (fd < 0)
         {
             m68k_write_memory_32 (fh68k+40, ERROR_NO_FREE_STORE);
@@ -1243,6 +1277,7 @@ int _dos_open (uint32_t path68k, uint32_t accessMode, uint32_t fh68k)
 
         if (fd >= 0)
         {
+            fd = lxa_fd_virtualize(fd);
             m68k_write_memory_32 (fh68k+36, fd);                // fh_Args
             m68k_write_memory_32 (fh68k+32, FILE_KIND_REGULAR); // fh_Func3
             _open_file_register (fh68k, fd, accessMode == MODE_NEWFILE);
@@ -4338,6 +4373,7 @@ int _dos_openfromlock(uint32_t lock_id, uint32_t fh68k)
     }
     
     /* Set up the file handle */
+    fd = lxa_fd_virtualize(fd);
     m68k_write_memory_32(fh68k + 36, fd);                /* fh_Args */
     m68k_write_memory_32(fh68k + 32, FILE_KIND_REGULAR); /* fh_Func3 */
     _open_file_register(fh68k, fd, lock->access_mode == EXCLUSIVE_LOCK);

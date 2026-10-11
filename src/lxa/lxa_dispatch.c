@@ -292,6 +292,9 @@ void lxa_dos_io_reset(void)
     memset(dos_io_sleepers, 0, sizeof(dos_io_sleepers));
     dos_io_seq = 0;
     dos_cost_pending_ns = 0;
+    memset(dos_fd_ram, 0, sizeof(dos_fd_ram));
+    dos_cost_batched = 0;
+    dos_cost_batch_bytes = 0;
 }
 
 static void dos_charge_ns(uint64_t ns)

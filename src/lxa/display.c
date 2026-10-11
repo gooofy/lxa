@@ -128,6 +128,7 @@ static int g_event_queue_tail = 0;
 static int g_mouse_x = 0;
 static int g_mouse_y = 0;
 static int g_last_buttons = 0;  /* Track button state for inject release detection */
+static int g_delivered_qualifier;
 
 typedef struct display_rect_t
 {
@@ -507,6 +508,16 @@ bool display_init(void)
 {
     if (g_display_initialized)
     {
+        /* a new emulator run in the same process (GTest drivers): the
+         * input state starts afresh, so a run does not depend on the one
+         * before it (Phase 237e) */
+        memset(g_event_queue, 0, sizeof(g_event_queue));
+        g_event_queue_head = 0;
+        g_event_queue_tail = 0;
+        g_mouse_x = 0;
+        g_mouse_y = 0;
+        g_last_buttons = 0;
+        g_delivered_qualifier = 0;
         return true;
     }
 
@@ -1310,7 +1321,7 @@ void display_handle_release(void *ptr)
 
 /* Phase 204: qualifier of the last input event delivered to the emulated
  * system (what Intuition reports in IntuiMessage->Qualifier). */
-static int g_delivered_qualifier = 0;
+/* (declared above) */
 
 int display_get_delivered_qualifier(void)
 {
