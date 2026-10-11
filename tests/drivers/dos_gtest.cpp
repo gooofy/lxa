@@ -19,7 +19,18 @@ protected:
      * Helper to run a dos test binary and check for PASS/FAIL
      */
     void RunDosTest(const char* name, int timeout_ms = 5000) {
+        // The programs create and delete files in their current directory
+        // (their own).  The ref_expected_outputs shards run the same
+        // programs in parallel, so run a private copy in this test's RAM:.
         std::string path = "SYS:Tests/Dos/" + std::string(name);
+        const char *samples = FindSamplesPath();
+        if (samples && !ram_dir_path.empty()) {
+            // only the program: the shards create and delete files there
+            std::string cmd = "mkdir -p '" + ram_dir_path + "/Tests/Dos' && cp '" + std::string(samples) +
+                              "/Tests/Dos/" + name + "' '" + ram_dir_path + "/Tests/Dos/'";
+            ASSERT_EQ(system(cmd.c_str()), 0) << cmd;
+            path = "RAM:Tests/Dos/" + std::string(name);
+        }
         int result = RunProgram(path.c_str(), "", timeout_ms);
         
         std::string output = GetOutput();

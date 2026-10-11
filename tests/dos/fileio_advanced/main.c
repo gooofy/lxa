@@ -82,10 +82,10 @@ int main(void)
     LONG err;
     UBYTE buffer[128];
     const char *test_file = "fileio_advanced.txt";
-    const char *test_file_abs = "SYS:Tests/Dos/fileio_advanced.txt";
-    const char *exall_dir = "SYS:Tests/Dos/exall_dir";
-    const char *exall_dir_nested = "SYS:Tests/Dos/exall_dir/nested";
-    const char *exall_file = "SYS:Tests/Dos/exall_dir/sample.txt";
+    const char *test_file_abs = "PROGDIR:fileio_advanced.txt";
+    const char *exall_dir = "PROGDIR:exall_dir";
+    const char *exall_dir_nested = "PROGDIR:exall_dir/nested";
+    const char *exall_file = "PROGDIR:exall_dir/sample.txt";
     const char *link_target = "RAM:link_target.txt";
     const char *hard_link = "RAM:hard_link_test.txt";
     
@@ -434,7 +434,7 @@ int main(void)
                 test_fail("SameLock identifies duplicate lock", "Wrong lock comparison result");
             }
 
-            dir_lock = Lock((CONST_STRPTR)"SYS:Tests/Dos", SHARED_LOCK);
+            dir_lock = Lock((CONST_STRPTR)"PROGDIR:", SHARED_LOCK);
             same_result = dir_lock ? SameLock(file_lock, dir_lock) : LOCK_DIFFERENT;
             if (dir_lock && (same_result == LOCK_SAME_VOLUME || same_result == LOCK_SAME)) {
                 test_pass("SameLock reports same volume");

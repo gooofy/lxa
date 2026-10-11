@@ -2,7 +2,7 @@ Delete/Rename Test
 ==================
 
 Setup: Creating test files and directories
-  Created testfile.txt
+  Created dr_testfile.txt
   Created testdir_empty
   Created testdir_nonempty
   Created testdir_nonempty/child.txt

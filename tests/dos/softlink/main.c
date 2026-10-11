@@ -46,8 +46,8 @@ static void test_fail(const char *name, const char *reason)
 
 int main(void)
 {
-    const char *target = "SYS:Tests/Dos/softlink_target.txt";
-    const char *soft_link = "SYS:Tests/Dos/soft_link_test.lnk";
+    const char *target = "PROGDIR:softlink_target.txt";
+    const char *soft_link = "PROGDIR:soft_link_test.lnk";
     char link_target[128];
     char data[16];
     struct DevProc *dp;

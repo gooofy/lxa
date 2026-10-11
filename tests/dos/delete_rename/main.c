@@ -112,11 +112,11 @@ int main(void)
     /* Setup: Create test files and directories */
     print("Setup: Creating test files and directories\n");
     
-    if (!create_test_file("testfile.txt", "Hello, World!")) {
-        print("ERROR: Could not create testfile.txt\n");
+    if (!create_test_file("dr_testfile.txt", "Hello, World!")) {
+        print("ERROR: Could not create dr_testfile.txt\n");
         return 1;
     }
-    print("  Created testfile.txt\n");
+    print("  Created dr_testfile.txt\n");
     
     lock = CreateDir((CONST_STRPTR)"testdir_empty");
     if (!lock) {
@@ -151,9 +151,9 @@ int main(void)
     /* Test 1: Delete regular file */
     print("\nTest 1: Delete regular file\n");
     
-    result = DeleteFile((CONST_STRPTR)"testfile.txt");
+    result = DeleteFile((CONST_STRPTR)"dr_testfile.txt");
     if (result) {
-        if (!file_exists("testfile.txt")) {
+        if (!file_exists("dr_testfile.txt")) {
             test_pass("DeleteFile on file");
         } else {
             test_fail("DeleteFile on file", "File still exists");
@@ -305,7 +305,7 @@ int main(void)
     DeleteFile((CONST_STRPTR)"renamed_dir");
     
     /* Delete any leftover files */
-    DeleteFile((CONST_STRPTR)"testfile.txt");
+    DeleteFile((CONST_STRPTR)"dr_testfile.txt");
     DeleteFile((CONST_STRPTR)"rename_me.txt");
     DeleteFile((CONST_STRPTR)"renamed.txt");
     DeleteFile((CONST_STRPTR)"testdir_empty");
