@@ -1,0 +1,5 @@
+CMD_CLEAR: D0=$11 -> 17, D0=0 -> 0
+CMD_RESET: D0=$11 -> 17, D0=0 -> 0
+CMD_FLUSH: D0=$11 -> 17, D0=0 -> 0
+CMD_STOP: D0=$11 -> 17, D0=0 -> 0
+CMD_START: D0=$11 -> 17, D0=0 -> 0

@@ -87,6 +87,17 @@ static void test_fail_msg(const char *name)
     test_fail++;
 }
 
+/* DoIO() with D0 = 8: the standard commands answer with D0's low byte
+ * (AmigaOS 3.1, probe exec/gpstd) */
+static void doio_d0_8(struct IOStdReq *r)
+{
+    register APTR r_a1 __asm("a1") = r;
+    register APTR r_a2 __asm("a2") = SysBase;
+    __asm__ __volatile__ ("movem.l d2-d7/a6,-(sp)\n\tmove.l a2,a6\n\tmoveq #8,d0\n\t"
+                          "jsr -456(a6)\n\tmovem.l (sp)+,d2-d7/a6"
+                          : "+r" (r_a1), "+r" (r_a2) : : "d0", "d1", "a0", "cc", "memory");
+}
+
 static void check(BOOL ok, const char *name)
 {
     if (ok)
@@ -221,22 +232,22 @@ int main(void)
           trigger_out.gpt_XDelta == trigger.gpt_XDelta &&
           trigger_out.gpt_YDelta == trigger.gpt_YDelta, "GPD_ASKTRIGGER returns stored trigger");
 
-    /* standard exec commands: 3.1 rejects them; the error value of the
-     * first group is not stable, so only its presence is checked */
+    /* standard exec commands: 3.1 answers them with the low byte of D0
+     * at DoIO() (probe exec/gpstd) - here 8 */
     req->io_Command = CMD_CLEAR;
-    DoIO((struct IORequest *)req);
+    doio_d0_8(req);
     check(req->io_Error != 0, "CMD_CLEAR is rejected");
     req->io_Command = CMD_RESET;
-    DoIO((struct IORequest *)req);
+    doio_d0_8(req);
     check(req->io_Error != 0, "CMD_RESET is rejected");
     req->io_Command = CMD_FLUSH;
-    DoIO((struct IORequest *)req);
+    doio_d0_8(req);
     check(req->io_Error != 0, "CMD_FLUSH is rejected");
     req->io_Command = CMD_STOP;
-    DoIO((struct IORequest *)req);
+    doio_d0_8(req);
     check(req->io_Error != 0, "CMD_STOP is rejected");
     req->io_Command = CMD_START;
-    DoIO((struct IORequest *)req);
+    doio_d0_8(req);
     check(req->io_Error != 0, "CMD_START is rejected");
     req->io_Command = CMD_WRITE;
     DoIO((struct IORequest *)req);

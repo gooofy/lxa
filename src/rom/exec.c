@@ -3851,7 +3851,9 @@ void _exec_CloseDevice ( register struct ExecBase  *SysBase   __asm("a6"),
 }
 
 LONG _exec_DoIO ( register struct ExecBase  *SysBase    __asm("a6"),
-                                  register struct IORequest *ioRequest  __asm("a1"))
+                                  register struct IORequest *ioRequest  __asm("a1"),
+                                  register ULONG d0in __asm("d0"),
+                                  register ULONG d1in __asm("d1"))
 {
     DPRINTF (LOG_DEBUG, "_exec: DoIO() called, ioRequest=0x%08lx, command: %d\n", ioRequest, ioRequest->io_Command);
 
@@ -3870,7 +3872,9 @@ LONG _exec_DoIO ( register struct ExecBase  *SysBase    __asm("a6"),
     struct JumpVec *jv = &(((struct JumpVec *)(ioRequest->io_Device))[-5]);
     devBeginIOFn_t beginiofn = jv->vec;
 
-    exec_call_vector((APTR)beginiofn, &ioRequest->io_Device->dd_Library, 0, 0, ioRequest);
+    /* BeginIO() gets the caller's D0/D1 (AmigaOS 3.1: gameport.device
+     * answers the standard commands with D0's low byte, probe exec/gpstd) */
+    exec_call_vector((APTR)beginiofn, &ioRequest->io_Device->dd_Library, d0in, d1in, ioRequest);
 
     if (! (ioRequest->io_Flags & IOF_QUICK))
         WaitIO(ioRequest);

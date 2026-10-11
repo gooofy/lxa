@@ -62,7 +62,6 @@ struct GameportBase
     ULONG gb_TickCounter;
 };
 
-#define GAMEPORT_STDCMD_ERROR 8
 
 static void gameport_reply_request(struct IORequest *ioreq)
 {
@@ -440,7 +439,8 @@ static BPTR __g_lxa_gameport_Expunge ( register struct Library   *dev   __asm("a
  * Device BeginIO
  */
 static BPTR __g_lxa_gameport_BeginIO ( register struct Library   *dev   __asm("a6"),
-                                        register struct IORequest *ioreq __asm("a1"))
+                                        register struct IORequest *ioreq __asm("a1"),
+                                        register ULONG d0in __asm("d0"))
 {
     struct GameportBase *gameportbase = (struct GameportBase *)dev;
     struct GameportUnit *gameportunit = (struct GameportUnit *)ioreq->io_Unit;
@@ -462,21 +462,22 @@ static BPTR __g_lxa_gameport_BeginIO ( register struct Library   *dev   __asm("a
 
     switch (command)
     {
-        /* AmigaOS 3.1 answers the standard exec commands below with
-         * io_Error 8 (verified on the reference, Phase 220) */
+        /* AmigaOS 3.1 answers the standard exec commands below with the
+         * low byte of D0 at BeginIO() (probe exec/gpstd; Fred Fish
+         * BattleForce sends CMD_CLEAR with D0 = 0) */
         case CMD_CLEAR:
             gameportunit->gu_LastQualifier = 0;
             gameportunit->gu_LastX = 0;
             gameportunit->gu_LastY = 0;
             gameportbase->gb_TickCounter = 0;
-            ioreq->io_Error = GAMEPORT_STDCMD_ERROR;
+            ioreq->io_Error = (BYTE)d0in;
             break;
 
         case CMD_RESET:
         case CMD_STOP:
         case CMD_START:
         case CMD_FLUSH:
-            ioreq->io_Error = GAMEPORT_STDCMD_ERROR;
+            ioreq->io_Error = (BYTE)d0in;
             break;
 
         case GPD_ASKCTYPE:
