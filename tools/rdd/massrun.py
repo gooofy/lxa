@@ -446,6 +446,9 @@ ENVIRONMENT_DEPENDENT = {
     "fish-0422/PopUpMenu/PopUpMenu.run": "PopUpMenu, run before it in the reference batch, left its \"Reply\" "
                                          "port: PopUpMenu.run sends it the quit message and exits; alone it "
                                          "waits on the reference too",
+    "fish-0955/MuroloUtil/Kickmaker": "on the reference AllocMem(MEMF_CHIP) failed after the earlier "
+                                      "programs of its batch (\"Can't alloc memory\", exit); alone it waits "
+                                      "for RETURN there too, as on lxa",
     "fish-0431/A68Kex/say": "the reference's Workbench 3.1 has no translator.library (say shows its \"not "
                             "found\" requester), lxa has one; neither has narrator.device",
 }
@@ -458,6 +461,12 @@ ENVIRONMENT_DEPENDENT = {
 FINISHED_SOONER = {
     "fish-0305/PrFont/prfont": "renders every font of FONTS: into its window, prints it and quits",
     "fish-0606/PrFont/PrFont": "renders every font of FONTS: into its window, prints it and quits",
+    "fish-0263/Sentinel/HD_3_Megabyte_Version": "plays its film until it needs Sentinel.2:Flash1 (Fish disk "
+                                                "264) and quits with \"Can't load\"; the reference makes the "
+                                                "same calls but was still loading Hall.anim",
+    "fish-0263/Sentinel/HD_3.5_Megabyte_Version": "plays its film until it needs Sentinel.2:Flash1 (Fish disk "
+                                                  "264) and quits with \"Can't load\"; the reference makes the "
+                                                  "same calls but was still loading Hall.anim",
 }
 
 
