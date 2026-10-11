@@ -1,0 +1,9 @@
+DF0: DeviceProc: a port, task DF0
+  INHIBIT TRUE: -1 0
+  DISK_INFO: -1 type 0x42555359 state 80 unit 0
+  INHIBIT FALSE: -1 0
+DF1: DeviceProc: a port, task DF1
+  INHIBIT TRUE: -1 0
+  DISK_INFO: -1 type 0x42555359 state 80 unit 1
+  INHIBIT FALSE: -1 0
+Lock("DF0:"): 0 IoErr 226

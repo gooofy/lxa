@@ -202,6 +202,12 @@ static void lxa_dos_process_exit_cleanup(LONG return_code, LONG exit_data);
 struct MsgPort *lxa_dos_host_console_port(void);
 BOOL lxa_dos_try_handle_special_port(struct MsgPort *port, struct Message *message);
 static struct MsgPort *g_lxa_fs_port;
+/* the handlers of the floppy drives DF0:/DF1: (no disks): their processes
+ * are not scheduled, lxa_dos_try_handle_special_port() answers packets */
+static struct MsgPort *g_lxa_df_port[2];
+static BOOL g_lxa_df_inhibit[2];
+struct MsgPort *lxa_dos_df_port(int unit);
+int lxa_dos_df_unit(CONST_STRPTR name);
 struct MsgPort *lxa_dos_fs_port(void);
 struct DosList * _dos_MakeDosEntry ( register struct DosLibrary * __dos_a6 __asm("a6"), register CONST_STRPTR name __asm("d1"), register LONG type __asm("d2"));
 
@@ -436,6 +442,52 @@ BOOL lxa_dos_try_handle_special_port(struct MsgPort *port, struct Message *messa
             }
             default:
                 res2 = ERROR_ACTION_NOT_KNOWN;
+                break;
+        }
+        _dos_ReplyPkt(DOSBase, dp, res1, res2);
+        return TRUE;
+    }
+
+    if (port && (port == g_lxa_df_port[0] || port == g_lxa_df_port[1]))
+    {
+        /* a floppy drive without a disk (AmigaOS 3.1, probe dos/dfhandler;
+         * Fred Fish FastDisk inhibits DF0:/DF1:, TurboBackup asks them) */
+        int unit = port == g_lxa_df_port[1];
+        dp = message ? lxa_dos_packet_from_message(message) : NULL;
+        if (!dp)
+        {
+            if (message && message->mn_ReplyPort)
+                ReplyMsg(message);
+            return TRUE;
+        }
+        switch (dp->dp_Type)
+        {
+            case ACTION_IS_FILESYSTEM:
+                res1 = DOSTRUE;
+                break;
+            case ACTION_INHIBIT:
+                g_lxa_df_inhibit[unit] = dp->dp_Arg1 ? TRUE : FALSE;
+                res1 = DOSTRUE;
+                break;
+            case ACTION_DISK_INFO:
+            case ACTION_INFO:
+            {
+                struct InfoData *id = (struct InfoData *)BADDR(dp->dp_Type == ACTION_INFO ? dp->dp_Arg2 : dp->dp_Arg1);
+                if (id)
+                {
+                    LONG k;
+                    for (k = 0; k < (LONG)sizeof(*id); k++)
+                        ((UBYTE *)id)[k] = 0;
+                    id->id_UnitNumber = unit;
+                    id->id_DiskState = ID_WRITE_PROTECTED;
+                    id->id_DiskType = g_lxa_df_inhibit[unit] ? 0x42555359 /* BUSY */ : ID_NO_DISK_PRESENT;
+                    id->id_BytesPerBlock = 512;
+                }
+                res1 = DOSTRUE;
+                break;
+            }
+            default:
+                res2 = ERROR_NO_DISK;
                 break;
         }
         _dos_ReplyPkt(DOSBase, dp, res1, res2);
@@ -2971,6 +3023,14 @@ BPTR _dos_LockLVO ( register struct DosLibrary * __libBase __asm("a6"),
         BPTR l = _dos_Lock(__libBase, ___name, ___type);
         const char *c;
 
+        if (!l && IoErr() == ERROR_NO_DISK && lxa_dos_df_unit(___name) >= 0)
+        {
+            /* "No disk present in device DF0:" */
+            if (_dos_ErrorReport(DOSBase, ERROR_NO_DISK, REPORT_TASK, 0,
+                                 lxa_dos_df_port(lxa_dos_df_unit(___name))) != DOSFALSE)
+                return 0;
+            continue;
+        }
         if (l || IoErr() != ERROR_DEVICE_NOT_MOUNTED || !___name)
             return l;
         for (c = (const char *)___name; *c && *c != ':'; c++)
@@ -3005,7 +3065,11 @@ BPTR _dos_Lock ( register struct DosLibrary * __libBase __asm("a6"),
     DPRINTF (LOG_DEBUG, "_dos: Lock() result: lock_id=%lu\n", lock_id);
 
     if (lock_id == 0) {
-        SetIoErr(emucall1(EMU_CALL_DOS_LASTERROR, 0));
+        LONG err = emucall1(EMU_CALL_DOS_LASTERROR, 0);
+        /* a floppy drive lxa has no disk for (probe dos/dfhandler) */
+        if (err == ERROR_DEVICE_NOT_MOUNTED && lxa_dos_df_unit((CONST_STRPTR)path_to_use) >= 0)
+            err = ERROR_NO_DISK;
+        SetIoErr(err);
         return 0;
     }
 
@@ -7783,6 +7847,16 @@ struct DevProc * _dos_GetDeviceProc ( register struct DosLibrary * __dos_a6 __as
     }
 
     result = (struct DevProc *)emucall3(EMU_CALL_DOS_GETDEVPROC, (ULONG)name, (ULONG)dp, (ULONG)&ioerr);
+    if (!result && lxa_dos_df_unit(name) >= 0 && lxa_dos_df_port(lxa_dos_df_unit(name)))
+    {
+        /* DF0:/DF1: without a disk: their handlers */
+        dp->dvp_Port = lxa_dos_df_port(lxa_dos_df_unit(name));
+        dp->dvp_Lock = 0;
+        dp->dvp_Flags = 0;
+        dp->dvp_DevNode = NULL;
+        SetIoErr(0);
+        return dp;
+    }
     if (!result)
     {
         if (dp)
@@ -7885,6 +7959,39 @@ static void lxa_dos_free_entry(struct DosList *dl)
  * click through them).  lxa has no disks in them: the nodes have no
  * handler.
  */
+/* "DF0:..." -> 0, "DF1:..." -> 1, else -1 */
+int lxa_dos_df_unit(CONST_STRPTR name)
+{
+    if (name && (name[0] | 0x20) == 'd' && (name[1] | 0x20) == 'f' &&
+        (name[2] == '0' || name[2] == '1') && name[3] == ':')
+        return name[2] - '0';
+    return -1;
+}
+
+struct MsgPort *lxa_dos_df_port(int unit)
+{
+    static const char *names[2] = { "DF0", "DF1" };
+
+    if (unit < 0 || unit > 1)
+        return NULL;
+    if (!g_lxa_df_port[unit])
+    {
+        struct Process *p = (struct Process *)AllocMem(sizeof(struct Process), MEMF_CLEAR | MEMF_PUBLIC);
+        if (!p)
+            return NULL;
+        p->pr_Task.tc_Node.ln_Type = NT_PROCESS;
+        p->pr_Task.tc_Node.ln_Name = (char *)names[unit];
+        p->pr_Task.tc_Node.ln_Pri = 10;
+        p->pr_Task.tc_State = TS_WAIT;
+        g_lxa_df_port[unit] = &p->pr_MsgPort;
+        g_lxa_df_port[unit]->mp_SigTask = &p->pr_Task;
+        g_lxa_df_port[unit]->mp_Node.ln_Type = NT_MSGPORT;
+        g_lxa_df_port[unit]->mp_Flags = PA_IGNORE;
+        NEWLIST(&g_lxa_df_port[unit]->mp_MsgList);
+    }
+    return g_lxa_df_port[unit];
+}
+
 static void lxa_dos_add_floppies(struct DosLibrary *DOSBase, struct DosInfo *info)
 {
     static BOOL done;
@@ -7917,6 +8024,7 @@ static void lxa_dos_add_floppies(struct DosLibrary *DOSBase, struct DosInfo *inf
         fssm->fssm_Device = MKBADDR(dev);
         fssm->fssm_Environ = MKBADDR(de);
         dl->dol_misc.dol_handler.dol_Startup = MKBADDR(fssm);
+        dl->dol_Task = lxa_dos_df_port(i);
         dl->dol_misc.dol_handler.dol_StackSize = 600;
         dl->dol_misc.dol_handler.dol_Priority = 10;
         Forbid();
