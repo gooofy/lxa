@@ -1,0 +1,4 @@
+TD_CHANGESTATE: error 0 actual 255
+TD_PROTSTATUS: error 29 actual 23130
+TD_GETDRIVETYPE: error 0 actual 1
+TD_GETNUMTRACKS: error 0 actual 160

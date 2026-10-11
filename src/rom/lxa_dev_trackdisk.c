@@ -164,6 +164,13 @@ static LONG trackdisk_validate_extended_count(struct TDUnit *tdu, struct IOReque
     return 0;
 }
 
+/* a disk is in the drive when lxa has an image for it */
+static BOOL trackdisk_disk_present(struct TDUnit *tdu)
+{
+    return tdu && tdu->tdu_DiskIn &&
+           emucall3(EMU_CALL_TRACKDISK_SEEK, tdu->tdu_UnitNum, 0, 0) == 0;
+}
+
 static LONG trackdisk_check_basic_request(struct TDUnit *tdu, struct IOStdReq *io)
 {
     if (!tdu || !tdu->tdu_DiskIn)
@@ -497,13 +504,18 @@ static BPTR __g_lxa_trackdisk_BeginIO ( register struct Library   *dev   __asm("
             break;
 
         case TD_CHANGESTATE:
-            /* 0 = disk present, non-zero = no disk */
-            io->io_Actual = (tdu && tdu->tdu_DiskIn) ? 0 : 1;
+            /* 0 = disk present, $FF = no disk (AmigaOS 3.1, probe
+             * exec/tdstatus) */
+            io->io_Actual = trackdisk_disk_present(tdu) ? 0 : 0xff;
             break;
 
         case TD_PROTSTATUS:
-            /* 0 = not protected, non-zero = protected */
-            io->io_Actual = tdu ? tdu->tdu_ProtStatus : 0;
+            /* 0 = not protected, non-zero = protected; no disk: error
+             * TDERR_DiskChanged (probe exec/tdstatus; Fred Fish Kickmaker) */
+            if (!trackdisk_disk_present(tdu))
+                ioreq->io_Error = TDERR_DiskChanged;
+            else
+                io->io_Actual = tdu->tdu_ProtStatus;
             break;
 
         case TD_GETDRIVETYPE:
