@@ -146,6 +146,11 @@ Complete (Phases 230–239, 244, v0.11.88); see the summary table.  The Fred Fis
 
 **Reclassified from "new feature" to "compatibility"**: PPaint and FinalWriter fail without it, and so does DPaint's "Choose Display Mode" list. The reference profile `rtg` provides the ground truth.
 
+**API reference: PrismRTG** (https://github.com/lainejones/PrismRTG, GPL-3.0-only). It is an independent, from-scratch RTG stack for AmigaOS 3.x with its own `Picasso96API.library` (v2: bitmaps, mode lists, screens, pixel arrays, board data) and `cybergraphics.library` (v41). Its README states that it reproduces P96 function and tag numbers for compatibility, while the implementations are its own. Rules for using it (same as AROS, AGENTS.md §1a rule 5):
+- **Read it as documentation only**: LVO layout, tag IDs, structure layouts (`RenderInfo`, RGBFTYPE), and which functions and tags real apps use (MultiView, AWeb). **Never copy or port its code**, because GPL-3.0 does not fit lxa's MIT licence. Every implementation is lxa's own.
+- **It is not an oracle.** Where PrismRTG and Picasso96 2.0 on the `rtg` reference profile disagree, the reference wins (rule 1). PrismRTG's documented gaps, such as no picture-in-picture, are not hints about P96 behaviour.
+- Its `src/p96sdk` card-driver headers (Individual Computers et al., CC-BY) describe the `.card` and board interface. lxa does not need that interface, because lxa's display backend is the host.
+
 ### Phase 240 — Machine identity: 68040 + AGA + RTG mode database
 - [ ] Present a 68040 (the VBR already points to a fast-RAM vector table as on the reference, 237b). The FPU is done (Phase 237: 68881/68882 reported in `AttnFlags`, the coprocessor core completed, FPU context saved on task switches, probe `exec/fpu`). Still to do: switch the Musashi CPU type, report AFF_68040/AFF_FPU40, and ship a `68040.library`-compatible `SYS:Libs` entry, since apps probe for it. The reference's 68040.library returns 0x80000000 from FINT for |x| >= 2^31 (not mimicked).
 - [ ] Report AGA everywhere (`ChipRevBits0`, `GetChipRev`-style code at `lxa_graphics.c:9314`, `exec.c:5765`). Add AGA display modes, 256-colour planar screens and `LoadRGB32`/`SetRGB32` 24-bit palettes.
