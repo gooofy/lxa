@@ -5401,6 +5401,9 @@ void _exec_CacheClearE ( register struct ExecBase * SysBase __asm("a6"),
              (ULONG)___address, ___length, ___caches);
 }
 
+extern ULONG _exec_get_cacr (void);
+extern void _exec_set_cacr (ULONG cacr);
+
 ULONG _exec_CacheControl ( register struct ExecBase * SysBase __asm("a6"),
                                                         register ULONG ___cacheBits  __asm("d0"),
                                                         register ULONG ___cacheMask  __asm("d1"))
@@ -5438,11 +5441,24 @@ ULONG _exec_CacheControl ( register struct ExecBase * SysBase __asm("a6"),
         stored = 0;
 
     Disable();
-    cache_state = boot_state ^ cache_flipped;
+    if (attn & AFF_68040)
+    {
+        /* the 68040 keeps the two enables in its CACR (DE bit 31, IE bit 15) */
+        ULONG cacr = _exec_get_cacr ();
+        cache_state = ((cacr & 0x8000) ? CACRF_EnableI : 0) | ((cacr & 0x80000000) ? CACRF_EnableD : 0);
+    }
+    else
+        cache_state = boot_state ^ cache_flipped;
     old = cache_state & stored;
     now = (old & ~___cacheMask) | (___cacheBits & ___cacheMask & stored);
     cache_state = (cache_state & ~stored) | now;
-    cache_flipped = cache_state ^ boot_state;
+    if (attn & AFF_68040)
+    {
+        ULONG cacr = ((cache_state & CACRF_EnableI) ? 0x8000 : 0) | ((cache_state & CACRF_EnableD) ? 0x80000000 : 0);
+        _exec_set_cacr (cacr);
+    }
+    else
+        cache_flipped = cache_state ^ boot_state;
     Enable();
 
     if (attn & AFF_68040)
@@ -6876,6 +6892,13 @@ void coldstart (void)
         }
     }
 
+    /* Both 68040 caches are on after boot: CACR = DE|IE (probe exec/machine
+     * on the reference).  lxa emulates no caches; the register is what
+     * programs read (SysInfo) and CacheControl() changes. */
+    __asm volatile ("move.l #0x80008000,d0\n\t"
+                    ".short 0x4e7b,0x0002"              /* movec d0,cacr */
+                    : : : "d0");
+
     // init and register built-in libraries
 
     DPRINTF (LOG_DEBUG, "coldstart: registering built-in libraries\n");
@@ -7048,13 +7071,12 @@ void coldstart (void)
 
     /* Phase 108c: Populate ExecBase hardware description fields.
      *
-     * AttnFlags: The emulator runs a 68030 CPU (set in lxa.c:
-     * m68k_set_cpu_type(M68K_CPU_TYPE_68030)).  Per the RKRM,
-     * higher-model flags imply all lower ones, so 68030 sets
-     * AFF_68010 | AFF_68020 | AFF_68030.  The CPU core executes the
-     * 68881/68882 instruction set (m68kfpu.c), and AmigaOS 3.1 on the
-     * reference reports AFF_68881 | AFF_68882 (probe exec/fpu): programs
-     * compiled for the FPU check these bits (Fish Offender).
+     * AttnFlags: the emulator runs a 68040 with its FPU (lxa.c / lxa_api.c:
+     * m68k_set_cpu_type(M68K_CPU_TYPE_68040)), the CPU of the A4000/040
+     * reference.  AmigaOS 3.1 there reports 0x807f (probe exec/machine):
+     * every lower CPU bit, AFF_68881|AFF_68882 and AFF_FPU40 (set by
+     * 68040.library once the FPU emulation for the missing instructions is
+     * in place) and AFF_PRIVATE.
      *
      * VBlankFrequency / PowerSupplyFrequency: PAL = 50 Hz.
      *
@@ -7062,7 +7084,8 @@ void coldstart (void)
      *
      * ex_EClockFrequency: PAL E-clock = 709379 Hz (per NDK).
      */
-    SysBase->AttnFlags           = AFF_68010 | AFF_68020 | AFF_68030 | AFF_68881 | AFF_68882;
+    SysBase->AttnFlags           = AFF_68010 | AFF_68020 | AFF_68030 | AFF_68040 |
+                                   AFF_68881 | AFF_68882 | AFF_FPU40 | AFF_PRIVATE;
     SysBase->VBlankFrequency     = 50;
     SysBase->PowerSupplyFrequency = 50;
     SysBase->MaxLocMem           = (ULONG)LXA_CHIP_END;

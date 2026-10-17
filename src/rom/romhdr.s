@@ -1,12 +1,14 @@
 
 .text
 
-	dc.w 	0x1111		/* match word         */
+	/* The Kickstart header as programs read it (SysInfo; probe exec/machine:
+	   AmigaOS 3.1 on the reference has a 512K ROM, Kickstart 40.70). */
+	dc.w 	0x1114		/* match word: 512K ROM */
 	jmp     _coldstart  /* cold start / reset */
 
 	dc.l	0x0000ffff  /* unknown            */
-	dc.w    0x0021      /* version            */
-	dc.w    0x00c0      /* revision           */
+	dc.w    40          /* Kickstart version  */
+	dc.w    70          /* Kickstart revision */
 
 /*
     .global ___restore_a4

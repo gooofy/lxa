@@ -1387,6 +1387,11 @@ void m68040_fpu_op1()
 	{
 		case 0:		// FSAVE <ea>
 		{
+			/* lxa (Phase 240): the frame of the CPU being emulated - a
+			   68040 saves a 4-byte IDLE frame (version 0x41, size 0), a
+			   68881/68882 a 28-byte one; the NULL frame is 4 bytes 0 */
+			int idle_extra = CPU_TYPE_IS_040_PLUS(CPU_TYPE) ? 0 : 6*4;
+
 			switch (mode)
 			{
 				case 3:	// (An)+
@@ -1396,10 +1401,14 @@ void m68040_fpu_op1()
 					{
 						m68ki_write_32(addr, 0);
 					}
+					else if (idle_extra == 0)
+					{
+						m68ki_write_32(addr, 0x41000000);
+					}
 					else
 					{
 						// we normally generate an IDLE frame
-						REG_A[reg] += 6*4;
+						REG_A[reg] += idle_extra;
 						perform_fsave(addr, 1);
 					}
 					break;
@@ -1411,10 +1420,14 @@ void m68040_fpu_op1()
 					{
 						m68ki_write_32(addr, 0);
 					}
+					else if (idle_extra == 0)
+					{
+						m68ki_write_32(addr, 0x41000000);
+					}
 					else
 					{
 						// we normally generate an IDLE frame
-						REG_A[reg] -= 6*4;
+						REG_A[reg] -= idle_extra;
 						perform_fsave(addr, 0);
 					}
 					break;
@@ -1455,19 +1468,10 @@ void m68040_fpu_op1()
 				{
 					m68ki_cpu.fpu_just_reset = 0;
 
-					// how about an IDLE frame?
-					if ((temp & 0x00ff0000) == 0x00180000)
-					{
-						REG_A[reg] += 6*4;
-					} // check UNIMP
-					else if ((temp & 0x00ff0000) == 0x00380000)
-					{
-						REG_A[reg] += 14*4;
-					} // check BUSY
-					else if ((temp & 0x00ff0000) == 0x00b40000)
-					{
-						REG_A[reg] += 45*4;
-					}
+					/* the frame's size byte: the bytes after the
+					   header (68881/68882 IDLE 0x18, UNIMP 0x38,
+					   BUSY 0xb4; 68040 IDLE 0, UNIMP 0x30, BUSY 0x60) */
+					REG_A[reg] += (temp >> 16) & 0xff;
 				}
 				else
 				{

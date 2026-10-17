@@ -149,9 +149,8 @@ add_custom_command(
 set(ROM_SIZE_BYTES 524288)  # 512 * 1024
 add_custom_command(
     OUTPUT ${ROM_FILE}
-    COMMAND ${CMAKE_COMMAND} -E copy ${ROM_BIN} ${ROM_FILE}
-    COMMAND truncate -s ${ROM_SIZE_BYTES} ${ROM_FILE}
-    DEPENDS ${ROM_BIN}
+    COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/romfinish.py ${ROM_BIN} ${ROM_FILE} ${ROM_SIZE_BYTES}
+    DEPENDS ${ROM_BIN} ${CMAKE_CURRENT_SOURCE_DIR}/romfinish.py
     COMMENT "Creating 512KB ROM image"
 )
 
