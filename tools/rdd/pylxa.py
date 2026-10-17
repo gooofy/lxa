@@ -35,6 +35,7 @@ class LxaConfig(ctypes.Structure):
         ("cycles_per_frame", ctypes.c_uint32),
         ("epoch_secs", ctypes.c_uint64),
         ("strict_unimplemented", ctypes.c_bool),
+        ("rtg", ctypes.c_bool),
     ]
 
 
@@ -79,7 +80,8 @@ class Lxa:
         os.environ.setdefault("LXA_PREFIX", os.path.normpath(os.path.join(ROOT, "..", "..", "usr")))
         self._rom = os.path.join(self.build, "target", "rom", "lxa.rom").encode()
         cfg = LxaConfig(rom_path=self._rom, headless=True, rootless=rootless,
-                        strict_unimplemented=strict_unimplemented)
+                        strict_unimplemented=strict_unimplemented,
+                        rtg=os.environ.get("LXA_RTG") == "1")
         if self.lib.lxa_init(ctypes.byref(cfg)) != 0:
             raise RuntimeError("lxa_init failed")
         self._open = True

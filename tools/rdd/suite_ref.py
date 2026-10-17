@@ -56,6 +56,17 @@ def wb31_fonts_dir(profile="aga"):
     return os.path.join(refsys, "SYS-%s" % profile, "Fonts")
 
 
+PROFILE_MARKER = "rdd: profile rtg"
+
+
+def probe_profile(src):
+    """A probe whose source contains "rdd: profile rtg" runs on the `rtg`
+    reference profile (Picasso96 + uaegfx) and on lxa with the RTG board
+    enabled (LXA_RTG=1, roadmap M4)."""
+    with open(src, encoding="latin-1") as f:
+        return "rtg" if PROFILE_MARKER in f.read() else "aga"
+
+
 def probe_fonts(src):
     """A probe whose source contains "rdd: fonts wb31" runs on lxa with the
     reference system's Workbench 3.1 fonts as FONTS: (the reference has
@@ -86,7 +97,8 @@ def programs(build):
                 if os.path.exists(host):
                     out.append({"name": rel, "src": "tests/probes/%s" % lib, "host": host, "probe": True,
                                 "expected": os.path.join(pdir, lib, name + ".ref.out"),
-                                "fonts": probe_fonts(os.path.join(pdir, lib, fn))})
+                                "fonts": probe_fonts(os.path.join(pdir, lib, fn)),
+                                "profile": probe_profile(os.path.join(pdir, lib, fn))})
     # Shell parity scripts (Phase 221): tests/shell_parity/<name>.script runs
     # as "SYS:Tests/ShellParity/Run <name>" on both backends (the reference
     # uses its own WB 3.1 C: commands, lxa its sys/C commands and shell).
@@ -245,34 +257,40 @@ def run_ref_chunk(chunk, timeout_ms, profile="aga"):
 
 
 def run_ref(progs, jobs, timeout_ms, use_cache=True, chunk=12):
-    subprocess.run([os.path.join(ROOT, "tools", "refsys", "build_refsys.sh"), "--profile", "aga"],
-                   check=True, stdout=subprocess.DEVNULL)
-    fp = refsys_fingerprint("aga")
+    out, chunks, fps = {}, [], {}
     os.makedirs(CACHE, exist_ok=True)
-    out, todo = {}, []
-    for p in progs:
-        cp = ref_cache_path(p, fp)
-        if use_cache and os.path.exists(cp):
-            with open(cp) as f:
-                out[p["name"]] = json.load(f)
-        else:
-            todo.append(p)
-    chunks = [todo[i:i + chunk] for i in range(0, len(todo), chunk)]
+    for profile in sorted({p.get("profile", "aga") for p in progs}):
+        subprocess.run([os.path.join(ROOT, "tools", "refsys", "build_refsys.sh"), "--profile", profile],
+                       check=True, stdout=subprocess.DEVNULL)
+        fp = fps[profile] = refsys_fingerprint(profile)
+        todo = []
+        for p in progs:
+            if p.get("profile", "aga") != profile:
+                continue
+            cp = ref_cache_path(p, fp)
+            if use_cache and os.path.exists(cp):
+                with open(cp) as f:
+                    out[p["name"]] = json.load(f)
+            else:
+                todo.append(p)
+        chunks += [(todo[i:i + chunk], profile) for i in range(0, len(todo), chunk)]
     with concurrent.futures.ThreadPoolExecutor(max_workers=jobs) as ex:
-        for res in ex.map(lambda c: run_ref_chunk(c, timeout_ms), chunks):
+        for res in ex.map(lambda c: run_ref_chunk(c[0], timeout_ms, c[1]), chunks):
             for name, r in res.items():
                 out[name] = r
                 p = next(q for q in progs if q["name"] == name)
                 if r["status"] in ("exit", "hang") or r.get("error", "").startswith(("task held", "system hang")):
-                    with open(ref_cache_path(p, fp), "w") as f:
+                    with open(ref_cache_path(p, fps[p.get("profile", "aga")]), "w") as f:
                         json.dump(r, f)
     return out
 
 
 # -- lxa --------------------------------------------------------------------------
 
-def run_lxa_one(name, build, timeout_ms, prog=None, args="", fonts=None):
+def run_lxa_one(name, build, timeout_ms, prog=None, args="", fonts=None, profile="aga"):
     from rdd.pylxa import Lxa
+    if profile == "rtg":
+        os.environ["LXA_RTG"] = "1"     # the uaegfx-like RTG board (roadmap M4)
     # the reference runs LoadWB: its Workbench screen has the backdrop window
     os.environ.setdefault("LXA_WB_WINDOW", "1")
     # ... and starts programs with RUN >file: input NIL:, output a file -
@@ -303,6 +321,8 @@ def run_lxa(progs, build, jobs, timeout_ms):
             extra = ["--prog", p["prog"], "--args", p["args"]] if p.get("prog") else []
             if p.get("fonts"):
                 extra += ["--fonts", p["fonts"]]
+            if p.get("profile", "aga") != "aga":
+                extra += ["--profile", p["profile"]]
             r = subprocess.run([sys.executable, "-m", "rdd.suite_ref", "--lxa-one", p["name"], "--build", build,
                                 "--timeout", str(timeout_ms), "--result", tmp] + extra, capture_output=True,
                                encoding="latin-1", env=env, cwd=ROOT, timeout=timeout_ms / 1000 * 10 + 60)
@@ -422,6 +442,7 @@ def main(argv=None):
     ap.add_argument("--prog", help="--lxa-one: program to run (default: the name)")
     ap.add_argument("--args", default="", help="--lxa-one: its arguments")
     ap.add_argument("--fonts", help="--lxa-one: host directory to assign as FONTS:")
+    ap.add_argument("--profile", default="aga", help="--lxa-one: reference profile (rtg: LXA_RTG=1)")
     ap.add_argument("--lint", action="store_true", help="check tests/ref_suite.yaml")
     ap.add_argument("--ref-only", action="store_true", help="skip the lxa runs")
     ap.add_argument("--lxa-check", action="store_true",
@@ -438,7 +459,7 @@ def main(argv=None):
     if a.lxa_check:
         return lxa_check(a)
     if a.lxa_one:
-        res = run_lxa_one(a.lxa_one, a.build, a.timeout, a.prog, a.args, a.fonts)
+        res = run_lxa_one(a.lxa_one, a.build, a.timeout, a.prog, a.args, a.fonts, a.profile)
         if a.result:                 # not stdout: the program writes there too
             with open(a.result, "w") as f:
                 json.dump(res, f)

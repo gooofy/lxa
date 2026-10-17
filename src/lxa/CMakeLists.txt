@@ -53,6 +53,7 @@ set(LXA_CORE_SOURCES
     lxa_relay.c
     lxa_override.c
     lxa_unimpl.c
+    lxa_rtg.c
 )
 
 # Common compile options

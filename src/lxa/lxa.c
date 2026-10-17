@@ -6,6 +6,7 @@
 #include "lxa_relay.h"
 #include "lxa_override.h"
 #include "lxa_unimpl.h"
+#include "lxa_rtg_host.h"
 #include <unistd.h>
 
 
@@ -1226,6 +1227,8 @@ static void print_usage(char *argv[])
     fprintf(stderr, "    --deterministic   run on the virtual clock (time derived from emulated\n");
     fprintf(stderr, "                      cycles, idle time skipped; reproducible runs)\n");
     fprintf(stderr, "    -h, --help     display this help and exit\n");
+    fprintf(stderr, "    --rtg          RTG graphics board: Picasso96 modes and chunky screens\n");
+    fprintf(stderr, "                      (also LXA_RTG=1)\n");
     fprintf(stderr, "    --profile <path>  write profiling JSON to path on exit\n");
     fprintf(stderr, "    -r <rom>       use kickstart ROM (auto-detected if not specified)\n");
     fprintf(stderr, "    -v             verbose mode\n");
@@ -1371,6 +1374,12 @@ int main(int argc, char **argv, char **envp)
         if (strcmp(argv[optind], "--deterministic") == 0)
         {
             deterministic = true;
+            continue;
+        }
+
+        if (strcmp(argv[optind], "--rtg") == 0)
+        {
+            rtg_set_enabled(true);
             continue;
         }
 

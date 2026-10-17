@@ -37,6 +37,7 @@
 
 #include "util.h"
 #include "romfont_data.h"
+#include "lxa_rtg.h"
 
 /* Forward declaration for input processing (defined in lxa_intuition.c) */
 extern VOID _intuition_ProcessInputEvents(struct Screen *screen);
@@ -848,12 +849,39 @@ static const ULONG g_known_display_ids[] = {
     PAL_MONITOR_ID | HIRESHAMLACE_KEY,
 };
 
+/*
+ * RTG (Phase 241): with RTG enabled the display database also lists the
+ * modes of an emulated Picasso96 uaegfx board (monitor IDs 0x5xxx0000 and
+ * 0xfff00000, src/lxa/lxa_rtg.c).  The host owns that part of the database.
+ */
+ULONG graphics_rtg_call(ULONG op, ULONG a, ULONG b, ULONG c, ULONG d)
+{
+    return emucall5(EMU_CALL_GFX_RTG, op, a, b, c, d);
+}
+
+static BOOL graphics_is_native_monitor(ULONG display_id)
+{
+    ULONG mon = display_id & MONITOR_ID_MASK;
+
+    return mon == DEFAULT_MONITOR_ID || mon == PAL_MONITOR_ID || mon == NTSC_MONITOR_ID;
+}
+
+/* ~0: no RTG mode, else its DI_AVAIL_* flags */
+static ULONG graphics_rtg_avail(ULONG display_id)
+{
+    if (display_id == INVALID_ID || graphics_is_native_monitor(display_id))
+        return INVALID_ID;
+    return graphics_rtg_call(RTG_OP_AVAIL, display_id, 0, 0, 0);
+}
+
 static BOOL graphics_display_id_is_known(ULONG display_id)
 {
     ULONG i;
 
     if (display_id == INVALID_ID)
         return FALSE;
+    if (!graphics_is_native_monitor(display_id))
+        return graphics_rtg_avail(display_id) != INVALID_ID;
 
     for (i = 0; i < (sizeof(g_known_display_ids) / sizeof(g_known_display_ids[0])); i++)
     {
@@ -895,16 +923,18 @@ static BOOL graphics_display_id_is_known(ULONG display_id)
  */
 BOOL graphics_display_id_exists(ULONG display_id)
 {
-    ULONG mon = display_id & MONITOR_ID_MASK;
-
     if (display_id == INVALID_ID)
         return FALSE;
-    return mon == DEFAULT_MONITOR_ID || mon == PAL_MONITOR_ID || mon == NTSC_MONITOR_ID;
+    if (graphics_is_native_monitor(display_id))
+        return TRUE;
+    return graphics_rtg_avail(display_id) != INVALID_ID;
 }
 
 /* DI_AVAIL_* flags of an existing display ID (0: available) */
 ULONG graphics_display_id_not_available(ULONG display_id)
 {
+    if (!graphics_is_native_monitor(display_id))
+        return graphics_rtg_avail(display_id);
     if ((display_id & MONITOR_ID_MASK) == NTSC_MONITOR_ID)
         return DI_AVAIL_NOMONITOR;
     return 0;
@@ -9305,6 +9335,39 @@ void graphics_init_monitor_list(struct GfxBase *gfxBase)
     gfxBase->natural_monitor = (struct MonitorSpec *)ms_pal;
     gfxBase->default_monitor = (struct MonitorSpec *)ms_pal;
 
+    /* RTG: Picasso96 adds one MonitorSpec per board resolution in front of
+     * pal.monitor ("P96-0:UAE: 800x 600", ..., flags 0x0004; reference
+     * `rtg` profile, tests/probes/rtg/modes) */
+    if (graphics_rtg_call(RTG_OP_ENABLED, 0, 0, 0, 0))
+    {
+        ULONG i;
+
+        for (i = 0; ; i++)
+        {
+            struct MonitorSpec *ms;
+            char *name;
+            ULONG rc;
+
+            ms = (struct MonitorSpec *)AllocMem(sizeof(struct MonitorSpec) + 32, MEMF_PUBLIC | MEMF_CLEAR);
+            if (!ms)
+                break;
+            name = (char *)(ms + 1);
+            rc = graphics_rtg_call(RTG_OP_MONITOR, i, (ULONG)name, 0, 0);
+            if (!rc)
+            {
+                FreeMem(ms, sizeof(struct MonitorSpec) + 32);
+                break;
+            }
+            _init_monitor_spec(ms, name, 0x0004, (UWORD)(rc >> 16), 0);
+            ms->total_colorclocks = (UWORD)rc;
+            ms->min_row = 0;
+            ms->DeniseMaxDisplayColumn = 0;
+            ms->DeniseMinDisplayColumn = 0;
+            AddHead(&gfxBase->MonitorList, (struct Node *)ms);
+            graphics_rtg_call(RTG_OP_SET_MONITOR, i, (ULONG)ms, 0, 0);
+        }
+    }
+
     DPRINTF(LOG_INFO, "graphics_init_monitor_list: pal.monitor registered\n");
 }
 
@@ -9356,7 +9419,9 @@ static struct MonitorSpec * _graphics_OpenMonitor ( register struct GfxBase * Gf
     }
     else if (displayID != INVALID_ID && graphics_display_id_is_known(displayID))
     {
-        if ((displayID & MONITOR_ID_MASK) == PAL_MONITOR_ID)
+        if (!graphics_is_native_monitor(displayID))
+            result = (struct MonitorSpec *)graphics_rtg_call(RTG_OP_MONITOR_OF, displayID, 0, 0, 0);
+        else if ((displayID & MONITOR_ID_MASK) == PAL_MONITOR_ID)
             result = graphics_find_monitor_by_name(GfxBase, (CONST_STRPTR)PAL_MONITOR_NAME);
         else if ((displayID & MONITOR_ID_MASK) == NTSC_MONITOR_ID)
             result = graphics_find_monitor_by_name(GfxBase, (CONST_STRPTR)NTSC_MONITOR_NAME);
@@ -9436,13 +9501,17 @@ static ULONG _graphics_NextDisplayInfo ( register struct GfxBase * GfxBase __asm
     if (displayID == INVALID_ID)
         return g_next_display_ids[0];
 
+    /* the RTG modes follow the native ones (reference `rtg` profile) */
+    if (!graphics_is_native_monitor(displayID))
+        return graphics_rtg_call(RTG_OP_NEXT_ID, displayID, 0, 0, 0);
+
     for (i = 0; i < (sizeof(g_next_display_ids) / sizeof(g_next_display_ids[0])); i++)
     {
         if (g_next_display_ids[i] == displayID)
         {
             if (i + 1 < (sizeof(g_next_display_ids) / sizeof(g_next_display_ids[0])))
                 return g_next_display_ids[i + 1];
-            return INVALID_ID;
+            return graphics_rtg_call(RTG_OP_NEXT_ID, INVALID_ID, 0, 0, 0);
         }
     }
 
@@ -9557,6 +9626,8 @@ static ULONG _graphics_GetDisplayInfoData ( register struct GfxBase * GfxBase __
 
     if (!graphics_display_id_exists(actualDisplayID))
         return 0;
+    if (!graphics_is_native_monitor(actualDisplayID))
+        return graphics_rtg_call(RTG_OP_INFO, actualDisplayID, tagID, (ULONG)buf, size);
 
     if (!graphics_display_id_is_known(actualDisplayID))
     {
@@ -11768,6 +11839,14 @@ static ULONG _graphics_BestModeIDA ( register struct GfxBase * GfxBase __asm("a6
     const struct TagItem *tag;
 
     DPRINTF (LOG_DEBUG, "_graphics: BestModeIDA() tags=0x%08lx\n", (ULONG)tags);
+
+    /* RTG: the host chooses among the board modes, or hands back to the
+     * native selection below */
+    {
+        ULONG rtg = graphics_rtg_call(RTG_OP_BESTMODE, (ULONG)tags, 0, 0, 0);
+        if (rtg != RTG_BEST_CLASSIC)
+            return rtg;
+    }
 
     /* Parse tags */
     if (tags) {

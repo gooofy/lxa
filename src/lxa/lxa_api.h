@@ -72,6 +72,12 @@ typedef struct lxa_config {
      * is called ("partial:" implementations are only recorded).
      */
     bool strict_unimplemented;
+    /*
+     * Phases 241/242: RTG - a Picasso96 board (uaegfx, as the `rtg`
+     * reference profile): RTG display modes, chunky screens,
+     * Picasso96API.library and cybergraphics.library.  Also LXA_RTG=1.
+     */
+    bool rtg;
 } lxa_config_t;
 
 /*

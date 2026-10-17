@@ -1,0 +1,341 @@
+-- modes
+0x50001000 handle avail=0x00000000
+  disp n=48 len=4 props=0x00104380 na=0 res=44,53 ticks=312 spr=0 pal=512 sprres=44,53 bits=8,8,8
+  dims n=66 len=8 depth=8 raster=16,1-4096,2048 nom=0,0,319,199 max=0,0,319,199 vid=0,0,319,199 txt=0,0,319,199 std=0,0,319,199
+  mntr n=88 len=9 mspc=P96-0:UAE: 320x 200 pos=0,0 res=44,53 range=0,0,0,0 rows=200 clocks=357 minrow=0 compat=-1 ticks=44,53 defpos=0,0 pref=0x50001000
+  name n=48 "UAE: 320x 200  8bit"
+0x50001100 handle avail=0x00000000
+  disp n=48 len=4 props=0x00104380 na=0 res=44,53 ticks=312 spr=0 pal=150 sprres=44,53 bits=5,6,5
+  dims n=66 len=8 depth=16 raster=16,1-2048,2048 nom=0,0,319,199 max=0,0,319,199 vid=0,0,319,199 txt=0,0,319,199 std=0,0,319,199
+  mntr n=88 len=9 mspc=P96-0:UAE: 320x 200 pos=0,0 res=44,53 range=0,0,0,0 rows=200 clocks=357 minrow=0 compat=-1 ticks=44,53 defpos=0,0 pref=0x50001000
+  name n=48 "UAE: 320x 200 16bit PC"
+0x50001303 handle avail=0x00000000
+  disp n=48 len=4 props=0x00104380 na=0 res=44,53 ticks=312 spr=0 pal=512 sprres=44,53 bits=8,8,8
+  dims n=66 len=8 depth=24 raster=16,1-1024,2048 nom=0,0,319,199 max=0,0,319,199 vid=0,0,319,199 txt=0,0,319,199 std=0,0,319,199
+  mntr n=88 len=9 mspc=P96-0:UAE: 320x 200 pos=0,0 res=44,53 range=0,0,0,0 rows=200 clocks=357 minrow=0 compat=-1 ticks=44,53 defpos=0,0 pref=0x50001000
+  name n=48 "UAE: 320x 200 32bit BGRA"
+0x50011000 handle avail=0x00000000
+  disp n=48 len=4 props=0x00104380 na=0 res=44,44 ticks=260 spr=0 pal=512 sprres=44,44 bits=8,8,8
+  dims n=66 len=8 depth=8 raster=16,1-4096,2048 nom=0,0,319,239 max=0,0,319,239 vid=0,0,319,239 txt=0,0,319,239 std=0,0,319,239
+  mntr n=88 len=9 mspc=P96-0:UAE: 320x 240 pos=0,0 res=44,44 range=0,0,0,0 rows=240 clocks=297 minrow=0 compat=-1 ticks=44,44 defpos=0,0 pref=0x50011000
+  name n=48 "UAE: 320x 240  8bit"
+0x50011100 handle avail=0x00000000
+  disp n=48 len=4 props=0x00104380 na=0 res=44,44 ticks=260 spr=0 pal=150 sprres=44,44 bits=5,6,5
+  dims n=66 len=8 depth=16 raster=16,1-2048,2048 nom=0,0,319,239 max=0,0,319,239 vid=0,0,319,239 txt=0,0,319,239 std=0,0,319,239
+  mntr n=88 len=9 mspc=P96-0:UAE: 320x 240 pos=0,0 res=44,44 range=0,0,0,0 rows=240 clocks=297 minrow=0 compat=-1 ticks=44,44 defpos=0,0 pref=0x50011000
+  name n=48 "UAE: 320x 240 16bit PC"
+0x50011303 handle avail=0x00000000
+  disp n=48 len=4 props=0x00104380 na=0 res=44,44 ticks=260 spr=0 pal=512 sprres=44,44 bits=8,8,8
+  dims n=66 len=8 depth=24 raster=16,1-1024,2048 nom=0,0,319,239 max=0,0,319,239 vid=0,0,319,239 txt=0,0,319,239 std=0,0,319,239
+  mntr n=88 len=9 mspc=P96-0:UAE: 320x 240 pos=0,0 res=44,44 range=0,0,0,0 rows=240 clocks=297 minrow=0 compat=-1 ticks=44,44 defpos=0,0 pref=0x50011000
+  name n=48 "UAE: 320x 240 32bit BGRA"
+0x50091000 handle avail=0x00000000
+  disp n=48 len=4 props=0x00104380 na=0 res=44,41 ticks=244 spr=0 pal=512 sprres=44,41 bits=8,8,8
+  dims n=66 len=8 depth=8 raster=16,1-4096,2048 nom=0,0,319,255 max=0,0,319,255 vid=0,0,319,255 txt=0,0,319,255 std=0,0,319,255
+  mntr n=88 len=9 mspc=P96-0:UAE: 320x 256 pos=0,0 res=44,41 range=0,0,0,0 rows=256 clocks=279 minrow=0 compat=-1 ticks=44,41 defpos=0,0 pref=0x50091000
+  name n=48 "UAE: 320x 256  8bit"
+0x50091100 handle avail=0x00000000
+  disp n=48 len=4 props=0x00104380 na=0 res=44,41 ticks=244 spr=0 pal=150 sprres=44,41 bits=5,6,5
+  dims n=66 len=8 depth=16 raster=16,1-2048,2048 nom=0,0,319,255 max=0,0,319,255 vid=0,0,319,255 txt=0,0,319,255 std=0,0,319,255
+  mntr n=88 len=9 mspc=P96-0:UAE: 320x 256 pos=0,0 res=44,41 range=0,0,0,0 rows=256 clocks=279 minrow=0 compat=-1 ticks=44,41 defpos=0,0 pref=0x50091000
+  name n=48 "UAE: 320x 256 16bit PC"
+0x50091303 handle avail=0x00000000
+  disp n=48 len=4 props=0x00104380 na=0 res=44,41 ticks=244 spr=0 pal=512 sprres=44,41 bits=8,8,8
+  dims n=66 len=8 depth=24 raster=16,1-1024,2048 nom=0,0,319,255 max=0,0,319,255 vid=0,0,319,255 txt=0,0,319,255 std=0,0,319,255
+  mntr n=88 len=9 mspc=P96-0:UAE: 320x 256 pos=0,0 res=44,41 range=0,0,0,0 rows=256 clocks=279 minrow=0 compat=-1 ticks=44,41 defpos=0,0 pref=0x50091000
+  name n=48 "UAE: 320x 256 32bit BGRA"
+0x50ff1000 handle avail=0x00000000
+  disp n=48 len=4 props=0x00104380 na=0 res=22,29 ticks=86 spr=0 pal=512 sprres=22,29 bits=8,8,8
+  dims n=66 len=8 depth=8 raster=16,1-4096,2048 nom=0,0,639,359 max=0,0,639,359 vid=0,0,639,359 txt=0,0,639,359 std=0,0,639,359
+  mntr n=88 len=9 mspc=P96-0:UAE: 640x 360 pos=0,0 res=22,29 range=0,0,0,0 rows=360 clocks=198 minrow=0 compat=-1 ticks=22,29 defpos=0,0 pref=0x50ff1000
+  name n=48 "UAE: 640x 360  8bit"
+0x50ff1100 handle avail=0x00000000
+  disp n=48 len=4 props=0x00104380 na=0 res=22,29 ticks=86 spr=0 pal=150 sprres=22,29 bits=5,6,5
+  dims n=66 len=8 depth=16 raster=16,1-2048,2048 nom=0,0,639,359 max=0,0,639,359 vid=0,0,639,359 txt=0,0,639,359 std=0,0,639,359
+  mntr n=88 len=9 mspc=P96-0:UAE: 640x 360 pos=0,0 res=22,29 range=0,0,0,0 rows=360 clocks=198 minrow=0 compat=-1 ticks=22,29 defpos=0,0 pref=0x50ff1000
+  name n=48 "UAE: 640x 360 16bit PC"
+0x50ff1303 handle avail=0x00000000
+  disp n=48 len=4 props=0x00104380 na=0 res=22,29 ticks=86 spr=0 pal=512 sprres=22,29 bits=8,8,8
+  dims n=66 len=8 depth=24 raster=16,1-1024,2048 nom=0,0,639,359 max=0,0,639,359 vid=0,0,639,359 txt=0,0,639,359 std=0,0,639,359
+  mntr n=88 len=9 mspc=P96-0:UAE: 640x 360 pos=0,0 res=22,29 range=0,0,0,0 rows=360 clocks=198 minrow=0 compat=-1 ticks=22,29 defpos=0,0 pref=0x50ff1000
+  name n=48 "UAE: 640x 360 32bit BGRA"
+0x50021000 handle avail=0x00000000
+  disp n=48 len=4 props=0x00104380 na=0 res=22,26 ticks=78 spr=0 pal=512 sprres=22,26 bits=8,8,8
+  dims n=66 len=8 depth=8 raster=16,1-4096,2048 nom=0,0,639,399 max=0,0,639,399 vid=0,0,639,399 txt=0,0,639,399 std=0,0,639,399
+  mntr n=88 len=9 mspc=P96-0:UAE: 640x 400 pos=0,0 res=22,26 range=0,0,0,0 rows=400 clocks=178 minrow=0 compat=-1 ticks=22,26 defpos=0,0 pref=0x50021000
+  name n=48 "UAE: 640x 400  8bit"
+0x50021100 handle avail=0x00000000
+  disp n=48 len=4 props=0x00104380 na=0 res=22,26 ticks=78 spr=0 pal=150 sprres=22,26 bits=5,6,5
+  dims n=66 len=8 depth=16 raster=16,1-2048,2048 nom=0,0,639,399 max=0,0,639,399 vid=0,0,639,399 txt=0,0,639,399 std=0,0,639,399
+  mntr n=88 len=9 mspc=P96-0:UAE: 640x 400 pos=0,0 res=22,26 range=0,0,0,0 rows=400 clocks=178 minrow=0 compat=-1 ticks=22,26 defpos=0,0 pref=0x50021000
+  name n=48 "UAE: 640x 400 16bit PC"
+0x50021303 handle avail=0x00000000
+  disp n=48 len=4 props=0x00104380 na=0 res=22,26 ticks=78 spr=0 pal=512 sprres=22,26 bits=8,8,8
+  dims n=66 len=8 depth=24 raster=16,1-1024,2048 nom=0,0,639,399 max=0,0,639,399 vid=0,0,639,399 txt=0,0,639,399 std=0,0,639,399
+  mntr n=88 len=9 mspc=P96-0:UAE: 640x 400 pos=0,0 res=22,26 range=0,0,0,0 rows=400 clocks=178 minrow=0 compat=-1 ticks=22,26 defpos=0,0 pref=0x50021000
+  name n=48 "UAE: 640x 400 32bit BGRA"
+0x50031000 handle avail=0x00000000
+  disp n=48 len=4 props=0x00104380 na=0 res=22,22 ticks=65 spr=0 pal=512 sprres=22,22 bits=8,8,8
+  dims n=66 len=8 depth=8 raster=16,1-4096,2048 nom=0,0,639,479 max=0,0,639,479 vid=0,0,639,479 txt=0,0,639,479 std=0,0,639,479
+  mntr n=88 len=9 mspc=P96-0:UAE: 640x 480 pos=0,0 res=22,22 range=0,0,0,0 rows=480 clocks=148 minrow=0 compat=-1 ticks=22,22 defpos=0,0 pref=0x50031000
+  name n=48 "UAE: 640x 480  8bit"
+0x50031100 handle avail=0x00000000
+  disp n=48 len=4 props=0x00104380 na=0 res=22,22 ticks=65 spr=0 pal=150 sprres=22,22 bits=5,6,5
+  dims n=66 len=8 depth=16 raster=16,1-2048,2048 nom=0,0,639,479 max=0,0,639,479 vid=0,0,639,479 txt=0,0,639,479 std=0,0,639,479
+  mntr n=88 len=9 mspc=P96-0:UAE: 640x 480 pos=0,0 res=22,22 range=0,0,0,0 rows=480 clocks=148 minrow=0 compat=-1 ticks=22,22 defpos=0,0 pref=0x50031000
+  name n=48 "UAE: 640x 480 16bit PC"
+0x50031303 handle avail=0x00000000
+  disp n=48 len=4 props=0x00104380 na=0 res=22,22 ticks=65 spr=0 pal=512 sprres=22,22 bits=8,8,8
+  dims n=66 len=8 depth=24 raster=16,1-1024,2048 nom=0,0,639,479 max=0,0,639,479 vid=0,0,639,479 txt=0,0,639,479 std=0,0,639,479
+  mntr n=88 len=9 mspc=P96-0:UAE: 640x 480 pos=0,0 res=22,22 range=0,0,0,0 rows=480 clocks=148 minrow=0 compat=-1 ticks=22,22 defpos=0,0 pref=0x50031000
+  name n=48 "UAE: 640x 480 32bit BGRA"
+0x500a1000 handle avail=0x00000000
+  disp n=48 len=4 props=0x00104380 na=0 res=22,21 ticks=61 spr=0 pal=512 sprres=22,21 bits=8,8,8
+  dims n=66 len=8 depth=8 raster=16,1-4096,2048 nom=0,0,639,511 max=0,0,639,511 vid=0,0,639,511 txt=0,0,639,511 std=0,0,639,511
+  mntr n=88 len=9 mspc=P96-0:UAE: 640x 512 pos=0,0 res=22,21 range=0,0,0,0 rows=512 clocks=139 minrow=0 compat=-1 ticks=22,21 defpos=0,0 pref=0x500a1000
+  name n=48 "UAE: 640x 512  8bit"
+0x500a1100 handle avail=0x00000000
+  disp n=48 len=4 props=0x00104380 na=0 res=22,21 ticks=61 spr=0 pal=150 sprres=22,21 bits=5,6,5
+  dims n=66 len=8 depth=16 raster=16,1-2048,2048 nom=0,0,639,511 max=0,0,639,511 vid=0,0,639,511 txt=0,0,639,511 std=0,0,639,511
+  mntr n=88 len=9 mspc=P96-0:UAE: 640x 512 pos=0,0 res=22,21 range=0,0,0,0 rows=512 clocks=139 minrow=0 compat=-1 ticks=22,21 defpos=0,0 pref=0x500a1000
+  name n=48 "UAE: 640x 512 16bit PC"
+0x500a1303 handle avail=0x00000000
+  disp n=48 len=4 props=0x00104380 na=0 res=22,21 ticks=61 spr=0 pal=512 sprres=22,21 bits=8,8,8
+  dims n=66 len=8 depth=24 raster=16,1-1024,2048 nom=0,0,639,511 max=0,0,639,511 vid=0,0,639,511 txt=0,0,639,511 std=0,0,639,511
+  mntr n=88 len=9 mspc=P96-0:UAE: 640x 512 pos=0,0 res=22,21 range=0,0,0,0 rows=512 clocks=139 minrow=0 compat=-1 ticks=22,21 defpos=0,0 pref=0x500a1000
+  name n=48 "UAE: 640x 512 32bit BGRA"
+0x50fe1000 handle avail=0x00000000
+  disp n=48 len=4 props=0x00104380 na=0 res=21,20 ticks=55 spr=0 pal=512 sprres=21,20 bits=8,8,8
+  dims n=66 len=8 depth=8 raster=16,1-4096,2048 nom=0,0,671,539 max=0,0,671,539 vid=0,0,671,539 txt=0,0,671,539 std=0,0,671,539
+  mntr n=88 len=9 mspc=P96-0:UAE: 672x 540 pos=0,0 res=21,20 range=0,0,0,0 rows=540 clocks=132 minrow=0 compat=-1 ticks=21,20 defpos=0,0 pref=0x50fe1000
+  name n=48 "UAE: 672x 540  8bit"
+0x50fe1100 handle avail=0x00000000
+  disp n=48 len=4 props=0x00104380 na=0 res=21,20 ticks=55 spr=0 pal=150 sprres=21,20 bits=5,6,5
+  dims n=66 len=8 depth=16 raster=16,1-2048,2048 nom=0,0,671,539 max=0,0,671,539 vid=0,0,671,539 txt=0,0,671,539 std=0,0,671,539
+  mntr n=88 len=9 mspc=P96-0:UAE: 672x 540 pos=0,0 res=21,20 range=0,0,0,0 rows=540 clocks=132 minrow=0 compat=-1 ticks=21,20 defpos=0,0 pref=0x50fe1000
+  name n=48 "UAE: 672x 540 16bit PC"
+0x50fe1303 handle avail=0x00000000
+  disp n=48 len=4 props=0x00104380 na=0 res=21,20 ticks=55 spr=0 pal=512 sprres=21,20 bits=8,8,8
+  dims n=66 len=8 depth=24 raster=16,1-1024,2048 nom=0,0,671,539 max=0,0,671,539 vid=0,0,671,539 txt=0,0,671,539 std=0,0,671,539
+  mntr n=88 len=9 mspc=P96-0:UAE: 672x 540 pos=0,0 res=21,20 range=0,0,0,0 rows=540 clocks=132 minrow=0 compat=-1 ticks=21,20 defpos=0,0 pref=0x50fe1000
+  name n=48 "UAE: 672x 540 32bit BGRA"
+0x50fd1000 handle avail=0x00000000
+  disp n=48 len=4 props=0x00104380 na=0 res=18,23 ticks=55 spr=0 pal=512 sprres=18,23 bits=8,8,8
+  dims n=66 len=8 depth=8 raster=16,1-4096,2048 nom=0,0,799,449 max=0,0,799,449 vid=0,0,799,449 txt=0,0,799,449 std=0,0,799,449
+  mntr n=88 len=9 mspc=P96-0:UAE: 800x 450 pos=0,0 res=18,23 range=0,0,0,0 rows=450 clocks=158 minrow=0 compat=-1 ticks=18,23 defpos=0,0 pref=0x50fd1000
+  name n=48 "UAE: 800x 450  8bit"
+0x50fd1100 handle avail=0x00000000
+  disp n=48 len=4 props=0x00104380 na=0 res=18,23 ticks=55 spr=0 pal=150 sprres=18,23 bits=5,6,5
+  dims n=66 len=8 depth=16 raster=16,1-2048,2048 nom=0,0,799,449 max=0,0,799,449 vid=0,0,799,449 txt=0,0,799,449 std=0,0,799,449
+  mntr n=88 len=9 mspc=P96-0:UAE: 800x 450 pos=0,0 res=18,23 range=0,0,0,0 rows=450 clocks=158 minrow=0 compat=-1 ticks=18,23 defpos=0,0 pref=0x50fd1000
+  name n=48 "UAE: 800x 450 16bit PC"
+0x50fd1303 handle avail=0x00000000
+  disp n=48 len=4 props=0x00104380 na=0 res=18,23 ticks=55 spr=0 pal=512 sprres=18,23 bits=8,8,8
+  dims n=66 len=8 depth=24 raster=16,1-1024,2048 nom=0,0,799,449 max=0,0,799,449 vid=0,0,799,449 txt=0,0,799,449 std=0,0,799,449
+  mntr n=88 len=9 mspc=P96-0:UAE: 800x 450 pos=0,0 res=18,23 range=0,0,0,0 rows=450 clocks=158 minrow=0 compat=-1 ticks=18,23 defpos=0,0 pref=0x50fd1000
+  name n=48 "UAE: 800x 450 32bit BGRA"
+0x50fc1000 handle avail=0x00000000
+  disp n=48 len=4 props=0x00104380 na=0 res=18,21 ticks=50 spr=0 pal=512 sprres=18,21 bits=8,8,8
+  dims n=66 len=8 depth=8 raster=16,1-4096,2048 nom=0,0,799,499 max=0,0,799,499 vid=0,0,799,499 txt=0,0,799,499 std=0,0,799,499
+  mntr n=88 len=9 mspc=P96-0:UAE: 800x 500 pos=0,0 res=18,21 range=0,0,0,0 rows=500 clocks=142 minrow=0 compat=-1 ticks=18,21 defpos=0,0 pref=0x50fc1000
+  name n=48 "UAE: 800x 500  8bit"
+0x50fc1100 handle avail=0x00000000
+  disp n=48 len=4 props=0x00104380 na=0 res=18,21 ticks=50 spr=0 pal=150 sprres=18,21 bits=5,6,5
+  dims n=66 len=8 depth=16 raster=16,1-2048,2048 nom=0,0,799,499 max=0,0,799,499 vid=0,0,799,499 txt=0,0,799,499 std=0,0,799,499
+  mntr n=88 len=9 mspc=P96-0:UAE: 800x 500 pos=0,0 res=18,21 range=0,0,0,0 rows=500 clocks=142 minrow=0 compat=-1 ticks=18,21 defpos=0,0 pref=0x50fc1000
+  name n=48 "UAE: 800x 500 16bit PC"
+0x50fc1303 handle avail=0x00000000
+  disp n=48 len=4 props=0x00104380 na=0 res=18,21 ticks=50 spr=0 pal=512 sprres=18,21 bits=8,8,8
+  dims n=66 len=8 depth=24 raster=16,1-1024,2048 nom=0,0,799,499 max=0,0,799,499 vid=0,0,799,499 txt=0,0,799,499 std=0,0,799,499
+  mntr n=88 len=9 mspc=P96-0:UAE: 800x 500 pos=0,0 res=18,21 range=0,0,0,0 rows=500 clocks=142 minrow=0 compat=-1 ticks=18,21 defpos=0,0 pref=0x50fc1000
+  name n=48 "UAE: 800x 500 32bit BGRA"
+0x50041000 handle avail=0x00000000
+  disp n=48 len=4 props=0x00104380 na=0 res=18,18 ticks=41 spr=0 pal=512 sprres=18,18 bits=8,8,8
+  dims n=66 len=8 depth=8 raster=16,1-4096,2048 nom=0,0,799,599 max=0,0,799,599 vid=0,0,799,599 txt=0,0,799,599 std=0,0,799,599
+  mntr n=88 len=9 mspc=P96-0:UAE: 800x 600 pos=0,0 res=18,18 range=0,0,0,0 rows=600 clocks=119 minrow=0 compat=-1 ticks=18,18 defpos=0,0 pref=0x50041000
+  name n=48 "UAE: 800x 600  8bit"
+0x50041100 handle avail=0x00000000
+  disp n=48 len=4 props=0x00104380 na=0 res=18,18 ticks=41 spr=0 pal=150 sprres=18,18 bits=5,6,5
+  dims n=66 len=8 depth=16 raster=16,1-2048,2048 nom=0,0,799,599 max=0,0,799,599 vid=0,0,799,599 txt=0,0,799,599 std=0,0,799,599
+  mntr n=88 len=9 mspc=P96-0:UAE: 800x 600 pos=0,0 res=18,18 range=0,0,0,0 rows=600 clocks=119 minrow=0 compat=-1 ticks=18,18 defpos=0,0 pref=0x50041000
+  name n=48 "UAE: 800x 600 16bit PC"
+0x50041303 handle avail=0x00000000
+  disp n=48 len=4 props=0x00104380 na=0 res=18,18 ticks=41 spr=0 pal=512 sprres=18,18 bits=8,8,8
+  dims n=66 len=8 depth=24 raster=16,1-1024,2048 nom=0,0,799,599 max=0,0,799,599 vid=0,0,799,599 txt=0,0,799,599 std=0,0,799,599
+  mntr n=88 len=9 mspc=P96-0:UAE: 800x 600 pos=0,0 res=18,18 range=0,0,0,0 rows=600 clocks=119 minrow=0 compat=-1 ticks=18,18 defpos=0,0 pref=0x50041000
+  name n=48 "UAE: 800x 600 32bit BGRA"
+0x50fb1000 handle avail=0x00000000
+  disp n=48 len=4 props=0x00104380 na=0 res=15,20 ticks=38 spr=0 pal=512 sprres=15,20 bits=8,8,8
+  dims n=66 len=8 depth=8 raster=16,1-4096,2048 nom=0,0,959,539 max=0,0,959,539 vid=0,0,959,539 txt=0,0,959,539 std=0,0,959,539
+  mntr n=88 len=9 mspc=P96-0:UAE: 960x 540 pos=0,0 res=15,20 range=0,0,0,0 rows=540 clocks=132 minrow=0 compat=-1 ticks=15,20 defpos=0,0 pref=0x50fb1000
+  name n=48 "UAE: 960x 540  8bit"
+0x50fb1100 handle avail=0x00000000
+  disp n=48 len=4 props=0x00104380 na=0 res=15,20 ticks=38 spr=0 pal=150 sprres=15,20 bits=5,6,5
+  dims n=66 len=8 depth=16 raster=16,1-2048,2048 nom=0,0,959,539 max=0,0,959,539 vid=0,0,959,539 txt=0,0,959,539 std=0,0,959,539
+  mntr n=88 len=9 mspc=P96-0:UAE: 960x 540 pos=0,0 res=15,20 range=0,0,0,0 rows=540 clocks=132 minrow=0 compat=-1 ticks=15,20 defpos=0,0 pref=0x50fb1000
+  name n=48 "UAE: 960x 540 16bit PC"
+0x50fb1303 handle avail=0x00000000
+  disp n=48 len=4 props=0x00104380 na=0 res=15,20 ticks=38 spr=0 pal=512 sprres=15,20 bits=8,8,8
+  dims n=66 len=8 depth=24 raster=16,1-1024,2048 nom=0,0,959,539 max=0,0,959,539 vid=0,0,959,539 txt=0,0,959,539 std=0,0,959,539
+  mntr n=88 len=9 mspc=P96-0:UAE: 960x 540 pos=0,0 res=15,20 range=0,0,0,0 rows=540 clocks=132 minrow=0 compat=-1 ticks=15,20 defpos=0,0 pref=0x50fb1000
+  name n=48 "UAE: 960x 540 32bit BGRA"
+0x508b1000 handle avail=0x00000000
+  disp n=48 len=4 props=0x00104380 na=0 res=14,18 ticks=33 spr=0 pal=512 sprres=14,18 bits=8,8,8
+  dims n=66 len=8 depth=8 raster=16,1-4096,2048 nom=0,0,1023,575 max=0,0,1023,575 vid=0,0,1023,575 txt=0,0,1023,575 std=0,0,1023,575
+  mntr n=88 len=9 mspc=P96-0:UAE:1024x 576 pos=0,0 res=14,18 range=0,0,0,0 rows=576 clocks=124 minrow=0 compat=-1 ticks=14,18 defpos=0,0 pref=0x508b1000
+  name n=48 "UAE:1024x 576  8bit"
+0x508b1100 handle avail=0x00000000
+  disp n=48 len=4 props=0x00104380 na=0 res=14,18 ticks=33 spr=0 pal=150 sprres=14,18 bits=5,6,5
+  dims n=66 len=8 depth=16 raster=16,1-2048,2048 nom=0,0,1023,575 max=0,0,1023,575 vid=0,0,1023,575 txt=0,0,1023,575 std=0,0,1023,575
+  mntr n=88 len=9 mspc=P96-0:UAE:1024x 576 pos=0,0 res=14,18 range=0,0,0,0 rows=576 clocks=124 minrow=0 compat=-1 ticks=14,18 defpos=0,0 pref=0x508b1000
+  name n=48 "UAE:1024x 576 16bit PC"
+0x508b1303 handle avail=0x00000000
+  disp n=48 len=4 props=0x00104380 na=0 res=14,18 ticks=33 spr=0 pal=512 sprres=14,18 bits=8,8,8
+  dims n=66 len=8 depth=24 raster=16,1-1024,2048 nom=0,0,1023,575 max=0,0,1023,575 vid=0,0,1023,575 txt=0,0,1023,575 std=0,0,1023,575
+  mntr n=88 len=9 mspc=P96-0:UAE:1024x 576 pos=0,0 res=14,18 range=0,0,0,0 rows=576 clocks=124 minrow=0 compat=-1 ticks=14,18 defpos=0,0 pref=0x508b1000
+  name n=48 "UAE:1024x 576 32bit BGRA"
+0x50fa1000 handle avail=0x00000000
+  disp n=48 len=4 props=0x00104380 na=0 res=14,18 ticks=32 spr=0 pal=512 sprres=14,18 bits=8,8,8
+  dims n=66 len=8 depth=8 raster=16,1-4096,2048 nom=0,0,1023,599 max=0,0,1023,599 vid=0,0,1023,599 txt=0,0,1023,599 std=0,0,1023,599
+  mntr n=88 len=9 mspc=P96-0:UAE:1024x 600 pos=0,0 res=14,18 range=0,0,0,0 rows=600 clocks=119 minrow=0 compat=-1 ticks=14,18 defpos=0,0 pref=0x50fa1000
+  name n=48 "UAE:1024x 600  8bit"
+0x50fa1100 handle avail=0x00000000
+  disp n=48 len=4 props=0x00104380 na=0 res=14,18 ticks=32 spr=0 pal=150 sprres=14,18 bits=5,6,5
+  dims n=66 len=8 depth=16 raster=16,1-2048,2048 nom=0,0,1023,599 max=0,0,1023,599 vid=0,0,1023,599 txt=0,0,1023,599 std=0,0,1023,599
+  mntr n=88 len=9 mspc=P96-0:UAE:1024x 600 pos=0,0 res=14,18 range=0,0,0,0 rows=600 clocks=119 minrow=0 compat=-1 ticks=14,18 defpos=0,0 pref=0x50fa1000
+  name n=48 "UAE:1024x 600 16bit PC"
+0x50fa1303 handle avail=0x00000000
+  disp n=48 len=4 props=0x00104380 na=0 res=14,18 ticks=32 spr=0 pal=512 sprres=14,18 bits=8,8,8
+  dims n=66 len=8 depth=24 raster=16,1-1024,2048 nom=0,0,1023,599 max=0,0,1023,599 vid=0,0,1023,599 txt=0,0,1023,599 std=0,0,1023,599
+  mntr n=88 len=9 mspc=P96-0:UAE:1024x 600 pos=0,0 res=14,18 range=0,0,0,0 rows=600 clocks=119 minrow=0 compat=-1 ticks=14,18 defpos=0,0 pref=0x50fa1000
+  name n=48 "UAE:1024x 600 32bit BGRA"
+0x50051000 handle avail=0x00000000
+  disp n=48 len=4 props=0x00104380 na=0 res=14,14 ticks=25 spr=0 pal=512 sprres=14,14 bits=8,8,8
+  dims n=66 len=8 depth=8 raster=16,1-4096,2048 nom=0,0,1023,767 max=0,0,1023,767 vid=0,0,1023,767 txt=0,0,1023,767 std=0,0,1023,767
+  mntr n=88 len=9 mspc=P96-0:UAE:1024x 768 pos=0,0 res=14,14 range=0,0,0,0 rows=768 clocks=93 minrow=0 compat=-1 ticks=14,14 defpos=0,0 pref=0x50051000
+  name n=48 "UAE:1024x 768  8bit"
+0x50051100 handle avail=0x00000000
+  disp n=48 len=4 props=0x00104380 na=0 res=14,14 ticks=25 spr=0 pal=150 sprres=14,14 bits=5,6,5
+  dims n=66 len=8 depth=16 raster=16,1-2048,2048 nom=0,0,1023,767 max=0,0,1023,767 vid=0,0,1023,767 txt=0,0,1023,767 std=0,0,1023,767
+  mntr n=88 len=9 mspc=P96-0:UAE:1024x 768 pos=0,0 res=14,14 range=0,0,0,0 rows=768 clocks=93 minrow=0 compat=-1 ticks=14,14 defpos=0,0 pref=0x50051000
+  name n=48 "UAE:1024x 768 16bit PC"
+0x50051303 handle avail=0x00000000
+  disp n=48 len=4 props=0x00104380 na=0 res=14,14 ticks=25 spr=0 pal=512 sprres=14,14 bits=8,8,8
+  dims n=66 len=8 depth=24 raster=16,1-1024,2048 nom=0,0,1023,767 max=0,0,1023,767 vid=0,0,1023,767 txt=0,0,1023,767 std=0,0,1023,767
+  mntr n=88 len=9 mspc=P96-0:UAE:1024x 768 pos=0,0 res=14,14 range=0,0,0,0 rows=768 clocks=93 minrow=0 compat=-1 ticks=14,14 defpos=0,0 pref=0x50051000
+  name n=48 "UAE:1024x 768 32bit BGRA"
+0x508e1000 handle avail=0x00000000
+  disp n=48 len=4 props=0x00104380 na=0 res=11,15 ticks=21 spr=0 pal=512 sprres=11,15 bits=8,8,8
+  dims n=66 len=8 depth=8 raster=16,1-4096,2048 nom=0,0,1279,719 max=0,0,1279,719 vid=0,0,1279,719 txt=0,0,1279,719 std=0,0,1279,719
+  mntr n=88 len=9 mspc=P96-0:UAE:1280x 720 pos=0,0 res=11,15 range=0,0,0,0 rows=720 clocks=99 minrow=0 compat=-1 ticks=11,15 defpos=0,0 pref=0x508e1000
+  name n=48 "UAE:1280x 720  8bit"
+0x508e1100 handle avail=0x00000000
+  disp n=48 len=4 props=0x00104380 na=0 res=11,15 ticks=21 spr=0 pal=150 sprres=11,15 bits=5,6,5
+  dims n=66 len=8 depth=16 raster=16,1-2048,2048 nom=0,0,1279,719 max=0,0,1279,719 vid=0,0,1279,719 txt=0,0,1279,719 std=0,0,1279,719
+  mntr n=88 len=9 mspc=P96-0:UAE:1280x 720 pos=0,0 res=11,15 range=0,0,0,0 rows=720 clocks=99 minrow=0 compat=-1 ticks=11,15 defpos=0,0 pref=0x508e1000
+  name n=48 "UAE:1280x 720 16bit PC"
+0x508e1303 handle avail=0x00000000
+  disp n=48 len=4 props=0x00104380 na=0 res=11,15 ticks=21 spr=0 pal=512 sprres=11,15 bits=8,8,8
+  dims n=66 len=8 depth=24 raster=16,1-1024,2048 nom=0,0,1279,719 max=0,0,1279,719 vid=0,0,1279,719 txt=0,0,1279,719 std=0,0,1279,719
+  mntr n=88 len=9 mspc=P96-0:UAE:1280x 720 pos=0,0 res=11,15 range=0,0,0,0 rows=720 clocks=99 minrow=0 compat=-1 ticks=11,15 defpos=0,0 pref=0x508e1000
+  name n=48 "UAE:1280x 720 32bit BGRA"
+0x50071000 handle avail=0x00000000
+  disp n=48 len=4 props=0x00104380 na=0 res=11,10 ticks=15 spr=0 pal=512 sprres=11,10 bits=8,8,8
+  dims n=66 len=8 depth=8 raster=16,1-4096,2048 nom=0,0,1279,1023 max=0,0,1279,1023 vid=0,0,1279,1023 txt=0,0,1279,1023 std=0,0,1279,1023
+  mntr n=88 len=9 mspc=P96-0:UAE:1280x1024 pos=0,0 res=11,10 range=0,0,0,0 rows=1024 clocks=69 minrow=0 compat=-1 ticks=11,10 defpos=0,0 pref=0x50071000
+  name n=48 "UAE:1280x1024  8bit"
+0x50071100 handle avail=0x00000000
+  disp n=48 len=4 props=0x00104380 na=0 res=11,10 ticks=15 spr=0 pal=150 sprres=11,10 bits=5,6,5
+  dims n=66 len=8 depth=16 raster=16,1-2048,2048 nom=0,0,1279,1023 max=0,0,1279,1023 vid=0,0,1279,1023 txt=0,0,1279,1023 std=0,0,1279,1023
+  mntr n=88 len=9 mspc=P96-0:UAE:1280x1024 pos=0,0 res=11,10 range=0,0,0,0 rows=1024 clocks=69 minrow=0 compat=-1 ticks=11,10 defpos=0,0 pref=0x50071000
+  name n=48 "UAE:1280x1024 16bit PC"
+0x50071303 handle avail=0x00000000
+  disp n=48 len=4 props=0x00104380 na=0 res=11,10 ticks=15 spr=0 pal=512 sprres=11,10 bits=8,8,8
+  dims n=66 len=8 depth=24 raster=16,1-1024,2048 nom=0,0,1279,1023 max=0,0,1279,1023 vid=0,0,1279,1023 txt=0,0,1279,1023 std=0,0,1279,1023
+  mntr n=88 len=9 mspc=P96-0:UAE:1280x1024 pos=0,0 res=11,10 range=0,0,0,0 rows=1024 clocks=69 minrow=0 compat=-1 ticks=11,10 defpos=0,0 pref=0x50071000
+  name n=48 "UAE:1280x1024 32bit BGRA"
+0x50f91000 handle avail=0x00000000
+  disp n=48 len=4 props=0x00104380 na=0 res=10,10 ticks=13 spr=0 pal=512 sprres=10,10 bits=8,8,8
+  dims n=66 len=8 depth=8 raster=16,1-4096,2048 nom=0,0,1343,1079 max=0,0,1343,1079 vid=0,0,1343,1079 txt=0,0,1343,1079 std=0,0,1343,1079
+  mntr n=88 len=9 mspc=P96-0:UAE:1344x1080 pos=0,0 res=10,10 range=0,0,0,0 rows=1080 clocks=66 minrow=0 compat=-1 ticks=10,10 defpos=0,0 pref=0x50f91000
+  name n=48 "UAE:1344x1080  8bit"
+0x50f91100 handle avail=0x00000000
+  disp n=48 len=4 props=0x00104380 na=0 res=10,10 ticks=13 spr=0 pal=150 sprres=10,10 bits=5,6,5
+  dims n=66 len=8 depth=16 raster=16,1-2048,2048 nom=0,0,1343,1079 max=0,0,1343,1079 vid=0,0,1343,1079 txt=0,0,1343,1079 std=0,0,1343,1079
+  mntr n=88 len=9 mspc=P96-0:UAE:1344x1080 pos=0,0 res=10,10 range=0,0,0,0 rows=1080 clocks=66 minrow=0 compat=-1 ticks=10,10 defpos=0,0 pref=0x50f91000
+  name n=48 "UAE:1344x1080 16bit PC"
+0x50f91303 handle avail=0x00000000
+  disp n=48 len=4 props=0x00104380 na=0 res=10,10 ticks=13 spr=0 pal=512 sprres=10,10 bits=8,8,8
+  dims n=66 len=8 depth=24 raster=16,1-1024,2048 nom=0,0,1343,1079 max=0,0,1343,1079 vid=0,0,1343,1079 txt=0,0,1343,1079 std=0,0,1343,1079
+  mntr n=88 len=9 mspc=P96-0:UAE:1344x1080 pos=0,0 res=10,10 range=0,0,0,0 rows=1080 clocks=66 minrow=0 compat=-1 ticks=10,10 defpos=0,0 pref=0x50f91000
+  name n=48 "UAE:1344x1080 32bit BGRA"
+0xfff01000 handle avail=0x00002000
+  disp n=48 len=4 props=0x00104380 na=8192 res=44,53 ticks=25 spr=0 pal=512 sprres=44,53 bits=8,8,8
+  dims n=66 len=8 depth=8 raster=16,1-4096,2048 nom=0,0,319,199 max=0,0,319,199 vid=0,0,319,199 txt=0,0,319,199 std=0,0,319,199
+  mntr n=88 len=9 mspc=P96-0:uaegfx.card0-P96Mode pos=0,0 res=44,53 range=0,0,0,0 rows=230 clocks=35 minrow=0 compat=-1 ticks=44,53 defpos=0,0 pref=0xfff01000
+  name n=48 "uaegfx.card0-P96Mode  8bit"
+0xfff01100 handle avail=0x00002000
+  disp n=48 len=4 props=0x00104380 na=8192 res=44,53 ticks=25 spr=0 pal=150 sprres=44,53 bits=5,6,5
+  dims n=66 len=8 depth=16 raster=16,1-2048,2048 nom=0,0,319,199 max=0,0,319,199 vid=0,0,319,199 txt=0,0,319,199 std=0,0,319,199
+  mntr n=88 len=9 mspc=P96-0:uaegfx.card0-P96Mode pos=0,0 res=44,53 range=0,0,0,0 rows=230 clocks=35 minrow=0 compat=-1 ticks=44,53 defpos=0,0 pref=0xfff01000
+  name n=48 "uaegfx.card0-P96Mode 16bit PC"
+0xfff01303 handle avail=0x00002000
+  disp n=48 len=4 props=0x00104380 na=8192 res=44,53 ticks=25 spr=0 pal=512 sprres=44,53 bits=8,8,8
+  dims n=66 len=8 depth=24 raster=16,1-1024,2048 nom=0,0,319,199 max=0,0,319,199 vid=0,0,319,199 txt=0,0,319,199 std=0,0,319,199
+  mntr n=88 len=9 mspc=P96-0:uaegfx.card0-P96Mode pos=0,0 res=44,53 range=0,0,0,0 rows=230 clocks=35 minrow=0 compat=-1 ticks=44,53 defpos=0,0 pref=0xfff01000
+  name n=48 "uaegfx.card0-P96Mode 32bit BGRA"
+total = 125
+rtg = 57
+-- unlisted ids
+0x50041200 nohandle avail=0xffffffff
+  disp n=0
+  dims n=0
+  mntr n=0
+  name n=0
+0x50ff0000 nohandle avail=0xffffffff
+  disp n=0
+  dims n=0
+  mntr n=0
+  name n=0
+0x50000000 nohandle avail=0xffffffff
+  disp n=0
+  dims n=0
+  mntr n=0
+  name n=0
+-- MonitorList
+P96-0:uaegfx.card0-P96Mode total_rows=230 total_colorclocks=35 flags=0x0004
+P96-0:UAE:1344x1080 total_rows=1080 total_colorclocks=66 flags=0x0004
+P96-0:UAE:1280x1024 total_rows=1024 total_colorclocks=69 flags=0x0004
+P96-0:UAE:1280x 720 total_rows=720 total_colorclocks=99 flags=0x0004
+P96-0:UAE:1024x 768 total_rows=768 total_colorclocks=93 flags=0x0004
+P96-0:UAE:1024x 600 total_rows=600 total_colorclocks=119 flags=0x0004
+P96-0:UAE:1024x 576 total_rows=576 total_colorclocks=124 flags=0x0004
+P96-0:UAE: 960x 540 total_rows=540 total_colorclocks=132 flags=0x0004
+P96-0:UAE: 800x 600 total_rows=600 total_colorclocks=119 flags=0x0004
+P96-0:UAE: 800x 500 total_rows=500 total_colorclocks=142 flags=0x0004
+P96-0:UAE: 800x 450 total_rows=450 total_colorclocks=158 flags=0x0004
+P96-0:UAE: 672x 540 total_rows=540 total_colorclocks=132 flags=0x0004
+P96-0:UAE: 640x 512 total_rows=512 total_colorclocks=139 flags=0x0004
+P96-0:UAE: 640x 480 total_rows=480 total_colorclocks=148 flags=0x0004
+P96-0:UAE: 640x 400 total_rows=400 total_colorclocks=178 flags=0x0004
+P96-0:UAE: 640x 360 total_rows=360 total_colorclocks=198 flags=0x0004
+P96-0:UAE: 320x 256 total_rows=256 total_colorclocks=279 flags=0x0004
+P96-0:UAE: 320x 240 total_rows=240 total_colorclocks=297 flags=0x0004
+P96-0:UAE: 320x 200 total_rows=200 total_colorclocks=357 flags=0x0004
+pal.monitor total_rows=312 total_colorclocks=226 flags=0x0002
+-- OpenMonitor
+OpenMonitor(NULL, 0x50041000) = non-NULL
+name = "P96-0:UAE: 800x 600"
+-- BestModeIDA
+BestModeID depth16 = 0x50ff1100
+BestModeID depth24 = 0x50ff1303
+BestModeID depth24 800x600 = 0x50041303
+BestModeID depth8 1024x768 = 0x50041000
+BestModeID depth8 desired 640x480 = 0x00029024
+BestModeID depth15 640x480 = 0x50031100
+BestModeID depth32 = 0xffffffff
+BestModeID monitor 0x50000000 = 0xffffffff
+BestModeID source 0x50031100 = 0x50031000
+BestModeID depth4 800x600 = 0x50041000
+BestModeID must foreign = 0xffffffff
+BestModeID depth9 320x240 = 0x50011100

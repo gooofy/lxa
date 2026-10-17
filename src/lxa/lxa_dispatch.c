@@ -13,6 +13,7 @@
 #include "lxa_vclock.h"
 #include "lxa_unimpl.h"
 #include "lxa_override.h"
+#include "lxa_rtg_host.h"
 
 bool g_program_exited = false;   /* Phase 220: lxa_program_exited() */
 bool g_program_loaded = false;   /* Phase 237b: lxa_program_loaded() */
@@ -2041,6 +2042,14 @@ int op_illg(int level)
             break;
         }
 
+        case EMU_CALL_GFX_RTG:
+            m68k_set_reg(M68K_REG_D0, rtg_emucall(m68k_get_reg(NULL, M68K_REG_D1),
+                                                  m68k_get_reg(NULL, M68K_REG_D2),
+                                                  m68k_get_reg(NULL, M68K_REG_D3),
+                                                  m68k_get_reg(NULL, M68K_REG_D4),
+                                                  m68k_get_reg(NULL, M68K_REG_D5)));
+            break;
+
         case EMU_CALL_GFX_BLT_BITMAP:
         {
             /* BltBitMap() call cost measured on the reference */
@@ -2103,6 +2112,17 @@ int op_illg(int level)
             if (!srcBM || !destBM || xSize <= 0 || ySize <= 0 || planeMask == 0) {
                 m68k_set_reg(M68K_REG_D0, 0);
                 break;
+            }
+
+            /* Phases 241/242: an RTG (chunky) source or destination */
+            {
+                uint32_t affected = 0;
+                if (rtg_blt_bitmap(srcBM, xSrc, ySrc, destBM, xDest, yDest, xSize, ySize,
+                                   minterm, planeMask, pixelMaskAddr, pixelMaskBpr, maskMode,
+                                   &affected)) {
+                    m68k_set_reg(M68K_REG_D0, affected);
+                    break;
+                }
             }
 
             /* Read BitMap headers */

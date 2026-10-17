@@ -22,6 +22,7 @@ extern bool g_program_exited;      /* lxa_dispatch.c */
 extern bool g_program_loaded;      /* lxa_dispatch.c */
 extern uint32_t g_wb_window;       /* lxa.c: harness Workbench backdrop (Phase 238) */
 #include "lxa_unimpl.h"
+#include "lxa_rtg_host.h"
 
 #include <stdio.h>
 #include <ctype.h>
@@ -521,6 +522,8 @@ int lxa_init(const lxa_config_t *config)
     g_program_loaded = false;
     g_wb_window = 0;
     lxa_unimpl_set_strict(config->strict_unimplemented);
+    rtg_set_enabled(config->rtg);
+    rtg_reset();
     s_vblank_count = 0;
     s_cycles_since_auto_vblank = 0;
 
