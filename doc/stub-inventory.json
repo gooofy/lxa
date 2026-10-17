@@ -331,7 +331,7 @@
   "lib": "cgx",
   "function": "CModeRequestTagList",
   "kind": "partial",
-  "detail": "partial: shows asl.library's screen mode requester, not CyberGraphX's own window",
+  "detail": "partial: shows asl.library's screen mode requester, not CyberGraphX's own window (Phase 246)",
   "file": "src/rom/lxa_cgx.c",
   "symbol": "_cgx_CModeRequestTagList"
  },
@@ -907,7 +907,7 @@
   "lib": "p96",
   "function": "RequestModeIDTagList",
   "kind": "partial",
-  "detail": "partial: shows asl.library's screen mode requester, not Picasso96's own window",
+  "detail": "partial: shows asl.library's screen mode requester, not Picasso96's own window (Phase 246)",
   "file": "src/rom/lxa_p96.c",
   "symbol": "_p96_RequestModeIDTagList"
  },

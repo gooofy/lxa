@@ -18,26 +18,26 @@ means no test ever opened the library.
 | cardres | 0 | 0 | 17 | 0 |
 | cia | 0 | 0 | 4 | 0 |
 | colorwheel | 0 | 0 | 2 | 0 |
-| commodities | 2 | 24 | 0 | 0 |
+| commodities | 26 | 0 | 0 | 0 |
 | console | 1 | 1 | 0 | 0 |
 | datatypes | 7 | 8 | 0 | 8 |
 | disk | 0 | 0 | 6 | 0 |
-| diskfont | 16 | 1 | 0 | 0 |
-| dos | 134 | 20 | 7 | 0 |
-| exec | 94 | 20 | 1 | 0 |
+| diskfont | 17 | 0 | 0 | 0 |
+| dos | 149 | 5 | 7 | 0 |
+| exec | 107 | 7 | 1 | 0 |
 | expansion | 20 | 1 | 0 | 0 |
 | gadtools | 19 | 0 | 2 | 0 |
-| graphics | 155 | 7 | 1 | 0 |
-| icon | 15 | 9 | 0 | 0 |
-| iffparse | 30 | 10 | 0 | 0 |
+| graphics | 159 | 3 | 1 | 0 |
+| icon | 18 | 6 | 0 | 0 |
+| iffparse | 40 | 0 | 0 | 0 |
 | input | 1 | 0 | 0 | 0 |
-| intuition | 106 | 17 | 4 | 0 |
-| keymap | 1 | 3 | 0 | 0 |
-| layers | 33 | 3 | 0 | 0 |
-| locale | 23 | 1 | 0 | 0 |
+| intuition | 110 | 13 | 4 | 0 |
+| keymap | 4 | 0 | 0 | 0 |
+| layers | 34 | 2 | 0 | 0 |
+| locale | 24 | 0 | 0 | 0 |
 | lowlevel | 0 | 0 | 15 | 0 |
 | mathffp | 12 | 0 | 0 | 0 |
-| mathieeedoubbas | 9 | 3 | 0 | 0 |
+| mathieeedoubbas | 10 | 2 | 0 | 0 |
 | mathieeedoubtrans | 17 | 0 | 0 | 0 |
 | mathieeesingbas | 12 | 0 | 0 | 0 |
 | mathieeesingtrans | 0 | 0 | 17 | 0 |
@@ -45,14 +45,14 @@ means no test ever opened the library.
 | misc | 0 | 0 | 2 | 0 |
 | nonvolatile | 0 | 0 | 7 | 0 |
 | potgo | 0 | 0 | 3 | 0 |
-| ramdrive | 2 | 0 | 0 | 0 |
+| ramdrive | 1 | 1 | 0 | 0 |
 | realtime | 0 | 0 | 10 | 0 |
 | rexxsyslib | 0 | 17 | 0 | 0 |
 | timer | 5 | 0 | 0 | 0 |
 | translator | 0 | 1 | 0 | 0 |
-| utility | 36 | 2 | 5 | 0 |
+| utility | 38 | 0 | 5 | 0 |
 | wb | 16 | 0 | 0 | 0 |
-| **total** | **787** | **168** | **117** | **8** |
+| **total** | **868** | **87** | **117** | **8** |
 
 ## Untested and unimplemented LVOs
 
@@ -64,31 +64,27 @@ means no test ever opened the library.
 - **cardres**: OwnCard*, ReleaseCard*, GetCardMap*, BeginCardAccess*, EndCardAccess*, ReadCardStatus*, CardResetRemove*, CardMiscControl*, CardAccessSpeed*, CardProgramVoltage*, CardResetCard*, CopyTuple*, DeviceTuple*, IfAmigaXIP*, CardForceChange*, CardChangeCount*, CardInterface*
 - **cia**: __AddICRVector*, __RemICRVector*, __AbleICR*, __SetICR*
 - **colorwheel**: ConvertHSBToRGB*, ConvertRGBToHSB*
-- **commodities**: CreateCxObj, ActivateCxObj, DeleteCxObj, CxObjType, CxObjError, ClearCxObjError, SetCxObjPri, AttachCxObj, EnqueueCxObj, InsertCxObj, RemoveCxObj, SetTranslate, SetFilter, SetFilterIX, ParseIX, CxMsgType, CxMsgData, CxMsgID, DivertCxMsg, RouteCxMsg, DisposeCxMsg, InvertKeyMap, AddIEvents, MatchIX
 - **console**: CDInputHandler
 - **datatypes**: AddDTObject, RefreshDTObjectA, DoAsyncLayout, DoDTMethodA, RemoveDTObject, GetDTMethods, GetDTTriggerMethods, PrintDTObjectA
 - **disk**: AllocUnit*, FreeUnit*, GetUnit*, GiveUnit*, GetUnitID*, ReadUnitID*
-- **diskfont**: NewScaledDiskFont
-- **dos**: DoPkt2/DoPkt3/DoPkt1/DoPkt/DoPkt0/DoPkt4, WaitPkt, AbortPkt, SelectInput, SelectOutput, VFWritef, Fault, PrintFault, FreeDeviceProc, LockDosList, UnLockDosList, AttemptLockDosList, FindDosEntry, NextDosEntry, IsFileSystem, CompareDates, StrToDate, RemSegment, FindArg, StrToLong, VolumeRequestHook*, GetCurrentDir*, PutErrStr*, ErrorOutput*, SelectError*, DoShellMethodTagList*, ScanStackToken*
-- **exec**: Debug, SetSR, AllocAbs, AllocTrap, FreeTrap, AddDevice, GetCC, Procure, Vacate, ObtainSemaphoreList, ReleaseSemaphoreList, AddMemList, CacheClearE, CacheControl, DeletePool, ColdReboot, StackSwap, AddMemHandler, RemMemHandler, ObtainQuickVector*, NewMinList
+- **dos**: WaitPkt, AbortPkt, AttemptLockDosList, FindDosEntry, IsFileSystem, VolumeRequestHook*, GetCurrentDir*, PutErrStr*, ErrorOutput*, SelectError*, DoShellMethodTagList*, ScanStackToken*
+- **exec**: Debug, SetSR, AddMemList, CacheClearE, ColdReboot, StackSwap, ObtainQuickVector*, NewMinList
 - **expansion**: AddBootNode
 - **gadtools**: SetDesignFontA*, ScaleGadgetRectA*
-- **graphics**: VBeamPos, ScrollVPort, WeighTAMatch*, EraseRect, GetOutlinePen, SetMaxPen, ScrollRasterBF, WriteChunkyPixels
-- **icon**: FreeFreeList, AddFreeList, FreeAlloc, FreeFree, DupDiskObjectA, NewDiskObject, GetIconTagList, PutIconTagList, BumpRevisionLength
-- **iffparse**: PropChunks, StopChunks, CollectionChunks, AllocLocalItem, LocalItemData, SetLocalItemPurge, FreeLocalItem, StoreItemInContext, InitIFF, IDtoStr
-- **intuition**: GetDefPrefs, ViewAddress, SetPrefs, AutoRequest, MakeScreen, RethinkDisplay, AlohaWorkbench*, SetEditHook, NextPubScreen, SetDefaultPubScreen, SetPubScreenModes, GadgetMouse, PointInImage, AllocScreenBuffer, FreeScreenBuffer, ChangeScreenBuffer, ScrollWindowRaster, HelpControl, ShowWindow*, HideWindow*, IntuitionControlA*
-- **keymap**: SetKeyMapDefault, AskKeyMapDefault, MapRawKey
-- **layers**: SwapBitsRastPortClipRect, SortLayerCR, DoHookClipRects
-- **locale**: CloseCatalog
+- **graphics**: ScrollVPort, WeighTAMatch*, SetMaxPen, ScrollRasterBF
+- **icon**: FreeFree, DupDiskObjectA, NewDiskObject, GetIconTagList, PutIconTagList, BumpRevisionLength
+- **intuition**: MakeScreen, RethinkDisplay, AlohaWorkbench*, SetEditHook, NextPubScreen, SetDefaultPubScreen, SetPubScreenModes, GadgetMouse, PointInImage, AllocScreenBuffer, FreeScreenBuffer, ChangeScreenBuffer, ScrollWindowRaster, HelpControl, ShowWindow*, HideWindow*, IntuitionControlA*
+- **layers**: SwapBitsRastPortClipRect, SortLayerCR
 - **lowlevel**: ReadJoyPort*, GetLanguageSelection*, GetKey*, QueryKeys*, AddKBInt*, RemKBInt*, SystemControlA*, AddTimerInt*, RemTimerInt*, StopTimerInt*, StartTimerInt*, ElapsedTime*, AddVBlankInt*, RemVBlankInt*, SetJoyPortAttrsA*
-- **mathieeedoubbas**: IEEEDPTst, IEEEDPFloor, IEEEDPCeil
+- **mathieeedoubbas**: IEEEDPFloor, IEEEDPCeil
 - **mathieeesingtrans**: IEEESPAtan*, IEEESPSin*, IEEESPCos*, IEEESPTan*, IEEESPSincos*, IEEESPSinh*, IEEESPCosh*, IEEESPTanh*, IEEESPExp*, IEEESPLog*, IEEESPPow*, IEEESPSqrt*, IEEESPTieee*, IEEESPFieee*, IEEESPAsin*, IEEESPAcos*, IEEESPLog10*
 - **misc**: AllocMiscResource*, FreeMiscResource*
 - **nonvolatile**: GetCopyNV*, FreeNVData*, StoreNV*, DeleteNV*, GetNVInfo*, GetNVList*, SetNVProtection*
 - **potgo**: AllocPotBits*, FreePotBits*, WritePotgo*
+- **ramdrive**: KillRAD0
 - **realtime**: LockRealTime*, UnlockRealTime*, CreatePlayerA*, DeletePlayer*, SetPlayerAttrsA*, SetConductorState*, ExternalSync*, NextConductor*, FindConductor*, GetPlayerAttrsA*
 - **rexxsyslib**: CreateArgstring, DeleteArgstring, LengthArgstring, CreateRexxMsg, DeleteRexxMsg, ClearRexxMsg, FillRexxMsg, IsRexxMsg, LockRexxBase, UnlockRexxBase, CreateRexxHostPort, DeleteRexxHostPort, GetRexxVarFromMsg, SetRexxVarFromMsg, LaunchRexxScript, FreeRexxMsg, GetRexxBufferFromMsg
 - **translator**: Translate
-- **utility**: SMult64, UMult64, VSNPrintf*, Strncpy*, Strncat*, SDivMod64*, UDivMod64*
+- **utility**: VSNPrintf*, Strncpy*, Strncat*, SDivMod64*, UDivMod64*
 
 `*` = no implementing symbol found in the ROM object.

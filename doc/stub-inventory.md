@@ -66,7 +66,7 @@ implementing the function, never by deleting the macro.
 
 ## cgx
 
-- `CModeRequestTagList` — partial: shows asl.library's screen mode requester, not CyberGraphX's own window (`src/rom/lxa_cgx.c`)
+- `CModeRequestTagList` — partial: shows asl.library's screen mode requester, not CyberGraphX's own window (Phase 246) (`src/rom/lxa_cgx.c`)
 - `Private` — private/reserved slot (`src/rom/lxa_cgx.c`)
 
 ## commodities
@@ -186,7 +186,7 @@ implementing the function, never by deleting the macro.
 
 ## p96
 
-- `RequestModeIDTagList` — partial: shows asl.library's screen mode requester, not Picasso96's own window (`src/rom/lxa_p96.c`)
+- `RequestModeIDTagList` — partial: shows asl.library's screen mode requester, not Picasso96's own window (Phase 246) (`src/rom/lxa_p96.c`)
 - `Private` — private/reserved slot (`src/rom/lxa_p96.c`)
 
 ## rexxsyslib

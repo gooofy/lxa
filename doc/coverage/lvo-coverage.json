@@ -431,7 +431,7 @@
   "lvo": -30,
   "function": "CreateCxObj",
   "symbol": "commodities_CreateCxObj",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "commodities",
@@ -445,14 +445,14 @@
   "lvo": -42,
   "function": "ActivateCxObj",
   "symbol": "commodities_ActivateCxObj",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "commodities",
   "lvo": -48,
   "function": "DeleteCxObj",
   "symbol": "commodities_DeleteCxObj",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "commodities",
@@ -466,147 +466,147 @@
   "lvo": -60,
   "function": "CxObjType",
   "symbol": "commodities_CxObjType",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "commodities",
   "lvo": -66,
   "function": "CxObjError",
   "symbol": "commodities_CxObjError",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "commodities",
   "lvo": -72,
   "function": "ClearCxObjError",
   "symbol": "commodities_ClearCxObjError",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "commodities",
   "lvo": -78,
   "function": "SetCxObjPri",
   "symbol": "commodities_SetCxObjPri",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "commodities",
   "lvo": -84,
   "function": "AttachCxObj",
   "symbol": "commodities_AttachCxObj",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "commodities",
   "lvo": -90,
   "function": "EnqueueCxObj",
   "symbol": "commodities_EnqueueCxObj",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "commodities",
   "lvo": -96,
   "function": "InsertCxObj",
   "symbol": "commodities_InsertCxObj",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "commodities",
   "lvo": -102,
   "function": "RemoveCxObj",
   "symbol": "commodities_RemoveCxObj",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "commodities",
   "lvo": -114,
   "function": "SetTranslate",
   "symbol": "commodities_SetTranslate",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "commodities",
   "lvo": -120,
   "function": "SetFilter",
   "symbol": "commodities_SetFilter",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "commodities",
   "lvo": -126,
   "function": "SetFilterIX",
   "symbol": "commodities_SetFilterIX",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "commodities",
   "lvo": -132,
   "function": "ParseIX",
   "symbol": "commodities_ParseIX",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "commodities",
   "lvo": -138,
   "function": "CxMsgType",
   "symbol": "commodities_CxMsgType",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "commodities",
   "lvo": -144,
   "function": "CxMsgData",
   "symbol": "commodities_CxMsgData",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "commodities",
   "lvo": -150,
   "function": "CxMsgID",
   "symbol": "commodities_CxMsgID",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "commodities",
   "lvo": -156,
   "function": "DivertCxMsg",
   "symbol": "commodities_DivertCxMsg",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "commodities",
   "lvo": -162,
   "function": "RouteCxMsg",
   "symbol": "commodities_RouteCxMsg",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "commodities",
   "lvo": -168,
   "function": "DisposeCxMsg",
   "symbol": "commodities_DisposeCxMsg",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "commodities",
   "lvo": -174,
   "function": "InvertKeyMap",
   "symbol": "commodities_InvertKeyMap",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "commodities",
   "lvo": -180,
   "function": "AddIEvents",
   "symbol": "commodities_AddIEvents",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "commodities",
   "lvo": -204,
   "function": "MatchIX",
   "symbol": "commodities_MatchIX",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "console",
@@ -858,7 +858,7 @@
   "lvo": -54,
   "function": "NewScaledDiskFont",
   "symbol": "diskfont_NewScaledDiskFont",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "diskfont",
@@ -1164,7 +1164,7 @@
  {
   "lib": "dos",
   "lvo": -228,
-  "function": "AllocDosObjectTagList/AllocDosObject",
+  "function": "AllocDosObject/AllocDosObjectTagList",
   "symbol": "dos_AllocDosObject",
   "status": "tested"
  },
@@ -1178,9 +1178,9 @@
  {
   "lib": "dos",
   "lvo": -240,
-  "function": "DoPkt2/DoPkt3/DoPkt1/DoPkt/DoPkt0/DoPkt4",
+  "function": "DoPkt/DoPkt3/DoPkt1/DoPkt2/DoPkt4/DoPkt0",
   "symbol": "dos_DoPkt",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "dos",
@@ -1243,14 +1243,14 @@
   "lvo": -294,
   "function": "SelectInput",
   "symbol": "dos_SelectInput",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "dos",
   "lvo": -300,
   "function": "SelectOutput",
   "symbol": "dos_SelectOutput",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "dos",
@@ -1306,7 +1306,7 @@
   "lvo": -348,
   "function": "VFWritef",
   "symbol": "dos_VFWritef",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "dos",
@@ -1446,14 +1446,14 @@
   "lvo": -468,
   "function": "Fault",
   "symbol": "dos_Fault",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "dos",
   "lvo": -474,
   "function": "PrintFault",
   "symbol": "dos_PrintFault",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "dos",
@@ -1598,7 +1598,7 @@
  {
   "lib": "dos",
   "lvo": -606,
-  "function": "System/SystemTagList",
+  "function": "SystemTagList/System",
   "symbol": "dos_SystemTagList",
   "status": "tested"
  },
@@ -1649,21 +1649,21 @@
   "lvo": -648,
   "function": "FreeDeviceProc",
   "symbol": "dos_FreeDeviceProc",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "dos",
   "lvo": -654,
   "function": "LockDosList",
   "symbol": "dos_LockDosList",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "dos",
   "lvo": -660,
   "function": "UnLockDosList",
   "symbol": "dos_UnLockDosList",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "dos",
@@ -1698,7 +1698,7 @@
   "lvo": -690,
   "function": "NextDosEntry",
   "symbol": "dos_NextDosEntry",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "dos",
@@ -1754,7 +1754,7 @@
   "lvo": -738,
   "function": "CompareDates",
   "symbol": "dos_CompareDates",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "dos",
@@ -1768,7 +1768,7 @@
   "lvo": -750,
   "function": "StrToDate",
   "symbol": "dos_StrToDate",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "dos",
@@ -1810,7 +1810,7 @@
   "lvo": -786,
   "function": "RemSegment",
   "symbol": "dos_RemSegment",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "dos",
@@ -1831,7 +1831,7 @@
   "lvo": -804,
   "function": "FindArg",
   "symbol": "dos_FindArg",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "dos",
@@ -1845,7 +1845,7 @@
   "lvo": -816,
   "function": "StrToLong",
   "symbol": "dos_StrToLong",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "dos",
@@ -2237,7 +2237,7 @@
   "lvo": -204,
   "function": "AllocAbs",
   "symbol": "exec_AllocAbs",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "exec",
@@ -2270,7 +2270,7 @@
  {
   "lib": "exec",
   "lvo": -234,
-  "function": "Insert/InsertMinNode",
+  "function": "InsertMinNode/Insert",
   "symbol": "exec_Insert",
   "status": "tested"
  },
@@ -2291,7 +2291,7 @@
  {
   "lib": "exec",
   "lvo": -252,
-  "function": "RemoveMinNode/Remove",
+  "function": "Remove/RemoveMinNode",
   "symbol": "exec_Remove",
   "status": "tested"
  },
@@ -2305,7 +2305,7 @@
  {
   "lib": "exec",
   "lvo": -264,
-  "function": "RemTailMinList/RemTail",
+  "function": "RemTail/RemTailMinList",
   "symbol": "exec_RemTail",
   "status": "tested"
  },
@@ -2398,14 +2398,14 @@
   "lvo": -342,
   "function": "AllocTrap",
   "symbol": "exec_AllocTrap",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "exec",
   "lvo": -348,
   "function": "FreeTrap",
   "symbol": "exec_FreeTrap",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "exec",
@@ -2503,7 +2503,7 @@
   "lvo": -432,
   "function": "AddDevice",
   "symbol": "exec_AddDevice",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "exec",
@@ -2594,7 +2594,7 @@
   "lvo": -528,
   "function": "GetCC",
   "symbol": "exec_GetCC",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "exec",
@@ -2608,14 +2608,14 @@
   "lvo": -540,
   "function": "Procure",
   "symbol": "exec_Procure",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "exec",
   "lvo": -546,
   "function": "Vacate",
   "symbol": "exec_Vacate",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "exec",
@@ -2657,14 +2657,14 @@
   "lvo": -582,
   "function": "ObtainSemaphoreList",
   "symbol": "exec_ObtainSemaphoreList",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "exec",
   "lvo": -588,
   "function": "ReleaseSemaphoreList",
   "symbol": "exec_ReleaseSemaphoreList",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "exec",
@@ -2734,7 +2734,7 @@
   "lvo": -648,
   "function": "CacheControl",
   "symbol": "exec_CacheControl",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "exec",
@@ -2797,7 +2797,7 @@
   "lvo": -702,
   "function": "DeletePool",
   "symbol": "exec_DeletePool",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "exec",
@@ -2853,14 +2853,14 @@
   "lvo": -774,
   "function": "AddMemHandler",
   "symbol": "exec_AddMemHandler",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "exec",
   "lvo": -780,
   "function": "RemMemHandler",
   "symbol": "exec_RemMemHandler",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "exec",
@@ -3588,7 +3588,7 @@
   "lvo": -384,
   "function": "VBeamPos",
   "symbol": "graphics_VBeamPos",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "graphics",
@@ -4050,7 +4050,7 @@
   "lvo": -810,
   "function": "EraseRect",
   "symbol": "graphics_EraseRect",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "graphics",
@@ -4120,7 +4120,7 @@
   "lvo": -876,
   "function": "GetOutlinePen",
   "symbol": "graphics_GetOutlinePen",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "graphics",
@@ -4309,21 +4309,21 @@
   "lvo": -1056,
   "function": "WriteChunkyPixels",
   "symbol": "graphics_WriteChunkyPixels",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "icon",
   "lvo": -54,
   "function": "FreeFreeList",
   "symbol": "icon_FreeFreeList",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "icon",
   "lvo": -72,
   "function": "AddFreeList",
   "symbol": "icon_AddFreeList",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "icon",
@@ -4372,7 +4372,7 @@
   "lvo": -114,
   "function": "FreeAlloc",
   "symbol": "icon_FreeAlloc",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "icon",
@@ -4582,7 +4582,7 @@
   "lvo": -120,
   "function": "PropChunks",
   "symbol": "iffparse_PropChunks",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "iffparse",
@@ -4596,7 +4596,7 @@
   "lvo": -132,
   "function": "StopChunks",
   "symbol": "iffparse_StopChunks",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "iffparse",
@@ -4610,7 +4610,7 @@
   "lvo": -144,
   "function": "CollectionChunks",
   "symbol": "iffparse_CollectionChunks",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "iffparse",
@@ -4659,28 +4659,28 @@
   "lvo": -186,
   "function": "AllocLocalItem",
   "symbol": "iffparse_AllocLocalItem",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "iffparse",
   "lvo": -192,
   "function": "LocalItemData",
   "symbol": "iffparse_LocalItemData",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "iffparse",
   "lvo": -198,
   "function": "SetLocalItemPurge",
   "symbol": "iffparse_SetLocalItemPurge",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "iffparse",
   "lvo": -204,
   "function": "FreeLocalItem",
   "symbol": "iffparse_FreeLocalItem",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "iffparse",
@@ -4701,14 +4701,14 @@
   "lvo": -222,
   "function": "StoreItemInContext",
   "symbol": "iffparse_StoreItemInContext",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "iffparse",
   "lvo": -228,
   "function": "InitIFF",
   "symbol": "iffparse_InitIFF",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "iffparse",
@@ -4757,7 +4757,7 @@
   "lvo": -270,
   "function": "IDtoStr",
   "symbol": "iffparse_IDtoStr",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "input",
@@ -4883,7 +4883,7 @@
   "lvo": -126,
   "function": "GetDefPrefs",
   "symbol": "intuition_GetDefPrefs",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "intuition",
@@ -5079,7 +5079,7 @@
   "lvo": -294,
   "function": "ViewAddress",
   "symbol": "intuition_ViewAddress",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "intuition",
@@ -5114,7 +5114,7 @@
   "lvo": -324,
   "function": "SetPrefs",
   "symbol": "intuition_SetPrefs",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "intuition",
@@ -5142,7 +5142,7 @@
   "lvo": -348,
   "function": "AutoRequest",
   "symbol": "intuition_AutoRequest",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "intuition",
@@ -5660,21 +5660,21 @@
   "lvo": -30,
   "function": "SetKeyMapDefault",
   "symbol": "keymap_SetKeyMapDefault",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "keymap",
   "lvo": -36,
   "function": "AskKeyMapDefault",
   "symbol": "keymap_AskKeyMapDefault",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "keymap",
   "lvo": -42,
   "function": "MapRawKey",
   "symbol": "keymap_MapRawKey",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "keymap",
@@ -5905,7 +5905,7 @@
   "lvo": -216,
   "function": "DoHookClipRects",
   "symbol": "layers_DoHookClipRects",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "layers",
@@ -5940,7 +5940,7 @@
   "lvo": -36,
   "function": "CloseCatalog",
   "symbol": "locale_CloseCatalog",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "locale",
@@ -6318,7 +6318,7 @@
   "lvo": -48,
   "function": "IEEEDPTst",
   "symbol": "mathieeedoubbas_IEEEDPTst",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "mathieeedoubbas",
@@ -6906,7 +6906,7 @@
   "lvo": -42,
   "function": "KillRAD0",
   "symbol": "g_lxa_ramdrive_KillRAD0",
-  "status": "tested"
+  "status": "untested"
  },
  {
   "lib": "ramdrive",
@@ -7326,14 +7326,14 @@
   "lvo": -198,
   "function": "SMult64",
   "symbol": "utility_SMult64",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "utility",
   "lvo": -204,
   "function": "UMult64",
   "symbol": "utility_UMult64",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "utility",

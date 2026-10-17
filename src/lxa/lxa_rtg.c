@@ -450,7 +450,7 @@ static uint32_t read_tag(uint32_t *tagp, uint32_t *data)
  * the depth, then the resolution that fits the nominal size best: a
  * size above the nominal one costs more than one below it, a wrong height
  * more than a wrong width (fitted to 667 reference queries, 610 equal;
- * exact equivalence is Phase 249).
+ * exact equivalence is Phase 246).
  */
 static uint32_t p96_best_mode(uint32_t tags)
 {

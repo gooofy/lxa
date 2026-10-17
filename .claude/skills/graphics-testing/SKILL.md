@@ -201,25 +201,12 @@ When a captured screenshot needs human-readable visual analysis — especially w
 - The retired CLI helper (`tools/screenshot_review.py`) has been moved to `attic/`. Do not invoke it; use the native image-input capability instead.
 - Never embed image-analysis API calls in test code; visual triage is for developer investigation only.
 
-## 11. RTG / Picasso96 Testing (Phase 241+)
+## 11. RTG / Picasso96 Testing (Phases 241–242)
 
-After Phase 241 lands, RTG bitmaps and screens become testable. Key patterns:
+RTG is off unless the run enables it: `config.rtg = true` in the fixture constructor (before `LxaTest::SetUp()`), `LXA_RTG=1`, or `lxa --rtg`. AGENTS.md §6.19 describes the architecture.
 
-**Detecting RTG bitmaps in tests** — RTG bitmaps have `GetBitMapAttr(bm, BMA_DEPTH)` returning 15, 16, 24, or 32. The `BMF_RTG` internal flag distinguishes them from planar bitmaps. Never call `ReadPixel()` (which goes through planar rendering) on an RTG bitmap — use `p96ReadPixelArray()` instead.
+**Behaviour of the libraries: reference probes, not GTests.** P96/CGX values (pixel conversions, mode lists, BestModeID, CLUT semantics) are checked by probes in `tests/probes/rtg/` marked `rdd: profile rtg`, whose goldens come from the `rtg` reference profile (`suite-ref --capture-ref --filter 'Probes/rtg/...'`). Read pixels in a probe raw from `p96GetBitMapAttr(bm, P96BMA_MEMORY)` or with `p96ReadPixel()`; never `ReadPixel()` on a true-colour bitmap.
 
-**P96 pixel verification pattern**:
-```cpp
-// After Phase 242 lands:
-struct RenderInfo ri;
-p96LockBitMap(bm, (struct TagItem *)nullptr);  // returns ri
-uint32_t *pixels = (uint32_t *)ri.Memory;
-uint32_t pixel = pixels[y * (ri.BytesPerRow / 4) + x];
-EXPECT_EQ(pixel & 0x00FFFFFF, 0x00FF0000u);  // red pixel at (x,y)
-p96UnlockBitMap(bm, &ri);
-```
+**Host display: `rtg_gtest.cpp`.** `Tests/Graphics/RtgScreen` opens a Picasso96 screen (mode ID as argument), fills it with `p96RectFill` and a `SetRGB32` pen and prints READY; the driver checks `lxa_read_pixel_rgb()` colours, `lxa_get_screen_dimensions()` and `lxa_capture_screen()`. Extend it for new display-path behaviour.
 
-**RTG screen test structure** — follow `rtg_gtest.cpp` (added in Phase 241) as the reference driver. Use `LxaUITest` base class; open screen with `SA_Depth=32` and a P96 mode ID; assert screen opens without crash; use `p96GetBitMapAttr` to verify depth.
-
-**cybergraphics shim testing** — add a `cgx_gtest.cpp` companion that opens `cybergraphics.library` and calls the same functions via CGX names. Both libraries must return identical results for the same underlying RTG bitmap.
-
-**Symptom of missing RTG infrastructure**: `OpenLibrary("Picasso96API.library", 0)` returns NULL in the test log — check that `lxa_p96.c` is compiled and `sys/CMakeLists.txt` has the `add_disk_library()` entry.
+**Symptom of missing RTG**: `OpenLibrary("Picasso96API.library", 0)` returns NULL — RTG is not enabled for the run (the libraries refuse to open without a board), or the disk library is not built (`add_disk_library()` in `sys/CMakeLists.txt`).

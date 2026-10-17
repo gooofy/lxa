@@ -186,6 +186,10 @@ lxa [options] <program>
 - Play or mute host sound output (see `[audio]`)
 - Example: `lxa --no-audio myapp`
 
+**--rtg**
+- Add an RTG graphics board, as the `rtg` reference profile has it (Picasso96 2.0 with one uaegfx board): the uaegfx display modes (8, 16 and 32 bit, 320x200 to 1344x1080) appear in the display database, screens of those modes are chunky bitmaps shown through the host display, and `LIBS:Picasso96API.library` and `LIBS:cybergraphics.library` (lxa's own disk libraries) open. Without it both libraries refuse to open, as on a machine without a board.
+- Example: `lxa --rtg ppaint`
+
 **-b <addr|symbol>**
 - Set breakpoint at address or symbol
 - Can be specified multiple times
@@ -215,6 +219,10 @@ lxa -r /tmp/test.rom myapp
 ### LXA_AUDIO
 
 `0`/`off` mutes, `1`/`on` enables host sound output (see `[audio]`; a `config.ini` setting or `--audio`/`--no-audio` takes precedence).
+
+### LXA_RTG
+
+`1` adds the RTG graphics board, as `--rtg` does (liblxa: `lxa_config_t.rtg`).
 
 ### LXA_PREFIX
 

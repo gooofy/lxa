@@ -420,7 +420,7 @@ ULONG _cgx_CModeRequestTagList ( register struct Library *CyberGfxBase __asm("a6
     int n = 0;
 
     LXA_UNIMPLEMENTED("cgx", "CModeRequestTagList",
-                      "partial: shows asl.library's screen mode requester, not CyberGraphX's own window");
+                      "partial: shows asl.library's screen mode requester, not CyberGraphX's own window (Phase 246)");
     if (!AslBase)
         AslBase = OpenLibrary((CONST_STRPTR)"asl.library", 38);
     if (!AslBase)

@@ -356,7 +356,7 @@ ULONG _p96_RequestModeIDTagList ( register struct Library *P96Base __asm("a6"),
     int n = 0;
 
     LXA_UNIMPLEMENTED("p96", "RequestModeIDTagList",
-                      "partial: shows asl.library's screen mode requester, not Picasso96's own window");
+                      "partial: shows asl.library's screen mode requester, not Picasso96's own window (Phase 246)");
     if (!AslBase)
         AslBase = OpenLibrary((CONST_STRPTR)"asl.library", 38);
     if (!AslBase)

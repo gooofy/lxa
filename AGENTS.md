@@ -380,7 +380,7 @@ this flag dynamically via `ModifyIDCMP()`.
 
 Many apps probe available display modes at startup using `GetDisplayInfoData()`, `BestModeIDA()`, and `NextDisplayInfo()`. As of Phase 129 (v0.9.3), lxa's ECS mode database covers 36 entries (DEFAULT/NTSC/PAL × 12 ECS modes) with realistic raster ranges and virtualisation of unknown IDs. The ECS emulation is considered complete. Since Phase 240 the machine is the A4000/040 with AGA as on the reference: every mode reports a 24-bit palette (PaletteRange 65535, 8 bits per gun) and 8 sprites, and nothing is DI_AVAIL_NOCHIPS.
 
-**RTG supersedes ECS for modern apps**: PPaint, FinalWriter, and other productivity apps probe for P96 display IDs, not ECS modes. Their ECS-path failures are not investigated further. These apps are validation targets for Phase 243 (RTG app validation) after Phases 241–242 deliver the RTG infrastructure.
+**RTG supersedes ECS for modern apps**: PPaint, FinalWriter, and other productivity apps probe for P96 display IDs, not ECS modes. Their ECS-path failures are not investigated further. Phases 241–242 delivered RTG (§6.19); these apps are the validation targets of Phase 243.
 
 **ECS key constraints** (still relevant for legacy apps):
 - `g_known_display_ids[]` in `lxa_graphics.c`: the authoritative list. Adding an ID requires `GetDisplayInfoData(DTAG_DIMS)` to also return plausible `MinRaster`/`MaxRaster` ranges.
@@ -420,21 +420,17 @@ EXPECT_TRUE(std::any_of(text_log_.begin(), text_log_.end(),
 
 Until Phase 130 lands, use pixel-region counting (the existing approach) or DPRINTF log scanning as a proxy. Do not attempt to implement text extraction via ad-hoc DPRINTF log parsing — wait for the hook.
 
-### 6.19 RTG / Picasso96 Architecture (Phases 241–243)
+### 6.19 RTG / Picasso96 Architecture (Phases 241–242)
 
-lxa's display strategy is RTG-first via Picasso96 (`Picasso96API.library`). Agents working on Phases 241–243 need these orientation points:
+RTG models the `rtg` reference profile (Picasso96 2.0, one uaegfx board) and is enabled per run: `lxa --rtg`, `LXA_RTG=1`, `lxa_config_t.rtg`. Without it the display database has no RTG modes and both RTG libraries refuse to open.
 
-**Chunky BitMap flag**: Phase 241 introduces `BMF_RTG` (or an equivalent internal flag) in `BitMap.Flags` to distinguish chunky RTG bitmaps from classic planar bitmaps. Before touching any graphics code that iterates `bm->Planes[]`, check this flag — RTG bitmaps store all pixels in `bm->Planes[0]` as a contiguous RGBA buffer.
-
-**SDL2 RTG path**: `display_update_rtg()` in `display.c` accepts a raw 32-bit RGBA buffer and uploads it to an `SDL_PIXELFORMAT_RGBA32` texture. The planar path (`display_update_planar()`) is unchanged. Do not mix the two paths for the same display handle.
-
-**P96 disk library pattern**: `Picasso96API.library` is a disk library (`src/rom/lxa_p96.c`, compiled via `add_disk_library()` in `sys/CMakeLists.txt`). It follows the same pattern as `lxa_amigaguide.c` — init function, function table, stub returns for unimplemented functions. The `RenderInfo` struct (`Memory`, `BytesPerRow`, `RGBFormat`) is the primary pixel-buffer descriptor used by all P96 pixel-transfer functions.
-
-**cybergraphics shim**: Many apps probe `cybergraphics.library` before `Picasso96API.library`. The CGX shim is a thin disk library that maps CGX function names (`GetCyberMapAttr`, `LockBitMapTags`, `WriteLUTPixelArray`, etc.) to their P96 equivalents. Implement it as a separate `add_disk_library()` target — do not merge it into `lxa_p96.c`.
-
-**RTG display IDs**: P96 mode IDs live in a different monitor-ID namespace from ECS IDs. Add them to `g_known_display_ids[]` in `lxa_graphics.c` and ensure `GetDisplayInfoData(DTAG_DIMS)` returns host-resolution ranges (up to 1920×1200) for them. Do not set `DIPF_IS_ECS` or `DIPF_IS_HAM` flags on RTG mode descriptors.
-
-**Symptom of missing P96**: App opens and immediately exits; `lxa.log` shows `OpenLibrary("Picasso96API.library", ...)` returning NULL followed by an exit. Check that the library is installed in `share/lxa/System/Libs/` and that `add_disk_library()` is in `sys/CMakeLists.txt`.
+- **RTG bitmaps** (`src/include/lxa_rtg.h`): a `struct BitMap` whose `pad` is `0xf8c0 | RGBFTYPE` and whose `Planes[0]` is the chunky pixel memory, as on Picasso96; lxa's descriptor (`struct LxaRtgExt`: format, bpp, ColorMap, lock count, ...) sits directly in front of the pixels. Test with `lxa_rtg_is(bm)` (define `LXA_RTG_M68K` before including the header in ROM code). Any code that walks `bm->Planes[]` must check it first. `AllocBitMap()` with an RTG friend returns one in the friend's format: pass the screen bitmap as friend for every off-screen copy of screen pixels (backing store, menu save area, scroll temp).
+- **The host renders**: graphics/layers primitives and the P96/CGX libraries send `RTG_OP_RENDER` requests (`RTG_R_*`) through `EMU_CALL_GFX_RTG` to `src/lxa/lxa_rtg.c`, which also owns the uaegfx mode table, BestModeID and pen→colour conversion. `display_update_rtg()` (`display.c`) shows RTG screens.
+- **Disk libraries**: `Picasso96API.library` (`src/rom/lxa_p96.c`) and `cybergraphics.library` (`src/rom/lxa_cgx.c`) share `src/rom/lxa_rtglib.c` and are built with `add_disk_library()`. Never add P96/CGX code to the ROM.
+- **Probes**: a probe containing `rdd: profile rtg` (`tests/probes/rtg/`) runs on the `rtg` reference profile. Picasso96 hangs on an unbalanced `p96LockBitMap()` and on `p96ReadPixelArray()` into the bitmap's own format: keep probes balanced. Its undocumented values (BMF_CLEAR colour, CLUT arrays on true colour) are left out of probes and owned by Phase 246.
+- **Disk-library globals must be initialised** (`struct Library *P96Base = NULL;`), also in probes: an uninitialised (common) symbol lets libnix's auto-open definition win.
+- **Inline asm that hands the host a pointer to a stack block needs a `"memory"` clobber.** `emucall5` in `lxa_rtglib.c` lacked it and GCC dropped the stores that filled the render argument block, so every P96/CGX pixel call saw garbage.
+- **GCC -O2 epilogue miscompile (bebbo m68k-amigaos-gcc)**: in `_cgx_WritePixelArray` a `return (ULONG)w*h;` after a call with stack arguments popped the saved registers before `lea (n,sp),sp`, corrupting the caller's d5/a2 (the probe looped forever). Computing the result into a local before the call avoided it. Suspect this when a caller's registers change across a library call that has stack-argument helpers; check the generated assembly (`-S`) for a `(sp)+` pop between `jsr` and the stack adjustment.
 
 ### 6.20 Disassembling Amiga App Binaries (Phase 151)
 
