@@ -71,11 +71,11 @@ lxa has a strong core: a 68030 CPU, about 150k lines of library code, a host-sid
 
 lxa and the reference must present the same machine. Otherwise every diff is just noise (see the 158b/c overscan lesson). The reference is a **high-end machine (decided 2026-10-02)**: an A4000/040 with RTG. There are two display profiles, and every scenario declares which one it uses.
 
-| Property | Reference (FS-UAE) | lxa (target state, Phase 240) |
+| Property | Reference (FS-UAE) | lxa (Phase 240 done) |
 |---|---|---|
-| Model / CPU | A4000, 68040 + FPU, Kickstart 3.1 r40.70 (A4000) | 68040 with FPU; AttnFlags `AFF_68040\|AFF_FPU40\|AFF_68881\|AFF_68882` (today: 68030, no FPU bits) |
-| Chipset / memory | AGA, 2 MB chip, 16 MB Zorro III fast | AGA, reported consistently (today: mixed ECS/AA) |
-| RTG | `uaegfx` (card driver built into FS-UAE) + Picasso96, 4 MB VRAM | own `Picasso96API.library` (Phases 240–242) |
+| Model / CPU | A4000, 68040 + FPU, Kickstart 3.1 r40.70 (A4000) | 68040 with FPU; AttnFlags `AFF_68040\|AFF_FPU40\|AFF_68881\|AFF_68882`, lxa's own `68040.library`; no MMU (Phase 275) |
+| Chipset / memory | AGA, 2 MB chip, 8 MB fast at $07800000, 16 MB Zorro III fast | the same chipset and memory map |
+| RTG | `uaegfx` (card driver built into FS-UAE) + Picasso96, 4 MB VRAM | own `Picasso96API.library` (Phases 241–242) |
 | OS | **Fresh** Workbench 3.1 (40.42) built from the ADFs in `~/media/sys/amiga/os/3.1/` + `68040.library` + Picasso96 | lxa ROM + `share/lxa/System` |
 | Profile `aga` | Workbench on PAL Hires 640×256, 4 colours, OSCAN_TEXT, topaz 8, WB 3.1 default palette and prefs | identical defaults |
 | Profile `rtg` | Workbench on a uaegfx mode (e.g. 800×600×8; final mode fixed in Phase 210) | identical defaults once M4 lands |
@@ -114,7 +114,7 @@ M0 and M1 are on the critical path: nothing in M2 and later is efficient without
 
 ## Next Phase
 
-> M4 (**240**) and M5 (**251**, **252**, **255**, **256**) may run in parallel worktrees; M3 is complete.
+> M4 (**241**) and M5 (**251**, **252**, **255**, **256**) may run in parallel worktrees; M3 is complete, Phase 240 (68040 + AGA machine identity) is done.
 
 ---
 
@@ -138,7 +138,7 @@ Complete (Phases 220–225, v0.11.28); see the summary table.
 
 ## M3 — Breadth: Corpus, Compat DB, Sweeps
 
-Complete (Phases 230–239, 244, v0.11.88); see the summary table.  The Fred Fish residue (`doc/sweeps/2026-10-11-fish-residue3.md`) is owned by Phases 240, 251, 255, 256 and 264.
+Complete (Phases 230–239, 244, v0.11.88); see the summary table.  The Fred Fish residue (`doc/sweeps/2026-10-11-fish-residue3.md`) is owned by Phases 251, 255, 256 and 264.
 
 ---
 
@@ -151,16 +151,7 @@ Complete (Phases 230–239, 244, v0.11.88); see the summary table.  The Fred Fis
 - **It is not an oracle.** Where PrismRTG and Picasso96 2.0 on the `rtg` reference profile disagree, the reference wins (rule 1). PrismRTG's documented gaps, such as no picture-in-picture, are not hints about P96 behaviour.
 - Its `src/p96sdk` card-driver headers (Individual Computers et al., CC-BY) describe the `.card` and board interface. lxa does not need that interface, because lxa's display backend is the host.
 
-### Phase 240 — Machine identity: 68040 + AGA + RTG mode database
-- [ ] Present a 68040 (the VBR already points to a fast-RAM vector table as on the reference, 237b). The FPU is done (Phase 237: 68881/68882 reported in `AttnFlags`, the coprocessor core completed, FPU context saved on task switches, probe `exec/fpu`). Still to do: switch the Musashi CPU type, report AFF_68040/AFF_FPU40, and ship a `68040.library`-compatible `SYS:Libs` entry, since apps probe for it. The reference's 68040.library returns 0x80000000 from FINT for |x| >= 2^31 (not mimicked).
-- [ ] Report AGA everywhere (`ChipRevBits0`, `GetChipRev`-style code at `lxa_graphics.c:9314`, `exec.c:5765`). Add AGA display modes, 256-colour planar screens and `LoadRGB32`/`SetRGB32` 24-bit palettes.
-- [ ] Cross-check GfxBase, ExecBase and display-info fields one by one against a reference `aga` dump.
-- [ ] (from Phase 237e) Instruction timing of a 68040: Fish GoldED Recover scans all memory in 2-byte steps and finishes in ~16 emulated seconds on lxa (68030 cycle tables) but within 12 on the reference (FS-UAE 68040). Measure a fixed loop with ReadEClock() on both and calibrate.
-- [ ] (from Phase 237e) With the FPU in its reset state (FSAVE null frames on task switches) SIGMAth2's ButtonClickInteraction corrupts the free list; lxa now starts every run with idle frames (Musashi's first-run state), as before. Find the bug in the null-frame path of `exec_Switch`/`exec_Dispatch` or Musashi's FSAVE/FRESTORE, then start from the null state as a 68882 does.
-- [ ] (from Phase 237d) The memory map: on the reference the program stacks and AllocMem() memory lie in fast RAM above the ROM, on lxa below it; code comparing addresses with ROM vectors behaves differently (Fish Password `loop` compares its stack pointer with the vector at $2E8, listed as memory-dependent in `massrun.py`; Fish Window takes a CHK exception through the longword at $100).
-- [x] Memory layout of the reference: 2 MB chip RAM plus fast RAM (done in Phase 238, v0.11.30).
-
-**Test gate**: the field dump and the `aga` gallery (Phase 223) match the reference.
+Phase 240 (the A4000/040 with AGA as the reference has it) is complete; see the summary table.
 
 ### Phase 241 — RTG display foundation
 - [ ] Chunky `BMF_RTG` bitmaps for depth > 8, a `display_update_rtg()` RGBA path, P96 mode IDs in `g_known_display_ids[]`, and `OpenScreenTagList` with RTG depth.
@@ -228,7 +219,7 @@ commodities.library is lxa's own complete implementation since Phase 237c (every
 
 - [ ] (from Phase 222) CON:/RAW: options AUTO, WAIT and SCREEN are ignored (`LXA_UNIMPLEMENTED`).
 - [ ] (from Phase 244) vim-5.3: check whether the CON:/RAW: handler ports of 237d (`dos/conpkt`) let it find its window (`SetWindowTitles("VIM -")`); Open("*") must share the window.
-- [ ] (from Phase 244) SysInfo's three gadgets that 3.1 disables (GFLG_DISABLED, `gadget.flags` 2 vs 258) are enabled on lxa - the same missing resources/hardware probes as the DISABLED_ SysInfo tests below.
+- [ ] (from Phase 240) SysInfo shows "Ramsey rev $F" and "Gary rev $0" on the A4000 reference, "N/A" on lxa: the A4000 gate-array registers are not emulated. Find the registers SysInfo reads with a relay/bus trace of lxa (clean-room: observe, never read Kickstart code), then probe their values on the reference.
 - [ ] (from Phase 234) Re-enable `SysInfoTest.DISABLED_{Memory,Boards,Libraries,Speed}Gadget…` (`sysinfo_gtest.cpp`): SysInfo busy-waits for 60 ticks of CIA-A's time-of-day counter ($BFE801-$BFEA01) and its DRIVES scan walks the DOS device list (exists since 237c - re-check); battclock.resource is missing. Golden `SysInfo/sysinfo-gadgets` records the divergence.
 ### Phase 256 — intuition / graphics / gadtools remaining stubs
 - [ ] (from Phase 237d) Real copper lists: GfxBase->copinit, ActiView and the cprlists MakeVPort()/MrgCop() build (Fish CopDis, GurusGuide copper list them; RadBoogie patches the BPL2PTL/COLOR01 moves of its LOFCprList).
@@ -236,6 +227,9 @@ commodities.library is lxa's own complete implementation since Phase 237c (every
 - [ ] Whatever else is in the stub inventory (Phase 203) for these libraries.
 - [ ] (from Phase 237e) Fish AmigaCOMAL (demo and Install) quits after its first OpenWindow() on lxa (BltClear()'s registers are 3.1's since 237e): find the next call whose registers or flags it tests (relay traces change the flags - compare with a probe).
 - [ ] (from Phase 237e) Fish vt100 2.6: on the reference it stays with its windows after OpenDiskFont("j132.font") fails, apparently blocked in CloseWindow() after RemTask() of its iconify task; on lxa it closes and exits. Find out what 3.1 does there (probe RemTask() of a task waiting on a window's port, then CloseWindow()).
+- [ ] (from Phase 240) GTLV_ShowSelected: the string gadget below a listview stays empty on lxa; on 3.1 it shows the selected label (DPaintV Screen Format shows "PAL:Standard+ 640x256", golden `dpaintv-startup`). Set the string from GTLV_Selected at creation, GT_SetGadgetAttrs() and clicks, and refresh it.
+- [ ] (from Phase 240) A screen's `RastPort.BitMap` is not `&screen->BitMap` on 3.1 (probe `graphics/bmattr` prints neither; lxa uses the screen's BitMap). Probe what the RastPort's bitmap is (a copy? the same planes?) and match it.
+- [ ] (from Phase 240) `palette pen` sweep diffs (`doc/sweeps/owners.yaml`): re-run the sweep after Phase 240's AGA palette and 256-colour pen sharing and fix what remains, per app (ObtainPen/ObtainBestPen order, LoadRGB32 on custom screens).
 - [ ] Gate: the stub inventory for intuition, graphics, gadtools and layers is empty.
 
 - [ ] (from Phase 244) DPaintV's Settings/History sub-items ("#?") are 37 wide on 3.1, 21 on lxa (LayoutMenusA with the same labels and font; the reference measures 16 more pixels - find the input with a probe that copies DPaint's NewMenu flags/command strings).
@@ -276,6 +270,7 @@ commodities.library is lxa's own complete implementation since Phase 237c (every
 ### Phase 264 — Workbench
 - [ ] C:LoadWB (deferred from Phase 221). The harnesses already open LoadWB's backdrop window (`LXA_WB_WINDOW`, Phase 238); its desktop icons are missing. (from Phase 237e) Fish Dk x2 scan the Workbench screen's pixels for the disk icons and quit without them.
 - [ ] Drawer icons (`.info`) for lxa's system partition: the reference's SYS: root holds 8 (DOpus lists them; `dopus-startup`/`dopus-select` scroller-knob ignore regions).
+- [ ] (from Phase 240) DOpus' status line: the free CHIP/FAST/TOTAL amounts and the clock differ by what the reference's Workbench and lxaprobe hold and by its boot time (`dopus-startup`/`dopus-select` status-line ignore regions). Decide with the harness Workbench whether these become comparable or stay ignored with this phase as owner.
 - [ ] Decide the scope: a hosted `LoadWB` desktop versus relying on the host desktop. If a desktop is in scope, write lxa's own (AROS Wanderer as a reference only).
 
 ### Phase 265 — Audio validation (was legacy 169)
@@ -305,6 +300,7 @@ commodities.library is lxa's own complete implementation since Phase 237c (every
 
 ### Phase 275 — CPU core evaluation (was legacy 172)
 - [ ] Moira or JIT, considered only once host overhead is no longer dominant.
+- [ ] (from Phase 240) The 68040 MMU: on the reference 68040.library/SetPatch enable it (TC = $8000, SysInfo "68040 (IN USE)", VBR at $07820CA4 allocated then); lxa reports TC 0 and keeps its VBR at the start of fast RAM. Musashi has no 68040 MMU; the probe `exec/machine` leaves TC out until a core has one.
 
 ### Phase 276 — Developer experience
 - [ ] Host-side debugging of m68k apps: a gdb stub on Musashi, and symbol loading from hunk debug info.
@@ -375,4 +371,5 @@ commodities.library is lxa's own complete implementation since Phase 237c (every
 | 238 | Corpus app failures: every corpus app reaches its window, none `garbage`/`untested` (`doc/sweeps/2026-10-09-sweep.md`, compat 2 platinum / 15 gold / 19 silver, was 6 garbage + 5 untested). Scout, Oberon, ADPro, Asm-One, AQB, BTII, SIGMAth(2) (v0.11.30: memory handlers, pools, 2 MB chip + fast RAM, AROS colorwheel/gradientslider/tapedeck, scenario `stack:`/`writable:`); AmiBlitz3: Disable/Enable/Forbid/Permit and the semaphore calls preserve all registers (`exec/preserveregs`; relay traces record the caller's `ra`); asl screen-mode requester identical to 3.1 (full display database, Control menu, Mode Properties, all ASLSM tags; goldens + probes `asl/smalloc`, `graphics/modedb`); volume names: boot volume "System", RAM: = "Ram Disk" with T:/ENV: (`dos/volnames`), twin-runner SYS: laid out like the 3.1 partition; harness Workbench backdrop window `LXA_WB_WINDOW` (`intuition/wbwindow`, Fish ISAM no longer crashes); ExAll no longer overruns small buffers; lxaprobe `MENU` reaches sub-items. Residue owned by 244/258/264. | v0.11.32 |
 | 244 | Corpus residue (`doc/sweeps/2026-10-10-sweep.md`): compat 2 platinum / 25 gold / 9 silver (was 15 gold / 19 silver), sweep tree-diff apps 19 -> 9. OpenWindow widens borders around GACT_*BORDER gadgets, GACT_BORDERSNIFF rules, AddGadget = AddGList (`intuition/bordersniff`; SIGMAth(2), BTII); LayoutMenusA moves items/sub-menus inside the screen and continues long menus in columns (`gadtools/menufit`; ADPro, MaxonBASIC, Scout); GT_Underscore underline IntuiTexts (`gadtools/underscore`); tag windows take the screen pens (`intuition/scrpens`; ReSource); "input.device"/"ramlib" system tasks (`exec/systasks`); IntuiTextLength/PrintIText use ITextFont (`intuition/itextfont`; FinalWriter); BuildSysRequest opens the Workbench before measuring, ownerless requesters are visitors (`intuition/reqfont`; ACE); fillrectclass (`intuition/fillrect`; reqtools/FontView); GetScreenData ignores the screen for WBENCHSCREEN, negative screen sizes fail (`intuition/screenzero`; GFA-BASIC); BOOL entry points return clean 32-bit D0 (`dos/boolret`; AmiBlitz3); scenarios: BTII waits for its menus, MaxonBASIC/ProWrite use WB 3.1 fonts; tracediff maps renamed app tasks. Residue owned by 237c/243/252/255/256 (`doc/sweeps/owners.yaml`). | v0.11.45 |
 | 239 | BCPL programs: AROS m68k BCPL support ported (`src/rom/bcpl/`, `doc/third-party-code.md`); every command gets a2 = global vector, a5/a6 = BCPL call/return, a1 = BCPL stack (as 3.1, verified with `dos/entryregs`); ROM console segment for 1.3 Run/NewCLI; probe `dos/bcpl`. All six BCPL programs of the Fish corpus exit like on 3.1. Remaining BCPL stubs (coroutines, longjump, requesters) are in the stub inventory. | v0.11.27 |
+| 240 | Machine identity of the A4000/040 reference: Musashi 68040 with AFF_68040/FPU40, CACR/VBR as after boot, CINV/CPUSH, FPU starting in its null state (FSAVE frames as a 68040, `exec/fpu`; SIGMAth2 fine), lxa's own `68040.library` open from boot (`exec/machine` field dump); AGA GfxBase/ChipRevBits/MonitorInfo/View (`graphics/mntrdb`, `graphics/modedb` incl. the 24-bit palette); interleaved bitmaps (AllocBitMap, Workbench, SA_Interleaved/SA_LikeWorkbench, `graphics/bmattr`); 256-colour screens sharing pens as on 3.1 (`graphics/rgb32`); the memory map (2 MB chip, 8 MB fast at $07800000, 16 MB Zorro III, MemHeaders in their regions; programs and stacks above the ROM). GoldED Recover timing disproved (the reference is slower: a fixed ReadEClock-timed loop takes 4.3-6.3 s there, 0.7-0.8 s on lxa). Residue owned by 255 (Ramsey/Gary), 256 (ShowSelected, screen RastPort), 264 (DOpus status line), 275 (MMU). | v0.11.97 |
 | 245 | AROS code replaced by lxa's own (licensing: AROS is a reference only): BCPL support (`doc/bcpl.md`) and colorwheel/gradientslider/tapedeck gadget classes (`doc/gadget-classes.md`) rewritten, both APL LICENSE files and third-party rows gone; audit of every "based on AROS" site (`doc/aros-audit.md`): 10 rewritten (area vector collection, AddFont/RemFont, FontExtent, InitBitMap, DrawBorder, DoubleClick, MakeFunctions + dead `__AROS_*` macros, ReleaseSemaphore hand-over, Exception, WaitIO), 13 comments reworded to cite NDK/RKRM/3.1, 2 interface facts kept (`LA_*` tag values, SetIPrefs codes). Suite and `suite-ref --lxa-check` (338 programs) green. | v0.11.62 |
