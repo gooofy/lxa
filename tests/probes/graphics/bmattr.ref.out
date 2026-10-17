@@ -1,0 +1,20 @@
+alloc 320x200x3: bpr=40 rows=200 depth=3 flags=0x00 pad=0x0000 BMA_WIDTH=320 BMA_HEIGHT=200 BMA_DEPTH=3 BMA_FLAGS=0x0000000a planes=contiguous chip=1
+alloc 320x200x3 CLEAR: bpr=40 rows=200 depth=3 flags=0x00 pad=0x0000 BMA_WIDTH=320 BMA_HEIGHT=200 BMA_DEPTH=3 BMA_FLAGS=0x0000000a planes=contiguous chip=1
+alloc 320x200x3 DISPLAYABLE: bpr=40 rows=200 depth=3 flags=0x00 pad=0x0000 BMA_WIDTH=320 BMA_HEIGHT=200 BMA_DEPTH=3 BMA_FLAGS=0x0000000a planes=contiguous chip=1
+alloc 320x200x3 INTERLEAVED: bpr=120 rows=200 depth=3 flags=0x00 pad=0x805c BMA_WIDTH=320 BMA_HEIGHT=200 BMA_DEPTH=3 BMA_FLAGS=0x0000000e planes=interleaved chip=1
+alloc 320x200x3 DISPLAYABLE|INTERLEAVED: bpr=120 rows=200 depth=3 flags=0x00 pad=0x805c BMA_WIDTH=320 BMA_HEIGHT=200 BMA_DEPTH=3 BMA_FLAGS=0x0000000e planes=interleaved chip=1
+alloc 100x50x1 INTERLEAVED: bpr=14 rows=50 depth=1 flags=0x00 pad=0x0000 BMA_WIDTH=112 BMA_HEIGHT=50 BMA_DEPTH=1 BMA_FLAGS=0x00000008 planes=single chip=1
+alloc 100x50x8 INTERLEAVED: bpr=112 rows=50 depth=8 flags=0x00 pad=0x805c BMA_WIDTH=112 BMA_HEIGHT=50 BMA_DEPTH=8 BMA_FLAGS=0x0000000c planes=interleaved chip=1
+alloc 17x5x2 INTERLEAVED: bpr=8 rows=5 depth=2 flags=0x00 pad=0x805c BMA_WIDTH=32 BMA_HEIGHT=5 BMA_DEPTH=2 BMA_FLAGS=0x0000000c planes=interleaved chip=1
+Workbench: bpr=160 rows=256 depth=2 flags=0x00 pad=0x805c BMA_WIDTH=640 BMA_HEIGHT=256 BMA_DEPTH=2 BMA_FLAGS=0x0000000e planes=interleaved chip=1
+alloc 64x64x2 friend=WB: bpr=16 rows=64 depth=2 flags=0x00 pad=0x805c BMA_WIDTH=64 BMA_HEIGHT=64 BMA_DEPTH=2 BMA_FLAGS=0x0000000e planes=interleaved chip=1
+alloc 64x64x2 friend=WB INTERLEAVED: bpr=16 rows=64 depth=2 flags=0x00 pad=0x805c BMA_WIDTH=64 BMA_HEIGHT=64 BMA_DEPTH=2 BMA_FLAGS=0x0000000e planes=interleaved chip=1
+alloc 64x64x3 friend=WB: bpr=8 rows=64 depth=3 flags=0x00 pad=0x0000 BMA_WIDTH=64 BMA_HEIGHT=64 BMA_DEPTH=3 BMA_FLAGS=0x0000000a planes=contiguous chip=1
+InitBitMap contiguous: bpr=40 rows=10 depth=2 flags=0x00 pad=0x0000 BMA_WIDTH=320 BMA_HEIGHT=10 BMA_DEPTH=2 BMA_FLAGS=0x0000000a planes=contiguous chip=1
+InitBitMap interleaved by hand: bpr=80 rows=10 depth=2 flags=0x00 pad=0x0000 BMA_WIDTH=640 BMA_HEIGHT=10 BMA_DEPTH=2 BMA_FLAGS=0x0000000a planes=interleaved chip=1
+screen tags: bpr=40 rows=200 depth=3 flags=0x00 pad=0x0000 BMA_WIDTH=320 BMA_HEIGHT=200 BMA_DEPTH=3 BMA_FLAGS=0x0000000a planes=contiguous chip=1
+screen SA_Interleaved TRUE: bpr=120 rows=200 depth=3 flags=0x00 pad=0x805c BMA_WIDTH=320 BMA_HEIGHT=200 BMA_DEPTH=3 BMA_FLAGS=0x0000000e planes=interleaved chip=1
+screen SA_Interleaved FALSE: bpr=40 rows=200 depth=3 flags=0x00 pad=0x0000 BMA_WIDTH=320 BMA_HEIGHT=200 BMA_DEPTH=3 BMA_FLAGS=0x0000000a planes=contiguous chip=1
+screen 256 colours SA_Interleaved TRUE: bpr=640 rows=256 depth=8 flags=0x00 pad=0x805c BMA_WIDTH=640 BMA_HEIGHT=256 BMA_DEPTH=8 BMA_FLAGS=0x0000000e planes=interleaved chip=1
+screen SA_LikeWorkbench: bpr=80 rows=200 depth=2 flags=0x00 pad=0x805c BMA_WIDTH=320 BMA_HEIGHT=200 BMA_DEPTH=2 BMA_FLAGS=0x0000000e planes=interleaved chip=1
+OpenScreen NewScreen: bpr=40 rows=200 depth=2 flags=0x00 pad=0x0000 BMA_WIDTH=320 BMA_HEIGHT=200 BMA_DEPTH=2 BMA_FLAGS=0x0000000a planes=contiguous chip=1

@@ -152,6 +152,22 @@
   "symbol": "deck_render"
  },
  {
+  "lib": "68040",
+  "function": "Private1",
+  "kind": "private",
+  "detail": "private/reserved slot",
+  "file": "src/rom/lxa_68040.c",
+  "symbol": "__g_lxa_68040_Private1"
+ },
+ {
+  "lib": "68040",
+  "function": "Private2",
+  "kind": "private",
+  "detail": "private/reserved slot",
+  "file": "src/rom/lxa_68040.c",
+  "symbol": "__g_lxa_68040_Private2"
+ },
+ {
   "lib": "amigaguide",
   "function": "LockAmigaGuideBase",
   "kind": "stub",
@@ -569,14 +585,6 @@
  },
  {
   "lib": "graphics",
-  "function": "ModeNotAvailable",
-  "kind": "partial",
-  "detail": "partial: no chipset check (DI_AVAIL_NOCHIPS), lxa reports all ECS/AGA modes of the PAL monitor available (Phase 240)",
-  "file": "src/rom/lxa_graphics.c",
-  "symbol": "_graphics_ModeNotAvailable"
- },
- {
-  "lib": "graphics",
   "function": "private2",
   "kind": "private",
   "detail": "private/reserved slot",
@@ -878,6 +886,22 @@
   "detail": "private/reserved slot",
   "file": "src/rom/lxa_intuition.c",
   "symbol": "_intuition_private10"
+ },
+ {
+  "lib": "p96",
+  "function": "RequestModeIDTagList",
+  "kind": "partial",
+  "detail": "partial: shows asl.library's screen mode requester, not Picasso96's own window",
+  "file": "src/rom/lxa_p96.c",
+  "symbol": "_p96_RequestModeIDTagList"
+ },
+ {
+  "lib": "p96",
+  "function": "Private",
+  "kind": "private",
+  "detail": "private/reserved slot",
+  "file": "src/rom/lxa_p96.c",
+  "symbol": "_p96_Private"
  },
  {
   "lib": "rexxsyslib",

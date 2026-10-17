@@ -10,10 +10,6 @@
 #include <unistd.h>
 
 
-#define RAM_START   0x000000
-#define RAM_SIZE    10 * 1024 * 1024
-#define RAM_END     RAM_START + RAM_SIZE - 1
-
 #define DEFAULT_ROM_PATH "../rom/lxa.rom"
 
 #define ROM_SIZE    512 * 1024
@@ -138,6 +134,7 @@
 
 /* Core emulator state - exported for lxa_api.c */
 uint8_t  g_ram[RAM_SIZE];
+uint8_t  g_fastram[FASTRAM_SIZE];
 uint8_t  g_z3ram[Z3RAM_SIZE];
 uint8_t  g_rom[ROM_SIZE];
 bool     g_verbose                       = FALSE;
@@ -626,7 +623,7 @@ void cpu_instr_callback(int pc)
     if (__builtin_expect(!g_debug_active, 1))
     {
         uint32_t upc = (uint32_t)pc;
-        if (__builtin_expect(upc < 0x100 || (upc > RAM_END && (upc < ROM_START || upc > ROM_END) && (upc < Z3RAM_START || upc > Z3RAM_END)), 0))
+        if (__builtin_expect(upc < 0x100 || (upc > RAM_END && (upc < ROM_START || upc > ROM_END) && !lxa_ram_ptr(upc, 2)), 0))
         {
             /* executing from nowhere: the instruction fetch fails with a bus
              * error, which exec's trap handling turns into a held task
@@ -661,7 +658,7 @@ void cpu_instr_callback(int pc)
         static char buff2[100];
         static unsigned int instr_size;
         print68kstate(LOG_DEBUG);
-        instr_size = m68k_disassemble(buff, pc, M68K_CPU_TYPE_68030);
+        instr_size = m68k_disassemble(buff, pc, M68K_CPU_TYPE_68040);
         make_hex(buff2, pc, instr_size);
         DPRINTF(LOG_DEBUG, "E %08x: %-20s: %s\n", pc, buff2, buff);
     }
@@ -890,7 +887,7 @@ static uint32_t _debug_print_diss (uint32_t pc, uint32_t curPC)
             name = m->name;
     }
 
-    uint32_t instr_size = m68k_disassemble(buff, pc, M68K_CPU_TYPE_68030);
+    uint32_t instr_size = m68k_disassemble(buff, pc, M68K_CPU_TYPE_68040);
     make_hex(buff2, pc, instr_size);
     CPRINTF("%-5s0x%08x  %-20s: %-40s (%s)\n", prefix, pc, buff2, buff, name);
     return instr_size;
@@ -1040,7 +1037,7 @@ void _debug(uint32_t pcFinal)
                 static char buff[100];
                 in_debug   = FALSE;
                 g_stepping = FALSE;
-                uint32_t instr_size = m68k_disassemble(buff, pcFinal, M68K_CPU_TYPE_68030);
+                uint32_t instr_size = m68k_disassemble(buff, pcFinal, M68K_CPU_TYPE_68040);
                 g_next_pc = pcFinal+instr_size;
                 _update_debug_active();
                 return;
@@ -1605,7 +1602,8 @@ int main(int argc, char **argv, char **envp)
 
     // setup memory image
 
-    uint32_t initial_sp   = RAM_END-1;
+    /* the boot stack lies at the top of fast RAM, which exec hands out last */
+    uint32_t initial_sp   = FASTRAM_END + 1;
     uint32_t reset_vector = ROM_START+2;
 
     m68k_write_memory_32 (0, initial_sp);   // m68k initial SP
@@ -1617,7 +1615,7 @@ int main(int argc, char **argv, char **envp)
              initial_sp, reset_vector, p);
 
     m68k_init();
-    m68k_set_cpu_type(M68K_CPU_TYPE_68030);  /* Phase 31: Support 68030 MMU instructions for SysInfo */
+    m68k_set_cpu_type(M68K_CPU_TYPE_68040);  /* the A4000/040 of the reference (Phase 240) */
     m68k_pulse_reset();
     /* the reset vector is consumed: address 0 holds 0 after boot, as on
      * AmigaOS 3.1 (tests/probes/exec/lowmem) */

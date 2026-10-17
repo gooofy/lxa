@@ -56,6 +56,7 @@
 #include <stdio.h>
 
 #include "m68k.h"
+#include "lxa_memmap.h"
 #include "util.h"
 
 /* Forward declarations from lxa.c — keep the boundary explicit. */
@@ -121,7 +122,7 @@ static uint32_t copper_run_at(uint32_t start_addr)
     }
 
     /* Sanity-check the starting address is in RAM. */
-    if (start_addr >= 0x00A00000) {
+    if (!lxa_ram_ptr(start_addr, 4)) {
         DPRINTF(LOG_DEBUG, "copper: refusing to run from non-RAM addr 0x%08x\n",
                 start_addr);
         return 0;

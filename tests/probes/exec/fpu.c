@@ -10,6 +10,8 @@
  */
 #include <exec/types.h>
 #include <exec/execbase.h>
+#include <clib/exec_protos.h>
+#include <inline/exec.h>
 #include "probe.h"
 
 extern struct ExecBase *SysBase;
@@ -119,6 +121,19 @@ __asm__(
     ".short 0x4e75\n\t"   /* rts */
 );
 
+/* FSAVE the FPU state in supervisor mode, keep the frame's first longword
+ * and FRESTORE it: a task that has not used the FPU yet finds it in its
+ * reset (null) state */
+ULONG fsave_buf[64];
+ULONG fsave_head;
+void fsave_state(void);
+__asm__("\t.text\n\t.even\n_fsave_state:\n"
+        "\tlea _fsave_buf,a0\n"
+        "\t.short 0xf310\n"            /* fsave (a0) */
+        "\tmove.l (a0),_fsave_head\n"
+        "\t.short 0xf350\n"            /* frestore (a0) */
+        "\trte\n");
+
 static void show(const char *label, int i)
 {
     P_LONG(label, res[i]);
@@ -135,7 +150,14 @@ int main(void)
     if (!(attn & AFF_68881))
         return 0;
 
+    P_SECTION("FPU state");
+    Supervisor((ULONG (*)())fsave_state);
+    P_HEX("FSAVE before any FPU instruction", fsave_head);
+
     fputest(res, &blk);
+
+    Supervisor((ULONG (*)())fsave_state);
+    P_HEX("FSAVE after FPU instructions", fsave_head);
 
     P_SECTION("addressing modes");
     w = (const ULONG *)&ddst;

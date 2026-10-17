@@ -1,8 +1,8 @@
 {
  "app": "DirectoryOpus",
  "disabled": null,
- "lxa_version": "0.11.28",
- "promoted": "2026-10-09",
+ "lxa_version": "0.11.96",
+ "promoted": "2026-10-18",
  "reference": "AmigaOS 3.1 (KS 40.70), profile aga",
  "requires_apps": true,
  "scenario": "dopus-startup",
@@ -27,9 +27,9 @@
     },
     {
      "h": 12,
-     "phase": 240,
+     "phase": 264,
      "w": 640,
-     "why": "status line: CHIP/FAST/TOTAL on the reference, MEMORY on lxa (memory layout)",
+     "why": "status line: free CHIP/FAST/TOTAL amounts and the clock - what the reference's Workbench and lxaprobe hold, its boot time",
      "x": 0,
      "y": 244
     }

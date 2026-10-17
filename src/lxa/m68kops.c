@@ -22293,7 +22293,7 @@ static void m68k_op_movec_32_rc(void)
 					/* 68030 can write all bits except 5-7, 040 can write all */
 					if (CPU_TYPE_IS_040_PLUS(CPU_TYPE))
 					{
-						REG_CACR = REG_DA[(word2 >> 12) & 15];
+						REG_CACR = REG_DA[(word2 >> 12) & 15] & 0x80008000; /* lxa: only DE and IE exist */
 					}
 					else if (CPU_TYPE_IS_030_PLUS(CPU_TYPE))
 					{
@@ -28233,6 +28233,23 @@ static void m68k_op_pea_32_pcix(void)
 	uint ea = EA_PCIX_32();
 
 	m68ki_push_32(ea);
+}
+
+
+/* lxa (Phase 240): 68040 CINV/CPUSH (1111 0100 cc p ss rrr).  lxa emulates
+   no caches, so invalidating or pushing them does nothing; the instructions
+   are privileged (arp.library's CloseLibrary() pushes the data cache through
+   Supervisor() on a 68040). */
+static void m68k_op_cinv_cpush_32(void)
+{
+	if (CPU_TYPE_IS_040_PLUS(CPU_TYPE))
+	{
+		if (FLAG_S)
+			return;
+		m68ki_exception_privilege_violation();
+		return;
+	}
+	m68ki_exception_1111();
 }
 
 
@@ -36563,6 +36580,18 @@ void m68ki_build_opcode_table(void)
 		for(k=0;k<NUM_CPU_TYPES;k++)
 			m68ki_cycles[k][ostruct->match] = ostruct->cycles[k];
 		ostruct++;
+	}
+
+	/* lxa (Phase 240): 0xf400-0xf4ff is CINV/CPUSH on the 68040.  The generic
+	   coprocessor entries (cpGEN/cpScc/cpTRAPcc/cpDBcc/cpBcc, masks 0xf1c0,
+	   0xf1f8, 0xf180) cover the same words for coprocessor id 2, so the 040
+	   handler is installed last; it raises the line-F exception on older
+	   CPUs, as those entries do for a missing coprocessor. */
+	for(i = 0xf400;i <= 0xf4ff;i++)
+	{
+		m68ki_instruction_jump_table[i] = m68k_op_cinv_cpush_32;
+		for(k=0;k<NUM_CPU_TYPES;k++)
+			m68ki_cycles[k][i] = (k == NUM_CPU_TYPES - 1) ? 16 : 4;
 	}
 }
 

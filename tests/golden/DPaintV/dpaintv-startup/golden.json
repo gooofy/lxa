@@ -1,9 +1,9 @@
 {
  "app": "DPaintV",
  "disabled": null,
- "lxa_version": "0.11.29",
- "note": "Screen Format mode list contents and History menu widths: Phase 240 (listview text centred in spaced lines since Phase 238)",
- "promoted": "2026-10-09",
+ "lxa_version": "0.11.96",
+ "note": "Screen Format: the listview's GTLV_ShowSelected string stays empty and the History menu widths differ: Phase 256 (listview text centred in spaced lines since Phase 238)",
+ "promoted": "2026-10-18",
  "reference": "AmigaOS 3.1 (KS 40.70), profile aga",
  "requires_apps": true,
  "scenario": "dpaintv-startup",
@@ -14,7 +14,7 @@
      "field": "width",
      "kind": "item",
      "lxa": 21,
-     "phase": 240,
+     "phase": 256,
      "ref": 37,
      "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/menu[Settings]/History/#?"
     },
@@ -22,7 +22,7 @@
      "field": "width",
      "kind": "item",
      "lxa": 21,
-     "phase": 240,
+     "phase": 256,
      "ref": 37,
      "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/menu[Settings]/History/#?"
     },
@@ -30,7 +30,7 @@
      "field": "width",
      "kind": "item",
      "lxa": 21,
-     "phase": 240,
+     "phase": 256,
      "ref": 37,
      "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/menu[Settings]/History/#?"
     },
@@ -38,7 +38,7 @@
      "field": "width",
      "kind": "item",
      "lxa": 21,
-     "phase": 240,
+     "phase": 256,
      "ref": 37,
      "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/menu[Settings]/History/#?"
     },
@@ -46,7 +46,7 @@
      "field": "width",
      "kind": "item",
      "lxa": 21,
-     "phase": 240,
+     "phase": 256,
      "ref": 37,
      "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/menu[Settings]/History/#?"
     },
@@ -54,7 +54,7 @@
      "field": "width",
      "kind": "item",
      "lxa": 21,
-     "phase": 240,
+     "phase": 256,
      "ref": 37,
      "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/menu[Settings]/History/#?"
     },
@@ -62,7 +62,7 @@
      "field": "width",
      "kind": "item",
      "lxa": 21,
-     "phase": 240,
+     "phase": 256,
      "ref": 37,
      "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/menu[Settings]/History/#?"
     },
@@ -70,7 +70,7 @@
      "field": "width",
      "kind": "item",
      "lxa": 21,
-     "phase": 240,
+     "phase": 256,
      "ref": 37,
      "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/menu[Settings]/History/#?"
     },
@@ -78,7 +78,7 @@
      "field": "width",
      "kind": "item",
      "lxa": 21,
-     "phase": 240,
+     "phase": 256,
      "ref": 37,
      "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/menu[Settings]/History/#?"
     },
@@ -86,13 +86,13 @@
      "field": "width",
      "kind": "item",
      "lxa": 21,
-     "phase": 240,
+     "phase": 256,
      "ref": 37,
      "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/menu[Settings]/History/#?"
     }
    ],
-   "pixel_budget": 1310,
-   "pixel_phase": 240,
+   "pixel_budget": 1098,
+   "pixel_phase": 256,
    "stdout_known_diff": null
   }
  }

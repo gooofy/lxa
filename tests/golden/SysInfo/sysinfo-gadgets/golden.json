@@ -1,8 +1,8 @@
 {
  "app": "SysInfo",
  "disabled": null,
- "lxa_version": "0.11.32",
- "promoted": "2026-10-10",
+ "lxa_version": "0.11.96",
+ "promoted": "2026-10-18",
  "reference": "AmigaOS 3.1 (KS 40.70), profile aga",
  "requires_apps": true,
  "scenario": "sysinfo-gadgets",
@@ -210,38 +210,13 @@
      "where": "screen[0]/window[1]"
     }
    ],
-   "pixel_budget": 56965,
+   "pixel_budget": 57070,
    "pixel_phase": 255,
    "stdout_known_diff": null
   },
   "libraries": {
-   "known_tree_diffs": [
-    {
-     "field": "flags",
-     "kind": "gadget",
-     "lxa": 2,
-     "phase": 240,
-     "ref": 258,
-     "where": "screen[0]/window[0]/gadget[5 id=13]"
-    },
-    {
-     "field": "flags",
-     "kind": "gadget",
-     "lxa": 2,
-     "phase": 240,
-     "ref": 258,
-     "where": "screen[0]/window[0]/gadget[6 id=16]"
-    },
-    {
-     "field": "flags",
-     "kind": "gadget",
-     "lxa": 258,
-     "phase": 240,
-     "ref": 2,
-     "where": "screen[0]/window[0]/gadget[7 id=14]"
-    }
-   ],
-   "pixel_budget": 6971,
+   "known_tree_diffs": [],
+   "pixel_budget": 5810,
    "pixel_phase": 255,
    "stdout_known_diff": null
   },
@@ -464,38 +439,13 @@
      "where": "screen[0]/window[1]"
     }
    ],
-   "pixel_budget": 60424,
+   "pixel_budget": 60542,
    "pixel_phase": 255,
    "stdout_known_diff": null
   },
   "startup": {
-   "known_tree_diffs": [
-    {
-     "field": "flags",
-     "kind": "gadget",
-     "lxa": 2,
-     "phase": 240,
-     "ref": 258,
-     "where": "screen[0]/window[0]/gadget[5 id=13]"
-    },
-    {
-     "field": "flags",
-     "kind": "gadget",
-     "lxa": 2,
-     "phase": 240,
-     "ref": 258,
-     "where": "screen[0]/window[0]/gadget[6 id=16]"
-    },
-    {
-     "field": "flags",
-     "kind": "gadget",
-     "lxa": 258,
-     "phase": 240,
-     "ref": 2,
-     "where": "screen[0]/window[0]/gadget[7 id=14]"
-    }
-   ],
-   "pixel_budget": 5836,
+   "known_tree_diffs": [],
+   "pixel_budget": 4581,
    "pixel_phase": 255,
    "stdout_known_diff": null
   }

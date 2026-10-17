@@ -96,6 +96,11 @@ add_disk_library(p96_disklib Picasso96API.library
 # Real binaries are installed to share/lxa/System/Libs/ from others/.
 # DO NOT add stub implementations here — see AGENTS.md §1 and roadmap Phase 142.
 
+add_disk_library(m68040_disklib 68040.library
+    SOURCES
+        ${CMAKE_CURRENT_SOURCE_DIR}/../src/rom/lxa_68040.c
+)
+
 add_disk_library(version_disklib version.library
     SOURCES
         ${CMAKE_CURRENT_SOURCE_DIR}/../src/rom/lxa_versionlib.c

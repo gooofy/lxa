@@ -1114,10 +1114,11 @@ void m68k_pulse_reset(void)
 	/* Disable the PMMU on reset */
 	m68ki_cpu.pmmu_enabled = 0;
 
-	/* lxa (Phase 237e): the FPU starts in the same state on every reset,
-	   also when a process runs one emulator after another (a leftover
-	   state made task switches take a different path).  It is the state
-	   of the first run: registers 0, FSAVE gives idle frames. */
+	/* lxa (Phase 237e/240): the FPU starts in the same state on every
+	   reset, also when a process runs one emulator after another (a
+	   leftover state made task switches take a different path).  As on
+	   a real 68040 it is the reset (null) state: FSAVE gives null frames
+	   until the first FPU instruction. */
 	{
 		int f;
 		REG_FPCR = 0;
@@ -1128,7 +1129,7 @@ void m68k_pulse_reset(void)
 			REG_FP[f].high = 0;
 			REG_FP[f].low = 0;
 		}
-		m68ki_cpu.fpu_just_reset = 0;
+		m68ki_cpu.fpu_just_reset = 1;
 	}
 	/* ... and with its data and address registers 0 (Musashi keeps them
 	   across a reset; a second emulator run in the same process started

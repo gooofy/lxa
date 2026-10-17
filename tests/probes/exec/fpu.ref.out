@@ -1,6 +1,9 @@
 -- AttnFlags
 AFF_68881 = TRUE
 AFF_68882 = TRUE
+-- FPU state
+FSAVE before any FPU instruction = 0x00000000
+FSAVE after FPU instructions = 0x41000000
 -- addressing modes
 fmove.d (xxx).L -> (xxx).L hi = 0x40040000
 fmove.d (xxx).L -> (xxx).L lo = 0x00000000

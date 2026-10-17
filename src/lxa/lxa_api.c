@@ -6,6 +6,7 @@
  */
 
 #include "lxa_api.h"
+#include "lxa_memmap.h"
 #include "display.h"
 #include "vfs.h"
 #include "config.h"
@@ -35,11 +36,6 @@ extern uint32_t g_wb_window;       /* lxa.c: harness Workbench backdrop (Phase 2
 #include <linux/limits.h>
 
 /* External declarations for lxa.c globals and functions */
-extern uint8_t g_ram[];
-extern uint8_t g_z3ram[];
-#ifndef Z3RAM_SIZE
-#define Z3RAM_SIZE (8u * 1024u * 1024u)
-#endif
 extern uint8_t g_rom[];
 extern bool g_running;
 extern bool g_verbose;
@@ -63,7 +59,6 @@ extern void (*g_text_hook)(const char *str, int len, int x, int y, void *userdat
 extern void *g_text_hook_userdata;
 
 /* Configuration constants from lxa.c */
-#define RAM_SIZE (10 * 1024 * 1024)
 #define ROM_SIZE (512 * 1024)
 #define ROM_START 0xf80000
 #define TIMER_INTERVAL_US 20000
@@ -466,15 +461,17 @@ int lxa_init(const lxa_config_t *config)
 
     /* Set up initial memory image */
     memset(g_ram, 0, RAM_SIZE);
+    memset(g_fastram, 0, FASTRAM_SIZE);
     memset(g_z3ram, 0, Z3RAM_SIZE);
-    uint32_t initial_sp = RAM_SIZE - 1;
+    /* the boot stack lies at the top of fast RAM, which exec hands out last */
+    uint32_t initial_sp = FASTRAM_END + 1;
     uint32_t reset_vector = ROM_START + 2;
     m68k_write_memory_32(0, initial_sp);
     m68k_write_memory_32(4, reset_vector);
 
     /* Initialize CPU */
     m68k_init();
-    m68k_set_cpu_type(M68K_CPU_TYPE_68030);
+    m68k_set_cpu_type(M68K_CPU_TYPE_68040);   /* the A4000/040 of the reference (Phase 240) */
     m68k_pulse_reset();
     /* the reset vector is consumed: address 0 holds 0 after boot, as on
      * AmigaOS 3.1 (tests/probes/exec/lowmem) */

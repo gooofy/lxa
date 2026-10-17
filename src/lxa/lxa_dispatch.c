@@ -52,10 +52,14 @@ void m68k_write_memory_16(unsigned int address, unsigned int value)
         mwrite16_ram(address - RAM_START, (uint16_t)value);
         return;
     }
+    if (__builtin_expect((address >= FASTRAM_START) && (address <= FASTRAM_END - 1), 1))
+    {
+        mwrite16_p(&g_fastram[address - FASTRAM_START], (uint16_t)value);
+        return;
+    }
     if ((address >= Z3RAM_START) && (address <= Z3RAM_END - 1))
     {
-        g_z3ram[address - Z3RAM_START]     = (uint8_t)(value >> 8);
-        g_z3ram[address - Z3RAM_START + 1] = (uint8_t)value;
+        mwrite16_p(&g_z3ram[address - Z3RAM_START], (uint16_t)value);
         return;
     }
 
@@ -80,11 +84,14 @@ void m68k_write_memory_32(unsigned int address, unsigned int value)
         mwrite32_ram(address - RAM_START, value);
         return;
     }
+    if (__builtin_expect((address >= FASTRAM_START) && (address <= FASTRAM_END - 3), 1))
+    {
+        mwrite32_p(&g_fastram[address - FASTRAM_START], value);
+        return;
+    }
     if ((address >= Z3RAM_START) && (address <= Z3RAM_END - 3))
     {
-        uint8_t *p = &g_z3ram[address - Z3RAM_START];
-        p[0] = (uint8_t)(value >> 24); p[1] = (uint8_t)(value >> 16);
-        p[2] = (uint8_t)(value >> 8);  p[3] = (uint8_t)value;
+        mwrite32_p(&g_z3ram[address - Z3RAM_START], value);
         return;
     }
 
@@ -125,11 +132,11 @@ unsigned int m68k_read_memory_16(unsigned int address)
     if (__builtin_expect((address >= RAM_START) && (address <= RAM_END - 1), 1))
         return mread16_ram(address - RAM_START);
 
+    if (__builtin_expect((address >= FASTRAM_START) && (address <= FASTRAM_END - 1), 1))
+        return mread16_p(&g_fastram[address - FASTRAM_START]);
+
     if ((address >= Z3RAM_START) && (address <= Z3RAM_END - 1))
-    {
-        const uint8_t *p = &g_z3ram[address - Z3RAM_START];
-        return ((unsigned int)p[0] << 8) | p[1];
-    }
+        return mread16_p(&g_z3ram[address - Z3RAM_START]);
 
     /* Fast path: ROM read (second most common) */
     if (__builtin_expect((address >= ROM_START) && (address <= ROM_END - 1), 0))
@@ -148,11 +155,11 @@ unsigned int m68k_read_memory_32(unsigned int address)
     if (__builtin_expect((address >= RAM_START) && (address <= RAM_END - 3), 1))
         return mread32_ram(address - RAM_START);
 
+    if (__builtin_expect((address >= FASTRAM_START) && (address <= FASTRAM_END - 3), 1))
+        return mread32_p(&g_fastram[address - FASTRAM_START]);
+
     if ((address >= Z3RAM_START) && (address <= Z3RAM_END - 3))
-    {
-        const uint8_t *p = &g_z3ram[address - Z3RAM_START];
-        return ((unsigned int)p[0] << 24) | ((unsigned int)p[1] << 16) | ((unsigned int)p[2] << 8) | p[3];
-    }
+        return mread32_p(&g_z3ram[address - Z3RAM_START]);
 
     /* Fast path: ROM read (second most common) */
     if (__builtin_expect((address >= ROM_START) && (address <= ROM_END - 3), 0))
@@ -547,7 +554,7 @@ int op_illg(int level)
                  * or garbage pointer, (usp) is the caller's return address */
                 uint32_t usp = m68k_get_reg(NULL, M68K_REG_USP);
                 LPRINTF (LOG_WARNING, "*** EXCEPTION CAUGHT: usp=0x%08x (usp)=0x%08x\n", usp,
-                         usp < RAM_END ? m68k_read_memory_32(usp) : 0);
+                         lxa_ram_ptr(usp, 4) ? m68k_read_memory_32(usp) : 0);
             }
             LPRINTF (LOG_WARNING, "*** EXCEPTION CAUGHT: pc=0x%08x #%2d ", pc, excn);
             {
@@ -2022,9 +2029,9 @@ int op_illg(int level)
             uint32_t bytes = m68k_get_reg(NULL, M68K_REG_D2);
             uint32_t pat = m68k_get_reg(NULL, M68K_REG_D3);
             uint8_t hi = (uint8_t)(pat >> 8), lo = (uint8_t)pat;
-            if (addr < RAM_SIZE && bytes <= RAM_SIZE - addr)
+            uint8_t *p = bytes ? lxa_ram_ptr(addr, bytes) : NULL;
+            if (p)
             {
-                uint8_t *p = &g_ram[addr];
                 if (hi == lo)
                     memset(p, hi, bytes);
                 else
@@ -2611,7 +2618,7 @@ int op_illg(int level)
                     uint32_t plane_addr = m68k_read_memory_32(planes_ptr + i * 4);
                     if (plane_addr)
                     {
-                        planes[i] = (const uint8_t *)&g_ram[plane_addr];
+                        planes[i] = (const uint8_t *)lxa_ram_ptr(plane_addr, 1);
                     }
                 }
 
@@ -2929,7 +2936,7 @@ int op_illg(int level)
                     uint32_t plane_addr = m68k_read_memory_32(planes_ptr + i * 4);
                     if (plane_addr)
                     {
-                        planes[i] = (const uint8_t *)&g_ram[plane_addr];
+                        planes[i] = (const uint8_t *)lxa_ram_ptr(plane_addr, 1);
                     }
                 }
 

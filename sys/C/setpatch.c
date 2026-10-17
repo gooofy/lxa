@@ -8,7 +8,9 @@
  * to install: it only reports that (unless QUIET) and succeeds, which keeps
  * Startup-Sequences working ("SetPatch QUIET" is silent with RC 0, as on
  * AmigaOS 3.1, verified on the reference, Phase 221).  NOCACHE disables
- * the CPU caches like on AmigaOS; REVERSE is accepted.
+ * the CPU caches like on AmigaOS; REVERSE is accepted.  On a 68040 it opens
+ * LIBS:68040.library and leaves it open, as on the A4000/040 reference
+ * (lxa's boot opens it already; Phase 240).
  */
 
 #include <exec/types.h>
@@ -32,6 +34,8 @@ int main(void)
         PrintFault(IoErr(), NULL);
         return RETURN_FAIL;
     }
+    if (SysBase->AttnFlags & AFF_68040)
+        OpenLibrary((STRPTR)"68040.library", 0);
     if (args[1])
         CacheControl(0, CACRF_EnableI | CACRF_EnableD);
     if (!args[0])

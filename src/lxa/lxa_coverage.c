@@ -25,12 +25,14 @@
 
 #include "lxa_coverage.h"
 #include "m68k.h"
+#include "lxa_memmap.h"
 
 #define COV_ROM_START  0xf80000u
 #define COV_ROM_SIZE   (512u * 1024u)
 #define COV_BITMAP_LEN (COV_ROM_SIZE / 2u / 8u)    /* 32 KB */
-#define COV_RAM_SIZE   (10u * 1024u * 1024u)
-#define COV_RAM_LEN    (COV_RAM_SIZE / 2u / 8u)    /* 640 KB */
+/* chip, fast and Zorro III RAM, one after the other (lxa_memmap.h) */
+#define COV_RAM_SIZE   (RAM_SIZE + FASTRAM_SIZE + Z3RAM_SIZE)
+#define COV_RAM_LEN    (COV_RAM_SIZE / 2u / 8u)
 
 /* ExecBase list offsets (NDK exec/execbase.h) */
 #define EB_DEVICELIST  350
@@ -39,6 +41,18 @@
 uint8_t *g_rom_cov_bitmap = NULL;
 static uint8_t *s_ram_cov_bitmap = NULL;
 static char s_cov_dir[4096];
+
+/* the position of a RAM address in the RAM coverage bitmap, else -1 */
+static int64_t cov_ram_index(uint32_t addr)
+{
+    if (addr <= RAM_END)
+        return addr;
+    if (addr >= FASTRAM_START && addr <= FASTRAM_END)
+        return (int64_t)RAM_SIZE + (addr - FASTRAM_START);
+    if (addr >= Z3RAM_START && addr <= Z3RAM_END)
+        return (int64_t)RAM_SIZE + FASTRAM_SIZE + (addr - Z3RAM_START);
+    return -1;
+}
 
 void lxa_coverage_init(void)
 {
@@ -62,10 +76,11 @@ void lxa_coverage_init(void)
 void lxa_coverage_mark_slow(uint32_t pc)
 {
     uint32_t word;
+    int64_t idx = cov_ram_index(pc);
 
-    if (pc < COV_RAM_SIZE)
+    if (idx >= 0)
     {
-        word = pc >> 1;
+        word = (uint32_t)idx >> 1;
         s_ram_cov_bitmap[word >> 3] |= (uint8_t)(1u << (word & 7));
         return;
     }
@@ -77,8 +92,9 @@ void lxa_coverage_mark_slow(uint32_t pc)
 
 static int ram_hit(uint32_t addr)
 {
-    uint32_t word = addr >> 1;
-    return addr < COV_RAM_SIZE && ((s_ram_cov_bitmap[word >> 3] >> (word & 7)) & 1);
+    int64_t idx = cov_ram_index(addr);
+    uint32_t word = (uint32_t)idx >> 1;
+    return idx >= 0 && ((s_ram_cov_bitmap[word >> 3] >> (word & 7)) & 1);
 }
 
 /* Record RAM-resident jump-table vectors of one exec list into `out`. */
@@ -112,7 +128,7 @@ static void collect_list(uint32_t list_addr, FILE *out)
                 if (m68k_read_memory_16(v) != 0x4EF9)       /* JMP abs.l */
                     continue;
                 target = m68k_read_memory_32(v + 2);
-                if (target >= COV_RAM_SIZE)                  /* ROM or bogus */
+                if (cov_ram_index(target) < 0)               /* ROM or bogus */
                     continue;
                 fprintf(out, "%s -%d %d\n", name, lvo, ram_hit(target));
             }
@@ -131,7 +147,7 @@ static void flush_disklibs(void)
     uint32_t sysbase = m68k_read_memory_32(4);
     int fd;
 
-    if (!sysbase || sysbase >= COV_RAM_SIZE)
+    if (!sysbase || cov_ram_index(sysbase) < 0)
         return;
 
     cur = open_memstream(&mem, &memlen);

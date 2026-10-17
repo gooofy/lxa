@@ -30,6 +30,7 @@
 #include "util.h"
 #include "m68k.h"
 #include "lxa_rtg_host.h"
+#include "lxa_memmap.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -121,9 +122,6 @@ static bool g_rootless_mode = false;
  * display_set_active_by_index for explicit per-test window selection). */
 static int g_active_rootless_window = -1;
 
-extern uint8_t g_ram[];
-
-#define LXA_RAM_SIZE (10 * 1024 * 1024)
 
 /* Global state */
 static bool g_display_initialized = false;
@@ -276,8 +274,8 @@ bool display_sync_from_amiga(display_t *display)
     for (uint32_t p = 0; p < display->amiga_depth && p < 8; p++)
     {
         uint32_t addr = m68k_read_memory_32(display->amiga_planes_ptr + p * 4);
-        if (addr && addr < LXA_RAM_SIZE)
-            planes[p] = &g_ram[addr];
+        if (addr)
+            planes[p] = lxa_ram_ptr(addr, 1);
     }
     display_update_planar(display, 0, 0, display->width, display->height,
                           planes, (int)display->amiga_bpr, (int)display->amiga_depth);
@@ -618,9 +616,9 @@ static void display_window_sync_from_screen(display_window_t *window)
     for (uint32_t plane = 0; plane < depth && plane < 8; plane++)
     {
         uint32_t plane_addr = m68k_read_memory_32(planes_ptr + plane * 4);
-        if (plane_addr && plane_addr < LXA_RAM_SIZE)
+        if (plane_addr)
         {
-            planes[plane] = &g_ram[plane_addr];
+            planes[plane] = lxa_ram_ptr(plane_addr, 1);
         }
     }
 

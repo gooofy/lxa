@@ -312,8 +312,8 @@ exit, rv=26, or missing functionality) when they find zeros.
 
 **Fields that must be initialized** (in `exec.c` coldstart):
 - `DisplayFlags = PAL | REALLY_PAL` — apps use this to detect PAL vs NTSC
-- `VBlank = 50` — PAL VBlank frequency
-- `ChipRevBits0 = SETCHIPREV_ECS` — chipset revision detection
+- `VBlank = 0` as on the A4000 reference; the frame rate apps read is `ExecBase->VBlankFrequency = 50`
+- `ChipRevBits0` = HR_AGNUS|HR_DENISE|AA_ALICE|AA_LISA|AA_MLISA (AGA, Phase 240) — chipset revision detection
 - `NormalDisplayRows/Columns`, `MaxDisplayRow/Column` — screen dimensions
 
 **Symptom of missing initialization**: App opens and immediately closes, or
@@ -378,7 +378,7 @@ this flag dynamically via `ModifyIDCMP()`.
 
 ### 6.16 Screen-Mode Emulation Architecture
 
-Many apps probe available display modes at startup using `GetDisplayInfoData()`, `BestModeIDA()`, and `NextDisplayInfo()`. As of Phase 129 (v0.9.3), lxa's ECS mode database covers 36 entries (DEFAULT/NTSC/PAL × 12 ECS modes) with realistic raster ranges and virtualisation of unknown IDs. The ECS emulation is considered complete.
+Many apps probe available display modes at startup using `GetDisplayInfoData()`, `BestModeIDA()`, and `NextDisplayInfo()`. As of Phase 129 (v0.9.3), lxa's ECS mode database covers 36 entries (DEFAULT/NTSC/PAL × 12 ECS modes) with realistic raster ranges and virtualisation of unknown IDs. The ECS emulation is considered complete. Since Phase 240 the machine is the A4000/040 with AGA as on the reference: every mode reports a 24-bit palette (PaletteRange 65535, 8 bits per gun) and 8 sprites, and nothing is DI_AVAIL_NOCHIPS.
 
 **RTG supersedes ECS for modern apps**: PPaint, FinalWriter, and other productivity apps probe for P96 display IDs, not ECS modes. Their ECS-path failures are not investigated further. These apps are validation targets for Phase 243 (RTG app validation) after Phases 241–242 deliver the RTG infrastructure.
 

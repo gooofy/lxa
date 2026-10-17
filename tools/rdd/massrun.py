@@ -418,10 +418,9 @@ MEMORY_DEPENDENT = {
                                            "(\\n): the outcome depends on the caller's buffer - on the "
                                            "reference a line feed follows 8 bytes later in lxaprobe's "
                                            "memory, on lxa none (Phase 237d)",
-    "fish-0365/Password/loop": "its VTBeep task starts with A4 = 0 (as on 3.1, probe exec/taskregs) and "
-                               "compares its stack pointer with the vector at 744(A4): on the reference "
-                               "the stack is in fast RAM above the ROM, on lxa below it, so lxa takes "
-                               "the stack-overflow path (memory map, Phase 240)",
+    "fish-0038/Window/window": "calls through the longword at $100 (movea.l $100,a6; jsr -28(a6), a "
+                               "Kickstart 1.x convention): the outcome depends on the exception vector "
+                               "there and the Kickstart code before it (Phase 240)",
 }
 
 

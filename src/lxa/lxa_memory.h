@@ -49,6 +49,33 @@ static inline void mwrite32_ram(uint32_t addr, uint32_t value)
     memcpy(&g_ram[addr], &v, 4);
 }
 
+/* the same on a host pointer (fast and Zorro III RAM) */
+static inline uint16_t mread16_p(const uint8_t *p)
+{
+    uint16_t v;
+    memcpy(&v, p, 2);
+    return __builtin_bswap16(v);
+}
+
+static inline uint32_t mread32_p(const uint8_t *p)
+{
+    uint32_t v;
+    memcpy(&v, p, 4);
+    return __builtin_bswap32(v);
+}
+
+static inline void mwrite16_p(uint8_t *p, uint16_t value)
+{
+    uint16_t v = __builtin_bswap16(value);
+    memcpy(p, &v, 2);
+}
+
+static inline void mwrite32_p(uint8_t *p, uint32_t value)
+{
+    uint32_t v = __builtin_bswap32(value);
+    memcpy(p, &v, 4);
+}
+
 static inline uint16_t mread16_rom(uint32_t addr)
 {
     uint16_t v;
@@ -75,6 +102,10 @@ static inline uint8_t mread8(uint32_t address)
         uint32_t addr = address - RAM_START;
         return g_ram[addr];
     }
+    else if (__builtin_expect((address >= FASTRAM_START) && (address <= FASTRAM_END), 1))
+    {
+        return g_fastram[address - FASTRAM_START];
+    }
     else if (__builtin_expect((address >= ROM_START) && (address <= ROM_END), 0))
     {
         uint32_t addr = address - ROM_START;
@@ -89,12 +120,12 @@ static inline uint8_t mread8(uint32_t address)
         /* Extended ROM area (A3000/A4000) - return 0 to indicate no extended ROM */
         return 0;
     }
-    else if ((address >= 0x00A00000) && (address < CUSTOM_START) &&
+    else if ((address > RAM_END) && (address < CUSTOM_START) &&
              !((address >= CIA_START) && (address <= CIA_END)))   /* CIAs below (Phase 237, exec/buttons) */
     {
-        /* RAM overflow area (10MB - just before custom chips at 0xDFF000) - some apps allocate
-         * to end of RAM and overflow into what would be expansion RAM, slow RAM, or CIA areas.
-         * Return 0 for reads in this area. */
+        /* Zorro II space above chip RAM up to the custom chips: no memory
+         * (programs that run past the end of chip RAM, probe for slow or
+         * expansion RAM).  Return 0 for reads in this area. */
         DPRINTF (LOG_DEBUG, "lxa: mread8 RAM overflow area 0x%08x -> 0x00\n", address);
         return 0;
     }
@@ -275,15 +306,18 @@ static inline void mwrite8(uint32_t address, uint8_t value)
         uint32_t addr = address - RAM_START;
         g_ram[addr] = value;
     }
+    else if (__builtin_expect((address >= FASTRAM_START) && (address <= FASTRAM_END), 1))
+    {
+        g_fastram[address - FASTRAM_START] = value;
+    }
     else if ((address >= Z3RAM_START) && (address <= Z3RAM_END))
     {
         g_z3ram[address - Z3RAM_START] = value;
     }
-    else if ((address >= 0x00A00000) && (address < CUSTOM_START) &&
+    else if ((address > RAM_END) && (address < CUSTOM_START) &&
              !((address >= CIA_START) && (address <= CIA_END)))   /* CIAs below (Phase 237, exec/buttons) */
     {
-        /* RAM overflow area (10MB - just before custom chips at 0xDFF000) - some apps allocate
-         * to end of RAM and overflow into what would be expansion RAM, slow RAM, or CIA areas.
+        /* Zorro II space above chip RAM up to the custom chips: no memory.
          * Silently ignore these writes. */
         DPRINTF (LOG_DEBUG, "lxa: mwrite8 RAM overflow area 0x%08x <- 0x%02x (ignored)\n", address, value);
     }

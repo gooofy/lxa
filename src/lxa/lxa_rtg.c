@@ -25,11 +25,7 @@
 #include "lxa_rtg.h"
 #include "lxa_rtg_host.h"
 
-extern uint8_t g_ram[];
-extern uint8_t g_z3ram[];
-#define RTG_RAM_SIZE (10u * 1024u * 1024u)          /* RAM_SIZE (lxa_internal.h) */
-#define RTG_Z3_START 0x40000000u                    /* Z3RAM_START */
-#define RTG_Z3_SIZE  (8u * 1024u * 1024u)           /* Z3RAM_SIZE */
+#include "lxa_memmap.h"
 
 #define INVALID_ID 0xffffffffu
 
@@ -68,11 +64,7 @@ void rtg_reset(void)
  * fast RAM), NULL if the range is not RAM */
 static inline uint8_t *ram_ptr(uint32_t a, uint32_t n)
 {
-    if (a < RTG_RAM_SIZE && n <= RTG_RAM_SIZE - a)
-        return &g_ram[a];
-    if (a >= RTG_Z3_START && a - RTG_Z3_START < RTG_Z3_SIZE && n <= RTG_Z3_SIZE - (a - RTG_Z3_START))
-        return &g_z3ram[a - RTG_Z3_START];
-    return NULL;
+    return n ? lxa_ram_ptr(a, n) : NULL;
 }
 
 static inline bool ram_ok(uint32_t a, uint32_t n)

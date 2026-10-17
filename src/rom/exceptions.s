@@ -366,6 +366,35 @@ _exec_Supervisor:
 1:  rts
 
     /*
+     * The 68040 CACR from C (Phase 240): ULONG _exec_get_cacr(void) and
+     * void _exec_set_cacr(ULONG), via Supervisor() (d0 passes through it).
+     */
+    .globl __exec_get_cacr
+__exec_get_cacr:
+    movem.l     a5-a6, -(a7)
+    lea         _exec_cacr_rd(pc), a5
+    move.l      4.w, a6
+    jsr         -30(a6)                             | Supervisor()
+    movem.l     (a7)+, a5-a6
+    rts
+_exec_cacr_rd:
+    .short      0x4e7a, 0x0002                      | movec cacr,d0
+    rte
+
+    .globl __exec_set_cacr
+__exec_set_cacr:
+    move.l      4(a7), d0
+    movem.l     a5-a6, -(a7)
+    lea         _exec_cacr_wr(pc), a5
+    move.l      4.w, a6
+    jsr         -30(a6)                             | Supervisor()
+    movem.l     (a7)+, a5-a6
+    rts
+_exec_cacr_wr:
+    .short      0x4e7b, 0x0002                      | movec d0,cacr
+    rte
+
+    /*
      * CPU exceptions and TRAP #0-#14 (AmigaOS convention, RKRM Exec "Traps"):
      * the exception number (longword) is pushed on the supervisor stack on
      * top of the exception frame and control passes to ThisTask->tc_TrapCode

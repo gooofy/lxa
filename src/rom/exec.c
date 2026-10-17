@@ -101,10 +101,11 @@ struct JumpVec
 #define NUM_DEVICE_CONSOLE_FUNCS     (0+6)
 
 #define RAM_START                    0x00010000
-#define RAM_END                      0x009fffff
-#define LXA_CHIP_END                 0x00200000   /* 2 MB chip RAM, fast RAM above */
+#define LXA_CHIP_END                 0x00200000   /* 2 MB chip RAM (host: RAM_*) */
+#define LXA_FASTRAM_START            0x07800000   /* 8 MB 32-bit fast RAM (host: FASTRAM_*) */
+#define LXA_FASTRAM_SIZE             0x00800000
 #define LXA_Z3RAM_START              0x40000000   /* Zorro III fast RAM (host: Z3RAM_*) */
-#define LXA_Z3RAM_SIZE               0x00800000
+#define LXA_Z3RAM_SIZE               0x01000000
 
 extern struct Resident *__lxa_dos_ROMTag;
 extern struct Resident *__lxa_utility_ROMTag;
@@ -145,8 +146,6 @@ extern struct Resident *__lxa_trackdisk_ROMTag;
 static struct JumpVec   g_ExecJumpTable[NUM_EXEC_FUNCS];
 static struct ExecBase  g_SysBase;
 static struct MemHeader g_MemHeader;       /* chip RAM */
-static struct MemHeader g_FastMemHeader;   /* fast RAM */
-static struct MemHeader g_Z3MemHeader;     /* Zorro III fast RAM */
 
 struct ExecIntVectorState
 {
@@ -2566,8 +2565,8 @@ void _exec_RemTask ( register struct ExecBase * SysBase __asm("a6"),
     if (!task)
         task = me;
 
-    /* Validate task pointer - it should be a reasonable memory address */
-    if ((ULONG)task < 0x1000 || (ULONG)task > 0x00FFFFFF)
+    /* Validate task pointer - it must lie in system RAM */
+    if ((ULONG)task < 0x1000 || !TypeOfMem((APTR)task))
     {
         LPRINTF (LOG_ERROR, "_exec: RemTask() called with invalid task pointer 0x%08lx - ignoring\n", task);
         return;
@@ -5401,6 +5400,9 @@ void _exec_CacheClearE ( register struct ExecBase * SysBase __asm("a6"),
              (ULONG)___address, ___length, ___caches);
 }
 
+extern ULONG _exec_get_cacr (void);
+extern void _exec_set_cacr (ULONG cacr);
+
 ULONG _exec_CacheControl ( register struct ExecBase * SysBase __asm("a6"),
                                                         register ULONG ___cacheBits  __asm("d0"),
                                                         register ULONG ___cacheMask  __asm("d1"))
@@ -5438,11 +5440,24 @@ ULONG _exec_CacheControl ( register struct ExecBase * SysBase __asm("a6"),
         stored = 0;
 
     Disable();
-    cache_state = boot_state ^ cache_flipped;
+    if (attn & AFF_68040)
+    {
+        /* the 68040 keeps the two enables in its CACR (DE bit 31, IE bit 15) */
+        ULONG cacr = _exec_get_cacr ();
+        cache_state = ((cacr & 0x8000) ? CACRF_EnableI : 0) | ((cacr & 0x80000000) ? CACRF_EnableD : 0);
+    }
+    else
+        cache_state = boot_state ^ cache_flipped;
     old = cache_state & stored;
     now = (old & ~___cacheMask) | (___cacheBits & ___cacheMask & stored);
     cache_state = (cache_state & ~stored) | now;
-    cache_flipped = cache_state ^ boot_state;
+    if (attn & AFF_68040)
+    {
+        ULONG cacr = ((cache_state & CACRF_EnableI) ? 0x8000 : 0) | ((cache_state & CACRF_EnableD) ? 0x80000000 : 0);
+        _exec_set_cacr (cacr);
+    }
+    else
+        cache_flipped = cache_state ^ boot_state;
     Enable();
 
     if (attn & AFF_68040)
@@ -6220,6 +6235,11 @@ void _bootstrap(void)
     OpenLibrary ((STRPTR)"dos.library", 0);
     OpenLibrary ((STRPTR)"utility.library", 0);
 
+    /* the CPU support library stays open, as SetPatch leaves it on the
+     * A4000/040 reference (probe exec/machine: 68040.library in LibList) */
+    if (SysBase->AttnFlags & AFF_68040)
+        OpenLibrary ((STRPTR)"68040.library", 0);
+
     /* Phase 236: install the preferences in ENV:Sys before the program
      * starts, as the AmigaOS Startup-Sequence does with C:IPrefs (without
      * ENV:Sys there is nothing to install) */
@@ -6530,6 +6550,27 @@ asm(
 "        rts                                         \n"
 );
 
+/* a fast RAM region of size bytes at mh, its MemHeader at its start */
+static void exec_add_fast_region(struct MemHeader *mh, ULONG size, BYTE pri,
+                                 const char *name, UWORD attrs)
+{
+    struct MemChunk *mc = (struct MemChunk *) ((UBYTE *) mh + sizeof(struct MemHeader));
+
+    mc->mc_Next  = NULL;
+    mc->mc_Bytes = size - sizeof(struct MemHeader);
+
+    mh->mh_Node.ln_Type = NT_MEMORY;
+    mh->mh_Node.ln_Pri  = pri;
+    mh->mh_Node.ln_Name = (char *) name;
+    mh->mh_Attributes   = attrs;
+    mh->mh_First        = mc;
+    mh->mh_Lower        = (APTR) mc;
+    mh->mh_Upper        = (APTR) ((UBYTE *) mh + size);
+    mh->mh_Free         = mc->mc_Bytes;
+    Enqueue (&SysBase->MemList, &mh->mh_Node);
+}
+
+
 void coldstart (void)
 {
     // setup exceptions, traps, interrupts
@@ -6587,11 +6628,11 @@ void coldstart (void)
     //__asm("    ori.w  #0x0700, sr;\n");   // disable interrupts
     //__asm("andi.w  #0xdfff, sr\n");   // disable supervisor bit
     //__asm("andi.w  #0xdfff, sr\n");   // disable supervisor bit
-    __asm("move.l  #0x009ffff0, a7\n"); // setup initial stack
+    __asm("move.l  #0x07fffff0, a7\n"); // setup initial stack: top of fast RAM
 
     DPRINTF (LOG_INFO, "coldstart: g_ExecJumpTable    = 0x%08lx\n", g_ExecJumpTable   );
     DPRINTF (LOG_INFO, "           RAM_START          = 0x%08lx\n", RAM_START         );
-    DPRINTF (LOG_INFO, "           RAM_END            = 0x%08lx\n", RAM_END           );
+    DPRINTF (LOG_INFO, "           LXA_CHIP_END       = 0x%08lx\n", LXA_CHIP_END      );
 
     // coldstart is at 0x00f801be, &SysBase at 0x00f80c90, SysBase at 0x0009eed0, f1 at 0x00f80028
     DPRINTF (LOG_DEBUG, "coldstart: locations in RAM: coldstart is at 0x%08x, &SysBase at 0x%08x, SysBase at 0x%08x\n",
@@ -6804,11 +6845,13 @@ void coldstart (void)
     NEWLIST (&SysBase->MemList);
     SysBase->MemList.lh_Type = NT_MEMORY;
 
-    /* Memory layout as on the reference A4000 (tests/probes/exec/memlist):
-     * 2 MB chip RAM (MEMF_PUBLIC|CHIP|LOCAL|24BITDMA|KICK, priority -10)
-     * and fast RAM above it (MEMF_PUBLIC|FAST|LOCAL|KICK, priority 30) that
-     * MEMF_ANY allocations come from.  lxa's RAM is one flat region; its
-     * fast part is smaller than the reference's 16 MB. */
+    /* Memory layout as on the reference A4000 (tests/probes/exec/memlist,
+     * SysInfo MEMORY): 2 MB chip RAM (MEMF_PUBLIC|CHIP|LOCAL|24BITDMA|KICK,
+     * priority -10), 8 MB 32-bit motherboard fast RAM ending at $08000000
+     * (MEMF_PUBLIC|FAST|LOCAL|KICK, priority 30) that MEMF_ANY allocations
+     * come from, and 16 MB Zorro III RAM at $40000000 (priority 20).  The
+     * boot stack lies at the top of the motherboard fast RAM, which
+     * allocations reach last. */
     struct MemChunk *mc = (struct MemChunk *) RAM_START;
 
     mc->mc_Next  = NULL;
@@ -6823,36 +6866,16 @@ void coldstart (void)
     g_MemHeader.mh_Upper        = (APTR) LXA_CHIP_END;
     g_MemHeader.mh_Free         = LXA_CHIP_END-RAM_START;
 
-    mc = (struct MemChunk *) LXA_CHIP_END;
-    mc->mc_Next  = NULL;
-    mc->mc_Bytes = RAM_END+1-LXA_CHIP_END;
-
-    g_FastMemHeader.mh_Node.ln_Type = NT_MEMORY;
-    g_FastMemHeader.mh_Node.ln_Pri  = 30;
-    g_FastMemHeader.mh_Node.ln_Name = (char *)"expansion memory";
-    g_FastMemHeader.mh_Attributes   = MEMF_FAST | MEMF_PUBLIC | MEMF_LOCAL | MEMF_KICK;
-    g_FastMemHeader.mh_First        = mc;
-    g_FastMemHeader.mh_Lower        = (APTR) LXA_CHIP_END;
-    g_FastMemHeader.mh_Upper        = (APTR) (RAM_END + 1);
-    g_FastMemHeader.mh_Free         = RAM_END+1-LXA_CHIP_END;
-
+    /* The fast regions carry their MemHeader at their start, as
+     * AddMemList() lays them out: the free memory starts 32 bytes in
+     * (SysInfo MEMORY: lower bound $07800020; the largest Zorro III block
+     * is 16777184 bytes). */
+    exec_add_fast_region((struct MemHeader *) LXA_FASTRAM_START, LXA_FASTRAM_SIZE,
+                         30, "expansion memory", MEMF_FAST | MEMF_PUBLIC | MEMF_LOCAL | MEMF_KICK);
     /* a second fast region like the reference's Zorro III RAM
      * (MEMF_PUBLIC|FAST|KICK, priority 20) */
-    mc = (struct MemChunk *) LXA_Z3RAM_START;
-    mc->mc_Next  = NULL;
-    mc->mc_Bytes = LXA_Z3RAM_SIZE;
-
-    g_Z3MemHeader.mh_Node.ln_Type = NT_MEMORY;
-    g_Z3MemHeader.mh_Node.ln_Pri  = 20;
-    g_Z3MemHeader.mh_Node.ln_Name = (char *)"zorro iii memory";
-    g_Z3MemHeader.mh_Attributes   = MEMF_FAST | MEMF_PUBLIC | MEMF_KICK;
-    g_Z3MemHeader.mh_First        = mc;
-    g_Z3MemHeader.mh_Lower        = (APTR) LXA_Z3RAM_START;
-    g_Z3MemHeader.mh_Upper        = (APTR) (LXA_Z3RAM_START + LXA_Z3RAM_SIZE);
-    g_Z3MemHeader.mh_Free         = LXA_Z3RAM_SIZE;
-
-    Enqueue (&SysBase->MemList, &g_FastMemHeader.mh_Node);
-    Enqueue (&SysBase->MemList, &g_Z3MemHeader.mh_Node);
+    exec_add_fast_region((struct MemHeader *) LXA_Z3RAM_START, LXA_Z3RAM_SIZE,
+                         20, "zorro iii memory", MEMF_FAST | MEMF_PUBLIC | MEMF_KICK);
     Enqueue (&SysBase->MemList, &g_MemHeader.mh_Node);
 
     /* The exception vectors live in fast RAM, as on the 68040 reference
@@ -6875,6 +6898,13 @@ void coldstart (void)
                             : : "d" (vbr) : "a0");
         }
     }
+
+    /* Both 68040 caches are on after boot: CACR = DE|IE (probe exec/machine
+     * on the reference).  lxa emulates no caches; the register is what
+     * programs read (SysInfo) and CacheControl() changes. */
+    __asm volatile ("move.l #0x80008000,d0\n\t"
+                    ".short 0x4e7b,0x0002"              /* movec d0,cacr */
+                    : : : "d0");
 
     // init and register built-in libraries
 
@@ -6900,19 +6930,32 @@ void coldstart (void)
     GfxBase->MaxDisplayRow = 311;     /* PAL: 312 lines (AmigaOS 3.1 reference) */
     GfxBase->MaxDisplayColumn = 455;  /* AmigaOS 3.1 reference value */
     GfxBase->DisplayFlags = PAL | REALLY_PAL;  /* PAL crystal (matches VBlankFrequency=50) */
-    GfxBase->VBlank = 50;                      /* PAL VBlank rate */
-    GfxBase->ChipRevBits0 = SETCHIPREV_ECS;   /* ECS chipset (HR_AGNUS + HR_DENISE) */
     GfxBase->SpriteReserved = 0x01;          /* sprite 0 is the Intuition pointer (as on AmigaOS 3.1) */
 
-    /* Additional GfxBase fields that some apps read directly.
-     * Per Phase 109 audit — apps may check these at startup and fail silently
-     * if they find zeros. */
-    GfxBase->NormalDPMX = 1226;                /* dots per metre, AmigaOS 3.1 reference (PAL) */
+    /* The A4000 of the reference: AGA chips (Alice, Lisa, MLisa), and the
+     * rest of the fields programs read directly, each as AmigaOS 3.1 has it
+     * there after boot (probe exec/machine, Phase 240).  GfxBase->VBlank is
+     * 0 on the reference; the frame rate is ExecBase->VBlankFrequency. */
+    GfxBase->ChipRevBits0 = GFXF_HR_AGNUS | GFXF_HR_DENISE | GFXF_AA_ALICE | GFXF_AA_LISA | GFXF_AA_MLISA;
+    GfxBase->VBlank = 0;
+    GfxBase->system_bplcon0 = 0x0200;          /* COLOR_ON */
+    GfxBase->NormalDPMX = 1226;                /* dots per metre (PAL) */
     GfxBase->NormalDPMY = 1299;
-    GfxBase->MicrosPerLine = 16285;            /* 1/256 us per raster line, AmigaOS 3.1 reference */
-    GfxBase->MinDisplayColumn = 0x71;          /* Standard left edge of display (ECS) */
-    GfxBase->monitor_id = PAL_MONITOR_ID >> 16; /* PAL monitor (AmigaOS 3.1 reference: 2) */
-    GfxBase->TopLine = 0;                      /* Top visible line offset */
+    GfxBase->MicrosPerLine = 16285;            /* 1/256 us per raster line */
+    GfxBase->MinDisplayColumn = 93;
+    GfxBase->MemType = 0x03;
+    GfxBase->BoardMemType = 0x03;
+    GfxBase->monitor_id = PAL_MONITOR_ID >> 16; /* PAL monitor: 2 */
+    GfxBase->current_tot_rows = 312;
+    GfxBase->current_tot_cclks = 226;
+    GfxBase->TopLine = 3072;
+    GfxBase->SpriteWidth = 1;
+    GfxBase->DefaultSpriteWidth = 1;
+    GfxBase->WantChips = 0xff;
+    GfxBase->Bugs = 0x25;
+    GfxBase->ColorMask = 0xff000000;
+    GfxBase->MonitorFlags = 0x0002;
+    GfxBase->ExtSprites = 0x01;
     /* copinit, SimpleSprites, ActiView left NULL — they require actual data
      * structures. NULL is the correct initial value (no copper list, no sprites,
      * no view loaded yet). ActiView is set when LoadView() is called. */
@@ -6925,6 +6968,7 @@ void coldstart (void)
         extern void graphics_init_monitor_list(struct GfxBase *gfxBase);
         graphics_init_monitor_list(GfxBase);
     }
+    GfxBase->current_monitor = GfxBase->natural_monitor;   /* the display in use: pal.monitor */
     
     IntuitionBase = (struct IntuitionBase *) registerBuiltInLib (sizeof(*IntuitionBase) , __lxa_intuition_ROMTag );
 
@@ -7048,13 +7092,12 @@ void coldstart (void)
 
     /* Phase 108c: Populate ExecBase hardware description fields.
      *
-     * AttnFlags: The emulator runs a 68030 CPU (set in lxa.c:
-     * m68k_set_cpu_type(M68K_CPU_TYPE_68030)).  Per the RKRM,
-     * higher-model flags imply all lower ones, so 68030 sets
-     * AFF_68010 | AFF_68020 | AFF_68030.  The CPU core executes the
-     * 68881/68882 instruction set (m68kfpu.c), and AmigaOS 3.1 on the
-     * reference reports AFF_68881 | AFF_68882 (probe exec/fpu): programs
-     * compiled for the FPU check these bits (Fish Offender).
+     * AttnFlags: the emulator runs a 68040 with its FPU (lxa.c / lxa_api.c:
+     * m68k_set_cpu_type(M68K_CPU_TYPE_68040)), the CPU of the A4000/040
+     * reference.  AmigaOS 3.1 there reports 0x807f (probe exec/machine):
+     * every lower CPU bit, AFF_68881|AFF_68882 and AFF_FPU40 (set by
+     * 68040.library once the FPU emulation for the missing instructions is
+     * in place) and AFF_PRIVATE.
      *
      * VBlankFrequency / PowerSupplyFrequency: PAL = 50 Hz.
      *
@@ -7062,7 +7105,8 @@ void coldstart (void)
      *
      * ex_EClockFrequency: PAL E-clock = 709379 Hz (per NDK).
      */
-    SysBase->AttnFlags           = AFF_68010 | AFF_68020 | AFF_68030 | AFF_68881 | AFF_68882;
+    SysBase->AttnFlags           = AFF_68010 | AFF_68020 | AFF_68030 | AFF_68040 |
+                                   AFF_68881 | AFF_68882 | AFF_FPU40 | AFF_PRIVATE;
     SysBase->VBlankFrequency     = 50;
     SysBase->PowerSupplyFrequency = 50;
     SysBase->MaxLocMem           = (ULONG)LXA_CHIP_END;

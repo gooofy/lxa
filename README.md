@@ -237,6 +237,8 @@ Built-in C: commands with full AmigaDOS template support:
 
 ## Current Status
 
+**Version 0.11.97** - Phase 240: lxa is the A4000/040 with AGA that the AmigaOS 3.1 reference runs. The CPU is a 68040 with FPU (AttnFlags, CACR/VBR, CINV/CPUSH, the FPU starts in its null state) and lxa's own `68040.library` is open from boot. GfxBase, MonitorInfo, the View and the display database are AGA (24-bit palette); bitmaps and the Workbench are interleaved; 256-colour screens share pens as on 3.1. Memory is laid out as on the A4000: 2 MB chip RAM, 8 MB fast RAM at $07800000 and 16 MB Zorro III RAM at $40000000, each with its MemHeader at the start of the region. Each change is checked by a probe captured on the reference (`exec/machine`, `exec/fpu`, `exec/memlist`, `graphics/modedb`, `graphics/mntrdb`, `graphics/bmattr`, `graphics/rgb32`).
+
 **Version 0.11.78** - Sound output is configurable: `--audio`/`--no-audio`, `LXA_AUDIO=0/1` or `config.ini` `[audio] enabled`. Automated tests and the RDD runners (everything built on liblxa) now run silently by default; the emulated audio hardware is unaffected.
 
 **Version 0.11.90** - icon.library's built-in default icons (disk, drawer, tool, project, trashcan) are lxa's own artwork instead of copies of the AmigaOS 3.1 images: a floppy, a file folder, a window with a cog, a page and a wire waste basket, drawn by `tools/gen_icon_defaults.py` in the 3.1 sizes and Workbench pens. The `icon/diskobj` probe now compares only the structure of the default icons, not their pixels (re-captured on the reference).
@@ -397,7 +399,7 @@ See [roadmap.md](roadmap.md) for detailed status and future plans.
 
 ## Known Limitations
 
-- CPU: 68000 only (no 68020+ or FPU)
+- Machine: the A4000/040 of the reference is emulated (68040 with FPU, no MMU; AGA chipset; 2 MB chip, 8 MB fast and 16 MB Zorro III RAM). The 68040 MMU and the A4000 gate arrays (Ramsey, Gary) are not emulated.
 - Third-party libraries such as `commodities.library`, `rexxsyslib.library`, `datatypes.library`, and `dopus.library` are not shipped in ROM and must be installed on disk in `LIBS:`. Stub disk libraries are provided for `amigaguide.library`, `req.library`, `reqtools.library`, `powerpacker.library`, and `arp.library` (apps can OpenLibrary them but all functions return safe failure values).
 - RTG: Picasso96 (`Picasso96API.library`) and `cybergraphics.library` are not yet implemented — this is the active development focus (Phases 137–139). ECS screen modes (LORES/HIRES, PAL/NTSC) are supported; RTG true-color modes are not yet available.
 - GUI Apps: SDL2 window display works for ECS-depth apps; RTG true-color display pending Phase 137.

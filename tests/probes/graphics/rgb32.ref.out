@@ -1,0 +1,55 @@
+OpenScreen depth 8 = non-NULL
+Depth = 8 cm Count = 256 cm Type = 2
+-- SA_Colors32 at 16
+GetRGB32 15 = 0xcccccccc 0xcccccccc 0xcccccccc GetRGB4 = 0x0ccc
+GetRGB32 16 = 0x11111111 0x22222222 0x33333333 GetRGB4 = 0x0123
+GetRGB32 17 = 0x44444444 0x55555555 0x66666666 GetRGB4 = 0x0456
+GetRGB32 18 = 0x77777777 0x88888888 0x99999999 GetRGB4 = 0x0789
+GetRGB32 19 = 0xeeeeeeee 0xeeeeeeee 0xcccccccc GetRGB4 = 0x0eec
+-- LoadRGB32 256
+GetRGB32 0 = 0x00000000 0xffffffff 0x00000000 GetRGB4 = 0x00f0
+GetRGB32 1 = 0x01010101 0xfefefefe 0x07070707 GetRGB4 = 0x00f0
+GetRGB32 17 = 0x11111111 0xeeeeeeee 0x77777777 GetRGB4 = 0x01e7
+GetRGB32 100 = 0x64646464 0x9b9b9b9b 0xbcbcbcbc GetRGB4 = 0x069b
+GetRGB32 254 = 0xfefefefe 0x01010101 0xf2f2f2f2 GetRGB4 = 0x0f0f
+GetRGB32 255 = 0xffffffff 0x00000000 0xf9f9f9f9 GetRGB4 = 0x0f0f
+-- SetRGB32 100
+GetRGB32 100 = 0x12121212 0x9a9a9a9a 0x0f0f0f0f GetRGB4 = 0x0190
+-- SetRGB32CM 254
+GetRGB32 254 = 0xffffffff 0x80808080 0x01010101 GetRGB4 = 0x0f80
+-- SetRGB4 255
+GetRGB32 255 = 0x11111111 0x22222222 0x33333333 GetRGB4 = 0x0123
+-- GetRGB32 range
+0x62626262 0x9d9d9d9d 0xaeaeaeae
+0x63636363 0x9c9c9c9c 0xb5b5b5b5
+0x12121212 0x9a9a9a9a 0x0f0f0f0f
+0x65656565 0x9a9a9a9a 0xc3c3c3c3
+-- PaletteExtra
+PalExtra = non-NULL
+NFree = 0 FirstFree = 255 NShared = 5 FirstShared = 19 SharableColors = 255
+shared list: 19/1 18/1 17/1 1/1 0/1
+-- ObtainBestPen
+exact SetRGB32 colour = 1
+GetRGB32 1 = 0x01010101 0xfefefefe 0x07070707 GetRGB4 = 0x00f0
+near pen 1, default precision = 1
+ObtainPen(-1) = -1
+-- depth 4
+PalExtra = non-NULL
+NFree = 0 FirstFree = 15 NShared = 2 FirstShared = 1 SharableColors = 15
+shared list: 1/1 0/1
+-- depth 5
+PalExtra = non-NULL
+NFree = 0 FirstFree = 31 NShared = 5 FirstShared = 19 SharableColors = 31
+shared list: 19/1 18/1 17/1 1/1 0/1
+-- depth 6
+PalExtra = non-NULL
+NFree = 0 FirstFree = 63 NShared = 5 FirstShared = 19 SharableColors = 63
+shared list: 19/1 18/1 17/1 1/1 0/1
+-- depth 7
+PalExtra = non-NULL
+NFree = 0 FirstFree = 127 NShared = 5 FirstShared = 19 SharableColors = 127
+shared list: 19/1 18/1 17/1 1/1 0/1
+-- depth 8
+PalExtra = non-NULL
+NFree = 0 FirstFree = 255 NShared = 5 FirstShared = 19 SharableColors = 255
+shared list: 19/1 18/1 17/1 1/1 0/1

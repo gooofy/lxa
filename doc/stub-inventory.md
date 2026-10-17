@@ -12,6 +12,7 @@ implementing the function, never by deleting the macro.
 
 | Library | stub | partial | private slot |
 |---|---|---|---|
+| 68040 | 0 | 0 | 2 |
 | amigaguide | 18 | 0 | 0 |
 | asl | 0 | 2 | 0 |
 | commodities | 0 | 0 | 1 |
@@ -20,15 +21,21 @@ implementing the function, never by deleting the macro.
 | dos | 14 | 1 | 10 |
 | exec | 3 | 2 | 0 |
 | gadtools | 0 | 1 | 6 |
-| graphics | 0 | 7 | 7 |
+| graphics | 0 | 6 | 7 |
 | icon | 0 | 2 | 0 |
 | intuition | 3 | 16 | 10 |
+| p96 | 0 | 1 | 1 |
 | rexxsyslib | 17 | 0 | 0 |
 | tapedeck.gadget | 0 | 1 | 0 |
 | translator | 1 | 0 | 0 |
 | utility | 0 | 0 | 7 |
 | workbench | 0 | 0 | 3 |
-| **total** | **62** | **32** | **44** |
+| **total** | **62** | **32** | **47** |
+
+## 68040
+
+- `Private1` — private/reserved slot (`src/rom/lxa_68040.c`)
+- `Private2` — private/reserved slot (`src/rom/lxa_68040.c`)
 
 ## amigaguide
 
@@ -124,7 +131,6 @@ implementing the function, never by deleting the macro.
 - `LoadView` — partial: only updates GfxBase->ActiView (Phase 256) (`src/rom/lxa_graphics.c`)
 - `LockLayerRom` — partial: no-op, layer is not locked (Phase 256) (`src/rom/lxa_graphics.c`)
 - `MakeVPort` — partial: builds empty placeholder copper list, UCopIns ignored (Phase 256) (`src/rom/lxa_graphics.c`)
-- `ModeNotAvailable` — partial: no chipset check (DI_AVAIL_NOCHIPS), lxa reports all ECS/AGA modes of the PAL monitor available (Phase 240) (`src/rom/lxa_graphics.c`)
 - `MrgCop` — partial: builds empty placeholder copper lists, UCopLists ignored (Phase 256) (`src/rom/lxa_graphics.c`)
 - `UnlockLayerRom` — partial: no-op, layer is not locked (Phase 256) (`src/rom/lxa_graphics.c`)
 - `private2` — private/reserved slot (`src/rom/lxa_graphics.c`)
@@ -171,6 +177,11 @@ implementing the function, never by deleting the macro.
 - `DisplayBeep` — stub: no screen flash or bell (Phase 256) (`src/rom/lxa_intuition.c`)
 - `PointInImage` — stub: always TRUE (Phase 256) (`src/rom/lxa_intuition.c`)
 - `SetDefaultPubScreen` — stub: default public screen not changed (Phase 256) (`src/rom/lxa_intuition.c`)
+
+## p96
+
+- `RequestModeIDTagList` — partial: shows asl.library's screen mode requester, not Picasso96's own window (`src/rom/lxa_p96.c`)
+- `Private` — private/reserved slot (`src/rom/lxa_p96.c`)
 
 ## rexxsyslib
 
