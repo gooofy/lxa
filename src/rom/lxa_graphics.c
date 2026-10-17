@@ -375,11 +375,6 @@ static UBYTE *graphics_palette_alloc_list(struct PaletteExtra *pe)
     return (UBYTE *)pe->pe_AllocList;
 }
 
-static BOOL graphics_palette_list_end(UWORD pen)
-{
-    return (pen & 0xFF) == GRAPHICS_PEN_END;
-}
-
 static VOID graphics_color_get(CONST struct ColorMap *cm,
                                ULONG index,
                                ULONG *r,
@@ -432,17 +427,23 @@ static ULONG graphics_color_distance(CONST struct ColorMap *cm,
     return (ULONG)(dr * dr) + (ULONG)(dg * dg) + (ULONG)(db * db);
 }
 
-/* unlink pen from the list at *head; FALSE if it is not in it */
+/*
+ * Unlink pen from the list at *head, which holds count pens; FALSE if it is
+ * not in it.  The lists are walked by their counts (pe_NFree, pe_NShared):
+ * with 256 colours the end marker 255 is also a pen (AmigaOS 3.1, probe
+ * graphics/rgb32: the free list of an 8-bit screen starts at pen 255).
+ */
 static BOOL graphics_palette_remove_pen(struct PaletteExtra *pe,
                                         UWORD *head,
-                                        UWORD pen)
+                                        UWORD pen,
+                                        UWORD count)
 {
     UBYTE *alloc_list = graphics_palette_alloc_list(pe);
     UWORD prev = 0xFFFF;
     UWORD cur = *head;
-    UWORD guard = 0;
+    UWORD n = 0;
 
-    while (!graphics_palette_list_end(cur) && guard++ < 256)
+    while (n++ < count && cur < 256)
     {
         if (cur == pen)
         {
@@ -10330,7 +10331,7 @@ static LONG _graphics_ObtainBestPenA ( register struct GfxBase * GfxBase __asm("
 
     /* the closest shared pen (sum of the squared 8 bit differences) */
     pen = pe->pe_FirstShared;
-    while (!graphics_palette_list_end(pen) && guard++ < 256)
+    while (guard++ < pe->pe_NShared && pen < 256)
     {
         ULONG distance = graphics_color_distance(cm, r, g, b, pen);
 
@@ -10893,7 +10894,7 @@ static VOID _graphics_ReleasePen ( register struct GfxBase * GfxBase __asm("a6")
 
     if (--ref_counts[pen] == 0)
     {
-        if (graphics_palette_remove_pen(pe, &pe->pe_FirstShared, pen) && pe->pe_NShared > 0)
+        if (graphics_palette_remove_pen(pe, &pe->pe_FirstShared, pen, pe->pe_NShared) && pe->pe_NShared > 0)
             pe->pe_NShared--;
         graphics_palette_push_pen(pe, &pe->pe_FirstFree, pen);
         pe->pe_NFree++;
@@ -10937,7 +10938,7 @@ static ULONG _graphics_ObtainPen ( register struct GfxBase * GfxBase __asm("a6")
      */
     if (n == (ULONG)-1)
     {
-        if (pe->pe_NFree == 0 || graphics_palette_list_end(pe->pe_FirstFree))
+        if (pe->pe_NFree == 0 || pe->pe_FirstFree >= 256)
         {
             ReleaseSemaphore(&pe->pe_Semaphore);
             return (ULONG)-1;
@@ -10948,7 +10949,7 @@ static ULONG _graphics_ObtainPen ( register struct GfxBase * GfxBase __asm("a6")
     else
     {
         pen = (UWORD)n;
-        if (!graphics_palette_remove_pen(pe, &pe->pe_FirstFree, pen))
+        if (!graphics_palette_remove_pen(pe, &pe->pe_FirstFree, pen, pe->pe_NFree))
         {
             ReleaseSemaphore(&pe->pe_Semaphore);
             return (ULONG)-1;

@@ -9531,6 +9531,10 @@ static void _intuition_setup_palextra(struct Screen *screen)
     for (i = 0; i < NUMDRIPENS; i++)
         if (pens[i] < ncol)
             used[pens[i]] = 1;
+    /* with 32 colours or more the pointer colours 17-19 are shared too
+     * (AmigaOS 3.1, probe graphics/rgb32) */
+    if (ncol >= 32)
+        used[17] = used[18] = used[19] = 1;
     for (p = 0; p < ncol; p++)
         if (used[p])
             ObtainPen(cm, p, 0, 0, 0, PENF_NO_SETCOLOR);
