@@ -16,7 +16,7 @@ import tempfile
 import time
 
 from rdd import bundle, fd, geometry
-from rdd.pylxa import Lxa, MOUSE_LEFT, MOUSE_RIGHT
+from rdd.pylxa import Lxa, MOUSE_LEFT, MOUSE_RIGHT, RTG_WB_MODE
 from rdd.scenario import Scenario
 
 RAWKEY_MAP = {}
@@ -31,8 +31,14 @@ def run(scn, out_dir, build=None):
     # stdout is a file and stdin NIL: there, so IsInteractive() of both
     # must be FALSE here
     os.environ["LXA_STDIO_FILE"] = "1"
+    if scn.profile == "rtg":
+        # the `rtg` reference profile: Picasso96 with a uaegfx board, the
+        # Workbench in UAE 800x600 8 bit (Phase 243)
+        os.environ["LXA_RTG"] = "1"
     lxa = Lxa(build=build)
     try:
+        if scn.profile == "rtg":
+            lxa.screenmode_prefs(*RTG_WB_MODE)
         fonts = scn.lxa_fonts_dir()
         if fonts:
             if not os.path.isdir(fonts):

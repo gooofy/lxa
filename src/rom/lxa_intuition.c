@@ -4117,12 +4117,24 @@ static VOID _intuition_update_input_snapshot(struct IntuitionBase *IntuitionBase
     IntuitionBase->MouseX = mouseX;
     IntuitionBase->MouseY = mouseY;
     {
-        /* every screen tracks the pointer in its own coordinates */
+        /* every screen tracks the pointer in its own coordinates, and so
+         * does every window, active or not, its GZZMouseX/Y relative to the
+         * inner area (AmigaOS 3.1, probe intuition/mousepos; Personal Paint
+         * reads its backdrop window's position after a requester closed) */
         struct Screen *scr;
         for (scr = IntuitionBase->FirstScreen; scr; scr = scr->NextScreen)
         {
+            struct Window *w;
+
             scr->MouseX = mouseX - scr->LeftEdge;
             scr->MouseY = mouseY - scr->TopEdge;
+            for (w = scr->FirstWindow; w; w = w->NextWindow)
+            {
+                w->MouseX = scr->MouseX - w->LeftEdge;
+                w->MouseY = scr->MouseY - w->TopEdge;
+                w->GZZMouseX = w->MouseX - w->BorderLeft;
+                w->GZZMouseY = w->MouseY - w->BorderTop;
+            }
         }
     }
     IntuitionBase->Seconds = tv.tv_secs;
@@ -7069,7 +7081,7 @@ static UWORD _screen_sysi_size(struct Screen *screen);
 
 static void _render_screen_title_bar(struct Screen *screen)
 {
-    struct RastPort *rp;
+    struct RastPort *rp, barrp;
     const UWORD *pens;
     UWORD dw = 23;
     UBYTE oldpen, olddm;
@@ -7082,6 +7094,18 @@ static void _render_screen_title_bar(struct Screen *screen)
     /* Validate RastPort has a valid BitMap */
     if (!rp->BitMap || !rp->BitMap->Planes[0])
         return;
+
+    /* through the bar layer: the bar is clipped by the windows in front of
+     * it (all backdrop windows once ShowTitle(FALSE) moved it behind them);
+     * a copy of the screen's RastPort (font, mask) bound to that layer, so
+     * the state of BarLayer->rp the application sees stays as it is */
+    if (screen->BarLayer)
+    {
+        barrp = screen->RastPort;
+        barrp.Layer = screen->BarLayer;
+        barrp.BitMap = screen->BarLayer->rp->BitMap;
+        rp = &barrp;
+    }
 
     /* AmigaOS 3.1 reference: BARBLOCKPEN bar, BARTRIMPEN line below it,
      * the title in BARDETAILPEN, the screen depth gadget at the right */
@@ -11018,6 +11042,16 @@ struct Window * _intuition_OpenWindow ( register struct IntuitionBase * Intuitio
             }
             /* only GZZ windows have a separate border RastPort (3.1) */
             window->BorderRPort = border_layer ? border_layer->rp : NULL;
+            /* AmigaOS 3.1: while the screen shows its title the bar layer
+             * stays in front of every backdrop window - a backdrop window
+             * at the top of the screen does not cover the bar, and drawing
+             * through Screen.BarLayer->rp still reaches it (Personal Paint
+             * draws its own title there; probe intuition/showtitle) */
+            if ((window->Flags & WFLG_BACKDROP) && screen->BarLayer && (screen->Flags & SHOWTITLE))
+            {
+                _call_UpfrontLayer(LayersBase, screen->BarLayer);
+                _render_screen_title_bar(screen);
+            }
             DPRINTF(LOG_DEBUG,
                     "_intuition: OpenWindow() created border_layer=0x%08lx content_layer=0x%08lx rp=0x%08lx bounds=[%ld,%ld]-[%ld,%ld]\n",
                     (ULONG)border_layer,
@@ -11231,6 +11265,11 @@ ULONG _intuition_OpenWorkBench ( register struct IntuitionBase * IntuitionBase _
         const struct LxaIScreenModePrefs *sm = &ibase->ScreenModePrefs;
 
         ns.ViewModes = (UWORD)(sm->smp_DisplayID & 0xffff);
+        /* an RTG mode ID carries no ViewModes bits: a board mode of 640
+         * pixels or more is a hires screen (AmigaOS 3.1 `rtg` reference:
+         * SCREENHIRES, BarHBorder 5 on the 800x600 Workbench) */
+        if (graphics_rtg_call(RTG_OP_MODE_ATTR, sm->smp_DisplayID, 6 /* P96IDA_ISP96 */, 0, 0))
+            ns.ViewModes = (graphics_rtg_call(RTG_OP_MODE_ATTR, sm->smp_DisplayID, 0, 0, 0) >= 640) ? HIRES : 0;
         if (sm->smp_Width != (UWORD)~0 && sm->smp_Width)
             ns.Width = (WORD)sm->smp_Width;
         if (sm->smp_Height != (UWORD)~0 && sm->smp_Height)
@@ -11745,13 +11784,22 @@ VOID _intuition_ShowTitle ( register struct IntuitionBase * IntuitionBase __asm(
     else
         screen->Flags &= ~SHOWTITLE;
 
-    if (showIt)
-        _render_screen_title_bar(screen);
-    else
+    /* AmigaOS 3.1 (probe intuition/showtitle): the bar is a layer that
+     * ShowTitle() moves in front of the backdrop windows (and repaints, also
+     * when it was shown already) or behind them (no repaint: without
+     * backdrop windows the bar stays visible) */
+    if (screen->BarLayer)
     {
-        SetAPen(&screen->RastPort, 0);
-        RectFill(&screen->RastPort, 0, 0, screen->Width - 1, screen->BarHeight);
+        if (showIt)
+        {
+            _call_UpfrontLayer(LayersBase, screen->BarLayer);
+            _render_screen_title_bar(screen);
+        }
+        else
+            _call_BehindLayer(LayersBase, screen->BarLayer);
     }
+    else if (showIt)
+        _render_screen_title_bar(screen);
 }
 
 VOID _intuition_SizeWindow ( register struct IntuitionBase * IntuitionBase __asm("a6"),

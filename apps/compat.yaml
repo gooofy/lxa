@@ -2,8 +2,8 @@
 # from twin runs of the app scenarios - never edit ratings by hand.
 # Ratings: platinum > gold > silver > bronze > garbage; untested = no oracle/run.
 # Each divergence names the roadmap phase that owns it (231 = triage).
-generated: '2026-10-10'
-lxa_version: 0.11.45
+generated: '2026-10-18'
+lxa_version: 0.12.8
 ratings:
   platinum: 2
   gold: 25
@@ -463,7 +463,7 @@ apps:
     name: Personal Paint
     version: 6.x
     rating: silver
-    last_tested: 0.11.45
+    last_tested: 0.12.8
     scenarios:
       tests/scenarios/apps/ppaint.yaml:
         lxa: ok
@@ -472,25 +472,7 @@ apps:
           startup: tree
         rating: silver
     divergences:
-    - signature: 'palette pen 0: lxa [204, 204, 204], reference [170, 170, 170]'
-      phase: 243
-      owned: true
-    - signature: 'palette pen 3: lxa [68, 153, 0], reference [102, 136, 187]'
-      phase: 243
-      owned: true
-    - signature: 'screen.count: lxa 2, reference 1'
-      phase: 243
-      owned: true
-    - signature: 'screen.depth: lxa 3, reference 2'
-      phase: 243
-      owned: true
-    - signature: 'screen.flags: lxa lacks 0x400 lxa adds 0x408e'
-      phase: 256
-      owned: true
-    - signature: 'screen.font: lxa Personal.font/8, reference topaz.font/8'
-      phase: 243
-      owned: true
-    - signature: 'window.count: lxa 3, reference 0'
+    - signature: 'gadget.activation: lxa lacks 0x8000'
       phase: 256
       owned: true
   ProWrite:

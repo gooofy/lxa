@@ -55,6 +55,10 @@ TEXT_HOOK = ctypes.CFUNCTYPE(None, ctypes.c_char_p, ctypes.c_int, ctypes.c_int, 
 
 MOUSE_LEFT, MOUSE_RIGHT, MOUSE_MIDDLE = 1, 2, 4
 
+# Workbench mode of the `rtg` reference profile: uaegfx 800x600, 8 bit
+# (tools/refsys/install_p96.py RTG_WB_MODE)
+RTG_WB_MODE = (0x50041000, 800, 600, 8)
+
 
 def _find(build, *parts):
     p = os.path.join(build, *parts)

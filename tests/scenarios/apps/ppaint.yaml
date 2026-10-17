@@ -1,10 +1,12 @@
 # Phase 230 launch scenario: the compat DB (apps/compat.yaml) derives the
-# rating of ppaint from it.  Window title from the discovery twin run.
+# rating of ppaint from it.  PPaint opens its own screen after a while on
+# both systems; without the window wait the reference was sampled before
+# that (Phase 243).  PPaint polls, so it is never idle on the reference.
 name: app-ppaint
 app: {manifest: ppaint}
 steps:
   - launch
+  - wait_window: {title: "*", timeout: 30000}
   - frames: 150
-  - frames: 100
   - snapshot: startup
   - quit
