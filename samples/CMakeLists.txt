@@ -232,6 +232,7 @@ set(TESTS_LIST
     "../tests/graphics/monitor_list|main|Tests/Graphics/MonitorList"
     "../tests/graphics/pen_state|main|Tests/Graphics/PenState"
     "../tests/graphics/pixel_array8|main|Tests/Graphics/PixelArray8"
+    "../tests/graphics/rtg_screen|main|Tests/Graphics/RtgScreen"
     "../tests/graphics/pixel_ops|main|Tests/Graphics/PixelOps"
     "../tests/graphics/polydraw|main|Tests/Graphics/PolyDraw"
     "../tests/graphics/rect_fill|main|Tests/Graphics/RectFill"

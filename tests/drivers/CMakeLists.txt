@@ -286,6 +286,11 @@ if(BUILD_GTESTS AND GTEST_FOUND)
         add_gtest_driver(graphics_gtest)
     endif()
 
+    # RTG screens on the host display (Phase 241)
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/rtg_gtest.cpp)
+        add_gtest_driver(rtg_gtest)
+    endif()
+
     # RGBBoxes test
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/rgbboxes_gtest.cpp)
         add_gtest_driver(rgbboxes_gtest)
