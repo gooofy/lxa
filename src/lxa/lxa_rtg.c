@@ -447,10 +447,10 @@ static uint32_t read_tag(uint32_t *tagp, uint32_t *data)
 
 /*
  * Picasso96 takes the shallowest pixel format that is allowed and holds
- * the depth, then the resolution that fits the nominal size best: a
- * size above the nominal one costs more than one below it, a wrong height
- * more than a wrong width (fitted to 667 reference queries, 610 equal;
- * exact equivalence is Phase 246).
+ * the depth, then the resolution with the smallest relative size error
+ * |w - nw| * 256 / nw + |h - nh| * 256 / nh (integer divisions, the first
+ * of equal scores wins); equal to the reference on the probe
+ * rtg/p96best grids (Phase 246).
  */
 static uint32_t p96_best_mode(uint32_t tags)
 {
@@ -483,7 +483,7 @@ static uint32_t p96_best_mode(uint32_t tags)
     for (int r = 0; r < RES_P96MODE; r++)
     {
         uint32_t w = s_res[r].w, h = s_res[r].h, s;
-        s = (w >= nw ? 6 * (w - nw) : 3 * (nw - w)) + (h >= nh ? 8 * (h - nh) : 6 * (nh - h));
+        s = (w >= nw ? w - nw : nw - w) * 256u / nw + (h >= nh ? h - nh : nh - h) * 256u / nh;
         if (best == INVALID_ID || s < best_s)
         {
             best = mode_id(r, fbest);

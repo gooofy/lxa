@@ -212,14 +212,14 @@ LONG _cgx_IsCyberModeID ( register struct Library *CyberGfxBase __asm("a6"),
 }
 
 /* -60 BestCModeIDTagList: the shallowest pixel format that holds the
- * depth, then the smallest mode that holds the nominal size (else the
- * format's first mode) */
+ * depth, then the mode that fits the nominal size best */
 ULONG _cgx_BestCModeIDTagList ( register struct Library *CyberGfxBase __asm("a6"),
                                 register struct TagItem *tags __asm("a0") )
 {
     struct TagItem *t, *state = tags;
     ULONG depth = 8, nw = 640, nh = 480;
-    ULONG id, fbest = 0, dbest = 0, best = INVALID_ID, first = INVALID_ID, abest = 0;
+    ULONG id, fbest = 0, dbest = 0, best = INVALID_ID, sbest = 0;
+    BOOL wide = FALSE, tall = FALSE;
 
     while ((t = rtgl_next_tag(&state)) != NULL)
     {
@@ -265,24 +265,50 @@ ULONG _cgx_BestCModeIDTagList ( register struct Library *CyberGfxBase __asm("a6"
     }
     if (!dbest)
         return INVALID_ID;
+    if (!nw)
+        nw = 1;
+    if (!nh)
+        nh = 1;
+    /* is any mode of the format wide / tall enough? */
     for (id = rtgl_call(RTG_OP_NEXT_ID, INVALID_ID, 0, 0, 0); id != INVALID_ID;
          id = rtgl_call(RTG_OP_NEXT_ID, id, 0, 0, 0))
     {
-        ULONG w, h;
+        if (!cgx_is_mode(id) || mode_attr(id, P96IDA_RGBFORMAT) != fbest)
+            continue;
+        if (mode_attr(id, P96IDA_WIDTH) >= nw)
+            wide = TRUE;
+        if (mode_attr(id, P96IDA_HEIGHT) >= nh)
+            tall = TRUE;
+    }
+    /*
+     * Of the modes that hold the nominal size, the one with the smallest
+     * relative size error (|w - nw| * 256 / nw + |h - nh| * 256 / nh, the
+     * first of equal ones).  A dimension no mode holds is left out; when
+     * no mode is wide enough, the smallest mode tall enough wins (rtg
+     * reference, probe rtg/p96best).
+     */
+    for (id = rtgl_call(RTG_OP_NEXT_ID, INVALID_ID, 0, 0, 0); id != INVALID_ID;
+         id = rtgl_call(RTG_OP_NEXT_ID, id, 0, 0, 0))
+    {
+        ULONG w, h, s;
 
         if (!cgx_is_mode(id) || mode_attr(id, P96IDA_RGBFORMAT) != fbest)
             continue;
-        if (first == INVALID_ID)
-            first = id;
         w = mode_attr(id, P96IDA_WIDTH);
         h = mode_attr(id, P96IDA_HEIGHT);
-        if (w >= nw && h >= nh && (best == INVALID_ID || w * h < abest))
+        if ((wide && w < nw) || (tall && h < nh))
+            continue;
+        if (!wide)
+            s = w * h;
+        else
+            s = (w >= nw ? w - nw : nw - w) * 256 / nw + (tall ? (h >= nh ? h - nh : nh - h) * 256 / nh : 0);
+        if (best == INVALID_ID || s < sbest)
         {
             best = id;
-            abest = w * h;
+            sbest = s;
         }
     }
-    return best != INVALID_ID ? best : first;
+    return best;
 }
 
 typedef struct
