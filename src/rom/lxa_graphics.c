@@ -9704,20 +9704,26 @@ static ULONG _graphics_GetDisplayInfoData ( register struct GfxBase * GfxBase __
             mon.Header.SkipID = TAG_SKIP;
             mon.Header.Length = graphics_query_header_length(sizeof(mon));
             mon.Mspc = is_ntsc ? NULL : (struct MonitorSpec *)GfxBase->natural_monitor;
-            mon.ViewPosition.x = 0;
-            mon.ViewPosition.y = 0;
-            mon.ViewResolution.x = 44 / graphics_display_xscale(actualDisplayID);
+            /* The monitor's view, the same for every mode of a monitor
+             * (AmigaOS 3.1 on the reference, probes graphics/mntrdb and
+             * exec/machine): view origin 129,44 in colour clocks/lines,
+             * movable over 93..136 horizontally and, below the vertical
+             * blank (MinRow), over 29..57 (PAL) or 21..63 (NTSC); mouse
+             * ticks are half the view resolution horizontally. */
+            mon.ViewPosition.x = 129;
+            mon.ViewPosition.y = 44;
+            mon.ViewResolution.x = 44;
             mon.ViewResolution.y = is_ntsc ? 52 : 44;
-            mon.ViewPositionRange.MinX = 0;
-            mon.ViewPositionRange.MinY = 0;
-            mon.ViewPositionRange.MaxX = width - 1;
-            mon.ViewPositionRange.MaxY = height - 1;
+            mon.MinRow = is_ntsc ? 21 : 29;
+            mon.ViewPositionRange.MinX = 93;
+            mon.ViewPositionRange.MinY = mon.MinRow;
+            mon.ViewPositionRange.MaxX = 136;
+            mon.ViewPositionRange.MaxY = is_ntsc ? 63 : 57;
             mon.TotalRows = graphics_display_total_rows(actualDisplayID);
             mon.TotalColorClocks = STANDARD_COLORCLOCKS;
-            mon.MinRow = 0;
             mon.Compatibility = MCOMPAT_MIXED;
-            mon.MouseTicks.x = mon.ViewResolution.x;
-            mon.MouseTicks.y = mon.ViewResolution.y;
+            mon.MouseTicks.x = 22;
+            mon.MouseTicks.y = is_ntsc ? 26 : 22;
             mon.DefaultViewPosition = mon.ViewPosition;
             mon.PreferredModeID = (actualDisplayID & MONITOR_ID_MASK) | HIRES_KEY;
 
@@ -10474,7 +10480,8 @@ static VOID _graphics_LoadRGB32 ( register struct GfxBase * GfxBase __asm("a6"),
 
 static UBYTE graphics_available_chiprev_bits(void)
 {
-    return (UBYTE)SETCHIPREV_AA;
+    /* the A4000's AGA chips: Alice, Lisa and its MLisa bit (reference) */
+    return (UBYTE)(SETCHIPREV_AA | GFXF_AA_MLISA);
 }
 
 static ULONG _graphics_SetChipRev ( register struct GfxBase * GfxBase __asm("a6"),

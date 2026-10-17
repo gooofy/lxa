@@ -6928,19 +6928,32 @@ void coldstart (void)
     GfxBase->MaxDisplayRow = 311;     /* PAL: 312 lines (AmigaOS 3.1 reference) */
     GfxBase->MaxDisplayColumn = 455;  /* AmigaOS 3.1 reference value */
     GfxBase->DisplayFlags = PAL | REALLY_PAL;  /* PAL crystal (matches VBlankFrequency=50) */
-    GfxBase->VBlank = 50;                      /* PAL VBlank rate */
-    GfxBase->ChipRevBits0 = SETCHIPREV_ECS;   /* ECS chipset (HR_AGNUS + HR_DENISE) */
     GfxBase->SpriteReserved = 0x01;          /* sprite 0 is the Intuition pointer (as on AmigaOS 3.1) */
 
-    /* Additional GfxBase fields that some apps read directly.
-     * Per Phase 109 audit — apps may check these at startup and fail silently
-     * if they find zeros. */
-    GfxBase->NormalDPMX = 1226;                /* dots per metre, AmigaOS 3.1 reference (PAL) */
+    /* The A4000 of the reference: AGA chips (Alice, Lisa, MLisa), and the
+     * rest of the fields programs read directly, each as AmigaOS 3.1 has it
+     * there after boot (probe exec/machine, Phase 240).  GfxBase->VBlank is
+     * 0 on the reference; the frame rate is ExecBase->VBlankFrequency. */
+    GfxBase->ChipRevBits0 = GFXF_HR_AGNUS | GFXF_HR_DENISE | GFXF_AA_ALICE | GFXF_AA_LISA | GFXF_AA_MLISA;
+    GfxBase->VBlank = 0;
+    GfxBase->system_bplcon0 = 0x0200;          /* COLOR_ON */
+    GfxBase->NormalDPMX = 1226;                /* dots per metre (PAL) */
     GfxBase->NormalDPMY = 1299;
-    GfxBase->MicrosPerLine = 16285;            /* 1/256 us per raster line, AmigaOS 3.1 reference */
-    GfxBase->MinDisplayColumn = 0x71;          /* Standard left edge of display (ECS) */
-    GfxBase->monitor_id = PAL_MONITOR_ID >> 16; /* PAL monitor (AmigaOS 3.1 reference: 2) */
-    GfxBase->TopLine = 0;                      /* Top visible line offset */
+    GfxBase->MicrosPerLine = 16285;            /* 1/256 us per raster line */
+    GfxBase->MinDisplayColumn = 93;
+    GfxBase->MemType = 0x03;
+    GfxBase->BoardMemType = 0x03;
+    GfxBase->monitor_id = PAL_MONITOR_ID >> 16; /* PAL monitor: 2 */
+    GfxBase->current_tot_rows = 312;
+    GfxBase->current_tot_cclks = 226;
+    GfxBase->TopLine = 3072;
+    GfxBase->SpriteWidth = 1;
+    GfxBase->DefaultSpriteWidth = 1;
+    GfxBase->WantChips = 0xff;
+    GfxBase->Bugs = 0x25;
+    GfxBase->ColorMask = 0xff000000;
+    GfxBase->MonitorFlags = 0x0002;
+    GfxBase->ExtSprites = 0x01;
     /* copinit, SimpleSprites, ActiView left NULL — they require actual data
      * structures. NULL is the correct initial value (no copper list, no sprites,
      * no view loaded yet). ActiView is set when LoadView() is called. */
@@ -6953,6 +6966,7 @@ void coldstart (void)
         extern void graphics_init_monitor_list(struct GfxBase *gfxBase);
         graphics_init_monitor_list(GfxBase);
     }
+    GfxBase->current_monitor = GfxBase->natural_monitor;   /* the display in use: pal.monitor */
     
     IntuitionBase = (struct IntuitionBase *) registerBuiltInLib (sizeof(*IntuitionBase) , __lxa_intuition_ROMTag );
 

@@ -3663,6 +3663,14 @@ struct IntuitionBase * __g_lxa_intuition_InitLib    ( register struct IntuitionB
     base->EditHook = NULL;
     _intuition_init_iprefs(base);
 
+    /* Intuition's View is the one on display: the monitor's default view
+     * position, sprites and extended modes (AmigaOS 3.1 on the reference,
+     * probe exec/machine: GfxBase->ActiView Modes 0x5000, offsets 129,44) */
+    intuitionb->ViewLord.DxOffset = 129;
+    intuitionb->ViewLord.DyOffset = 44;
+    intuitionb->ViewLord.Modes = SPRITES | EXTENDED_MODE;
+    GfxBase->ActiView = &intuitionb->ViewLord;
+
     /* Create rootclass */
     struct IClass *root = AllocMem(sizeof(struct IClass) + sizeof("rootclass"), MEMF_PUBLIC | MEMF_CLEAR);
     if (root) {
