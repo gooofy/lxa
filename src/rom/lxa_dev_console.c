@@ -494,7 +494,7 @@ static void console_update_window_geometry(struct LxaConUnit *unit)
     auto_origin_x = window->BorderLeft;
     auto_origin_y = window->BorderTop;
 
-    raster_width = bm ? (WORD)(bm->BytesPerRow * 8) : window->Width;
+    raster_width = bm ? (WORD)GetBitMapAttr(bm, BMA_WIDTH) : window->Width;
     raster_height = bm ? (WORD)bm->Rows : window->Height;
 
     origin_x = unit->auto_left_offset ? auto_origin_x : unit->left_offset;

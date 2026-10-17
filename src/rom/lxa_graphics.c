@@ -589,6 +589,32 @@ static void gfx_fill_rect(struct RastPort *rp, WORD xMin, WORD yMin, WORD xMax, 
 #define NOCROSSFILL 0x20
 #endif
 
+/*
+ * Interleaved bitmaps (AmigaOS 3.1, probe graphics/bmattr): the rows of all
+ * planes follow each other, BytesPerRow covers one row of every plane and
+ * Planes[i] = Planes[0] + i * row bytes.  graphics marks such a bitmap with
+ * 0x805c in BitMap.pad; a single-plane bitmap is never interleaved.  All
+ * pixel code addresses Planes[p] + y * BytesPerRow, which is right for both
+ * layouts - only the width differs.
+ */
+#define LXA_BM_INTERLEAVED 0x805c
+
+static inline BOOL gfx_bm_interleaved(const struct BitMap *bm)
+{
+    return bm->pad == LXA_BM_INTERLEAVED && bm->Depth > 1;
+}
+
+/* bytes of one row of one plane */
+static inline UWORD gfx_bm_rowbytes(const struct BitMap *bm)
+{
+    return gfx_bm_interleaved(bm) ? (UWORD)(bm->BytesPerRow / bm->Depth) : bm->BytesPerRow;
+}
+
+static inline LONG gfx_bm_width(const struct BitMap *bm)
+{
+    return (LONG)gfx_bm_rowbytes(bm) * 8;
+}
+
 /* Move(), SetAPen(), SetBPen(), SetDrMd() and SetABPenDrMd() restart the
  * line pattern and the first-dot handling (observed on AmigaOS 3.1). */
 static inline void gfx_reset_line(struct RastPort *rp)
@@ -699,7 +725,7 @@ static LONG graphics_sprite_source_coord(UWORD dest_coord, LONG replication)
 
 static UBYTE graphics_bitmap_plane_bit(CONST struct BitMap *bm, UWORD plane, LONG x, LONG y)
 {
-    if (!bm || x < 0 || y < 0 || x >= (LONG)(bm->BytesPerRow * 8) || y >= (LONG)bm->Rows)
+    if (!bm || x < 0 || y < 0 || x >= (LONG)(gfx_bm_width(bm)) || y >= (LONG)bm->Rows)
         return 0;
 
     if (plane >= bm->Depth)
@@ -1749,7 +1775,7 @@ static void SetPixelDirect(struct BitMap *bm, WORD x, WORD y, BYTE pen, UBYTE dr
     UBYTE plane;
     UBYTE basemode = drawmode & ~INVERSVID;
 
-    if (x < 0 || y < 0 || x >= (bm->BytesPerRow * 8) || y >= bm->Rows)
+    if (x < 0 || y < 0 || x >= (gfx_bm_width(bm)) || y >= bm->Rows)
         return;
 
     byteOffset = y * bm->BytesPerRow + (x >> 3);
@@ -1791,7 +1817,7 @@ static void FillRectDirect(struct BitMap *bm, WORD xMin, WORD yMin, WORD xMax, W
                            BYTE pen, UBYTE drawmode, UBYTE mask)
 {
     WORD y;
-    WORD bmMaxX = bm->BytesPerRow * 8;
+    WORD bmMaxX = gfx_bm_width(bm);
     WORD bmMaxY = bm->Rows;
     UWORD bpr = bm->BytesPerRow;
     UBYTE plane;
@@ -1946,7 +1972,7 @@ static void FillRectPattern(struct RastPort *rp, struct BitMap *bm,
     WORD   rows;
     BOOL   multi;
     WORD   y;
-    WORD   bmMaxX = bm->BytesPerRow * 8;
+    WORD   bmMaxX = gfx_bm_width(bm);
     WORD   bmMaxY = bm->Rows;
     UWORD  bpr    = bm->BytesPerRow;
     UBYTE  fgPen  = (UBYTE)rp->FgPen;
@@ -2359,7 +2385,7 @@ static VOID _graphics_ClearEOL ( register struct GfxBase * GfxBase __asm("a6"),
         return;
 
     /* Get width of bitmap */
-    width = (WORD)(rp->BitMap->BytesPerRow * 8);
+    width = (WORD)(gfx_bm_width(rp->BitMap));
 
     /* Calculate vertical range: from current position (minus baseline) to font height */
     ymin = rp->cp_y - rp->TxBaseline;
@@ -2383,7 +2409,7 @@ static VOID _graphics_ClearScreen ( register struct GfxBase * GfxBase __asm("a6"
         return;
 
     /* Get bitmap dimensions */
-    width = (WORD)(rp->BitMap->BytesPerRow * 8);
+    width = (WORD)(gfx_bm_width(rp->BitMap));
     height = rp->BitMap->Rows;
 
     /* First clear end of current line */
@@ -2651,7 +2677,7 @@ static inline __attribute__((always_inline)) BOOL gfx_text_row_direct(
     else
         x1 = (WORD)(x0 + tw - 1);
 
-    if (y < 0 || y >= (WORD)bm->Rows || x0 < 0 || x1 >= (WORD)(bm->BytesPerRow * 8))
+    if (y < 0 || y >= (WORD)bm->Rows || x0 < 0 || x1 >= (WORD)(gfx_bm_width(bm)))
         return FALSE;
 
     rowoff = (ULONG)y * bm->BytesPerRow;
@@ -2968,7 +2994,7 @@ static LONG _graphics_Text ( register struct GfxBase * GfxBase __asm("a6"),
          * hoisted out of the pixel loop: Text() is the hottest rendering
          * path and its cost is emulated time on the deterministic clock. */
         {
-            WORD bm_width = (WORD)(bm->BytesPerRow * 8);
+            WORD bm_width = (WORD)(gfx_bm_width(bm));
             UWORD bpr = bm->BytesPerRow;
             UBYTE depth = bm->Depth;
             WORD glyph_pos = 0;
@@ -3084,13 +3110,13 @@ static LONG _graphics_Text ( register struct GfxBase * GfxBase __asm("a6"),
 
             /* Ensure underline is within bitmap bounds */
             if (ul_y >= 0 && ul_y < (WORD)bm->Rows &&
-                ul_x_start < (WORD)(bm->BytesPerRow * 8) &&
+                ul_x_start < (WORD)(gfx_bm_width(bm)) &&
                 ul_x_end >= 0)
             {
                 /* Clamp to bitmap bounds */
                 if (ul_x_start < 0) ul_x_start = 0;
-                if (ul_x_end >= (WORD)(bm->BytesPerRow * 8))
-                    ul_x_end = (WORD)(bm->BytesPerRow * 8 - 1);
+                if (ul_x_end >= (WORD)(gfx_bm_width(bm)))
+                    ul_x_end = (WORD)(gfx_bm_width(bm) - 1);
 
                 /* Draw underline pixels */
                 for (WORD ul_x = ul_x_start; ul_x <= ul_x_end; ul_x++)
@@ -4309,14 +4335,23 @@ static VOID _graphics_SetRast ( register struct GfxBase * GfxBase __asm("a6"),
 
     struct BitMap *bm = rp->BitMap;
     ULONG planeSize = bm->BytesPerRow * bm->Rows;
+    BOOL interleaved = gfx_bm_interleaved(bm);
+    UWORD rowbytes = gfx_bm_rowbytes(bm);
 
     /* Fill each plane with 0x00 or 0xFF depending on pen bit */
     for (UBYTE plane = 0; plane < bm->Depth; plane++)
     {
-        if (bm->Planes[plane])
+        if (bm->Planes[plane] && bm->Planes[plane] != (PLANEPTR)-1)
         {
             UBYTE fillByte = (pen & (1 << plane)) ? 0xFF : 0x00;
-            lxa_memset(bm->Planes[plane], fillByte, planeSize);
+            if (interleaved)
+            {
+                UBYTE *row = bm->Planes[plane];
+                for (UWORD y = 0; y < bm->Rows; y++, row += bm->BytesPerRow)
+                    lxa_memset(row, fillByte, rowbytes);
+            }
+            else
+                lxa_memset(bm->Planes[plane], fillByte, planeSize);
         }
     }
 }
@@ -4376,7 +4411,7 @@ static void gfx_line_plot(struct gfx_line_ctx *c, WORD x, WORD y, UBYTE pen, BOO
             bm = cr->BitMap;
             x -= cr->bounds.MinX;
             y -= cr->bounds.MinY;
-            if (x >= bm->BytesPerRow * 8 || y >= bm->Rows)
+            if (x >= gfx_bm_width(bm) || y >= bm->Rows)
                 return;
         }
     }
@@ -4545,7 +4580,7 @@ static VOID _graphics_Draw ( register struct GfxBase * GfxBase __asm("a6"),
         c.bm = rp->BitMap;
         c.layer = rp->Layer;
         c.cr = NULL;
-        c.bmw = (WORD)(c.bm->BytesPerRow * 8);
+        c.bmw = (WORD)(gfx_bm_width(c.bm));
         c.bmh = (WORD)c.bm->Rows;
         c.mask = rp->Mask;
 
@@ -5573,7 +5608,7 @@ static ULONG _graphics_ReadPixel ( register struct GfxBase * GfxBase __asm("a6")
     }
 
     /* Bounds check */
-    if (absX < 0 || absY < 0 || absX >= (bm->BytesPerRow * 8) || absY >= bm->Rows)
+    if (absX < 0 || absY < 0 || absX >= (gfx_bm_width(bm)) || absY >= bm->Rows)
         return (ULONG)-1;
 
     UWORD byteOffset = absY * bm->BytesPerRow + (absX >> 3);
@@ -5622,7 +5657,7 @@ static LONG _graphics_WritePixel ( register struct GfxBase * GfxBase __asm("a6")
         absY = y + LAYER_ORIGIN_Y(layer);
 
         /* Bounds check against bitmap */
-        if (absX < 0 || absY < 0 || absX >= (bm->BytesPerRow * 8) || absY >= bm->Rows)
+        if (absX < 0 || absY < 0 || absX >= (gfx_bm_width(bm)) || absY >= bm->Rows)
             return -1;
 
         /* Check each ClipRect to see if the pixel is visible */
@@ -5658,7 +5693,7 @@ static LONG _graphics_WritePixel ( register struct GfxBase * GfxBase __asm("a6")
     }
 
     /* No layer - simple drawing with just bitmap bounds check */
-    if (x < 0 || y < 0 || x >= (bm->BytesPerRow * 8) || y >= bm->Rows)
+    if (x < 0 || y < 0 || x >= (gfx_bm_width(bm)) || y >= bm->Rows)
         return -1;
 
     SetPixelDirect(bm, x, y, pen, drawmode, rp->Mask);
@@ -5967,7 +6002,7 @@ static BOOL _graphics_Flood ( register struct GfxBase * GfxBase __asm("a6"),
     }
     else if (rp->BitMap)
     {
-        fi.rp_width = rp->BitMap->BytesPerRow * 8;
+        fi.rp_width = gfx_bm_width(rp->BitMap);
         fi.rp_height = rp->BitMap->Rows;
     }
     else
@@ -9857,7 +9892,7 @@ static void gfx_chunky_read(struct GfxBase *GfxBase, struct RastPort *rp, WORD x
 static BOOL gfx_temprp_usable(struct RastPort *temprp, UWORD stride)
 {
     return temprp && temprp->BitMap && temprp->BitMap->Planes[0] &&
-           (ULONG)temprp->BitMap->BytesPerRow * 8 >= stride;
+           (ULONG)gfx_bm_width(temprp->BitMap) >= stride;
 }
 
 static void gfx_temprp_store(struct GfxBase *GfxBase, struct RastPort *temprp,
@@ -10602,6 +10637,21 @@ static VOID _graphics_private8 ( register struct GfxBase * GfxBase __asm("a6"))
     PRIVATE_FUNCTION_ERROR("_graphics", "private8");
 }
 
+/*
+ * AllocBitMap() keeps all planes in one chip-RAM block, as AmigaOS 3.1 does
+ * (probe graphics/bmattr): one plane after the other, or interleaved for
+ * BMF_INTERLEAVED and for a friend bitmap that is interleaved with the same
+ * depth.  A trailer behind the BitMap remembers the block for FreeBitMap().
+ */
+#define LXA_BM_TRAILER_MAGIC 0x4c58424dUL   /* 'LXBM' */
+
+struct lxa_bm_trailer
+{
+    ULONG    magic;
+    PLANEPTR block;
+    ULONG    size;
+};
+
 static struct BitMap * _graphics_AllocBitMap ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register ULONG sizex __asm("d0"),
                                                         register ULONG sizey __asm("d1"),
@@ -10610,9 +10660,12 @@ static struct BitMap * _graphics_AllocBitMap ( register struct GfxBase * GfxBase
                                                         register const struct BitMap * friend_bitmap __asm("a0"))
 {
     struct BitMap *bm;
+    struct lxa_bm_trailer *tr;
     ULONG plane;
-    ULONG extraPlanes;
-    ULONG plane_size;
+    ULONG rowbytes;
+    ULONG size;
+    BOOL interleaved;
+    PLANEPTR block;
 
     DPRINTF (LOG_DEBUG, "_graphics: AllocBitMap(%lu, %lu, %lu, 0x%08lx, 0x%08lx)\n",
              sizex, sizey, depth, flags, (ULONG)friend_bitmap);
@@ -10630,13 +10683,8 @@ static struct BitMap * _graphics_AllocBitMap ( register struct GfxBase * GfxBase
         if (depth > 8) depth = 8;
     }
 
-    /* Calculate extra plane pointers needed for depths > 8 */
-    extraPlanes = (depth > 8) ? (depth - 8) : 0;
-
-    /* Allocate BitMap structure with extra plane pointers if needed */
-    bm = (struct BitMap *)AllocMem(sizeof(struct BitMap) + extraPlanes * sizeof(PLANEPTR),
-                                    MEMF_PUBLIC | MEMF_CLEAR);
-
+    bm = (struct BitMap *)AllocMem(sizeof(struct BitMap) + sizeof(struct lxa_bm_trailer),
+                                   MEMF_PUBLIC | MEMF_CLEAR);
     if (!bm)
     {
         DPRINTF (LOG_ERROR, "_graphics: AllocBitMap() failed to allocate BitMap structure\n");
@@ -10646,33 +10694,32 @@ static struct BitMap * _graphics_AllocBitMap ( register struct GfxBase * GfxBase
     _graphics_InitBitMap(GfxBase, bm, (BYTE)depth, (WORD)sizex, (WORD)sizey);
     /* AmigaOS 3.1 leaves BitMap.Flags zero: the allocation flags are not
      * stored (verified on the reference machine) */
-    plane_size = RASSIZE(sizex, sizey);
+    rowbytes = bm->BytesPerRow;
+    interleaved = depth > 1 &&
+                  ((flags & BMF_INTERLEAVED) ||
+                   (friend_bitmap && gfx_bm_interleaved(friend_bitmap) && friend_bitmap->Depth == depth));
+    size = rowbytes * sizey * depth;
 
-    /* Allocate plane data and clear it only when the public flag requests it. */
-    for (plane = 0; plane < depth; plane++)
+    block = size ? (PLANEPTR)AllocMem(size, MEMF_CHIP | ((flags & BMF_CLEAR) ? MEMF_CLEAR : 0)) : NULL;
+    if (size && !block)
     {
-        bm->Planes[plane] = _graphics_AllocRaster(GfxBase, (UWORD)sizex, (UWORD)sizey);
-
-        if (!bm->Planes[plane])
-        {
-            DPRINTF (LOG_ERROR, "_graphics: AllocBitMap() failed to allocate plane %lu\n", plane);
-
-            /* Free previously allocated planes */
-            for (ULONG p = 0; p < plane; p++)
-            {
-                if (bm->Planes[p])
-                    _graphics_FreeRaster(GfxBase, bm->Planes[p], (UWORD)sizex, (UWORD)sizey);
-            }
-
-            FreeMem(bm, sizeof(struct BitMap) + extraPlanes * sizeof(PLANEPTR));
-            return NULL;
-        }
-
-        if (flags & BMF_CLEAR)
-        {
-            lxa_memset(bm->Planes[plane], 0, plane_size);
-        }
+        DPRINTF (LOG_ERROR, "_graphics: AllocBitMap() failed to allocate %lu bytes of planes\n", size);
+        FreeMem(bm, sizeof(struct BitMap) + sizeof(struct lxa_bm_trailer));
+        return NULL;
     }
+
+    if (interleaved)
+    {
+        bm->BytesPerRow = (UWORD)(rowbytes * depth);
+        bm->pad = LXA_BM_INTERLEAVED;
+    }
+    for (plane = 0; plane < depth; plane++)
+        bm->Planes[plane] = block + plane * (interleaved ? rowbytes : rowbytes * sizey);
+
+    tr = (struct lxa_bm_trailer *)(bm + 1);
+    tr->magic = LXA_BM_TRAILER_MAGIC;
+    tr->block = block;
+    tr->size = size;
 
     DPRINTF (LOG_DEBUG, "_graphics: AllocBitMap() -> 0x%08lx\n", (ULONG)bm);
     return bm;
@@ -10681,36 +10728,34 @@ static struct BitMap * _graphics_AllocBitMap ( register struct GfxBase * GfxBase
 static VOID _graphics_FreeBitMap ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct BitMap * bm __asm("a0"))
 {
+    struct lxa_bm_trailer *tr;
     ULONG plane;
     ULONG width;
-    ULONG extraPlanes;
 
     DPRINTF (LOG_DEBUG, "_graphics: FreeBitMap(0x%08lx)\n", (ULONG)bm);
 
     if (!bm)
         return;
 
-    /* Calculate width from BytesPerRow */
-    width = bm->BytesPerRow * 8;
-
-    /* Free all plane data */
-    for (plane = 0; plane < bm->Depth; plane++)
+    tr = (struct lxa_bm_trailer *)(bm + 1);
+    if (tr->magic == LXA_BM_TRAILER_MAGIC)
     {
-        /* Handle special plane pointer values:
-         * NULL = all 0's plane (no allocation)
-         * -1 = all 1's plane (no allocation)
-         */
-        if (bm->Planes[plane] && bm->Planes[plane] != (PLANEPTR)-1)
-        {
-            _graphics_FreeRaster(GfxBase, bm->Planes[plane], (UWORD)width, bm->Rows);
-        }
+        tr->magic = 0;
+        if (tr->block)
+            FreeMem(tr->block, tr->size);
+        FreeMem(bm, sizeof(struct BitMap) + sizeof(struct lxa_bm_trailer));
+        return;
     }
 
-    /* Calculate extra plane pointers for depths > 8 */
-    extraPlanes = (bm->Depth > 8) ? (bm->Depth - 8) : 0;
-
-    /* Free BitMap structure */
-    FreeMem(bm, sizeof(struct BitMap) + extraPlanes * sizeof(PLANEPTR));
+    /* not one of ours: planes from AllocRaster() */
+    width = gfx_bm_width(bm);
+    for (plane = 0; plane < bm->Depth && plane < 8; plane++)
+    {
+        /* NULL = all 0's plane, -1 = all 1's plane (no allocation) */
+        if (bm->Planes[plane] && bm->Planes[plane] != (PLANEPTR)-1)
+            _graphics_FreeRaster(GfxBase, bm->Planes[plane], (UWORD)width, bm->Rows);
+    }
+    FreeMem(bm, sizeof(struct BitMap));
 }
 
 static LONG _graphics_GetExtSpriteA ( register struct GfxBase       *GfxBase __asm("a6"),
@@ -10947,9 +10992,19 @@ static ULONG _graphics_GetBitMapAttr ( register struct GfxBase * GfxBase __asm("
         case 4:  /* BMA_DEPTH */
             return bm->Depth;
         case 8:  /* BMA_WIDTH */
-            return bm->BytesPerRow * 8;  /* Convert bytes to pixels */
+            return gfx_bm_width(bm);
         case 12: /* BMA_FLAGS */
-            return bm->Flags;
+        {
+            /* AmigaOS 3.1 (probe graphics/bmattr): every planar bitmap is
+             * BMF_STANDARD, displayable when a plane row is a multiple of 64
+             * bits (AGA fetch), interleaved when graphics made it so. */
+            ULONG f = BMF_STANDARD;
+            if ((gfx_bm_rowbytes(bm) & 7) == 0)
+                f |= BMF_DISPLAYABLE;
+            if (gfx_bm_interleaved(bm))
+                f |= BMF_INTERLEAVED;
+            return f;
+        }
         default:
             DPRINTF (LOG_ERROR, "_graphics: GetBitMapAttr() unknown attr %ld\n", attrnum);
             return 0;
@@ -11125,7 +11180,7 @@ static VOID _graphics_ScrollRasterBF ( register struct GfxBase * GfxBase __asm("
         if (yMax > layerHeight)
             yMax = layerHeight;
     } else {
-        LONG bmWidth = bm->BytesPerRow * 8;
+        LONG bmWidth = gfx_bm_width(bm);
         LONG bmHeight = bm->Rows;
         
         if (xMax >= bmWidth)
@@ -11733,7 +11788,7 @@ static VOID _graphics_GetRPAttrsA ( register struct GfxBase * GfxBase __asm("a6"
                 }
                 else if (rp->BitMap)
                 {
-                    rect->MaxX = (WORD)(rp->BitMap->BytesPerRow * 8 - 1);
+                    rect->MaxX = (WORD)(gfx_bm_width(rp->BitMap) - 1);
                     rect->MaxY = (WORD)(rp->BitMap->Rows - 1);
                 }
                 else

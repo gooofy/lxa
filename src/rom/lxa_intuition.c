@@ -257,6 +257,18 @@ static BOOL g_screen_from_tags;     /* OpenScreen() called by OpenScreenTagList(
 static ULONG g_screen_display_id;   /* OpenScreenTagList(): SA_DisplayID + 1 (0: none) */
 static BYTE g_screen_sysfont;       /* OpenScreenTagList(): SA_SysFont (-1: none) */
 static BOOL g_screen_full_palette;  /* OpenScreenTagList(): SA_FullPalette */
+static BOOL g_screen_interleaved;   /* OpenScreenTagList(): SA_Interleaved / SA_LikeWorkbench */
+
+/* Intuition's private part behind every Screen: the block that holds the
+ * screen's planes (one chip-RAM block, freed by CloseScreen() whatever
+ * ChangeScreenBuffer() put into BitMap.Planes[]). */
+struct LXAScreenPriv
+{
+    PLANEPTR planes;
+    ULONG    planes_size;
+};
+#define LXA_SCREEN_ALLOC_SIZE (sizeof(struct Screen) + sizeof(struct LXAScreenPriv))
+#define LXA_SCREEN_PRIV(s)    ((struct LXAScreenPriv *)((struct Screen *)(s) + 1))
 static BOOL g_sysreq_layout;        /* BuildSysRequest(): body extent below */
 static WORD g_sysreq_w, g_sysreq_h;
 static void _create_screen_sys_gadgets(struct Screen *screen);
@@ -5168,13 +5180,8 @@ LONG _intuition_CloseScreen ( register struct IntuitionBase * IntuitionBase __as
     }
 
     /* Free bitplanes */
-    for (i = 0; i < screen->BitMap.Depth; i++)
-    {
-        if (screen->BitMap.Planes[i])
-        {
-            FreeRaster(screen->BitMap.Planes[i], screen->Width, screen->Height);
-        }
-    }
+    if (LXA_SCREEN_PRIV(screen)->planes)
+        FreeMem(LXA_SCREEN_PRIV(screen)->planes, LXA_SCREEN_PRIV(screen)->planes_size);
 
     /* Unlink its ViewPort from Intuition's View */
     {
@@ -5232,7 +5239,7 @@ LONG _intuition_CloseScreen ( register struct IntuitionBase * IntuitionBase __as
             g_wbtype_screens[i] = NULL;
 
     /* Free the Screen structure */
-    FreeMem(screen, sizeof(struct Screen));
+    FreeMem(screen, LXA_SCREEN_ALLOC_SIZE);
 
     g_processing_events = was_processing_events;
 
@@ -9659,7 +9666,7 @@ struct Screen * _intuition_OpenScreen ( register struct IntuitionBase * Intuitio
              (int)g_screen_from_tags, (int)requested_width, (int)requested_height, (int)width, (int)height, (int)depth, (UWORD)newScreen->ViewModes);
 
     /* Allocate Screen structure */
-    screen = (struct Screen *)AllocMem(sizeof(struct Screen), MEMF_PUBLIC | MEMF_CLEAR);
+    screen = (struct Screen *)AllocMem(LXA_SCREEN_ALLOC_SIZE, MEMF_PUBLIC | MEMF_CLEAR);
     if (!screen)
     {
         LPRINTF (LOG_ERROR, "_intuition: OpenScreen() out of memory for Screen\n");
@@ -9681,7 +9688,7 @@ struct Screen * _intuition_OpenScreen ( register struct IntuitionBase * Intuitio
     if (display_handle == 0)
     {
         LPRINTF (LOG_ERROR, "_intuition: OpenScreen() host display_open failed\n");
-        FreeMem(screen, sizeof(struct Screen));
+        FreeMem(screen, LXA_SCREEN_ALLOC_SIZE);
         return NULL;
     }
 
@@ -9708,23 +9715,33 @@ struct Screen * _intuition_OpenScreen ( register struct IntuitionBase * Intuitio
     /* Initialize the embedded BitMap */
     InitBitMap(&screen->BitMap, depth, width, height);
 
-    /* Allocate bitplanes */
-    for (i = 0; i < depth; i++)
+    /* Allocate the bitplanes in one chip-RAM block.  The Workbench and
+     * screens opened with SA_Interleaved or SA_LikeWorkbench are
+     * interleaved, all others have one plane after the other (AmigaOS 3.1,
+     * probe graphics/bmattr); graphics marks interleaved bitmaps with
+     * 0x805c in BitMap.pad. */
     {
-        screen->BitMap.Planes[i] = AllocRaster(width, height);
-        if (!screen->BitMap.Planes[i])
+        ULONG rowbytes = screen->BitMap.BytesPerRow;
+        BOOL interleaved = depth > 1 && (g_opening_workbench_screen || g_screen_interleaved);
+        ULONG size = rowbytes * height * depth;
+        PLANEPTR block = (PLANEPTR)AllocMem(size, MEMF_CHIP | MEMF_CLEAR);
+
+        if (!block)
         {
-            /* Cleanup on failure */
-            LPRINTF (LOG_ERROR, "_intuition: OpenScreen() out of memory for plane %d\n", (int)i);
-            while (i > 0)
-            {
-                i--;
-                FreeRaster(screen->BitMap.Planes[i], width, height);
-            }
+            LPRINTF (LOG_ERROR, "_intuition: OpenScreen() out of memory for %lu bytes of planes\n", size);
             emucall1(EMU_CALL_INT_CLOSE_SCREEN, display_handle);
-            FreeMem(screen, sizeof(struct Screen));
+            FreeMem(screen, LXA_SCREEN_ALLOC_SIZE);
             return NULL;
         }
+        LXA_SCREEN_PRIV(screen)->planes = block;
+        LXA_SCREEN_PRIV(screen)->planes_size = size;
+        if (interleaved)
+        {
+            screen->BitMap.BytesPerRow = (UWORD)(rowbytes * depth);
+            screen->BitMap.pad = 0x805c;
+        }
+        for (i = 0; i < depth; i++)
+            screen->BitMap.Planes[i] = block + i * (interleaved ? rowbytes : rowbytes * height);
     }
 
     /* Initialize the embedded RastPort */
@@ -15294,6 +15311,7 @@ struct Screen * _intuition_OpenScreenTagList ( register struct IntuitionBase * I
     BOOL pub_name = FALSE;
     BYTE sys_font = -1;
     BOOL full_palette = FALSE;
+    BYTE interleaved = -1;
 
     tag_lists[0] = NULL;
     tag_lists[1] = tagList;
@@ -15417,12 +15435,18 @@ struct Screen * _intuition_OpenScreenTagList ( register struct IntuitionBase * I
                     break;
                 case SA_LikeWorkbench:
                     /* AmigaOS 3.1 reference (gallery-menus): a screen like
-                     * the Workbench shares its pens and has its mode */
+                     * the Workbench shares its pens and has its mode; its
+                     * bitmap is interleaved (probe graphics/bmattr) */
                     if (tag->ti_Data)
                     {
                         share_pens = TRUE;
                         ns.ViewModes |= HIRES;
+                        if (interleaved < 0)
+                            interleaved = 1;
                     }
+                    break;
+                case SA_Interleaved:
+                    interleaved = tag->ti_Data ? 1 : 0;
                     break;
                 case SA_PubName:
                     pub_name = tag->ti_Data ? TRUE : FALSE;
@@ -15487,11 +15511,13 @@ struct Screen * _intuition_OpenScreenTagList ( register struct IntuitionBase * I
     g_screen_display_id = (sa_display_id != (ULONG)INVALID_ID) ? sa_display_id + 1 : 0;
     g_screen_sysfont = sys_font;
     g_screen_full_palette = full_palette;
+    g_screen_interleaved = interleaved > 0;
     struct Screen *screen = _intuition_OpenScreen(IntuitionBase, &ns);
     g_screen_from_tags = FALSE;
     g_screen_display_id = 0;
     g_screen_sysfont = -1;
     g_screen_full_palette = FALSE;
+    g_screen_interleaved = FALSE;
     if (!screen)
     {
         if (sa_error)
@@ -16541,8 +16567,15 @@ ULONG _intuition_ChangeScreenBuffer ( register struct IntuitionBase * IntuitionB
             sc->BitMap.Planes[i] = NULL;
     }
     
-    /* Copy depth (should be same, but just in case) */
+    /* Copy depth and layout (an interleaved buffer for a plain screen
+     * or the other way round) and tell the display where the rows are */
     sc->BitMap.Depth = newBm->Depth;
+    sc->BitMap.BytesPerRow = newBm->BytesPerRow;
+    sc->BitMap.pad = newBm->pad;
+    if (sc->ExtData)
+        emucall3(EMU_CALL_INT_SET_SCREEN_BITMAP, (ULONG)sc->ExtData,
+                 (ULONG)&sc->BitMap.Planes[0],
+                 ((ULONG)sc->BitMap.BytesPerRow << 16) | (ULONG)sc->BitMap.Depth);
     
     /* Update Host Display? 
      * The host display loop reads sc->BitMap.Planes directly.
