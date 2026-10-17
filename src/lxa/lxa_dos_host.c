@@ -984,25 +984,12 @@ bool other_tasks_running(void)
 
 char *_mgetstr (uint32_t address)
 {
-    if ((address >= RAM_START) && (address <= RAM_END))
-    {
-        uint32_t addr = address - RAM_START;
-        return (char *) &g_ram[addr];
-    }
-    else if ((address >= Z3RAM_START) && (address <= Z3RAM_END))
-    {
-        return (char *) &g_z3ram[address - Z3RAM_START];
-    }
-    else if ((address >= ROM_START) && (address <= ROM_END))
-    {
-        uint32_t addr = address - ROM_START;
-        return (char *) &g_rom[addr];
-    }
-    else
-    {
-        printf("ERROR: _mgetstr at invalid address 0x%08x\n", address);
-        assert (false);
-    }
+    uint8_t *p = lxa_ram_ptr(address, 1);
+
+    if (p)
+        return (char *) p;
+    if ((address >= ROM_START) && (address <= ROM_END))
+        return (char *) &g_rom[address - ROM_START];
     return NULL;
 }
 
@@ -1301,10 +1288,10 @@ bool g_console_stdin_detached = false;
  * must never make the host access memory outside g_ram/g_rom. */
 static uint32_t _dos_buffer_span(uint32_t addr, uint32_t len, bool for_write_into)
 {
-    if (addr >= RAM_START && addr <= RAM_END)
-        return len < (uint32_t)(RAM_END - addr + 1) ? len : (uint32_t)(RAM_END - addr + 1);
-    if (addr >= Z3RAM_START && addr <= Z3RAM_END)
-        return len < (uint32_t)(Z3RAM_END - addr + 1) ? len : (uint32_t)(Z3RAM_END - addr + 1);
+    uint32_t avail = lxa_ram_avail(addr);
+
+    if (avail)
+        return len < avail ? len : avail;
     if (!for_write_into && addr >= ROM_START && addr <= ROM_END)
         return len < (uint32_t)(ROM_END - addr + 1) ? len : (uint32_t)(ROM_END - addr + 1);
     return 0;

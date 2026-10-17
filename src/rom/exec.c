@@ -101,10 +101,11 @@ struct JumpVec
 #define NUM_DEVICE_CONSOLE_FUNCS     (0+6)
 
 #define RAM_START                    0x00010000
-#define RAM_END                      0x009fffff
-#define LXA_CHIP_END                 0x00200000   /* 2 MB chip RAM, fast RAM above */
+#define LXA_CHIP_END                 0x00200000   /* 2 MB chip RAM (host: RAM_*) */
+#define LXA_FASTRAM_START            0x07800000   /* 8 MB 32-bit fast RAM (host: FASTRAM_*) */
+#define LXA_FASTRAM_SIZE             0x00800000
 #define LXA_Z3RAM_START              0x40000000   /* Zorro III fast RAM (host: Z3RAM_*) */
-#define LXA_Z3RAM_SIZE               0x00800000
+#define LXA_Z3RAM_SIZE               0x01000000
 
 extern struct Resident *__lxa_dos_ROMTag;
 extern struct Resident *__lxa_utility_ROMTag;
@@ -145,8 +146,6 @@ extern struct Resident *__lxa_trackdisk_ROMTag;
 static struct JumpVec   g_ExecJumpTable[NUM_EXEC_FUNCS];
 static struct ExecBase  g_SysBase;
 static struct MemHeader g_MemHeader;       /* chip RAM */
-static struct MemHeader g_FastMemHeader;   /* fast RAM */
-static struct MemHeader g_Z3MemHeader;     /* Zorro III fast RAM */
 
 struct ExecIntVectorState
 {
@@ -2566,8 +2565,8 @@ void _exec_RemTask ( register struct ExecBase * SysBase __asm("a6"),
     if (!task)
         task = me;
 
-    /* Validate task pointer - it should be a reasonable memory address */
-    if ((ULONG)task < 0x1000 || (ULONG)task > 0x00FFFFFF)
+    /* Validate task pointer - it must lie in system RAM */
+    if ((ULONG)task < 0x1000 || !TypeOfMem((APTR)task))
     {
         LPRINTF (LOG_ERROR, "_exec: RemTask() called with invalid task pointer 0x%08lx - ignoring\n", task);
         return;
@@ -6551,6 +6550,27 @@ asm(
 "        rts                                         \n"
 );
 
+/* a fast RAM region of size bytes at mh, its MemHeader at its start */
+static void exec_add_fast_region(struct MemHeader *mh, ULONG size, BYTE pri,
+                                 const char *name, UWORD attrs)
+{
+    struct MemChunk *mc = (struct MemChunk *) ((UBYTE *) mh + sizeof(struct MemHeader));
+
+    mc->mc_Next  = NULL;
+    mc->mc_Bytes = size - sizeof(struct MemHeader);
+
+    mh->mh_Node.ln_Type = NT_MEMORY;
+    mh->mh_Node.ln_Pri  = pri;
+    mh->mh_Node.ln_Name = (char *) name;
+    mh->mh_Attributes   = attrs;
+    mh->mh_First        = mc;
+    mh->mh_Lower        = (APTR) mc;
+    mh->mh_Upper        = (APTR) ((UBYTE *) mh + size);
+    mh->mh_Free         = mc->mc_Bytes;
+    Enqueue (&SysBase->MemList, &mh->mh_Node);
+}
+
+
 void coldstart (void)
 {
     // setup exceptions, traps, interrupts
@@ -6608,11 +6628,11 @@ void coldstart (void)
     //__asm("    ori.w  #0x0700, sr;\n");   // disable interrupts
     //__asm("andi.w  #0xdfff, sr\n");   // disable supervisor bit
     //__asm("andi.w  #0xdfff, sr\n");   // disable supervisor bit
-    __asm("move.l  #0x009ffff0, a7\n"); // setup initial stack
+    __asm("move.l  #0x07fffff0, a7\n"); // setup initial stack: top of fast RAM
 
     DPRINTF (LOG_INFO, "coldstart: g_ExecJumpTable    = 0x%08lx\n", g_ExecJumpTable   );
     DPRINTF (LOG_INFO, "           RAM_START          = 0x%08lx\n", RAM_START         );
-    DPRINTF (LOG_INFO, "           RAM_END            = 0x%08lx\n", RAM_END           );
+    DPRINTF (LOG_INFO, "           LXA_CHIP_END       = 0x%08lx\n", LXA_CHIP_END      );
 
     // coldstart is at 0x00f801be, &SysBase at 0x00f80c90, SysBase at 0x0009eed0, f1 at 0x00f80028
     DPRINTF (LOG_DEBUG, "coldstart: locations in RAM: coldstart is at 0x%08x, &SysBase at 0x%08x, SysBase at 0x%08x\n",
@@ -6825,11 +6845,13 @@ void coldstart (void)
     NEWLIST (&SysBase->MemList);
     SysBase->MemList.lh_Type = NT_MEMORY;
 
-    /* Memory layout as on the reference A4000 (tests/probes/exec/memlist):
-     * 2 MB chip RAM (MEMF_PUBLIC|CHIP|LOCAL|24BITDMA|KICK, priority -10)
-     * and fast RAM above it (MEMF_PUBLIC|FAST|LOCAL|KICK, priority 30) that
-     * MEMF_ANY allocations come from.  lxa's RAM is one flat region; its
-     * fast part is smaller than the reference's 16 MB. */
+    /* Memory layout as on the reference A4000 (tests/probes/exec/memlist,
+     * SysInfo MEMORY): 2 MB chip RAM (MEMF_PUBLIC|CHIP|LOCAL|24BITDMA|KICK,
+     * priority -10), 8 MB 32-bit motherboard fast RAM ending at $08000000
+     * (MEMF_PUBLIC|FAST|LOCAL|KICK, priority 30) that MEMF_ANY allocations
+     * come from, and 16 MB Zorro III RAM at $40000000 (priority 20).  The
+     * boot stack lies at the top of the motherboard fast RAM, which
+     * allocations reach last. */
     struct MemChunk *mc = (struct MemChunk *) RAM_START;
 
     mc->mc_Next  = NULL;
@@ -6844,36 +6866,16 @@ void coldstart (void)
     g_MemHeader.mh_Upper        = (APTR) LXA_CHIP_END;
     g_MemHeader.mh_Free         = LXA_CHIP_END-RAM_START;
 
-    mc = (struct MemChunk *) LXA_CHIP_END;
-    mc->mc_Next  = NULL;
-    mc->mc_Bytes = RAM_END+1-LXA_CHIP_END;
-
-    g_FastMemHeader.mh_Node.ln_Type = NT_MEMORY;
-    g_FastMemHeader.mh_Node.ln_Pri  = 30;
-    g_FastMemHeader.mh_Node.ln_Name = (char *)"expansion memory";
-    g_FastMemHeader.mh_Attributes   = MEMF_FAST | MEMF_PUBLIC | MEMF_LOCAL | MEMF_KICK;
-    g_FastMemHeader.mh_First        = mc;
-    g_FastMemHeader.mh_Lower        = (APTR) LXA_CHIP_END;
-    g_FastMemHeader.mh_Upper        = (APTR) (RAM_END + 1);
-    g_FastMemHeader.mh_Free         = RAM_END+1-LXA_CHIP_END;
-
+    /* The fast regions carry their MemHeader at their start, as
+     * AddMemList() lays them out: the free memory starts 32 bytes in
+     * (SysInfo MEMORY: lower bound $07800020; the largest Zorro III block
+     * is 16777184 bytes). */
+    exec_add_fast_region((struct MemHeader *) LXA_FASTRAM_START, LXA_FASTRAM_SIZE,
+                         30, "expansion memory", MEMF_FAST | MEMF_PUBLIC | MEMF_LOCAL | MEMF_KICK);
     /* a second fast region like the reference's Zorro III RAM
      * (MEMF_PUBLIC|FAST|KICK, priority 20) */
-    mc = (struct MemChunk *) LXA_Z3RAM_START;
-    mc->mc_Next  = NULL;
-    mc->mc_Bytes = LXA_Z3RAM_SIZE;
-
-    g_Z3MemHeader.mh_Node.ln_Type = NT_MEMORY;
-    g_Z3MemHeader.mh_Node.ln_Pri  = 20;
-    g_Z3MemHeader.mh_Node.ln_Name = (char *)"zorro iii memory";
-    g_Z3MemHeader.mh_Attributes   = MEMF_FAST | MEMF_PUBLIC | MEMF_KICK;
-    g_Z3MemHeader.mh_First        = mc;
-    g_Z3MemHeader.mh_Lower        = (APTR) LXA_Z3RAM_START;
-    g_Z3MemHeader.mh_Upper        = (APTR) (LXA_Z3RAM_START + LXA_Z3RAM_SIZE);
-    g_Z3MemHeader.mh_Free         = LXA_Z3RAM_SIZE;
-
-    Enqueue (&SysBase->MemList, &g_FastMemHeader.mh_Node);
-    Enqueue (&SysBase->MemList, &g_Z3MemHeader.mh_Node);
+    exec_add_fast_region((struct MemHeader *) LXA_Z3RAM_START, LXA_Z3RAM_SIZE,
+                         20, "zorro iii memory", MEMF_FAST | MEMF_PUBLIC | MEMF_KICK);
     Enqueue (&SysBase->MemList, &g_MemHeader.mh_Node);
 
     /* The exception vectors live in fast RAM, as on the 68040 reference

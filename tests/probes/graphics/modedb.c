@@ -1,5 +1,5 @@
 /*
- * Probe (Phase 238): every entry of the display database - DisplayInfo
+ * Probe (Phase 238, palette Phase 240): every entry of the display database - DisplayInfo
  * property flags, availability, DimensionInfo depth/nominal/raster ranges
  * and the overscan rectangles.  asl.library's screen-mode requester builds
  * its list, names and property window from these.
@@ -51,6 +51,18 @@ int main(void)
             probe_dec(di.SpriteResolution.x);
             probe_ch(',');
             probe_dec(di.SpriteResolution.y);
+            /* the palette of the mode (Phase 240: DPaint's "Max Colours =
+             * 256 of 16777216" and "Bits Per RGB") */
+            probe_s(" spr=");
+            probe_dec(di.NumStdSprites);
+            probe_s(" pal=");
+            probe_dec(di.PaletteRange);
+            probe_s(" bits=");
+            probe_dec(di.RedBits);
+            probe_ch(',');
+            probe_dec(di.GreenBits);
+            probe_ch(',');
+            probe_dec(di.BlueBits);
         }
         else
             probe_s(" (no DTAG_DISP)");

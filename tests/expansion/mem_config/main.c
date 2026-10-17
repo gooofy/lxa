@@ -215,12 +215,19 @@ int main(void)
     struct ConfigDev board_a;
     struct ConfigDev board_b;
     struct ConfigDev *allocated_config_dev;
-    UBYTE board_image[128];
+    UBYTE *board_image;
     ULONG slot;
     ULONG slot2;
     ULONG result;
 
     print("Testing expansion.library memory/config helpers\n");
+
+    /* the image of a Zorro II board's configuration area: below 16 MB,
+     * since expansion.library reads boards above as Zorro III (programs
+     * and their stacks live in fast RAM at $07800000 as on the A4000) */
+    board_image = (UBYTE *)AllocMem(128, MEMF_CHIP | MEMF_CLEAR);
+    if (!board_image)
+        return 20;
 
     ExpansionBase = (struct ExpansionBase *)OpenLibrary("expansion.library", 0);
     if (ExpansionBase == NULL)
@@ -315,6 +322,7 @@ int main(void)
     expect_ulong((ULONG)board_b.cd_BoardAddr, 0xff001234, "ReadExpansionRom keeps the low bytes of cd_BoardAddr");
     expect_ulong(board_b.cd_BoardSize, 0xdeadbeef, "ReadExpansionRom keeps cd_BoardSize for any board");
 
+    FreeMem(board_image, 128);
     CloseLibrary((struct Library *)ExpansionBase);
 
     if (errors == 0)

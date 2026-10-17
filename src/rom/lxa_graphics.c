@@ -9673,12 +9673,15 @@ static ULONG _graphics_GetDisplayInfoData ( register struct GfxBase * GfxBase __
                 di.Resolution.y *= 2;
             di.PixelSpeed = (UWORD)(280 / (xscale * 2));
             di.NumStdSprites = 8;
-            di.PaletteRange = 16;
+            /* AGA: every mode has the 24-bit palette (probe graphics/modedb:
+             * PaletteRange 65535, 8 bits per gun; DPaint shows "256 of
+             * 16777216") */
+            di.PaletteRange = 65535;
             di.SpriteResolution.x = (xscale == 4) ? 22 : 44;   /* SHIRES sprites are hires */
             di.SpriteResolution.y = is_ntsc ? 52 : 44;
-            di.RedBits = 4;
-            di.GreenBits = 4;
-            di.BlueBits = 4;
+            di.RedBits = 8;
+            di.GreenBits = 8;
+            di.BlueBits = 8;
 
             return graphics_copy_query(buf, size, &di, 48);
         }
@@ -10076,11 +10079,11 @@ static LONG _graphics_GetVPModeID ( register struct GfxBase * GfxBase __asm("a6"
 static LONG _graphics_ModeNotAvailable ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register ULONG modeID __asm("d0"))
 {
-    LXA_UNIMPLEMENTED("graphics", "ModeNotAvailable", "partial: no chipset check (DI_AVAIL_NOCHIPS), lxa reports all ECS/AGA modes of the PAL monitor available (Phase 240)");
-
     /* AmigaOS 3.1 reference (tests/probes/intuition/screenmodes): ~0 for
      * IDs that do not exist, DI_AVAIL_NOMONITOR for NTSC modes without
-     * ntsc.monitor */
+     * ntsc.monitor.  The emulated machine has the AGA chipset (Phase 240),
+     * so no mode of the database lacks its chips (DI_AVAIL_NOCHIPS never
+     * applies; probe graphics/modedb: na=0 for every mode). */
     if (!graphics_display_id_exists(modeID))
         return (LONG)0xffffffffUL;
     return (LONG)graphics_display_id_not_available(modeID);

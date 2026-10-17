@@ -6,6 +6,7 @@
  */
 
 #include "lxa_api.h"
+#include "lxa_memmap.h"
 #include "display.h"
 #include "vfs.h"
 #include "config.h"
@@ -34,11 +35,6 @@ extern uint32_t g_wb_window;       /* lxa.c: harness Workbench backdrop (Phase 2
 #include <linux/limits.h>
 
 /* External declarations for lxa.c globals and functions */
-extern uint8_t g_ram[];
-extern uint8_t g_z3ram[];
-#ifndef Z3RAM_SIZE
-#define Z3RAM_SIZE (8u * 1024u * 1024u)
-#endif
 extern uint8_t g_rom[];
 extern bool g_running;
 extern bool g_verbose;
@@ -62,7 +58,6 @@ extern void (*g_text_hook)(const char *str, int len, int x, int y, void *userdat
 extern void *g_text_hook_userdata;
 
 /* Configuration constants from lxa.c */
-#define RAM_SIZE (10 * 1024 * 1024)
 #define ROM_SIZE (512 * 1024)
 #define ROM_START 0xf80000
 #define TIMER_INTERVAL_US 20000
@@ -465,8 +460,10 @@ int lxa_init(const lxa_config_t *config)
 
     /* Set up initial memory image */
     memset(g_ram, 0, RAM_SIZE);
+    memset(g_fastram, 0, FASTRAM_SIZE);
     memset(g_z3ram, 0, Z3RAM_SIZE);
-    uint32_t initial_sp = RAM_SIZE - 1;
+    /* the boot stack lies at the top of fast RAM, which exec hands out last */
+    uint32_t initial_sp = FASTRAM_END + 1;
     uint32_t reset_vector = ROM_START + 2;
     m68k_write_memory_32(0, initial_sp);
     m68k_write_memory_32(4, reset_vector);
@@ -724,9 +721,9 @@ static bool api_process_vblank(void)
             for (uint32_t i = 0; i < depth && i < 8; i++)
             {
                 uint32_t plane_addr = m68k_read_memory_32(planes_ptr + i * 4);
-                if (plane_addr && plane_addr < RAM_SIZE)
+                if (plane_addr)
                 {
-                    planes[i] = (const uint8_t *)&g_ram[plane_addr];
+                    planes[i] = (const uint8_t *)lxa_ram_ptr(plane_addr, 1);
                 }
             }
 
@@ -1000,9 +997,9 @@ void lxa_flush_display(void)
         for (uint32_t i = 0; i < depth && i < 8; i++)
         {
             uint32_t plane_addr = m68k_read_memory_32(planes_ptr + i * 4);
-            if (plane_addr && plane_addr < RAM_SIZE)
+            if (plane_addr)
             {
-                planes[i] = (const uint8_t *)&g_ram[plane_addr];
+                planes[i] = (const uint8_t *)lxa_ram_ptr(plane_addr, 1);
             }
         }
 
