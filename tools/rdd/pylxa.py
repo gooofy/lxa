@@ -17,6 +17,7 @@ liblxa keeps global state: one Lxa instance at a time per process
 import ctypes
 import os
 import shutil
+import struct
 import tempfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -227,6 +228,21 @@ class Lxa:
         d = os.path.join(self._tmp, "RAM", "ENV", "Sys")
         os.makedirs(d, exist_ok=True)
         shutil.copy2(path, d)
+
+    def screenmode_prefs(self, display_id, width, height, depth, control=1):
+        """ENV:Sys and ENVARC:Sys screenmode.prefs (IFF FORM PREF, PRHD +
+        SCRM) as the reference's tools/refsys/install_p96.py writes them:
+        the Workbench opens in that mode when the next program starts."""
+        prhd = struct.pack(">BBI", 0, 0, 0)
+        scrm = struct.pack(">4IIHHHH", 0, 0, 0, 0, display_id, width, height, depth, control)
+        body = b"PREF" + b"PRHD" + struct.pack(">I", len(prhd)) + prhd + b"\0" * (len(prhd) & 1) \
+            + b"SCRM" + struct.pack(">I", len(scrm)) + scrm
+        data = b"FORM" + struct.pack(">I", len(body)) + body
+        for d in (os.path.join(self._tmp, "RAM", "ENV", "Sys"),
+                  os.path.join(self._tmp, "SYS", "Prefs", "Env-Archive", "Sys")):
+            os.makedirs(d, exist_ok=True)
+            with open(os.path.join(d, "screenmode.prefs"), "wb") as f:
+                f.write(data)
 
     def trace_start(self, spec, path):
         """Relay trace (Phase 233): spec "graphics.library:-60,-66;dos.library:*"."""

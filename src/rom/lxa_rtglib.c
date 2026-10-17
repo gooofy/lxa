@@ -16,11 +16,11 @@
 #include "util.h"
 #include "lxa_rtglib.h"
 
-struct ExecBase *SysBase;
-struct GfxBase *GfxBase;
-struct IntuitionBase *IntuitionBase;
-struct Library *LayersBase;
-struct Library *UtilityBase;
+struct ExecBase *SysBase = NULL;
+struct GfxBase *GfxBase = NULL;
+struct IntuitionBase *IntuitionBase = NULL;
+struct Library *LayersBase = NULL;
+struct Library *UtilityBase = NULL;
 
 ULONG emucall5(ULONG func, ULONG param1, ULONG param2, ULONG param3, ULONG param4, ULONG param5)
 {

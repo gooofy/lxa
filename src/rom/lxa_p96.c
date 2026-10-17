@@ -57,7 +57,7 @@ struct P96Base
     UBYTE          priv[68 - sizeof(struct Library)];
 };
 
-struct Library *AslBase;
+struct Library *AslBase = NULL;
 
 /* ------------------------------------------------------------------ */
 /* library housekeeping                                                 */

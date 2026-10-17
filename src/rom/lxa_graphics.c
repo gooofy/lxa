@@ -10847,6 +10847,24 @@ struct lxa_bm_trailer
     ULONG    size;
 };
 
+/* plane pointers beyond Planes[8] (RTG systems: planar bitmaps up to 24
+ * deep, reference `rtg` profile) follow the BitMap, then the trailer */
+static inline ULONG gfx_bm_extra_planes(ULONG depth)
+{
+    return depth > 8 ? depth - 8 : 0;
+}
+
+static inline ULONG gfx_bm_struct_size(ULONG depth)
+{
+    return sizeof(struct BitMap) + gfx_bm_extra_planes(depth) * sizeof(PLANEPTR) +
+           sizeof(struct lxa_bm_trailer);
+}
+
+static inline struct lxa_bm_trailer *gfx_bm_trailer(const struct BitMap *bm)
+{
+    return (struct lxa_bm_trailer *)((PLANEPTR *)(bm + 1) + gfx_bm_extra_planes(bm->Depth));
+}
+
 static struct BitMap * _graphics_AllocBitMap ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register ULONG sizex __asm("d0"),
                                                         register ULONG sizey __asm("d1"),
@@ -10905,8 +10923,7 @@ static struct BitMap * _graphics_AllocBitMap ( register struct GfxBase * GfxBase
         if (depth > 8) depth = 8;
     }
 
-    bm = (struct BitMap *)AllocMem(sizeof(struct BitMap) + sizeof(struct lxa_bm_trailer),
-                                   MEMF_PUBLIC | MEMF_CLEAR);
+    bm = (struct BitMap *)AllocMem(gfx_bm_struct_size(depth), MEMF_PUBLIC | MEMF_CLEAR);
     if (!bm)
     {
         DPRINTF (LOG_ERROR, "_graphics: AllocBitMap() failed to allocate BitMap structure\n");
@@ -10926,7 +10943,7 @@ static struct BitMap * _graphics_AllocBitMap ( register struct GfxBase * GfxBase
     if (size && !block)
     {
         DPRINTF (LOG_ERROR, "_graphics: AllocBitMap() failed to allocate %lu bytes of planes\n", size);
-        FreeMem(bm, sizeof(struct BitMap) + sizeof(struct lxa_bm_trailer));
+        FreeMem(bm, gfx_bm_struct_size(depth));
         return NULL;
     }
 
@@ -10938,7 +10955,7 @@ static struct BitMap * _graphics_AllocBitMap ( register struct GfxBase * GfxBase
     for (plane = 0; plane < depth; plane++)
         bm->Planes[plane] = block + plane * (interleaved ? rowbytes : rowbytes * sizey);
 
-    tr = (struct lxa_bm_trailer *)(bm + 1);
+    tr = gfx_bm_trailer(bm);
     tr->magic = LXA_BM_TRAILER_MAGIC;
     tr->block = block;
     tr->size = size;
@@ -10964,13 +10981,13 @@ static VOID _graphics_FreeBitMap ( register struct GfxBase * GfxBase __asm("a6")
         return;
     }
 
-    tr = (struct lxa_bm_trailer *)(bm + 1);
+    tr = gfx_bm_trailer(bm);
     if (tr->magic == LXA_BM_TRAILER_MAGIC)
     {
         tr->magic = 0;
         if (tr->block)
             FreeMem(tr->block, tr->size);
-        FreeMem(bm, sizeof(struct BitMap) + sizeof(struct lxa_bm_trailer));
+        FreeMem(bm, gfx_bm_struct_size(bm->Depth));
         return;
     }
 

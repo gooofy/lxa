@@ -300,6 +300,10 @@ def run_lxa_one(name, build, timeout_ms, prog=None, args="", fonts=None, profile
     try:
         if fonts:
             lxa.assign("FONTS", fonts)
+        if profile == "rtg":
+            # the rtg profile's Workbench: uaegfx 800x600, 8 bit
+            # (tools/refsys/install_p96.py RTG_WB_MODE)
+            lxa.screenmode_prefs(0x50041000, 800, 600, 8)
         lxa.run("SYS:" + (prog or name), args or "")
         # like the reference agent's WAIT_EXIT: the launched program has
         # returned, even if tasks it started (an app window...) still run
