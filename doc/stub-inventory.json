@@ -152,6 +152,22 @@
   "symbol": "deck_render"
  },
  {
+  "lib": "68040",
+  "function": "Private1",
+  "kind": "private",
+  "detail": "private/reserved slot",
+  "file": "src/rom/lxa_68040.c",
+  "symbol": "__g_lxa_68040_Private1"
+ },
+ {
+  "lib": "68040",
+  "function": "Private2",
+  "kind": "private",
+  "detail": "private/reserved slot",
+  "file": "src/rom/lxa_68040.c",
+  "symbol": "__g_lxa_68040_Private2"
+ },
+ {
   "lib": "amigaguide",
   "function": "LockAmigaGuideBase",
   "kind": "stub",

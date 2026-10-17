@@ -6236,6 +6236,11 @@ void _bootstrap(void)
     OpenLibrary ((STRPTR)"dos.library", 0);
     OpenLibrary ((STRPTR)"utility.library", 0);
 
+    /* the CPU support library stays open, as SetPatch leaves it on the
+     * A4000/040 reference (probe exec/machine: 68040.library in LibList) */
+    if (SysBase->AttnFlags & AFF_68040)
+        OpenLibrary ((STRPTR)"68040.library", 0);
+
     /* Phase 236: install the preferences in ENV:Sys before the program
      * starts, as the AmigaOS Startup-Sequence does with C:IPrefs (without
      * ENV:Sys there is nothing to install) */

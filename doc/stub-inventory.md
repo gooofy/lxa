@@ -12,6 +12,7 @@ implementing the function, never by deleting the macro.
 
 | Library | stub | partial | private slot |
 |---|---|---|---|
+| 68040 | 0 | 0 | 2 |
 | amigaguide | 18 | 0 | 0 |
 | asl | 0 | 2 | 0 |
 | commodities | 0 | 0 | 1 |
@@ -28,7 +29,12 @@ implementing the function, never by deleting the macro.
 | translator | 1 | 0 | 0 |
 | utility | 0 | 0 | 7 |
 | workbench | 0 | 0 | 3 |
-| **total** | **62** | **32** | **44** |
+| **total** | **62** | **32** | **46** |
+
+## 68040
+
+- `Private1` — private/reserved slot (`src/rom/lxa_68040.c`)
+- `Private2` — private/reserved slot (`src/rom/lxa_68040.c`)
 
 ## amigaguide
 
