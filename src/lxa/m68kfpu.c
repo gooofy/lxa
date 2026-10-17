@@ -1432,6 +1432,36 @@ void m68040_fpu_op1()
 					}
 					break;
 
+				case 2: // (An)
+				case 5: // (d16,An)
+				case 6: // (d8,An,Xn)
+				case 7: // (xxx).W, (xxx).L
+					/* lxa: the control addressing modes; the frame
+					   lies at the address, as for (An)+ */
+					if (mode == 2)
+						addr = EA_AY_AI_32();
+					else if (mode == 5)
+						addr = EA_AY_DI_32();
+					else if (mode == 6)
+						addr = EA_AY_IX_32();
+					else if (reg == 0)
+						addr = EA_AW_32();
+					else if (reg == 1)
+						addr = EA_AL_32();
+					else
+					{
+						m68ki_exception_illegal();
+						break;
+					}
+
+					if (m68ki_cpu.fpu_just_reset)
+						m68ki_write_32(addr, 0);
+					else if (idle_extra == 0)
+						m68ki_write_32(addr, 0x41000000);
+					else
+						perform_fsave(addr, 1);
+					break;
+
 				default:
 					fatalerror("M68kFPU: FSAVE unhandled mode %d reg %d at %x\n", mode, reg, REG_PC);
 			}
@@ -1509,7 +1539,21 @@ void m68040_fpu_op1()
 				break;
 
 			case 5:	// (d16,An)
-				addr = EA_AY_DI_32();
+			case 6: // (d8,An,Xn)
+			case 7: // (xxx).W, (xxx).L
+				if (mode == 5)
+					addr = EA_AY_DI_32();
+				else if (mode == 6)
+					addr = EA_AY_IX_32();
+				else if (reg == 0)
+					addr = EA_AW_32();
+				else if (reg == 1)
+					addr = EA_AL_32();
+				else
+				{
+					m68ki_exception_illegal();
+					break;
+				}
 				temp = m68ki_read_32(addr);
 
 				// check for NULL frame
