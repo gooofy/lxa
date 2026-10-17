@@ -495,7 +495,16 @@ LONG _p96_CloseScreen ( register struct Library *P96Base __asm("a6"),
 /* ------------------------------------------------------------------ */
 /* pixels                                                               */
 
-/* -102 p96WritePixelArray */
+/* the RGBFormat of the bitmap a RastPort draws into, RGBFB_NONE for planar */
+static ULONG p96_rp_format(struct RastPort *rp)
+{
+    if (!rp || !rp->BitMap || !lxa_rtg_is(rp->BitMap))
+        return RGBFB_NONE;
+    return LXA_RTG_EXTL(rp->BitMap, LXA_RTG_EXT_FORMAT);
+}
+
+/* -102 p96WritePixelArray: on a CLUT bitmap only CLUT arrays are written
+ * (reference: true colour arrays leave a CLUT bitmap unchanged) */
 void _p96_WritePixelArray ( register struct Library *P96Base __asm("a6"),
                             register struct RenderInfo *ri __asm("a0"),
                             register ULONG sx __asm("d0"),
@@ -510,6 +519,8 @@ void _p96_WritePixelArray ( register struct Library *P96Base __asm("a6"),
 
     if (!ri || !ri->Memory)
         return;
+    if (p96_rp_format(rp) == RGBFB_CLUT && ri->RGBFormat != RGBFB_CLUT)
+        return;
     r.op = RTG_R_WRITERGB;
     r.fg = r.bg = r.mode = r.cmap = r.extra = 0;
     r.src = ri->Memory;
@@ -520,7 +531,8 @@ void _p96_WritePixelArray ( register struct Library *P96Base __asm("a6"),
     rtgl_render_rp(&r, rp, (WORD)dx, (WORD)dy, (WORD)w, (WORD)h, FALSE, TRUE);
 }
 
-/* -108 p96ReadPixelArray */
+/* -108 p96ReadPixelArray: formats with alpha get alpha 0 from bitmaps
+ * without one (reference) */
 void _p96_ReadPixelArray ( register struct Library *P96Base __asm("a6"),
                            register struct RenderInfo *ri __asm("a0"),
                            register ULONG dx __asm("d0"),
@@ -536,7 +548,8 @@ void _p96_ReadPixelArray ( register struct Library *P96Base __asm("a6"),
     if (!ri || !ri->Memory)
         return;
     r.op = RTG_R_READRGB;
-    r.fg = r.bg = r.mode = r.cmap = r.extra = 0;
+    r.fg = r.bg = r.cmap = r.extra = 0;
+    r.mode = RTGM_ALPHA;
     r.src = ri->Memory;
     r.srcmod = ri->BytesPerRow;
     r.srcx = (WORD)dx;
@@ -558,16 +571,21 @@ ULONG _p96_WritePixel ( register struct Library *P96Base __asm("a6"),
     return rtgl_render_rp(&r, rp, (WORD)x, (WORD)y, 1, 1, FALSE, TRUE) ? 0 : (ULONG)-1;
 }
 
-/* -120 p96ReadPixel: 0xAARRGGBB */
+/* -120 p96ReadPixel: 0xAARRGGBB; the pen on CLUT bitmaps and 0 on planar
+ * bitmaps (reference) */
 ULONG _p96_ReadPixel ( register struct Library *P96Base __asm("a6"),
                        register struct RastPort *rp __asm("a1"),
                        register ULONG x __asm("d0"),
                        register ULONG y __asm("d1") )
 {
     rtgl_req_t r = {RTG_R_READPIXELRGB, 0, 0, RTGM_ALPHA, 0, NULL, 0, 0, 0, 0, 0};
-    ULONG c;
+    ULONG c, fmt = p96_rp_format(rp);
 
-    if (rp && rp->BitMap && !rp->Layer && lxa_rtg_is(rp->BitMap))
+    if (fmt == RGBFB_NONE)
+        return 0;
+    if (fmt == RGBFB_CLUT)
+        r.op = RTG_R_READPIXEL;
+    if (!rp->Layer)
         c = rtgl_render_bm(&r, rp->BitMap, (WORD)x, (WORD)y, 1, 1);
     else
     {
@@ -575,9 +593,7 @@ ULONG _p96_ReadPixel ( register struct Library *P96Base __asm("a6"),
         struct BitMap *tmp;
         struct RastPort trp;
 
-        if (!rp || !rp->BitMap)
-            return 0;
-        tmp = rtgl_alloc_bitmap(1, 1, 8, 0, lxa_rtg_is(rp->BitMap) ? rp->BitMap : NULL, 0);
+        tmp = rtgl_alloc_bitmap(1, 1, 8, 0, rp->BitMap, 0);
         if (!tmp)
             return 0;
         InitRastPort(&trp);
@@ -592,7 +608,8 @@ ULONG _p96_ReadPixel ( register struct Library *P96Base __asm("a6"),
     return c == 0xffffffffUL ? 0 : c;
 }
 
-/* -126 p96RectFill */
+/* -126 p96RectFill: on CLUT bitmaps the pen is bits 16-23 of the colour
+ * (reference: 0x00405060 fills pen 0x40, p96WritePixel takes bits 0-7) */
 void _p96_RectFill ( register struct Library *P96Base __asm("a6"),
                      register struct RastPort *rp __asm("a1"),
                      register ULONG x0 __asm("d0"),
@@ -606,7 +623,7 @@ void _p96_RectFill ( register struct Library *P96Base __asm("a6"),
 
     if (xb < xa || yb < ya)
         return;
-    r.fg = color;
+    r.fg = p96_rp_format(rp) == RGBFB_CLUT ? (color >> 16) & 0xff : color;
     rtgl_render_rp(&r, rp, xa, ya, xb - xa + 1, yb - ya + 1, FALSE, TRUE);
 }
 
@@ -623,7 +640,8 @@ void _p96_WriteTrueColorData ( register struct Library *P96Base __asm("a6"),
 {
     rtgl_req_t r = {RTG_R_WRITETC, 0, 0, 0, 0, NULL, 0, 0, 0, 0, 0};
 
-    if (!tci)
+    /* reference: CLUT bitmaps take no true colour data */
+    if (!tci || p96_rp_format(rp) == RGBFB_CLUT)
         return;
     r.srcx = (WORD)sx;
     r.srcy = (WORD)sy;
@@ -644,7 +662,8 @@ void _p96_ReadTrueColorData ( register struct Library *P96Base __asm("a6"),
 {
     rtgl_req_t r = {RTG_R_READTC, 0, 0, 0, 0, NULL, 0, 0, 0, 0, 0};
 
-    if (!tci)
+    /* reference: nothing is read from CLUT bitmaps */
+    if (!tci || p96_rp_format(rp) == RGBFB_CLUT)
         return;
     r.srcx = (WORD)dx;
     r.srcy = (WORD)dy;
