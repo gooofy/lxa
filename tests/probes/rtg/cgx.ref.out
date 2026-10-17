@@ -1,0 +1,682 @@
+cgx = non-NULL
+ver = 41
+rev = 4
+neg = 240
+id = "cybergraphics.library 41.4 (27.7.98)"
+name = "cybergraphics.library"
+-- ids
+id 0x50041000 cyber=0xffffffff 0x00000000 0x00000320 0x00000258 0x00000008 0x00000001 bad=0xffffffff
+id 0x50041100 cyber=0xffffffff 0x00000007 0x00000320 0x00000258 0x00000010 0x00000002 bad=0xffffffff
+id 0x50041303 cyber=0xffffffff 0x0000000c 0x00000320 0x00000258 0x00000018 0x00000004 bad=0xffffffff
+id 0x50001000 cyber=0xffffffff 0x00000000 0x00000140 0x000000c8 0x00000008 0x00000001 bad=0xffffffff
+id 0xfff01000 cyber=0x00000000 0x00000000 0x00000140 0x000000c8 0x00000008 0x00000001 bad=0xffffffff
+id 0x00029000 cyber=0x00000000 0xffffffff 0xffffffff 0xffffffff 0xffffffff 0xffffffff bad=0xffffffff
+id 0x00008000 cyber=0x00000000 0xffffffff 0xffffffff 0xffffffff 0xffffffff 0xffffffff bad=0xffffffff
+id 0x12345678 cyber=0x00000000 0xffffffff 0xffffffff 0xffffffff 0xffffffff 0xffffffff bad=0xffffffff
+id 0xffffffff cyber=0x00000000 0xffffffff 0xffffffff 0xffffffff 0xffffffff 0xffffffff bad=0xffffffff
+-- best
+def = 0x50031000
+640x480x8 = 0x50031000
+640x480x15 = 0x50031100
+640x480x16 = 0x50031100
+640x480x24 = 0x50031303
+640x480x32 = 0x50031303
+800x600x4 = 0x50041000
+700x500x16 = 0x50fc1100
+320x200x8 = 0x50001000
+1024x768x24 = 0x50051303
+2000x2000x8 = 0x50001000
+d33 = 0xffffffff
+board uaegfx = 0x50031100
+board uaegfx.card = 0x50031100
+board other = 0xffffffff
+monitor = 0x50031100
+monitor bad = 0x50031100
+-- all
+list = non-NULL
+ 0x50011000 320x240x8 "uaegfx.card: 320x240 x 8 CLUT" name=text tags=null
+ 0x50011100 320x240x16 "uaegfx.card: 320x240 x16 RGBPC" name=text tags=null
+ 0x50011303 320x240x32 "uaegfx.card: 320x240 x32 BGRA" name=text tags=null
+ 0x50091000 320x256x8 "uaegfx.card: 320x256 x 8 CLUT" name=text tags=null
+ 0x50091100 320x256x16 "uaegfx.card: 320x256 x16 RGBPC" name=text tags=null
+ 0x50091303 320x256x32 "uaegfx.card: 320x256 x32 BGRA" name=text tags=null
+ 0x50ff1000 640x360x8 "uaegfx.card: 640x360 x 8 CLUT" name=text tags=null
+ 0x50ff1100 640x360x16 "uaegfx.card: 640x360 x16 RGBPC" name=text tags=null
+ 0x50ff1303 640x360x32 "uaegfx.card: 640x360 x32 BGRA" name=text tags=null
+ 0x50021000 640x400x8 "uaegfx.card: 640x400 x 8 CLUT" name=text tags=null
+ 0x50021100 640x400x16 "uaegfx.card: 640x400 x16 RGBPC" name=text tags=null
+ 0x50021303 640x400x32 "uaegfx.card: 640x400 x32 BGRA" name=text tags=null
+ 0x50031000 640x480x8 "uaegfx.card: 640x480 x 8 CLUT" name=text tags=null
+ 0x50031100 640x480x16 "uaegfx.card: 640x480 x16 RGBPC" name=text tags=null
+ 0x50031303 640x480x32 "uaegfx.card: 640x480 x32 BGRA" name=text tags=null
+ 0x500a1000 640x512x8 "uaegfx.card: 640x512 x 8 CLUT" name=text tags=null
+ 0x500a1100 640x512x16 "uaegfx.card: 640x512 x16 RGBPC" name=text tags=null
+ 0x500a1303 640x512x32 "uaegfx.card: 640x512 x32 BGRA" name=text tags=null
+ 0x50fe1000 672x540x8 "uaegfx.card: 672x540 x 8 CLUT" name=text tags=null
+ 0x50fe1100 672x540x16 "uaegfx.card: 672x540 x16 RGBPC" name=text tags=null
+ 0x50fe1303 672x540x32 "uaegfx.card: 672x540 x32 BGRA" name=text tags=null
+ 0x50fd1000 800x450x8 "uaegfx.card: 800x450 x 8 CLUT" name=text tags=null
+ 0x50fd1100 800x450x16 "uaegfx.card: 800x450 x16 RGBPC" name=text tags=null
+ 0x50fd1303 800x450x32 "uaegfx.card: 800x450 x32 BGRA" name=text tags=null
+ 0x50fc1000 800x500x8 "uaegfx.card: 800x500 x 8 CLUT" name=text tags=null
+ 0x50fc1100 800x500x16 "uaegfx.card: 800x500 x16 RGBPC" name=text tags=null
+ 0x50fc1303 800x500x32 "uaegfx.card: 800x500 x32 BGRA" name=text tags=null
+ 0x50041000 800x600x8 "uaegfx.card: 800x600 x 8 CLUT" name=text tags=null
+ 0x50041100 800x600x16 "uaegfx.card: 800x600 x16 RGBPC" name=text tags=null
+ 0x50041303 800x600x32 "uaegfx.card: 800x600 x32 BGRA" name=text tags=null
+ 0x50fb1000 960x540x8 "uaegfx.card: 960x540 x 8 CLUT" name=text tags=null
+ 0x50fb1100 960x540x16 "uaegfx.card: 960x540 x16 RGBPC" name=text tags=null
+ 0x50fb1303 960x540x32 "uaegfx.card: 960x540 x32 BGRA" name=text tags=null
+ 0x508b1000 1024x576x8 "uaegfx.card:1024x576 x 8 CLUT" name=text tags=null
+ 0x508b1100 1024x576x16 "uaegfx.card:1024x576 x16 RGBPC" name=text tags=null
+ 0x508b1303 1024x576x32 "uaegfx.card:1024x576 x32 BGRA" name=text tags=null
+ 0x50fa1000 1024x600x8 "uaegfx.card:1024x600 x 8 CLUT" name=text tags=null
+ 0x50fa1100 1024x600x16 "uaegfx.card:1024x600 x16 RGBPC" name=text tags=null
+ 0x50fa1303 1024x600x32 "uaegfx.card:1024x600 x32 BGRA" name=text tags=null
+ 0x50051000 1024x768x8 "uaegfx.card:1024x768 x 8 CLUT" name=text tags=null
+ 0x50051100 1024x768x16 "uaegfx.card:1024x768 x16 RGBPC" name=text tags=null
+ 0x50051303 1024x768x32 "uaegfx.card:1024x768 x32 BGRA" name=text tags=null
+ 0x508e1000 1280x720x8 "uaegfx.card:1280x720 x 8 CLUT" name=text tags=null
+ 0x508e1100 1280x720x16 "uaegfx.card:1280x720 x16 RGBPC" name=text tags=null
+ 0x508e1303 1280x720x32 "uaegfx.card:1280x720 x32 BGRA" name=text tags=null
+ 0x50071000 1280x1024x8 "uaegfx.card:1280x1024x 8 CLUT" name=text tags=null
+ 0x50071100 1280x1024x16 "uaegfx.card:1280x1024x16 RGBPC" name=text tags=null
+ 0x50071303 1280x1024x32 "uaegfx.card:1280x1024x32 BGRA" name=text tags=null
+ 0x50f91000 1344x1080x8 "uaegfx.card:1344x1080x 8 CLUT" name=text tags=null
+ 0x50f91100 1344x1080x16 "uaegfx.card:1344x1080x16 RGBPC" name=text tags=null
+ 0x50f91303 1344x1080x32 "uaegfx.card:1344x1080x32 BGRA" name=text tags=null
+count = 51
+-- 640-800 d16+
+list = non-NULL
+ 0x50ff1100 640x360x16 "uaegfx.card: 640x360 x16 RGBPC" name=text tags=null
+ 0x50ff1303 640x360x32 "uaegfx.card: 640x360 x32 BGRA" name=text tags=null
+ 0x50021100 640x400x16 "uaegfx.card: 640x400 x16 RGBPC" name=text tags=null
+ 0x50021303 640x400x32 "uaegfx.card: 640x400 x32 BGRA" name=text tags=null
+ 0x50031100 640x480x16 "uaegfx.card: 640x480 x16 RGBPC" name=text tags=null
+ 0x50031303 640x480x32 "uaegfx.card: 640x480 x32 BGRA" name=text tags=null
+ 0x500a1100 640x512x16 "uaegfx.card: 640x512 x16 RGBPC" name=text tags=null
+ 0x500a1303 640x512x32 "uaegfx.card: 640x512 x32 BGRA" name=text tags=null
+ 0x50fe1100 672x540x16 "uaegfx.card: 672x540 x16 RGBPC" name=text tags=null
+ 0x50fe1303 672x540x32 "uaegfx.card: 672x540 x32 BGRA" name=text tags=null
+ 0x50fd1100 800x450x16 "uaegfx.card: 800x450 x16 RGBPC" name=text tags=null
+ 0x50fd1303 800x450x32 "uaegfx.card: 800x450 x32 BGRA" name=text tags=null
+ 0x50fc1100 800x500x16 "uaegfx.card: 800x500 x16 RGBPC" name=text tags=null
+ 0x50fc1303 800x500x32 "uaegfx.card: 800x500 x32 BGRA" name=text tags=null
+ 0x50041100 800x600x16 "uaegfx.card: 800x600 x16 RGBPC" name=text tags=null
+ 0x50041303 800x600x32 "uaegfx.card: 800x600 x32 BGRA" name=text tags=null
+count = 16
+-- lut8 h<=480
+list = non-NULL
+ 0x50011000 320x240x8 "uaegfx.card: 320x240 x 8 CLUT" name=text tags=null
+ 0x50091000 320x256x8 "uaegfx.card: 320x256 x 8 CLUT" name=text tags=null
+ 0x50ff1000 640x360x8 "uaegfx.card: 640x360 x 8 CLUT" name=text tags=null
+ 0x50021000 640x400x8 "uaegfx.card: 640x400 x 8 CLUT" name=text tags=null
+ 0x50031000 640x480x8 "uaegfx.card: 640x480 x 8 CLUT" name=text tags=null
+ 0x50fd1000 800x450x8 "uaegfx.card: 800x450 x 8 CLUT" name=text tags=null
+count = 6
+-- d<=8 h>=700
+list = non-NULL
+ 0x50051000 1024x768x8 "uaegfx.card:1024x768 x 8 CLUT" name=text tags=null
+ 0x508e1000 1280x720x8 "uaegfx.card:1280x720 x 8 CLUT" name=text tags=null
+ 0x50071000 1280x1024x8 "uaegfx.card:1280x1024x 8 CLUT" name=text tags=null
+ 0x50f91000 1344x1080x8 "uaegfx.card:1344x1080x 8 CLUT" name=text tags=null
+count = 4
+-- none
+list = NULL
+-- wb
+map 0x01 = 0x00000320
+map 0x02 = 0x00000001
+map 0x03 = planes0
+map 0x04 = 0x00000000
+map 0x05 = 0x00000320
+map 0x06 = 0x00000258
+map 0x07 = 0x00000008
+map 0x08 = 0xffffffff
+map 0x09 = 0xffffffff
+map bad = 0xffffffff
+map 0 = 0xffffffff
+-- planar
+map 0x01 = 0x00000000
+map 0x02 = 0x00000000
+map 0x03 = other
+map 0x04 = 0x00000000
+map 0x05 = 0x00000000
+map 0x06 = 0x00000000
+map 0x07 = 0x00000000
+map 0x08 = 0x00000000
+map 0x09 = 0x00000000
+map bad = 0xffffffff
+map 0 = 0xffffffff
+planar lock = NULL
+planar lw = 0x00001234
+planar rrgb = 0x00000000
+planar wrgb ret = 0x00000000
+planar fill ret = 0x00000004
+offscreen fmt 9
+-- map
+map 0x01 = 0x000000c0
+map 0x02 = 0x00000004
+map 0x03 = planes0
+map 0x04 = 0x0000000c
+map 0x05 = 0x00000030
+map 0x06 = 0x0000001e
+map 0x07 = 0x00000020
+map 0x08 = 0xffffffff
+map 0x09 = 0xffffffff
+map bad = 0xffffffff
+map 0 = 0xffffffff
+lock = non-NULL
+lbmi 0 = 0x00000030
+lbmi 1 = 0x0000001e
+lbmi 2 = 0x00000018
+lbmi 3 = 0x0000000c
+lbmi 4 = 0x00000004
+lbmi 5 = 0x000000c0
+lbmi base ok = TRUE
+lock2 same = TRUE
+-- offscreen px
+prefill ret = 0x000004b0
+pixfmt = 0x0000000c
+wrgb ret = 0x00000000
+rrgb = 0x00102030
+raw = 0x30201000
+fill ret = 0x00000006
+fill = 0x00405060
+fill raw = 0x60504000
+fill edge = 0x00000000
+inv ret = 0x00000002
+inv = 0x00bfaf9f
+inv raw = 0x9fafbf00
+inv not = 0x00405060
+wpa rgb ret = 0x00000003
+wpa rgb 0 = 0x00445566 raw 0x66554400
+wpa rgb 1 = 0x00778899 raw 0x99887700
+wpa rgb 2 = 0x00aabbcc raw 0xccbbaa00
+wpa rgba ret = 0x00000004
+wpa rgba 0 = 0x44112233 raw 0x33221144
+wpa rgba 1 = 0x88556677 raw 0x77665588
+wpa rgba 2 = 0xcc99aabb raw 0xbbaa99cc
+wpa rgba 3 = 0x01ddeeff raw 0xffeedd01
+wpa argb ret = 0x00000004
+wpa argb 0 = 0x11223344 raw 0x44332211
+wpa argb 1 = 0x55667788 raw 0x88776655
+wpa argb 2 = 0x99aabbcc raw 0xccbbaa99
+wpa argb 3 = 0xddeeff01 raw 0x01ffeedd
+wpa grey ret = 0x00000004
+wpa grey 0 = 0x00000000 raw 0x00000000
+wpa grey 1 = 0x00404040 raw 0x40404000
+wpa grey 2 = 0x00808080 raw 0x80808000
+wpa grey 3 = 0x00ffffff raw 0xffffff00
+wpa lut ret = 0x00000004
+wlut ret = 0x00000004
+wlut 0 = 0x00ff0000 raw 0x0000ff00
+wlut 1 = 0x0000ff00 raw 0x00ff0000
+wlut 2 = 0x000000ff raw 0xff000000
+wlut 3 = 0x00abcdef raw 0xefcdab00
+wlut bad fmt ret = 0x00000004
+rpa ret 0 = 0x00000008
+rpa fmt0 = ee ee ee 11 22 33 55 66 77 99 aa bb dd ee ff ee ee ee ee ee ee ee ee 22 33 44 66 77 88 aa bb cc ee ff 01 ee ee ee ee ee ee ee ee ee ee ee ee ee
+rpa ret 1 = 0x00000008
+rpa fmt1 = ee ee ee ee 11 22 33 44 55 66 77 88 99 aa bb cc dd ee ff 01 ee ee ee ee 22 33 44 11 66 77 88 55 aa bb cc 99 ee ff 01 dd ee ee ee ee ee ee ee ee
+rpa ret 2 = 0x00000008
+rpa fmt2 = ee ee ee ee 44 11 22 33 88 55 66 77 cc 99 aa bb 01 dd ee ff ee ee ee ee 11 22 33 44 55 66 77 88 99 aa bb cc dd ee ff 01 ee ee ee ee ee ee ee ee
+rpa ret 3 = 0x00000008
+rpa fmt3 = ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee
+rpa ret 4 = 0x00000008
+rpa fmt4 = ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee
+move ret = 0x00000008
+move 0 = 0x44112233
+move 1 = 0xddeeff01
+scale ret = 0x00000010
+scale 0 = 0x00102030
+hook calls = 1
+hook mem = TRUE
+hook mem set = TRUE
+hook offx = 0
+hook offy = 0
+hook xsize = 48
+hook ysize = 30
+hook bpr = 192
+hook bpp = 4
+hook cm = 12
+hook rp same = TRUE
+extract32 ret = 0x000000ff
+extract32 plane = 0x000000ff
+extract32 plane1 = 0x00000000
+offscreen fmt 4
+-- map
+map 0x01 = 0x00000060
+map 0x02 = 0x00000002
+map 0x03 = planes0
+map 0x04 = 0x00000007
+map 0x05 = 0x00000030
+map 0x06 = 0x0000001e
+map 0x07 = 0x00000010
+map 0x08 = 0xffffffff
+map 0x09 = 0xffffffff
+map bad = 0xffffffff
+map 0 = 0xffffffff
+lock = non-NULL
+lbmi 0 = 0x00000030
+lbmi 1 = 0x0000001e
+lbmi 2 = 0x00000010
+lbmi 3 = 0x00000007
+lbmi 4 = 0x00000002
+lbmi 5 = 0x00000060
+lbmi base ok = TRUE
+lock2 same = TRUE
+-- offscreen px
+prefill ret = 0x000004b0
+pixfmt = 0x00000007
+wrgb ret = 0x00000000
+rrgb = 0x00102030
+raw = 0x00000611
+fill ret = 0x00000006
+fill = 0x00405060
+fill raw = 0x00008c42
+fill edge = 0x00000000
+inv ret = 0x00000002
+inv = 0x00b8ac98
+inv raw = 0x000073bd
+inv not = 0x00405060
+wpa rgb ret = 0x00000003
+wpa rgb 0 = 0x00405460 raw 0x0000ac42
+wpa rgb 1 = 0x00708898 raw 0x00005374
+wpa rgb 2 = 0x00a8b8c8 raw 0x0000d9ad
+wpa rgba ret = 0x00000004
+wpa rgba 0 = 0x00102030 raw 0x00000611
+wpa rgba 1 = 0x00506470 raw 0x00002e53
+wpa rgba 2 = 0x0098a8b8 raw 0x0000579d
+wpa rgba 3 = 0x00d8ecf8 raw 0x00007fdf
+wpa argb ret = 0x00000004
+wpa argb 0 = 0x00203040 raw 0x00008821
+wpa argb 1 = 0x00607488 raw 0x0000b163
+wpa argb 2 = 0x00a8b8c8 raw 0x0000d9ad
+wpa argb 3 = 0x00e8fc00 raw 0x0000e0ef
+wpa grey ret = 0x00000004
+wpa grey 0 = 0x00000000 raw 0x00000000
+wpa grey 1 = 0x00404040 raw 0x00000842
+wpa grey 2 = 0x00808080 raw 0x00001084
+wpa grey 3 = 0x00f8fcf8 raw 0x0000ffff
+wpa lut ret = 0x00000004
+wlut ret = 0x00000004
+wlut 0 = 0x00f80000 raw 0x000000f8
+wlut 1 = 0x0000fc00 raw 0x0000e007
+wlut 2 = 0x000000f8 raw 0x00001f00
+wlut 3 = 0x00a8cce8 raw 0x00007dae
+wlut bad fmt ret = 0x00000004
+rpa ret 0 = 0x00000008
+rpa fmt0 = ee ee ee 10 20 30 50 64 70 98 a8 b8 d8 ec f8 ee ee ee ee ee ee ee ee 20 30 40 60 74 88 a8 b8 c8 e8 fc 00 ee ee ee ee ee ee ee ee ee ee ee ee ee
+rpa ret 1 = 0x00000008
+rpa fmt1 = ee ee ee ee 10 20 30 00 50 64 70 00 98 a8 b8 00 d8 ec f8 00 ee ee ee ee 20 30 40 00 60 74 88 00 a8 b8 c8 00 e8 fc 00 00 ee ee ee ee ee ee ee ee
+rpa ret 2 = 0x00000008
+rpa fmt2 = ee ee ee ee 00 10 20 30 00 50 64 70 00 98 a8 b8 00 d8 ec f8 ee ee ee ee 00 20 30 40 00 60 74 88 00 a8 b8 c8 00 e8 fc 00 ee ee ee ee ee ee ee ee
+rpa ret 3 = 0x00000008
+rpa fmt3 = ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee
+rpa ret 4 = 0x00000008
+rpa fmt4 = ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee
+move ret = 0x00000008
+move 0 = 0x00102030
+move 1 = 0x00e8fc00
+scale ret = 0x00000010
+scale 0 = 0x00102030
+hook calls = 1
+hook mem = TRUE
+hook mem set = TRUE
+hook offx = 0
+hook offy = 0
+hook xsize = 48
+hook ysize = 30
+hook bpr = 96
+hook bpp = 2
+hook cm = 7
+hook rp same = TRUE
+offscreen fmt 1
+-- map
+map 0x01 = 0x00000030
+map 0x02 = 0x00000001
+map 0x03 = planes0
+map 0x04 = 0x00000000
+map 0x05 = 0x00000030
+map 0x06 = 0x0000001e
+map 0x07 = 0x00000008
+map 0x08 = 0xffffffff
+map 0x09 = 0xffffffff
+map bad = 0xffffffff
+map 0 = 0xffffffff
+lock = non-NULL
+lbmi 0 = 0x00000030
+lbmi 1 = 0x0000001e
+lbmi 2 = 0x00000008
+lbmi 3 = 0x00000000
+lbmi 4 = 0x00000001
+lbmi 5 = 0x00000030
+lbmi base ok = TRUE
+lock2 same = TRUE
+-- offscreen px
+prefill ret = 0x000004b0
+pixfmt = 0x00000000
+wrgb ret = 0x00000000
+rrgb = 0x00000030
+raw = 0x00000030
+fill ret = 0x00000006
+fill = 0x00000060
+fill raw = 0x00000060
+fill edge = 0x00000000
+inv ret = 0x00000002
+inv = 0x0000009f
+inv raw = 0x0000009f
+inv not = 0x00000060
+wpa rgb ret = 0x00000003
+wpa rgb 0 = 0x00000000 raw 0x00000000
+wpa rgb 1 = 0x00000000 raw 0x00000000
+wpa rgb 2 = 0x00000000 raw 0x00000000
+wpa rgba ret = 0x00000004
+wpa rgba 0 = 0x00000000 raw 0x00000000
+wpa rgba 1 = 0x00000000 raw 0x00000000
+wpa rgba 2 = 0x00000000 raw 0x00000000
+wpa rgba 3 = 0x00000000 raw 0x00000000
+wpa argb ret = 0x00000004
+wpa argb 0 = 0x00000000 raw 0x00000000
+wpa argb 1 = 0x00000000 raw 0x00000000
+wpa argb 2 = 0x00000000 raw 0x00000000
+wpa argb 3 = 0x00000000 raw 0x00000000
+wpa grey ret = 0x00000004
+wpa grey 0 = 0x00000000 raw 0x00000000
+wpa grey 1 = 0x00000000 raw 0x00000000
+wpa grey 2 = 0x00000000 raw 0x00000000
+wpa grey 3 = 0x00000000 raw 0x00000000
+wpa lut ret = 0x00000004
+wpa lut 0 = 0x00000000 raw 0x00000000
+wpa lut 1 = 0x00000001 raw 0x00000001
+wpa lut 2 = 0x00000002 raw 0x00000002
+wpa lut 3 = 0x00000003 raw 0x00000003
+wlut ret = 0x00000004
+wlut 0 = 0x00000000 raw 0x00000000
+wlut 1 = 0x00000000 raw 0x00000000
+wlut 2 = 0x00000000 raw 0x00000000
+wlut 3 = 0x00000000 raw 0x00000000
+wlut bad fmt ret = 0x00000004
+rpa ret 0 = 0x00000008
+rpa ret 1 = 0x00000008
+rpa ret 2 = 0x00000008
+rpa ret 3 = 0x00000008
+rpa ret 4 = 0x00000008
+move ret = 0x00000008
+move 0 = 0x00000000
+move 1 = 0x00000000
+scale ret = 0x00000010
+hook calls = 1
+hook mem = TRUE
+hook mem set = TRUE
+hook offx = 0
+hook offy = 0
+hook xsize = 48
+hook ysize = 30
+hook bpr = 48
+hook bpp = 1
+hook cm = 0
+hook rp same = TRUE
+extract ret = 0x000000ff
+extract plane = 0x000000ff
+extract plane1 = 0x00000000
+offscreen fmt 2
+-- map
+map 0x01 = 0x00000090
+map 0x02 = 0x00000003
+map 0x03 = planes0
+map 0x04 = 0x00000009
+map 0x05 = 0x00000030
+map 0x06 = 0x0000001e
+map 0x07 = 0x00000018
+map 0x08 = 0xffffffff
+map 0x09 = 0xffffffff
+map bad = 0xffffffff
+map 0 = 0xffffffff
+lock = non-NULL
+lbmi 0 = 0x00000030
+lbmi 1 = 0x0000001e
+lbmi 2 = 0x00000018
+lbmi 3 = 0x00000009
+lbmi 4 = 0x00000003
+lbmi 5 = 0x00000090
+lbmi base ok = TRUE
+lock2 same = TRUE
+-- offscreen px
+prefill ret = 0x000004b0
+pixfmt = 0x00000009
+wrgb ret = 0x00000000
+rrgb = 0x00102030
+raw = 0x00102030
+fill ret = 0x00000006
+fill = 0x00405060
+fill raw = 0x00405060
+fill edge = 0x00000000
+inv ret = 0x00000002
+inv = 0x00bfaf9f
+inv raw = 0x00bfaf9f
+inv not = 0x00405060
+wpa rgb ret = 0x00000003
+wpa rgb 0 = 0x00445566 raw 0x00445566
+wpa rgb 1 = 0x00778899 raw 0x00778899
+wpa rgb 2 = 0x00aabbcc raw 0x00aabbcc
+wpa rgba ret = 0x00000004
+wpa rgba 0 = 0x00112233 raw 0x00112233
+wpa rgba 1 = 0x00556677 raw 0x00556677
+wpa rgba 2 = 0x0099aabb raw 0x0099aabb
+wpa rgba 3 = 0x00ddeeff raw 0x00ddeeff
+wpa argb ret = 0x00000004
+wpa argb 0 = 0x00223344 raw 0x00223344
+wpa argb 1 = 0x00667788 raw 0x00667788
+wpa argb 2 = 0x00aabbcc raw 0x00aabbcc
+wpa argb 3 = 0x00eeff01 raw 0x00eeff01
+wpa grey ret = 0x00000004
+wpa grey 0 = 0x00000000 raw 0x00000000
+wpa grey 1 = 0x00404040 raw 0x00404040
+wpa grey 2 = 0x00808080 raw 0x00808080
+wpa grey 3 = 0x00ffffff raw 0x00ffffff
+wpa lut ret = 0x00000004
+wlut ret = 0x00000004
+wlut 0 = 0x00ff0000 raw 0x00ff0000
+wlut 1 = 0x0000ff00 raw 0x0000ff00
+wlut 2 = 0x000000ff raw 0x000000ff
+wlut 3 = 0x00abcdef raw 0x00abcdef
+wlut bad fmt ret = 0x00000004
+rpa ret 0 = 0x00000008
+rpa fmt0 = ee ee ee 11 22 33 55 66 77 99 aa bb dd ee ff ee ee ee ee ee ee ee ee 22 33 44 66 77 88 aa bb cc ee ff 01 ee ee ee ee ee ee ee ee ee ee ee ee ee
+rpa ret 1 = 0x00000008
+rpa fmt1 = ee ee ee ee 11 22 33 00 55 66 77 00 99 aa bb 00 dd ee ff 00 ee ee ee ee 22 33 44 00 66 77 88 00 aa bb cc 00 ee ff 01 00 ee ee ee ee ee ee ee ee
+rpa ret 2 = 0x00000008
+rpa fmt2 = ee ee ee ee 00 11 22 33 00 55 66 77 00 99 aa bb 00 dd ee ff ee ee ee ee 00 22 33 44 00 66 77 88 00 aa bb cc 00 ee ff 01 ee ee ee ee ee ee ee ee
+rpa ret 3 = 0x00000008
+rpa fmt3 = ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee
+rpa ret 4 = 0x00000008
+rpa fmt4 = ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee
+move ret = 0x00000008
+move 0 = 0x00112233
+move 1 = 0x00eeff01
+scale ret = 0x00000010
+scale 0 = 0x00102030
+hook calls = 1
+hook mem = TRUE
+hook mem set = TRUE
+hook offx = 0
+hook offy = 0
+hook xsize = 48
+hook ysize = 30
+hook bpr = 144
+hook bpp = 3
+hook cm = 9
+hook rp same = TRUE
+offscreen fmt 6
+-- map
+map 0x01 = 0x000000c0
+map 0x02 = 0x00000004
+map 0x03 = planes0
+map 0x04 = 0x0000000b
+map 0x05 = 0x00000030
+map 0x06 = 0x0000001e
+map 0x07 = 0x00000020
+map 0x08 = 0xffffffff
+map 0x09 = 0xffffffff
+map bad = 0xffffffff
+map 0 = 0xffffffff
+lock = non-NULL
+lbmi 0 = 0x00000030
+lbmi 1 = 0x0000001e
+lbmi 2 = 0x00000018
+lbmi 3 = 0x0000000b
+lbmi 4 = 0x00000004
+lbmi 5 = 0x000000c0
+lbmi base ok = TRUE
+lock2 same = TRUE
+-- offscreen px
+prefill ret = 0x000004b0
+pixfmt = 0x0000000b
+wrgb ret = 0x00000000
+rrgb = 0x00102030
+raw = 0x00102030
+fill ret = 0x00000006
+fill = 0x00605040
+fill raw = 0x00605040
+fill edge = 0x00000000
+inv ret = 0x00000002
+inv = 0x009fafbf
+inv raw = 0x009fafbf
+inv not = 0x00605040
+wpa rgb ret = 0x00000003
+wpa rgb 0 = 0x00445566 raw 0x00445566
+wpa rgb 1 = 0x00778899 raw 0x00778899
+wpa rgb 2 = 0x00aabbcc raw 0x00aabbcc
+wpa rgba ret = 0x00000004
+wpa rgba 0 = 0x44112233 raw 0x44112233
+wpa rgba 1 = 0x88556677 raw 0x88556677
+wpa rgba 2 = 0xcc99aabb raw 0xcc99aabb
+wpa rgba 3 = 0x01ddeeff raw 0x01ddeeff
+wpa argb ret = 0x00000004
+wpa argb 0 = 0x11223344 raw 0x11223344
+wpa argb 1 = 0x55667788 raw 0x55667788
+wpa argb 2 = 0x99aabbcc raw 0x99aabbcc
+wpa argb 3 = 0xddeeff01 raw 0xddeeff01
+wpa grey ret = 0x00000004
+wpa grey 0 = 0x00000000 raw 0x00000000
+wpa grey 1 = 0x00404040 raw 0x00404040
+wpa grey 2 = 0x00808080 raw 0x00808080
+wpa grey 3 = 0x00ffffff raw 0x00ffffff
+wpa lut ret = 0x00000004
+wlut ret = 0x00000004
+wlut 0 = 0x00ff0000 raw 0x00ff0000
+wlut 1 = 0x0000ff00 raw 0x0000ff00
+wlut 2 = 0x000000ff raw 0x000000ff
+wlut 3 = 0x00abcdef raw 0x00abcdef
+wlut bad fmt ret = 0x00000004
+rpa ret 0 = 0x00000008
+rpa fmt0 = ee ee ee 11 22 33 55 66 77 99 aa bb dd ee ff ee ee ee ee ee ee ee ee 22 33 44 66 77 88 aa bb cc ee ff 01 ee ee ee ee ee ee ee ee ee ee ee ee ee
+rpa ret 1 = 0x00000008
+rpa fmt1 = ee ee ee ee 11 22 33 44 55 66 77 88 99 aa bb cc dd ee ff 01 ee ee ee ee 22 33 44 11 66 77 88 55 aa bb cc 99 ee ff 01 dd ee ee ee ee ee ee ee ee
+rpa ret 2 = 0x00000008
+rpa fmt2 = ee ee ee ee 44 11 22 33 88 55 66 77 cc 99 aa bb 01 dd ee ff ee ee ee ee 11 22 33 44 55 66 77 88 99 aa bb cc dd ee ff 01 ee ee ee ee ee ee ee ee
+rpa ret 3 = 0x00000008
+rpa fmt3 = ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee
+rpa ret 4 = 0x00000008
+rpa fmt4 = ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee ee
+move ret = 0x00000008
+move 0 = 0x44112233
+move 1 = 0xddeeff01
+scale ret = 0x00000010
+scale 0 = 0x00102030
+hook calls = 1
+hook mem = TRUE
+hook mem set = TRUE
+hook offx = 0
+hook offy = 0
+hook xsize = 48
+hook ysize = 30
+hook bpr = 192
+hook bpp = 4
+hook cm = 11
+hook rp same = TRUE
+win = non-NULL
+-- window px
+prefill ret = 0x000004b0
+pixfmt = 0x00000000
+wrgb ret = 0x00000000
+rrgb = 0x00000030
+raw = 0x00000030
+fill ret = 0x00000006
+fill = 0x00000060
+fill raw = 0x00000060
+fill edge = 0x00000000
+inv ret = 0x00000002
+inv = 0x0000009f
+inv raw = 0x0000009f
+inv not = 0x00000060
+wpa rgb ret = 0x00000003
+wpa rgb 0 = 0x00000000 raw 0x00000000
+wpa rgb 1 = 0x00000000 raw 0x00000000
+wpa rgb 2 = 0x00000000 raw 0x00000000
+wpa rgba ret = 0x00000004
+wpa rgba 0 = 0x00000000 raw 0x00000000
+wpa rgba 1 = 0x00000000 raw 0x00000000
+wpa rgba 2 = 0x00000000 raw 0x00000000
+wpa rgba 3 = 0x00000000 raw 0x00000000
+wpa argb ret = 0x00000004
+wpa argb 0 = 0x00000000 raw 0x00000000
+wpa argb 1 = 0x00000000 raw 0x00000000
+wpa argb 2 = 0x00000000 raw 0x00000000
+wpa argb 3 = 0x00000000 raw 0x00000000
+wpa grey ret = 0x00000004
+wpa grey 0 = 0x00000000 raw 0x00000000
+wpa grey 1 = 0x00000000 raw 0x00000000
+wpa grey 2 = 0x00000000 raw 0x00000000
+wpa grey 3 = 0x00000000 raw 0x00000000
+wpa lut ret = 0x00000004
+wpa lut 0 = 0x00000000 raw 0x00000000
+wpa lut 1 = 0x00000001 raw 0x00000001
+wpa lut 2 = 0x00000002 raw 0x00000002
+wpa lut 3 = 0x00000003 raw 0x00000003
+wlut ret = 0x00000004
+wlut 0 = 0x00000000 raw 0x00000000
+wlut 1 = 0x00000000 raw 0x00000000
+wlut 2 = 0x00000000 raw 0x00000000
+wlut 3 = 0x00000000 raw 0x00000000
+wlut bad fmt ret = 0x00000004
+rpa ret 0 = 0x00000008
+rpa ret 1 = 0x00000008
+rpa ret 2 = 0x00000008
+rpa ret 3 = 0x00000008
+rpa ret 4 = 0x00000008
+move ret = 0x00000008
+move 0 = 0x00000000
+move 1 = 0x00000000
+scale ret = 0x00000010
+hook calls = 1
+hook mem = TRUE
+hook mem set = TRUE
+hook offx = 30
+hook offy = 40
+hook xsize = 100
+hook ysize = 60
+hook bpr = 800
+hook bpp = 1
+hook cm = 0
+hook rp same = TRUE
+clip fill ret = 0x00000028
+clip in = 0x000000ff
+clip out = 0x00000000
+screen16 = non-NULL
+-- screen16 map
+map 0x01 = 0x00000500
+map 0x02 = 0x00000002
+map 0x03 = planes0
+map 0x04 = 0x00000007
+map 0x05 = 0x00000280
+map 0x06 = 0x000001e0
+map 0x07 = 0x00000010
+map 0x08 = 0xffffffff
+map 0x09 = 0xffffffff
+map bad = 0xffffffff
+map 0 = 0xffffffff
+vpid = 0x50031100
+cyber vpid = 0xffffffff
+vctrl = 1

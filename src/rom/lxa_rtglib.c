@@ -35,7 +35,7 @@ ULONG emucall5(ULONG func, ULONG param1, ULONG param2, ULONG param3, ULONG param
          "move.l    d0, %0\n"
         : "=r" (res)
         : "r" (func), "r" (param1), "r" (param2), "r" (param3), "r" (param4), "r" (param5)
-        : "cc", "d0", "d1", "d2", "d3", "d4", "d5"
+        : "cc", "memory", "d0", "d1", "d2", "d3", "d4", "d5"   /* the host reads and writes memory */
         );
     return res;
 }

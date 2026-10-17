@@ -1148,6 +1148,9 @@ static uint32_t render(uint32_t op, uint32_t argp)
             uint32_t raw = p.b.format == 1 ? (a.fg & 0xff) : argb_to_raw(p.b.format, a.fg);
             uint32_t all = p.b.bpp >= 4 ? 0xffffffffu : (1u << (p.b.bpp * 8)) - 1;
 
+            if (a.mode & RTGM_PIXEL)    /* CGX InvertPixelArray: not the alpha byte */
+                all = px_colourbits(&p.b);
+
             if (!clip_rect(&p.b, &a.x, &a.y, &a.w, &a.h, NULL, NULL))
                 return 0;
             for (int32_t y = 0; y < a.h; y++)
@@ -1220,7 +1223,8 @@ static uint32_t render(uint32_t op, uint32_t argp)
                             v = raw;
                         else
                             v = argb_to_raw(a.fmt, raw_to_argb(p.b.format, raw) |
-                                            (p.b.format >= 6 && p.b.format <= 9 ? 0 : 0xff000000u));
+                                            ((p.b.format >= 6 && p.b.format <= 9) || (a.mode & RTGM_ALPHA) ?
+                                             0 : 0xff000000u));
                         store_raw(sa, sbpp, v);
                     }
                     else
@@ -1259,7 +1263,7 @@ static uint32_t render(uint32_t op, uint32_t argp)
                             store_raw(da, 1, pen < 0 ? 0 : (uint32_t)pen);
                         }
                         else
-                            store_raw(da, p.b.bpp, argb_to_raw(p.b.format, c & 0x00ffffffu));
+                            store_raw(da, p.b.bpp, argb_to_raw(p.b.format, op == RTG_R_ALPHA ? c & 0x00ffffffu : c));
                     }
                 }
             }

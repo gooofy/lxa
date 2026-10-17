@@ -1,0 +1,765 @@
+p96 = non-NULL
+ver = 2
+rev = 300
+neg = 260
+pos = 68
+id = "Picasso96API.library 2.300 (19.09.99)
+"
+cgx = non-NULL
+cgxver = 41
+cgxneg = 240
+rtgdata = 1
+boards = 1
+boarddata = 8
+bname = "uaegfx.card"
+cname = "not yet implemented"
+tmem = 16777216
+fmem = 16297200
+lfmem = 16297200
+monsw = 0
+rgbf = 0x00000212
+mclk = 0
+boarddata1 = -1
+-- wbbm
+bpr = 800
+rows = 600
+flags = 0x00000000
+depth = 8
+pad = 0x0000f8c1
+plane0 set
+plane1 set
+plane2 set
+plane3 0
+plane4 0
+plane5 0
+plane6 set
+plane7 0
+BMA_W = 800
+BMA_H = 600
+BMA_D = 8
+BMA_F = 0x00000000
+p96bma0 = 800
+p96bma1 = 600
+p96bma2 = 8
+p96bma4 = 800
+p96bma5 = 1
+p96bma6 = 8
+p96bma7 = 1
+p96bma8 = 1
+p96bma9 = 1
+wbid = 0x50041000
+wbdepth = 8
+p96alloc fmt=1
+-- bm
+bpr = 48
+rows = 7
+flags = 0x00000000
+depth = 8
+pad = 0x0000f8c1
+plane0 set
+plane1 set
+plane2 set
+plane3 0
+plane4 0
+plane5 0
+plane6 set
+plane7 0
+BMA_W = 48
+BMA_H = 7
+BMA_D = 8
+BMA_F = 0x00000000
+p96bma0 = 48
+p96bma1 = 7
+p96bma2 = 8
+p96bma4 = 48
+p96bma5 = 1
+p96bma6 = 8
+p96bma7 = 1
+p96bma8 = 1
+p96bma9 = 0
+userprivate
+-- bm
+bpr = 48
+rows = 7
+flags = 0x00000000
+depth = 8
+pad = 0x0000f8c1
+plane0 set
+plane1 set
+plane2 set
+plane3 0
+plane4 0
+plane5 0
+plane6 set
+plane7 0
+BMA_W = 48
+BMA_H = 7
+BMA_D = 8
+BMA_F = 0x00000000
+p96bma0 = 48
+p96bma1 = 7
+p96bma2 = 8
+p96bma4 = 48
+p96bma5 = 1
+p96bma6 = 8
+p96bma7 = 1
+p96bma8 = 1
+p96bma9 = 0
+p96alloc fmt=4
+-- bm
+bpr = 96
+rows = 7
+flags = 0x00000000
+depth = 8
+pad = 0x0000f8c4
+plane0 set
+plane1 set
+plane2 set
+plane3 0
+plane4 0
+plane5 0
+plane6 set
+plane7 set
+BMA_W = 48
+BMA_H = 7
+BMA_D = 16
+BMA_F = 0x00000000
+p96bma0 = 48
+p96bma1 = 7
+p96bma2 = 16
+p96bma4 = 96
+p96bma5 = 2
+p96bma6 = 16
+p96bma7 = 4
+p96bma8 = 1
+p96bma9 = 0
+userprivate
+-- bm
+bpr = 96
+rows = 7
+flags = 0x00000000
+depth = 8
+pad = 0x0000f8c4
+plane0 set
+plane1 set
+plane2 set
+plane3 0
+plane4 0
+plane5 0
+plane6 set
+plane7 set
+BMA_W = 48
+BMA_H = 7
+BMA_D = 16
+BMA_F = 0x00000000
+p96bma0 = 48
+p96bma1 = 7
+p96bma2 = 16
+p96bma4 = 96
+p96bma5 = 2
+p96bma6 = 16
+p96bma7 = 4
+p96bma8 = 1
+p96bma9 = 0
+p96alloc fmt=9
+-- bm
+bpr = 192
+rows = 7
+flags = 0x00000000
+depth = 8
+pad = 0x0000f8c9
+plane0 set
+plane1 set
+plane2 set
+plane3 0
+plane4 0
+plane5 0
+plane6 set
+plane7 set
+BMA_W = 48
+BMA_H = 7
+BMA_D = 24
+BMA_F = 0x00000000
+p96bma0 = 48
+p96bma1 = 7
+p96bma2 = 24
+p96bma4 = 192
+p96bma5 = 4
+p96bma6 = 32
+p96bma7 = 9
+p96bma8 = 1
+p96bma9 = 0
+userprivate
+-- bm
+bpr = 192
+rows = 7
+flags = 0x00000000
+depth = 8
+pad = 0x0000f8c9
+plane0 set
+plane1 set
+plane2 set
+plane3 0
+plane4 0
+plane5 0
+plane6 set
+plane7 set
+BMA_W = 48
+BMA_H = 7
+BMA_D = 24
+BMA_F = 0x00000000
+p96bma0 = 48
+p96bma1 = 7
+p96bma2 = 24
+p96bma4 = 192
+p96bma5 = 4
+p96bma6 = 32
+p96bma7 = 9
+p96bma8 = 1
+p96bma9 = 0
+p96alloc fmt=2
+-- bm
+bpr = 144
+rows = 7
+flags = 0x00000000
+depth = 8
+pad = 0x0000f8c2
+plane0 set
+plane1 set
+plane2 set
+plane3 0
+plane4 0
+plane5 0
+plane6 set
+plane7 set
+BMA_W = 48
+BMA_H = 7
+BMA_D = 24
+BMA_F = 0x00000000
+p96bma0 = 48
+p96bma1 = 7
+p96bma2 = 24
+p96bma4 = 144
+p96bma5 = 3
+p96bma6 = 24
+p96bma7 = 2
+p96bma8 = 1
+p96bma9 = 0
+userprivate
+-- bm
+bpr = 144
+rows = 7
+flags = 0x00000000
+depth = 8
+pad = 0x0000f8c2
+plane0 set
+plane1 set
+plane2 set
+plane3 0
+plane4 0
+plane5 0
+plane6 set
+plane7 set
+BMA_W = 48
+BMA_H = 7
+BMA_D = 24
+BMA_F = 0x00000000
+p96bma0 = 48
+p96bma1 = 7
+p96bma2 = 24
+p96bma4 = 144
+p96bma5 = 3
+p96bma6 = 24
+p96bma7 = 2
+p96bma8 = 1
+p96bma9 = 0
+p96alloc fmt=6
+-- bm
+bpr = 192
+rows = 7
+flags = 0x00000000
+depth = 8
+pad = 0x0000f8c6
+plane0 set
+plane1 set
+plane2 set
+plane3 0
+plane4 0
+plane5 0
+plane6 set
+plane7 set
+BMA_W = 48
+BMA_H = 7
+BMA_D = 24
+BMA_F = 0x00000000
+p96bma0 = 48
+p96bma1 = 7
+p96bma2 = 24
+p96bma4 = 192
+p96bma5 = 4
+p96bma6 = 32
+p96bma7 = 6
+p96bma8 = 1
+p96bma9 = 0
+userprivate
+-- bm
+bpr = 192
+rows = 7
+flags = 0x00000000
+depth = 8
+pad = 0x0000f8c6
+plane0 set
+plane1 set
+plane2 set
+plane3 0
+plane4 0
+plane5 0
+plane6 set
+plane7 set
+BMA_W = 48
+BMA_H = 7
+BMA_D = 24
+BMA_F = 0x00000000
+p96bma0 = 48
+p96bma1 = 7
+p96bma2 = 24
+p96bma4 = 192
+p96bma5 = 4
+p96bma6 = 32
+p96bma7 = 6
+p96bma8 = 1
+p96bma9 = 0
+p96alloc fmt=10
+-- bm
+bpr = 96
+rows = 7
+flags = 0x00000000
+depth = 8
+pad = 0x0000f8ca
+plane0 set
+plane1 set
+plane2 set
+plane3 0
+plane4 0
+plane5 0
+plane6 set
+plane7 set
+BMA_W = 48
+BMA_H = 7
+BMA_D = 16
+BMA_F = 0x00000000
+p96bma0 = 48
+p96bma1 = 7
+p96bma2 = 16
+p96bma4 = 96
+p96bma5 = 2
+p96bma6 = 16
+p96bma7 = 10
+p96bma8 = 1
+p96bma9 = 0
+userprivate
+-- bm
+bpr = 96
+rows = 7
+flags = 0x00000000
+depth = 8
+pad = 0x0000f8ca
+plane0 set
+plane1 set
+plane2 set
+plane3 0
+plane4 0
+plane5 0
+plane6 set
+plane7 set
+BMA_W = 48
+BMA_H = 7
+BMA_D = 16
+BMA_F = 0x00000000
+p96bma0 = 48
+p96bma1 = 7
+p96bma2 = 16
+p96bma4 = 96
+p96bma5 = 2
+p96bma6 = 16
+p96bma7 = 10
+p96bma8 = 1
+p96bma9 = 0
+p96alloc fmt=0
+-- bm
+bpr = 48
+rows = 7
+flags = 0x00000000
+depth = 8
+pad = 0x0000f8c1
+plane0 set
+plane1 set
+plane2 set
+plane3 0
+plane4 0
+plane5 0
+plane6 set
+plane7 0
+BMA_W = 48
+BMA_H = 7
+BMA_D = 8
+BMA_F = 0x00000000
+p96bma0 = 48
+p96bma1 = 7
+p96bma2 = 8
+p96bma4 = 48
+p96bma5 = 1
+p96bma6 = 8
+p96bma7 = 1
+p96bma8 = 1
+p96bma9 = 0
+userprivate
+-- bm
+bpr = 48
+rows = 7
+flags = 0x00000000
+depth = 8
+pad = 0x0000f8c1
+plane0 set
+plane1 set
+plane2 set
+plane3 0
+plane4 0
+plane5 0
+plane6 set
+plane7 0
+BMA_W = 48
+BMA_H = 7
+BMA_D = 8
+BMA_F = 0x00000000
+p96bma0 = 48
+p96bma1 = 7
+p96bma2 = 8
+p96bma4 = 48
+p96bma5 = 1
+p96bma6 = 8
+p96bma7 = 1
+p96bma8 = 1
+p96bma9 = 0
+-- p96friend
+bpr = 48
+rows = 7
+flags = 0x00000000
+depth = 8
+pad = 0x0000f8c1
+plane0 set
+plane1 set
+plane2 set
+plane3 0
+plane4 0
+plane5 0
+plane6 set
+plane7 0
+BMA_W = 48
+BMA_H = 7
+BMA_D = 8
+BMA_F = 0x00000000
+p96bma0 = 48
+p96bma1 = 7
+p96bma2 = 8
+p96bma4 = 48
+p96bma5 = 1
+p96bma6 = 8
+p96bma7 = 1
+p96bma8 = 1
+p96bma9 = 1
+-- gfxfriend8
+bpr = 48
+rows = 7
+flags = 0x00000000
+depth = 8
+pad = 0x0000f8c1
+plane0 set
+plane1 set
+plane2 set
+plane3 0
+plane4 0
+plane5 0
+plane6 set
+plane7 0
+BMA_W = 48
+BMA_H = 7
+BMA_D = 8
+BMA_F = 0x00000000
+p96bma0 = 48
+p96bma1 = 7
+p96bma2 = 8
+p96bma4 = 48
+p96bma5 = 1
+p96bma6 = 8
+p96bma7 = 1
+p96bma8 = 1
+p96bma9 = 1
+-- gfxfriend3
+bpr = 48
+rows = 7
+flags = 0x00000000
+depth = 3
+pad = 0x0000f8c1
+plane0 set
+plane1 set
+plane2 set
+plane3 0
+plane4 0
+plane5 0
+plane6 set
+plane7 0
+BMA_W = 48
+BMA_H = 7
+BMA_D = 3
+BMA_F = 0x00000000
+p96bma0 = 48
+p96bma1 = 7
+p96bma2 = 3
+p96bma4 = 48
+p96bma5 = 1
+p96bma6 = 8
+p96bma7 = 1
+p96bma8 = 1
+p96bma9 = 1
+-- gfx24
+bpr = 6
+rows = 7
+flags = 0x00000000
+depth = 24
+pad = 0x00000000
+plane0 set
+plane1 set
+plane2 set
+plane3 set
+plane4 set
+plane5 set
+plane6 set
+plane7 set
+BMA_W = 48
+BMA_H = 7
+BMA_D = 24
+BMA_F = 0x00000008
+p96bma0 = 0
+p96bma1 = 0
+p96bma2 = 0
+p96bma4 = 0
+p96bma5 = 0
+p96bma6 = 0
+p96bma7 = 0
+p96bma8 = 0
+p96bma9 = 0
+-- gfx16friend
+bpr = 48
+rows = 7
+flags = 0x00000000
+depth = 8
+pad = 0x0000f8c1
+plane0 set
+plane1 set
+plane2 set
+plane3 0
+plane4 0
+plane5 0
+plane6 set
+plane7 0
+BMA_W = 48
+BMA_H = 7
+BMA_D = 8
+BMA_F = 0x00000000
+p96bma0 = 48
+p96bma1 = 7
+p96bma2 = 8
+p96bma4 = 48
+p96bma5 = 1
+p96bma6 = 8
+p96bma7 = 1
+p96bma8 = 1
+p96bma9 = 1
+-- gfx8nofriend
+bpr = 6
+rows = 7
+flags = 0x00000000
+depth = 8
+pad = 0x00000000
+plane0 set
+plane1 set
+plane2 set
+plane3 set
+plane4 set
+plane5 set
+plane6 set
+plane7 set
+BMA_W = 48
+BMA_H = 7
+BMA_D = 8
+BMA_F = 0x00000008
+p96bma0 = 0
+p96bma1 = 0
+p96bma2 = 0
+p96bma4 = 0
+p96bma5 = 0
+p96bma6 = 0
+p96bma7 = 0
+p96bma8 = 0
+p96bma9 = 0
+-- gfx24special0
+bpr = 48
+rows = 7
+flags = 0x00000000
+depth = 8
+pad = 0x0000f8c1
+plane0 set
+plane1 set
+plane2 set
+plane3 0
+plane4 0
+plane5 0
+plane6 set
+plane7 0
+BMA_W = 48
+BMA_H = 7
+BMA_D = 8
+BMA_F = 0x00000000
+p96bma0 = 48
+p96bma1 = 7
+p96bma2 = 8
+p96bma4 = 48
+p96bma5 = 1
+p96bma6 = 8
+p96bma7 = 1
+p96bma8 = 1
+p96bma9 = 0
+-- gfx24specialARGB
+bpr = 192
+rows = 7
+flags = 0x00000000
+depth = 8
+pad = 0x0000f8c6
+plane0 set
+plane1 set
+plane2 set
+plane3 0
+plane4 0
+plane5 0
+plane6 set
+plane7 set
+BMA_W = 48
+BMA_H = 7
+BMA_D = 24
+BMA_F = 0x00000000
+p96bma0 = 48
+p96bma1 = 7
+p96bma2 = 24
+p96bma4 = 192
+p96bma5 = 4
+p96bma6 = 32
+p96bma7 = 6
+p96bma8 = 1
+p96bma9 = 0
+mode 0x50041000
+ ida0 = 800
+ ida1 = 600
+ ida2 = 8
+ ida3 = 1
+ ida4 = 8
+ ida5 = 1
+ ida6 = 1
+ ida7 = 0
+ ida8 = 800
+ boardname = "uaegfx.card"
+ ida10 = 13246
+ ida11 = 0
+ ida12 = 0
+ ida13 = 0
+mode 0x50041100
+ ida0 = 800
+ ida1 = 600
+ ida2 = 16
+ ida3 = 2
+ ida4 = 16
+ ida5 = 4
+ ida6 = 1
+ ida7 = 0
+ ida8 = 1600
+ boardname = "uaegfx.card"
+ ida10 = 13246
+ ida11 = 0
+ ida12 = 0
+ ida13 = 0
+mode 0x50041303
+ ida0 = 800
+ ida1 = 600
+ ida2 = 32
+ ida3 = 4
+ ida4 = 24
+ ida5 = 9
+ ida6 = 1
+ ida7 = 0
+ ida8 = 3200
+ boardname = "uaegfx.card"
+ ida10 = 13246
+ ida11 = 0
+ ida12 = 0
+ ida13 = 0
+mode 0xfff01000
+ ida0 = 320
+ ida1 = 200
+ ida2 = 8
+ ida3 = 1
+ ida4 = 8
+ ida5 = 1
+ ida6 = 1
+ ida7 = 0
+ ida8 = 320
+ boardname = "uaegfx.card"
+ ida10 = 13246
+ ida11 = 0
+ ida12 = 0
+ ida13 = 0
+mode 0x00029000
+ ida0 = 0
+ ida1 = 0
+ ida2 = 0
+ ida3 = 0
+ ida4 = 0
+ ida5 = 0
+ ida6 = 0
+ ida7 = 0
+ ida8 = 0
+ boardname = NULL
+ ida10 = 0
+ ida11 = 0
+ ida12 = 0
+ ida13 = 0
+mode 0x12345678
+ ida0 = 0
+ ida1 = 0
+ ida2 = 0
+ ida3 = 0
+ ida4 = 0
+ ida5 = 0
+ ida6 = 0
+ ida7 = 0
+ ida8 = 0
+ boardname = NULL
+ ida10 = 0
+ ida11 = 0
+ ida12 = 0
+ ida13 = 0
+enc 0 0x000000ff 0x00000000 0x00000000 0x00000012 0x00000080
+enc 1 0x000000ff 0x00000000 0x00000000 0x00000012 0x00000080
+enc 2 0x000000ff 0x0000ff00 0x00ff0000 0x00563412 0x00808080
+enc 3 0x00ff0000 0x0000ff00 0x000000ff 0x00123456 0x00808080
+enc 4 0x00f800f8 0xe007e007 0x1f001f00 0xaa11aa11 0x10841084
+enc 5 0x007c007c 0xe003e003 0x1f001f00 0xca08ca08 0x10421042
+enc 6 0x000000ff 0x0000ff00 0x00ff0000 0x00563412 0x00808080
+enc 7 0x00ff0000 0x0000ff00 0x000000ff 0x00123456 0x00808080
+enc 8 0xff000000 0x00ff0000 0x0000ff00 0x12345600 0x80808000
+enc 9 0x0000ff00 0x00ff0000 0xff000000 0x56341200 0x80808000
+enc 10 0xf800f800 0x07e007e0 0x001f001f 0x11aa11aa 0x84108410
+enc 11 0x7c007c00 0x03e003e0 0x001f001f 0x08ca08ca 0x42104210
+enc 12 0x1f001f00 0xe007e007 0x00f800f8 0xa251a251 0x10841084
+enc 13 0x1f001f00 0xe003e003 0x007c007c 0xc228c228 0x10421042
+enc 14 0x4cff4c54 0x9515952b 0x1d6b1dff 0x2d6c2d96 0x7f807f80
+enc 15 0x4a52957f 0x94a52285 0x18c63fda 0x294a595b 0x7bdef820

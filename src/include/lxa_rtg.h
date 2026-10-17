@@ -94,9 +94,10 @@
 #define RTGA_SIZE    60
 
 /* RTGA_MODE extra flags */
-#define RTGM_PIXEL   0x10000    /* WritePixel COMPLEMENT: only the colour bytes */
+#define RTGM_PIXEL   0x10000    /* WritePixel COMPLEMENT, INVERT: only the colour bytes */
 #define RTGM_ARRAYMASK 0x20000  /* READ8: mask pens with the bitmap depth */
-#define RTGM_ALPHA   0x40000    /* READPIXELRGB: keep the alpha byte of the pixel */
+#define RTGM_ALPHA   0x40000    /* READPIXELRGB: keep the alpha byte of the pixel;
+                                 * READRGB: alpha 0 (not 0xff) from bitmaps without alpha */
 
 /* RTGA_FMT for WRITERGB/READRGB: an RGBFTYPE, or one of these (CGX RECTFMT) */
 #define RTG_FMT_CGX_BASE    0x100

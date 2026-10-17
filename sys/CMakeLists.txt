@@ -91,6 +91,12 @@ add_disk_library(p96_disklib Picasso96API.library
         ${CMAKE_CURRENT_SOURCE_DIR}/../src/rom/lxa_rtglib.c
 )
 
+add_disk_library(cgx_disklib cybergraphics.library
+    SOURCES
+        ${CMAKE_CURRENT_SOURCE_DIR}/../src/rom/lxa_cgx.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/../src/rom/lxa_rtglib.c
+)
+
 # req.library, reqtools.library, powerpacker.library, arp.library are
 # third-party libraries (not shipped with AmigaOS by Commodore).
 # Real binaries are installed to share/lxa/System/Libs/ from others/.
