@@ -1,0 +1,13 @@
+# Phase 243: gallery-easyrequest on the `rtg` reference profile (Picasso96, the
+# Workbench in UAE 800x600 8 bit) - generated from gallery-easyrequest.yaml.
+# Rendering conformance gallery (Phase 223): an EasyRequest requester.
+name: gallery-rtg-easyrequest
+profile: rtg
+app:
+  sample: Tests/Gallery/Req
+steps:
+  - launch
+  - wait_window: "Gallery Request"
+  - wait_idle
+  - snapshot: {name: requester, window: "Gallery Request"}
+  - quit

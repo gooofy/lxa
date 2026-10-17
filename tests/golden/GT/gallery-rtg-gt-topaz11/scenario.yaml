@@ -1,0 +1,16 @@
+# Phase 243: gallery-gt-topaz11 on the `rtg` reference profile (Picasso96, the
+# Workbench in UAE 800x600 8 bit) - generated from gallery-gt-topaz11.yaml.
+# Rendering conformance gallery (Phase 223): every GadTools kind x state with the
+# Workbench 3.1 disk font topaz 11 (FONTS:topaz/11).
+name: gallery-rtg-gt-topaz11
+profile: rtg
+fonts: wb31
+app:
+  sample: Tests/Gallery/GT
+  args: "topaz.font 11"
+steps:
+  - launch
+  - wait_window: "GT Gallery"
+  - wait_idle
+  - snapshot: {name: page, window: "GT Gallery"}
+  - quit

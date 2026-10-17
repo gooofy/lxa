@@ -1,0 +1,14 @@
+# Phase 243: gallery-screen-lores on the `rtg` reference profile (Picasso96, the
+# Workbench in UAE 800x600 8 bit) - generated from gallery-screen-lores.yaml.
+# Rendering conformance gallery (Phase 223): a lores custom screen with SA_Pens.
+name: gallery-rtg-screen-lores
+profile: rtg
+app:
+  sample: Tests/Gallery/Screen
+  args: "lores"
+steps:
+  - launch
+  - wait_window: "Screen Win"
+  - wait_idle
+  - snapshot: screen
+  - quit

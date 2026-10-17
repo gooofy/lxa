@@ -1,0 +1,8 @@
+result=0
+sm_DisplayID=00029004
+sm_DisplayWidth=640 sm_DisplayHeight=200 sm_DisplayDepth=2
+sm_OverscanType=1 sm_AutoScroll=1
+sm_BitMapWidth=0 sm_BitMapHeight=0
+sm_Left/Top/Width/Height=30,20,318,198
+sm_InfoOpened=1 sm_Info=16,25,318,198
+DONE

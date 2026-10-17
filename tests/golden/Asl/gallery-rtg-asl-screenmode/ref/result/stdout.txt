@@ -1,0 +1,8 @@
+result=1
+sm_DisplayID=00029000
+sm_DisplayWidth=640 sm_DisplayHeight=256 sm_DisplayDepth=3
+sm_OverscanType=1 sm_AutoScroll=1
+sm_BitMapWidth=0 sm_BitMapHeight=256
+sm_Left/Top/Width/Height=30,20,318,198
+sm_InfoOpened=0 sm_Info=16,25,280,84
+DONE

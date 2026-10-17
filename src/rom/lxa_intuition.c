@@ -15412,6 +15412,8 @@ struct Screen * _intuition_OpenScreenTagList ( register struct IntuitionBase * I
     BYTE sys_font = -1;
     BOOL full_palette = FALSE;
     BYTE interleaved = -1;
+    BOOL like_wb = FALSE;
+    UBYTE given = 0;    /* tags given: 1 width, 2 height, 4 depth, 8 display ID, 16 autoscroll */
 
     tag_lists[0] = NULL;
     tag_lists[1] = tagList;
@@ -15460,12 +15462,15 @@ struct Screen * _intuition_OpenScreenTagList ( register struct IntuitionBase * I
                     break;
                 case SA_Width:
                     ns.Width = (WORD)tag->ti_Data;
+                    given |= 1;
                     break;
                 case SA_Height:
                     ns.Height = (WORD)tag->ti_Data;
+                    given |= 2;
                     break;
                 case SA_Depth:
                     ns.Depth = (WORD)tag->ti_Data;
+                    given |= 4;
                     break;
                 case SA_DetailPen:
                     ns.DetailPen = (UBYTE)tag->ti_Data;
@@ -15499,6 +15504,7 @@ struct Screen * _intuition_OpenScreenTagList ( register struct IntuitionBase * I
                         ns.Type &= ~SHOWTITLE;
                     break;
                 case SA_AutoScroll:
+                    given |= 16;
                     if (tag->ti_Data)
                         ns.Type |= AUTOSCROLL;
                     else
@@ -15524,6 +15530,7 @@ struct Screen * _intuition_OpenScreenTagList ( register struct IntuitionBase * I
                      */
                     sa_display_id = (ULONG)tag->ti_Data;
                     ns.ViewModes = (UWORD)(tag->ti_Data & 0xFFFF);
+                    given |= 8;
                     break;
                 case SA_Pens:
                     /* SA_Pens handled in second pass after screen is open */
@@ -15539,6 +15546,7 @@ struct Screen * _intuition_OpenScreenTagList ( register struct IntuitionBase * I
                      * bitmap is interleaved (probe graphics/bmattr) */
                     if (tag->ti_Data)
                     {
+                        like_wb = TRUE;
                         share_pens = TRUE;
                         ns.ViewModes |= HIRES;
                         if (interleaved < 0)
@@ -15588,6 +15596,31 @@ struct Screen * _intuition_OpenScreenTagList ( register struct IntuitionBase * I
         }
     }
     
+    /* SA_LikeWorkbench: the Workbench's mode, size, depth and autoscroll
+     * from the screen mode preferences, unless given by tags (AmigaOS 3.1
+     * `rtg` reference: gallery-rtg-menus opens 800x600 in the uaegfx mode) */
+    if (like_wb)
+    {
+        struct LXAIntuitionBase *ibase = (struct LXAIntuitionBase *)IntuitionBase;
+        if (ibase->HasScreenModePrefs)
+        {
+            const struct LxaIScreenModePrefs *sm = &ibase->ScreenModePrefs;
+            if (!(given & 8))
+            {
+                sa_display_id = sm->smp_DisplayID;
+                ns.ViewModes = (UWORD)(sm->smp_DisplayID & 0xffff);
+            }
+            if (!(given & 1) && sm->smp_Width != (UWORD)~0 && sm->smp_Width)
+                ns.Width = (WORD)sm->smp_Width;
+            if (!(given & 2) && sm->smp_Height != (UWORD)~0 && sm->smp_Height)
+                ns.Height = (WORD)sm->smp_Height;
+            if (!(given & 4) && sm->smp_Depth)
+                ns.Depth = sm->smp_Depth;
+            if (!(given & 16) && (sm->smp_Control & 1))     /* SMF_AUTOSCROLL */
+                ns.Type |= AUTOSCROLL;
+        }
+    }
+
     /* AmigaOS 3.1 reference (tests/probes/intuition/screenmodes): a
      * display ID the machine does not have fails the open - IDs of an
      * unknown monitor (RTG, DblPAL without DEVS:Monitors) with
