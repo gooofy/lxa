@@ -29,6 +29,7 @@
 #include "rootless_layout.h"
 #include "util.h"
 #include "m68k.h"
+#include "lxa_rtg_host.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -72,6 +73,11 @@ struct display_t
     uint32_t      amiga_planes_ptr;  /* Pointer to BitMap.Planes[] array in emulated RAM */
     uint32_t      amiga_bpr;         /* Bytes per row in bitmap */
     uint32_t      amiga_depth;       /* Number of bitplanes */
+
+    /* RTG truecolor screen (Phase 241): 0x00RRGGBB per pixel, valid while
+     * rgb_valid; pixels[] then holds the nearest pens (reverse lookup) */
+    uint32_t     *rgb;
+    bool          rgb_valid;
 };
 
 /*
@@ -100,6 +106,9 @@ struct display_window_t
     uint32_t      amiga_window_ptr;
     char          title[256];
     uint8_t      *pixels;         /* Chunky pixel buffer */
+    uint32_t     *rgb;            /* RTG truecolor screen: 0x00RRGGBB, rgb_w x rgb_h */
+    int           rgb_w, rgb_h;
+    bool          rgb_valid;
     uint32_t      palette[DISPLAY_MAX_COLORS];  /* Local palette if no screen */
     bool          dirty;
     bool          in_use;         /* Slot is active */
@@ -171,6 +180,108 @@ static uint32_t display_palette_argb(const uint32_t *palette, uint8_t idx)
         return display_palette_fallback_argb(idx);
 
     return argb;
+}
+
+/* colour of pixel i: the RTG truecolor value, else the pen's palette entry */
+static inline uint32_t display_px_argb(const uint8_t *pixels, const uint32_t *rgb,
+                                       const uint32_t *palette, size_t i)
+{
+    if (rgb)
+        return 0xFF000000u | rgb[i];
+    return display_palette_argb(palette, pixels[i]);
+}
+
+/* The screen bitmap of a display is an RTG (chunky) bitmap: the planes
+ * pointer is &BitMap.Planes[0] */
+static bool display_rtg_bitmap(display_t *display, rtg_bitmap_t *out)
+{
+    if (!display || !display->amiga_planes_ptr || display->amiga_planes_ptr < 8)
+        return false;
+    return rtg_bitmap_get(display->amiga_planes_ptr - 8, out);
+}
+
+/*
+ * display_update_rtg - convert a rectangle of an RTG screen bitmap for the
+ * host: CLUT formats give pens, truecolor formats give 0x00RRGGBB values
+ * (kept in display->rgb) plus the nearest pens for pen-based readers.
+ */
+void display_update_rtg(display_t *display, int x, int y, int width, int height)
+{
+    rtg_bitmap_t b;
+
+    if (!display || !display->pixels || !display_rtg_bitmap(display, &b))
+        return;
+    if (x < 0) { width += x; x = 0; }
+    if (y < 0) { height += y; y = 0; }
+    if (x + width > display->width)
+        width = display->width - x;
+    if (y + height > display->height)
+        height = display->height - y;
+    if (width <= 0 || height <= 0)
+        return;
+
+    if (b.format != 1)
+    {
+        if (!display->rgb)
+            display->rgb = calloc((size_t)display->width * (size_t)display->height, sizeof(uint32_t));
+        if (!display->rgb)
+            return;
+        display->rgb_valid = true;
+    }
+    else
+    {
+        display->rgb_valid = false;
+    }
+
+    for (int row = y; row < y + height; row++)
+    {
+        size_t off = (size_t)row * (size_t)display->width + (size_t)x;
+        rtg_read_row_pens(&b, row, x, width, display->pixels + off);
+        if (display->rgb_valid)
+            rtg_read_row_rgb(&b, row, x, width, display->rgb + off);
+    }
+
+    if (!display->dirty)
+    {
+        display->dirty_row_min = y;
+        display->dirty_row_max = y + height - 1;
+    }
+    else
+    {
+        if (y < display->dirty_row_min) display->dirty_row_min = y;
+        if (y + height - 1 > display->dirty_row_max) display->dirty_row_max = y + height - 1;
+    }
+    display->dirty = true;
+}
+
+/*
+ * display_sync_from_amiga - bring display->pixels up to date with the
+ * screen bitmap in emulated memory (planar or RTG).
+ */
+bool display_sync_from_amiga(display_t *display)
+{
+    const uint8_t *planes[8] = {0};
+    rtg_bitmap_t b;
+
+    if (!display || !display->amiga_planes_ptr)
+        return false;
+
+    if (display_rtg_bitmap(display, &b))
+    {
+        display_update_rtg(display, 0, 0, display->width, display->height);
+        return true;
+    }
+
+    display->rgb_valid = false;
+    for (uint32_t p = 0; p < display->amiga_depth && p < 8; p++)
+    {
+        uint32_t addr = m68k_read_memory_32(display->amiga_planes_ptr + p * 4);
+        if (addr && addr < LXA_RAM_SIZE)
+            planes[p] = &g_ram[addr];
+    }
+    display_update_planar(display, 0, 0, display->width, display->height,
+                          planes, (int)display->amiga_bpr, (int)display->amiga_depth);
+    return true;
 }
 
 #define DISPLAY_NODE_SUCC_OFFSET 0
@@ -461,6 +572,43 @@ static void display_window_sync_from_screen(display_window_t *window)
     }
 
     display_get_size(window->screen, &screen_width, &screen_height, &screen_depth);
+
+    {
+        rtg_bitmap_t rb;
+        if (display_rtg_bitmap(window->screen, &rb))
+        {
+            /* RTG screen: copy the converted screen pixels */
+            display_update_rtg(window->screen, 0, 0, screen_width, screen_height);
+            if (window->screen->rgb_valid &&
+                (!window->rgb || window->rgb_w != window->width || window->rgb_h != window->height))
+            {
+                free(window->rgb);
+                window->rgb = calloc((size_t)window->width * (size_t)window->height, sizeof(uint32_t));
+                window->rgb_w = window->width;
+                window->rgb_h = window->height;
+            }
+            window->rgb_valid = window->screen->rgb_valid && window->rgb;
+            for (int wy = 0; wy < window->height; wy++)
+            {
+                int sy = window->host_y + wy;
+                for (int wx = 0; wx < window->width; wx++)
+                {
+                    int sx = window->host_x + wx;
+                    size_t di = (size_t)wy * (size_t)window->width + (size_t)wx;
+                    size_t si;
+                    if (sx < 0 || sy < 0 || sx >= screen_width || sy >= screen_height)
+                        continue;
+                    si = (size_t)sy * (size_t)screen_width + (size_t)sx;
+                    window->pixels[di] = window->screen->pixels[si];
+                    if (window->rgb_valid)
+                        window->rgb[di] = window->screen->rgb[si];
+                }
+            }
+            window->dirty = true;
+            return;
+        }
+        window->rgb_valid = false;
+    }
 
     if (screen_width <= 0 || screen_height <= 0 || bpr == 0 || depth == 0)
     {
@@ -800,6 +948,7 @@ void display_close(display_t *display)
 #endif
 
     free(display->pixels);
+    free(display->rgb);
     free(display);
 }
 
@@ -1147,10 +1296,12 @@ void display_refresh(display_t *display)
             for (int row = 0; row < dirty_height; row++)
             {
                 uint32_t *dst = argb_buf + (size_t)row * display->width;
-                const uint8_t *src = display->pixels + (size_t)(row_min + row) * display->width;
+                size_t base = (size_t)(row_min + row) * display->width;
+                const uint32_t *rgb = display->rgb_valid ? display->rgb + base : NULL;
+                const uint8_t *src = display->pixels + base;
                 for (int x = 0; x < display->width; x++)
                 {
-                    dst[x] = display_palette_argb(display->palette, src[x]);
+                    dst[x] = display_px_argb(src, rgb, display->palette, (size_t)x);
                 }
             }
 
@@ -1176,8 +1327,9 @@ void display_refresh(display_t *display)
                 {
                     uint32_t *dst = (uint32_t *)((uint8_t *)tex_pixels + y * tex_pitch);
                     const uint8_t *src = display->pixels + y * display->width;
+                    const uint32_t *rgb = display->rgb_valid ? display->rgb + (size_t)y * display->width : NULL;
                     for (int x = 0; x < display->width; x++)
-                        dst[x] = display_palette_argb(display->palette, src[x]);
+                        dst[x] = display_px_argb(src, rgb, display->palette, (size_t)x);
                 }
                 SDL_UnlockTexture(display->texture);
             }
@@ -2028,6 +2180,7 @@ void display_window_close(display_window_t *window)
 #endif
 
     free(window->pixels);
+    free(window->rgb);
     memset(window, 0, sizeof(*window));
     /* in_use is already false from memset */
 }
@@ -2200,10 +2353,11 @@ void display_window_refresh(display_window_t *window)
             {
                 uint32_t *dst = (uint32_t *)((uint8_t *)tex_pixels + y * tex_pitch);
                 uint8_t *src = window->pixels + y * window->width;
+                const uint32_t *rgb = window->rgb_valid ? window->rgb + (size_t)y * window->width : NULL;
 
                 for (int x = 0; x < window->width; x++)
                 {
-                    dst[x] = display_palette_argb(palette, src[x]);
+                    dst[x] = display_px_argb(src, rgb, palette, (size_t)x);
                 }
             }
 
@@ -2688,6 +2842,7 @@ static bool display_write_png_file(const char *filename,
                                    int width,
                                    int height,
                                    const uint8_t *pixels,
+                                   const uint32_t *rgb,
                                    const uint32_t *palette)
 {
     FILE *f = NULL;
@@ -2750,8 +2905,7 @@ static bool display_write_png_file(const char *filename,
         for (int x = 0; x < width; x++)
         {
             size_t pixel_index = (size_t)y * (size_t)width + (size_t)x;
-            uint8_t idx = pixels[pixel_index];
-            uint32_t color = display_palette_argb(palette, idx);
+            uint32_t color = display_px_argb(pixels, rgb, palette, pixel_index);
             size_t rgb_index = (size_t)x * 3u;
 
             row[rgb_index] = (uint8_t)((color >> 16) & 0xFF);
@@ -2916,20 +3070,7 @@ bool display_capture_screen(display_t *display, const char *filename)
     /* Sync display->pixels from the Amiga planar bitmap so that headless
      * captures reflect the current emulated screen state. */
     {
-        uint32_t planes_ptr, bpr, depth;
-        if (display_get_amiga_bitmap(display, &planes_ptr, &bpr, &depth))
-        {
-            const uint8_t *planes[8] = {0};
-            for (uint32_t p = 0; p < depth && p < 8; p++)
-            {
-                uint32_t addr = m68k_read_memory_32(planes_ptr + p * 4);
-                if (addr && addr < LXA_RAM_SIZE)
-                    planes[p] = &g_ram[addr];
-            }
-            display_update_planar(display, 0, 0, display->width, display->height,
-                                  planes, (int)bpr, (int)depth);
-        }
-        else
+        if (!display_sync_from_amiga(display))
         {
             LPRINTF(LOG_INFO, "display: screen sync skipped (no amiga bitmap info)\n");
         }
@@ -2939,6 +3080,7 @@ bool display_capture_screen(display_t *display, const char *filename)
                                 display->width,
                                 display->height,
                                 display->pixels,
+                                display->rgb_valid ? display->rgb : NULL,
                                 display->palette))
         return false;
     
@@ -2977,6 +3119,7 @@ bool display_capture_window(display_window_t *window, const char *filename)
                                 window->width,
                                 window->height,
                                 window->pixels,
+                                window->rgb_valid ? window->rgb : NULL,
                                 palette))
         return false;
     
@@ -3411,8 +3554,10 @@ bool display_read_pixel_rgb(int x, int y, uint8_t *r, uint8_t *g, uint8_t *b)
     if (!r || !g || !b)
         return false;
     
-    int idx = g_active_display->pixels[y * g_active_display->width + x];
-    uint32_t argb = display_palette_argb(g_active_display->palette, (uint8_t)idx);
+    uint32_t argb = display_px_argb(g_active_display->pixels,
+                                    g_active_display->rgb_valid ? g_active_display->rgb : NULL,
+                                    g_active_display->palette,
+                                    (size_t)y * g_active_display->width + x);
     
     /* ARGB format: 0xAARRGGBB */
     *r = (argb >> 16) & 0xFF;

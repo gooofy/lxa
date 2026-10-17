@@ -26,7 +26,10 @@
 #include "lxa_rtg_host.h"
 
 extern uint8_t g_ram[];
-#define RTG_RAM_SIZE (10u * 1024u * 1024u)
+extern uint8_t g_z3ram[];
+#define RTG_RAM_SIZE (10u * 1024u * 1024u)          /* RAM_SIZE (lxa_internal.h) */
+#define RTG_Z3_START 0x40000000u                    /* Z3RAM_START */
+#define RTG_Z3_SIZE  (8u * 1024u * 1024u)           /* Z3RAM_SIZE */
 
 #define INVALID_ID 0xffffffffu
 
@@ -61,51 +64,66 @@ void rtg_reset(void)
 /* ------------------------------------------------------------------ */
 /* emulated memory                                                     */
 
+/* host pointer to n bytes of emulated RAM at a (chip RAM or Zorro III
+ * fast RAM), NULL if the range is not RAM */
+static inline uint8_t *ram_ptr(uint32_t a, uint32_t n)
+{
+    if (a < RTG_RAM_SIZE && n <= RTG_RAM_SIZE - a)
+        return &g_ram[a];
+    if (a >= RTG_Z3_START && a - RTG_Z3_START < RTG_Z3_SIZE && n <= RTG_Z3_SIZE - (a - RTG_Z3_START))
+        return &g_z3ram[a - RTG_Z3_START];
+    return NULL;
+}
+
 static inline bool ram_ok(uint32_t a, uint32_t n)
 {
-    return a < RTG_RAM_SIZE && n <= RTG_RAM_SIZE - a;
+    return ram_ptr(a, n) != NULL;
 }
 
 static inline uint32_t rd8(uint32_t a)
 {
-    return a < RTG_RAM_SIZE ? g_ram[a] : 0;
+    uint8_t *p = ram_ptr(a, 1);
+    return p ? p[0] : 0;
 }
 
 static inline uint32_t rd16(uint32_t a)
 {
-    return ram_ok(a, 2) ? ((uint32_t)g_ram[a] << 8) | g_ram[a + 1] : 0;
+    uint8_t *p = ram_ptr(a, 2);
+    return p ? ((uint32_t)p[0] << 8) | p[1] : 0;
 }
 
 static inline uint32_t rd32(uint32_t a)
 {
-    return ram_ok(a, 4) ? ((uint32_t)g_ram[a] << 24) | ((uint32_t)g_ram[a + 1] << 16) |
-                          ((uint32_t)g_ram[a + 2] << 8) | g_ram[a + 3]
-                        : 0;
+    uint8_t *p = ram_ptr(a, 4);
+    return p ? ((uint32_t)p[0] << 24) | ((uint32_t)p[1] << 16) | ((uint32_t)p[2] << 8) | p[3] : 0;
 }
 
 static inline void wr8(uint32_t a, uint32_t v)
 {
-    if (a < RTG_RAM_SIZE)
-        g_ram[a] = (uint8_t)v;
+    uint8_t *p = ram_ptr(a, 1);
+    if (p)
+        p[0] = (uint8_t)v;
 }
 
 static inline void wr16(uint32_t a, uint32_t v)
 {
-    if (ram_ok(a, 2))
+    uint8_t *p = ram_ptr(a, 2);
+    if (p)
     {
-        g_ram[a] = (uint8_t)(v >> 8);
-        g_ram[a + 1] = (uint8_t)v;
+        p[0] = (uint8_t)(v >> 8);
+        p[1] = (uint8_t)v;
     }
 }
 
 static inline void wr32(uint32_t a, uint32_t v)
 {
-    if (ram_ok(a, 4))
+    uint8_t *p = ram_ptr(a, 4);
+    if (p)
     {
-        g_ram[a] = (uint8_t)(v >> 24);
-        g_ram[a + 1] = (uint8_t)(v >> 16);
-        g_ram[a + 2] = (uint8_t)(v >> 8);
-        g_ram[a + 3] = (uint8_t)v;
+        p[0] = (uint8_t)(v >> 24);
+        p[1] = (uint8_t)(v >> 16);
+        p[2] = (uint8_t)(v >> 8);
+        p[3] = (uint8_t)v;
     }
 }
 
@@ -318,7 +336,7 @@ static uint32_t mode_info(uint32_t id, uint32_t tag, uint32_t buf, uint32_t size
         n = size;
     if (!ram_ok(buf, n))
         return 0;
-    memcpy(&g_ram[buf], q, n);
+    memcpy(ram_ptr(buf, n), q, n);
     return n;
 }
 
@@ -424,6 +442,89 @@ static uint32_t read_tag(uint32_t *tagp, uint32_t *data)
         }
     }
     return 0;
+}
+
+/* ------------------------------------------------------------------ */
+/* p96BestModeIDTagList()                                              */
+
+#define P96BID_FORMATSALLOWED   0x80000061u
+#define P96BID_FORMATSFORBIDDEN 0x80000062u
+#define P96BID_NOMINALWIDTH     0x80000063u
+#define P96BID_NOMINALHEIGHT    0x80000064u
+#define P96BID_DEPTH            0x80000065u
+
+/*
+ * Picasso96 takes the shallowest pixel format that is allowed and holds
+ * the depth, then the resolution that fits the nominal size best: a
+ * size above the nominal one costs more than one below it, a wrong height
+ * more than a wrong width (fitted to 667 reference queries, 610 equal;
+ * exact equivalence is Phase 249).
+ */
+static uint32_t p96_best_mode(uint32_t tags)
+{
+    uint32_t allowed = 0xffffffffu, forbidden = 0, depth = 8, nw = 1, nh = 1, t, d;
+    uint32_t best = INVALID_ID, best_s = 0;
+    int fbest = -1;
+
+    while (tags && (t = read_tag(&tags, &d)) != 0)
+    {
+        switch (t)
+        {
+            case P96BID_FORMATSALLOWED: allowed = d; break;
+            case P96BID_FORMATSFORBIDDEN: forbidden = d; break;
+            case P96BID_NOMINALWIDTH: nw = d ? d : 1; break;
+            case P96BID_NOMINALHEIGHT: nh = d ? d : 1; break;
+            case P96BID_DEPTH: depth = d; break;
+            default: break;
+        }
+    }
+    for (int f = 0; f < NUM_FMT; f++)
+    {
+        uint32_t bit = 1u << s_fmt[f].format;
+        if (!(allowed & bit) || (forbidden & bit) || s_fmt[f].ida_depth < depth)
+            continue;
+        if (fbest < 0 || s_fmt[f].ida_depth < s_fmt[fbest].ida_depth)
+            fbest = f;
+    }
+    if (fbest < 0)
+        return INVALID_ID;
+    for (int r = 0; r < RES_P96MODE; r++)
+    {
+        uint32_t w = s_res[r].w, h = s_res[r].h, s;
+        s = (w >= nw ? 6 * (w - nw) : 3 * (nw - w)) + (h >= nh ? 8 * (h - nh) : 6 * (nh - h));
+        if (best == INVALID_ID || s < best_s)
+        {
+            best = mode_id(r, fbest);
+            best_s = s;
+        }
+    }
+    return best;
+}
+
+/* P96Mode.Description of a board mode */
+static uint32_t p96_mode_desc(uint32_t id, uint32_t buf, uint32_t size)
+{
+    char tmp[64];
+    const char *kind;
+    int r, f, n;
+
+    if (!mode_lookup(id, &r, &f) || r == RES_P96MODE || !size || !ram_ok(buf, size))
+        return 0;
+    switch (s_fmt[f].format)
+    {
+        case 1: kind = "PseudoColor"; break;
+        case 9: kind = "TrueColor BGRA"; break;
+        default: kind = "HiColor RGBPC"; break;
+    }
+    n = snprintf(tmp, sizeof(tmp), "uaegfx.card:%4dx%-4d%3d bit %s", s_res[r].w, s_res[r].h,
+                 s_fmt[f].ida_depth, kind);
+    if (n < 0)
+        return 0;
+    if ((uint32_t)n >= size)
+        n = (int)size - 1;
+    memcpy(ram_ptr(buf, (uint32_t)n + 1), tmp, (size_t)n);
+    wr8(buf + (uint32_t)n, 0);
+    return 1;
 }
 
 /* how badly a w x h mode fits the query (lower is better) */
@@ -1037,6 +1138,8 @@ static uint32_t render(uint32_t op, uint32_t argp)
         case RTG_R_READPIXELRGB:
             if (a.x < 0 || a.y < 0 || a.x >= (int32_t)p.b.width || a.y >= (int32_t)p.b.height)
                 return 0xffffffffu;
+            if ((a.mode & RTGM_ALPHA) && p.b.format >= 6 && p.b.format <= 9)
+                return raw_to_argb(p.b.format, load_raw(px_addr(&p.b, a.x, a.y), p.b.bpp));
             cmap_open(a.cm ? a.cm : p.b.cmap, &p.cm);
             return px_rgb(&p.b, &p.cm, a.x, a.y);
 
@@ -1483,7 +1586,7 @@ uint32_t rtg_emucall(uint32_t op, uint32_t a1, uint32_t a2, uint32_t a3, uint32_
                 return 0;
             monitor_name((int)a1, name, sizeof(name));
             if (a2 && ram_ok(a2, 32))
-                memcpy(&g_ram[a2], name, strlen(name) + 1);
+                memcpy(ram_ptr(a2, 32), name, strlen(name) + 1);
             return (uint32_t)s_res[a1].rows << 16 | s_res[a1].clocks;
         }
         case RTG_OP_SET_MONITOR:
@@ -1510,6 +1613,10 @@ uint32_t rtg_emucall(uint32_t op, uint32_t a1, uint32_t a2, uint32_t a3, uint32_
             return 0;
         case RTG_OP_BOARD_MEM:
             return RTG_BOARD_MEM;
+        case RTG_OP_P96BEST:
+            return rtg_enabled() ? p96_best_mode(a1) : INVALID_ID;
+        case RTG_OP_P96DESC:
+            return rtg_enabled() ? p96_mode_desc(a1, a2, a3) : 0;
         default:
             return 0;
     }

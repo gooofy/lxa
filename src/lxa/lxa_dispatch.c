@@ -2591,7 +2591,15 @@ int op_illg(int level)
             DPRINTF(LOG_DEBUG, "lxa: op_illg(): EMU_CALL_INT_REFRESH_SCREEN handle=0x%08x, planes=0x%08x, bpr=%d, depth=%d\n",
                     d1, planes_ptr, bpr, depth);
 
-            if (disp && planes_ptr)
+            uint32_t cur_planes = 0;
+            if (disp && planes_ptr && display_get_amiga_bitmap(disp, &cur_planes, NULL, NULL) &&
+                cur_planes == planes_ptr)
+            {
+                /* the screen's own bitmap (planar or RTG) */
+                display_sync_from_amiga(disp);
+                display_refresh(disp);
+            }
+            else if (disp && planes_ptr)
             {
                 int w, h, d;
                 display_get_size(disp, &w, &h, &d);

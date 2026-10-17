@@ -1710,27 +1710,7 @@ int main(int argc, char **argv, char **envp)
              * This converts the planar data in emulated RAM to chunky pixels
              * so that display_refresh_all() can present them via SDL.
              */
-            display_t *disp = display_get_active();
-            uint32_t planes_ptr, bpr, depth;
-            if (disp && display_get_amiga_bitmap(disp, &planes_ptr, &bpr, &depth))
-            {
-                int w, h, d;
-                display_get_size(disp, &w, &h, &d);
-
-                /* Read plane pointers from m68k memory */
-                const uint8_t *planes[8] = {0};
-                for (uint32_t i = 0; i < depth && i < 8; i++)
-                {
-                    uint32_t plane_addr = m68k_read_memory_32(planes_ptr + i * 4);
-                    if (plane_addr && plane_addr < RAM_SIZE)
-                    {
-                        planes[i] = (const uint8_t *)&g_ram[plane_addr];
-                    }
-                }
-
-                /* Update display from planar data */
-                display_update_planar(disp, 0, 0, w, h, planes, bpr, depth);
-            }
+            display_sync_from_amiga(display_get_active());
 
             display_refresh_all();
 

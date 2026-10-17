@@ -92,6 +92,10 @@ extern struct Library *LayersBase;
 extern struct UtilityBase *UtilityBase;
 extern struct ExecBase *SysBase;
 
+#define LXA_RTG_M68K
+#include "lxa_rtg.h"
+extern ULONG graphics_rtg_call(ULONG op, ULONG a, ULONG b, ULONG c, ULONG d);
+
 /* Global IntuitionBase (defined in exec.c) - used to avoid OpenLibrary from interrupt context */
 extern struct IntuitionBase *IntuitionBase;
 
@@ -5159,7 +5163,14 @@ LONG _intuition_CloseScreen ( register struct IntuitionBase * IntuitionBase __as
         emucall1(EMU_CALL_INT_CLOSE_SCREEN, display_handle);
     }
 
-    /* Free bitplanes */
+    /* Free bitplanes (RTG: the chunky bitmap) */
+    if (lxa_rtg_is(&screen->BitMap))
+    {
+        if (LXA_RTG_EXTL(&screen->BitMap, LXA_RTG_EXT_CMAP) == (ULONG)screen->ViewPort.ColorMap)
+            graphics_rtg_call(RTG_OP_SET_SCREEN_CM, 0, 0, 0, 0);
+        lxa_rtg_free_bitmap(&screen->BitMap);
+    }
+    else
     for (i = 0; i < screen->BitMap.Depth; i++)
     {
         if (screen->BitMap.Planes[i])
@@ -9545,6 +9556,7 @@ struct Screen * _intuition_OpenScreen ( register struct IntuitionBase * Intuitio
     UWORD width, height;
     UBYTE depth;
     UBYTE i;
+    ULONG rtg_fmt;
 
     DPRINTF (LOG_DEBUG, "_intuition: OpenScreen() newScreen=0x%08lx\n", (ULONG)newScreen);
 
@@ -9643,6 +9655,21 @@ struct Screen * _intuition_OpenScreen ( register struct IntuitionBase * Intuitio
 
     if (depth == 0)
         depth = 2;
+
+    /* RTG (Picasso96, reference `rtg` profile): a board mode gives a chunky
+     * screen bitmap in the mode's format; SA_Depth only matters for CLUT
+     * modes, the bitmap of a truecolor screen has Depth 8 and 256 pens */
+    {
+        ULONG id = g_screen_display_id ? g_screen_display_id - 1 : INVALID_ID;
+        ULONG mon = id & MONITOR_ID_MASK;
+
+        rtg_fmt = 0;
+        if (g_screen_display_id && mon != DEFAULT_MONITOR_ID && mon != PAL_MONITOR_ID &&
+            mon != NTSC_MONITOR_ID)
+            rtg_fmt = graphics_rtg_call(RTG_OP_MODE_ATTR, id, 5 /* P96IDA_RGBFORMAT */, 0, 0);
+        if (rtg_fmt && (rtg_fmt != 1 || depth > 8))
+            depth = 8;
+    }
     
     /* Small heights are kept as requested (AmigaOS 3.1 reference: a 40 line
      * screen opens 40 lines high; no expansion to the display height). */
@@ -9700,6 +9727,22 @@ struct Screen * _intuition_OpenScreen ( register struct IntuitionBase * Intuitio
     /* Initialize the embedded BitMap */
     InitBitMap(&screen->BitMap, depth, width, height);
 
+    if (rtg_fmt)
+    {
+        struct BitMap *rbm = lxa_rtg_alloc_bitmap(width, height, depth, rtg_fmt,
+                                                  LXA_RTGF_ONBOARD | LXA_RTGF_SCREEN);
+        if (!rbm)
+        {
+            LPRINTF (LOG_ERROR, "_intuition: OpenScreen() out of memory for the RTG bitmap\n");
+            emucall1(EMU_CALL_INT_CLOSE_SCREEN, display_handle);
+            FreeMem(screen, sizeof(struct Screen));
+            return NULL;
+        }
+        /* the screen's BitMap is a copy of the header; the pixels and
+         * lxa's descriptor stay where they are */
+        screen->BitMap = *rbm;
+    }
+    else
     /* Allocate bitplanes */
     for (i = 0; i < depth; i++)
     {
@@ -9786,6 +9829,12 @@ struct Screen * _intuition_OpenScreen ( register struct IntuitionBase * Intuitio
         /* attached to the screen ViewPort, as by VTAG_ATTACH_CM_SET:
          * VideoControl() changes then happen immediately (reference) */
         screen->ViewPort.ColorMap->cm_vp = &screen->ViewPort;
+        /* RTG: pens of the screen bitmap (and its friends) use these colours */
+        if (rtg_fmt)
+        {
+            LXA_RTG_EXTL(&screen->BitMap, LXA_RTG_EXT_CMAP) = (ULONG)screen->ViewPort.ColorMap;
+            graphics_rtg_call(RTG_OP_SET_SCREEN_CM, (ULONG)screen->ViewPort.ColorMap, 0, 0, 0);
+        }
     }
     if (screen->ViewPort.ColorMap)
     {
@@ -15472,6 +15521,9 @@ struct Screen * _intuition_OpenScreenTagList ( register struct IntuitionBase * I
                             (na & DI_AVAIL_NOMONITOR) ? OSERR_NOMONITOR : OSERR_NOCHIPS;
             return NULL;
         }
+        /* an RTG mode ID carries no ViewModes bits */
+        if (graphics_rtg_call(RTG_OP_MODE_ATTR, sa_display_id, 6 /* P96IDA_ISP96 */, 0, 0))
+            ns.ViewModes = (graphics_rtg_call(RTG_OP_MODE_ATTR, sa_display_id, 0, 0, 0) >= 640) ? HIRES : 0;
     }
 
     /* Call our existing OpenScreen with the assembled NewScreen */

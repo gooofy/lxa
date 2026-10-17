@@ -83,6 +83,14 @@ add_disk_library(amigaguide_disklib amigaguide.library
         ${CMAKE_CURRENT_SOURCE_DIR}/../src/rom/lxa_amigaguide.c
 )
 
+# Picasso96API.library (Phase 242): lxa's own implementation for the
+# emulated uaegfx board; it only opens when RTG is enabled (lxa --rtg).
+add_disk_library(p96_disklib Picasso96API.library
+    SOURCES
+        ${CMAKE_CURRENT_SOURCE_DIR}/../src/rom/lxa_p96.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/../src/rom/lxa_rtglib.c
+)
+
 # req.library, reqtools.library, powerpacker.library, arp.library are
 # third-party libraries (not shipped with AmigaOS by Commodore).
 # Real binaries are installed to share/lxa/System/Libs/ from others/.

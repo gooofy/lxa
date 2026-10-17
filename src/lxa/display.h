@@ -168,6 +168,12 @@ display_t *display_get_active(void);
  */
 bool display_get_amiga_bitmap(display_t *display, uint32_t *planes_ptr, uint32_t *bpr, uint32_t *depth);
 
+/* Bring the display's pixels up to date with its Amiga screen bitmap
+ * (planar or RTG chunky); false if no bitmap is set */
+bool display_sync_from_amiga(display_t *display);
+/* RTG screen bitmap -> host (RGBA for truecolor, pens for CLUT) */
+void display_update_rtg(display_t *display, int x, int y, int width, int height);
+
 /*
  * Get display dimensions.
  *

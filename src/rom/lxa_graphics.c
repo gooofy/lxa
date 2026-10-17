@@ -37,7 +37,6 @@
 
 #include "util.h"
 #include "romfont_data.h"
-#include "lxa_rtg.h"
 
 /* Forward declaration for input processing (defined in lxa_intuition.c) */
 extern VOID _intuition_ProcessInputEvents(struct Screen *screen);
@@ -46,6 +45,9 @@ extern VOID _intuition_ProcessInputEvents(struct Screen *screen);
 extern struct IntuitionBase *IntuitionBase;
 extern struct ExecBase *SysBase;
 extern struct UtilityBase *UtilityBase;
+
+#define LXA_RTG_M68K
+#include "lxa_rtg.h"
 
 /* Forward declarations for Topaz font (defined later in this file) */
 static struct TextFont g_topaz8_font, g_topaz9_font;
@@ -857,6 +859,39 @@ static const ULONG g_known_display_ids[] = {
 ULONG graphics_rtg_call(ULONG op, ULONG a, ULONG b, ULONG c, ULONG d)
 {
     return emucall5(EMU_CALL_GFX_RTG, op, a, b, c, d);
+}
+
+/* RTG_OP_RENDER: let the host draw into an RTG bitmap (src/lxa/lxa_rtg.c) */
+ULONG graphics_rtg_render(ULONG op, CONST struct BitMap *bm, LONG x, LONG y, LONG w, LONG h,
+                          ULONG fg, ULONG bg, ULONG mode, CONST APTR src, LONG srcmod,
+                          LONG srcx, LONG srcy)
+{
+    ULONG a[RTGA_SIZE / 4];
+
+    a[RTGA_BM / 4] = (ULONG)bm;
+    a[RTGA_X / 4] = (ULONG)x;
+    a[RTGA_Y / 4] = (ULONG)y;
+    a[RTGA_W / 4] = (ULONG)w;
+    a[RTGA_H / 4] = (ULONG)h;
+    a[RTGA_FG / 4] = fg;
+    a[RTGA_BG / 4] = bg;
+    a[RTGA_MODE / 4] = mode;
+    a[RTGA_CMAP / 4] = 0;
+    a[RTGA_SRC / 4] = (ULONG)src;
+    a[RTGA_SRCMOD / 4] = (ULONG)srcmod;
+    a[RTGA_SRCX / 4] = (ULONG)srcx;
+    a[RTGA_SRCY / 4] = (ULONG)srcy;
+    a[RTGA_FMT / 4] = 0;
+    a[RTGA_EXTRA / 4] = 0;
+    return graphics_rtg_call(RTG_OP_RENDER, op, (ULONG)a, 0, 0);
+}
+
+/* width of a bitmap in pixels (planar: BytesPerRow * 8) */
+static WORD gfx_bm_width(CONST struct BitMap *bm)
+{
+    if (lxa_rtg_is(bm))
+        return (WORD)LXA_RTG_EXTL(bm, LXA_RTG_EXT_WIDTH);
+    return (WORD)(bm->BytesPerRow * 8);
 }
 
 static BOOL graphics_is_native_monitor(ULONG display_id)
@@ -1779,6 +1814,12 @@ static void SetPixelDirect(struct BitMap *bm, WORD x, WORD y, BYTE pen, UBYTE dr
     UBYTE plane;
     UBYTE basemode = drawmode & ~INVERSVID;
 
+    if (lxa_rtg_is(bm))
+    {
+        graphics_rtg_render(RTG_R_WRITEPIXEL, bm, x, y, 1, 1, (UBYTE)pen, 0,
+                            basemode | ((ULONG)mask << 8), NULL, 0, 0, 0);
+        return;
+    }
     if (x < 0 || y < 0 || x >= (bm->BytesPerRow * 8) || y >= bm->Rows)
         return;
 
@@ -1831,6 +1872,13 @@ static void FillRectDirect(struct BitMap *bm, WORD xMin, WORD yMin, WORD xMax, W
             (ULONG)bm, bm->BytesPerRow, bm->Rows, bm->Depth);
     DPRINTF(LOG_DEBUG, "_graphics: FillRectDirect() rect (%d,%d)-(%d,%d) pen=%d dm=%d\n",
             xMin, yMin, xMax, yMax, pen, drawmode);
+
+    if (lxa_rtg_is(bm))
+    {
+        graphics_rtg_render(RTG_R_FILL, bm, xMin, yMin, (LONG)xMax - xMin + 1, (LONG)yMax - yMin + 1,
+                            (UBYTE)pen, 0, basemode | ((ULONG)mask << 8), NULL, 0, 0, 0);
+        return;
+    }
 
     /* Clamp to bitmap bounds */
     if (xMin < 0) xMin = 0;
@@ -1986,6 +2034,14 @@ static void FillRectPattern(struct RastPort *rp, struct BitMap *bm,
 
     if (!rp->AreaPtrn)
         return;
+
+    if (lxa_rtg_is(bm))
+    {
+        graphics_rtg_render(RTG_R_PATTERN, bm, xMin, yMin, (LONG)xMax - xMin + 1, (LONG)yMax - yMin + 1,
+                            fgPen, bgPen, dm | ((ULONG)rp->Mask << 8), rp->AreaPtrn, rp->AreaPtSz,
+                            offX, offY);
+        return;
+    }
 
     pat   = rp->AreaPtrn;
     multi = rp->AreaPtSz < 0;
@@ -2389,7 +2445,7 @@ static VOID _graphics_ClearEOL ( register struct GfxBase * GfxBase __asm("a6"),
         return;
 
     /* Get width of bitmap */
-    width = (WORD)(rp->BitMap->BytesPerRow * 8);
+    width = gfx_bm_width(rp->BitMap);
 
     /* Calculate vertical range: from current position (minus baseline) to font height */
     ymin = rp->cp_y - rp->TxBaseline;
@@ -2413,7 +2469,7 @@ static VOID _graphics_ClearScreen ( register struct GfxBase * GfxBase __asm("a6"
         return;
 
     /* Get bitmap dimensions */
-    width = (WORD)(rp->BitMap->BytesPerRow * 8);
+    width = gfx_bm_width(rp->BitMap);
     height = rp->BitMap->Rows;
 
     /* First clear end of current line */
@@ -2681,8 +2737,15 @@ static inline __attribute__((always_inline)) BOOL gfx_text_row_direct(
     else
         x1 = (WORD)(x0 + tw - 1);
 
-    if (y < 0 || y >= (WORD)bm->Rows || x0 < 0 || x1 >= (WORD)(bm->BytesPerRow * 8))
+    if (y < 0 || y >= (WORD)bm->Rows || x0 < 0 || x1 >= gfx_bm_width(bm))
         return FALSE;
+    if (lxa_rtg_is(bm))
+    {
+        graphics_rtg_render(RTG_R_TEMPLATE, bm, x0, y, tw, 1, fg, bg,
+                            (complement ? COMPLEMENT : jam2 ? JAM2 : JAM1) | (inv ? INVERSVID : 0) |
+                            ((ULONG)rp->Mask << 8), (APTR)row, 0, 0, 0);
+        return TRUE;
+    }
 
     rowoff = (ULONG)y * bm->BytesPerRow;
     bx0 = (WORD)(x0 >> 3);
@@ -2998,7 +3061,8 @@ static LONG _graphics_Text ( register struct GfxBase * GfxBase __asm("a6"),
          * hoisted out of the pixel loop: Text() is the hottest rendering
          * path and its cost is emulated time on the deterministic clock. */
         {
-            WORD bm_width = (WORD)(bm->BytesPerRow * 8);
+            WORD bm_width = gfx_bm_width(bm);
+            BOOL rtg = lxa_rtg_is(bm);
             UWORD bpr = bm->BytesPerRow;
             UBYTE depth = bm->Depth;
             WORD glyph_pos = 0;
@@ -3051,6 +3115,14 @@ static LONG _graphics_Text ( register struct GfxBase * GfxBase __asm("a6"),
                         pen = fgpen;
                     }
 
+                    if (rtg)
+                    {
+                        if (basemode == JAM2)
+                            SetPixelDirect(bm, px, py, (BYTE)(pixel_set ? pen : bgpen), JAM2, 0xff);
+                        else if (pixel_set)
+                            SetPixelDirect(bm, px, py, (BYTE)pen, basemode, 0xff);
+                        continue;
+                    }
                     byte_off = row_off + (ULONG)(px >> 3);
                     bit_mask = (UBYTE)(0x80 >> (px & 7));
 
@@ -3113,7 +3185,9 @@ static LONG _graphics_Text ( register struct GfxBase * GfxBase __asm("a6"),
             }
 
             /* Ensure underline is within bitmap bounds */
-            if (ul_y >= 0 && ul_y < (WORD)bm->Rows &&
+            if (lxa_rtg_is(bm))
+                FillRectDirect(bm, ul_x_start, ul_y, ul_x_end, ul_y, (BYTE)fgpen, JAM1, 0xff);
+            else if (ul_y >= 0 && ul_y < (WORD)bm->Rows &&
                 ul_x_start < (WORD)(bm->BytesPerRow * 8) &&
                 ul_x_end >= 0)
             {
@@ -4340,6 +4414,13 @@ static VOID _graphics_SetRast ( register struct GfxBase * GfxBase __asm("a6"),
     struct BitMap *bm = rp->BitMap;
     ULONG planeSize = bm->BytesPerRow * bm->Rows;
 
+    if (lxa_rtg_is(bm))
+    {
+        graphics_rtg_render(RTG_R_FILL, bm, 0, 0, gfx_bm_width(bm), bm->Rows, pen, 0,
+                            JAM1 | 0xff00, NULL, 0, 0, 0);
+        return;
+    }
+
     /* Fill each plane with 0x00 or 0xFF depending on pen bit */
     for (UBYTE plane = 0; plane < bm->Depth; plane++)
     {
@@ -4406,11 +4487,16 @@ static void gfx_line_plot(struct gfx_line_ctx *c, WORD x, WORD y, UBYTE pen, BOO
             bm = cr->BitMap;
             x -= cr->bounds.MinX;
             y -= cr->bounds.MinY;
-            if (x >= bm->BytesPerRow * 8 || y >= bm->Rows)
+            if (x >= gfx_bm_width(bm) || y >= bm->Rows)
                 return;
         }
     }
 
+    if (lxa_rtg_is(bm))
+    {
+        SetPixelDirect(bm, x, y, (BYTE)pen, complement ? COMPLEMENT : JAM1, c->mask);
+        return;
+    }
     off = (ULONG)y * bm->BytesPerRow + (x >> 3);
     bit = (UBYTE)(0x80 >> (x & 7));
     for (p = 0; p < bm->Depth && p < 8; p++)
@@ -4575,7 +4661,7 @@ static VOID _graphics_Draw ( register struct GfxBase * GfxBase __asm("a6"),
         c.bm = rp->BitMap;
         c.layer = rp->Layer;
         c.cr = NULL;
-        c.bmw = (WORD)(c.bm->BytesPerRow * 8);
+        c.bmw = gfx_bm_width(c.bm);
         c.bmh = (WORD)c.bm->Rows;
         c.mask = rp->Mask;
 
@@ -5575,6 +5661,9 @@ static ULONG _graphics_ReadPixel ( register struct GfxBase * GfxBase __asm("a6")
                     WORD relX = absX - cr->bounds.MinX;
                     WORD relY = absY - cr->bounds.MinY;
                     UWORD off = relY * cr->BitMap->BytesPerRow + (relX >> 3);
+                    if (lxa_rtg_is(cr->BitMap))
+                        return graphics_rtg_render(RTG_R_READPIXEL, cr->BitMap, relX, relY, 1, 1,
+                                                   0, 0, 0, NULL, 0, 0, 0);
                     UBYTE mask = 0x80 >> (relX & 7);
                     ULONG color = 0;
                     UBYTE p;
@@ -5603,8 +5692,10 @@ static ULONG _graphics_ReadPixel ( register struct GfxBase * GfxBase __asm("a6")
     }
 
     /* Bounds check */
-    if (absX < 0 || absY < 0 || absX >= (bm->BytesPerRow * 8) || absY >= bm->Rows)
+    if (absX < 0 || absY < 0 || absX >= gfx_bm_width(bm) || absY >= bm->Rows)
         return (ULONG)-1;
+    if (lxa_rtg_is(bm))
+        return graphics_rtg_render(RTG_R_READPIXEL, bm, absX, absY, 1, 1, 0, 0, 0, NULL, 0, 0, 0);
 
     UWORD byteOffset = absY * bm->BytesPerRow + (absX >> 3);
     UBYTE bitMask = 0x80 >> (absX & 7);
@@ -5652,7 +5743,7 @@ static LONG _graphics_WritePixel ( register struct GfxBase * GfxBase __asm("a6")
         absY = y + LAYER_ORIGIN_Y(layer);
 
         /* Bounds check against bitmap */
-        if (absX < 0 || absY < 0 || absX >= (bm->BytesPerRow * 8) || absY >= bm->Rows)
+        if (absX < 0 || absY < 0 || absX >= gfx_bm_width(bm) || absY >= bm->Rows)
             return -1;
 
         /* Check each ClipRect to see if the pixel is visible */
@@ -5688,7 +5779,7 @@ static LONG _graphics_WritePixel ( register struct GfxBase * GfxBase __asm("a6")
     }
 
     /* No layer - simple drawing with just bitmap bounds check */
-    if (x < 0 || y < 0 || x >= (bm->BytesPerRow * 8) || y >= bm->Rows)
+    if (x < 0 || y < 0 || x >= gfx_bm_width(bm) || y >= bm->Rows)
         return -1;
 
     SetPixelDirect(bm, x, y, pen, drawmode, rp->Mask);
@@ -5997,7 +6088,7 @@ static BOOL _graphics_Flood ( register struct GfxBase * GfxBase __asm("a6"),
     }
     else if (rp->BitMap)
     {
-        fi.rp_width = rp->BitMap->BytesPerRow * 8;
+        fi.rp_width = gfx_bm_width(rp->BitMap);
         fi.rp_height = rp->BitMap->Rows;
     }
     else
@@ -8851,6 +8942,7 @@ static VOID _graphics_BitMapScale ( register struct GfxBase * GfxBase __asm("a6"
     /* Now perform the actual scaling, pixel by pixel */
     {
         UWORD minDepth = (srcBM->Depth < destBM->Depth) ? srcBM->Depth : destBM->Depth;
+        BOOL rtg = lxa_rtg_is(srcBM) || lxa_rtg_is(destBM);
         UWORD sf = bsa->bsa_XSrcFactor ? bsa->bsa_XSrcFactor : 1;
         UWORD df = bsa->bsa_XDestFactor ? bsa->bsa_XDestFactor : 1;
         ULONG acc0 = (sf > df) ? (df >> 1) : ((sf - 1) >> 1);
@@ -8868,6 +8960,13 @@ static VOID _graphics_BitMapScale ( register struct GfxBase * GfxBase __asm("a6"
                         acc -= df;
                         xs++;
                     }
+                }
+                /* RTG source or destination: the blitter path converts */
+                if (rtg)
+                {
+                    _graphics_BltBitMap(GfxBase, srcBM, xs, sourceY, destBM, (WORD)(destX + x),
+                                        (WORD)(destY + y), 1, 1, 0xc0, 0xff, NULL);
+                    continue;
                 }
                 /* Copy pixel from source to destination for each plane */
                 for (plane = 0; plane < minDepth; plane++) {
@@ -9947,6 +10046,22 @@ static void gfx_temprp_read_row(struct GfxBase *GfxBase, struct RastPort *rp,
 }
 
 /*
+ * The PixelLine8/PixelArray8 functions on an RTG bitmap (Picasso96, reference
+ * `rtg` profile): drawn directly, without the temporary RastPort; a read
+ * of a CLUT bitmap masks the pens with its depth, a truecolor bitmap gives
+ * the first pen with the pixel's colour (0: none).  Layered RastPorts take
+ * the pixel path for clipping.
+ */
+static BOOL gfx_rtg_pixarray(struct RastPort *rp, ULONG op, WORD x, WORD y, UWORD w, UWORD h,
+                             UBYTE *array, UWORD stride)
+{
+    if (!lxa_rtg_is(rp->BitMap) || rp->Layer)
+        return FALSE;
+    graphics_rtg_render(op, rp->BitMap, x, y, w, h, 0, 0, RTGM_ARRAYMASK, array, stride, 0, 0);
+    return TRUE;
+}
+
+/*
  * ReadPixelLine8 - Read a horizontal line of chunky pen values (offset -768)
  */
 static LONG _graphics_ReadPixelLine8 ( register struct GfxBase * GfxBase __asm("a6"),
@@ -9963,6 +10078,8 @@ static LONG _graphics_ReadPixelLine8 ( register struct GfxBase * GfxBase __asm("
     if (!rp || !rp->BitMap || !array || !width)
         return 0;
 
+    if (gfx_rtg_pixarray(rp, RTG_R_READ8, (WORD)xstart, (WORD)ystart, width, 1, array, width))
+        return (LONG)width;
     if (gfx_temprp_usable(tempRP, gfx_chunky_stride(width)))
         gfx_temprp_read_row(GfxBase, rp, tempRP, (WORD)xstart, (WORD)ystart, array, width,
                             gfx_chunky_stride(width));
@@ -9996,6 +10113,9 @@ static LONG _graphics_ReadPixelArray8 ( register struct GfxBase * GfxBase __asm(
 
     width = (UWORD)(xstop - xstart + 1);
     stride = gfx_chunky_stride(width);
+    if (gfx_rtg_pixarray(rp, RTG_R_READ8, (WORD)xstart, (WORD)ystart, width,
+                         (UWORD)(ystop - ystart + 1), array, stride))
+        return (LONG)width * (LONG)(ystop - ystart + 1);
     for (y = ystart; y <= ystop; y++)
     {
         UBYTE *row = array + (ULONG)(y - ystart) * stride;
@@ -10034,6 +10154,9 @@ static LONG _graphics_WritePixelArray8 ( register struct GfxBase * GfxBase __asm
 
     width = (UWORD)(xstop - xstart + 1);
     stride = gfx_chunky_stride(width);
+    if (gfx_rtg_pixarray(rp, RTG_R_WRITE8, (WORD)xstart, (WORD)ystart, width,
+                         (UWORD)(ystop - ystart + 1), array, stride))
+        return (LONG)width * (LONG)(ystop - ystart + 1);
     for (y = ystart; y <= ystop; y++)
     {
         UBYTE *row = array + (ULONG)(y - ystart) * stride;
@@ -10066,6 +10189,8 @@ static LONG _graphics_WritePixelLine8 ( register struct GfxBase * GfxBase __asm(
     if (!rp || !rp->BitMap || !array)
         return 0;
 
+    if (gfx_rtg_pixarray(rp, RTG_R_WRITE8, (WORD)xstart, (WORD)ystart, width, 1, array, width))
+        return (LONG)width;
     if (gfx_temprp_usable(tempRP, gfx_chunky_stride(width)))
         gfx_temprp_store(GfxBase, tempRP, array, gfx_chunky_stride(width));
     gfx_chunky_write(GfxBase, rp, (WORD)xstart, (WORD)ystart, array, width);
@@ -10687,7 +10812,34 @@ static struct BitMap * _graphics_AllocBitMap ( register struct GfxBase * GfxBase
         return NULL;
     }
 
-    if (depth == 0 || depth > 8)
+    /* RTG (reference `rtg` profile): a friend RTG bitmap gives one in its
+     * format (a CLUT friend also for depth > 8), BMF_SPECIALFMT one in the
+     * CyberGraphX PIXFMT of flags >> 24; other bitmaps stay planar, with up
+     * to 24 planes */
+    if (lxa_rtg_is(friend_bitmap))
+    {
+        ULONG fmt = LXA_RTG_EXTL(friend_bitmap, LXA_RTG_EXT_FORMAT);
+        bm = lxa_rtg_alloc_bitmap(sizex, sizey, depth, fmt, LXA_RTGF_ONBOARD);
+        /* pens use the friend's colours (its screen's ColorMap) */
+        if (bm)
+            LXA_RTG_EXTL(bm, LXA_RTG_EXT_CMAP) = LXA_RTG_EXTL(friend_bitmap, LXA_RTG_EXT_CMAP);
+        return bm;
+    }
+    if (graphics_rtg_call(RTG_OP_ENABLED, 0, 0, 0, 0))
+    {
+        if (flags & BMF_HIJACKED)    /* BMF_SPECIALFMT */
+        {
+            /* PIXFMT_LUT8, RGB15, BGR15, RGB15PC, BGR15PC, RGB16, BGR16,
+             * RGB16PC, BGR16PC, RGB24, BGR24, ARGB32, BGRA32, RGBA32 */
+            static const UBYTE pixfmt[14] = {1, 11, 1, 5, 13, 10, 1, 4, 12, 2, 3, 6, 9, 8};
+            ULONG pf = flags >> 24;
+            return lxa_rtg_alloc_bitmap(sizex, sizey, depth, pf < 14 ? pixfmt[pf] : 1, 0);
+        }
+        if (depth > 24)
+            depth = 24;
+    }
+
+    if (depth == 0 || (depth > 8 && !graphics_rtg_call(RTG_OP_ENABLED, 0, 0, 0, 0)))
     {
         DPRINTF (LOG_WARNING, "_graphics: AllocBitMap() depth %lu out of range (1-8), clamping\n", depth);
         if (depth == 0) depth = 1;
@@ -10753,6 +10905,11 @@ static VOID _graphics_FreeBitMap ( register struct GfxBase * GfxBase __asm("a6")
 
     if (!bm)
         return;
+    if (lxa_rtg_is(bm))
+    {
+        lxa_rtg_free_bitmap(bm);
+        return;
+    }
 
     /* Calculate width from BytesPerRow */
     width = bm->BytesPerRow * 8;
@@ -11005,6 +11162,17 @@ static ULONG _graphics_GetBitMapAttr ( register struct GfxBase * GfxBase __asm("
     if (!bm)
         return 0;
     
+    if (lxa_rtg_is(bm))
+    {
+        switch (attrnum) {
+            case 4:  /* BMA_DEPTH */
+                return LXA_RTG_EXTL(bm, LXA_RTG_EXT_DEPTH);
+            case 8:  /* BMA_WIDTH */
+                return LXA_RTG_EXTL(bm, LXA_RTG_EXT_WIDTH);
+            default:
+                break;
+        }
+    }
     switch (attrnum) {
         case 0:  /* BMA_HEIGHT */
             return bm->Rows;
@@ -11013,6 +11181,10 @@ static ULONG _graphics_GetBitMapAttr ( register struct GfxBase * GfxBase __asm("
         case 8:  /* BMA_WIDTH */
             return bm->BytesPerRow * 8;  /* Convert bytes to pixels */
         case 12: /* BMA_FLAGS */
+            /* Picasso96 reports planar bitmaps as BMF_STANDARD */
+            if (!lxa_rtg_is(bm) && !(bm->Flags & BMF_INTERLEAVED) &&
+                graphics_rtg_call(RTG_OP_ENABLED, 0, 0, 0, 0))
+                return bm->Flags | BMF_STANDARD;
             return bm->Flags;
         default:
             DPRINTF (LOG_ERROR, "_graphics: GetBitMapAttr() unknown attr %ld\n", attrnum);
@@ -11189,7 +11361,7 @@ static VOID _graphics_ScrollRasterBF ( register struct GfxBase * GfxBase __asm("
         if (yMax > layerHeight)
             yMax = layerHeight;
     } else {
-        LONG bmWidth = bm->BytesPerRow * 8;
+        LONG bmWidth = gfx_bm_width(bm);
         LONG bmHeight = bm->Rows;
         
         if (xMax >= bmWidth)
@@ -11797,7 +11969,7 @@ static VOID _graphics_GetRPAttrsA ( register struct GfxBase * GfxBase __asm("a6"
                 }
                 else if (rp->BitMap)
                 {
-                    rect->MaxX = (WORD)(rp->BitMap->BytesPerRow * 8 - 1);
+                    rect->MaxX = (WORD)(gfx_bm_width(rp->BitMap) - 1);
                     rect->MaxY = (WORD)(rp->BitMap->Rows - 1);
                 }
                 else
@@ -12022,6 +12194,11 @@ static VOID _graphics_WriteChunkyPixels ( register struct GfxBase * GfxBase __as
 
     /* Validate coordinates */
     if (xstart > xstop || ystart > ystop)
+        return;
+
+    if (rp->BitMap && gfx_rtg_pixarray(rp, RTG_R_WRITE8, (WORD)xstart, (WORD)ystart,
+                                       (UWORD)(xstop - xstart + 1), (UWORD)(ystop - ystart + 1),
+                                       (UBYTE *)array, (UWORD)bytesperrow))
         return;
 
     /* Save current pen */

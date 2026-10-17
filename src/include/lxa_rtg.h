@@ -51,6 +51,8 @@
 #define RTG_OP_ENCODE       10  /* (RGBFTYPE, 0xAARRGGBB) -> p96EncodeColor() */
 #define RTG_OP_SET_SCREEN_CM 11 /* (ColorMap *) the frontmost RTG screen's colours */
 #define RTG_OP_BOARD_MEM    12  /* (0 total, 1 free, 2 largest free) */
+#define RTG_OP_P96BEST      13  /* (tags) -> p96BestModeIDTagList() */
+#define RTG_OP_P96DESC      14  /* (id, buf, size) -> P96Mode.Description, 0: no board mode */
 
 #define RTG_BEST_CLASSIC    0xfffffffeUL    /* BestModeIDA(): use the native modes */
 
@@ -94,6 +96,7 @@
 /* RTGA_MODE extra flags */
 #define RTGM_PIXEL   0x10000    /* WritePixel COMPLEMENT: only the colour bytes */
 #define RTGM_ARRAYMASK 0x20000  /* READ8: mask pens with the bitmap depth */
+#define RTGM_ALPHA   0x40000    /* READPIXELRGB: keep the alpha byte of the pixel */
 
 /* RTGA_FMT for WRITERGB/READRGB: an RGBFTYPE, or one of these (CGX RECTFMT) */
 #define RTG_FMT_CGX_BASE    0x100
@@ -102,5 +105,88 @@
 #define RTG_FMT_CGX_ARGB    0x102   /* RECTFMT_ARGB  4 bytes A,R,G,B */
 #define RTG_FMT_CGX_LUT8    0x103   /* RECTFMT_LUT8  pens */
 #define RTG_FMT_CGX_GREY8   0x104   /* RECTFMT_GREY8 grey levels */
+
+/*
+ * m68k side (ROM, Picasso96API/cybergraphics disk libraries): recognising
+ * and allocating RTG bitmaps.  Include after the exec headers.
+ *
+ * One allocation holds the struct BitMap, struct LxaRtgExt and the pixels:
+ *   +0 struct BitMap, +48 struct LxaRtgExt, +96 pixel memory (Planes[0])
+ * As on Picasso96, Planes[1], [2], [6] (and [7] for more than one byte
+ * per pixel) are set; lxa points them at its descriptor, they are opaque.
+ */
+#ifdef LXA_RTG_M68K
+
+#define LXA_RTG_HDR 96
+
+static inline BOOL lxa_rtg_is(const struct BitMap *bm)
+{
+    return bm && (bm->pad & LXA_RTG_PAD_MASK) == LXA_RTG_PAD_TAG && bm->Planes[0] &&
+           *(const ULONG *)((const UBYTE *)bm->Planes[0] - LXA_RTG_EXT_SIZE) == LXA_RTG_MAGIC;
+}
+
+static inline ULONG *lxa_rtg_ext(const struct BitMap *bm)
+{
+    return (ULONG *)((UBYTE *)bm->Planes[0] - LXA_RTG_EXT_SIZE);
+}
+
+#define LXA_RTG_EXTL(bm, off) (lxa_rtg_ext(bm)[(off) / 4])
+
+/* bytes per pixel of an RGBFTYPE (0: lxa cannot allocate it) */
+static inline ULONG lxa_rtg_fmt_bpp(ULONG fmt)
+{
+    static const UBYTE bpp[16] = {0, 1, 3, 3, 2, 2, 4, 4, 4, 4, 2, 2, 2, 2, 0, 0};
+    return fmt < 16 ? bpp[fmt] : 0;
+}
+
+/* AllocBitMap()/p96AllocBitMap() of a chunky bitmap in format fmt;
+ * depth matters for CLUT only */
+static inline struct BitMap *lxa_rtg_alloc_bitmap(ULONG w, ULONG h, ULONG depth, ULONG fmt, ULONG rtgflags)
+{
+    ULONG bpp = lxa_rtg_fmt_bpp(fmt), bpr, size, *ext;
+    struct BitMap *bm;
+    UBYTE *mem;
+
+    if (!bpp || !w || !h || w > 0x7ff0 || h > 0x7fff)
+        return NULL;
+    bpr = ((w + 15) & ~15UL) * bpp;
+    if (bpr > 0xffff)
+        return NULL;
+    size = LXA_RTG_HDR + bpr * h;
+    mem = (UBYTE *)AllocMem(size, MEMF_PUBLIC | MEMF_CLEAR);
+    if (!mem)
+        return NULL;
+    bm = (struct BitMap *)mem;
+    ext = (ULONG *)(mem + LXA_RTG_HDR - LXA_RTG_EXT_SIZE);
+    bm->BytesPerRow = (UWORD)bpr;
+    bm->Rows = (UWORD)h;
+    bm->Depth = (fmt == 1 && depth >= 1 && depth <= 8) ? (UBYTE)depth : 8;
+    bm->pad = (UWORD)(LXA_RTG_PAD_TAG | fmt);
+    bm->Planes[0] = (PLANEPTR)(mem + LXA_RTG_HDR);
+    bm->Planes[1] = bm->Planes[2] = bm->Planes[6] = (PLANEPTR)ext;
+    if (bpp > 1)
+        bm->Planes[7] = (PLANEPTR)ext;
+    ext[LXA_RTG_EXT_MAGIC / 4] = LXA_RTG_MAGIC;
+    ext[LXA_RTG_EXT_WIDTH / 4] = bpr / bpp;
+    ext[LXA_RTG_EXT_HEIGHT / 4] = h;
+    ext[LXA_RTG_EXT_FORMAT / 4] = fmt;
+    ext[LXA_RTG_EXT_BPP / 4] = bpp;
+    ext[LXA_RTG_EXT_ALLOC / 4] = (ULONG)mem;
+    ext[LXA_RTG_EXT_SIZE_A / 4] = size;
+    ext[LXA_RTG_EXT_FLAGS / 4] = rtgflags;
+    ext[LXA_RTG_EXT_DEPTH / 4] = fmt == 1 ? bm->Depth :
+                                 bpp == 2 ? ((fmt == 5 || fmt == 11 || fmt == 13) ? 15 : 16) : 24;
+    return bm;
+}
+
+static inline void lxa_rtg_free_bitmap(struct BitMap *bm)
+{
+    ULONG *ext = lxa_rtg_ext(bm);
+
+    ext[LXA_RTG_EXT_MAGIC / 4] = 0;
+    FreeMem((APTR)ext[LXA_RTG_EXT_ALLOC / 4], ext[LXA_RTG_EXT_SIZE_A / 4]);
+}
+
+#endif /* LXA_RTG_M68K */
 
 #endif /* LXA_RTG_H */

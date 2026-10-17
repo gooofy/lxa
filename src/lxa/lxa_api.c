@@ -715,27 +715,7 @@ static bool api_process_vblank(void)
      * test SetUp.
      */
     if (!display_get_headless()) {
-        display_t *disp = display_get_active();
-        uint32_t planes_ptr, bpr, depth;
-        if (disp && display_get_amiga_bitmap(disp, &planes_ptr, &bpr, &depth))
-        {
-            int w, h, d;
-            display_get_size(disp, &w, &h, &d);
-
-            /* Read plane pointers from m68k memory */
-            const uint8_t *planes[8] = {0};
-            for (uint32_t i = 0; i < depth && i < 8; i++)
-            {
-                uint32_t plane_addr = m68k_read_memory_32(planes_ptr + i * 4);
-                if (plane_addr && plane_addr < RAM_SIZE)
-                {
-                    planes[i] = (const uint8_t *)&g_ram[plane_addr];
-                }
-            }
-
-            /* Update display from planar data */
-            display_update_planar(disp, 0, 0, w, h, planes, bpr, depth);
-        }
+        display_sync_from_amiga(display_get_active());
 
         /* Refresh displays (now with updated pixel data) */
         display_refresh_all();
@@ -992,25 +972,7 @@ void lxa_flush_display(void)
      * This duplicates the conversion logic from lxa_run_cycles()
      * but can be called at any time (e.g. after event processing
      * has modified the screen bitmap). */
-    display_t *disp = display_get_active();
-    uint32_t planes_ptr, bpr, depth;
-    if (disp && display_get_amiga_bitmap(disp, &planes_ptr, &bpr, &depth))
-    {
-        int w, h, d;
-        display_get_size(disp, &w, &h, &d);
-
-        const uint8_t *planes[8] = {0};
-        for (uint32_t i = 0; i < depth && i < 8; i++)
-        {
-            uint32_t plane_addr = m68k_read_memory_32(planes_ptr + i * 4);
-            if (plane_addr && plane_addr < RAM_SIZE)
-            {
-                planes[i] = (const uint8_t *)&g_ram[plane_addr];
-            }
-        }
-
-        display_update_planar(disp, 0, 0, w, h, planes, bpr, depth);
-    }
+    display_sync_from_amiga(display_get_active());
 
     /* Also sync rootless windows from their screen bitmaps so that
      * headless capture (display_capture_window) sees current pixel data. */
