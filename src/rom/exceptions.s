@@ -343,6 +343,16 @@ _handleIRQ3:
     bset        #SFF_QuantumOver, SysFlags(a6)      | set QuantumOver bit SysFlags(a6) for scheduler
 
 2:
+    /*
+     * Reschedule only on the way back to user mode, as exec does: an
+     * interrupt that hit supervisor code (_exec_Dispatch building the
+     * frame of the next task, a Supervisor() routine) must return to it.
+     * Switching away from there saved a supervisor context as the task's
+     * state and later RTEd through a half-built frame (format error).
+     */
+    btst.b      #5, 7*4(sp)                         | interrupted SR: supervisor mode?
+    bne.s       3f                                  | yes -> no Schedule()
+
     tst.b       TDNestCnt(a6)                       | multitasking disabled?
     bge.s       3f                                  | yes -> skip Schedule()
 
