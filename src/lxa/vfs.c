@@ -534,7 +534,7 @@ bool vfs_resolve_path(const char *amiga_path, char *linux_path, size_t maxlen) {
     }
 
     const char *p = amiga_path;
-    char *colon = strchr(amiga_path, ':');
+    const char *colon = strchr(amiga_path, ':');
     const char *root = NULL;
     assign_entry_t *assign = NULL;
 
