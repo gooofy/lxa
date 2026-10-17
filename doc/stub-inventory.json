@@ -328,6 +328,22 @@
   "symbol": "do_font_request"
  },
  {
+  "lib": "cgx",
+  "function": "CModeRequestTagList",
+  "kind": "partial",
+  "detail": "partial: shows asl.library's screen mode requester, not CyberGraphX's own window",
+  "file": "src/rom/lxa_cgx.c",
+  "symbol": "_cgx_CModeRequestTagList"
+ },
+ {
+  "lib": "cgx",
+  "function": "Private",
+  "kind": "private",
+  "detail": "private/reserved slot",
+  "file": "src/rom/lxa_cgx.c",
+  "symbol": "_cgx_Private"
+ },
+ {
   "lib": "commodities",
   "function": "Private1",
   "kind": "private",

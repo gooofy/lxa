@@ -53,6 +53,12 @@ char __aligned _g_layers_VERSTRING [] = "\0$VER: " EXLIBNAME EXLIBVER;
 #define IS_SMARTREFRESH(l) (LAYERSMART == ((l)->Flags & (LAYERSMART | LAYERSUPER)))
 
 extern struct ExecBase *SysBase;
+
+#define LXA_RTG_M68K
+#include "lxa_rtg.h"
+
+/* backing store of an RTG screen is a chunky bitmap in the screen format */
+#define LAYER_FRIEND(bm) (lxa_rtg_is(bm) ? (bm) : NULL)
 extern struct GfxBase  *GfxBase;
 extern struct UtilityBase *UtilityBase;
 
@@ -650,7 +656,7 @@ static struct ClipRect *CreateObscuredClipRect(struct Layer_Info *li,
 
     if (screen_bm)
     {
-        cr->BitMap = AllocBitMap(w, h, screen_bm->Depth, BMF_CLEAR, NULL);
+        cr->BitMap = AllocBitMap(w, h, screen_bm->Depth, BMF_CLEAR, LAYER_FRIEND(screen_bm));
         if (!cr->BitMap)
         {
             /* Allocation failed — fall back to no backing store */
@@ -1062,6 +1068,16 @@ static void LayerCallHook(struct Hook *hook, struct Layer *layer, struct RastPor
 
     if (hook == LAYERS_NOBACKFILL || !bm)
         return;
+    if ((hook == LAYERS_BACKFILL || !hook) && lxa_rtg_is(bm))
+    {
+        /* RTG (reference): pen 0 in the colour of the screen's ColorMap,
+         * not raw zero bytes */
+        InitRastPort(&rp);
+        rp.BitMap = bm;
+        SetAPen(&rp, 0);
+        RectFill(&rp, b->MinX, b->MinY, b->MaxX, b->MaxY);
+        return;
+    }
     if (hook == LAYERS_BACKFILL || !hook)
     {
         BltBitMap(bm, b->MinX, b->MinY, bm, b->MinX, b->MinY,
@@ -1197,7 +1213,7 @@ static struct ArrangeCtx *ArrangeBegin(struct Layer_Info *li, struct Layer *chan
             continue;
         w = c->snap[i].bounds.MaxX - c->snap[i].bounds.MinX + 1;
         h = c->snap[i].bounds.MaxY - c->snap[i].bounds.MinY + 1;
-        c->img[i] = AllocBitMap(w, h, l->rp->BitMap->Depth, 0, NULL);
+        c->img[i] = AllocBitMap(w, h, l->rp->BitMap->Depth, 0, LAYER_FRIEND(l->rp->BitMap));
         if (!c->img[i])
             continue;
         for (cr = l->ClipRect; cr; cr = cr->Next)
@@ -2200,65 +2216,27 @@ static VOID _layers_SwapBitsRastPortClipRect ( register struct LayersBase *Layer
     {
         WORD width = cr->bounds.MaxX - cr->bounds.MinX + 1;
         WORD height = cr->bounds.MaxY - cr->bounds.MinY + 1;
-        WORD depth = rp->BitMap->Depth;
         struct BitMap *temp;
 
-        temp = AllocMem(sizeof(struct BitMap), MEMF_PUBLIC | MEMF_CLEAR);
+        temp = AllocBitMap(width, height, rp->BitMap->Depth, 0, LAYER_FRIEND(rp->BitMap));
         if (!temp)
             return;
 
-        InitBitMap(temp, depth, width, height);
+        /* Step 1: screen -> temp */
+        BltBitMap(rp->BitMap, cr->bounds.MinX, cr->bounds.MinY,
+                  temp, 0, 0, width, height, 0xC0, 0xFF, NULL);
 
-        /* Allocate planes for temp bitmap */
-        {
-            WORD i;
-            WORD bytesPerRow = ((width + 15) >> 4) << 1;
-            BOOL alloc_ok = TRUE;
+        /* Step 2: backing -> screen */
+        BltBitMap(cr->BitMap, 0, 0,
+                  rp->BitMap, cr->bounds.MinX, cr->bounds.MinY,
+                  width, height, 0xC0, 0xFF, NULL);
 
-            for (i = 0; i < depth; i++)
-            {
-                temp->Planes[i] = AllocMem(bytesPerRow * height, MEMF_CHIP | MEMF_CLEAR);
-                if (!temp->Planes[i])
-                {
-                    alloc_ok = FALSE;
-                    break;
-                }
-            }
+        /* Step 3: temp -> backing */
+        BltBitMap(temp, 0, 0,
+                  cr->BitMap, 0, 0, width, height, 0xC0, 0xFF, NULL);
 
-            if (!alloc_ok)
-            {
-                /* Clean up partial allocation */
-                {
-                    WORD j;
-                    for (j = 0; j < i; j++)
-                    {
-                        FreeMem(temp->Planes[j], bytesPerRow * height);
-                    }
-                }
-                FreeMem(temp, sizeof(struct BitMap));
-                return;
-            }
-
-            /* Step 1: screen -> temp */
-            BltBitMap(rp->BitMap, cr->bounds.MinX, cr->bounds.MinY,
-                      temp, 0, 0, width, height, 0xC0, 0xFF, NULL);
-
-            /* Step 2: backing -> screen */
-            BltBitMap(cr->BitMap, 0, 0,
-                      rp->BitMap, cr->bounds.MinX, cr->bounds.MinY,
-                      width, height, 0xC0, 0xFF, NULL);
-
-            /* Step 3: temp -> backing */
-            BltBitMap(temp, 0, 0,
-                      cr->BitMap, 0, 0, width, height, 0xC0, 0xFF, NULL);
-
-            /* Free temp bitmap */
-            for (i = 0; i < depth; i++)
-            {
-                FreeMem(temp->Planes[i], bytesPerRow * height);
-            }
-            FreeMem(temp, sizeof(struct BitMap));
-        }
+        WaitBlit();
+        FreeBitMap(temp);
     }
 }
 

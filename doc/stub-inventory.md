@@ -15,6 +15,7 @@ implementing the function, never by deleting the macro.
 | 68040 | 0 | 0 | 2 |
 | amigaguide | 18 | 0 | 0 |
 | asl | 0 | 2 | 0 |
+| cgx | 0 | 1 | 1 |
 | commodities | 0 | 0 | 1 |
 | console | 1 | 0 | 0 |
 | datatypes | 5 | 0 | 0 |
@@ -30,7 +31,7 @@ implementing the function, never by deleting the macro.
 | translator | 1 | 0 | 0 |
 | utility | 0 | 0 | 7 |
 | workbench | 0 | 0 | 3 |
-| **total** | **62** | **32** | **47** |
+| **total** | **62** | **33** | **48** |
 
 ## 68040
 
@@ -62,6 +63,11 @@ implementing the function, never by deleting the macro.
 
 - `AslRequest` — partial: simplified file requester - own drawing instead of 3.1's GadTools layout, no Control menu, at most 100 entries, no volume list/pattern filtering as on 3.1 (Phase 258) (`src/rom/lxa_asl.c`)
 - `AslRequest` — partial: simplified font requester - own drawing instead of 3.1's GadTools layout, no Control menu, no size list/style/pen/draw-mode gadgets as on 3.1 (Phase 258) (`src/rom/lxa_asl.c`)
+
+## cgx
+
+- `CModeRequestTagList` — partial: shows asl.library's screen mode requester, not CyberGraphX's own window (`src/rom/lxa_cgx.c`)
+- `Private` — private/reserved slot (`src/rom/lxa_cgx.c`)
 
 ## commodities
 

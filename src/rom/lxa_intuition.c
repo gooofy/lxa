@@ -7013,7 +7013,7 @@ static void _save_menu_dropdown_area(struct Screen *screen, WORD x, WORD y, WORD
 
     depth = bm->Depth;
 
-    g_menu_save_bm = AllocBitMap(w, h, depth, BMF_CLEAR, NULL);
+    g_menu_save_bm = AllocBitMap(w, h, depth, BMF_CLEAR, lxa_rtg_is(bm) ? bm : NULL);
     if (!g_menu_save_bm)
     {
         DPRINTF(LOG_ERROR, "_intuition: _save_menu_dropdown_area() AllocBitMap(save) failed\n");

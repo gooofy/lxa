@@ -2180,28 +2180,6 @@ static void SetPlaneBit(PLANEPTR plane, UWORD bytesPerRow, WORD x, WORD y, UBYTE
         plane[byteOffset] &= ~bitMask;
 }
 
-static BOOL PointVisibleInLayer(const struct Layer *layer, WORD x, WORD y)
-{
-    const struct ClipRect *cr;
-
-    if (!layer)
-        return TRUE;
-
-    for (cr = layer->ClipRect; cr != NULL; cr = cr->Next)
-    {
-        if (cr->obscured)
-            continue;
-
-        if (x >= cr->bounds.MinX && x <= cr->bounds.MaxX &&
-            y >= cr->bounds.MinY && y <= cr->bounds.MaxY)
-        {
-            return TRUE;
-        }
-    }
-
-    return FALSE;
-}
-
 /*
  * Argument struct for the EMU_CALL_GFX_BLT_BITMAP host emucall.
  *
@@ -6486,7 +6464,8 @@ static void gfx_scroll_layer(struct GfxBase *GfxBase, struct RastPort *rp, LONG 
         return;
     w = a.MaxX - a.MinX + 1;
     h = a.MaxY - a.MinY + 1;
-    img = _graphics_AllocBitMap(GfxBase, w, h, rp->BitMap->Depth, BMF_CLEAR, NULL);
+    img = _graphics_AllocBitMap(GfxBase, w, h, rp->BitMap->Depth, BMF_CLEAR,
+                                lxa_rtg_is(rp->BitMap) ? rp->BitMap : NULL);
     if (!img)
         return;
 
@@ -7627,6 +7606,35 @@ static VOID _graphics_FreeCopList ( register struct GfxBase * GfxBase __asm("a6"
     }
 }
 
+/* ClipBlit source in a layer: copy the parts of the rectangle that the
+ * layer has - visible ClipRects from the screen bitmap, obscured ones with
+ * backing store (SMART_REFRESH) from it; parts without either are not
+ * copied.  x/y are screen coordinates. */
+static void ClipBlitFromLayer(struct Layer *layer, struct BitMap *src_bm, LONG x, LONG y,
+                              struct BitMap *dst_bm, LONG dx, LONG dy, LONG w, LONG h, UBYTE minterm)
+{
+    struct ClipRect *cr;
+
+    for (cr = layer->ClipRect; cr != NULL; cr = cr->Next)
+    {
+        WORD x0, y0, x1, y1;
+
+        if (cr->obscured && !cr->BitMap)
+            continue;
+        if (!ClipIntersectRects((WORD)x, (WORD)y, (WORD)(x + w - 1), (WORD)(y + h - 1),
+                                cr->bounds.MinX, cr->bounds.MinY, cr->bounds.MaxX, cr->bounds.MaxY,
+                                &x0, &y0, &x1, &y1))
+            continue;
+        if (cr->obscured)
+            BltBitMapCore(cr->BitMap, (WORD)(x0 - cr->bounds.MinX), (WORD)(y0 - cr->bounds.MinY),
+                          dst_bm, (WORD)(dx + x0 - x), (WORD)(dy + y0 - y),
+                          (WORD)(x1 - x0 + 1), (WORD)(y1 - y0 + 1), minterm, 0xFF, NULL, 0);
+        else
+            BltBitMapCore(src_bm, x0, y0, dst_bm, (WORD)(dx + x0 - x), (WORD)(dy + y0 - y),
+                          (WORD)(x1 - x0 + 1), (WORD)(y1 - y0 + 1), minterm, 0xFF, NULL, 0);
+    }
+}
+
 static VOID _graphics_ClipBlit ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct RastPort * srcRP __asm("a0"),
                                                         register LONG xSrc __asm("d0"),
@@ -7724,35 +7732,8 @@ static VOID _graphics_ClipBlit ( register struct GfxBase * GfxBase __asm("a6"),
 
                 if (srcLayer)
                 {
-                    LONG absX;
-                    LONG absY;
-                    LONG row;
-                    LONG col;
-
-                    for (row = 0; row < clipHeight; row++)
-                    {
-                        for (col = 0; col < clipWidth; col++)
-                        {
-                            absX = srcClipX + col;
-                            absY = srcClipY + row;
-
-                            if (!PointVisibleInLayer(srcLayer, (WORD)absX, (WORD)absY))
-                                continue;
-
-                            BltBitMapCore(srcRP->BitMap,
-                                          (WORD)absX,
-                                          (WORD)absY,
-                                          dest_bm,
-                                          (WORD)(dest_x + col),
-                                          (WORD)(dest_y + row),
-                                          1,
-                                          1,
-                                          (UBYTE)minterm,
-                                          0xFF,
-                                          NULL,
-                                          0);
-                        }
-                    }
+                    ClipBlitFromLayer(srcLayer, srcRP->BitMap, srcClipX, srcClipY,
+                                      dest_bm, dest_x, dest_y, clipWidth, clipHeight, (UBYTE)minterm);
                 }
                 else
                 {
@@ -7774,36 +7755,9 @@ static VOID _graphics_ClipBlit ( register struct GfxBase * GfxBase __asm("a6"),
     }
     else if (srcLayer)
     {
-        /* No destination layer but source has a layer — must check
-         * source visibility pixel-by-pixel so that obscured source
-         * pixels are not copied. */
-        LONG row;
-        LONG col;
-
-        for (row = 0; row < ySize; row++)
-        {
-            for (col = 0; col < xSize; col++)
-            {
-                WORD absX = (WORD)(xSrc + col);
-                WORD absY = (WORD)(ySrc + row);
-
-                if (!PointVisibleInLayer(srcLayer, absX, absY))
-                    continue;
-
-                BltBitMapCore(srcRP->BitMap,
-                              absX,
-                              absY,
-                              destRP->BitMap,
-                              (WORD)(xDest + col),
-                              (WORD)(yDest + row),
-                              1,
-                              1,
-                              (UBYTE)minterm,
-                              0xFF,
-                              NULL,
-                              0);
-            }
-        }
+        /* no destination layer: only what the source layer has is copied */
+        ClipBlitFromLayer(srcLayer, srcRP->BitMap, xSrc, ySrc, destRP->BitMap, xDest, yDest,
+                          xSize, ySize, (UBYTE)minterm);
     }
     else
     {

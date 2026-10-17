@@ -1,0 +1,68 @@
+-- screen
+id = 0x50031100
+screen = non-NULL
+fmt = 4
+win a = non-NULL
+win b = non-NULL
+a read obscured = 0x000000f8
+-- smart covered
+a only = 0x000000f8
+overlap = 0x0000e007
+overlap drawn = 0x0000e007
+b only = 0x0000e007
+-- smart uncovered
+a only = 0x000000f8
+overlap = 0x000000f8
+overlap drawn = 0x00001f00
+b only = 0x000055ad
+win a simple = non-NULL
+win b = non-NULL
+-- simple covered
+a only = 0x000000f8
+overlap = 0x0000e007
+overlap drawn = 0x0000e007
+b only = 0x0000e007
+damaged = 1
+damage minx = 50
+damage miny = 30
+damage maxx = 119
+damage maxy = 79
+-- simple refreshed
+a only = 0x000000f8
+overlap = 0x0000e0ff
+overlap drawn = 0x0000e0ff
+b only = 0x000055ad
+-- screen
+id = 0x50031303
+screen = non-NULL
+fmt = 9
+win a = non-NULL
+win b = non-NULL
+a read obscured = 0x000000ff
+-- smart covered
+a only = 0x0000ff00
+overlap = 0x00ff0000
+overlap drawn = 0x00ff0000
+b only = 0x00ff0000
+-- smart uncovered
+a only = 0x0000ff00
+overlap = 0x0000ff00
+overlap drawn = 0xff000000
+b only = 0xaaaaaa00
+win a simple = non-NULL
+win b = non-NULL
+-- simple covered
+a only = 0x0000ff00
+overlap = 0x00ff0000
+overlap drawn = 0x00ff0000
+b only = 0x00ff0000
+damaged = 1
+damage minx = 50
+damage miny = 30
+damage maxx = 119
+damage maxy = 79
+-- simple refreshed
+a only = 0x0000ff00
+overlap = 0x00ffff00
+overlap drawn = 0x00ffff00
+b only = 0xaaaaaa00
