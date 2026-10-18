@@ -89,12 +89,14 @@ add_disk_library(p96_disklib Picasso96API.library
     SOURCES
         ${CMAKE_CURRENT_SOURCE_DIR}/../src/rom/lxa_p96.c
         ${CMAKE_CURRENT_SOURCE_DIR}/../src/rom/lxa_rtglib.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/../src/rom/lxa_rtgreq.c
 )
 
 add_disk_library(cgx_disklib cybergraphics.library
     SOURCES
         ${CMAKE_CURRENT_SOURCE_DIR}/../src/rom/lxa_cgx.c
         ${CMAKE_CURRENT_SOURCE_DIR}/../src/rom/lxa_rtglib.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/../src/rom/lxa_rtgreq.c
 )
 
 # req.library, reqtools.library, powerpacker.library, arp.library are

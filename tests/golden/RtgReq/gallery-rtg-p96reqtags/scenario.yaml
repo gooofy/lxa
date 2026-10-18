@@ -1,0 +1,17 @@
+# Picasso96 gallery (Phase 246): p96RequestModeIDTagList with button
+# texts, P96MA_MinDepth 16 and a P96MA_DisplayID (which Picasso96 does not
+# preselect), cancelled (stdout: INVALID_ID).
+name: gallery-rtg-p96reqtags
+profile: rtg
+app:
+  sample: Tests/Gallery/RtgReq
+  args: "p96init"
+steps:
+  - launch
+  - wait_window: "Gallery P96 Init"
+  - frames: 50
+  - snapshot: {name: requester, window: "Gallery P96 Init"}
+  - click: {gadget_id: 3, window: "Gallery P96 Init"}
+  - wait_output: "DONE"
+  - snapshot: {name: result, screen: false}
+  - quit

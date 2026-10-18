@@ -25,10 +25,6 @@
 #include <intuition/screens.h>
 #include <clib/intuition_protos.h>
 #include <inline/intuition.h>
-#include <libraries/asl.h>
-#include <clib/asl_protos.h>
-#include <inline/asl.h>
-#include <utility/hooks.h>
 #include <utility/tagitem.h>
 
 #include "util.h"
@@ -56,8 +52,6 @@ struct P96Base
     struct Library lib;
     UBYTE          priv[68 - sizeof(struct Library)];
 };
-
-struct Library *AslBase = NULL;
 
 /* ------------------------------------------------------------------ */
 /* library housekeeping                                                 */
@@ -335,63 +329,68 @@ ULONG _p96_GetModeIDAttr ( register struct Library *P96Base __asm("a6"),
     }
 }
 
-/* ASLSM_FilterFunc of p96RequestModeIDTagList(): board modes of the query */
-static ULONG p96_req_filter(register struct Hook *hook __asm("a0"),
-                            register APTR req __asm("a2"),
-                            register ULONG id __asm("a1"))
+/* list texts of p96RequestModeIDTagList() (reference: Picasso96 2.0) */
+static CONST_STRPTR p96_req_fmt_name(ULONG fmt)
 {
-    return p96_mode_matches((const p96_filter_t *)hook->h_Data, id) ? 1 : 0;
+    switch (fmt)
+    {
+        case RGBFB_CLUT:     return (CONST_STRPTR)"PseudoColor";
+        case RGBFB_R5G6B5PC: return (CONST_STRPTR)"HiColor RGBPC";
+        case RGBFB_R5G5B5PC: return (CONST_STRPTR)"HiColor 15 RGBPC";
+        case RGBFB_B5G6R5PC: return (CONST_STRPTR)"HiColor BGRPC";
+        case RGBFB_B5G5R5PC: return (CONST_STRPTR)"HiColor 15 BGRPC";
+        case RGBFB_R5G6B5:   return (CONST_STRPTR)"HiColor RGB";
+        case RGBFB_R5G5B5:   return (CONST_STRPTR)"HiColor 15 RGB";
+        case RGBFB_R8G8B8:   return (CONST_STRPTR)"TrueColor RGB";
+        case RGBFB_B8G8R8:   return (CONST_STRPTR)"TrueColor BGR";
+        case RGBFB_A8R8G8B8: return (CONST_STRPTR)"TrueColor ARGB";
+        case RGBFB_A8B8G8R8: return (CONST_STRPTR)"TrueColor ABGR";
+        case RGBFB_R8G8B8A8: return (CONST_STRPTR)"TrueColor RGBA";
+        case RGBFB_B8G8R8A8: return (CONST_STRPTR)"TrueColor BGRA";
+        default:             return (CONST_STRPTR)"Unknown";
+    }
 }
 
-/* -66 p96RequestModeIDTagList: the screen mode requester (asl.library's,
- * limited to the board modes the tags allow) */
+static BOOL p96_req_match(APTR ud, ULONG id)
+{
+    return p96_mode_matches((const p96_filter_t *)ud, id);
+}
+
+/* -66 p96RequestModeIDTagList: the board's screen mode requester */
 ULONG _p96_RequestModeIDTagList ( register struct Library *P96Base __asm("a6"),
                                   register struct TagItem *tags __asm("a0") )
 {
-    struct ScreenModeRequester *smr;
-    struct TagItem at[16], *t, *state = tags;
-    struct Hook hook;
+    rtgl_modereq_t r;
+    struct TagItem *t, *state = tags;
     p96_filter_t f;
-    ULONG id = INVALID_ID;
-    int n = 0;
 
-    LXA_UNIMPLEMENTED("p96", "RequestModeIDTagList",
-                      "partial: shows asl.library's screen mode requester, not Picasso96's own window (Phase 246)");
-    if (!AslBase)
-        AslBase = OpenLibrary((CONST_STRPTR)"asl.library", 38);
-    if (!AslBase)
-        return INVALID_ID;
     p96_filter_init(&f, tags);
-    hook.h_Entry = (void *)p96_req_filter;
-    hook.h_SubEntry = NULL;
-    hook.h_Data = &f;
-    while ((t = rtgl_next_tag(&state)) != NULL && n < 12)
+    r.title = r.ok_text = r.cancel_text = r.pubname = NULL;
+    r.about_title = (CONST_STRPTR)"Picasso96API.library";
+    r.about_text = (CONST_STRPTR)"lxa Picasso96API screen mode requester";
+    r.screen = NULL;
+    r.match = p96_req_match;
+    r.ud = &f;
+    r.fmt_name = p96_req_fmt_name;
+    r.newlook_layout = FALSE;   /* reference: item width 86 (COMMWIDTH) */
+    while ((t = rtgl_next_tag(&state)) != NULL)
     {
         switch (t->ti_Tag)
         {
-            case P96MA_DisplayID:     at[n].ti_Tag = ASLSM_InitialDisplayID; break;
-            case P96MA_WindowTitle:   at[n].ti_Tag = ASLSM_TitleText; break;
-            case P96MA_OKText:        at[n].ti_Tag = ASLSM_PositiveText; break;
-            case P96MA_CancelText:    at[n].ti_Tag = ASLSM_NegativeText; break;
-            case P96MA_Window:        at[n].ti_Tag = ASLSM_Window; break;
-            case P96MA_PubScreenName: at[n].ti_Tag = ASLSM_PubScreenName; break;
-            case P96MA_Screen:        at[n].ti_Tag = ASLSM_Screen; break;
-            default: continue;
+            /* P96MA_DisplayID: the reference still selects the first mode */
+            case P96MA_WindowTitle:   r.title = (CONST_STRPTR)t->ti_Data; break;
+            case P96MA_OKText:        r.ok_text = (CONST_STRPTR)t->ti_Data; break;
+            case P96MA_CancelText:    r.cancel_text = (CONST_STRPTR)t->ti_Data; break;
+            case P96MA_PubScreenName: r.pubname = (CONST_STRPTR)t->ti_Data; break;
+            case P96MA_Screen:        r.screen = (struct Screen *)t->ti_Data; break;
+            case P96MA_Window:
+                if (t->ti_Data)
+                    r.screen = ((struct Window *)t->ti_Data)->WScreen;
+                break;
+            default: break;
         }
-        at[n++].ti_Data = t->ti_Data;
     }
-    at[n].ti_Tag = ASLSM_FilterFunc;
-    at[n++].ti_Data = (ULONG)&hook;
-    at[n].ti_Tag = ASLSM_PropertyMask;     /* every board mode, Workbench-able or not */
-    at[n++].ti_Data = 0;
-    at[n].ti_Tag = TAG_DONE;
-    smr = (struct ScreenModeRequester *)AllocAslRequest(ASL_ScreenModeRequest, at);
-    if (!smr)
-        return INVALID_ID;
-    if (AslRequest(smr, NULL))
-        id = smr->sm_DisplayID;
-    FreeAslRequest(smr);
-    return id;
+    return rtgl_mode_request(&r);
 }
 
 /* ------------------------------------------------------------------ */

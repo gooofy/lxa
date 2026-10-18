@@ -1,5 +1,6 @@
 # Picasso96 gallery (Phase 246): p96RequestModeIDTagList's own screen mode
-# requester on the rtg profile's Workbench.
+# requester on the rtg profile's Workbench: the window, its Project menu,
+# picking the fifth mode and Ok (stdout: the selected mode ID).
 name: gallery-rtg-p96req
 profile: rtg
 app:
@@ -10,4 +11,11 @@ steps:
   - wait_window: "Gallery P96 Mode"
   - frames: 50
   - snapshot: {name: requester, window: "Gallery P96 Mode"}
+  - menus: {window: "Gallery P96 Mode"}
+  - click: {xy: [100, 70], window: "Gallery P96 Mode"}
+  - frames: 20
+  - snapshot: {name: picked, window: "Gallery P96 Mode"}
+  - click: {gadget_id: 2, window: "Gallery P96 Mode"}
+  - wait_output: "DONE"
+  - snapshot: {name: result, screen: false}
   - quit

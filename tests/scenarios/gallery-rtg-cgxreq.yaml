@@ -1,5 +1,6 @@
 # CyberGraphX gallery (Phase 246): CModeRequestTagList's screen mode
-# requester on the rtg profile's Workbench.
+# requester on the rtg profile's Workbench (CYBRMREQ_* defaults: 320x240
+# and up), its Project menu, and Cancel (stdout: id 0).
 name: gallery-rtg-cgxreq
 profile: rtg
 app:
@@ -10,4 +11,8 @@ steps:
   - wait_window: "Gallery CGX Mode"
   - frames: 50
   - snapshot: {name: requester, window: "Gallery CGX Mode"}
+  - menus: {window: "Gallery CGX Mode"}
+  - click: {gadget_id: 3, window: "Gallery CGX Mode"}
+  - wait_output: "DONE"
+  - snapshot: {name: result, screen: false}
   - quit

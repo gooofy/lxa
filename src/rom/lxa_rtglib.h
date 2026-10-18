@@ -61,4 +61,20 @@ void rtgl_free_bitmap(struct BitMap *bm);
 /* simple tag walking (TAG_MORE/SKIP/IGNORE) */
 struct TagItem *rtgl_next_tag(struct TagItem **state);
 
+/* the screen mode requester of both libraries (lxa_rtgreq.c) */
+typedef struct
+{
+    CONST_STRPTR title, ok_text, cancel_text;   /* NULL: the defaults */
+    CONST_STRPTR about_title, about_text;       /* Project/About */
+    struct Screen *screen;                      /* NULL: the public screen pubname */
+    CONST_STRPTR pubname;                       /* NULL: the default public screen */
+    BOOL (*match)(APTR ud, ULONG id);           /* modes the caller accepts */
+    APTR ud;
+    CONST_STRPTR (*fmt_name)(ULONG rgbformat);  /* list text of a pixel format */
+    BOOL newlook_layout;                        /* GTMN_NewLookMenus for LayoutMenus() */
+} rtgl_modereq_t;
+
+/* the selected mode, INVALID_ID when cancelled */
+ULONG rtgl_mode_request(const rtgl_modereq_t *r);
+
 #endif

@@ -27,10 +27,6 @@
 #include <clib/layers_protos.h>
 #include <inline/layers.h>
 #include <intuition/intuition.h>
-#include <libraries/asl.h>
-#include <clib/asl_protos.h>
-#include <inline/asl.h>
-#include <utility/hooks.h>
 #include <utility/tagitem.h>
 #include <clib/utility_protos.h>
 #include <inline/utility.h>
@@ -54,8 +50,6 @@ char __aligned _g_cgx_Copyright [] = "(C)opyright 2026 by G. Bartsch. Licensed u
 char __aligned _g_cgx_VERSTRING [] = "\0$VER: " EXLIBNAME ".library" EXLIBVER;
 
 static const char s_board_name[] = "uaegfx.card";
-
-struct Library *AslBase = NULL;
 
 /* ------------------------------------------------------------------ */
 /* library housekeeping                                                 */
@@ -427,61 +421,67 @@ void _cgx_FreeCModeList ( register struct Library *CyberGfxBase __asm("a6"),
     FreeVec(l);
 }
 
-/* ASLSM_FilterFunc of CModeRequestTagList() */
-static ULONG cgx_req_filter(register struct Hook *hook __asm("a0"),
-                            register APTR req __asm("a2"),
-                            register ULONG id __asm("a1"))
+/* list texts of CModeRequestTagList() (reference: the CyberGraphX
+ * emulation of Picasso96 2.0) */
+static CONST_STRPTR cgx_req_fmt_name(ULONG fmt)
 {
-    return cgx_filter_match((const cgx_filter_t *)hook->h_Data, id) ? 1 : 0;
+    switch (fmt)
+    {
+        case RGBFB_CLUT:     return (CONST_STRPTR)"CLUT";
+        case RGBFB_R5G6B5PC: return (CONST_STRPTR)"RGBPC";
+        case RGBFB_R5G5B5PC: return (CONST_STRPTR)"RGB15PC";
+        case RGBFB_B5G6R5PC: return (CONST_STRPTR)"BGRPC";
+        case RGBFB_B5G5R5PC: return (CONST_STRPTR)"BGR15PC";
+        case RGBFB_R5G6B5:   return (CONST_STRPTR)"RGB16";
+        case RGBFB_R5G5B5:   return (CONST_STRPTR)"RGB15";
+        case RGBFB_R8G8B8:   return (CONST_STRPTR)"RGB";
+        case RGBFB_B8G8R8:   return (CONST_STRPTR)"BGR";
+        case RGBFB_A8R8G8B8: return (CONST_STRPTR)"ARGB";
+        case RGBFB_A8B8G8R8: return (CONST_STRPTR)"ABGR";
+        case RGBFB_R8G8B8A8: return (CONST_STRPTR)"RGBA";
+        case RGBFB_B8G8R8A8: return (CONST_STRPTR)"BGRA";
+        default:             return (CONST_STRPTR)"Unknown";
+    }
 }
 
-/* -66 CModeRequestTagList: the screen mode requester (asl.library's,
- * limited to the board modes the tags allow); 0 when cancelled */
+static BOOL cgx_req_match(APTR ud, ULONG id)
+{
+    return cgx_filter_match((const cgx_filter_t *)ud, id);
+}
+
+/* -66 CModeRequestTagList: the board's screen mode requester; 0 when
+ * cancelled */
 ULONG _cgx_CModeRequestTagList ( register struct Library *CyberGfxBase __asm("a6"),
                                  register APTR request __asm("a0"),
                                  register struct TagItem *tags __asm("a1") )
 {
-    struct ScreenModeRequester *smr;
-    struct TagItem at[10], *t, *state = tags;
-    struct Hook hook;
+    rtgl_modereq_t r;
+    struct TagItem *t, *state = tags;
     cgx_filter_t f;
-    ULONG id = 0;
-    int n = 0;
+    ULONG id;
 
-    LXA_UNIMPLEMENTED("cgx", "CModeRequestTagList",
-                      "partial: shows asl.library's screen mode requester, not CyberGraphX's own window (Phase 246)");
-    if (!AslBase)
-        AslBase = OpenLibrary((CONST_STRPTR)"asl.library", 38);
-    if (!AslBase)
-        return 0;
     cgx_filter_init(&f, tags);
-    hook.h_Entry = (void *)cgx_req_filter;
-    hook.h_SubEntry = NULL;
-    hook.h_Data = &f;
-    while ((t = rtgl_next_tag(&state)) != NULL && n < 6)
+    r.title = r.ok_text = r.cancel_text = r.pubname = NULL;
+    r.about_title = (CONST_STRPTR)"cybergraphics.library";
+    r.about_text = (CONST_STRPTR)"lxa CyberGraphX screen mode requester";
+    r.screen = NULL;
+    r.match = cgx_req_match;
+    r.ud = &f;
+    r.fmt_name = cgx_req_fmt_name;
+    r.newlook_layout = TRUE;    /* reference: item width 82 (Amiga key image) */
+    while ((t = rtgl_next_tag(&state)) != NULL)
     {
         switch (t->ti_Tag)
         {
-            case CYBRMREQ_WinTitle:   at[n].ti_Tag = ASLSM_TitleText; break;
-            case CYBRMREQ_OKText:     at[n].ti_Tag = ASLSM_PositiveText; break;
-            case CYBRMREQ_CancelText: at[n].ti_Tag = ASLSM_NegativeText; break;
-            case CYBRMREQ_Screen:     at[n].ti_Tag = ASLSM_Screen; break;
-            default: continue;
+            case CYBRMREQ_WinTitle:   r.title = (CONST_STRPTR)t->ti_Data; break;
+            case CYBRMREQ_OKText:     r.ok_text = (CONST_STRPTR)t->ti_Data; break;
+            case CYBRMREQ_CancelText: r.cancel_text = (CONST_STRPTR)t->ti_Data; break;
+            case CYBRMREQ_Screen:     r.screen = (struct Screen *)t->ti_Data; break;
+            default: break;
         }
-        at[n++].ti_Data = t->ti_Data;
     }
-    at[n].ti_Tag = ASLSM_FilterFunc;
-    at[n++].ti_Data = (ULONG)&hook;
-    at[n].ti_Tag = ASLSM_PropertyMask;
-    at[n++].ti_Data = 0;
-    at[n].ti_Tag = TAG_DONE;
-    smr = (struct ScreenModeRequester *)AllocAslRequest(ASL_ScreenModeRequest, at);
-    if (!smr)
-        return 0;
-    if (AslRequest(smr, NULL))
-        id = smr->sm_DisplayID;
-    FreeAslRequest(smr);
-    return id;
+    id = rtgl_mode_request(&r);
+    return id == INVALID_ID ? 0 : id;
 }
 
 /* -102 GetCyberIDAttr */
