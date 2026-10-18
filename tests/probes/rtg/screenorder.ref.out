@@ -1,0 +1,19 @@
+wb alone: flags = 0x4611 modes = 0x5000 dheight = 600
+a = non-NULL
+a front: flags = 0x021f modes = 0x5303 dheight = 480
+wb under a: flags = 0x6611 modes = 0x7000 dheight = 600
+a back: flags = 0x221f modes = 0x7303 dheight = 480
+wb over a: flags = 0x4611 modes = 0x5000 dheight = 600
+a front again: flags = 0x021f modes = 0x5303 dheight = 480
+wb under a again: flags = 0x6611 modes = 0x7000 dheight = 600
+a depth back: flags = 0x221f modes = 0x7303 dheight = 480
+a depth front: flags = 0x021f modes = 0x5303 dheight = 480
+b = non-NULL
+b behind: flags = 0x229f modes = 0x7000 dheight = 0
+a over b: flags = 0x021f modes = 0x5303 dheight = 480
+b front: flags = 0x029f modes = 0x5000 dheight = 240
+a under b: flags = 0x221f modes = 0x7303 dheight = 480
+wb under b: flags = 0x6611 modes = 0x7000 dheight = 600
+b back: flags = 0x229f modes = 0x7000 dheight = 240
+a after b: flags = 0x021f modes = 0x5303 dheight = 480
+wb at end: flags = 0x4611 modes = 0x5000 dheight = 600

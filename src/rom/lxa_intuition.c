@@ -84,6 +84,9 @@ extern VOID graphics_screen_sync_viewport_bitmap(struct Screen *screen);
 #define LXA_WMF_IDCMP_USERPORT_OWNED  0x80000000UL
 #define LXA_WMF_IDCMP_WINDOWPORT_OWNED 0x40000000UL
 #define LXA_WMF_GADGETHELP            0x20000000UL
+/* Screen.Flags: Picasso96's private bit of a hidden RTG screen */
+#define LXA_SCREEN_RTG_HIDDEN         0x2000
+static void _intuition_rtg_show_front(struct IntuitionBase *IntuitionBase, struct Screen *front);
 
 #define LXA_GADTOOLS_CONTEXT_MAGIC    0x47544358UL
 
@@ -5233,6 +5236,10 @@ LONG _intuition_CloseScreen ( register struct IntuitionBase * IntuitionBase __as
         }
     }
     
+    /* the RTG screen behind a closed front screen comes to the front */
+    if (!(screen->ViewPort.Modes & VP_HIDE) && IntuitionBase->FirstScreen)
+        _intuition_rtg_show_front(IntuitionBase, IntuitionBase->FirstScreen);
+
     /* Update active screen if necessary */
     if (IntuitionBase->ActiveScreen == screen)
     {
@@ -9973,14 +9980,18 @@ struct Screen * _intuition_OpenScreen ( register struct IntuitionBase * Intuitio
     if (screen->BarHBorder == 5)
         screen->Flags |= SCREENHIRES;
     /* a Picasso96 screen: ViewPort.Modes is the low word of the mode ID
-     * with SPRITES (and VP_HIDE), DHeight 0 and the private Flags bit
-     * 0x2000 (reference: probe rtg/p96screen) */
+     * with SPRITES; one opened behind is hidden (VP_HIDE, the private
+     * Flags bit 0x2000) and has DHeight 0 until it first comes to the
+     * front (reference: probes rtg/p96screen, rtg/screenorder) */
     if (rtg_fmt)
     {
         screen->ViewPort.Modes = (UWORD)((g_screen_display_id - 1) & 0xffff) | SPRITES |
                                  (screen->ViewPort.Modes & VP_HIDE);
-        screen->ViewPort.DHeight = 0;
-        screen->Flags |= 0x2000;
+        if (screen->ViewPort.Modes & VP_HIDE)
+        {
+            screen->ViewPort.DHeight = 0;
+            screen->Flags |= LXA_SCREEN_RTG_HIDDEN;
+        }
     }
     screen->WBorLeft = 4;
     screen->WBorRight = 4;
@@ -10060,6 +10071,8 @@ struct Screen * _intuition_OpenScreen ( register struct IntuitionBase * Intuitio
     /* Link screen into IntuitionBase screen list (at front) */
     screen->NextScreen = IntuitionBase->FirstScreen;
     IntuitionBase->FirstScreen = screen;
+    if (!(screen->ViewPort.Modes & VP_HIDE))
+        _intuition_rtg_show_front(IntuitionBase, screen);
     /* ... and its ViewPort into Intuition's View (ViewAddress()): newest
      * screen first, the order does not follow depth arrangement (AmigaOS
      * 3.1, probe intuition/viewaddress; Fish EOMS reads ViewPort->ColorMap) */
@@ -11588,6 +11601,33 @@ LONG _intuition_Request ( register struct IntuitionBase * IntuitionBase __asm("a
     return TRUE;
 }
 
+/* An RTG board shows only its front screen: Picasso96 hides every other
+ * RTG screen (ViewPort VP_HIDE and the private Screen.Flags bit 0x2000);
+ * a screen opened behind gets its DHeight when it first comes to the
+ * front (AmigaOS 3.1 `rtg` reference, probe rtg/screenorder) */
+static void _intuition_rtg_show_front(struct IntuitionBase *IntuitionBase, struct Screen *front)
+{
+    struct Screen *s;
+
+    for (s = IntuitionBase->FirstScreen; s; s = s->NextScreen)
+    {
+        if (!lxa_rtg_is(&s->BitMap))
+            continue;
+        if (s == front)
+        {
+            s->ViewPort.Modes &= ~VP_HIDE;
+            s->Flags &= ~LXA_SCREEN_RTG_HIDDEN;
+            if (!s->ViewPort.DHeight)
+                s->ViewPort.DHeight = s->Height;
+        }
+        else
+        {
+            s->ViewPort.Modes |= VP_HIDE;
+            s->Flags |= LXA_SCREEN_RTG_HIDDEN;
+        }
+    }
+}
+
 VOID _intuition_ScreenToBack ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Screen * screen __asm("a0"))
 {
@@ -11632,8 +11672,7 @@ VOID _intuition_ScreenToBack ( register struct IntuitionBase * IntuitionBase __a
     /* Link at tail */
     curr->NextScreen = screen;
     screen->NextScreen = NULL;
-    
-    /* TODO: RethinkDisplay / Update View */
+    _intuition_rtg_show_front(IntuitionBase, IntuitionBase->FirstScreen);
 }
 
 VOID _intuition_ScreenToFront ( register struct IntuitionBase * IntuitionBase __asm("a6"),
@@ -11649,7 +11688,11 @@ VOID _intuition_ScreenToFront ( register struct IntuitionBase * IntuitionBase __
 
     screen->ViewPort.Modes &= ~VP_HIDE;
     
-    if (screen == IntuitionBase->FirstScreen) return; /* Already at front */
+    if (screen == IntuitionBase->FirstScreen)  /* Already at front */
+    {
+        _intuition_rtg_show_front(IntuitionBase, screen);
+        return;
+    }
 
     /* Find screen in list */
     curr = IntuitionBase->FirstScreen;
@@ -11670,8 +11713,7 @@ VOID _intuition_ScreenToFront ( register struct IntuitionBase * IntuitionBase __
     /* Link at front */
     screen->NextScreen = IntuitionBase->FirstScreen;
     IntuitionBase->FirstScreen = screen;
-    
-    /* TODO: RethinkDisplay / Update View */
+    _intuition_rtg_show_front(IntuitionBase, screen);
 }
 
 LONG _intuition_SetDMRequest ( register struct IntuitionBase * IntuitionBase __asm("a6"),
