@@ -49,6 +49,8 @@ char __aligned _g_gadtools_Copyright [] = "(C)opyright 2025 by G. Bartsch. Licen
 char __aligned _g_gadtools_VERSTRING [] = "\0$VER: " EXLIBNAME EXLIBVER;
 
 extern struct ExecBase *SysBase;
+#define LXA_RTG_M68K
+#include "lxa_rtg.h"
 extern struct GfxBase  *GfxBase;
 extern struct UtilityBase *UtilityBase;
 extern struct IntuitionBase *IntuitionBase;
@@ -3394,7 +3396,10 @@ static void gt_menu_layout_init(struct gt_menu_layout *ml, struct VisualInfo *vi
     struct Screen *screen = vi ? vi->vi_Screen : NULL;
     struct DrawInfo *dri = vi ? vi->vi_DrawInfo : NULL;
     BOOL newlook = (BOOL)GetTagData(GTMN_NewLookMenus, FALSE, taglist);
-    BOOL hires = screen ? ((screen->ViewPort.Modes & HIRES) != 0) : TRUE;
+    /* an RTG screen's ViewPort.Modes holds the low word of its mode ID:
+     * its resolution is SCREENHIRES (gallery-rtg-menus-old) */
+    BOOL hires = screen ? ((screen->ViewPort.Modes & HIRES) != 0 ||
+                           (lxa_rtg_is(&screen->BitMap) && (screen->Flags & SCREENHIRES))) : TRUE;
     struct Image *check = (struct Image *)GetTagData(GTMN_Checkmark, 0, taglist);
     struct Image *amigakey_img = (struct Image *)GetTagData(GTMN_AmigaKey, 0, taglist);
     UBYTE default_pen = 0;
