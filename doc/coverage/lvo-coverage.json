@@ -1164,7 +1164,7 @@
  {
   "lib": "dos",
   "lvo": -228,
-  "function": "AllocDosObject/AllocDosObjectTagList",
+  "function": "AllocDosObjectTagList/AllocDosObject",
   "symbol": "dos_AllocDosObject",
   "status": "tested"
  },
@@ -1178,7 +1178,7 @@
  {
   "lib": "dos",
   "lvo": -240,
-  "function": "DoPkt/DoPkt3/DoPkt1/DoPkt2/DoPkt4/DoPkt0",
+  "function": "DoPkt1/DoPkt0/DoPkt2/DoPkt4/DoPkt/DoPkt3",
   "symbol": "dos_DoPkt",
   "status": "tested"
  },
@@ -1787,7 +1787,7 @@
  {
   "lib": "dos",
   "lvo": -768,
-  "function": "NewLoadSegTagList/NewLoadSeg",
+  "function": "NewLoadSeg/NewLoadSegTagList",
   "symbol": "dos_NewLoadSeg",
   "status": "tested"
  },
@@ -2277,14 +2277,14 @@
  {
   "lib": "exec",
   "lvo": -240,
-  "function": "AddHeadMinList/AddHead",
+  "function": "AddHead/AddHeadMinList",
   "symbol": "exec_AddHead",
   "status": "tested"
  },
  {
   "lib": "exec",
   "lvo": -246,
-  "function": "AddTail/AddTailMinList",
+  "function": "AddTailMinList/AddTail",
   "symbol": "exec_AddTail",
   "status": "tested"
  },
@@ -2305,7 +2305,7 @@
  {
   "lib": "exec",
   "lvo": -264,
-  "function": "RemTail/RemTailMinList",
+  "function": "RemTailMinList/RemTail",
   "symbol": "exec_RemTail",
   "status": "tested"
  },

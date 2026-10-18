@@ -420,7 +420,7 @@ EXPECT_TRUE(std::any_of(text_log_.begin(), text_log_.end(),
 
 Until Phase 130 lands, use pixel-region counting (the existing approach) or DPRINTF log scanning as a proxy. Do not attempt to implement text extraction via ad-hoc DPRINTF log parsing — wait for the hook.
 
-### 6.19 RTG / Picasso96 Architecture (Phases 241–242)
+### 6.19 RTG / Picasso96 Architecture (Phases 241–243)
 
 RTG models the `rtg` reference profile (Picasso96 2.0, one uaegfx board) and is enabled per run: `lxa --rtg`, `LXA_RTG=1`, `lxa_config_t.rtg`. Without it the display database has no RTG modes and both RTG libraries refuse to open.
 
@@ -431,6 +431,7 @@ RTG models the `rtg` reference profile (Picasso96 2.0, one uaegfx board) and is 
 - **Disk-library globals must be initialised** (`struct Library *P96Base = NULL;`), also in probes: an uninitialised (common) symbol lets libnix's auto-open definition win.
 - **Inline asm that hands the host a pointer to a stack block needs a `"memory"` clobber.** `emucall5` in `lxa_rtglib.c` lacked it and GCC dropped the stores that filled the render argument block, so every P96/CGX pixel call saw garbage.
 - **GCC -O2 epilogue miscompile (bebbo m68k-amigaos-gcc)**: in `_cgx_WritePixelArray` a `return (ULONG)w*h;` after a call with stack arguments popped the saved registers before `lea (n,sp),sp`, corrupting the caller's d5/a2 (the probe looped forever). Computing the result into a local before the call avoided it. Suspect this when a caller's registers change across a library call that has stack-argument helpers; check the generated assembly (`-S`) for a `(sp)+` pop between `jsr` and the stack adjustment.
+- **The `rtg` Workbench (Phase 243)**: the RTG Workbench comes from screenmode prefs (`ENV:Sys/screenmode.prefs`, mode `0x50041000`, 800x600x8: pylxa `screenmode_prefs()`, `FinalWriterRtgTest`). Programs size and centre windows from that Workbench's DisplayClip (`VTAG_VIEWPORTEXTRA_GET`; Final Writer's swshell.library does), from GfxBase `MaxDisplayRow`, and from `SA_LikeWorkbench`. Each of these values must follow the prefs mode, not the PAL default (probe `rtg/wbscreen`). `GetDisplayInfoData()` uses the handle when one is given and ignores the ID.
 
 ### 6.20 Disassembling Amiga App Binaries (Phase 151)
 
