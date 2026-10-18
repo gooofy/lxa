@@ -15646,6 +15646,7 @@ struct Screen * _intuition_OpenScreenTagList ( register struct IntuitionBase * I
                     break;
                 case SA_FullPalette:
                     full_palette = tag->ti_Data ? TRUE : FALSE;
+                    given |= 32;
                     break;
                 /* Tags we recognize but don't fully implement yet */
                 case SA_ErrorCode:
@@ -15671,6 +15672,10 @@ struct Screen * _intuition_OpenScreenTagList ( register struct IntuitionBase * I
     if (like_wb)
     {
         struct LXAIntuitionBase *ibase = (struct LXAIntuitionBase *)IntuitionBase;
+
+        /* ... and the Workbench's full palette (probe rtg/colormap) */
+        if (!(given & 32))
+            full_palette = TRUE;
         if (ibase->HasScreenModePrefs)
         {
             const struct LxaIScreenModePrefs *sm = &ibase->ScreenModePrefs;
