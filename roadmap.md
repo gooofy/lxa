@@ -103,7 +103,7 @@ AROS code must **not** be copied or ported into lxa: its licence (AROS Public Li
 | **M1** | The Reference Oracle: FS-UAE twin harness | Quality (infrastructure) | 210–216 |
 | **M2** | Ground-truth the existing suite + conformance gallery | Quality → Compatibility | 220–224 |
 | **M3** | Breadth: app corpus, compat DB, sweeps, trace diff | Compatibility | 230–239, 244 |
-| **M4** | RTG / Picasso96 | Compatibility (reclassified, see M4) | 240–243, 246 |
+| **M4** | RTG / Picasso96 (complete) | Compatibility (reclassified, see M4) | 240–243, 246 |
 | **M5** | Close the facades: system-library completeness (own implementations; AROS as a reference only) | Compatibility | 250–258 |
 | **M6** | WINE-like desktop integration | New features | 260–265 |
 | **M7** | Dev platform, toolkits, performance | New features / Performance | 270–276 |
@@ -114,7 +114,7 @@ M0 and M1 are on the critical path: nothing in M2 and later is efficient without
 
 ## Next Phase
 
-> M4 (**246**, the last M4 phase) and M5 (**251**, **252**, **255**, **256**) may run in parallel worktrees; M3 is complete, Phases 240–243 (68040 + AGA machine identity, RTG display, Picasso96API/cybergraphics, RTG apps and the `rtg` Workbench) are done.
+> **M5 — Close the Facades**: Phases **251**, **252**, **255** and **256** (in that priority order; they may run in parallel worktrees). M0–M4 are complete; M4 (RTG / Picasso96, Phases 240–243, 246) closed with v0.12.54.
 
 ---
 
@@ -151,15 +151,9 @@ Complete (Phases 230–239, 244, v0.11.88); see the summary table.  The Fred Fis
 - **It is not an oracle.** Where PrismRTG and Picasso96 2.0 on the `rtg` reference profile disagree, the reference wins (rule 1). PrismRTG's documented gaps, such as no picture-in-picture, are not hints about P96 behaviour.
 - Its `src/p96sdk` card-driver headers (Individual Computers et al., CC-BY) describe the `.card` and board interface. lxa does not need that interface, because lxa's display backend is the host.
 
-Phases 240 (the A4000/040 with AGA as the reference has it), 241 (RTG display), 242 (Picasso96API.library and cybergraphics.library) and 243 (RTG apps and the `rtg` Workbench) are complete; see the summary table.  RTG is enabled per run (`lxa --rtg`, `LXA_RTG=1`, `lxa_config_t.rtg`); probes marked `rdd: profile rtg` (`tests/probes/rtg/`) run on the `rtg` reference profile.
+**M4 is complete** (Phases 240–243, 246, v0.12.54): 240 (the A4000/040 with AGA as the reference has it), 241 (RTG display), 242 (Picasso96API.library and cybergraphics.library), 243 (RTG apps and the `rtg` Workbench) and 246 (the P96/CGX residue and the two screen mode requesters); see the summary table.  The remaining RTG divergences recorded in goldens are owned by Phase 256.  RTG is enabled per run (`lxa --rtg`, `LXA_RTG=1`, `lxa_config_t.rtg`); probes marked `rdd: profile rtg` (`tests/probes/rtg/`) run on the `rtg` reference profile.
 
-### Phase 246 — Picasso96 / CyberGraphX residue
-Values the Phase 242 probes leave out because lxa does not reproduce them yet, and the two requesters.  Each item ends with the probe line put back (re-captured on the `rtg` reference).
-- [ ] `p96BestModeIDTagList`: lxa's size/depth scoring matches 610 of 667 reference queries (`src/lxa/lxa_rtg.c`, `p96_best_mode`); capture the misses as a probe and make all of them equal.
-- [ ] `p96RequestModeIDTagList` and `CModeRequestTagList` show asl.library's screen-mode requester instead of Picasso96's / CyberGraphX's own window (`LXA_UNIMPLEMENTED` partials): build the reference windows (tree golden of each).
-- [ ] Undocumented colours: the clear colour of `BMF_CLEAR` true-colour bitmaps, CLUT/`RECTFMT_LUT8` arrays written to true-colour bitmaps (default colour table), `p96ReadPixelArray` from CLUT bitmaps and from R5G6B5PC into B8G8R8A8 (green of the first pixel), `ScalePixelArray` beyond its first pixel, R5G5B5 alpha-bit handling (probes `rtg/p96pixels`, `rtg/p96screen`, `rtg/cgx`).
-- [ ] RTG screen internals that Picasso96 sets: `ViewPort.Modes` (VP_HIDE, SPRITES), `ViewPort.DHeight` 0 and the private `Screen.Flags` bit 0x2000 (`rtg/p96screen`).
-- Test gate: the omitted lines are back in the probes and `ref_expected_outputs` is green.
+
 ---
 
 ## M5 — Close the Facades (System-Library Completeness)
@@ -236,6 +230,7 @@ commodities.library is lxa's own complete implementation since Phase 237c (every
 - [ ] (from Phase 243) PPaint (golden `ppaint/ppaint-rtg`): its WDRAGGING gadget has GACT_BORDERSNIFF (0x8000) on 3.1, and its paint backdrop window has WFLG_RMBTRAP; 3.1 returns 7 for ReadPixel(0,0) on PPaint's private RastPort (the 1 px brush-cursor diff).
 - [ ] (from Phase 243) System requesters (EasyRequest/AutoRequest) on the 1:1 800x600 RTG Workbench are 8 px wider and 9 px higher on 3.1 (goldens `Req/gallery-rtg-*`); asl's screen-mode info window menu (`Asl/gallery-rtg-asl-screenmode-info`, 1159 px vs 583 on aga).
 - [ ] (from Phase 243) FinalWriter's toolbar images use other pens on the RTG Workbench (golden `FinalWriter_D/finalwriter-rtg` editor, ~36 000 px), plus the menu item widths (+4) and sub-menu lefts (+1/+2) seen on aga.
+- [ ] (from Phase 246) Menus of a window on the 8-bit RTG Workbench (goldens `RtgReq/gallery-rtg-*req` menu0, ~3 400 px): 3.1 highlights the selected title as black on white where lxa complements all 8 planes (green/blue), and the classic-look bar separator of a GTMN_NewLookMenus=FALSE strip is pen 0 on 3.1, black on lxa; the Workbench icons are missing in lxa's screen snapshot.  Probe the complement (title and item highlight) on an 8-bit screen.
 ### Phase 257 — Locale catalogs & non-English apps
 - [ ] Real `OpenCatalog` with `LOCALE:` catalogs and language prefs, verified with German-language apps (MaxonBASIC, FinalWriter_D) on a reference with a German locale.
 
@@ -314,7 +309,7 @@ commodities.library is lxa's own complete implementation since Phase 237c (every
 | Scenarios with reference goldens | 0 | 4 | 300+ |
 | Test programs validated on real OS | 0 / 225 | — | 225 / 225 |
 | Stubbed system-library LVOs (Phase 203 inventory) | 85 stub + 39 partial + 117 without implementation (v0.11.1) | measured | 0 used by the corpus |
-| Line coverage (host + ROM) | ROM 82.3 % / host 40.5 % (v0.12.11; v0.11.0: 77.3 % / 32.6 %) | measured | never decreasing |
+| Line coverage (host + ROM) | ROM 82.3 % / host 40.6 % (v0.12.54, M4 complete; v0.11.0: 77.3 % / 32.6 %) | measured | never decreasing |
 | Flaky-test rate (20× runs) | 0 / 20 under load (v0.11.0) | 0 | 0 |
 | Full-suite wall time `-j16` | 22 s (v0.11.0; was 110 s) | ≤145 s | ≤120 s |
 
@@ -373,4 +368,5 @@ commodities.library is lxa's own complete implementation since Phase 237c (every
 | 241 | RTG display: with `--rtg`/`LXA_RTG=1`/`lxa_config_t.rtg` the display database lists the 57 uaegfx modes of the `rtg` profile after the native ones (DisplayInfo/DimensionInfo/MonitorInfo/NameInfo, MonitorList, BestModeIDA; `rtg/modes`); chunky RTG bitmaps (Picasso96 layout, pad tag + host descriptor) for AllocBitMap with an RTG friend or BMF_SPECIALFMT, rendered by the host (`src/lxa/lxa_rtg.c`); screens of RTG modes open at their depth and `display_update_rtg()` shows them (`rtg_gtest`); layers keep backing store in the screen format, backfill pen 0 in the ColorMap colour, ClipBlit reads obscured SMART_REFRESH parts from backing store (`rtg/rtglayers`). Residue: Phase 246. | v0.12.6 |
 | 242 | `Picasso96API.library` (v2) and `cybergraphics.library` (v41) as lxa's own disk libraries (`src/rom/lxa_p96.c`, `lxa_cgx.c`, shared `lxa_rtglib.c`; open only with RTG): bitmaps, locks, pixel arrays in every RGBFTYPE/RECTFMT, TrueColorData, RectFill/WritePixel/ReadPixel with the reference's CLUT/planar semantics, mode lists and BestModeID, screens (p96OpenScreenTagList), PIP (none on uaegfx), board data, CGX mode queries, GetCyberMapAttr, LockBitMapTagList, DoCDrawMethod, Fill/Invert/Move/ScalePixelArray; probes `rtg/p96lib`, `rtg/p96modes`, `rtg/p96pixels`, `rtg/p96screen`, `rtg/cgx` from the `rtg` reference. Requesters (asl-based) and undocumented colours: Phase 246. | v0.12.4 |
 | 243 | RTG apps and the `rtg` Workbench: OpenWorkBench takes the screenmode prefs (an RTG Workbench is HIRES, has View offsets 0, GfxBase MaxDisplayRow/Column of the board, a DisplayClip of the prefs mode; probe `rtg/wbscreen`); SA_LikeWorkbench copies the prefs mode/size/depth; the screen bar is a layer in front of backdrop windows, ShowTitle moves it, window MouseX/Y follow the pointer (`intuition/showtitle`, `mousepos`); GetDisplayInfoData prefers the handle over the ID; RDD indexed snapshots read RTG bitmaps. FinalWriter reaches its editor on the 800x600 Workbench (`FinalWriterRtgTest.AcceptDialogOpensEditorWindow` replaces the DISABLED test; swshell.library centres dialogs in the DisplayClip); goldens ppaint-rtg, dpaintv-rtg (uaegfx modes in Screen Format), finalwriter-rtg, prowrite-rtg (Wordsworth/Amiga Writer are not in the corpus) and 19 `gallery-rtg-*`; residue owned by 246/256. | v0.12.11 |
+| 246 | Picasso96 / CyberGraphX residue (M4 complete): p96BestModeIDTagList equals all reference queries (`rtg/p96best`); undocumented colours (BMF_CLEAR, CLUT arrays via the board's default table, ReadPixelArray from CLUT/R5G6B5PC, ScalePixelArray, R5G5B5 alpha bit; `rtg/p96pixels`, `rtg/cgx`; CLUT RGB reads stay out of the probes because 3.1 returns undefined memory); only the front RTG screen is shown (VP_HIDE, Flags 0x2000, DHeight 0 until first in front; `rtg/screenorder`), RTG Modes = ID low word \| SPRITES; GetColorMap's default pens 32–255 and SA_LikeWorkbench ⇒ SA_FullPalette (`rtg/colormap`); GadTools lays out menus by SCREENHIRES on RTG screens; p96RequestModeIDTagList/CModeRequestTagList open the board's own GadTools requester (goldens `RtgReq/gallery-rtg-p96req`, `-cgxreq`, `-p96reqtags`, window and pixels equal to 3.1). Residue owned by 256. | v0.12.54 |
 | 245 | AROS code replaced by lxa's own (licensing: AROS is a reference only): BCPL support (`doc/bcpl.md`) and colorwheel/gradientslider/tapedeck gadget classes (`doc/gadget-classes.md`) rewritten, both APL LICENSE files and third-party rows gone; audit of every "based on AROS" site (`doc/aros-audit.md`): 10 rewritten (area vector collection, AddFont/RemFont, FontExtent, InitBitMap, DrawBorder, DoubleClick, MakeFunctions + dead `__AROS_*` macros, ReleaseSemaphore hand-over, Exception, WaitIO), 13 comments reworded to cite NDK/RKRM/3.1, 2 interface facts kept (`LA_*` tag values, SetIPrefs codes). Suite and `suite-ref --lxa-check` (338 programs) green. | v0.11.62 |

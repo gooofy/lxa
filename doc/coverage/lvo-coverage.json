@@ -1164,7 +1164,7 @@
  {
   "lib": "dos",
   "lvo": -228,
-  "function": "AllocDosObjectTagList/AllocDosObject",
+  "function": "AllocDosObject/AllocDosObjectTagList",
   "symbol": "dos_AllocDosObject",
   "status": "tested"
  },
@@ -1178,7 +1178,7 @@
  {
   "lib": "dos",
   "lvo": -240,
-  "function": "DoPkt1/DoPkt0/DoPkt2/DoPkt4/DoPkt/DoPkt3",
+  "function": "DoPkt4/DoPkt0/DoPkt2/DoPkt/DoPkt3/DoPkt1",
   "symbol": "dos_DoPkt",
   "status": "tested"
  },
@@ -1472,7 +1472,7 @@
  {
   "lib": "dos",
   "lvo": -498,
-  "function": "CreateNewProc/CreateNewProcTagList",
+  "function": "CreateNewProcTagList/CreateNewProc",
   "symbol": "dos_CreateNewProc",
   "status": "tested"
  },
@@ -1787,7 +1787,7 @@
  {
   "lib": "dos",
   "lvo": -768,
-  "function": "NewLoadSeg/NewLoadSegTagList",
+  "function": "NewLoadSegTagList/NewLoadSeg",
   "symbol": "dos_NewLoadSeg",
   "status": "tested"
  },
@@ -2270,28 +2270,28 @@
  {
   "lib": "exec",
   "lvo": -234,
-  "function": "InsertMinNode/Insert",
+  "function": "Insert/InsertMinNode",
   "symbol": "exec_Insert",
   "status": "tested"
  },
  {
   "lib": "exec",
   "lvo": -240,
-  "function": "AddHead/AddHeadMinList",
+  "function": "AddHeadMinList/AddHead",
   "symbol": "exec_AddHead",
   "status": "tested"
  },
  {
   "lib": "exec",
   "lvo": -246,
-  "function": "AddTailMinList/AddTail",
+  "function": "AddTail/AddTailMinList",
   "symbol": "exec_AddTail",
   "status": "tested"
  },
  {
   "lib": "exec",
   "lvo": -252,
-  "function": "Remove/RemoveMinNode",
+  "function": "RemoveMinNode/Remove",
   "symbol": "exec_Remove",
   "status": "tested"
  },
@@ -2305,7 +2305,7 @@
  {
   "lib": "exec",
   "lvo": -264,
-  "function": "RemTailMinList/RemTail",
+  "function": "RemTail/RemTailMinList",
   "symbol": "exec_RemTail",
   "status": "tested"
  },
@@ -5007,7 +5007,7 @@
  {
   "lib": "intuition",
   "lvo": -234,
-  "function": "ReportMouse1/ReportMouse",
+  "function": "ReportMouse/ReportMouse1",
   "symbol": "intuition_ReportMouse",
   "status": "tested"
  },
