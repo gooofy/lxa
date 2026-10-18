@@ -1,0 +1,13 @@
+# CyberGraphX gallery (Phase 246): CModeRequestTagList's screen mode
+# requester on the rtg profile's Workbench.
+name: gallery-rtg-cgxreq
+profile: rtg
+app:
+  sample: Tests/Gallery/RtgReq
+  args: "cgx"
+steps:
+  - launch
+  - wait_window: "Gallery CGX Mode"
+  - frames: 50
+  - snapshot: {name: requester, window: "Gallery CGX Mode"}
+  - quit

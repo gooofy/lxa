@@ -444,6 +444,7 @@ set(GALLERY_LIST
     "screen|Screen"
     "prefs|Prefs"
     "asl|Asl"
+    "rtgreq|RtgReq"
 )
 file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/Samples/Tests/Gallery")
 foreach(gallery_info ${GALLERY_LIST})

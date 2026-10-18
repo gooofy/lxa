@@ -1,0 +1,13 @@
+# Picasso96 gallery (Phase 246): p96RequestModeIDTagList's own screen mode
+# requester on the rtg profile's Workbench.
+name: gallery-rtg-p96req
+profile: rtg
+app:
+  sample: Tests/Gallery/RtgReq
+  args: "p96"
+steps:
+  - launch
+  - wait_window: "Gallery P96 Mode"
+  - frames: 50
+  - snapshot: {name: requester, window: "Gallery P96 Mode"}
+  - quit
