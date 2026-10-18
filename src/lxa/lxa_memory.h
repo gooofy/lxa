@@ -376,7 +376,8 @@ static inline void mwrite8(uint32_t address, uint8_t value)
             if (g_debug)
                 _debug(m68k_get_reg(NULL, M68K_REG_PC));
         }
-        assert (false);
+        /* ignored like an unmapped bus write; no assert, so debug and
+         * coverage builds run the same programs as the release build */
     }
 }
 
