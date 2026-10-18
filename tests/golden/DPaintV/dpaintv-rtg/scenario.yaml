@@ -1,0 +1,13 @@
+# Phase 243: Deluxe Paint V in the `rtg` profile (Picasso96, the Workbench
+# in UAE 800x600 8 bit): its "Screen Format" dialog lists the display modes,
+# the uaegfx modes among them.
+name: dpaintv-rtg
+profile: rtg
+app:
+  manifest: DPaintV
+steps:
+  - launch
+  - wait_window: {title: "", timeout: 30000}
+  - wait_idle: {timeout: 20000}
+  - frames: 300                       # DPaint's "Ownership Information" splash closes itself after 4 s
+  - snapshot: startup

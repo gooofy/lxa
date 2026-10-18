@@ -1,0 +1,16 @@
+# Phase 243: ProWrite 3.3 (word processor; Wordsworth and Amiga Writer are
+# not in the corpus) in the `rtg` profile (Picasso96, the Workbench in UAE
+# 800x600 8 bit): its document window on the RTG Workbench.
+name: prowrite-rtg
+profile: rtg
+fonts: wb31        # its Font menu lists the Workbench 3.1 fonts (Phase 244)
+app: {manifest: ProWrite}
+steps:
+  - launch
+  - wait_window: {title: "Untitled", timeout: 30000}
+  - frames: 100
+  - snapshot: startup
+  - type: "Hello RTG"
+  - frames: 25
+  - snapshot: typed
+  - quit

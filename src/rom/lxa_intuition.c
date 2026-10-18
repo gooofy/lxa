@@ -11289,7 +11289,24 @@ ULONG _intuition_OpenWorkBench ( register struct IntuitionBase * IntuitionBase _
     g_opening_workbench_screen = FALSE;
     g_screen_display_id = 0;
     if (wbscreen && ibase->HasScreenModePrefs && wbscreen->ViewPort.ColorMap)
+    {
         wbscreen->ViewPort.ColorMap->VPModeID = ibase->ScreenModePrefs.smp_DisplayID;
+        /* the DisplayClip follows the prefs mode (rtg/wbscreen: 0,0-799,599
+         * on the 800x600 RTG Workbench; Final Writer's swshell.library
+         * centres its dialogs in it) */
+        _intuition_update_display_clip(wbscreen);
+    }
+    /* a Workbench on the RTG board: the View has no offsets and GfxBase's
+     * display limits are the board's (AmigaOS 3.1 `rtg` reference, probe
+     * rtg/wbscreen: MaxDisplayRow 599, MaxDisplayColumn 0 on 800x600) */
+    if (wbscreen && ibase->HasScreenModePrefs &&
+        graphics_rtg_call(RTG_OP_MODE_ATTR, ibase->ScreenModePrefs.smp_DisplayID, 6 /* P96IDA_ISP96 */, 0, 0))
+    {
+        IntuitionBase->ViewLord.DxOffset = 0;
+        IntuitionBase->ViewLord.DyOffset = 0;
+        GfxBase->MaxDisplayRow = (UWORD)(wbscreen->Height - 1);
+        GfxBase->MaxDisplayColumn = 0;
+    }
     
     if (wbscreen)
     {

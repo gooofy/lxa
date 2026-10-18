@@ -1,0 +1,16 @@
+# Phase 243: Personal Paint in the `rtg` profile (Picasso96, Workbench on
+# UAE 800x600 8 bit).  PPaint opens its own depth-3 PAL screen with
+# Personal.font and its palette there, as lxa does; its copyright notice
+# ("ACHTUNG") comes first, "Weiter" leads to the paint screen.
+name: ppaint-rtg
+profile: rtg
+app: {manifest: ppaint}
+steps:
+  - launch
+  - wait_window: {title: "*", timeout: 30000}
+  - frames: 150                     # PPaint polls: never idle on the reference
+  - snapshot: startup
+  - click: {label: "Weiter"}
+  - frames: 100
+  - snapshot: paint
+  - quit

@@ -1,0 +1,36 @@
+-- screen
+Width = 800
+Height = 600
+LeftEdge = 0
+TopEdge = 0
+GetVPModeID = 0x50041000
+-- viewport
+DWidth = 800
+DHeight = 600
+DxOffset = 0
+DyOffset = 0
+-- viewportextra
+vpe = non-NULL
+DisplayClip.MinX = 0
+DisplayClip.MinY = 0
+DisplayClip.MaxX = 799
+DisplayClip.MaxY = 599
+-- view
+ActiView = non-NULL
+View.DxOffset = 0
+View.DyOffset = 0
+-- intuition
+ViewLord.DxOffset = 0
+ViewLord.DyOffset = 0
+-- gfxbase
+NormalDisplayRows = 256
+NormalDisplayColumns = 640
+MaxDisplayRow = 599
+MaxDisplayColumn = 0
+NormalDPMX = 1226
+NormalDPMY = 1299
+-- overscan
+txt.MinX = 0
+txt.MinY = 0
+txt.MaxX = 799
+txt.MaxY = 599

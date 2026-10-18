@@ -1,0 +1,2527 @@
+{
+ "backend": "ref",
+ "schema": "lxa-tree/1",
+ "screens": [
+  {
+   "bar_hborder": 5,
+   "bar_height": 10,
+   "bar_vborder": 1,
+   "default_title": "",
+   "depth": 3,
+   "display_id": 32768,
+   "flags": 17055,
+   "font": {
+    "baseline": 6,
+    "name": "Personal.font",
+    "xsize": 23,
+    "ysize": 8
+   },
+   "height": 256,
+   "left": 0,
+   "menu_hborder": 4,
+   "menu_vborder": 2,
+   "title": "",
+   "top": 0,
+   "wbor": [
+    4,
+    2,
+    4,
+    2
+   ],
+   "width": 640,
+   "windows": [
+    {
+     "app": true,
+     "block_pen": 1,
+     "border": [
+      0,
+      0,
+      0,
+      0
+     ],
+     "detail_pen": 0,
+     "flags": 211456,
+     "font": {
+      "baseline": 6,
+      "name": "Personal.font",
+      "xsize": 23,
+      "ysize": 8
+     },
+     "gadgets": [
+      {
+       "activation": 32768,
+       "flags": 35,
+       "height": 14,
+       "id": 0,
+       "left": 0,
+       "text": [],
+       "top": 0,
+       "type": 32,
+       "width": 0
+      },
+      {
+       "activation": 3,
+       "flags": 0,
+       "height": 12,
+       "id": 1,
+       "left": 131,
+       "text": [
+        {
+         "bpen": 0,
+         "drawmode": 0,
+         "fpen": 1,
+         "left": 16,
+         "text": "Weiter",
+         "top": 2
+        }
+       ],
+       "top": 79,
+       "type": 1,
+       "width": 72
+      }
+     ],
+     "height": 96,
+     "idcmp": 2883696,
+     "left": 153,
+     "max_height": 96,
+     "max_width": 335,
+     "menus": [],
+     "min_height": 96,
+     "min_width": 335,
+     "screen_title": "",
+     "title": "",
+     "top": 80,
+     "width": 335
+    },
+    {
+     "app": true,
+     "block_pen": 0,
+     "border": [
+      0,
+      0,
+      0,
+      0
+     ],
+     "detail_pen": 0,
+     "flags": 68416,
+     "font": {
+      "baseline": 6,
+      "name": "Personal.font",
+      "xsize": 23,
+      "ysize": 8
+     },
+     "gadgets": [],
+     "height": 1,
+     "idcmp": 327708,
+     "left": 0,
+     "max_height": 1,
+     "max_width": 640,
+     "menus": [],
+     "min_height": 1,
+     "min_width": 640,
+     "screen_title": "",
+     "title": "",
+     "top": 11,
+     "width": 640
+    },
+    {
+     "app": true,
+     "block_pen": 3,
+     "border": [
+      0,
+      0,
+      0,
+      0
+     ],
+     "detail_pen": 0,
+     "flags": 150272,
+     "font": {
+      "baseline": 6,
+      "name": "Personal.font",
+      "xsize": 23,
+      "ysize": 8
+     },
+     "gadgets": [],
+     "height": 256,
+     "idcmp": 796024,
+     "left": 0,
+     "max_height": 256,
+     "max_width": 640,
+     "menus": [
+      {
+       "flags": 1,
+       "height": 0,
+       "items": [
+        {
+         "command": 0,
+         "flags": 82,
+         "height": 10,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Bild laden...",
+         "top": 0,
+         "width": 164
+        },
+        {
+         "command": 0,
+         "flags": 82,
+         "height": 10,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Bild speichern...",
+         "top": 10,
+         "width": 164
+        },
+        {
+         "command": 0,
+         "flags": 82,
+         "height": 10,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Bild drucken...",
+         "top": 20,
+         "width": 164
+        },
+        {
+         "command": 0,
+         "flags": 82,
+         "height": 10,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Bildschirm laden...",
+         "top": 30,
+         "width": 164
+        },
+        {
+         "command": 0,
+         "flags": 82,
+         "height": 10,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Format...",
+         "top": 40,
+         "width": 164
+        },
+        {
+         "command": 0,
+         "flags": 82,
+         "height": 10,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Bildverarbeitung...",
+         "top": 50,
+         "width": 164
+        },
+        {
+         "command": 0,
+         "flags": 82,
+         "height": 10,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [
+          {
+           "command": 0,
+           "flags": 82,
+           "height": 10,
+           "left": 66,
+           "mutualexclude": 0,
+           "sub": [],
+           "text": "Horizontal",
+           "top": 0,
+           "width": 141
+          },
+          {
+           "command": 0,
+           "flags": 82,
+           "height": 10,
+           "left": 66,
+           "mutualexclude": 0,
+           "sub": [],
+           "text": "Vertikal",
+           "top": 10,
+           "width": 141
+          }
+         ],
+         "text": "Kippen",
+         "top": 60,
+         "width": 164
+        },
+        {
+         "command": 0,
+         "flags": 82,
+         "height": 10,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [
+          {
+           "command": 0,
+           "flags": 82,
+           "height": 10,
+           "left": 148,
+           "mutualexclude": 0,
+           "sub": [],
+           "text": "Wechseln zu",
+           "top": 0,
+           "width": 190
+          },
+          {
+           "command": 0,
+           "flags": 82,
+           "height": 10,
+           "left": 148,
+           "mutualexclude": 0,
+           "sub": [],
+           "text": "Diese Seite kopieren",
+           "top": 10,
+           "width": 190
+          },
+          {
+           "command": 0,
+           "flags": 66,
+           "height": 10,
+           "left": 148,
+           "mutualexclude": 0,
+           "sub": [],
+           "text": "Im Vordergrund mischen",
+           "top": 20,
+           "width": 190
+          },
+          {
+           "command": 0,
+           "flags": 66,
+           "height": 10,
+           "left": 148,
+           "mutualexclude": 0,
+           "sub": [],
+           "text": "Im Hintergrund mischen",
+           "top": 30,
+           "width": 190
+          },
+          {
+           "command": 0,
+           "flags": 66,
+           "height": 10,
+           "left": 148,
+           "mutualexclude": 0,
+           "sub": [],
+           "text": "Aktuelles Bild l\u00f6schen",
+           "top": 40,
+           "width": 190
+          }
+         ],
+         "text": "Zweiter Bildschirm",
+         "top": 70,
+         "width": 164
+        },
+        {
+         "command": 0,
+         "flags": 82,
+         "height": 10,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Ganzes Bild zeigen",
+         "top": 80,
+         "width": 164
+        },
+        {
+         "command": 0,
+         "flags": 82,
+         "height": 10,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Datei l\u00f6schen",
+         "top": 90,
+         "width": 164
+        },
+        {
+         "command": 0,
+         "flags": 82,
+         "height": 10,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Speicherbelegung...",
+         "top": 100,
+         "width": 164
+        },
+        {
+         "command": 0,
+         "flags": 82,
+         "height": 10,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Information...",
+         "top": 110,
+         "width": 164
+        },
+        {
+         "command": 0,
+         "flags": 82,
+         "height": 10,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Programm beenden",
+         "top": 120,
+         "width": 164
+        }
+       ],
+       "left": 0,
+       "title": "Projekt",
+       "top": 0,
+       "width": 53
+      },
+      {
+       "flags": 1,
+       "height": 0,
+       "items": [
+        {
+         "command": 0,
+         "flags": 82,
+         "height": 10,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Laden...",
+         "top": 0,
+         "width": 136
+        },
+        {
+         "command": 0,
+         "flags": 66,
+         "height": 10,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Speichern...",
+         "top": 10,
+         "width": 136
+        },
+        {
+         "command": 0,
+         "flags": 66,
+         "height": 10,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Drucken...",
+         "top": 20,
+         "width": 136
+        },
+        {
+         "command": 0,
+         "flags": 66,
+         "height": 10,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Verarbeiten...",
+         "top": 30,
+         "width": 136
+        },
+        {
+         "command": 0,
+         "flags": 66,
+         "height": 10,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Letzter Pinsel",
+         "top": 40,
+         "width": 136
+        },
+        {
+         "command": 0,
+         "flags": 66,
+         "height": 10,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "L\u00f6schen",
+         "top": 50,
+         "width": 136
+        },
+        {
+         "command": 0,
+         "flags": 82,
+         "height": 10,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [
+          {
+           "command": 0,
+           "flags": 67,
+           "height": 10,
+           "left": 85,
+           "mutualexclude": 14,
+           "sub": [],
+           "text": "Matte",
+           "top": 0,
+           "width": 111
+          },
+          {
+           "command": 0,
+           "flags": 339,
+           "height": 10,
+           "left": 85,
+           "mutualexclude": 13,
+           "sub": [],
+           "text": "Farbe",
+           "top": 10,
+           "width": 111
+          },
+          {
+           "command": 0,
+           "flags": 67,
+           "height": 10,
+           "left": 85,
+           "mutualexclude": 11,
+           "sub": [],
+           "text": "Ersetzen",
+           "top": 20,
+           "width": 111
+          },
+          {
+           "command": 0,
+           "flags": 67,
+           "height": 10,
+           "left": 85,
+           "mutualexclude": 7,
+           "sub": [],
+           "text": "HBrite",
+           "top": 30,
+           "width": 111
+          }
+         ],
+         "text": "Malmodus",
+         "top": 60,
+         "width": 136
+        },
+        {
+         "command": 0,
+         "flags": 66,
+         "height": 10,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [
+          {
+           "command": 0,
+           "flags": 82,
+           "height": 10,
+           "left": 60,
+           "mutualexclude": 0,
+           "sub": [],
+           "text": "Neu verteilen",
+           "top": 0,
+           "width": 194
+          },
+          {
+           "command": 0,
+           "flags": 82,
+           "height": 10,
+           "left": 60,
+           "mutualexclude": 0,
+           "sub": [],
+           "text": "Invers",
+           "top": 10,
+           "width": 194
+          },
+          {
+           "command": 0,
+           "flags": 82,
+           "height": 10,
+           "left": 60,
+           "mutualexclude": 0,
+           "sub": [],
+           "text": "Hg zu Vg",
+           "top": 20,
+           "width": 194
+          },
+          {
+           "command": 0,
+           "flags": 82,
+           "height": 10,
+           "left": 60,
+           "mutualexclude": 0,
+           "sub": [],
+           "text": "Hg/Vg vertauschen",
+           "top": 30,
+           "width": 194
+          },
+          {
+           "command": 0,
+           "flags": 192,
+           "height": 3,
+           "left": 60,
+           "mutualexclude": 0,
+           "sub": [],
+           "text": null,
+           "top": 40,
+           "width": 194
+          },
+          {
+           "command": 0,
+           "flags": 82,
+           "height": 10,
+           "left": 60,
+           "mutualexclude": 0,
+           "sub": [],
+           "text": "Neue Transparenz",
+           "top": 43,
+           "width": 194
+          },
+          {
+           "command": 0,
+           "flags": 82,
+           "height": 10,
+           "left": 60,
+           "mutualexclude": 0,
+           "sub": [],
+           "text": "F\u00fcll-Transparenz",
+           "top": 53,
+           "width": 194
+          },
+          {
+           "command": 0,
+           "flags": 82,
+           "height": 10,
+           "left": 60,
+           "mutualexclude": 0,
+           "sub": [],
+           "text": "N\u00e4chste Transparenz",
+           "top": 63,
+           "width": 194
+          },
+          {
+           "command": 0,
+           "flags": 192,
+           "height": 3,
+           "left": 60,
+           "mutualexclude": 0,
+           "sub": [],
+           "text": null,
+           "top": 73,
+           "width": 194
+          },
+          {
+           "command": 0,
+           "flags": 82,
+           "height": 10,
+           "left": 60,
+           "mutualexclude": 0,
+           "sub": [],
+           "text": "Bildpalette kopieren",
+           "top": 76,
+           "width": 194
+          }
+         ],
+         "text": "Farbe",
+         "top": 70,
+         "width": 136
+        },
+        {
+         "command": 0,
+         "flags": 82,
+         "height": 10,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [
+          {
+           "command": 0,
+           "flags": 82,
+           "height": 10,
+           "left": 84,
+           "mutualexclude": 0,
+           "sub": [],
+           "text": "Pinsel lesen",
+           "top": 0,
+           "width": 167
+          },
+          {
+           "command": 0,
+           "flags": 66,
+           "height": 10,
+           "left": 84,
+           "mutualexclude": 0,
+           "sub": [],
+           "text": "Pinsel schreiben",
+           "top": 10,
+           "width": 167
+          },
+          {
+           "command": 0,
+           "flags": 192,
+           "height": 3,
+           "left": 84,
+           "mutualexclude": 0,
+           "sub": [],
+           "text": null,
+           "top": 20,
+           "width": 167
+          },
+          {
+           "command": 0,
+           "flags": 82,
+           "height": 10,
+           "left": 84,
+           "mutualexclude": 0,
+           "sub": [],
+           "text": "L\u00f6schen",
+           "top": 23,
+           "width": 167
+          }
+         ],
+         "text": "Clipboard",
+         "top": 80,
+         "width": 136
+        },
+        {
+         "command": 0,
+         "flags": 82,
+         "height": 10,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [
+          {
+           "command": 0,
+           "flags": 82,
+           "height": 10,
+           "left": 61,
+           "mutualexclude": 0,
+           "sub": [],
+           "text": "Frei w\u00e4hlbar",
+           "top": 0,
+           "width": 136
+          },
+          {
+           "command": 0,
+           "flags": 82,
+           "height": 10,
+           "left": 61,
+           "mutualexclude": 0,
+           "sub": [],
+           "text": "Kleiner",
+           "top": 10,
+           "width": 136
+          },
+          {
+           "command": 0,
+           "flags": 82,
+           "height": 10,
+           "left": 61,
+           "mutualexclude": 0,
+           "sub": [],
+           "text": "Gr\u00f6\u00dfer",
+           "top": 20,
+           "width": 136
+          },
+          {
+           "command": 0,
+           "flags": 82,
+           "height": 10,
+           "left": 61,
+           "mutualexclude": 0,
+           "sub": [],
+           "text": "Halbieren",
+           "top": 30,
+           "width": 136
+          },
+          {
+           "command": 0,
+           "flags": 82,
+           "height": 10,
+           "left": 61,
+           "mutualexclude": 0,
+           "sub": [],
+           "text": "Halbe Breite",
+           "top": 40,
+           "width": 136
+          },
+          {
+           "command": 0,
+           "flags": 82,
+           "height": 10,
+           "left": 61,
+           "mutualexclude": 0,
+           "sub": [],
+           "text": "Halbe H\u00f6he",
+           "top": 50,
+           "width": 136
+          },
+          {
+           "command": 0,
+           "flags": 82,
+           "height": 10,
+           "left": 61,
+           "mutualexclude": 0,
+           "sub": [],
+           "text": "Verdoppeln",
+           "top": 60,
+           "width": 136
+          },
+          {
+           "command": 0,
+           "flags": 82,
+           "height": 10,
+           "left": 61,
+           "mutualexclude": 0,
+           "sub": [],
+           "text": "Doppelte Breite",
+           "top": 70,
+           "width": 136
+          },
+          {
+           "command": 0,
+           "flags": 82,
+           "height": 10,
+           "left": 61,
+           "mutualexclude": 0,
+           "sub": [],
+           "text": "Doppelte H\u00f6he",
+           "top": 80,
+           "width": 136
+          }
+         ],
+         "text": "Gr\u00f6\u00dfe",
+         "top": 90,
+         "width": 136
+        },
+        {
+         "command": 0,
+         "flags": 66,
+         "height": 10,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [
+          {
+           "command": 0,
+           "flags": 82,
+           "height": 10,
+           "left": 67,
+           "mutualexclude": 0,
+           "sub": [],
+           "text": "Beliebig",
+           "top": 0,
+           "width": 147
+          },
+          {
+           "command": 0,
+           "flags": 82,
+           "height": 10,
+           "left": 67,
+           "mutualexclude": 0,
+           "sub": [],
+           "text": "90 Grad",
+           "top": 10,
+           "width": 147
+          },
+          {
+           "command": 0,
+           "flags": 192,
+           "height": 3,
+           "left": 67,
+           "mutualexclude": 0,
+           "sub": [],
+           "text": null,
+           "top": 20,
+           "width": 147
+          },
+          {
+           "command": 0,
+           "flags": 82,
+           "height": 10,
+           "left": 67,
+           "mutualexclude": 0,
+           "sub": [],
+           "text": "Horizontal kippen",
+           "top": 23,
+           "width": 147
+          },
+          {
+           "command": 0,
+           "flags": 82,
+           "height": 10,
+           "left": 67,
+           "mutualexclude": 0,
+           "sub": [],
+           "text": "Vertikal kippen",
+           "top": 33,
+           "width": 147
+          },
+          {
+           "command": 0,
+           "flags": 192,
+           "height": 3,
+           "left": 67,
+           "mutualexclude": 0,
+           "sub": [],
+           "text": null,
+           "top": 43,
+           "width": 147
+          },
+          {
+           "command": 0,
+           "flags": 82,
+           "height": 10,
+           "left": 67,
+           "mutualexclude": 0,
+           "sub": [],
+           "text": "Verzerren",
+           "top": 46,
+           "width": 147
+          }
+         ],
+         "text": "Drehen",
+         "top": 100,
+         "width": 136
+        },
+        {
+         "command": 0,
+         "flags": 66,
+         "height": 10,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [
+          {
+           "command": 0,
+           "flags": 82,
+           "height": 10,
+           "left": 92,
+           "mutualexclude": 0,
+           "sub": [],
+           "text": "Information...",
+           "top": 0,
+           "width": 155
+          },
+          {
+           "command": 0,
+           "flags": 82,
+           "height": 10,
+           "left": 92,
+           "mutualexclude": 0,
+           "sub": [],
+           "text": "Kanten",
+           "top": 10,
+           "width": 155
+          },
+          {
+           "command": 0,
+           "flags": 82,
+           "height": 10,
+           "left": 92,
+           "mutualexclude": 0,
+           "sub": [],
+           "text": "Bitplanes",
+           "top": 20,
+           "width": 155
+          },
+          {
+           "command": 0,
+           "flags": 82,
+           "height": 10,
+           "left": 92,
+           "mutualexclude": 0,
+           "sub": [],
+           "text": "Nicht sichtbar",
+           "top": 30,
+           "width": 155
+          }
+         ],
+         "text": "Abstreifen",
+         "top": 110,
+         "width": 136
+        },
+        {
+         "command": 0,
+         "flags": 66,
+         "height": 10,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [
+          {
+           "command": 0,
+           "flags": 82,
+           "height": 10,
+           "left": 80,
+           "mutualexclude": 0,
+           "sub": [],
+           "text": "Einfach",
+           "top": 0,
+           "width": 89
+          },
+          {
+           "command": 0,
+           "flags": 82,
+           "height": 10,
+           "left": 80,
+           "mutualexclude": 0,
+           "sub": [],
+           "text": "Eckig",
+           "top": 10,
+           "width": 89
+          },
+          {
+           "command": 0,
+           "flags": 82,
+           "height": 10,
+           "left": 80,
+           "mutualexclude": 0,
+           "sub": [],
+           "text": "Schatten",
+           "top": 20,
+           "width": 89
+          },
+          {
+           "command": 0,
+           "flags": 82,
+           "height": 10,
+           "left": 80,
+           "mutualexclude": 0,
+           "sub": [],
+           "text": "3-D",
+           "top": 30,
+           "width": 89
+          },
+          {
+           "command": 0,
+           "flags": 192,
+           "height": 3,
+           "left": 80,
+           "mutualexclude": 0,
+           "sub": [],
+           "text": null,
+           "top": 40,
+           "width": 89
+          },
+          {
+           "command": 0,
+           "flags": 82,
+           "height": 10,
+           "left": 80,
+           "mutualexclude": 0,
+           "sub": [],
+           "text": "K\u00fcrzen",
+           "top": 43,
+           "width": 89
+          }
+         ],
+         "text": "Konturen",
+         "top": 120,
+         "width": 136
+        },
+        {
+         "command": 0,
+         "flags": 82,
+         "height": 10,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [
+          {
+           "command": 0,
+           "flags": 83,
+           "height": 10,
+           "left": 91,
+           "mutualexclude": 62,
+           "sub": [],
+           "text": "Frei w\u00e4hlbar",
+           "top": 0,
+           "width": 157
+          },
+          {
+           "command": 0,
+           "flags": 83,
+           "height": 10,
+           "left": 91,
+           "mutualexclude": 61,
+           "sub": [],
+           "text": "Links oben",
+           "top": 10,
+           "width": 157
+          },
+          {
+           "command": 0,
+           "flags": 83,
+           "height": 10,
+           "left": 91,
+           "mutualexclude": 59,
+           "sub": [],
+           "text": "Rechts oben",
+           "top": 20,
+           "width": 157
+          },
+          {
+           "command": 0,
+           "flags": 339,
+           "height": 10,
+           "left": 91,
+           "mutualexclude": 55,
+           "sub": [],
+           "text": "Mitte",
+           "top": 30,
+           "width": 157
+          },
+          {
+           "command": 0,
+           "flags": 83,
+           "height": 10,
+           "left": 91,
+           "mutualexclude": 47,
+           "sub": [],
+           "text": "Links unten",
+           "top": 40,
+           "width": 157
+          },
+          {
+           "command": 0,
+           "flags": 83,
+           "height": 10,
+           "left": 91,
+           "mutualexclude": 31,
+           "sub": [],
+           "text": "Rechts unten",
+           "top": 50,
+           "width": 157
+          }
+         ],
+         "text": "Greifpunkt",
+         "top": 130,
+         "width": 136
+        }
+       ],
+       "left": 67,
+       "title": "Pinsel",
+       "top": 0,
+       "width": 46
+      },
+      {
+       "flags": 0,
+       "height": 0,
+       "items": [
+        {
+         "command": 0,
+         "flags": 82,
+         "height": 10,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Clipboard einf\u00fcgen",
+         "top": 0,
+         "width": 203
+        },
+        {
+         "command": 0,
+         "flags": 82,
+         "height": 10,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Folgende Farbe",
+         "top": 10,
+         "width": 203
+        },
+        {
+         "command": 0,
+         "flags": 82,
+         "height": 10,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Vorhergehende Farbe",
+         "top": 20,
+         "width": 203
+        },
+        {
+         "command": 0,
+         "flags": 82,
+         "height": 10,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [
+          {
+           "command": 0,
+           "flags": 82,
+           "height": 10,
+           "left": 167,
+           "mutualexclude": 0,
+           "sub": [],
+           "text": "Farbe",
+           "top": 0,
+           "width": 164
+          },
+          {
+           "command": 0,
+           "flags": 82,
+           "height": 10,
+           "left": 167,
+           "mutualexclude": 0,
+           "sub": [],
+           "text": "Schriftattribute",
+           "top": 10,
+           "width": 164
+          },
+          {
+           "command": 0,
+           "flags": 82,
+           "height": 10,
+           "left": 167,
+           "mutualexclude": 0,
+           "sub": [],
+           "text": "Gro\u00df",
+           "top": 20,
+           "width": 164
+          },
+          {
+           "command": 0,
+           "flags": 82,
+           "height": 10,
+           "left": 167,
+           "mutualexclude": 0,
+           "sub": [],
+           "text": "Klein",
+           "top": 30,
+           "width": 164
+          },
+          {
+           "command": 0,
+           "flags": 82,
+           "height": 10,
+           "left": 167,
+           "mutualexclude": 0,
+           "sub": [],
+           "text": "L\u00f6schen",
+           "top": 40,
+           "width": 164
+          }
+         ],
+         "text": "Bis Zeilenende \u00e4ndern",
+         "top": 30,
+         "width": 203
+        },
+        {
+         "command": 0,
+         "flags": 82,
+         "height": 10,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [
+          {
+           "command": 0,
+           "flags": 339,
+           "height": 10,
+           "left": 127,
+           "mutualexclude": 14,
+           "sub": [],
+           "text": "Normal",
+           "top": 0,
+           "width": 160
+          },
+          {
+           "command": 0,
+           "flags": 91,
+           "height": 10,
+           "left": 127,
+           "mutualexclude": 1,
+           "sub": [],
+           "text": "Fett",
+           "top": 10,
+           "width": 160
+          },
+          {
+           "command": 0,
+           "flags": 91,
+           "height": 10,
+           "left": 127,
+           "mutualexclude": 1,
+           "sub": [],
+           "text": "Kursiv",
+           "top": 20,
+           "width": 160
+          },
+          {
+           "command": 0,
+           "flags": 91,
+           "height": 10,
+           "left": 127,
+           "mutualexclude": 1,
+           "sub": [],
+           "text": "Unterstrichen",
+           "top": 30,
+           "width": 160
+          }
+         ],
+         "text": "Schriftattribute",
+         "top": 40,
+         "width": 203
+        },
+        {
+         "command": 0,
+         "flags": 82,
+         "height": 10,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [
+          {
+           "command": 0,
+           "flags": 339,
+           "height": 10,
+           "left": 100,
+           "mutualexclude": 6,
+           "sub": [],
+           "text": "Linksb\u00fcndig",
+           "top": 0,
+           "width": 157
+          },
+          {
+           "command": 0,
+           "flags": 83,
+           "height": 10,
+           "left": 100,
+           "mutualexclude": 5,
+           "sub": [],
+           "text": "Zentriert",
+           "top": 10,
+           "width": 157
+          },
+          {
+           "command": 0,
+           "flags": 83,
+           "height": 10,
+           "left": 100,
+           "mutualexclude": 3,
+           "sub": [],
+           "text": "Rechtsb\u00fcndig",
+           "top": 20,
+           "width": 157
+          }
+         ],
+         "text": "Ausrichtung",
+         "top": 50,
+         "width": 203
+        }
+       ],
+       "left": 127,
+       "title": "Text",
+       "top": 0,
+       "width": 37
+      },
+      {
+       "flags": 1,
+       "height": 0,
+       "items": [
+        {
+         "command": 0,
+         "flags": 82,
+         "height": 10,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [
+          {
+           "command": 0,
+           "flags": 82,
+           "height": 10,
+           "left": 71,
+           "mutualexclude": 0,
+           "sub": [],
+           "text": "Laden...",
+           "top": 0,
+           "width": 179
+          },
+          {
+           "command": 0,
+           "flags": 82,
+           "height": 10,
+           "left": 71,
+           "mutualexclude": 0,
+           "sub": [],
+           "text": "Speichern...",
+           "top": 10,
+           "width": 179
+          },
+          {
+           "command": 0,
+           "flags": 82,
+           "height": 10,
+           "left": 71,
+           "mutualexclude": 0,
+           "sub": [],
+           "text": "\u00c4ndern...",
+           "top": 20,
+           "width": 179
+          },
+          {
+           "command": 0,
+           "flags": 82,
+           "height": 10,
+           "left": 71,
+           "mutualexclude": 0,
+           "sub": [],
+           "text": "Einstellen...",
+           "top": 30,
+           "width": 179
+          },
+          {
+           "command": 0,
+           "flags": 82,
+           "height": 10,
+           "left": 71,
+           "mutualexclude": 0,
+           "sub": [],
+           "text": "Standard",
+           "top": 40,
+           "width": 179
+          },
+          {
+           "command": 0,
+           "flags": 82,
+           "height": 10,
+           "left": 71,
+           "mutualexclude": 0,
+           "sub": [],
+           "text": "Alte Werte",
+           "top": 50,
+           "width": 179
+          },
+          {
+           "command": 0,
+           "flags": 82,
+           "height": 10,
+           "left": 71,
+           "mutualexclude": 0,
+           "sub": [],
+           "text": "Von Pinsel",
+           "top": 60,
+           "width": 179
+          },
+          {
+           "command": 0,
+           "flags": 82,
+           "height": 10,
+           "left": 71,
+           "mutualexclude": 0,
+           "sub": [],
+           "text": "Von Schrift",
+           "top": 70,
+           "width": 179
+          },
+          {
+           "command": 0,
+           "flags": 82,
+           "height": 10,
+           "left": 71,
+           "mutualexclude": 0,
+           "sub": [],
+           "text": "Von Bildschirm...",
+           "top": 80,
+           "width": 179
+          }
+         ],
+         "text": "Palette",
+         "top": 0,
+         "width": 182
+        },
+        {
+         "command": 0,
+         "flags": 82,
+         "height": 10,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [
+          {
+           "command": 0,
+           "flags": 82,
+           "height": 10,
+           "left": 62,
+           "mutualexclude": 0,
+           "sub": [],
+           "text": "Laden...",
+           "top": 0,
+           "width": 122
+          },
+          {
+           "command": 0,
+           "flags": 66,
+           "height": 10,
+           "left": 62,
+           "mutualexclude": 0,
+           "sub": [],
+           "text": "Speichern...",
+           "top": 10,
+           "width": 122
+          },
+          {
+           "command": 0,
+           "flags": 82,
+           "height": 10,
+           "left": 62,
+           "mutualexclude": 0,
+           "sub": [],
+           "text": "\u00c4ndern...",
+           "top": 20,
+           "width": 122
+          },
+          {
+           "command": 0,
+           "flags": 82,
+           "height": 10,
+           "left": 62,
+           "mutualexclude": 0,
+           "sub": [],
+           "text": "Neu Erstellen",
+           "top": 30,
+           "width": 122
+          },
+          {
+           "command": 0,
+           "flags": 82,
+           "height": 10,
+           "left": 62,
+           "mutualexclude": 0,
+           "sub": [],
+           "text": "Invertieren",
+           "top": 40,
+           "width": 122
+          },
+          {
+           "command": 0,
+           "flags": 82,
+           "height": 10,
+           "left": 62,
+           "mutualexclude": 0,
+           "sub": [],
+           "text": "Ein/Aus",
+           "top": 50,
+           "width": 122
+          },
+          {
+           "command": 0,
+           "flags": 66,
+           "height": 10,
+           "left": 62,
+           "mutualexclude": 0,
+           "sub": [],
+           "text": "Freigeben",
+           "top": 60,
+           "width": 122
+          }
+         ],
+         "text": "Maske",
+         "top": 10,
+         "width": 182
+        },
+        {
+         "command": 0,
+         "flags": 82,
+         "height": 10,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Neu verteilen",
+         "top": 20,
+         "width": 182
+        },
+        {
+         "command": 0,
+         "flags": 82,
+         "height": 10,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Hg zu Vg",
+         "top": 30,
+         "width": 182
+        },
+        {
+         "command": 0,
+         "flags": 82,
+         "height": 10,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Hg/Vg vertauschen",
+         "top": 40,
+         "width": 182
+        },
+        {
+         "command": 0,
+         "flags": 82,
+         "height": 10,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Mischen...",
+         "top": 50,
+         "width": 182
+        },
+        {
+         "command": 0,
+         "flags": 82,
+         "height": 10,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Farbenreduzierung",
+         "top": 60,
+         "width": 182
+        },
+        {
+         "command": 0,
+         "flags": 82,
+         "height": 10,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Statistik",
+         "top": 70,
+         "width": 182
+        }
+       ],
+       "left": 178,
+       "title": "Farbe",
+       "top": 0,
+       "width": 42
+      },
+      {
+       "flags": 1,
+       "height": 0,
+       "items": [
+        {
+         "command": 0,
+         "flags": 82,
+         "height": 10,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Laden...",
+         "top": 0,
+         "width": 226
+        },
+        {
+         "command": 0,
+         "flags": 82,
+         "height": 10,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Speichern...",
+         "top": 10,
+         "width": 226
+        },
+        {
+         "command": 0,
+         "flags": 82,
+         "height": 10,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Schl\u00fcssel \u00e4ndern...",
+         "top": 20,
+         "width": 226
+        },
+        {
+         "command": 0,
+         "flags": 82,
+         "height": 10,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Tonausgabe...",
+         "top": 30,
+         "width": 226
+        },
+        {
+         "command": 0,
+         "flags": 82,
+         "height": 10,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [
+          {
+           "command": 0,
+           "flags": 91,
+           "height": 10,
+           "left": 99,
+           "mutualexclude": 2,
+           "sub": [],
+           "text": "Ursprung 0:0",
+           "top": 0,
+           "width": 134
+          },
+          {
+           "command": 0,
+           "flags": 91,
+           "height": 10,
+           "left": 99,
+           "mutualexclude": 1,
+           "sub": [],
+           "text": "Ursprung 1:1",
+           "top": 10,
+           "width": 134
+          }
+         ],
+         "text": "Koordinaten",
+         "top": 40,
+         "width": 226
+        },
+        {
+         "command": 0,
+         "flags": 82,
+         "height": 10,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [
+          {
+           "command": 0,
+           "flags": 339,
+           "height": 10,
+           "left": 140,
+           "mutualexclude": 2,
+           "sub": [],
+           "text": "Qualitativ",
+           "top": 0,
+           "width": 98
+          },
+          {
+           "command": 0,
+           "flags": 83,
+           "height": 10,
+           "left": 140,
+           "mutualexclude": 1,
+           "sub": [],
+           "text": "Quantitativ",
+           "top": 10,
+           "width": 98
+          }
+         ],
+         "text": "Farbenreduzierung",
+         "top": 50,
+         "width": 226
+        },
+        {
+         "command": 0,
+         "flags": 82,
+         "height": 10,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [
+          {
+           "command": 0,
+           "flags": 339,
+           "height": 10,
+           "left": 143,
+           "mutualexclude": 6,
+           "sub": [],
+           "text": "Einfach",
+           "top": 0,
+           "width": 129
+          },
+          {
+           "command": 0,
+           "flags": 83,
+           "height": 10,
+           "left": 143,
+           "mutualexclude": 5,
+           "sub": [],
+           "text": "Dithering",
+           "top": 10,
+           "width": 129
+          },
+          {
+           "command": 0,
+           "flags": 83,
+           "height": 10,
+           "left": 143,
+           "mutualexclude": 3,
+           "sub": [],
+           "text": "Floyd-Steinberg",
+           "top": 20,
+           "width": 129
+          }
+         ],
+         "text": "Farbneuberechnung",
+         "top": 60,
+         "width": 226
+        },
+        {
+         "command": 0,
+         "flags": 82,
+         "height": 10,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [
+          {
+           "command": 0,
+           "flags": 347,
+           "height": 10,
+           "left": 153,
+           "mutualexclude": 0,
+           "sub": [],
+           "text": "Volle Pfadl\u00e4nge",
+           "top": 0,
+           "width": 150
+          },
+          {
+           "command": 0,
+           "flags": 91,
+           "height": 10,
+           "left": 153,
+           "mutualexclude": 0,
+           "sub": [],
+           "text": "Verzeichnisse oben",
+           "top": 10,
+           "width": 150
+          },
+          {
+           "command": 0,
+           "flags": 91,
+           "height": 10,
+           "left": 153,
+           "mutualexclude": 0,
+           "sub": [],
+           "text": "Nach Datum ordnen",
+           "top": 20,
+           "width": 150
+          },
+          {
+           "command": 0,
+           "flags": 347,
+           "height": 10,
+           "left": 153,
+           "mutualexclude": 0,
+           "sub": [],
+           "text": "Doppelklick",
+           "top": 30,
+           "width": 150
+          },
+          {
+           "command": 0,
+           "flags": 347,
+           "height": 10,
+           "left": 153,
+           "mutualexclude": 0,
+           "sub": [],
+           "text": "Sicherheitsabfrage",
+           "top": 40,
+           "width": 150
+          }
+         ],
+         "text": "Dateiauswahlfenster",
+         "top": 70,
+         "width": 226
+        },
+        {
+         "command": 0,
+         "flags": 82,
+         "height": 10,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [
+          {
+           "command": 0,
+           "flags": 83,
+           "height": 10,
+           "left": 107,
+           "mutualexclude": 6,
+           "sub": [],
+           "text": "Nein",
+           "top": 0,
+           "width": 117
+          },
+          {
+           "command": 0,
+           "flags": 339,
+           "height": 10,
+           "left": 107,
+           "mutualexclude": 5,
+           "sub": [],
+           "text": "Ja (Standard)",
+           "top": 10,
+           "width": 117
+          },
+          {
+           "command": 0,
+           "flags": 83,
+           "height": 10,
+           "left": 107,
+           "mutualexclude": 3,
+           "sub": [],
+           "text": "Ja (Bild)",
+           "top": 20,
+           "width": 117
+          }
+         ],
+         "text": "Piktogramme",
+         "top": 80,
+         "width": 226
+        },
+        {
+         "command": 0,
+         "flags": 82,
+         "height": 10,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [
+          {
+           "command": 0,
+           "flags": 83,
+           "height": 10,
+           "left": 74,
+           "mutualexclude": 14,
+           "sub": [],
+           "text": "Englisch",
+           "top": 0,
+           "width": 94
+          },
+          {
+           "command": 0,
+           "flags": 339,
+           "height": 10,
+           "left": 74,
+           "mutualexclude": 13,
+           "sub": [],
+           "text": "Deutsch",
+           "top": 10,
+           "width": 94
+          },
+          {
+           "command": 0,
+           "flags": 83,
+           "height": 10,
+           "left": 74,
+           "mutualexclude": 11,
+           "sub": [],
+           "text": "Italienisch",
+           "top": 20,
+           "width": 94
+          },
+          {
+           "command": 0,
+           "flags": 83,
+           "height": 10,
+           "left": 74,
+           "mutualexclude": 7,
+           "sub": [],
+           "text": "Andere",
+           "top": 30,
+           "width": 94
+          }
+         ],
+         "text": "Sprache",
+         "top": 90,
+         "width": 226
+        },
+        {
+         "command": 0,
+         "flags": 192,
+         "height": 3,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": null,
+         "top": 100,
+         "width": 226
+        },
+        {
+         "command": 0,
+         "flags": 347,
+         "height": 10,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Werkzeugleiste",
+         "top": 103,
+         "width": 226
+        },
+        {
+         "command": 0,
+         "flags": 347,
+         "height": 10,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Titelleiste",
+         "top": 113,
+         "width": 226
+        },
+        {
+         "command": 0,
+         "flags": 91,
+         "height": 10,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Grafikmaske",
+         "top": 123,
+         "width": 226
+        },
+        {
+         "command": 0,
+         "flags": 91,
+         "height": 10,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Hintergrund-Transparenz",
+         "top": 133,
+         "width": 226
+        },
+        {
+         "command": 0,
+         "flags": 91,
+         "height": 10,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Farben mit Gr\u00f6\u00dfe \u00e4ndern",
+         "top": 143,
+         "width": 226
+        },
+        {
+         "command": 0,
+         "flags": 347,
+         "height": 10,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Workbench",
+         "top": 153,
+         "width": 226
+        }
+       ],
+       "left": 234,
+       "title": "Voreinstellungen",
+       "top": 0,
+       "width": 112
+      }
+     ],
+     "min_height": 256,
+     "min_width": 640,
+     "screen_title": "",
+     "title": "",
+     "top": 0,
+     "width": 640
+    }
+   ]
+  },
+  {
+   "bar_hborder": 5,
+   "bar_height": 10,
+   "bar_vborder": 1,
+   "default_title": "Workbench Screen",
+   "depth": 8,
+   "display_id": 1342443520,
+   "flags": 26129,
+   "font": {
+    "baseline": 6,
+    "name": "topaz.font",
+    "xsize": 8,
+    "ysize": 8
+   },
+   "height": 600,
+   "left": 0,
+   "menu_hborder": 4,
+   "menu_vborder": 2,
+   "title": "Workbench Screen",
+   "top": 0,
+   "wbor": [
+    4,
+    2,
+    4,
+    2
+   ],
+   "width": 800,
+   "windows": [
+    {
+     "app": false,
+     "block_pen": 1,
+     "border": [
+      0,
+      0,
+      0,
+      0
+     ],
+     "detail_pen": 0,
+     "flags": 35658560,
+     "font": {
+      "baseline": 6,
+      "name": "topaz.font",
+      "xsize": 8,
+      "ysize": 8
+     },
+     "gadgets": [],
+     "height": 589,
+     "idcmp": 885614,
+     "left": 0,
+     "max_height": 589,
+     "max_width": 800,
+     "menus": [
+      {
+       "flags": 1,
+       "height": 0,
+       "items": [
+        {
+         "command": 66,
+         "flags": 351,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Backdrop",
+         "top": 0,
+         "width": 186
+        },
+        {
+         "command": 69,
+         "flags": 86,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Execute Command...",
+         "top": 9,
+         "width": 186
+        },
+        {
+         "command": 0,
+         "flags": 82,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Redraw All",
+         "top": 18,
+         "width": 186
+        },
+        {
+         "command": 0,
+         "flags": 82,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Update All",
+         "top": 27,
+         "width": 186
+        },
+        {
+         "command": 0,
+         "flags": 82,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Last Message",
+         "top": 36,
+         "width": 186
+        },
+        {
+         "command": 63,
+         "flags": 86,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "About...",
+         "top": 45,
+         "width": 186
+        },
+        {
+         "command": 81,
+         "flags": 86,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Quit...",
+         "top": 54,
+         "width": 186
+        }
+       ],
+       "left": 2,
+       "title": "Workbench",
+       "top": 0,
+       "width": 80
+      },
+      {
+       "flags": 1,
+       "height": 0,
+       "items": [
+        {
+         "command": 78,
+         "flags": 70,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "New Drawer",
+         "top": 0,
+         "width": 162
+        },
+        {
+         "command": 0,
+         "flags": 66,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Open Parent",
+         "top": 9,
+         "width": 162
+        },
+        {
+         "command": 75,
+         "flags": 70,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Close",
+         "top": 18,
+         "width": 162
+        },
+        {
+         "command": 0,
+         "flags": 66,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Update",
+         "top": 27,
+         "width": 162
+        },
+        {
+         "command": 65,
+         "flags": 86,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Select Contents",
+         "top": 36,
+         "width": 162
+        },
+        {
+         "command": 46,
+         "flags": 86,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Clean Up",
+         "top": 45,
+         "width": 162
+        },
+        {
+         "command": 0,
+         "flags": 82,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [
+          {
+           "command": 0,
+           "flags": 82,
+           "height": 9,
+           "left": 122,
+           "mutualexclude": 0,
+           "sub": [],
+           "text": "Window",
+           "top": -1,
+           "width": 53
+          },
+          {
+           "command": 0,
+           "flags": 82,
+           "height": 9,
+           "left": 122,
+           "mutualexclude": 0,
+           "sub": [],
+           "text": "All",
+           "top": 8,
+           "width": 53
+          }
+         ],
+         "text": "Snapshot",
+         "top": 54,
+         "width": 162
+        },
+        {
+         "command": 0,
+         "flags": 66,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [
+          {
+           "command": 0,
+           "flags": 339,
+           "height": 9,
+           "left": 122,
+           "mutualexclude": -2,
+           "sub": [],
+           "text": "Only Icons",
+           "top": -1,
+           "width": 100
+          },
+          {
+           "command": 0,
+           "flags": 83,
+           "height": 9,
+           "left": 122,
+           "mutualexclude": -3,
+           "sub": [],
+           "text": "All Files",
+           "top": 8,
+           "width": 100
+          }
+         ],
+         "text": "Show",
+         "top": 63,
+         "width": 162
+        },
+        {
+         "command": 0,
+         "flags": 66,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [
+          {
+           "command": 0,
+           "flags": 339,
+           "height": 9,
+           "left": 122,
+           "mutualexclude": -2,
+           "sub": [],
+           "text": "Icon",
+           "top": -1,
+           "width": 52
+          },
+          {
+           "command": 0,
+           "flags": 83,
+           "height": 9,
+           "left": 122,
+           "mutualexclude": -3,
+           "sub": [],
+           "text": "Name",
+           "top": 8,
+           "width": 52
+          },
+          {
+           "command": 0,
+           "flags": 83,
+           "height": 9,
+           "left": 122,
+           "mutualexclude": -5,
+           "sub": [],
+           "text": "Date",
+           "top": 17,
+           "width": 52
+          },
+          {
+           "command": 0,
+           "flags": 83,
+           "height": 9,
+           "left": 122,
+           "mutualexclude": -9,
+           "sub": [],
+           "text": "Size",
+           "top": 26,
+           "width": 52
+          }
+         ],
+         "text": "View By",
+         "top": 72,
+         "width": 162
+        }
+       ],
+       "left": 90,
+       "title": "Window",
+       "top": 0,
+       "width": 56
+      },
+      {
+       "flags": 0,
+       "height": 0,
+       "items": [
+        {
+         "command": 79,
+         "flags": 86,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Open",
+         "top": 0,
+         "width": 154
+        },
+        {
+         "command": 67,
+         "flags": 86,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Copy",
+         "top": 9,
+         "width": 154
+        },
+        {
+         "command": 82,
+         "flags": 86,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Rename...",
+         "top": 18,
+         "width": 154
+        },
+        {
+         "command": 73,
+         "flags": 86,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Information...",
+         "top": 27,
+         "width": 154
+        },
+        {
+         "command": 83,
+         "flags": 86,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Snapshot",
+         "top": 36,
+         "width": 154
+        },
+        {
+         "command": 85,
+         "flags": 86,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "UnSnapshot",
+         "top": 45,
+         "width": 154
+        },
+        {
+         "command": 76,
+         "flags": 86,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Leave Out",
+         "top": 54,
+         "width": 154
+        },
+        {
+         "command": 80,
+         "flags": 86,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Put Away",
+         "top": 63,
+         "width": 154
+        },
+        {
+         "command": 0,
+         "flags": 192,
+         "height": 6,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": null,
+         "top": 72,
+         "width": 154
+        },
+        {
+         "command": 0,
+         "flags": 82,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Delete...",
+         "top": 78,
+         "width": 154
+        },
+        {
+         "command": 0,
+         "flags": 82,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Format Disk...",
+         "top": 87,
+         "width": 154
+        },
+        {
+         "command": 0,
+         "flags": 82,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "Empty Trash",
+         "top": 96,
+         "width": 154
+        }
+       ],
+       "left": 154,
+       "title": "Icons",
+       "top": 0,
+       "width": 48
+      },
+      {
+       "flags": 1,
+       "height": 0,
+       "items": [
+        {
+         "command": 0,
+         "flags": 82,
+         "height": 9,
+         "left": 0,
+         "mutualexclude": 0,
+         "sub": [],
+         "text": "ResetWB",
+         "top": 0,
+         "width": 61
+        }
+       ],
+       "left": 210,
+       "title": "Tools",
+       "top": 0,
+       "width": 48
+      }
+     ],
+     "min_height": 589,
+     "min_width": 800,
+     "screen_title": "Copyright \u00a9 1985-1993 Commodore-Amiga, Inc. All Rights Reserved.",
+     "title": "",
+     "top": 11,
+     "width": 800
+    }
+   ]
+  }
+ ]
+}

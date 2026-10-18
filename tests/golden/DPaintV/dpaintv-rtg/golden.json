@@ -1,0 +1,99 @@
+{
+ "app": "DPaintV",
+ "disabled": null,
+ "lxa_version": "0.12.10",
+ "note": "Phase 243 rtg profile; residue owned by 256 (WB screen flags 0x2000 by 246)",
+ "promoted": "2026-10-18",
+ "reference": "AmigaOS 3.1 (KS 40.70), profile rtg",
+ "requires_apps": true,
+ "scenario": "dpaintv-rtg",
+ "snapshots": {
+  "startup": {
+   "known_tree_diffs": [
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 21,
+     "phase": 256,
+     "ref": 37,
+     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/menu[Settings]/History/#?"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 21,
+     "phase": 256,
+     "ref": 37,
+     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/menu[Settings]/History/#?"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 21,
+     "phase": 256,
+     "ref": 37,
+     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/menu[Settings]/History/#?"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 21,
+     "phase": 256,
+     "ref": 37,
+     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/menu[Settings]/History/#?"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 21,
+     "phase": 256,
+     "ref": 37,
+     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/menu[Settings]/History/#?"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 21,
+     "phase": 256,
+     "ref": 37,
+     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/menu[Settings]/History/#?"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 21,
+     "phase": 256,
+     "ref": 37,
+     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/menu[Settings]/History/#?"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 21,
+     "phase": 256,
+     "ref": 37,
+     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/menu[Settings]/History/#?"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 21,
+     "phase": 256,
+     "ref": 37,
+     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/menu[Settings]/History/#?"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 21,
+     "phase": 256,
+     "ref": 37,
+     "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/menu[Settings]/History/#?"
+    }
+   ],
+   "pixel_budget": 3543,
+   "pixel_phase": 256,
+   "stdout_known_diff": null
+  }
+ }
+}
