@@ -1,0 +1,42 @@
+{
+ "app": "ProWrite",
+ "disabled": null,
+ "lxa_version": "0.12.10",
+ "note": "Phase 243 rtg profile; residue owned by 256 (WB screen flags 0x2000 by 246)",
+ "promoted": "2026-10-18",
+ "reference": "AmigaOS 3.1 (KS 40.70), profile rtg",
+ "requires_apps": true,
+ "scenario": "prowrite-rtg",
+ "snapshots": {
+  "startup": {
+   "known_tree_diffs": [
+    {
+     "field": "flags",
+     "kind": "screen",
+     "lxa": 17937,
+     "phase": 256,
+     "ref": 26129,
+     "where": "screen[Workbench Screen]"
+    }
+   ],
+   "pixel_budget": 13756,
+   "pixel_phase": 256,
+   "stdout_known_diff": null
+  },
+  "typed": {
+   "known_tree_diffs": [
+    {
+     "field": "flags",
+     "kind": "screen",
+     "lxa": 17937,
+     "phase": 256,
+     "ref": 26129,
+     "where": "screen[Workbench Screen]"
+    }
+   ],
+   "pixel_budget": 13774,
+   "pixel_phase": 256,
+   "stdout_known_diff": null
+  }
+ }
+}

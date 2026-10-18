@@ -411,6 +411,10 @@ if(BUILD_GTESTS AND GTEST_FOUND)
         add_gtest_driver_shard(finalwriter_dialog_gtest finalwriter_gtest
             FILTER "FinalWriterTest.ZBottomButtonsResolveToValidGadgets:FinalWriterTest.ZDisplayOptionsListIsLocatable:FinalWriterTest.ZNoMissingLibraryOrPanicAtStartup:FinalWriterTest.ZStartupDialogContentSurvivesIdle"
             TIMEOUT 180)
+        # Phase 243: the editor on the 800x600 RTG Workbench (rtg profile)
+        add_gtest_driver_shard(finalwriter_rtg_gtest finalwriter_gtest
+            FILTER "FinalWriterRtgTest.AcceptDialogOpensEditorWindow"
+            TIMEOUT 180)
     endif()
 
     # PPaint - paint package startup, probe-window geometry, and canvas tests.

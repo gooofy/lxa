@@ -1,0 +1,14 @@
+# Phase 243: gallery-sysimages on the `rtg` reference profile (Picasso96, the
+# Workbench in UAE 800x600 8 bit) - generated from gallery-sysimages.yaml.
+# Rendering conformance gallery (Phase 223): sysiclass images, every SYSIA_Which
+# x size x state.
+name: gallery-rtg-sysimages
+profile: rtg
+app:
+  sample: Tests/Gallery/SysI
+steps:
+  - launch
+  - wait_window: "SysI Gallery"
+  - wait_idle
+  - snapshot: {name: page, window: "SysI Gallery"}
+  - quit

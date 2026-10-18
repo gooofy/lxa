@@ -1,0 +1,21 @@
+{
+ "backend": "ref",
+ "files": [
+  "screen.png",
+  "palette.json",
+  "tree.json",
+  "text.jsonl",
+  "stdout.txt"
+ ],
+ "profile": "rtg",
+ "refsys_checksum": "bf5d0e952c054563-3683aacf2e9e",
+ "scenario": "gallery-rtg-menus-old",
+ "schema": "lxa-bundle/1",
+ "screen": {
+  "depth": 2,
+  "height": 600,
+  "width": 800
+ },
+ "snapshot": "menu3",
+ "window": null
+}

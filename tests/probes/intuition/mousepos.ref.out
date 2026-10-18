@@ -1,0 +1,6 @@
+in B (B active): A=150,80 gzz 150,80 B=50,30 gzz 46,19 C=-250,30 gzz -254,19 screen=150,80
+in C (B active): A=450,100 gzz 450,100 B=350,50 gzz 346,39 C=50,50 gzz 46,39 screen=450,100
+in A only (B active): A=20,180 gzz 20,180 B=-80,130 gzz -84,119 C=-380,130 gzz -384,119 screen=20,180
+B without MOUSEMOVE: A=30,170 gzz 30,170 B=-70,120 gzz -74,109 C=-370,120 gzz -374,109 screen=30,170
+in C (A active): A=450,90 gzz 450,90 B=350,40 gzz 346,29 C=50,40 gzz 46,29 screen=450,90
+B closed: A=320,160 gzz 320,160 B=- C=-80,110 gzz -84,99 screen=320,160

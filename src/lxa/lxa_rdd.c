@@ -21,6 +21,7 @@
 #include "lxa_api.h"
 #include "lxa_ndk_offsets.h"
 #include "m68k.h"
+#include "lxa_rtg_host.h"
 
 /* m68k flag bits (NDK) */
 #define GFLG_LABELMASK   0x3000
@@ -312,7 +313,18 @@ static bool capture_indexed(uint32_t scr, int x0, int y0, int w, int h, const ch
         fwrite(rgb, 1, 3, f);
     }
     line = malloc((size_t)w);
+    rtg_bitmap_t rbm;
+    bool rtg = rtg_bitmap_get(bm, &rbm);
     for (y = 0; y < h; y++) {
+        /* an RTG (chunky) screen: its pens, as ReadPixel() reports them */
+        if (rtg) {
+            int sx0 = x0 < 0 ? 0 : x0;
+            memset(line, 0, (size_t)w);
+            if (y0 + y >= 0 && sx0 - x0 < w)
+                rtg_read_row_pens(&rbm, y0 + y, sx0, w - (sx0 - x0), line + (sx0 - x0));
+            fwrite(line, 1, (size_t)w, f);
+            continue;
+        }
         for (x = 0; x < w; x++) {
             int sx = x0 + x, sy = y0 + y;
             line[x] = (sx >= 0 && sy >= 0 && sx < cols && sy < rows) ? (unsigned char)read_pen(bm, depth, sx, sy) : 0;

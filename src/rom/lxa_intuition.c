@@ -4117,12 +4117,24 @@ static VOID _intuition_update_input_snapshot(struct IntuitionBase *IntuitionBase
     IntuitionBase->MouseX = mouseX;
     IntuitionBase->MouseY = mouseY;
     {
-        /* every screen tracks the pointer in its own coordinates */
+        /* every screen tracks the pointer in its own coordinates, and so
+         * does every window, active or not, its GZZMouseX/Y relative to the
+         * inner area (AmigaOS 3.1, probe intuition/mousepos; Personal Paint
+         * reads its backdrop window's position after a requester closed) */
         struct Screen *scr;
         for (scr = IntuitionBase->FirstScreen; scr; scr = scr->NextScreen)
         {
+            struct Window *w;
+
             scr->MouseX = mouseX - scr->LeftEdge;
             scr->MouseY = mouseY - scr->TopEdge;
+            for (w = scr->FirstWindow; w; w = w->NextWindow)
+            {
+                w->MouseX = scr->MouseX - w->LeftEdge;
+                w->MouseY = scr->MouseY - w->TopEdge;
+                w->GZZMouseX = w->MouseX - w->BorderLeft;
+                w->GZZMouseY = w->MouseY - w->BorderTop;
+            }
         }
     }
     IntuitionBase->Seconds = tv.tv_secs;
@@ -7069,7 +7081,7 @@ static UWORD _screen_sysi_size(struct Screen *screen);
 
 static void _render_screen_title_bar(struct Screen *screen)
 {
-    struct RastPort *rp;
+    struct RastPort *rp, barrp;
     const UWORD *pens;
     UWORD dw = 23;
     UBYTE oldpen, olddm;
@@ -7082,6 +7094,18 @@ static void _render_screen_title_bar(struct Screen *screen)
     /* Validate RastPort has a valid BitMap */
     if (!rp->BitMap || !rp->BitMap->Planes[0])
         return;
+
+    /* through the bar layer: the bar is clipped by the windows in front of
+     * it (all backdrop windows once ShowTitle(FALSE) moved it behind them);
+     * a copy of the screen's RastPort (font, mask) bound to that layer, so
+     * the state of BarLayer->rp the application sees stays as it is */
+    if (screen->BarLayer)
+    {
+        barrp = screen->RastPort;
+        barrp.Layer = screen->BarLayer;
+        barrp.BitMap = screen->BarLayer->rp->BitMap;
+        rp = &barrp;
+    }
 
     /* AmigaOS 3.1 reference: BARBLOCKPEN bar, BARTRIMPEN line below it,
      * the title in BARDETAILPEN, the screen depth gadget at the right */
@@ -11028,6 +11052,16 @@ struct Window * _intuition_OpenWindow ( register struct IntuitionBase * Intuitio
             }
             /* only GZZ windows have a separate border RastPort (3.1) */
             window->BorderRPort = border_layer ? border_layer->rp : NULL;
+            /* AmigaOS 3.1: while the screen shows its title the bar layer
+             * stays in front of every backdrop window - a backdrop window
+             * at the top of the screen does not cover the bar, and drawing
+             * through Screen.BarLayer->rp still reaches it (Personal Paint
+             * draws its own title there; probe intuition/showtitle) */
+            if ((window->Flags & WFLG_BACKDROP) && screen->BarLayer && (screen->Flags & SHOWTITLE))
+            {
+                _call_UpfrontLayer(LayersBase, screen->BarLayer);
+                _render_screen_title_bar(screen);
+            }
             DPRINTF(LOG_DEBUG,
                     "_intuition: OpenWindow() created border_layer=0x%08lx content_layer=0x%08lx rp=0x%08lx bounds=[%ld,%ld]-[%ld,%ld]\n",
                     (ULONG)border_layer,
@@ -11241,6 +11275,11 @@ ULONG _intuition_OpenWorkBench ( register struct IntuitionBase * IntuitionBase _
         const struct LxaIScreenModePrefs *sm = &ibase->ScreenModePrefs;
 
         ns.ViewModes = (UWORD)(sm->smp_DisplayID & 0xffff);
+        /* an RTG mode ID carries no ViewModes bits: a board mode of 640
+         * pixels or more is a hires screen (AmigaOS 3.1 `rtg` reference:
+         * SCREENHIRES, BarHBorder 5 on the 800x600 Workbench) */
+        if (graphics_rtg_call(RTG_OP_MODE_ATTR, sm->smp_DisplayID, 6 /* P96IDA_ISP96 */, 0, 0))
+            ns.ViewModes = (graphics_rtg_call(RTG_OP_MODE_ATTR, sm->smp_DisplayID, 0, 0, 0) >= 640) ? HIRES : 0;
         if (sm->smp_Width != (UWORD)~0 && sm->smp_Width)
             ns.Width = (WORD)sm->smp_Width;
         if (sm->smp_Height != (UWORD)~0 && sm->smp_Height)
@@ -11260,7 +11299,24 @@ ULONG _intuition_OpenWorkBench ( register struct IntuitionBase * IntuitionBase _
     g_opening_workbench_screen = FALSE;
     g_screen_display_id = 0;
     if (wbscreen && ibase->HasScreenModePrefs && wbscreen->ViewPort.ColorMap)
+    {
         wbscreen->ViewPort.ColorMap->VPModeID = ibase->ScreenModePrefs.smp_DisplayID;
+        /* the DisplayClip follows the prefs mode (rtg/wbscreen: 0,0-799,599
+         * on the 800x600 RTG Workbench; Final Writer's swshell.library
+         * centres its dialogs in it) */
+        _intuition_update_display_clip(wbscreen);
+    }
+    /* a Workbench on the RTG board: the View has no offsets and GfxBase's
+     * display limits are the board's (AmigaOS 3.1 `rtg` reference, probe
+     * rtg/wbscreen: MaxDisplayRow 599, MaxDisplayColumn 0 on 800x600) */
+    if (wbscreen && ibase->HasScreenModePrefs &&
+        graphics_rtg_call(RTG_OP_MODE_ATTR, ibase->ScreenModePrefs.smp_DisplayID, 6 /* P96IDA_ISP96 */, 0, 0))
+    {
+        IntuitionBase->ViewLord.DxOffset = 0;
+        IntuitionBase->ViewLord.DyOffset = 0;
+        GfxBase->MaxDisplayRow = (UWORD)(wbscreen->Height - 1);
+        GfxBase->MaxDisplayColumn = 0;
+    }
     
     if (wbscreen)
     {
@@ -11755,13 +11811,22 @@ VOID _intuition_ShowTitle ( register struct IntuitionBase * IntuitionBase __asm(
     else
         screen->Flags &= ~SHOWTITLE;
 
-    if (showIt)
-        _render_screen_title_bar(screen);
-    else
+    /* AmigaOS 3.1 (probe intuition/showtitle): the bar is a layer that
+     * ShowTitle() moves in front of the backdrop windows (and repaints, also
+     * when it was shown already) or behind them (no repaint: without
+     * backdrop windows the bar stays visible) */
+    if (screen->BarLayer)
     {
-        SetAPen(&screen->RastPort, 0);
-        RectFill(&screen->RastPort, 0, 0, screen->Width - 1, screen->BarHeight);
+        if (showIt)
+        {
+            _call_UpfrontLayer(LayersBase, screen->BarLayer);
+            _render_screen_title_bar(screen);
+        }
+        else
+            _call_BehindLayer(LayersBase, screen->BarLayer);
     }
+    else if (showIt)
+        _render_screen_title_bar(screen);
 }
 
 VOID _intuition_SizeWindow ( register struct IntuitionBase * IntuitionBase __asm("a6"),
@@ -15374,6 +15439,8 @@ struct Screen * _intuition_OpenScreenTagList ( register struct IntuitionBase * I
     BYTE sys_font = -1;
     BOOL full_palette = FALSE;
     BYTE interleaved = -1;
+    BOOL like_wb = FALSE;
+    UBYTE given = 0;    /* tags given: 1 width, 2 height, 4 depth, 8 display ID, 16 autoscroll */
 
     tag_lists[0] = NULL;
     tag_lists[1] = tagList;
@@ -15422,12 +15489,15 @@ struct Screen * _intuition_OpenScreenTagList ( register struct IntuitionBase * I
                     break;
                 case SA_Width:
                     ns.Width = (WORD)tag->ti_Data;
+                    given |= 1;
                     break;
                 case SA_Height:
                     ns.Height = (WORD)tag->ti_Data;
+                    given |= 2;
                     break;
                 case SA_Depth:
                     ns.Depth = (WORD)tag->ti_Data;
+                    given |= 4;
                     break;
                 case SA_DetailPen:
                     ns.DetailPen = (UBYTE)tag->ti_Data;
@@ -15461,6 +15531,7 @@ struct Screen * _intuition_OpenScreenTagList ( register struct IntuitionBase * I
                         ns.Type &= ~SHOWTITLE;
                     break;
                 case SA_AutoScroll:
+                    given |= 16;
                     if (tag->ti_Data)
                         ns.Type |= AUTOSCROLL;
                     else
@@ -15486,6 +15557,7 @@ struct Screen * _intuition_OpenScreenTagList ( register struct IntuitionBase * I
                      */
                     sa_display_id = (ULONG)tag->ti_Data;
                     ns.ViewModes = (UWORD)(tag->ti_Data & 0xFFFF);
+                    given |= 8;
                     break;
                 case SA_Pens:
                     /* SA_Pens handled in second pass after screen is open */
@@ -15501,6 +15573,7 @@ struct Screen * _intuition_OpenScreenTagList ( register struct IntuitionBase * I
                      * bitmap is interleaved (probe graphics/bmattr) */
                     if (tag->ti_Data)
                     {
+                        like_wb = TRUE;
                         share_pens = TRUE;
                         ns.ViewModes |= HIRES;
                         if (interleaved < 0)
@@ -15550,6 +15623,31 @@ struct Screen * _intuition_OpenScreenTagList ( register struct IntuitionBase * I
         }
     }
     
+    /* SA_LikeWorkbench: the Workbench's mode, size, depth and autoscroll
+     * from the screen mode preferences, unless given by tags (AmigaOS 3.1
+     * `rtg` reference: gallery-rtg-menus opens 800x600 in the uaegfx mode) */
+    if (like_wb)
+    {
+        struct LXAIntuitionBase *ibase = (struct LXAIntuitionBase *)IntuitionBase;
+        if (ibase->HasScreenModePrefs)
+        {
+            const struct LxaIScreenModePrefs *sm = &ibase->ScreenModePrefs;
+            if (!(given & 8))
+            {
+                sa_display_id = sm->smp_DisplayID;
+                ns.ViewModes = (UWORD)(sm->smp_DisplayID & 0xffff);
+            }
+            if (!(given & 1) && sm->smp_Width != (UWORD)~0 && sm->smp_Width)
+                ns.Width = (WORD)sm->smp_Width;
+            if (!(given & 2) && sm->smp_Height != (UWORD)~0 && sm->smp_Height)
+                ns.Height = (WORD)sm->smp_Height;
+            if (!(given & 4) && sm->smp_Depth)
+                ns.Depth = sm->smp_Depth;
+            if (!(given & 16) && (sm->smp_Control & 1))     /* SMF_AUTOSCROLL */
+                ns.Type |= AUTOSCROLL;
+        }
+    }
+
     /* AmigaOS 3.1 reference (tests/probes/intuition/screenmodes): a
      * display ID the machine does not have fails the open - IDs of an
      * unknown monitor (RTG, DblPAL without DEVS:Monitors) with

@@ -1,0 +1,1306 @@
+{
+ "app": "FinalWriter_D",
+ "disabled": null,
+ "lxa_version": "0.12.10",
+ "note": "Phase 243 rtg profile; residue owned by 256 (WB screen flags 0x2000 by 246)",
+ "promoted": "2026-10-18",
+ "reference": "AmigaOS 3.1 (KS 40.70), profile rtg",
+ "requires_apps": true,
+ "scenario": "finalwriter-rtg",
+ "snapshots": {
+  "dialog": {
+   "known_tree_diffs": [
+    {
+     "field": "flags",
+     "kind": "gadget",
+     "lxa": 6,
+     "phase": 256,
+     "ref": 2054,
+     "where": "screen[Workbench Screen]/window[Final Writer - Version 5.05]/gadget[3 id=1]"
+    },
+    {
+     "field": "flags",
+     "kind": "gadget",
+     "lxa": 6,
+     "phase": 256,
+     "ref": 2054,
+     "where": "screen[Workbench Screen]/window[Final Writer - Version 5.05]/gadget[4 id=0]"
+    },
+    {
+     "field": "flags",
+     "kind": "gadget",
+     "lxa": 134,
+     "phase": 256,
+     "ref": 2182,
+     "where": "screen[Workbench Screen]/window[Final Writer - Version 5.05]/gadget[5 id=1]"
+    },
+    {
+     "field": "flags",
+     "kind": "gadget",
+     "lxa": 6,
+     "phase": 256,
+     "ref": 2054,
+     "where": "screen[Workbench Screen]/window[Final Writer - Version 5.05]/gadget[6 id=0]"
+    },
+    {
+     "field": "flags",
+     "kind": "gadget",
+     "lxa": 6,
+     "phase": 256,
+     "ref": 2054,
+     "where": "screen[Workbench Screen]/window[Final Writer - Version 5.05]/gadget[7 id=1]"
+    },
+    {
+     "field": "flags",
+     "kind": "gadget",
+     "lxa": 6,
+     "phase": 256,
+     "ref": 2054,
+     "where": "screen[Workbench Screen]/window[Final Writer - Version 5.05]/gadget[8 id=0]"
+    }
+   ],
+   "pixel_budget": 4225,
+   "pixel_phase": 256,
+   "stdout_known_diff": null
+  },
+  "editor": {
+   "known_tree_diffs": [
+    {
+     "field": "flags",
+     "kind": "gadget",
+     "lxa": 6,
+     "phase": 256,
+     "ref": 2054,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/gadget[3 id=1]"
+    },
+    {
+     "field": "flags",
+     "kind": "gadget",
+     "lxa": 7,
+     "phase": 256,
+     "ref": 2055,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/gadget[4 id=0]"
+    },
+    {
+     "field": "flags",
+     "kind": "gadget",
+     "lxa": 7,
+     "phase": 256,
+     "ref": 2055,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/gadget[5 id=0]"
+    },
+    {
+     "field": "flags",
+     "kind": "gadget",
+     "lxa": 7,
+     "phase": 256,
+     "ref": 2055,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/gadget[6 id=0]"
+    },
+    {
+     "field": "flags",
+     "kind": "gadget",
+     "lxa": 7,
+     "phase": 256,
+     "ref": 2055,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/gadget[7 id=0]"
+    },
+    {
+     "field": "flags",
+     "kind": "gadget",
+     "lxa": 7,
+     "phase": 256,
+     "ref": 2055,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/gadget[8 id=0]"
+    },
+    {
+     "field": "flags",
+     "kind": "gadget",
+     "lxa": 6,
+     "phase": 256,
+     "ref": 2054,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/gadget[10 id=1]"
+    },
+    {
+     "field": "flags",
+     "kind": "gadget",
+     "lxa": 30,
+     "phase": 256,
+     "ref": 2078,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/gadget[13 id=1]"
+    },
+    {
+     "field": "flags",
+     "kind": "gadget",
+     "lxa": 30,
+     "phase": 256,
+     "ref": 2078,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/gadget[14 id=0]"
+    },
+    {
+     "field": "flags",
+     "kind": "gadget",
+     "lxa": 30,
+     "phase": 256,
+     "ref": 2078,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/gadget[16 id=1]"
+    },
+    {
+     "field": "flags",
+     "kind": "gadget",
+     "lxa": 30,
+     "phase": 256,
+     "ref": 2078,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/gadget[17 id=0]"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 149,
+     "phase": 256,
+     "ref": 145,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Projekt]/Neu"
+    },
+    {
+     "field": "left",
+     "kind": "item",
+     "lxa": 49,
+     "phase": 256,
+     "ref": 48,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Projekt]/Neu/Dokument"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 133,
+     "phase": 256,
+     "ref": 129,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Projekt]/Neu/Dokument"
+    },
+    {
+     "field": "left",
+     "kind": "item",
+     "lxa": 49,
+     "phase": 256,
+     "ref": 48,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Projekt]/Neu/Von Vorlage..."
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 133,
+     "phase": 256,
+     "ref": 129,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Projekt]/Neu/Von Vorlage..."
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 149,
+     "phase": 256,
+     "ref": 145,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Projekt]/\u00d6ffnen"
+    },
+    {
+     "field": "left",
+     "kind": "item",
+     "lxa": 49,
+     "phase": 256,
+     "ref": 48,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Projekt]/\u00d6ffnen/Dokument..."
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 189,
+     "phase": 256,
+     "ref": 185,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Projekt]/\u00d6ffnen/Dokument..."
+    },
+    {
+     "field": "left",
+     "kind": "item",
+     "lxa": 49,
+     "phase": 256,
+     "ref": 48,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Projekt]/\u00d6ffnen/Textbaustein..."
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 189,
+     "phase": 256,
+     "ref": 185,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Projekt]/\u00d6ffnen/Textbaustein..."
+    },
+    {
+     "field": "left",
+     "kind": "item",
+     "lxa": 49,
+     "phase": 256,
+     "ref": 48,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Projekt]/\u00d6ffnen/Attribute..."
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 189,
+     "phase": 256,
+     "ref": 185,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Projekt]/\u00d6ffnen/Attribute..."
+    },
+    {
+     "field": "left",
+     "kind": "item",
+     "lxa": 49,
+     "phase": 256,
+     "ref": 48,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Projekt]/\u00d6ffnen/Voreinstellungen..."
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 189,
+     "phase": 256,
+     "ref": 185,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Projekt]/\u00d6ffnen/Voreinstellungen..."
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 149,
+     "phase": 256,
+     "ref": 145,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Projekt]/Sichern"
+    },
+    {
+     "field": "left",
+     "kind": "item",
+     "lxa": 49,
+     "phase": 256,
+     "ref": 48,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Projekt]/Sichern/Dokument"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 181,
+     "phase": 256,
+     "ref": 177,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Projekt]/Sichern/Dokument"
+    },
+    {
+     "field": "left",
+     "kind": "item",
+     "lxa": 49,
+     "phase": 256,
+     "ref": 48,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Projekt]/Sichern/Sichern als..."
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 181,
+     "phase": 256,
+     "ref": 177,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Projekt]/Sichern/Sichern als..."
+    },
+    {
+     "field": "left",
+     "kind": "item",
+     "lxa": 49,
+     "phase": 256,
+     "ref": 48,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Projekt]/Sichern/Textbaustein..."
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 181,
+     "phase": 256,
+     "ref": 177,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Projekt]/Sichern/Textbaustein..."
+    },
+    {
+     "field": "left",
+     "kind": "item",
+     "lxa": 49,
+     "phase": 256,
+     "ref": 48,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Projekt]/Sichern/Attribute..."
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 181,
+     "phase": 256,
+     "ref": 177,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Projekt]/Sichern/Attribute..."
+    },
+    {
+     "field": "left",
+     "kind": "item",
+     "lxa": 49,
+     "phase": 256,
+     "ref": 48,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Projekt]/Sichern/Voreinstellungen..."
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 181,
+     "phase": 256,
+     "ref": 177,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Projekt]/Sichern/Voreinstellungen..."
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 149,
+     "phase": 256,
+     "ref": 145,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Projekt]/#3"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 149,
+     "phase": 256,
+     "ref": 145,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Projekt]/Drucken..."
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 149,
+     "phase": 256,
+     "ref": 145,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Projekt]/Druck mischen..."
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 149,
+     "phase": 256,
+     "ref": 145,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Projekt]/#6"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 149,
+     "phase": 256,
+     "ref": 145,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Projekt]/L\u00f6schen..."
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 149,
+     "phase": 256,
+     "ref": 145,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Projekt]/#8"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 149,
+     "phase": 256,
+     "ref": 145,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Projekt]/Info..."
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 149,
+     "phase": 256,
+     "ref": 145,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Projekt]/Voreinsteller..."
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 149,
+     "phase": 256,
+     "ref": 145,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Projekt]/#11"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 149,
+     "phase": 256,
+     "ref": 145,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Projekt]/Verlassen"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 189,
+     "phase": 256,
+     "ref": 185,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Editieren]/Zur\u00fccknehmen"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 189,
+     "phase": 256,
+     "ref": 185,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Editieren]/#1"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 189,
+     "phase": 256,
+     "ref": 185,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Editieren]/Ausschneiden"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 189,
+     "phase": 256,
+     "ref": 185,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Editieren]/Kopieren"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 189,
+     "phase": 256,
+     "ref": 185,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Editieren]/Einf\u00fcgen"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 189,
+     "phase": 256,
+     "ref": 185,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Editieren]/L\u00f6schen"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 189,
+     "phase": 256,
+     "ref": 185,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Editieren]/Alles ausw\u00e4hlen"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 189,
+     "phase": 256,
+     "ref": 185,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Editieren]/#7"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 189,
+     "phase": 256,
+     "ref": 185,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Editieren]/Skala kopieren"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 189,
+     "phase": 256,
+     "ref": 185,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Editieren]/Skala einf\u00fcgen"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 261,
+     "phase": 256,
+     "ref": 257,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Ansicht]/Seitenansicht"
+    },
+    {
+     "field": "left",
+     "kind": "item",
+     "lxa": 87,
+     "phase": 256,
+     "ref": 85,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Ansicht]/Seitenansicht/Normal"
+    },
+    {
+     "field": "left",
+     "kind": "item",
+     "lxa": 87,
+     "phase": 256,
+     "ref": 85,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Ansicht]/Seitenansicht/#1"
+    },
+    {
+     "field": "left",
+     "kind": "item",
+     "lxa": 87,
+     "phase": 256,
+     "ref": 85,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Ansicht]/Seitenansicht/25 %"
+    },
+    {
+     "field": "left",
+     "kind": "item",
+     "lxa": 87,
+     "phase": 256,
+     "ref": 85,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Ansicht]/Seitenansicht/50 %"
+    },
+    {
+     "field": "left",
+     "kind": "item",
+     "lxa": 87,
+     "phase": 256,
+     "ref": 85,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Ansicht]/Seitenansicht/75 %"
+    },
+    {
+     "field": "left",
+     "kind": "item",
+     "lxa": 87,
+     "phase": 256,
+     "ref": 85,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Ansicht]/Seitenansicht/125 %"
+    },
+    {
+     "field": "left",
+     "kind": "item",
+     "lxa": 87,
+     "phase": 256,
+     "ref": 85,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Ansicht]/Seitenansicht/150 %"
+    },
+    {
+     "field": "left",
+     "kind": "item",
+     "lxa": 87,
+     "phase": 256,
+     "ref": 85,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Ansicht]/Seitenansicht/200 %"
+    },
+    {
+     "field": "left",
+     "kind": "item",
+     "lxa": 87,
+     "phase": 256,
+     "ref": 85,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Ansicht]/Seitenansicht/400 %"
+    },
+    {
+     "field": "left",
+     "kind": "item",
+     "lxa": 87,
+     "phase": 256,
+     "ref": 85,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Ansicht]/Seitenansicht/#9"
+    },
+    {
+     "field": "left",
+     "kind": "item",
+     "lxa": 87,
+     "phase": 256,
+     "ref": 85,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Ansicht]/Seitenansicht/Einstellen..."
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 261,
+     "phase": 256,
+     "ref": 257,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Ansicht]/#1"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 261,
+     "phase": 256,
+     "ref": 257,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Ansicht]/Editiere Hauptteil"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 261,
+     "phase": 256,
+     "ref": 257,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Ansicht]/Editiere linke Seitenvorlage"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 261,
+     "phase": 256,
+     "ref": 257,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Ansicht]/Editiere rechte Seitenvorlage"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 261,
+     "phase": 256,
+     "ref": 257,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Ansicht]/#5"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 261,
+     "phase": 256,
+     "ref": 257,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Ansicht]/Gehe zu Seite..."
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 261,
+     "phase": 256,
+     "ref": 257,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Ansicht]/Gehe zu Auswahl"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 261,
+     "phase": 256,
+     "ref": 257,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Ansicht]/#8"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 261,
+     "phase": 256,
+     "ref": 257,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Ansicht]/Voreinsteller..."
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 189,
+     "phase": 256,
+     "ref": 186,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Layout]/Font..."
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 189,
+     "phase": 256,
+     "ref": 186,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Layout]/Schriftspez...."
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 189,
+     "phase": 256,
+     "ref": 186,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Layout]/Absatz..."
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 189,
+     "phase": 256,
+     "ref": 186,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Layout]/Abschnitt..."
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 189,
+     "phase": 256,
+     "ref": 186,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Layout]/Seite..."
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 189,
+     "phase": 256,
+     "ref": 186,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Layout]/#5"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 189,
+     "phase": 256,
+     "ref": 186,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Layout]/Attribut anwenden..."
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 189,
+     "phase": 256,
+     "ref": 186,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Layout]/Attribut definieren..."
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 189,
+     "phase": 256,
+     "ref": 186,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Layout]/Neues Attribut..."
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 189,
+     "phase": 256,
+     "ref": 186,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Layout]/Attribut \u00e4ndern..."
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 189,
+     "phase": 256,
+     "ref": 186,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Layout]/#10"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 189,
+     "phase": 256,
+     "ref": 186,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Layout]/Listenpunktmarkierung"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 189,
+     "phase": 256,
+     "ref": 186,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Layout]/H\u00e4ngende Einr\u00fcckung"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 189,
+     "phase": 256,
+     "ref": 186,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Layout]/Einr\u00fcckung rechts"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 189,
+     "phase": 256,
+     "ref": 186,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Layout]/Einr\u00fcckung links"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 189,
+     "phase": 256,
+     "ref": 186,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Layout]/#15"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 189,
+     "phase": 256,
+     "ref": 186,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Layout]/Seitenumbruch"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 189,
+     "phase": 256,
+     "ref": 186,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Layout]/Einsetzen"
+    },
+    {
+     "field": "left",
+     "kind": "item",
+     "lxa": 63,
+     "phase": 256,
+     "ref": 62,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Layout]/Einsetzen/Datum"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 165,
+     "phase": 256,
+     "ref": 161,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Layout]/Einsetzen/Datum"
+    },
+    {
+     "field": "left",
+     "kind": "item",
+     "lxa": 63,
+     "phase": 256,
+     "ref": 62,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Layout]/Einsetzen/Zeit"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 165,
+     "phase": 256,
+     "ref": 161,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Layout]/Einsetzen/Zeit"
+    },
+    {
+     "field": "left",
+     "kind": "item",
+     "lxa": 63,
+     "phase": 256,
+     "ref": 62,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Layout]/Einsetzen/Seitennummer"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 165,
+     "phase": 256,
+     "ref": 161,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Layout]/Einsetzen/Seitennummer"
+    },
+    {
+     "field": "left",
+     "kind": "item",
+     "lxa": 63,
+     "phase": 256,
+     "ref": 62,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Layout]/Einsetzen/Mischfeld..."
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 165,
+     "phase": 256,
+     "ref": 161,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Layout]/Einsetzen/Mischfeld..."
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 189,
+     "phase": 256,
+     "ref": 186,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Layout]/Aktualisieren"
+    },
+    {
+     "field": "left",
+     "kind": "item",
+     "lxa": 63,
+     "phase": 256,
+     "ref": 62,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Layout]/Aktualisieren/Datum"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 165,
+     "phase": 256,
+     "ref": 161,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Layout]/Aktualisieren/Datum"
+    },
+    {
+     "field": "left",
+     "kind": "item",
+     "lxa": 63,
+     "phase": 256,
+     "ref": 62,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Layout]/Aktualisieren/Zeit"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 165,
+     "phase": 256,
+     "ref": 161,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Layout]/Aktualisieren/Zeit"
+    },
+    {
+     "field": "left",
+     "kind": "item",
+     "lxa": 63,
+     "phase": 256,
+     "ref": 62,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Layout]/Aktualisieren/Mischfeld..."
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 165,
+     "phase": 256,
+     "ref": 161,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Layout]/Aktualisieren/Mischfeld..."
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 221,
+     "phase": 256,
+     "ref": 217,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Grafik]/Importieren..."
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 221,
+     "phase": 256,
+     "ref": 217,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Grafik]/#1"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 221,
+     "phase": 256,
+     "ref": 217,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Grafik]/Drehen um"
+    },
+    {
+     "field": "left",
+     "kind": "item",
+     "lxa": 73,
+     "phase": 256,
+     "ref": 72,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Grafik]/Drehen um/Andere..."
+    },
+    {
+     "field": "left",
+     "kind": "item",
+     "lxa": 73,
+     "phase": 256,
+     "ref": 72,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Grafik]/Drehen um/#1"
+    },
+    {
+     "field": "left",
+     "kind": "item",
+     "lxa": 73,
+     "phase": 256,
+     "ref": 72,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Grafik]/Drehen um/0\u00b0"
+    },
+    {
+     "field": "left",
+     "kind": "item",
+     "lxa": 73,
+     "phase": 256,
+     "ref": 72,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Grafik]/Drehen um/45\u00b0"
+    },
+    {
+     "field": "left",
+     "kind": "item",
+     "lxa": 73,
+     "phase": 256,
+     "ref": 72,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Grafik]/Drehen um/90\u00b0"
+    },
+    {
+     "field": "left",
+     "kind": "item",
+     "lxa": 73,
+     "phase": 256,
+     "ref": 72,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Grafik]/Drehen um/135\u00b0"
+    },
+    {
+     "field": "left",
+     "kind": "item",
+     "lxa": 73,
+     "phase": 256,
+     "ref": 72,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Grafik]/Drehen um/180\u00b0"
+    },
+    {
+     "field": "left",
+     "kind": "item",
+     "lxa": 73,
+     "phase": 256,
+     "ref": 72,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Grafik]/Drehen um/225\u00b0"
+    },
+    {
+     "field": "left",
+     "kind": "item",
+     "lxa": 73,
+     "phase": 256,
+     "ref": 72,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Grafik]/Drehen um/270\u00b0"
+    },
+    {
+     "field": "left",
+     "kind": "item",
+     "lxa": 73,
+     "phase": 256,
+     "ref": 72,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Grafik]/Drehen um/315\u00b0"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 221,
+     "phase": 256,
+     "ref": 217,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Grafik]/Drehen"
+    },
+    {
+     "field": "left",
+     "kind": "item",
+     "lxa": 73,
+     "phase": 256,
+     "ref": 72,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Grafik]/Drehen/Andere..."
+    },
+    {
+     "field": "left",
+     "kind": "item",
+     "lxa": 73,
+     "phase": 256,
+     "ref": 72,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Grafik]/Drehen/#1"
+    },
+    {
+     "field": "left",
+     "kind": "item",
+     "lxa": 73,
+     "phase": 256,
+     "ref": 72,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Grafik]/Drehen/1\u00b0"
+    },
+    {
+     "field": "left",
+     "kind": "item",
+     "lxa": 73,
+     "phase": 256,
+     "ref": 72,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Grafik]/Drehen/2\u00b0"
+    },
+    {
+     "field": "left",
+     "kind": "item",
+     "lxa": 73,
+     "phase": 256,
+     "ref": 72,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Grafik]/Drehen/5\u00b0"
+    },
+    {
+     "field": "left",
+     "kind": "item",
+     "lxa": 73,
+     "phase": 256,
+     "ref": 72,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Grafik]/Drehen/-5\u00b0"
+    },
+    {
+     "field": "left",
+     "kind": "item",
+     "lxa": 73,
+     "phase": 256,
+     "ref": 72,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Grafik]/Drehen/-2\u00b0"
+    },
+    {
+     "field": "left",
+     "kind": "item",
+     "lxa": 73,
+     "phase": 256,
+     "ref": 72,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Grafik]/Drehen/-1\u00b0"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 221,
+     "phase": 256,
+     "ref": 217,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Grafik]/Nach vorne holen"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 221,
+     "phase": 256,
+     "ref": 217,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Grafik]/Nach hinten stellen"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 221,
+     "phase": 256,
+     "ref": 217,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Grafik]/Gruppieren"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 221,
+     "phase": 256,
+     "ref": 217,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Grafik]/Gruppierung aufheben"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 221,
+     "phase": 256,
+     "ref": 217,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Grafik]/Sperren"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 221,
+     "phase": 256,
+     "ref": 217,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Grafik]/Entsperren"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 221,
+     "phase": 256,
+     "ref": 217,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Grafik]/L\u00f6schen"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 221,
+     "phase": 256,
+     "ref": 217,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Grafik]/#11"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 221,
+     "phase": 256,
+     "ref": 217,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Grafik]/Voreinsteller..."
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 245,
+     "phase": 256,
+     "ref": 241,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Extras]/Suchen..."
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 245,
+     "phase": 256,
+     "ref": 241,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Extras]/Ersetzen..."
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 245,
+     "phase": 256,
+     "ref": 241,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Extras]/#2"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 245,
+     "phase": 256,
+     "ref": 241,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Extras]/Rechtschreibpr\u00fcfung..."
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 245,
+     "phase": 256,
+     "ref": 241,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Extras]/Thesaurus..."
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 245,
+     "phase": 256,
+     "ref": 241,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Extras]/Statistik..."
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 245,
+     "phase": 256,
+     "ref": 241,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Extras]/#6"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 245,
+     "phase": 256,
+     "ref": 241,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Extras]/Einfache Seitennummer..."
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 245,
+     "phase": 256,
+     "ref": 241,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Extras]/Einfache Kopf-/Fu\u00dfzeile..."
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 245,
+     "phase": 256,
+     "ref": 241,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Extras]/Sortierung aufsteigend"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 245,
+     "phase": 256,
+     "ref": 241,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Extras]/Sortierung absteigend"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 245,
+     "phase": 256,
+     "ref": 241,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Extras]/#11"
+    },
+    {
+     "field": "width",
+     "kind": "item",
+     "lxa": 245,
+     "phase": 256,
+     "ref": 241,
+     "where": "screen[Workbench Screen]/window[Unbenannt - Hauptteil (Standardtext)]/menu[Extras]/Voreinsteller..."
+    }
+   ],
+   "pixel_budget": 36192,
+   "pixel_phase": 256,
+   "stdout_known_diff": null
+  }
+ }
+}

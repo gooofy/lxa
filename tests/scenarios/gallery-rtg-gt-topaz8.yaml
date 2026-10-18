@@ -1,0 +1,13 @@
+# Phase 243: gallery-gt-topaz8 on the `rtg` reference profile (Picasso96, the
+# Workbench in UAE 800x600 8 bit) - generated from gallery-gt-topaz8.yaml.
+# Rendering conformance gallery (Phase 223): every GadTools kind x state, topaz 8.
+name: gallery-rtg-gt-topaz8
+profile: rtg
+app:
+  sample: Tests/Gallery/GT
+steps:
+  - launch
+  - wait_window: "GT Gallery"
+  - wait_idle
+  - snapshot: {name: page, window: "GT Gallery"}
+  - quit

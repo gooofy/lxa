@@ -1,0 +1,19 @@
+# Phase 243: Final Writer (German) in the `rtg` profile (Picasso96, the
+# Workbench in UAE 800x600 8 bit): the startup dialog lists the display
+# modes of the uaegfx board; "Workbench verwenden" and OK open the editor
+# on the Workbench.
+name: finalwriter-rtg
+profile: rtg
+app: {manifest: FinalWriter_D}
+steps:
+  - launch
+  - wait_window: {title: "Final Writer", timeout: 30000}
+  - wait_idle
+  - snapshot: dialog
+  - click: {label: "Workbench verwenden"}
+  - frames: 25
+  - click: {label: "OK"}
+  - wait_window: {title: "Unbenannt - Hauptteil", timeout: 60000}
+  - wait_idle: {timeout: 30000}
+  - snapshot: editor
+  - quit

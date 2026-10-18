@@ -1,0 +1,20 @@
+flags & SHOWTITLE = 0x00000010
+BarLayer = non-NULL
+open: mark 2 barlayer 2 bar 2 below 0
+marked: mark 3 barlayer 3 bar 2 below 0
+ShowTitle TRUE (shown): mark 2 barlayer 2 bar 2 below 0
+ShowTitle FALSE, no backdrop: mark 2 barlayer 2 bar 2 below 0
+flags & SHOWTITLE = 0x00000000
+ShowTitle TRUE again: mark 2 barlayer 2 bar 2 below 0
+backdrop opened: mark 2 barlayer 2 bar 2 below 0
+backdrop filled: mark 2 barlayer 2 bar 2 below 1
+marked: mark 3 barlayer 3 bar 2 below 1
+ActivateWindow (active): mark 3 barlayer 3 bar 2 below 1
+ShowTitle TRUE (shown): mark 2 barlayer 2 bar 2 below 1
+ShowTitle FALSE: mark 1 barlayer 1 bar 1 below 1
+ShowTitle TRUE: mark 2 barlayer 2 bar 2 below 1
+barlayer marked: mark 2 barlayer 3 bar 2 below 1
+SetWindowTitles -1 -1: mark 3 barlayer 3 bar 2 below 1
+window opened (activated): mark 3 barlayer 3 bar 2 below 1
+backdrop activated: mark 3 barlayer 3 bar 2 below 1
+window closed: mark 3 barlayer 3 bar 2 below 1

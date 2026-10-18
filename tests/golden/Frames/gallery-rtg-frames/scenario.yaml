@@ -1,0 +1,13 @@
+# Phase 243: gallery-frames on the `rtg` reference profile (Picasso96, the
+# Workbench in UAE 800x600 8 bit) - generated from gallery-frames.yaml.
+# Rendering conformance gallery (Phase 223): frameiclass frames and DrawBevelBox.
+name: gallery-rtg-frames
+profile: rtg
+app:
+  sample: Tests/Gallery/Frames
+steps:
+  - launch
+  - wait_window: "Frame Gallery"
+  - wait_idle
+  - snapshot: {name: page, window: "Frame Gallery"}
+  - quit

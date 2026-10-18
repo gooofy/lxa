@@ -151,6 +151,9 @@ protected:
             && lxa_add_assign_path("FONTS", (fw_base / "FWFonts").c_str());
     }
 
+    /* runs after the assigns, before FinalWriter is loaded */
+    virtual void BeforeLoad() {}
+
     void SetUp() override
     {
         LxaUITest::SetUp();
@@ -158,6 +161,9 @@ protected:
         if (!SetupOriginalSystemAssigns(true, true, false) || !SetupFinalWriterAssigns()) {
             GTEST_SKIP() << "FinalWriter_D app bundle or original system disk not found";
         }
+        BeforeLoad();
+        if (HasFatalFailure())
+            return;
 
         struct timespec _t0, _t1;
         clock_gettime(CLOCK_MONOTONIC, &_t0);
@@ -215,78 +221,129 @@ TEST_F(FinalWriterTest, MainWindowCaptureShowsEditorRegions)
         << "FinalWriter should render visible editor content in the document area";
 }
 
-TEST_F(FinalWriterTest, DISABLED_AcceptDialogOpensEditorWindow)
+/* Phase 243: the `rtg` reference profile - Picasso96 with a uaegfx board,
+ * the Workbench in UAE 800x600 8 bit (ENV:Sys/screenmode.prefs, installed
+ * by C:IPrefs at boot as tools/refsys/install_p96.py does on the reference).
+ * There "Workbench verwenden" + OK opens the editor on the Workbench
+ * (scenario finalwriter-rtg, golden tests/golden/FinalWriter_D). */
+class FinalWriterRtgTest : public FinalWriterTest {
+protected:
+    FinalWriterRtgTest() { config.rtg = true; }
+
+    static void Be32(std::vector<uint8_t>& v, uint32_t x)
+    {
+        v.push_back(x >> 24); v.push_back(x >> 16); v.push_back(x >> 8); v.push_back(x);
+    }
+
+    static void Be16(std::vector<uint8_t>& v, uint16_t x)
+    {
+        v.push_back(x >> 8); v.push_back(x);
+    }
+
+    void BeforeLoad() override
+    {
+        ASSERT_FALSE(env_dir_path.empty());
+        const std::filesystem::path sys = std::filesystem::path(env_dir_path) / "Sys";
+        std::filesystem::create_directories(sys);
+
+        /* FORM PREF { PRHD, SCRM } - struct ScreenModePrefs: 4 reserved
+         * longs, DisplayID 0x50041000 (UAE 800x600 8 bit), 800 x 600,
+         * depth 8, control 1 (autoscroll) */
+        std::vector<uint8_t> scrm;
+        for (int i = 0; i < 4; ++i) Be32(scrm, 0);
+        Be32(scrm, 0x50041000);
+        Be16(scrm, 800); Be16(scrm, 600); Be16(scrm, 8); Be16(scrm, 1);
+
+        std::vector<uint8_t> body = {'P', 'R', 'E', 'F', 'P', 'R', 'H', 'D'};
+        Be32(body, 6);
+        body.insert(body.end(), 6, 0);
+        body.insert(body.end(), {'S', 'C', 'R', 'M'});
+        Be32(body, scrm.size());
+        body.insert(body.end(), scrm.begin(), scrm.end());
+        std::vector<uint8_t> form = {'F', 'O', 'R', 'M'};
+        Be32(form, body.size());
+        form.insert(form.end(), body.begin(), body.end());
+
+        FILE *f = fopen((sys / "screenmode.prefs").c_str(), "wb");
+        ASSERT_NE(f, nullptr);
+        fwrite(form.data(), 1, form.size(), f);
+        fclose(f);
+    }
+
+    /* the "Workbench verwenden" radio button: the topmost wide, 16 pixel
+     * high boolean gadget at the left of the dialog */
+    int FindUseWorkbenchGadget()
+    {
+        auto gadgets = GetGadgets(0);
+        int best_index = -1;
+        int best_top = 1000000;
+
+        for (size_t i = 0; i < gadgets.size(); ++i) {
+            const auto& gad = gadgets[i];
+            if (gad.width < 150 || gad.height != 16 || gad.left > window_info.x + 100)
+                continue;
+            if (gad.top < best_top) {
+                best_top = gad.top;
+                best_index = static_cast<int>(i);
+            }
+        }
+        return best_index;
+    }
+};
+
+TEST_F(FinalWriterRtgTest, AcceptDialogOpensEditorWindow)
 {
-    /* Select "Same as Workbench" / "Wie Workbench" in the display options list */
-    const int display_options = FindDisplayOptionsListGadget();
-    ASSERT_GE(display_options, 0) << "Could not find display options list gadget";
+    /* AmigaOS 3.1 rtg reference: swshell.library centres the dialog in
+     * the DisplayClip of the 800x600 Workbench (probe rtg/wbscreen) */
+    EXPECT_EQ(window_info.x, 163);
+    EXPECT_EQ(window_info.y, 139);
 
-    lxa_gadget_info_t list_info = {};
-    ASSERT_TRUE(GetGadgetInfo(display_options, &list_info, 0));
-    Click(list_info.left + 40, list_info.top + 22);
-    RunCyclesWithVBlank(80, 50000);
+    const int use_wb = FindUseWorkbenchGadget();
+    ASSERT_GE(use_wb, 0) << "Could not find the \"Workbench verwenden\" gadget";
+    lxa_gadget_info_t wb_info = {};
+    ASSERT_TRUE(GetGadgetInfo(use_wb, &wb_info, 0));
+    Click(wb_info.left + 10, wb_info.top + wb_info.height / 2);
+    RunFrames(25);
 
-    /* Click the OK button (leftmost bottom button) */
     const int ok_gadget = FindBottomButtonGadget(true);
     ASSERT_GE(ok_gadget, 0) << "Could not find OK button gadget";
     lxa_gadget_info_t ok_info = {};
     ASSERT_TRUE(GetGadgetInfo(ok_gadget, &ok_info, 0));
     Click(ok_info.left + ok_info.width / 2, ok_info.top + ok_info.height / 2);
 
-    /* Give FinalWriter time to close the dialog, open a new screen,
-     * spawn child processes, and open the editor window.
-     * FinalWriter loads fonts, opens a custom screen, spawns two child
-     * processes, and then opens the editor — this needs substantial time. */
-    for (int phase = 0; phase < 20; ++phase)
-    {
-        RunCyclesWithVBlank(200, 50000);
-
-        if (lxa_get_window_count() > 0)
-        {
-            lxa_window_info_t wi;
-            if (GetWindowInfo(0, &wi) &&
-                std::string(wi.title) != "Final Writer - Version 5.05")
-            {
-                break;  /* Editor window appeared */
-            }
-        }
-
-        if (!lxa_is_running())
+    /* FinalWriter loads its fonts and spawns two child processes before
+     * the editor window opens */
+    bool editor = false;
+    EmuDeadline deadline(60000);
+    while (!deadline.Expired() && lxa_is_running()) {
+        RunFrames(10);
+        lxa_window_info_t wi;
+        if (lxa_get_window_count() > 0 && GetWindowInfo(0, &wi) &&
+            std::string(wi.title).rfind("Unbenannt - Hauptteil", 0) == 0) {
+            editor = true;
             break;
+        }
     }
+    ASSERT_TRUE(editor) << "Editor window did not appear after accepting startup dialog\n"
+                        << "running=" << lxa_is_running() << " output=[" << GetOutput() << "]";
+    ASSERT_TRUE(WaitForWindowDrawn(0, 10000)) << "Editor window did not draw visible content";
+    WaitForStableContent(500);
 
-    /* Verify the editor window appeared */
-    ASSERT_GT(lxa_get_window_count(), 0)
-        << "Editor window did not appear after accepting startup dialog\n"
-        << "running=" << lxa_is_running() << " output=[" << GetOutput() << "]";
-
-    /* Let the editor fully render its toolbar, ruler, and document area */
-    ASSERT_TRUE(WaitForWindowDrawn(0, 10000))
-        << "Editor window did not draw visible content";
-    WaitForEventLoop(400, 50000);
-
-    /* Verify the editor window properties */
+    /* reference: the editor fills the Workbench below its title bar */
     lxa_window_info_t editor_info;
     ASSERT_TRUE(GetWindowInfo(0, &editor_info));
     EXPECT_TRUE(lxa_is_running()) << "FinalWriter should still be running";
-    EXPECT_STRNE(editor_info.title, "Final Writer - Version 5.05")
-        << "The startup dialog should have been replaced by the editor window";
-    EXPECT_GE(editor_info.width, 400)
-        << "Editor window should be reasonably wide";
-    EXPECT_GE(editor_info.height, 100)
-        << "Editor window should be reasonably tall";
+    EXPECT_EQ(editor_info.width, 800);
+    EXPECT_EQ(editor_info.height, 588);
 
-    /* Capture the editor window for visual verification */
     const std::string capture_path = ram_dir_path + "/finalwriter-editor.png";
     EXPECT_TRUE(CaptureWindow(capture_path.c_str(), 0));
 }
 
 /* ---------------------------------------------------------------------- */
-/* Phase 124 Z-tests: deeper coverage of the FinalWriter startup dialog.   */
-/* The full editor cannot currently be reached (DISABLED test above);      */
-/* clicking OK causes FinalWriter to attempt a new screen mode, the two    */
-/* spawned child processes Exit(0), and the application terminates.  These */
-/* Z-tests therefore guard the dialog state we *can* reach.                */
+/* Phase 124 Z-tests: deeper coverage of the FinalWriter startup dialog   */
+/* on the classic (aga) Workbench; the editor is reached in the rtg       */
+/* profile by FinalWriterRtgTest above (Phase 243).                       */
 /* ---------------------------------------------------------------------- */
 
 TEST_F(FinalWriterTest, ZStartupDialogTitleIsFinalWriterVersion)

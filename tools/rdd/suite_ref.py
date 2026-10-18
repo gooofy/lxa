@@ -288,7 +288,7 @@ def run_ref(progs, jobs, timeout_ms, use_cache=True, chunk=12):
 # -- lxa --------------------------------------------------------------------------
 
 def run_lxa_one(name, build, timeout_ms, prog=None, args="", fonts=None, profile="aga"):
-    from rdd.pylxa import Lxa
+    from rdd.pylxa import Lxa, RTG_WB_MODE
     if profile == "rtg":
         os.environ["LXA_RTG"] = "1"     # the uaegfx-like RTG board (roadmap M4)
     # the reference runs LoadWB: its Workbench screen has the backdrop window
@@ -302,8 +302,7 @@ def run_lxa_one(name, build, timeout_ms, prog=None, args="", fonts=None, profile
             lxa.assign("FONTS", fonts)
         if profile == "rtg":
             # the rtg profile's Workbench: uaegfx 800x600, 8 bit
-            # (tools/refsys/install_p96.py RTG_WB_MODE)
-            lxa.screenmode_prefs(0x50041000, 800, 600, 8)
+            lxa.screenmode_prefs(*RTG_WB_MODE)
         lxa.run("SYS:" + (prog or name), args or "")
         # like the reference agent's WAIT_EXIT: the launched program has
         # returned, even if tasks it started (an app window...) still run

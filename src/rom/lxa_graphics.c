@@ -9695,13 +9695,15 @@ static ULONG _graphics_GetDisplayInfoData ( register struct GfxBase * GfxBase __
     if (!buf || size == 0)
         return 0;
     
-    if (displayID != INVALID_ID)
-    {
-        actualDisplayID = displayID;
-    }
-    else if (handle)
+    /* the ID is used only without a handle (graphics.doc; Final Writer
+     * passes its handles with ID 0) */
+    if (handle)
     {
         actualDisplayID = ((ULONG)handle) - 1;
+    }
+    else if (displayID != INVALID_ID)
+    {
+        actualDisplayID = displayID;
     }
     else
     {

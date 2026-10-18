@@ -237,6 +237,8 @@ Built-in C: commands with full AmigaDOS template support:
 
 ## Current Status
 
+**Version 0.12.11** - Phase 243: RTG apps. With RTG and screenmode prefs naming an RTG mode (the reference's `rtg` profile: UAE 800x600 8 bit), the Workbench opens in that mode with the View offsets, GfxBase display limits and DisplayClip that 3.1 gives it, and `SA_LikeWorkbench` screens follow it. Final Writer reaches its editor on the 800x600 Workbench, Deluxe Paint V lists the uaegfx modes in its Screen Format dialog, and Personal Paint and ProWrite run there. Each of them, and 19 gallery scenarios, has an `rtg` reference golden. The screen title bar is now a layer in front of backdrop windows (`ShowTitle()` moves it).
+
 **Version 0.12.8** - Phases 241/242: RTG. With `--rtg` (or `LXA_RTG=1`, `config.rtg`) lxa offers the uaegfx display modes of the reference's `rtg` profile (320x200 to 1344x1080 in CLUT, 15/16/24/32 bit formats) through the display database, `OpenScreenTagList()` opens chunky screens of those modes, and the host display shows them through an RGBA path. `AllocBitMap()` deeper than 8 planes or with an RTG friend bitmap gives chunky bitmaps; graphics, layers (backing store, backfill, ClipBlit) and Intuition draw into them. `Picasso96API.library` and `cybergraphics.library` are lxa's own disk libraries (bitmaps, locks, pixel arrays, mode info, BestModeID, RequestModeID); their behaviour is checked against the reference by the `tests/probes/rtg` probes. The rest (exact BestModeID ranking, requester windows, undocumented colour conversions) is Phase 246.
 
 **Version 0.11.97** - Phase 240: lxa is the A4000/040 with AGA that the AmigaOS 3.1 reference runs. The CPU is a 68040 with FPU (AttnFlags, CACR/VBR, CINV/CPUSH, the FPU starts in its null state) and lxa's own `68040.library` is open from boot. GfxBase, MonitorInfo, the View and the display database are AGA (24-bit palette); bitmaps and the Workbench are interleaved; 256-colour screens share pens as on 3.1. Memory is laid out as on the A4000: 2 MB chip RAM, 8 MB fast RAM at $07800000 and 16 MB Zorro III RAM at $40000000, each with its MemHeader at the start of the region. Each change is checked by a probe captured on the reference (`exec/machine`, `exec/fpu`, `exec/memlist`, `graphics/modedb`, `graphics/mntrdb`, `graphics/bmattr`, `graphics/rgb32`).
@@ -403,8 +405,7 @@ See [roadmap.md](roadmap.md) for detailed status and future plans.
 
 - Machine: the A4000/040 of the reference is emulated (68040 with FPU, no MMU; AGA chipset; 2 MB chip, 8 MB fast and 16 MB Zorro III RAM). The 68040 MMU and the A4000 gate arrays (Ramsey, Gary) are not emulated.
 - Third-party libraries such as `commodities.library`, `rexxsyslib.library`, `datatypes.library`, and `dopus.library` are not shipped in ROM and must be installed on disk in `LIBS:`. Stub disk libraries are provided for `amigaguide.library`, `req.library`, `reqtools.library`, `powerpacker.library`, and `arp.library` (apps can OpenLibrary them but all functions return safe failure values).
-- RTG: Picasso96 (`Picasso96API.library`) and `cybergraphics.library` are not yet implemented — this is the active development focus (Phases 137–139). ECS screen modes (LORES/HIRES, PAL/NTSC) are supported; RTG true-color modes are not yet available.
-- GUI Apps: SDL2 window display works for ECS-depth apps; RTG true-color display pending Phase 137.
+- RTG: enabled per run (`--rtg`, `LXA_RTG=1`, `config.rtg`). `Picasso96API.library` and `cybergraphics.library` are lxa's own; BestModeID ranking, Picasso96's own mode requester windows and some undocumented colour conversions still differ from the reference (Phase 246).
 - Networking: Not implemented.
 - Audio: Hosted `audio.device` playback is available, but Paula chip-level DMA timing/mixing remains approximate rather than cycle-exact.
 
@@ -499,7 +500,7 @@ Some parts are third-party code under other licences and are **not** MIT license
 ## Contribution Areas
 
 We welcome contributions! Priority areas:
-- **RTG / Picasso96**: `Picasso96API.library` and `cybergraphics.library` implementation (Phases 137–139)
+- **RTG / Picasso96**: the remaining Picasso96/CyberGraphX differences from the reference (Phase 246)
 - **GUI toolkits**: MUI and ReAction/ClassAct hosting support (Phases 141–142)
 - **Productivity app coverage**: Wordsworth, Amiga Writer, PageStream, Storm C, BlitzBasic 3 drivers
 - **AmigaOS library completeness**: filling gaps in existing exec/dos/graphics/intuition implementations

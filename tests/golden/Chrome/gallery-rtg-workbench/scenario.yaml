@@ -1,0 +1,13 @@
+# Phase 243: the Workbench of the `rtg` reference profile (Picasso96, UAE
+# 800x600 8 bit): the whole screen - title bar, LoadWB's backdrop window and
+# the chrome gallery's windows on it.
+name: gallery-rtg-workbench
+profile: rtg
+app:
+  sample: Tests/Gallery/Chrome
+steps:
+  - launch
+  - wait_window: "CA Full"
+  - wait_idle
+  - snapshot: workbench
+  - quit

@@ -1,0 +1,135 @@
+{
+ "app": "Req",
+ "disabled": null,
+ "lxa_version": "0.12.9",
+ "note": "rtg profile: system requesters on the 800x600 Workbench have wider margins on 3.1 (Phase 256); other residue as in the aga gallery",
+ "promoted": "2026-10-18",
+ "reference": "AmigaOS 3.1 (KS 40.70), profile rtg",
+ "requires_apps": false,
+ "scenario": "gallery-rtg-autorequest",
+ "snapshots": {
+  "requester": {
+   "known_lxa_size": [
+    306,
+    64
+   ],
+   "known_tree_diffs": [
+    {
+     "field": "width",
+     "kind": "window",
+     "lxa": 306,
+     "phase": 256,
+     "ref": 314,
+     "where": "screen[Workbench Screen]/window[System Request]"
+    },
+    {
+     "field": "height",
+     "kind": "window",
+     "lxa": 64,
+     "phase": 256,
+     "ref": 73,
+     "where": "screen[Workbench Screen]/window[System Request]"
+    },
+    {
+     "field": "min_width",
+     "kind": "window",
+     "lxa": 306,
+     "phase": 256,
+     "ref": 314,
+     "where": "screen[Workbench Screen]/window[System Request]"
+    },
+    {
+     "field": "min_height",
+     "kind": "window",
+     "lxa": 64,
+     "phase": 256,
+     "ref": 73,
+     "where": "screen[Workbench Screen]/window[System Request]"
+    },
+    {
+     "field": "max_width",
+     "kind": "window",
+     "lxa": 306,
+     "phase": 256,
+     "ref": 314,
+     "where": "screen[Workbench Screen]/window[System Request]"
+    },
+    {
+     "field": "max_height",
+     "kind": "window",
+     "lxa": 64,
+     "phase": 256,
+     "ref": 73,
+     "where": "screen[Workbench Screen]/window[System Request]"
+    },
+    {
+     "field": "count",
+     "kind": "gadget",
+     "lxa": 4,
+     "phase": 256,
+     "ref": 5,
+     "where": "screen[Workbench Screen]/window[System Request]"
+    },
+    {
+     "field": "type",
+     "kind": "gadget",
+     "lxa": 1,
+     "phase": 256,
+     "ref": 5,
+     "where": "screen[Workbench Screen]/window[System Request]/gadget[0 id=1]"
+    },
+    {
+     "field": "flags",
+     "kind": "gadget",
+     "lxa": 0,
+     "phase": 256,
+     "ref": 32772,
+     "where": "screen[Workbench Screen]/window[System Request]/gadget[0 id=1]"
+    },
+    {
+     "field": "top",
+     "kind": "gadget",
+     "lxa": 46,
+     "phase": 256,
+     "ref": 52,
+     "where": "screen[Workbench Screen]/window[System Request]/gadget[0 id=1]"
+    },
+    {
+     "field": "type",
+     "kind": "gadget",
+     "lxa": 1,
+     "phase": 256,
+     "ref": 5,
+     "where": "screen[Workbench Screen]/window[System Request]/gadget[1 id=0]"
+    },
+    {
+     "field": "flags",
+     "kind": "gadget",
+     "lxa": 0,
+     "phase": 256,
+     "ref": 32772,
+     "where": "screen[Workbench Screen]/window[System Request]/gadget[1 id=0]"
+    },
+    {
+     "field": "left",
+     "kind": "gadget",
+     "lxa": 226,
+     "phase": 256,
+     "ref": 234,
+     "where": "screen[Workbench Screen]/window[System Request]/gadget[1 id=0]"
+    },
+    {
+     "field": "top",
+     "kind": "gadget",
+     "lxa": 46,
+     "phase": 256,
+     "ref": 52,
+     "where": "screen[Workbench Screen]/window[System Request]/gadget[1 id=0]"
+    }
+   ],
+   "pixel_budget": 5012,
+   "pixel_phase": 256,
+   "stdout_known_diff": null
+  }
+ }
+}

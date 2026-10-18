@@ -1,0 +1,3 @@
+wbor 4 2 4 2 bar 10 vb 1 hb 2 menu 4 4
+dri v2 flags 1 res 44 44 pens 0 1 1 2 1 3 1 0 2 1 2 1
+win border 4 11 13 2

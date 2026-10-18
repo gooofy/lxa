@@ -1,0 +1,58 @@
+{
+ "app": "ppaint",
+ "disabled": null,
+ "lxa_version": "0.12.10",
+ "note": "Phase 243 rtg profile; residue owned by 256 (WB screen flags 0x2000 by 246)",
+ "promoted": "2026-10-18",
+ "reference": "AmigaOS 3.1 (KS 40.70), profile rtg",
+ "requires_apps": true,
+ "scenario": "ppaint-rtg",
+ "snapshots": {
+  "paint": {
+   "known_tree_diffs": [
+    {
+     "field": "flags",
+     "kind": "window",
+     "lxa": 142080,
+     "phase": 256,
+     "ref": 207616,
+     "where": "screen[0]/window[1]"
+    },
+    {
+     "field": "flags",
+     "kind": "screen",
+     "lxa": 17937,
+     "phase": 256,
+     "ref": 26129,
+     "where": "screen[Workbench Screen]"
+    }
+   ],
+   "pixel_budget": 1,
+   "pixel_phase": 256,
+   "stdout_known_diff": null
+  },
+  "startup": {
+   "known_tree_diffs": [
+    {
+     "field": "activation",
+     "kind": "gadget",
+     "lxa": 0,
+     "phase": 256,
+     "ref": 32768,
+     "where": "screen[0]/window[0]/gadget[0 id=0]"
+    },
+    {
+     "field": "flags",
+     "kind": "screen",
+     "lxa": 17937,
+     "phase": 256,
+     "ref": 26129,
+     "where": "screen[Workbench Screen]"
+    }
+   ],
+   "pixel_budget": 1,
+   "pixel_phase": 256,
+   "stdout_known_diff": null
+  }
+ }
+}
