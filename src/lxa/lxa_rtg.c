@@ -697,6 +697,12 @@ static uint32_t encode_color(uint32_t fmt, uint32_t c)
     return v << 16 | v;
 }
 
+/* the 15 bit formats, with bit 15 as a one bit alpha */
+static inline bool fmt_alpha1(uint32_t fmt)
+{
+    return fmt == 5 || fmt == 11 || fmt == 13;
+}
+
 /* bytes per pixel of a pixel format (RGBFTYPE or RTG_FMT_CGX_*) */
 static uint32_t fmt_bpp(uint32_t fmt)
 {
@@ -757,6 +763,8 @@ static uint32_t raw_to_argb(uint32_t fmt, uint32_t v)
         default:
             return 0;
     }
+    if (fmt == 5 || fmt == 11 || fmt == 13)
+        a = (v >> 15) & 1;
     if (fmt == 4 || fmt == 10)
     {
         r = (v >> 11) << 3; g = ((v >> 5) & 0x3f) << 2; b = (v & 0x1f) << 3;
@@ -791,9 +799,11 @@ static uint32_t argb_to_raw(uint32_t fmt, uint32_t c)
         case 9: return b << 24 | g << 16 | r << 8 | a;
         case RTG_FMT_CGX_GREY8: return (r * 77 + g * 150 + b * 29) >> 8;
         case 4: case 10: v = (r >> 3) << 11 | (g >> 2) << 5 | (b >> 3); break;
-        case 5: case 11: v = (r >> 3) << 10 | (g >> 3) << 5 | (b >> 3); break;
+        /* the 15 bit formats keep bit 0 of the alpha byte in bit 15
+         * (reference: probe rtg/cgx R5G5B5 and R5G5B5PC) */
+        case 5: case 11: v = (a & 1) << 15 | (r >> 3) << 10 | (g >> 3) << 5 | (b >> 3); break;
         case 12: v = (b >> 3) << 11 | (g >> 2) << 5 | (r >> 3); break;
-        case 13: v = (b >> 3) << 10 | (g >> 3) << 5 | (r >> 3); break;
+        case 13: v = (a & 1) << 15 | (b >> 3) << 10 | (g >> 3) << 5 | (r >> 3); break;
         default: return 0;
     }
     if (fmt == 4 || fmt == 5 || fmt == 12 || fmt == 13)
@@ -807,7 +817,19 @@ typedef struct
     uint32_t count;
     uint32_t table;
     uint32_t low;
+    bool board;         /* the board's default pens: 0 = 0xAAAAAA, the rest black */
 } rtg_cmap_t;
+
+/* RTGM_DEFCMAP: a true colour bitmap without a colour map uses the board's
+ * default pens, whatever the screens' palettes (reference: probes
+ * rtg/p96pixels and rtg/cgx; the Workbench palette and an open CLUT screen
+ * change nothing) */
+static void cmap_board(rtg_cmap_t *c)
+{
+    memset(c, 0, sizeof(*c));
+    c->count = 256;
+    c->board = true;
+}
 
 static void cmap_open(uint32_t cm, rtg_cmap_t *c)
 {
@@ -826,6 +848,8 @@ static uint32_t cmap_rgb(const rtg_cmap_t *c, uint32_t pen)
 {
     uint32_t hi, lo, r, g, b;
 
+    if (c->board)
+        return pen == 0 ? 0xaaaaaa : 0;
     if (!c->table || pen >= c->count)
         return 0;
     hi = rd16(c->table + pen * 2);
@@ -912,6 +936,8 @@ static uint32_t px_colourbits(const rtg_bitmap_t *b)
     {
         case 6: case 7: return 0x00ffffffu;
         case 8: case 9: return 0xffffff00u;
+        case 11: return 0x7fff;             /* bit 15 is alpha */
+        case 5: case 13: return 0xff7f;     /* the same, little endian */
         default: return px_allbits(b);
     }
 }
@@ -1021,6 +1047,43 @@ static void args_read(uint32_t a, rtg_args_t *o)
     o->extra = rd32(a + RTGA_EXTRA);
 }
 
+/* the colours of a request's pens */
+static void args_cmap(const rtg_args_t *a, rtg_pen_t *p)
+{
+    if ((a->mode & RTGM_DEFCMAP) && !a->cm && !p->b.cmap && p->b.format != 1)
+        cmap_board(&p->cm);
+    else
+        cmap_open(a->cm ? a->cm : p->b.cmap, &p->cm);
+}
+
+/* RTGM_NEAREST: the pen nearest to a colour on a CLUT bitmap, the last one
+ * of equal distance, searched in the board's default pens - also on a
+ * screen, whose palette is not consulted (reference: CGX ScalePixelArray
+ * of RGB to offscreen and Workbench CLUT bitmaps, probe rtg/cgx) */
+static int32_t clut_nearest(uint32_t rgb)
+{
+    rtg_cmap_t c;
+    uint32_t best_d = 0xffffffffu;
+    int32_t best = 0;
+
+    cmap_board(&c);
+    for (uint32_t i = 0; i < c.count && i < 256; i++)
+    {
+        uint32_t v = cmap_rgb(&c, i);
+        int32_t dr = (int32_t)((v >> 16) & 0xff) - (int32_t)((rgb >> 16) & 0xff);
+        int32_t dg = (int32_t)((v >> 8) & 0xff) - (int32_t)((rgb >> 8) & 0xff);
+        int32_t db = (int32_t)(v & 0xff) - (int32_t)(rgb & 0xff);
+        uint32_t d = (uint32_t)(dr * dr + dg * dg + db * db);
+
+        if (d <= best_d)
+        {
+            best_d = d;
+            best = (int32_t)i;
+        }
+    }
+    return best;
+}
+
 /* pen of a pixel: CLUT value or the first pen with its colour */
 static int32_t px_pen(const rtg_bitmap_t *b, const rtg_cmap_t *c, int x, int y)
 {
@@ -1124,15 +1187,15 @@ static uint32_t render(uint32_t op, uint32_t argp)
         case RTG_R_READPIXEL:
             if (a.x < 0 || a.y < 0 || a.x >= (int32_t)p.b.width || a.y >= (int32_t)p.b.height)
                 return 0xffffffffu;
-            cmap_open(a.cm ? a.cm : p.b.cmap, &p.cm);
+            args_cmap(&a, &p);
             return (uint32_t)px_pen(&p.b, &p.cm, a.x, a.y);
 
         case RTG_R_READPIXELRGB:
             if (a.x < 0 || a.y < 0 || a.x >= (int32_t)p.b.width || a.y >= (int32_t)p.b.height)
                 return 0xffffffffu;
-            if ((a.mode & RTGM_ALPHA) && p.b.format >= 6 && p.b.format <= 9)
+            if ((a.mode & RTGM_ALPHA) && ((p.b.format >= 6 && p.b.format <= 9) || fmt_alpha1(p.b.format)))
                 return raw_to_argb(p.b.format, load_raw(px_addr(&p.b, a.x, a.y), p.b.bpp));
-            cmap_open(a.cm ? a.cm : p.b.cmap, &p.cm);
+            args_cmap(&a, &p);
             return px_rgb(&p.b, &p.cm, a.x, a.y);
 
         case RTG_R_WRITEPIXELRGB:
@@ -1173,7 +1236,7 @@ static uint32_t render(uint32_t op, uint32_t argp)
 
             if (!clip_rect(&p.b, &a.x, &a.y, &a.w, &a.h, NULL, NULL))
                 return 0;
-            cmap_open(a.cm ? a.cm : p.b.cmap, &p.cm);
+            args_cmap(&a, &p);
             for (int32_t y = 0; y < a.h; y++)
             {
                 uint32_t arow = a.src + (uint32_t)((a.y - oy + y) * a.srcmod) + (uint32_t)(a.x - ox);
@@ -1203,7 +1266,7 @@ static uint32_t render(uint32_t op, uint32_t argp)
                 return 0;
             if (!clip_rect(&p.b, &a.x, &a.y, &a.w, &a.h, &sx, &sy))
                 return 0;
-            cmap_open(a.cm ? a.cm : p.b.cmap, &p.cm);
+            args_cmap(&a, &p);
             for (int32_t y = 0; y < a.h; y++)
             {
                 uint32_t srow = a.src + (uint32_t)((sy + y) * a.srcmod) + (uint32_t)sx * sbpp;
@@ -1222,9 +1285,24 @@ static uint32_t render(uint32_t op, uint32_t argp)
                         else if (a.fmt == p.b.format)
                             v = raw;
                         else
-                            v = argb_to_raw(a.fmt, raw_to_argb(p.b.format, raw) |
+                        {
+                            uint32_t c = raw_to_argb(p.b.format, raw);
+
+                            /* RECTFMT_RGBA leaves out the alpha bit of the
+                             * 15 bit formats, RECTFMT_ARGB keeps it
+                             * (reference: probe rtg/cgx) */
+                            if (fmt_alpha1(p.b.format) && a.fmt == RTG_FMT_CGX_RGBA)
+                                c &= 0xffffff;
+                            /* R5G6B5PC -> B8G8R8A8 converts two pixels at
+                             * once; the first one of each pair gets bits
+                             * 3-2 of its green as the low green bits
+                             * (reference: probes rtg/p96pixels and x246) */
+                            if (p.b.format == 4 && a.fmt == 9 && !(x & 1) && x + 1 < a.w)
+                                c |= ((c >> 12) & 3) << 8;
+                            v = argb_to_raw(a.fmt, c |
                                             ((p.b.format >= 6 && p.b.format <= 9) || (a.mode & RTGM_ALPHA) ?
                                              0 : 0xff000000u));
+                        }
                         store_raw(sa, sbpp, v);
                     }
                     else
@@ -1248,7 +1326,13 @@ static uint32_t render(uint32_t op, uint32_t argp)
                             continue;
                         }
                         else
+                        {
                             c = raw_to_argb(a.fmt, sv);
+                            /* the alpha bit of the 15 bit formats comes from
+                             * ARGB, not from RGBA arrays (reference: probe rtg/cgx) */
+                            if (a.fmt == RTG_FMT_CGX_RGBA && fmt_alpha1(p.b.format))
+                                c &= 0xffffff;
+                        }
                         if (op == RTG_R_ALPHA)
                         {
                             uint32_t al = (c >> 24) * (a.extra >> 24) / 255, d = px_rgb(&p.b, &p.cm, a.x + x, a.y + y);
@@ -1259,7 +1343,7 @@ static uint32_t render(uint32_t op, uint32_t argp)
                         }
                         if (p.b.format == 1)
                         {
-                            int32_t pen = cmap_find(&p.cm, c);
+                            int32_t pen = (a.mode & RTGM_NEAREST) ? clut_nearest(c) : cmap_find(&p.cm, c);
                             store_raw(da, 1, pen < 0 ? 0 : (uint32_t)pen);
                         }
                         else
@@ -1279,7 +1363,7 @@ static uint32_t render(uint32_t op, uint32_t argp)
 
             if (!clip_rect(&p.b, &a.x, &a.y, &a.w, &a.h, &sx, &sy))
                 return 0;
-            cmap_open(a.cm ? a.cm : p.b.cmap, &p.cm);
+            args_cmap(&a, &p);
             for (int32_t y = 0; y < a.h; y++)
             {
                 for (int32_t x = 0; x < a.w; x++)

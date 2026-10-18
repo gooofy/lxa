@@ -104,7 +104,18 @@ struct BitMap *rtgl_alloc_bitmap(ULONG w, ULONG h, ULONG depth, ULONG flags, str
         rflags = 0;
     bm = lxa_rtg_alloc_bitmap(w, h, depth, fmt, rflags);
     if (bm)
+    {
         LXA_RTG_EXTL(bm, LXA_RTG_EXT_CMAP) = cmap;
+        /* BMF_CLEAR: a true colour bitmap without a screen's colours is
+         * cleared to the board's pen 0, 0xAAAAAA (reference: probes
+         * rtg/p96pixels and rtg/cgx) */
+        if ((flags & BMF_CLEAR) && fmt != 1 && !cmap)
+        {
+            rtgl_req_t r = {RTG_R_FILLRGB, 0x00aaaaaa, 0, 0, 0, NULL, 0, 0, 0, 0, 0};
+
+            rtgl_render_bm(&r, bm, 0, 0, (LONG)w, (LONG)h);
+        }
+    }
     return bm;
 }
 

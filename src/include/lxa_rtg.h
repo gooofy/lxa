@@ -98,6 +98,10 @@
 #define RTGM_ARRAYMASK 0x20000  /* READ8: mask pens with the bitmap depth */
 #define RTGM_ALPHA   0x40000    /* READPIXELRGB: keep the alpha byte of the pixel;
                                  * READRGB: alpha 0 (not 0xff) from bitmaps without alpha */
+#define RTGM_DEFCMAP 0x80000    /* Picasso96/CGX arrays: a true colour bitmap without a
+                                 * colour map has the board's default pens (pen 0
+                                 * 0xAAAAAA, all others black), not the screen's */
+#define RTGM_NEAREST 0x100000   /* WRITERGB of colours to a CLUT bitmap: the nearest pen */
 
 /* RTGA_FMT for WRITERGB/READRGB: an RGBFTYPE, or one of these (CGX RECTFMT) */
 #define RTG_FMT_CGX_BASE    0x100

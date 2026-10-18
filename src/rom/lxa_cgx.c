@@ -45,6 +45,9 @@
 #define EXLIBNAME  "cybergraphics"
 #define EXLIBVER   " 41.4 (27.7.98)"
 
+/* the library base: struct Library plus private data (reference: 8360) */
+#define CGX_POSSIZE 8360
+
 char __aligned _g_cgx_ExLibName [] = EXLIBNAME ".library";
 char __aligned _g_cgx_ExLibID   [] = EXLIBNAME ".library" EXLIBVER;
 char __aligned _g_cgx_Copyright [] = "(C)opyright 2026 by G. Bartsch. Licensed under the MIT License.";
@@ -654,9 +657,16 @@ LONG _cgx_WriteRGBPixel ( register struct Library *CyberGfxBase __asm("a6"),
                           register UWORD y __asm("d1"),
                           register ULONG argb __asm("d2") )
 {
-    if (!cgx_rtg_bm(rp))
+    struct BitMap *bm = cgx_rtg_bm(rp);
+    ULONG fmt;
+
+    if (!bm)
         return 0;
-    return cgx_rect(RTG_R_WRITEPIXELRGB, argb & 0x00ffffffUL, 0, rp, x, y, 1, 1, FALSE, TRUE) ? 0 : -1;
+    /* the alpha byte is dropped, except its bit 0 on the 15 bit formats
+     * (reference: probe rtg/cgx) */
+    fmt = cgx_bm_fmt(bm);
+    argb &= (fmt == RGBFB_R5G5B5 || fmt == RGBFB_R5G5B5PC || fmt == RGBFB_B5G5R5PC) ? 0x01ffffffUL : 0x00ffffffUL;
+    return cgx_rect(RTG_R_WRITEPIXELRGB, argb, 0, rp, x, y, 1, 1, FALSE, TRUE) ? 0 : -1;
 }
 
 /* -150 FillPixelArray */
@@ -696,15 +706,18 @@ ULONG _cgx_InvertPixelArray ( register struct Library *CyberGfxBase __asm("a6"),
 
 /* WritePixelArray()/ScalePixelArray() of a RECTFMT array */
 static void cgx_write_array(APTR src, LONG sx, LONG sy, LONG smod, struct RastPort *rp, LONG dx, LONG dy,
-                            LONG w, LONG h, ULONG rectfmt)
+                            LONG w, LONG h, ULONG rectfmt, BOOL scale)
 {
     struct BitMap *bm = cgx_rtg_bm(rp);
-    rtgl_req_t r = {RTG_R_WRITERGB, 0, 0, 0, 0, NULL, 0, 0, 0, 0, 0};
+    rtgl_req_t r = {RTG_R_WRITERGB, 0, 0, RTGM_DEFCMAP, 0, NULL, 0, 0, 0, 0, 0};
 
     if (!bm || !src || rectfmt > RECTFMT_GREY8)
         return;
-    /* reference: only pen arrays reach CLUT bitmaps */
-    if (cgx_bm_fmt(bm) == RGBFB_CLUT && rectfmt != RECTFMT_LUT8)
+    /* reference: WritePixelArray() writes only pen arrays to CLUT bitmaps,
+     * ScalePixelArray() colours as their nearest pens */
+    if (scale)
+        r.mode |= RTGM_NEAREST;
+    else if (cgx_bm_fmt(bm) == RGBFB_CLUT && rectfmt != RECTFMT_LUT8)
         return;
     r.src = src;
     r.srcmod = smod;
@@ -729,7 +742,7 @@ ULONG _cgx_WritePixelArray ( register struct Library *CyberGfxBase __asm("a6"),
 {
     ULONG n = (ULONG)w * h;
 
-    cgx_write_array(src, sx, sy, smod, rp, dx, dy, w, h, fmt);
+    cgx_write_array(src, sx, sy, smod, rp, dx, dy, w, h, fmt, FALSE);
     return n;
 }
 
@@ -806,7 +819,70 @@ ULONG _cgx_MovePixelArray ( register struct Library *CyberGfxBase __asm("a6"),
     return (ULONG)w * h;
 }
 
-/* -90 ScalePixelArray: nearest neighbour */
+/*
+ * The source pixel (or row) of each destination pixel (row) of
+ * ScalePixelArray(), as the reference computes it (fitted to probe
+ * rtg/x246b grids of 1-7 source and 1-16 destination pixels):
+ *  - equal sizes: copied;
+ *  - enlarging by q = d / s, r = d % s: source pixel 0 covers 2q+1
+ *    destination pixels, every further one q, plus one whenever an error
+ *    that grows by r reaches s;
+ *  - shrinking: destination pixel 0 is source pixel 0; an error starting at
+ *    (s-1)/2 grows by d per source pixel and each source pixel that makes it
+ *    reach s is the next destination pixel.
+ * When enlarging rows only the first destination row of each source row is
+ * written (first[] TRUE); the others stay as they were.
+ */
+static void cgx_scale_map(ULONG s, ULONG d, UWORD *map, UBYTE *first)
+{
+    ULONG i = 0, k, err, q, r, run;
+
+    if (d == s)
+    {
+        for (i = 0; i < d; i++)
+            map[i] = (UWORD)i;
+    }
+    else if (d > s)
+    {
+        q = d / s;
+        r = d % s;
+        err = 0;
+        for (run = 2 * q + 1; run && i < d; run--)
+            map[i++] = 0;
+        for (k = 1; k < s && i < d; k++)
+        {
+            err += r;
+            run = q;
+            if (err >= s)
+            {
+                err -= s;
+                run++;
+            }
+            for (; run && i < d; run--)
+                map[i++] = (UWORD)k;
+        }
+    }
+    else
+    {
+        map[i++] = 0;
+        err = (s - 1) / 2;
+        for (k = 1; k < s && i < d; k++)
+        {
+            err += d;
+            if (err >= s)
+            {
+                err -= s;
+                map[i++] = (UWORD)k;
+            }
+        }
+    }
+    for (; i < d; i++)      /* not reached */
+        map[i] = (UWORD)(s - 1);
+    for (i = 0; i < d; i++)
+        first[i] = (UBYTE)(i == 0 || map[i] != map[i - 1]);
+}
+
+/* -90 ScalePixelArray */
 LONG _cgx_ScalePixelArray ( register struct Library *CyberGfxBase __asm("a6"),
                             register APTR src __asm("a0"),
                             register UWORD sw __asm("d0"),
@@ -821,29 +897,39 @@ LONG _cgx_ScalePixelArray ( register struct Library *CyberGfxBase __asm("a6"),
 {
     static const UBYTE bpps[] = {3, 4, 4, 1, 1};
     ULONG bpp, x, y, i;
-    UBYTE *buf;
+    UBYTE *buf, *xfirst, *yfirst;
+    UWORD *xmap, *ymap;
 
     if (!cgx_rtg_bm(rp) || !src || !sw || !sh || !dw || !dh || fmt > RECTFMT_GREY8)
         return (LONG)dw * dh;
     bpp = bpps[fmt];
-    buf = (UBYTE *)AllocVec((ULONG)dw * dh * bpp, MEMF_ANY);
-    if (!buf)
+    /* xmap, ymap, the row, xfirst, yfirst */
+    xmap = (UWORD *)AllocVec((ULONG)(dw + dh) * 3 + (ULONG)dw * bpp, MEMF_ANY);
+    if (!xmap)
         return 0;
+    ymap = xmap + dw;
+    buf = (UBYTE *)(ymap + dh);
+    xfirst = buf + (ULONG)dw * bpp;
+    yfirst = xfirst + dw;
+    cgx_scale_map(sw, dw, xmap, xfirst);
+    cgx_scale_map(sh, dh, ymap, yfirst);
     for (y = 0; y < dh; y++)
     {
-        const UBYTE *srow = (const UBYTE *)src + (y * sh / dh) * smod;
-        UBYTE *drow = buf + y * dw * bpp;
+        const UBYTE *srow = (const UBYTE *)src + (ULONG)ymap[y] * smod;
+        UBYTE *drow = buf;
 
+        if (!yfirst[y])
+            continue;
         for (x = 0; x < dw; x++)
         {
-            const UBYTE *s = srow + (x * sw / dw) * bpp;
+            const UBYTE *s = srow + (ULONG)xmap[x] * bpp;
 
             for (i = 0; i < bpp; i++)
                 *drow++ = s[i];
         }
+        cgx_write_array(buf, 0, 0, (LONG)dw * bpp, rp, dx, (LONG)dy + (LONG)y, dw, 1, fmt, TRUE);
     }
-    cgx_write_array(buf, 0, 0, (LONG)dw * bpp, rp, dx, dy, dw, dh, fmt);
-    FreeVec(buf);
+    FreeVec(xmap);
     return (LONG)dw * dh;
 }
 
@@ -974,7 +1060,7 @@ struct Resident *__lxa_cgx_ROMTag = &ROMTag;
 
 struct InitTable __g_lxa_cgx_InitTab =
 {
-    (ULONG)               sizeof(struct Library),
+    (ULONG)               CGX_POSSIZE,    /* reference: lib_PosSize 8360 */
     (APTR              *) &__g_lxa_cgx_FuncTab[0],
     (APTR)                &__g_lxa_cgx_DataTab,
     (APTR)                __g_lxa_cgx_InitLib

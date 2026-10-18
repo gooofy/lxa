@@ -482,6 +482,10 @@ struct Screen * _p96_OpenScreenTagList ( register struct Library *P96Base __asm(
     st[n].ti_Tag = TAG_DONE;
     s = OpenScreenTagList(NULL, st);
     FreeVec(st);
+    /* Picasso96 opens the screen on a bitmap of its own (reference: probe
+     * rtg/p96screen) */
+    if (s)
+        s->Flags |= CUSTOMBITMAP;
     return s;
 }
 
@@ -522,7 +526,8 @@ void _p96_WritePixelArray ( register struct Library *P96Base __asm("a6"),
     if (p96_rp_format(rp) == RGBFB_CLUT && ri->RGBFormat != RGBFB_CLUT)
         return;
     r.op = RTG_R_WRITERGB;
-    r.fg = r.bg = r.mode = r.cmap = r.extra = 0;
+    r.fg = r.bg = r.cmap = r.extra = 0;
+    r.mode = RTGM_DEFCMAP;
     r.src = ri->Memory;
     r.srcmod = ri->BytesPerRow;
     r.srcx = (WORD)sx;
@@ -549,7 +554,7 @@ void _p96_ReadPixelArray ( register struct Library *P96Base __asm("a6"),
         return;
     r.op = RTG_R_READRGB;
     r.fg = r.bg = r.cmap = r.extra = 0;
-    r.mode = RTGM_ALPHA;
+    r.mode = RTGM_ALPHA | RTGM_DEFCMAP;
     r.src = ri->Memory;
     r.srcmod = ri->BytesPerRow;
     r.srcx = (WORD)dx;

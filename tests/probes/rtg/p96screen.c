@@ -3,9 +3,8 @@
  * profile) - a 32 bit screen and its ViewPort, the pixel functions in a
  * window (layer clipping), WritePixelArray8, p96PIP_OpenTagList and
  * p96OpenScreenTagList by size, by format and with an unknown mode.
- * Left out (not reproducible): the colour of CLUT arrays on true colour
- * bitmaps, the ViewPort Modes/DHeight and Screen.Flags of an RTG screen
- * (Picasso96 private), p96ReadPixelArray from R5G6B5PC into B8G8R8A8.
+ * Phase 246: the colour of CLUT arrays on true colour bitmaps, the
+ * ViewPort Modes/DHeight and Screen.Flags of an RTG screen.
  *
  * rdd: profile rtg
  */
@@ -66,7 +65,6 @@ static void pixtests(const char *n, struct RastPort *rp, struct BitMap *bm, int 
         int k;
         for (k = 0; k < 6; k++) {
             if (f[k] == fmt) continue;  /* hangs Picasso96 2.0 */
-            if (fmt == RGBFB_CLUT || (fmt == RGBFB_R5G6B5PC && f[k] == RGBFB_B8G8R8A8)) continue;
             memset(buf, 0xee, sizeof(buf));
             ri.Memory = buf; ri.BytesPerRow = 32; ri.RGBFormat = f[k];
             p96ReadPixelArray(&ri, 1, 0, rp, 2, 2, 4, 1);
@@ -85,7 +83,7 @@ static void pixtests(const char *n, struct RastPort *rp, struct BitMap *bm, int 
         static const UBYTE s8[4] = {0, 1, 2, 3};
         ri.Memory = (APTR)s8; ri.BytesPerRow = 4; ri.RGBFormat = RGBFB_CLUT;
         p96WritePixelArray(&ri, 0, 0, rp, 2, 4, 4, 1);
-        for (i = 0; fmt == RGBFB_CLUT && i < 4; i++) { probe_s("wpa clut "); probe_dec(i); probe_s(" = "); probe_hex(p96ReadPixel(rp, 2 + i, 4), 8); probe_s(" raw "); probe_hex(pix(bm, ox + 2 + i, oy + 4), 8); probe_ch('\n'); }
+        for (i = 0; i < 4; i++) { probe_s("wpa clut "); probe_dec(i); probe_s(" = "); probe_hex(p96ReadPixel(rp, 2 + i, 4), 8); probe_s(" raw "); probe_hex(pix(bm, ox + 2 + i, oy + 4), 8); probe_ch('\n'); }
     }
     /* WritePixel / RectFill */
     P_HEX("wp ret", p96WritePixel(rp, 1, 1, 0x00102030));
@@ -130,6 +128,9 @@ int main(void)
         P_LONG("WBorLeft", s->WBorLeft);
         P_LONG("vp.DWidth", s->ViewPort.DWidth);
         P_LONG("vp.DxOffset", s->ViewPort.DxOffset);
+        P_HEX("vp.Modes", s->ViewPort.Modes);
+        P_LONG("vp.DHeight", s->ViewPort.DHeight);
+        P_HEX("Flags", s->Flags);
         w = OpenWindowTags(NULL, WA_CustomScreen, s, WA_Left, 10, WA_Top, 20, WA_Width, 100, WA_Height, 60,
                            WA_Borderless, TRUE, WA_Activate, FALSE, TAG_DONE);
         P_NULL("win", w);
@@ -169,6 +170,9 @@ int main(void)
         if (ps) {
             P_HEX("id", GetVPModeID(&ps->ViewPort));
             P_LONG("w", ps->Width); P_LONG("h", ps->Height);
+            P_HEX("vp.Modes", ps->ViewPort.Modes);
+            P_LONG("vp.DHeight", ps->ViewPort.DHeight);
+            P_HEX("Flags", ps->Flags);
             P_LONG("fmt", p96GetBitMapAttr(ps->RastPort.BitMap, P96BMA_RGBFORMAT));
             P_LONG("depth", p96GetBitMapAttr(ps->RastPort.BitMap, P96BMA_DEPTH));
             {

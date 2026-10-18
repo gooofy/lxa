@@ -6,10 +6,11 @@
  * offscreen bitmaps, and the pixel functions on offscreen bitmaps of every
  * board format, in a window and on a 16 bit screen.
  *
- * Left out (not reproducible): lib_PosSize, CyberModeNode ln_Type/ln_Pri,
- * the colour of unwritten BMF_CLEAR pixels and of RECTFMT_LUT8 pens on
- * true colour bitmaps, ReadPixelArray from CLUT bitmaps, ScalePixelArray
- * beyond its first pixel and R5G5B5 bitmaps.
+ * Phase 246: lib_PosSize, the colour of unwritten BMF_CLEAR pixels and of
+ * RECTFMT_LUT8 pens on true colour bitmaps, ScalePixelArray beyond its
+ * first pixel and R5G5B5 bitmaps.  Left out (uninitialised): CyberModeNode
+ * ln_Type/ln_Pri, the colours of CLUT bitmaps, also the Workbench's
+ * (ReadPixelArray reads them through a NULL colour table).
  *
  * rdd: profile rtg
  */
@@ -110,7 +111,7 @@ static void pixtests(const char *n, struct RastPort *rp, struct BitMap *bm, int 
 {
     UBYTE buf[64];
     int i;
-    BOOL clut = GetCyberMapAttr(bm, CYBRMATTR_PIXFMT) == PIXFMT_LUT8;
+    BOOL nocolours = GetCyberMapAttr(bm, CYBRMATTR_PIXFMT) == PIXFMT_LUT8;
     P_SECTION(n);
     P_HEX("prefill ret", FillPixelArray(rp, 0, 0, 40, 30, 0x00000000));
     P_HEX("pixfmt", GetCyberMapAttr(bm, CYBRMATTR_PIXFMT));
@@ -140,7 +141,7 @@ static void pixtests(const char *n, struct RastPort *rp, struct BitMap *bm, int 
         P_HEX("wpa grey ret", WritePixelArray((APTR)grey, 0, 0, 4, rp, 10, 13, 4, 1, RECTFMT_GREY8));
         for (i = 0; i < 4; i++) { probe_s("wpa grey "); probe_dec(i); probe_s(" = "); probe_hex(ReadRGBPixel(rp, 10 + i, 13), 8); probe_s(" raw "); probe_hex(pix(bm, ox + 10 + i, oy + 13), 8); probe_ch('\n'); }
         P_HEX("wpa lut ret", WritePixelArray((APTR)lut, 0, 0, 4, rp, 10, 14, 4, 1, RECTFMT_LUT8));
-        for (i = 0; clut && i < 4; i++) { probe_s("wpa lut "); probe_dec(i); probe_s(" = "); probe_hex(ReadRGBPixel(rp, 10 + i, 14), 8); probe_s(" raw "); probe_hex(pix(bm, ox + 10 + i, oy + 14), 8); probe_ch('\n'); }
+        for (i = 0; i < 4; i++) { probe_s("wpa lut "); probe_dec(i); probe_s(" = "); probe_hex(ReadRGBPixel(rp, 10 + i, 14), 8); probe_s(" raw "); probe_hex(pix(bm, ox + 10 + i, oy + 14), 8); probe_ch('\n'); }
         P_HEX("wlut ret", WriteLUTPixelArray((APTR)lut, 0, 0, 4, rp, (APTR)ctab, 10, 15, 4, 1, CTABFMT_XRGB8));
         for (i = 0; i < 4; i++) { probe_s("wlut "); probe_dec(i); probe_s(" = "); probe_hex(ReadRGBPixel(rp, 10 + i, 15), 8); probe_s(" raw "); probe_hex(pix(bm, ox + 10 + i, oy + 15), 8); probe_ch('\n'); }
         P_HEX("wlut bad fmt ret", WriteLUTPixelArray((APTR)lut, 0, 0, 4, rp, (APTR)ctab, 10, 16, 4, 1, 1));
@@ -152,7 +153,9 @@ static void pixtests(const char *n, struct RastPort *rp, struct BitMap *bm, int 
             memset(buf, 0xee, sizeof(buf));
             probe_s("rpa ret "); probe_dec(f[k]); probe_s(" = ");
             probe_hex(ReadPixelArray(buf, 1, 0, 20, rp, 10, 11, 4, 2, f[k]), 8); probe_ch('\n');
-            if (!clut) { probe_s("rpa fmt"); probe_dec(f[k]); P_BYTES("", buf, 48); }
+            /* undefined: the colours of a CLUT bitmap come from a
+             * NULL colour table (the exception vectors) */
+            if (!nocolours || f[k] > RECTFMT_ARGB) { probe_s("rpa fmt"); probe_dec(f[k]); P_BYTES("", buf, 48); }
         }
     }
     P_HEX("move ret", MovePixelArray(10, 11, rp, 20, 11, 4, 2));
@@ -161,7 +164,7 @@ static void pixtests(const char *n, struct RastPort *rp, struct BitMap *bm, int 
     {
         static const UBYTE src[16] = {0x10, 0x20, 0x30, 0x40, 0x50, 0x60, 0x70, 0x80, 0x90, 0xa0, 0xb0, 0xc0};
         P_HEX("scale ret", ScalePixelArray((APTR)src, 2, 2, 6, rp, 24, 20, 4, 4, RECTFMT_RGB));
-        if (!clut) P_HEX("scale 0", ReadRGBPixel(rp, 24, 20));
+        for (i = 0; i < 16; i++) { probe_s("scale "); probe_dec(i); probe_s(" = "); probe_hex(ReadRGBPixel(rp, 24 + (i & 3), 20 + (i >> 2)), 8); probe_s(" raw "); probe_hex(pix(bm, ox + 24 + (i & 3), oy + 20 + (i >> 2)), 8); probe_ch('\n'); }
     }
     {
         struct Hook h;
@@ -194,6 +197,7 @@ int main(void)
     P_LONG("ver", CyberGfxBase->lib_Version);
     P_LONG("rev", CyberGfxBase->lib_Revision);
     P_LONG("neg", CyberGfxBase->lib_NegSize);
+    P_LONG("pos", CyberGfxBase->lib_PosSize);
     P_STR("id", (char *)CyberGfxBase->lib_IdString);
     P_STR("name", CyberGfxBase->lib_Node.ln_Name);
 
@@ -271,14 +275,17 @@ int main(void)
         FreeBitMap(bm);
     }
     {
-        static const ULONG fmts[] = {RGBFB_B8G8R8A8, RGBFB_R5G6B5PC, RGBFB_CLUT, RGBFB_R8G8B8, RGBFB_A8R8G8B8};
+        static const ULONG fmts[] = {RGBFB_B8G8R8A8, RGBFB_R5G6B5PC, RGBFB_CLUT, RGBFB_R8G8B8, RGBFB_A8R8G8B8,
+                                     RGBFB_R5G5B5, RGBFB_R5G5B5PC};
         int k;
-        for (k = 0; k < 5; k++) {
+        for (k = 0; k < 7; k++) {
             struct BitMap *bm = p96AllocBitMap(40, 30, fmts[k] == RGBFB_CLUT ? 8 : 24, BMF_CLEAR, NULL, fmts[k]);
             struct RastPort rp;
             probe_s("offscreen fmt "); probe_dec(fmts[k]); probe_ch('\n');
             if (!bm) { probe_s("NULL\n"); continue; }
             mapattrs("map", bm);
+            probe_s("clear 0 = "); probe_hex(pix(bm, 0, 0), 8); probe_s(" clear 1 = ");
+            probe_hex(pix(bm, 39, 29), 8); probe_ch('\n');
             {
                 ULONG v[7];
                 APTR h, h2;

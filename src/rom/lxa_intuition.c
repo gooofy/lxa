@@ -9948,6 +9948,16 @@ struct Screen * _intuition_OpenScreen ( register struct IntuitionBase * Intuitio
     screen->MenuVBorder = (screen->BarHBorder == 5) ? 2 : 4;
     if (screen->BarHBorder == 5)
         screen->Flags |= SCREENHIRES;
+    /* a Picasso96 screen: ViewPort.Modes is the low word of the mode ID
+     * with SPRITES (and VP_HIDE), DHeight 0 and the private Flags bit
+     * 0x2000 (reference: probe rtg/p96screen) */
+    if (rtg_fmt)
+    {
+        screen->ViewPort.Modes = (UWORD)((g_screen_display_id - 1) & 0xffff) | SPRITES |
+                                 (screen->ViewPort.Modes & VP_HIDE);
+        screen->ViewPort.DHeight = 0;
+        screen->Flags |= 0x2000;
+    }
     screen->WBorLeft = 4;
     screen->WBorRight = 4;
     screen->WBorBottom = 2;

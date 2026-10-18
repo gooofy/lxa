@@ -3,9 +3,10 @@
  * bitmaps of every board format (Picasso96 2.0, rtg profile) - p96LockBitMap,
  * p96Write/ReadPixelArray format conversions, p96WritePixel, p96ReadPixel,
  * p96RectFill, p96Write/ReadTrueColorData, a planar bitmap.
- * Left out (not reproducible): RenderInfo.pad after p96LockBitMap, the colour
- * of unwritten BMF_CLEAR pixels and of CLUT arrays on true colour bitmaps,
- * p96ReadPixelArray from CLUT bitmaps and from R5G6B5PC into B8G8R8A8.
+ * Phase 246: the colour of unwritten BMF_CLEAR pixels and of CLUT arrays on
+ * true colour bitmaps, p96ReadPixelArray from R5G6B5PC into B8G8R8A8.
+ * Left out (uninitialised): RenderInfo.pad, the colours of an offscreen
+ * CLUT bitmap (Picasso96 reads them through a NULL colour table).
  *
  * rdd: profile rtg
  */
@@ -66,7 +67,9 @@ static void pixtests(const char *n, struct RastPort *rp, struct BitMap *bm, int 
         int k;
         for (k = 0; k < 6; k++) {
             if (f[k] == fmt) continue;  /* hangs Picasso96 2.0 */
-            if (fmt == RGBFB_CLUT || (fmt == RGBFB_R5G6B5PC && f[k] == RGBFB_B8G8R8A8)) continue;
+            /* undefined: the colours of an offscreen CLUT bitmap come from
+             * a NULL colour table (the exception vectors) */
+            if (fmt == RGBFB_CLUT && f[k] != RGBFB_CLUT) continue;
             memset(buf, 0xee, sizeof(buf));
             ri.Memory = buf; ri.BytesPerRow = 32; ri.RGBFormat = f[k];
             p96ReadPixelArray(&ri, 1, 0, rp, 2, 2, 4, 1);
@@ -85,7 +88,7 @@ static void pixtests(const char *n, struct RastPort *rp, struct BitMap *bm, int 
         static const UBYTE s8[4] = {0, 1, 2, 3};
         ri.Memory = (APTR)s8; ri.BytesPerRow = 4; ri.RGBFormat = RGBFB_CLUT;
         p96WritePixelArray(&ri, 0, 0, rp, 2, 4, 4, 1);
-        for (i = 0; fmt == RGBFB_CLUT && i < 4; i++) { probe_s("wpa clut "); probe_dec(i); probe_s(" = "); probe_hex(p96ReadPixel(rp, 2 + i, 4), 8); probe_s(" raw "); probe_hex(pix(bm, ox + 2 + i, oy + 4), 8); probe_ch('\n'); }
+        for (i = 0; i < 4; i++) { probe_s("wpa clut "); probe_dec(i); probe_s(" = "); probe_hex(p96ReadPixel(rp, 2 + i, 4), 8); probe_s(" raw "); probe_hex(pix(bm, ox + 2 + i, oy + 4), 8); probe_ch('\n'); }
     }
     /* WritePixel / RectFill */
     P_HEX("wp ret", p96WritePixel(rp, 1, 1, 0x00102030));
@@ -146,6 +149,8 @@ int main(void)
             lk = p96LockBitMap(bm, rib, 4);
             P_LONG("lock small", lk != 0);
             if (lk) p96UnlockBitMap(bm, lk);
+            P_PIX("clear 0", bm, 0, 0);
+            P_PIX("clear 1", bm, 39, 29);
             InitRastPort(&rp);
             rp.BitMap = bm;
             pixtests("offscreen px", &rp, bm, 0, 0);
