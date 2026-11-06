@@ -568,3 +568,11 @@ The built-in library stays private to lxa's ROM and `OpenLibrary()` loads `LIBS:
 3. Load `develop-amiga` for coding standards.
 4. Load `lxa-testing` to plan your tests.
 5. For UI tests, load `graphics-testing` for host-side driver patterns.
+
+### 6.31 ARexx (Phase 250)
+
+- **Layout**: rexxsyslib.library is a disk library (`src/rom/lxa_rexxsyslib.c`); `SYS:System/RexxMast` owns the REXX port and starts one `SYS:System/ARexx` process per program (glue `sys/System/ARexx.c` + Regina in `src/regina/`, LGPL, patches marked `LXA`, list in `src/regina/README.lxa`); `SYS:Rexxc` holds RX/HI/TS/... Probes: `tests/probes/rexx/`.
+- **Regina is built `-m68000 -fbbb=-`**: the bebbo optimizer and 68020 code generation miscompile parts of Regina. Do not "optimize" the flags without running the rexx probes.
+- **Never hand a child process its arguments with `NP_Arguments` when the parent shares the shell's input**: lxa's CreateNewProc injects NP_Arguments into the input buffer, which corrupted RunCommand's inject/restore and made the shell re-run `rx`'s arguments. RexxMast passes the RexxMsg in `tc_UserData` (set under Forbid).
+- **Per-program cost is emulated time**: the rexxmast probe runs ~170 programs in the 20 s reference budget. RexxMast keeps loaded seglists and restores their data/BSS image per run, so keep Regina's BSS small (large buffers are heap-allocated, `lxa_lex_buffers()`) and keep INFO logging out of process creation.
+- **Regina's RXHLT/RXTRC exits are rejected by RexxStart (3.9.6)**: halt and trace flags (HI, TS/TE, Ctrl-C) are polled once per clause through `lxa_arexx_poll()`.

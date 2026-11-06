@@ -26,12 +26,12 @@ implementing the function, never by deleting the macro.
 | icon | 0 | 2 | 0 |
 | intuition | 3 | 16 | 10 |
 | p96 | 0 | 0 | 1 |
-| rexxsyslib | 17 | 0 | 0 |
+| rexxsyslib | 0 | 0 | 1 |
 | tapedeck.gadget | 0 | 1 | 0 |
 | translator | 1 | 0 | 0 |
 | utility | 0 | 0 | 7 |
 | workbench | 0 | 0 | 3 |
-| **total** | **62** | **31** | **48** |
+| **total** | **45** | **31** | **49** |
 
 ## 68040
 
@@ -189,23 +189,7 @@ implementing the function, never by deleting the macro.
 
 ## rexxsyslib
 
-- `ClearRexxMsg` — stub: rexxsyslib.library not implemented (Phase 250) (`src/rom/lxa_rexxsyslib.c`)
-- `CreateArgstring` — stub: rexxsyslib.library not implemented (Phase 250) (`src/rom/lxa_rexxsyslib.c`)
-- `CreateRexxHostPort` — stub: rexxsyslib.library not implemented (Phase 250) (`src/rom/lxa_rexxsyslib.c`)
-- `CreateRexxMsg` — stub: rexxsyslib.library not implemented (Phase 250) (`src/rom/lxa_rexxsyslib.c`)
-- `DeleteArgstring` — stub: rexxsyslib.library not implemented (Phase 250) (`src/rom/lxa_rexxsyslib.c`)
-- `DeleteRexxHostPort` — stub: rexxsyslib.library not implemented (Phase 250) (`src/rom/lxa_rexxsyslib.c`)
-- `DeleteRexxMsg` — stub: rexxsyslib.library not implemented (Phase 250) (`src/rom/lxa_rexxsyslib.c`)
-- `FillRexxMsg` — stub: rexxsyslib.library not implemented (Phase 250) (`src/rom/lxa_rexxsyslib.c`)
-- `FreeRexxMsg` — stub: rexxsyslib.library not implemented (Phase 250) (`src/rom/lxa_rexxsyslib.c`)
-- `GetRexxBufferFromMsg` — stub: rexxsyslib.library not implemented (Phase 250) (`src/rom/lxa_rexxsyslib.c`)
-- `GetRexxVarFromMsg` — stub: rexxsyslib.library not implemented (Phase 250) (`src/rom/lxa_rexxsyslib.c`)
-- `IsRexxMsg` — stub: rexxsyslib.library not implemented (Phase 250) (`src/rom/lxa_rexxsyslib.c`)
-- `LaunchRexxScript` — stub: rexxsyslib.library not implemented (Phase 250) (`src/rom/lxa_rexxsyslib.c`)
-- `LengthArgstring` — stub: rexxsyslib.library not implemented (Phase 250) (`src/rom/lxa_rexxsyslib.c`)
-- `LockRexxBase` — stub: rexxsyslib.library not implemented (Phase 250) (`src/rom/lxa_rexxsyslib.c`)
-- `SetRexxVarFromMsg` — stub: rexxsyslib.library not implemented (Phase 250) (`src/rom/lxa_rexxsyslib.c`)
-- `UnlockRexxBase` — stub: rexxsyslib.library not implemented (Phase 250) (`src/rom/lxa_rexxsyslib.c`)
+- `Private` — private/reserved slot (`src/rom/lxa_rexxsyslib.c`)
 
 ## tapedeck.gadget
 

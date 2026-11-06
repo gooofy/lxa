@@ -114,7 +114,7 @@ M0 and M1 are on the critical path: nothing in M2 and later is efficient without
 
 ## Next Phase
 
-> **M5 — Close the Facades**: Phases **251**, **252**, **255** and **256** (in that priority order; they may run in parallel worktrees). M0–M4 are complete; M4 (RTG / Picasso96, Phases 240–243, 246) closed with v0.12.54.
+> **M5 — Close the Facades**: Phases **251**, **252**, **255** and **256** (in that priority order; they may run in parallel worktrees). M0–M4 are complete; in M5, Phase 250 (rexxsyslib.library + ARexx) closed with v0.13.0.
 
 ---
 
@@ -160,11 +160,6 @@ Complete (Phases 230–239, 244, v0.11.88); see the summary table.  The Fred Fis
 
 The order below is provisional. After Phase 231/232 it is re-sorted by how often corpus programs hit each item. AROS may be read as a reference for every item, but the code is lxa's own (see "AROS code is a reference only"). Every phase is verified with conformance probes against the reference (the Phase 222 pattern).
 
-### Phase 250 — rexxsyslib.library + ARexx
-- [ ] Implement rexxsyslib.library as an lxa disk library (own code; AROS `workbench/libs/rexxsyslib` as a reference only), replacing the 17-function facade in `lxa_rexxsyslib.c`.
-- [ ] Vendor Regina (LGPL, allowed) as the ARexx interpreter (the RexxMast and `rx` equivalents), installed under `share/lxa/System`; list it in `doc/third-party-code.md` and the README's License section as LGPL.
-- [ ] Gate: an app's ARexx port responds to a scripted `rx` message on both backends; rexxsyslib probe goldens pass.
-
 ### Phase 251 — commodities.library: Exchange and the last private slot
 commodities.library is lxa's own complete implementation since Phase 237c (every object type, brokers, ParseIX/MatchIX, routing, input handler at priority 53, IECLASS_TIMER events from input.device, Exchange's private CopyBrokerList/FreeBrokerList/BrokerCommand; probes `commodities/*`).
 - [ ] The reserved slot `Private1` (LVO -108) still calls `LXA_UNIMPLEMENTED`: find out what 3.1 does there (probe).
@@ -194,7 +189,7 @@ commodities.library is lxa's own complete implementation since Phase 237c (every
 
 ### Phase 255 — Missing libraries, resources & exec/dos slots
 - [ ] C:Mount and DOS handler loading (deferred from Phase 221).
-- [ ] Libraries: mathieeesingtrans, lowlevel, nonvolatile.
+- [ ] Libraries: mathieeesingtrans, lowlevel, nonvolatile, rexxsupport (the ARexx support library of WB 3.1: ALLOCMEM, OPENPORT, GETPKT, SHOWDIR, ...; loaded by ADDLIB from ARexx programs, Phase 250 left it out).
 - [ ] Resources: battclock, battmem, FileSystem (misc.resource since 237b, disk.resource since 237c, potgo.resource since 237d). SysInfo needs these (Phase 234).
 - [ ] (from Phase 237d) cia.resource timers and ICR interrupts with running CIA timers (Fish GurusGuide cia waits for 10 CIA-B timer A interrupts).
 - [ ] exec: `RawIOInit`/`RawMayGetChar`/`RawPutChar` (routed to `lxa.log`), `Child*`, `ObtainQuickVector`, plus `Alert` (logged guru plus host dialog) and the `Cache*` functions (flush the CPU core).
@@ -286,7 +281,7 @@ commodities.library is lxa's own complete implementation since Phase 237c (every
 - [ ] Decide one rule for post-3.1 (V44-V47) extensions lxa already has: Phase 220 removed input.device `IND_ADDEVENT` (V47) to match 3.1, but kept console scrollback, icon/workbench V44, layers V45 and diskfont V45 calls as `lxa_only` tests. Either all stay (gated by version) or all go.
 - [ ] Per-version reference profiles. Decide which V44+/V47 functions lxa exposes; the gadtools V47 stubs are an early instance.
 
-- [ ] (from Phase 222) diskfont, locale, icon and workbench report V44-V47 where 3.1 has V40; 3.1 ships older mathtrans/mathieeedoub*/rexxsyslib (V36-V38): decide per API level.
+- [ ] (from Phase 222) diskfont, locale, icon and workbench report V44-V47 where 3.1 has V40; 3.1 ships older mathtrans/mathieeedoub*/rexxsyslib (V36-V38): decide per API level. rexxsyslib (Phase 250) implements the 3.1 function set only; the V45 additions (`LockRexxBase`/`UnlockRexxBase` already exist) belong to this decision.
 ### Phase 274 — Performance (was legacy 163)
 - [ ] With deterministic time, wall time becomes measurable per scenario. Profile host overhead with `--profile` and set budgets per scenario.
 - [ ] **Emulated-cycle cost of ROM rendering** (found in Phase 201; every ROM cycle is now emulated time): an open menu re-renders all items on every VBlank (~80–500 K cycles per item); `RectFill`/`SetPixelDirect` and `Text()` still work pixel by pixel (~37 K cycles per character including menu overhead). Make rendering row/word based and repaint only the changed highlight. Measure with `lxa_get_idle_cycles()` and PC sampling (`tools/rom_symbolize.py`).
@@ -309,7 +304,7 @@ commodities.library is lxa's own complete implementation since Phase 237c (every
 | Scenarios with reference goldens | 0 | 4 | 300+ |
 | Test programs validated on real OS | 0 / 225 | — | 225 / 225 |
 | Stubbed system-library LVOs (Phase 203 inventory) | 85 stub + 39 partial + 117 without implementation (v0.11.1) | measured | 0 used by the corpus |
-| Line coverage (host + ROM) | ROM 82.3 % / host 40.6 % (v0.12.54, M4 complete; v0.11.0: 77.3 % / 32.6 %) | measured | never decreasing |
+| Line coverage (host + ROM) | ROM 82.3 % / host 40.8 % (v0.13.0, Phase 250; v0.11.0: 77.3 % / 32.6 %) | measured | never decreasing |
 | Flaky-test rate (20× runs) | 0 / 20 under load (v0.11.0) | 0 | 0 |
 | Full-suite wall time `-j16` | 22 s (v0.11.0; was 110 s) | ≤145 s | ≤120 s |
 
@@ -370,3 +365,4 @@ commodities.library is lxa's own complete implementation since Phase 237c (every
 | 243 | RTG apps and the `rtg` Workbench: OpenWorkBench takes the screenmode prefs (an RTG Workbench is HIRES, has View offsets 0, GfxBase MaxDisplayRow/Column of the board, a DisplayClip of the prefs mode; probe `rtg/wbscreen`); SA_LikeWorkbench copies the prefs mode/size/depth; the screen bar is a layer in front of backdrop windows, ShowTitle moves it, window MouseX/Y follow the pointer (`intuition/showtitle`, `mousepos`); GetDisplayInfoData prefers the handle over the ID; RDD indexed snapshots read RTG bitmaps. FinalWriter reaches its editor on the 800x600 Workbench (`FinalWriterRtgTest.AcceptDialogOpensEditorWindow` replaces the DISABLED test; swshell.library centres dialogs in the DisplayClip); goldens ppaint-rtg, dpaintv-rtg (uaegfx modes in Screen Format), finalwriter-rtg, prowrite-rtg (Wordsworth/Amiga Writer are not in the corpus) and 19 `gallery-rtg-*`; residue owned by 246/256. | v0.12.11 |
 | 246 | Picasso96 / CyberGraphX residue (M4 complete): p96BestModeIDTagList equals all reference queries (`rtg/p96best`); undocumented colours (BMF_CLEAR, CLUT arrays via the board's default table, ReadPixelArray from CLUT/R5G6B5PC, ScalePixelArray, R5G5B5 alpha bit; `rtg/p96pixels`, `rtg/cgx`; CLUT RGB reads stay out of the probes because 3.1 returns undefined memory); only the front RTG screen is shown (VP_HIDE, Flags 0x2000, DHeight 0 until first in front; `rtg/screenorder`), RTG Modes = ID low word \| SPRITES; GetColorMap's default pens 32–255 and SA_LikeWorkbench ⇒ SA_FullPalette (`rtg/colormap`); GadTools lays out menus by SCREENHIRES on RTG screens; p96RequestModeIDTagList/CModeRequestTagList open the board's own GadTools requester (goldens `RtgReq/gallery-rtg-p96req`, `-cgxreq`, `-p96reqtags`, window and pixels equal to 3.1). Residue owned by 256. | v0.12.54 |
 | 245 | AROS code replaced by lxa's own (licensing: AROS is a reference only): BCPL support (`doc/bcpl.md`) and colorwheel/gradientslider/tapedeck gadget classes (`doc/gadget-classes.md`) rewritten, both APL LICENSE files and third-party rows gone; audit of every "based on AROS" site (`doc/aros-audit.md`): 10 rewritten (area vector collection, AddFont/RemFont, FontExtent, InitBitMap, DrawBorder, DoubleClick, MakeFunctions + dead `__AROS_*` macros, ReleaseSemaphore hand-over, Exception, WaitIO), 13 comments reworded to cite NDK/RKRM/3.1, 2 interface facts kept (`LA_*` tag values, SetIPrefs codes). Suite and `suite-ref --lxa-check` (338 programs) green. | v0.11.62 |
+| 250 | rexxsyslib.library + ARexx: rexxsyslib as lxa's own disk library (RexxMsg and argstring functions, Lock/UnlockRexxBase, the `rl_*` base fields and lists as on 3.1; probe `rexx/syslib`); Regina REXX 3.9.6 (LGPL, `src/regina/`, `README.lxa`) vendored as the ARexx interpreter `SYS:System/ARexx` with an ARexx personality (ARexx error numbers/texts, the 1.15 built-in set, Library List and function hosts, clip list, RC/FAILAT/RESULT, PARSE SOURCE, REXX: search, HI/TS/TE); `SYS:System/RexxMast` (the REXX port, one interpreter process per program from a pool of restored seglists) and `SYS:Rexxc` (RX, RXC, RXSET, RXLIB, HI, TS, TE, TCO, TCC, WaitForPort); `REXX:` assign; dos.library `dl_TimeReq`; LoadSeg reads reloc tables in blocks; probe `rexx/rexxmast` (results, builtins, conditions, error texts, host commands, function hosts, clips, script files, `rx` to a program's port) equal to 3.1. | v0.13.0 |

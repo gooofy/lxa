@@ -3314,7 +3314,7 @@ void _dos_Exit ( register struct DosLibrary * __libBase __asm("a6"),
 
     ___returnCode = (LONG)(WORD)___returnCode; /* sign-extend: GCC m68k move.w workaround */
 
-    LPRINTF (LOG_INFO, "_dos: Exit() called, returnCode=%ld\n", ___returnCode);
+    DPRINTF (LOG_DEBUG, "_dos: Exit() called, returnCode=%ld\n", ___returnCode);
 
     struct Process *me = U_getCurrentProcess();
 
@@ -3736,16 +3736,20 @@ static BPTR lxa_dos_loadseg_handle_ovl_inner(struct DosLibrary *DOSBase,
                         if (lxa_ld_read(DOSBase, funcs, fh, &hunk_id, 4) != 4)
                             goto finish;
 
+                        /* the offsets in blocks: one Read() per longword
+                         * made large programs slow to load */
                         while (cnt > 0)
                         {
-                            ULONG offset;
-                            ULONG *addr;
+                            ULONG offsets[32];   /* small: LoadSeg runs on 4 KB stacks */
+                            ULONG n = cnt > 32 ? 32 : cnt, i;
+                            UBYTE *base = (UBYTE *)BADDR(hunk_table[hunk_last] + 1);
+                            ULONG target = (ULONG)BADDR(hunk_table[hunk_id] + 1);
 
-                            if (lxa_ld_read(DOSBase, funcs, fh, &offset, 4) != 4)
+                            if (lxa_ld_read(DOSBase, funcs, fh, offsets, n * 4) != (LONG)(n * 4))
                                 goto finish;
-                            addr = (ULONG *)(BADDR(hunk_table[hunk_last] + 1) + offset);
-                            *addr += (ULONG)BADDR(hunk_table[hunk_id] + 1);
-                            cnt--;
+                            for (i = 0; i < n; i++)
+                                *(ULONG *)(base + offsets[i]) += target;
+                            cnt -= n;
                         }
                     }
                     break;
@@ -6553,7 +6557,7 @@ struct CommandLineInterface * _dos_Cli ( register struct DosLibrary * __dos_a6 _
 struct Process * _dos_CreateNewProc ( register struct DosLibrary * __dos_a6 __asm("a6"),
                                                       register const struct TagItem * tags __asm("d1"))
 {
-    DPRINTF (LOG_INFO, "_dos: CreateNewProc() called.\n");
+    DPRINTF (LOG_DEBUG, "_dos: CreateNewProc() called.\n");
 
     // determine stack size, input, output
 
@@ -6791,7 +6795,7 @@ struct Process * _dos_CreateNewProc ( register struct DosLibrary * __dos_a6 __as
         }
     }
 
-    DPRINTF (LOG_INFO, "_dos: CreateNewProc() done, process=0x%08lx\n", process);
+    DPRINTF (LOG_DEBUG, "_dos: CreateNewProc() done, process=0x%08lx\n", process);
 
     return process;
 }

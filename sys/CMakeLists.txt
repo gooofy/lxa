@@ -229,6 +229,7 @@ endforeach()
 # === SYS:System Commands ===
 set(SYSTEM_COMMANDS
     Shell
+    RexxMast
 )
 
 foreach(cmd ${SYSTEM_COMMANDS})
@@ -247,6 +248,76 @@ foreach(cmd ${SYSTEM_COMMANDS})
     # Install to system template
     install(FILES ${output}
         DESTINATION share/lxa/System/System
+        PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE
+    )
+endforeach()
+
+# === ARexx (Phase 250) ===
+# Regina (LGPL, src/regina, see src/regina/README.lxa) is the interpreter of
+# SYS:System/ARexx; RexxMast starts one ARexx process per program.  The
+# Regina objects are built with bebbo's bbb optimizer disabled (-fbbb=-)
+# and for the 68000: both -m68020 and the bbb pass miscompile Regina.
+set(REGINA_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../src/regina)
+set(REGINA_OBJDIR ${CMAKE_CURRENT_BINARY_DIR}/regina)
+file(MAKE_DIRECTORY ${REGINA_OBJDIR})
+set(REGINA_CFLAGS -mcrt=nix20 -m68000 -O2 -fbbb=- -w -funsigned-char
+    -DHAVE_CONFIG_H -DNDEBUG -I${REGINA_DIR})
+file(GLOB REGINA_HEADERS ${REGINA_DIR}/*.h ${CMAKE_CURRENT_SOURCE_DIR}/Rexxc/rexx_errtext.h)
+set(REGINA_SOURCES
+    arxfuncs builtin client cmath cmsfuncs convert dbgfuncs debug envir error
+    expr extstack files funcs instore interp interprt lexsrc library macros
+    memory misc mt_notmt mygetopt options os2funcs os_other parsing rexxbif
+    rexxext rexx rexxsaa shell signals stack strengs strmath tracing unxfuncs
+    variable wrappers yaccsrc lxa_hooks)
+set(REGINA_OBJECTS)
+foreach(src ${REGINA_SOURCES})
+    set(obj ${REGINA_OBJDIR}/${src}.o)
+    set(extra)
+    if(src STREQUAL "rexx")
+        set(extra -DRXLIB)
+    endif()
+    add_custom_command(
+        OUTPUT ${obj}
+        COMMAND ${M68K_GCC_BIN} ${REGINA_CFLAGS} ${extra} -c -o ${obj} ${REGINA_DIR}/${src}.c
+        DEPENDS ${REGINA_DIR}/${src}.c ${REGINA_HEADERS}
+        COMMENT "Building Regina ${src}.c"
+    )
+    list(APPEND REGINA_OBJECTS ${obj})
+endforeach()
+
+set(AREXX_OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/System/ARexx)
+add_custom_command(
+    OUTPUT ${AREXX_OUTPUT}
+    COMMAND ${M68K_GCC_BIN} ${COMMAND_CFLAGS} -I${REGINA_DIR} ${COMMAND_LDFLAGS}
+            -s -o ${AREXX_OUTPUT} ${CMAKE_CURRENT_SOURCE_DIR}/System/ARexx.c ${REGINA_OBJECTS} -lm
+    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/System/ARexx.c ${REGINA_OBJECTS} ${REGINA_HEADERS}
+            ${CMAKE_CURRENT_SOURCE_DIR}/Rexxc/rexx_common.h
+    COMMENT "Building System:ARexx"
+)
+list(APPEND ALL_COMMANDS ${AREXX_OUTPUT})
+install(FILES ${AREXX_OUTPUT}
+    DESTINATION share/lxa/System/System
+    PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE
+)
+
+# SYS:Rexxc - the ARexx commands (sources: sys/Rexxc/<lower case name>.c)
+file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/Rexxc)
+set(REXXC_COMMANDS RX RXC RXSET RXLIB HI TS TE TCO TCC WaitForPort)
+foreach(cmd ${REXXC_COMMANDS})
+    string(TOLOWER ${cmd} cmd_lower)
+    set(src "${CMAKE_CURRENT_SOURCE_DIR}/Rexxc/${cmd_lower}.c")
+    set(output "${CMAKE_CURRENT_BINARY_DIR}/Rexxc/${cmd}")
+    add_custom_command(
+        OUTPUT ${output}
+        COMMAND ${M68K_GCC_BIN} ${COMMAND_CFLAGS} ${COMMAND_LDFLAGS} -o ${output} ${src}
+        DEPENDS ${src} ${CMAKE_CURRENT_SOURCE_DIR}/Rexxc/rexx_common.h
+                ${CMAKE_CURRENT_SOURCE_DIR}/Rexxc/rexx_errtext.h
+                ${CMAKE_CURRENT_SOURCE_DIR}/Rexxc/rexx_packet.h
+        COMMENT "Building Rexxc:${cmd}"
+    )
+    list(APPEND ALL_COMMANDS ${output})
+    install(FILES ${output}
+        DESTINATION share/lxa/System/Rexxc
         PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE
     )
 endforeach()

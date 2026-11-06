@@ -47,12 +47,12 @@ means no test ever opened the library.
 | potgo | 0 | 0 | 3 | 0 |
 | ramdrive | 1 | 1 | 0 | 0 |
 | realtime | 0 | 0 | 10 | 0 |
-| rexxsyslib | 0 | 17 | 0 | 0 |
+| rexxsyslib | 10 | 0 | 0 | 7 |
 | timer | 5 | 0 | 0 | 0 |
 | translator | 0 | 1 | 0 | 0 |
 | utility | 38 | 0 | 5 | 0 |
 | wb | 16 | 0 | 0 | 0 |
-| **total** | **868** | **87** | **117** | **8** |
+| **total** | **878** | **70** | **117** | **15** |
 
 ## Untested and unimplemented LVOs
 
@@ -83,7 +83,6 @@ means no test ever opened the library.
 - **potgo**: AllocPotBits*, FreePotBits*, WritePotgo*
 - **ramdrive**: KillRAD0
 - **realtime**: LockRealTime*, UnlockRealTime*, CreatePlayerA*, DeletePlayer*, SetPlayerAttrsA*, SetConductorState*, ExternalSync*, NextConductor*, FindConductor*, GetPlayerAttrsA*
-- **rexxsyslib**: CreateArgstring, DeleteArgstring, LengthArgstring, CreateRexxMsg, DeleteRexxMsg, ClearRexxMsg, FillRexxMsg, IsRexxMsg, LockRexxBase, UnlockRexxBase, CreateRexxHostPort, DeleteRexxHostPort, GetRexxVarFromMsg, SetRexxVarFromMsg, LaunchRexxScript, FreeRexxMsg, GetRexxBufferFromMsg
 - **translator**: Translate
 - **utility**: VSNPrintf*, Strncpy*, Strncat*, SDivMod64*, UDivMod64*
 

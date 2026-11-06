@@ -1,0 +1,42 @@
+Regina REXX in lxa
+==================
+
+This directory holds the interpreter of Regina REXX 3.9.6
+(https://regina-rexx.sourceforge.io/), used by lxa as the ARexx interpreter
+(roadmap Phase 250). Regina is licensed under the GNU Library General Public
+License (COPYING-LIB). It is NOT covered by lxa's MIT licence.
+
+Only the files needed to build the interpreter are included. The build
+(sys/CMakeLists.txt, REGINA_SOURCES) links them with lxa's ARexx glue
+sys/System/ARexx.c into SYS:System/ARexx. RexxMast (sys/System/RexxMast.c)
+starts one ARexx process per program.
+
+lxa's changes
+-------------
+
+Every change to a Regina source is marked "LXA" and is mostly guarded by
+LXA_AMIGA (defined in config.h):
+
+  config.h, configur.h  configuration for m68k-amigaos-gcc/libnix
+  error.c          ARexx error numbers and "+++ Error N in line L: text"
+  builtin.c        the ARexx error texts (ERRORTEXT)
+  funcs.c          only the built-in functions of ARexx 1.15
+  arxfuncs.c       TRIM() fix; SHOW() through the glue
+  client.c         RC of host commands; the function exit runs before
+                   external routines (the ARexx Library List)
+  envir.c          every host command goes to the RXCMD exit; RC, FAILAT
+                   and command tracing as in ARexx
+  interprt.c       lxa_arexx_poll() once per clause (HI, Ctrl-C, TS/TE);
+                   ARexx option defaults
+  files.c          the ARexx program search (current directory, REXX:)
+  os_other.c       AmigaOS paths
+  signals.c        no POSIX signals
+  misc.c           C-locale character classes without locale.library
+  lexsrc.c, extern.h  the large scanner buffers are allocated at start
+                   (lxa_lex_buffers()), so the data/BSS image RexxMast
+                   restores per program stays small
+
+Files that are lxa's own code (MIT licence):
+
+  lxa_hooks.c      the ARexx personality called from the patches above
+  lxa_arexx.h      interface between Regina, lxa_hooks.c and ARexx.c

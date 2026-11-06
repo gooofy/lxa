@@ -945,6 +945,7 @@ void vfs_setup_default_assigns(void)
     } default_assigns[] = {
         {"C",    "C"},       /* Commands */
         {"S",    "S"},       /* Startup scripts */
+        {"REXX", "S"},       /* ARexx programs (Workbench 3.1: Assign REXX: S:) */
         {"L",    "L"},       /* Loaders */
         {"LIBS", "Libs"},    /* Libraries */
         {"DEVS", "Devs"},    /* Devices */
@@ -1091,7 +1092,7 @@ static void update_system_binaries(void)
     
     /* Second try: data_dir/C -> ~/.lxa/System/C, data_dir/System -> ~/.lxa/System/System */
     /* This handles the build output structure */
-    const char *subdirs[] = {"C", "System", "Libs", "Devs", "L", "Samples", NULL};
+    const char *subdirs[] = {"C", "System", "Libs", "Devs", "L", "Rexxc", "Samples", NULL};
     for (int i = 0; subdirs[i]; i++) {
         n = snprintf(src_path, sizeof(src_path), "%s/%s", data_dir, subdirs[i]);
         if (n < 0 || (size_t)n >= sizeof(src_path)) continue;

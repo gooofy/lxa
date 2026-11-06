@@ -1164,7 +1164,7 @@
  {
   "lib": "dos",
   "lvo": -228,
-  "function": "AllocDosObject/AllocDosObjectTagList",
+  "function": "AllocDosObjectTagList/AllocDosObject",
   "symbol": "dos_AllocDosObject",
   "status": "tested"
  },
@@ -1178,7 +1178,7 @@
  {
   "lib": "dos",
   "lvo": -240,
-  "function": "DoPkt4/DoPkt0/DoPkt2/DoPkt/DoPkt3/DoPkt1",
+  "function": "DoPkt/DoPkt2/DoPkt4/DoPkt3/DoPkt0/DoPkt1",
   "symbol": "dos_DoPkt",
   "status": "tested"
  },
@@ -1472,7 +1472,7 @@
  {
   "lib": "dos",
   "lvo": -498,
-  "function": "CreateNewProcTagList/CreateNewProc",
+  "function": "CreateNewProc/CreateNewProcTagList",
   "symbol": "dos_CreateNewProc",
   "status": "tested"
  },
@@ -1598,7 +1598,7 @@
  {
   "lib": "dos",
   "lvo": -606,
-  "function": "SystemTagList/System",
+  "function": "System/SystemTagList",
   "symbol": "dos_SystemTagList",
   "status": "tested"
  },
@@ -1787,7 +1787,7 @@
  {
   "lib": "dos",
   "lvo": -768,
-  "function": "NewLoadSegTagList/NewLoadSeg",
+  "function": "NewLoadSeg/NewLoadSegTagList",
   "symbol": "dos_NewLoadSeg",
   "status": "tested"
  },
@@ -2284,28 +2284,28 @@
  {
   "lib": "exec",
   "lvo": -246,
-  "function": "AddTail/AddTailMinList",
+  "function": "AddTailMinList/AddTail",
   "symbol": "exec_AddTail",
   "status": "tested"
  },
  {
   "lib": "exec",
   "lvo": -252,
-  "function": "RemoveMinNode/Remove",
+  "function": "Remove/RemoveMinNode",
   "symbol": "exec_Remove",
   "status": "tested"
  },
  {
   "lib": "exec",
   "lvo": -258,
-  "function": "RemHead/RemHeadMinList",
+  "function": "RemHeadMinList/RemHead",
   "symbol": "exec_RemHead",
   "status": "tested"
  },
  {
   "lib": "exec",
   "lvo": -264,
-  "function": "RemTail/RemTailMinList",
+  "function": "RemTailMinList/RemTail",
   "symbol": "exec_RemTail",
   "status": "tested"
  },
@@ -6990,119 +6990,119 @@
   "lvo": -126,
   "function": "CreateArgstring",
   "symbol": "",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "rexxsyslib",
   "lvo": -132,
   "function": "DeleteArgstring",
   "symbol": "",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "rexxsyslib",
   "lvo": -138,
   "function": "LengthArgstring",
   "symbol": "",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "rexxsyslib",
   "lvo": -144,
   "function": "CreateRexxMsg",
   "symbol": "",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "rexxsyslib",
   "lvo": -150,
   "function": "DeleteRexxMsg",
   "symbol": "",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "rexxsyslib",
   "lvo": -156,
   "function": "ClearRexxMsg",
   "symbol": "",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "rexxsyslib",
   "lvo": -162,
   "function": "FillRexxMsg",
   "symbol": "",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "rexxsyslib",
   "lvo": -168,
   "function": "IsRexxMsg",
   "symbol": "",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "rexxsyslib",
   "lvo": -450,
   "function": "LockRexxBase",
   "symbol": "",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "rexxsyslib",
   "lvo": -456,
   "function": "UnlockRexxBase",
   "symbol": "",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "rexxsyslib",
   "lvo": -480,
   "function": "CreateRexxHostPort",
   "symbol": "",
-  "status": "untested"
+  "status": "disk library (not loaded)"
  },
  {
   "lib": "rexxsyslib",
   "lvo": -486,
   "function": "DeleteRexxHostPort",
   "symbol": "",
-  "status": "untested"
+  "status": "disk library (not loaded)"
  },
  {
   "lib": "rexxsyslib",
   "lvo": -492,
   "function": "GetRexxVarFromMsg",
   "symbol": "",
-  "status": "untested"
+  "status": "disk library (not loaded)"
  },
  {
   "lib": "rexxsyslib",
   "lvo": -498,
   "function": "SetRexxVarFromMsg",
   "symbol": "",
-  "status": "untested"
+  "status": "disk library (not loaded)"
  },
  {
   "lib": "rexxsyslib",
   "lvo": -504,
   "function": "LaunchRexxScript",
   "symbol": "",
-  "status": "untested"
+  "status": "disk library (not loaded)"
  },
  {
   "lib": "rexxsyslib",
   "lvo": -510,
   "function": "FreeRexxMsg",
   "symbol": "",
-  "status": "untested"
+  "status": "disk library (not loaded)"
  },
  {
   "lib": "rexxsyslib",
   "lvo": -516,
   "function": "GetRexxBufferFromMsg",
   "symbol": "",
-  "status": "untested"
+  "status": "disk library (not loaded)"
  },
  {
   "lib": "timer",

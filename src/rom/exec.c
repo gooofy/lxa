@@ -17,6 +17,7 @@
 #include <inline/exec.h>
 
 #include <dos/dosextens.h>
+#include <devices/timer.h>
 #include <dos/dostags.h>
 #include <clib/dos_protos.h>
 #include <inline/dos.h>
@@ -7018,6 +7019,22 @@ void coldstart (void)
     DeviceTrackdiskBase = (struct Library *) registerBuiltInDev (sizeof (*DeviceTrackdiskBase), __lxa_trackdisk_ROMTag);
 
     DPRINTF (LOG_DEBUG, "coldstart: done registering built-in devices\n");
+
+    /* dos.library keeps a timer.device request in dl_TimeReq, as on
+     * AmigaOS 3.1: libnix's clock()/time() startup reads
+     * dl_TimeReq->io_Device and calls GetSysTime() through it (Phase 250,
+     * Regina).  No reply port: dos.library never sends it. */
+    {
+        struct IORequest *treq = (struct IORequest *) AllocMem (sizeof (struct timerequest), MEMF_PUBLIC | MEMF_CLEAR);
+        if (treq)
+        {
+            treq->io_Message.mn_Node.ln_Type = NT_REPLYMSG;
+            treq->io_Message.mn_Length = sizeof (struct timerequest);
+            treq->io_Device = (struct Device *) DeviceTimerBase;
+            DeviceTimerBase->lib_OpenCnt++;
+            DOSBase->dl_TimeReq = (struct timerequest *) treq;
+        }
+    }
 
     /* Phase 31: Initialize ResourceList and add CIA resources */
     DPRINTF (LOG_DEBUG, "coldstart: registering built-in resources\n");

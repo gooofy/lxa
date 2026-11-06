@@ -201,6 +201,7 @@ lxa -d -v myprogram
 - **scsi.device**: Hosted `HD_SCSICMD` support for core SCSI-direct commands (`INQUIRY`, `REQUEST SENSE`, `MODE SENSE(6)`, `READ CAPACITY`, `READ/WRITE` 6/10/12, and sync/cache no-ops), encoded unit validation, per-unit logical block storage, autosense/check-condition coverage, and deferred-expunge lifetime tests
 - **console.device**: Terminal I/O with CSI escape sequences, keyboard input, `CONU_LIBRARY` access, and covered keymap command/query support
 - **trackdisk.device**: Hosted `.adf`-backed sector I/O (`TD_READ` / `TD_WRITE` / `TD_FORMAT` / `TD_SEEK`, plus `ETD_*` variants and raw track `TD_RAWREAD` / `TD_RAWWRITE`) with geometry/status support, classic error handling, covered `TD_ADDCHANGEINT`/`TD_REMCHANGEINT` request lifetime semantics, and deferred-expunge plus abort coverage
+- **rexxsyslib.library + ARexx**: rexxsyslib.library (disk library), `SYS:System/RexxMast` and the `SYS:Rexxc` commands (`rx`, `hi`, `ts`/`te`, ...); the interpreter `SYS:System/ARexx` is Regina REXX (LGPL) with ARexx error numbers, built-ins, the Library List, function hosts, the clip list and host-port commands as on AmigaOS 3.1
 - **audio.device**: Channel allocation, timed `CMD_WRITE` playback, `ADCMD_SETPREC` / `ADCMD_PERVOL` / `ADCMD_FINISH` / `ADCMD_WAITCYCLE`, and end-of-sample audio interrupt delivery
 
 ### System Commands
@@ -236,6 +237,8 @@ Built-in C: commands with full AmigaDOS template support:
 - **[roadmap.md](roadmap.md)** - Project roadmap and status
 
 ## Current Status
+
+**Version 0.13.0** - Phase 250: rexxsyslib.library and ARexx. rexxsyslib.library is lxa's own disk library, `SYS:System/RexxMast` opens the REXX port and runs each ARexx program in its own interpreter process, and `SYS:Rexxc` has RX, RXC, RXSET, RXLIB, HI, TS, TE, TCO, TCC and WaitForPort. The interpreter is Regina REXX 3.9.6 (LGPL, `src/regina/`) with ARexx behaviour: error numbers and texts, the ARexx 1.15 built-in functions, the Library List with function hosts and libraries, the clip list, RESULT/RC/FAILAT, PARSE SOURCE and the REXX: search. Commands sent to a program's ARexx port, results and errors equal AmigaOS 3.1 in the probes `rexx/syslib` and `rexx/rexxmast`. LoadSeg reads relocation tables in blocks.
 
 **Version 0.12.54** - Phase 246: Picasso96 / CyberGraphX residue; milestone M4 (RTG) is complete. `p96RequestModeIDTagList()` and `CModeRequestTagList()` open the board's own screen mode requester (Board, Mode list, Ok/Cancel, Project menu) as Picasso96 2.0 does, with equal windows and pixels in three reference goldens. `p96BestModeIDTagList()` ranks modes like the reference for every captured query, and the undocumented colour conversions (cleared bitmaps, CLUT arrays, ReadPixelArray, ScalePixelArray, the R5G5B5 alpha bit) match. Only the frontmost RTG screen is shown (VP_HIDE and the private screen flag on the others), `GetColorMap()` fills pens 32-255 with the default colour table, and `SA_LikeWorkbench` implies `SA_FullPalette`.
 
@@ -406,7 +409,7 @@ See [roadmap.md](roadmap.md) for detailed status and future plans.
 ## Known Limitations
 
 - Machine: the A4000/040 of the reference is emulated (68040 with FPU, no MMU; AGA chipset; 2 MB chip, 8 MB fast and 16 MB Zorro III RAM). The 68040 MMU and the A4000 gate arrays (Ramsey, Gary) are not emulated.
-- Third-party libraries such as `commodities.library`, `rexxsyslib.library`, `datatypes.library`, and `dopus.library` are not shipped in ROM and must be installed on disk in `LIBS:`. Stub disk libraries are provided for `amigaguide.library`, `req.library`, `reqtools.library`, `powerpacker.library`, and `arp.library` (apps can OpenLibrary them but all functions return safe failure values).
+- Third-party libraries such as `dopus.library` are not shipped and must be installed on disk in `LIBS:`. Stub disk libraries are provided for `amigaguide.library`, `req.library`, `reqtools.library`, `powerpacker.library`, and `arp.library` (apps can OpenLibrary them but all functions return safe failure values).
 - RTG: enabled per run (`--rtg`, `LXA_RTG=1`, `config.rtg`). `Picasso96API.library` and `cybergraphics.library` are lxa's own; menus of windows on the 8-bit RTG Workbench still highlight differently from the reference (Phase 256).
 - Networking: Not implemented.
 - Audio: Hosted `audio.device` playback is available, but Paula chip-level DMA timing/mixing remains approximate rather than cycle-exact.
@@ -497,7 +500,7 @@ See [doc/architecture.md](doc/architecture.md) for technical details.
 
 lxa's own code is under the MIT License - see [LICENSE](LICENSE) for details.
 
-Some parts are third-party code under other licences and are **not** MIT licensed: BGUI (`src/bgui/`) is under the LGPL. Each such part keeps its original licence in its own directory; [doc/third-party-code.md](doc/third-party-code.md) lists them all.
+Some parts are third-party code under other licences and are **not** MIT licensed: BGUI (`src/bgui/`) and the Regina REXX interpreter that lxa uses for ARexx (`src/regina/`) are under the LGPL. Each such part keeps its original licence in its own directory; [doc/third-party-code.md](doc/third-party-code.md) lists them all.
 
 ## Contribution Areas
 

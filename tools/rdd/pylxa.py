@@ -108,7 +108,8 @@ class Lxa:
         os.makedirs(root)
         links = {"C": os.path.join(sysbuild, "C"), "Libs": os.path.join(system, "Libs"),
                  "S": os.path.join(system, "S"), "System": os.path.join(sysbuild, "System"),
-                 "Fonts": os.path.join(system, "Fonts"), "Tests": os.path.join(samples, "Tests")}
+                 "Fonts": os.path.join(system, "Fonts"), "Tests": os.path.join(samples, "Tests"),
+                 "Rexxc": os.path.join(sysbuild, "Rexxc")}
         for name in ("C", "Classes", "Devs", "Expansion", "Fonts", "L", "Libs", "Locale", "Prefs",
                      "Rexxc", "S", "Storage", "System", "T", "Tests", "Tools", "Utilities", "WBStartup"):
             target = links.get(name)
@@ -134,7 +135,7 @@ class Lxa:
         if os.path.isdir(disklibs):
             self.assign_add("LIBS", disklibs)
         self.assign("C", os.path.join(sysbuild, "C"))
-        for name, rel in (("S", "S"), ("L", "L"), ("DEVS", "Devs"), ("ENVARC", "Prefs/Env-Archive")):
+        for name, rel in (("S", "S"), ("REXX", "S"), ("L", "L"), ("DEVS", "Devs"), ("ENVARC", "Prefs/Env-Archive")):
             self.assign(name, os.path.join(root, rel))
         apps = apps or os.environ.get("LXA_APPS") or os.path.normpath(os.path.join(ROOT, "..", "lxa-apps"))
         if os.path.isdir(apps):

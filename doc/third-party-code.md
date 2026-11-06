@@ -4,7 +4,7 @@ lxa's own code is MIT licensed. Code ported from other projects keeps its
 original licence header and lives in its own directory together with the
 licence text. Every ported component is listed here.
 
-**These parts are not MIT licensed.** LGPL code (BGUI, later Regina) is allowed
+**These parts are not MIT licensed.** LGPL code (BGUI, Regina) is allowed
 and stays under its own licence; the README's License section names it too.
 
 **AROS code may not be ported (decided 2026-10-10).** AROS is a reference
@@ -21,3 +21,4 @@ sizes and depth follow 3.1.
 | Component | Directory | Origin | Licence | Phase |
 |---|---|---|---|---|
 | BGUI | `src/bgui/` | BGUI | LGPL | - |
+| Regina REXX 3.9.6 (the ARexx interpreter, `SYS:System/ARexx`; lxa's changes in `src/regina/README.lxa`) | `src/regina/` | Regina REXX | LGPL | 250 |

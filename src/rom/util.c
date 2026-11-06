@@ -804,7 +804,7 @@ struct Task *U_allocTask (STRPTR name, LONG pri, ULONG stacksize, BOOL isProcess
     newtask->tc_SPLower      = ml->ml_ME[1].me_Addr;
     newtask->tc_SPUpper      = newtask->tc_SPReg;
 
-    DPRINTF (LOG_INFO, "util: U_allocTask() newtask->tc_SPReg=0x%08lx, newtask->tc_SPLower=0x%08lx, newtask->tc_SPUpper=0x%08lx\n",
+    DPRINTF (LOG_DEBUG, "util: U_allocTask() newtask->tc_SPReg=0x%08lx, newtask->tc_SPLower=0x%08lx, newtask->tc_SPUpper=0x%08lx\n",
              newtask->tc_SPReg, newtask->tc_SPLower, newtask->tc_SPUpper);
 
     NEWLIST (&newtask->tc_MemEntry);
@@ -815,7 +815,7 @@ struct Task *U_allocTask (STRPTR name, LONG pri, ULONG stacksize, BOOL isProcess
 
 void U_prepareTask (struct Task *task, APTR initPC, APTR finalPC, char *args)
 {
-    DPRINTF (LOG_INFO, "util: U_prepareTask() task=0x%08lx, initPC=0x%08lx, args=0x%08lx\n", task, initPC, args);
+    DPRINTF (LOG_DEBUG, "util: U_prepareTask() task=0x%08lx, initPC=0x%08lx, args=0x%08lx\n", task, initPC, args);
 
     // prepare task structure
 
@@ -904,7 +904,7 @@ struct Task *U_createTask (STRPTR name, LONG pri, APTR initpc, ULONG stacksize)
 
 void U_prepareProcess (struct Process *process, APTR initPC, APTR finalPC, ULONG stacksize, char *args)
 {
-    DPRINTF (LOG_INFO, "util: U_prepareProcess() process=0x%08lx, initPC=0x%08lx, stacksize=%d, args=0x%08lx\n", process, initPC, stacksize, args);
+    DPRINTF (LOG_DEBUG, "util: U_prepareProcess() process=0x%08lx, initPC=0x%08lx, stacksize=%d, args=0x%08lx\n", process, initPC, stacksize, args);
 
     struct List *l = (struct List *)&process->pr_LocalVars;
 
