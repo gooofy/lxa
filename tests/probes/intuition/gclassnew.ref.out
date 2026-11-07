@@ -1,0 +1,148 @@
+-- gadgetclass
+== gadgetclass default
+  gad0 id=0 type=0x0005 flags=0x8000 act=0x0000 box=0,0,80x40 norender noselect notext nospecial mx=set
+  ext more=0x00000000
+  get
+== gadgetclass box id verify immediate
+  gad0 id=7 type=0x0005 flags=0x8000 act=0x0003 box=10,20,30x40 norender noselect notext nospecial mx=set
+  ext more=0x00000000
+  get
+== gadgetclass rel border follow toggle sel dis end
+  gad0 id=0 type=0x0005 flags=0x81f8 act=0x011c box=-20,-10,-40x-30 norender noselect notext nospecial mx=set
+  ext more=0x00000000
+  get
+== gadgetclass text tabcycle help border hnone
+  gad0 id=0 type=0x0005 flags=0x9203 act=0x00a0 box=0,0,80x40 norender noselect text nospecial mx=set
+  ext more=0x00000002
+   labelstring="Label"
+  get
+== gadgetclass itext topborder sysgtype bounds
+  gad0 id=0 type=0x0025 flags=0x8000 act=0x0040 box=0,0,80x40 norender noselect text nospecial mx=set
+  ext more=0x00000001 box=1,2,300x400
+  itext0 t="IText" l=2 tp=3 fp=1 bp=0 dm=0 font=NULL
+  itext0 t="IText" l=2 tp=3 fp=1 bp=0 dm=0 font=NULL
+  get
+-- buttongclass
+== buttongclass default
+  gad0 id=0 type=0x0005 flags=0x8000 act=0x0000 box=0,0,80x40 norender noselect notext nospecial mx=set
+  ext more=0x00000000
+  get
+== buttongclass box text verify
+  gad0 id=0 type=0x0005 flags=0x9000 act=0x0001 box=5,6,50x14 norender noselect text nospecial mx=set
+  ext more=0x00000000
+   labelstring="Push"
+  get
+== buttongclass arrow: rel border image select
+  gad0 id=0 type=0x0005 flags=0x801e act=0x0013 box=-17,-30,18x11 render select notext nospecial mx=set
+  ext more=0x00000000
+  render image0 box=0,0,18x11 depth=-1
+  select image0 box=0,0,18x11 depth=-1
+  get
+== buttongclass toggle selected hbox itext
+  gad0 id=0 type=0x0005 flags=0x8081 act=0x0100 box=0,0,80x40 norender noselect text nospecial mx=set
+  ext more=0x00000000
+  itext0 t="IText" l=2 tp=3 fp=1 bp=0 dm=0 font=NULL
+  itext0 t="IText" l=2 tp=3 fp=1 bp=0 dm=0 font=NULL
+  get
+-- frbuttonclass
+== frbuttonclass default
+  gad0 id=0 type=0x0005 flags=0x8000 act=0x0000 box=0,0,80x40 norender noselect notext nospecial mx=set
+  ext more=0x00000000
+  get
+== frbuttonclass frame text
+  gad0 id=0 type=0x0005 flags=0x9004 act=0x0001 box=20,30,48x12 render noselect text nospecial mx=set
+  ext more=0x00000000
+   labelstring="Frame"
+  render image0 box=0,0,80x40 depth=-1
+  get
+== frbuttonclass frame box itext
+  gad0 id=0 type=0x0005 flags=0x8004 act=0x0000 box=20,30,48x12 render noselect text nospecial mx=set
+  ext more=0x00000000
+  itext0 t="IText" l=2 tp=3 fp=1 bp=0 dm=0 font=NULL
+  render image0 box=0,0,80x40 depth=-1
+  itext0 t="IText" l=2 tp=3 fp=1 bp=0 dm=0 font=NULL
+  get
+== frbuttonclass frame only
+  gad0 id=0 type=0x0005 flags=0x8004 act=0x0000 box=4,4,80x40 render noselect notext nospecial mx=set
+  ext more=0x00000000
+  render image0 box=0,0,80x40 depth=-1
+  get
+frame after box=0,0,80x40
+-- propgclass
+== propgclass default
+  gad0 id=0 type=0x0005 flags=0x8004 act=0x0000 box=0,0,80x40 render noselect notext special mx=set
+  ext more=0x00000000
+  render image0 box=0,0,0x0 depth=0 nodata pick=0x00 onoff=0x00
+  propinfo flags=0x0005 hpot=0x0000 vpot=0x0000 hbody=0x0000 vbody=0x0000
+  get PGA_Freedom=4 PGA_Top=0
+== propgclass vert total visible top newlook
+  gad0 id=0 type=0x0005 flags=0x8004 act=0x0001 box=10,10,16x80 render noselect notext special mx=set
+  ext more=0x00000000
+  render image0 box=0,0,0x0 depth=0 nodata pick=0x00 onoff=0x00
+  propinfo flags=0x0015 hpot=0x0000 vpot=0x471c hbody=0x0000 vbody=0x1745
+  get PGA_Freedom=4 PGA_Top=25
+== propgclass border scroller borderless
+  gad0 id=0 type=0x0005 flags=0x8054 act=0x0010 box=-15,12,10x-40 render noselect notext special mx=set
+  ext more=0x00000000
+  render image0 box=0,0,0x0 depth=0 nodata pick=0x00 onoff=0x00
+  propinfo flags=0x001d hpot=0x0000 vpot=0x0000 hbody=0x0000 vbody=0xffff
+  get PGA_Freedom=4 PGA_Top=0
+== propgclass horiz pot body immediate follow
+  gad0 id=0 type=0x0005 flags=0x8004 act=0x000a box=0,0,100x10 render noselect notext special mx=set
+  ext more=0x00000000
+  render image0 box=0,0,0x0 depth=0 nodata pick=0x00 onoff=0x00
+  propinfo flags=0x0003 hpot=0x0000 vpot=0x0000 hbody=0x0000 vbody=0x0000
+  get PGA_Freedom=2 PGA_Top=0
+== propgclass both knobimage
+  gad0 id=0 type=0x0005 flags=0x8004 act=0x0000 box=0,0,50x50 render noselect notext special mx=set
+  ext more=0x00000000
+  render image0 box=0,0,0x0 depth=0 nodata pick=0x00 onoff=0x00
+  propinfo flags=0x0007 hpot=0x0000 vpot=0x0000 hbody=0x0000 vbody=0x0000
+  get PGA_Freedom=6 PGA_Top=0
+-- strgclass
+== strgclass default
+  gad0 id=0 type=0x0005 flags=0x8000 act=0x2000 box=0,0,80x40 norender noselect notext special mx=set
+  ext more=0x00000000
+  strinfo max=1 num=0 pos=0 disp=0 long=0 buf=own text="" undo=own ext
+  get STRINGA_LongVal=0 STRINGA_TextVal=ptr
+== strgclass maxchars textval
+  gad0 id=0 type=0x0005 flags=0x8000 act=0x2001 box=10,10,100x12 norender noselect notext special mx=set
+  ext more=0x00000000
+  strinfo max=40 num=0 pos=0 disp=0 long=0 buf=own text="init" undo=own ext
+  get STRINGA_LongVal=0 STRINGA_TextVal=ptr
+== strgclass caller buffers bufferpos
+  gad0 id=0 type=0x0005 flags=0x8000 act=0x2000 box=0,0,80x40 norender noselect notext special mx=set
+  ext more=0x00000000
+  strinfo max=64 num=0 pos=2 disp=0 long=0 buf=caller text="hello" undo=caller ext
+  get STRINGA_LongVal=0 STRINGA_TextVal=ptr
+== strgclass longval right
+  gad0 id=0 type=0x0005 flags=0x8000 act=0x2c00 box=0,0,80x40 norender noselect notext special mx=set
+  ext more=0x00000000
+  strinfo max=10 num=0 pos=0 disp=0 long=1234 buf=own text="1234" undo=own ext
+  get STRINGA_LongVal=1234 STRINGA_TextVal=ptr
+-- groupgclass
+== groupgclass at 10,20
+  gad0 id=0 type=0x0005 flags=0x8000 act=0x0000 box=10,20,0x0 norender noselect notext nospecial mx=set
+  ext more=0x00000000
+  get
+addmember 1 = 1
+group box=10,20,45x18
+  m1 gad0 id=1 type=0x0005 flags=0x9000 act=0x0000 box=15,26,40x12 norender noselect text nospecial mx=set
+  m1 ext more=0x00000000
+  m1  labelstring="A"
+addmember 2 = 1
+group box=10,20,90x45
+  m2 gad0 id=2 type=0x0005 flags=0x9000 act=0x0000 box=70,50,30x15 norender noselect text nospecial mx=set
+  m2 ext more=0x00000000
+  m2  labelstring="B"
+group next NULL
+m1 next NULL
+after move group box=100,100,90x45
+  m1 gad0 id=1 type=0x0005 flags=0x9000 act=0x0000 box=105,106,40x12 norender noselect text nospecial mx=set
+  m1 ext more=0x00000000
+  m1  labelstring="A"
+  m2 gad0 id=2 type=0x0005 flags=0x9000 act=0x0000 box=160,130,30x15 norender noselect text nospecial mx=set
+  m2 ext more=0x00000000
+  m2  labelstring="B"
+remmember 2 = 1
+group box=100,100,90x45

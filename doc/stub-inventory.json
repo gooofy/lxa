@@ -144,14 +144,6 @@
   "symbol": "_exec_SetExcept"
  },
  {
-  "lib": "tapedeck.gadget",
-  "function": "GM_RENDER",
-  "kind": "partial",
-  "detail": "partial: TDECK_Tape drawn as animation controls",
-  "file": "src/rom/gadgets/tapedeck.c",
-  "symbol": "deck_render"
- },
- {
   "lib": "68040",
   "function": "Private1",
   "kind": "private",
@@ -758,14 +750,6 @@
   "detail": "partial: modes stored but SHANGHAI/POPPUBSCREEN ignored (Phase 256)",
   "file": "src/rom/lxa_intuition.c",
   "symbol": "_intuition_SetPubScreenModes"
- },
- {
-  "lib": "intuition",
-  "function": "ObtainGIRPort",
-  "kind": "partial",
-  "detail": "partial: returns the shared gadget RastPort instead of a clone (Phase 256)",
-  "file": "src/rom/lxa_intuition.c",
-  "symbol": "_intuition_PubScreenStatus"
  },
  {
   "lib": "intuition",

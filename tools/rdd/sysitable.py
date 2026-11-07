@@ -1,6 +1,6 @@
 """Generate src/rom/lxa_sysi_data.h from the sysiclass gallery reference (Phase 223).
 
-    python3 -m rdd.sysitable <normal-bundle> <bg-bundle> [-o src/rom/lxa_sysi_data.h]
+    python3 -m rdd.sysitable <normal-bundle> <bg-bundle> [--scaled <ref.out>] [-o src/rom/lxa_sysi_data.h]
 
 <normal-bundle>/<bg-bundle> are the reference snapshot bundles of
 tests/scenarios/gallery-sysimages.yaml and gallery-sysimages-bg.yaml (the
@@ -11,6 +11,16 @@ and once on pen 3; the generator turns each image into a table of pen roles:
 
     '-' not drawn     'B' BACKGROUNDPEN   'S' SHINEPEN     'D' SHADOWPEN
     'F' FILLPEN       'K' BARDETAILPEN    'L' BARBLOCKPEN
+
+Phase 252 adds the output of the probe intuition/sysiscaled (default
+tests/probes/intuition/sysiscaled.ref.out): every image on an old-look
+screen (stored with size | 0x10, drawn on pen 3 so untouched pixels show)
+and MENUCHECK/AMIGAKEY for every Workbench 3.1 font, whose size follows
+the screen font (table g_sysi_menu, keyed by width x height).  The probe
+intuition/sysiheight (--heights) draws the window and screen gadget images
+at IA_Height 8..20: every row of a stretched image is a row of the image at
+its own height, so table g_sysi_hmap stores, per image and height, which
+rows of the bitmap make up the stretched image.
 
 This is black-box observation of rendered output (RDD clean-room rule): the
 reference is run, its pixels are read back, nothing else.
@@ -60,10 +70,94 @@ def cell(px, bg, which, wi, si, st, W, H):
     return "".join(out)
 
 
+OLD_PENS_ROLE = {0: "B", 1: "S"}          # old look: BACKGROUND 0, SHINE/SHADOW/FILL 1
+OLD_MENU_ROLE = {0: "K", 1: "L"}          # old look: BARDETAIL 0, BARBLOCK 1
+WHICH_NAMES = {"DEPTH": 0, "ZOOM": 1, "SIZE": 2, "CLOSE": 3, "SDEPTH": 5, "LEFT": 10, "UP": 11,
+               "RIGHT": 12, "DOWN": 13, "CHECK": 14, "MX": 15, "MENUCHECK": 16, "AMIGAKEY": 17}
+SIZE_NAMES = {"med": 0, "low": 1, "hi": 2}
+STATE_NAMES = {"normal": 0, "selected": 1, "inactive": 2, "disabled": 3}
+OLDLOOK = 0x10
+
+
+def parse_scaled(path):
+    """-> (old-look images {(which, size): (box, [4 states of rows])},
+           menu images {(which, w, h): rows})"""
+    old, menu = {}, {}
+    sec, cur = None, None
+    with open(path) as f:
+        for ln in f:
+            ln = ln.rstrip("\n")
+            if ln.startswith("-- "):
+                sec = "old" if ln.startswith("-- old look") else "font"
+                cur = None
+                continue
+            m = re.match(r"(\w+)/(\w+) (\w+) box=(-?\d+),(-?\d+),(\d+)x(\d+)", ln)
+            if m:
+                w, si, st = WHICH_NAMES[m.group(1)], SIZE_NAMES[m.group(2)], STATE_NAMES[m.group(3)]
+                box = tuple(int(m.group(k)) for k in range(4, 8))
+                cur = []
+                if sec == "old":
+                    old.setdefault((w, si), (box, [None] * 4))[1][st] = cur
+                else:
+                    menu[(w, box[2], box[3])] = cur
+                continue
+            if ln.startswith("   ") and cur is not None:
+                cur.append(ln[3:])
+    return old, menu
+
+
+def parse_heights(path):
+    """-> {(which, size, h): [rows]} of the probe intuition/sysiheight"""
+    arts, cur = {}, None
+    with open(path) as f:
+        for ln in f:
+            m = re.match(r"(\w+)/(\w+) h=(\d+) box=", ln)
+            if m:
+                cur = arts.setdefault((WHICH_NAMES[m.group(1)], SIZE_NAMES[m.group(2)],
+                                       int(m.group(3))), [])
+                continue
+            if ln.startswith("   ") and cur is not None:
+                cur.append(ln.strip()[1:-1])
+    return {k: v[1:-1] for k, v in arts.items()}
+
+
+def height_maps(path):
+    """-> [(which, size, h, [row of the bitmap at the table height])]"""
+    arts = parse_heights(path)
+    out = []
+    for (w, si, h), rows in sorted(arts.items()):
+        base = arts.get((w, si, 11))
+        if w == 2 or base is None or len(base) == h:
+            continue
+        res, k = [], 0
+        for r in rows:
+            while k < len(base) and base[k] != r:
+                k += 1
+            if k == len(base):
+                raise SystemExit("sysiheight: %d/%d h=%d is not made of base rows" % (w, si, h))
+            res.append(k)
+        out.append((w, si, h, res))
+    return out
+
+
+def crop_entry(st, W, H, box_dx=0, box_dy=0):
+    """st: per state the role string of the (W+2)x(H+2) cell; -> entry fields"""
+    CW = W + 2
+    xs = [i % CW for s_ in st for i, c in enumerate(s_) if c != "-"]
+    ys = [i // CW for s_ in st for i, c in enumerate(s_) if c != "-"]
+    x0, x1, y0, y1 = min(xs), max(xs), min(ys), max(ys)
+    crop = ["".join(s_[y * CW + x0:y * CW + x1 + 1] for y in range(y0, y1 + 1)) for s_ in st]
+    return x0 - 1 + box_dx, y0 - 1 + box_dy, x1 - x0 + 1, y1 - y0 + 1, crop
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("normal")
     ap.add_argument("bg")
+    ap.add_argument("--scaled", default=os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(
+        os.path.abspath(__file__)))), "tests", "probes", "intuition", "sysiscaled.ref.out"))
+    ap.add_argument("--heights", default=os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(
+        os.path.abspath(__file__)))), "tests", "probes", "intuition", "sysiheight.ref.out"))
     ap.add_argument("-o", default=None)
     a = ap.parse_args()
     px, sizes = load(a.normal)
@@ -87,8 +181,22 @@ def main():
             entries.append((w, si, W, H, x0 - 1, y0 - 1, x1 - x0 + 1, y1 - y0 + 1,
                             [ref(s_) for s_ in crop]))
 
+    old, menu = parse_scaled(a.scaled)
+    for (w, si), (box, rows) in sorted(old.items(), key=lambda kv: (kv[0][1], WHICH.index(kv[0][0]))):
+        L, T, W, H = box
+        rmap = OLD_MENU_ROLE if w in MENU_IMAGES else OLD_PENS_ROLE
+        st = ["".join("-" if c == "3" else rmap[int(c)] for c in "".join(r)) for r in rows]
+        dx, dy, dw, dh, crop = crop_entry(st, W, H, L, T)
+        entries.append((w, si | OLDLOOK, W, H, dx, dy, dw, dh, [ref(s_) for s_ in crop]))
+    menus = []
+    for (w, W, H), rows in sorted(menu.items()):
+        st = ["".join("-" if c == "0" else role(w, int(c)) for c in "".join(rows))]
+        dx, dy, dw, dh, crop = crop_entry(st, W, H)
+        menus.append((w, W, H, dx, dy, dw, dh, ref(crop[0])))
+
     lines = ["/* Generated by tools/rdd/sysitable.py from the AmigaOS 3.1 reference",
-             " * renderings of tests/scenarios/gallery-sysimages*.yaml (Phase 223).",
+             " * renderings of tests/scenarios/gallery-sysimages*.yaml (Phase 223) and",
+             " * the probes intuition/sysiscaled and intuition/sysiheight (Phase 252).",
              " * Do not edit; re-generate from the golden reference bundles. */",
              "", "#ifndef LXA_SYSI_DATA_H", "#define LXA_SYSI_DATA_H", ""]
     # pool: run-length packed bytes: (count << 3) | role, count 1..31
@@ -123,6 +231,28 @@ def main():
                                                                       ", ".join(str(x) for x in st)))
     lines.append("};")
     lines.append("")
+    lines.append("/* MENUCHECK/AMIGAKEY scaled to the screen font (Phase 252): which, width,")
+    lines.append(" * height, then the bitmap as above (one state: they look the same in all) */")
+    lines.append("struct LXASysIMenu { UBYTE which, width, height; BYTE dx, dy; UBYTE dw, dh; UWORD bitmap; };")
+    lines.append("")
+    lines.append("static const struct LXASysIMenu g_sysi_menu[] = {")
+    for m in menus:
+        lines.append("    { %d, %d, %d, %d, %d, %d, %d, %d }," % m)
+    lines.append("};")
+    lines.append("")
+    hmaps = height_maps(a.heights)
+    hmax = max(len(r) for _, _, _, r in hmaps)
+    lines.append("/* window/screen gadget images stretched to IA_Height (Phase 252): row y")
+    lines.append(" * of the stretched image is row rows[y] of the image's bitmap */")
+    lines.append("#define LXA_SYSI_HMAX %d" % hmax)
+    lines.append("struct LXASysIHMap { UBYTE which, size, height; UBYTE rows[LXA_SYSI_HMAX]; };")
+    lines.append("")
+    lines.append("static const struct LXASysIHMap g_sysi_hmap[] = {")
+    for w, si, h, r in hmaps:
+        lines.append("    { %d, %d, %d, { %s } }," % (w, si, h, ", ".join(str(x) for x in r)))
+    lines.append("};")
+    lines.append("")
+    lines.append("#define LXA_SYSI_OLDLOOK 0x%02x  /* size flag: the old-look images */" % OLDLOOK)
     lines.append("#define LXA_SYSI_ROLE_NONE 0  /* roles: %s */" % codes)
     lines.append("")
     lines.append("#endif")

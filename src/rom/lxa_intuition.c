@@ -237,6 +237,7 @@ struct LXAIntuitionBase {
     struct LxaIPointerPrefs PointerPrefs[2];   /* normal, busy (image copied) */
     UWORD *PointerData[2];
     struct MinList ScreenDataList; /* per-screen records (LXAPubScreenNode.all_node) */
+    struct IClass *SysReqBodyClass; /* private: the system requester's body image */
 };
 
 /* Forward declarations */
@@ -278,6 +279,7 @@ struct LXAScreenPriv
 #define LXA_SCREEN_PRIV(s)    ((struct LXAScreenPriv *)((struct Screen *)(s) + 1))
 static BOOL g_sysreq_layout;        /* BuildSysRequest(): body extent below */
 static WORD g_sysreq_w, g_sysreq_h;
+static struct IntuiText *g_sysreq_body, *g_sysreq_pos, *g_sysreq_neg;
 static void _create_screen_sys_gadgets(struct Screen *screen);
 static void _free_screen_sys_gadgets(struct Screen *screen);
 
@@ -701,14 +703,6 @@ VOID _intuition_FreeScreenDrawInfo(
     register struct Screen * screen __asm("a0"),
     register struct DrawInfo * drawInfo __asm("a1"));
 
-/* Safe bounded string copy (avoids string.h dependency for strncpy) */
-static void _intuition_strncpy(char *dst, const char *src, LONG maxchars)
-{
-    LONG i;
-    for (i = 0; i < maxchars - 1 && src[i] != '\0'; i++)
-        dst[i] = src[i];
-    dst[i] = '\0';
-}
 
 /* The pointer of the AmigaOS 3.1 Preferences (PointerMatrix, two words
  * per row between the control words; reference: tests/gallery/prefs.c) */
@@ -1471,6 +1465,16 @@ static ULONG buttongclass_dispatch(register struct IClass *cl __asm("a0"),
 static ULONG propgclass_dispatch(register struct IClass *cl __asm("a0"),
                                  register Object *obj __asm("a2"),
                                  register Msg msg __asm("a1"));
+static ULONG frbuttonclass_dispatch(register struct IClass *cl __asm("a0"),
+                                    register Object *obj __asm("a2"),
+                                    register Msg msg __asm("a1"));
+static ULONG groupgclass_dispatch(register struct IClass *cl __asm("a0"),
+                                  register Object *obj __asm("a2"),
+                                  register Msg msg __asm("a1"));
+static ULONG sysreqbody_dispatch(register struct IClass *cl __asm("a0"),
+                                 register Object *obj __asm("a2"),
+                                 register Msg msg __asm("a1"));
+static void _sysreq_itext_size(struct RastPort *srp, const struct IntuiText *it, WORD *w, WORD *h);
 static ULONG strgclass_dispatch(register struct IClass *cl __asm("a0"),
                                 register Object *obj __asm("a2"),
                                 register Msg msg __asm("a1"));
@@ -1497,8 +1501,6 @@ struct Screen * _intuition_OpenScreen ( register struct IntuitionBase * Intuitio
 static BOOL _post_idcmp_message(struct Window *window, ULONG class, UWORD code, 
                                  UWORD qualifier, APTR iaddress, WORD mouseX, WORD mouseY);
 
-static void _draw_bevel_box(struct RastPort *rp, WORD left, WORD top, WORD width, WORD height, 
-                           ULONG flags, const struct DrawInfo *drInfo);
 
 /*
  * Proportional gadget geometry, as AmigaOS 3.1 lays it out
@@ -1635,6 +1637,15 @@ VOID _intuition_SizeWindow(register struct IntuitionBase *IntuitionBase __asm("a
 
 static struct Gadget *g_active_gadget;
 static struct Window *g_active_window;
+/* BOOPSI custom gadget input (Phase 252, defined before _intuition_ProcessInputEvents) */
+static BOOL _cg_hit(struct Window *window, struct Gadget *gad, WORD relX, WORD relY);
+static BOOL _cg_goactive(struct Window *window, struct Requester *req, struct Gadget *gad,
+                         struct InputEvent *ie, WORD mouseX, WORD mouseY);
+static BOOL _cg_handleinput(struct InputEvent *ie, WORD mouseX, WORD mouseY);
+static void _cg_timer(void);
+static void _cg_abort_window(struct Window *window);
+static void _cg_abort_gadget(struct Gadget *gad);
+static struct Gadget *g_cg_gad;
 static WORD g_prop_click_offset;
 
 /* screen x of the knob range and the layout of an AUTOKNOB prop gadget */
@@ -1747,18 +1758,23 @@ VOID _intuition_FreeSysRequest ( register struct IntuitionBase * IntuitionBase _
 
 /* Data stored in window->UserData for cleanup by FreeSysRequest */
 struct EasyReqData {
-    APTR   gadget_mem;
-    LONG   gadget_mem_size;
+    struct Gadget *first;           /* the frbuttonclass buttons, linked */
+    struct Gadget  dummy;           /* 3.1's trailing empty gadget */
+    Object        *frame;           /* their frameiclass image */
+    Object        *body;            /* the dummy's image: dither, frame, text */
+    struct Window *win;
+    const UWORD   *pens;
+    WORD   ix0, iy0, ix1, iy1;      /* the window's inner box */
+    WORD   box_x, box_y, box_w, box_h;  /* the recessed text frame */
+    WORD   text_x, text_y;          /* text origin */
+    WORD   char_h;
+    struct IntuiText *sys_body;     /* BuildSysRequest(): the caller's body */
     APTR   text_mem;
     LONG   text_mem_size;
     APTR   gadget_text_mem;
     LONG   gadget_text_mem_size;
-    APTR   border_mem;
-    LONG   border_mem_size;
     APTR   itext_mem;
     LONG   itext_mem_size;
-    APTR   border_xy_mem;
-    LONG   border_xy_mem_size;
     WORD   num_gadgets;
 };
 
@@ -1778,17 +1794,21 @@ struct ICData {
 /* Instance data for propgclass (allocated as part of the BOOPSI object) */
 struct PropGData {
     struct PropInfo  propinfo;       /* Embedded PropInfo structure */
+    struct Image     knob;           /* GadgetRender: the knob AUTOKNOB sizes */
     UWORD            top;            /* Logical top (scrollbar) */
     UWORD            visible;        /* Logical visible (scrollbar) */
     UWORD            total;          /* Logical total (scrollbar) */
+    WORD             offx, offy;     /* where the knob was grabbed */
 };
 
 /* Instance data for strgclass (allocated as part of the BOOPSI object) */
 struct StrGData {
-    struct StringInfo strinfo;       /* Embedded StringInfo structure */
-    UBYTE            buffer[128];    /* Default text buffer */
-    UBYTE            undobuffer[128];/* Default undo buffer */
-    LONG             longval;        /* Integer value (for STRINGA_LongVal) */
+    struct StringInfo   strinfo;     /* Embedded StringInfo structure */
+    struct StringExtend ext;         /* its Extension (GACT_STRINGEXTEND) */
+    UBYTE              *ownbuf;      /* buffers the class allocated */
+    UBYTE              *ownundo;
+    UBYTE              *ownwork;
+    UBYTE              *workbuffer;
 };
 
 /* Instance data for modelclass (allocated as part of icclass + model extension) */
@@ -1811,12 +1831,12 @@ struct ZoomData {
 
 /*
  * Access the embedded ICData for a gadgetclass object.
- * In gadgetclass, cl_InstSize = sizeof(struct Gadget) + sizeof(struct ICData).
+ * In gadgetclass, cl_InstSize = sizeof(struct ExtGadget) + sizeof(struct ICData).
  * The Gadget struct starts at offset 0 (the public obj pointer), and the
  * ICData is located immediately after it. Subclasses (propgclass, strgclass)
  * do NOT contain their own ICData — they inherit it from gadgetclass.
  */
-#define GADGET_ICDATA(obj) ((struct ICData *)((UBYTE *)(obj) + sizeof(struct Gadget)))
+#define GADGET_ICDATA(obj) ((struct ICData *)((UBYTE *)(obj) + sizeof(struct ExtGadget)))
 
 /*
  * _boopsi_do_notify - Forward OM_NOTIFY/OM_UPDATE to the IC target.
@@ -2228,7 +2248,138 @@ static ULONG modelclass_dispatch(
  * BOOPSI Gadget Class Dispatchers
  ******************************************************************************/
 
-/* GadgetClass dispatcher - base class for all gadgets */
+/*
+ * Intuition's public gadget classes (Phase 252).  What OM_NEW leaves in the
+ * gadget and which attributes OM_GET answers follow AmigaOS 3.1
+ * (tests/probes/intuition/gclassnew); their input follows the custom gadget
+ * protocol of the reference (scenario interactive-custgad_input):
+ *  - every class makes an ExtGadget of type GTYP_CUSTOMGADGET with
+ *    GFLG_EXTENDED; gadgetclass gives it an 80x40 box at 0,0;
+ *  - buttongclass adds nothing to the tags but takes its size from GA_Image;
+ *  - frbuttonclass sizes a framed label with IM_FRAMEBOX;
+ *  - propgclass and strgclass embed a PropInfo/StringInfo and drive
+ *    Intuition's built-in prop and string code;
+ *  - groupgclass collects member gadgets that move with it.
+ */
+
+VOID _intuition_DrawBorder(register struct IntuitionBase *IntuitionBase __asm("a6"),
+                           register struct RastPort *rp __asm("a0"),
+                           register const struct Border *border __asm("a1"),
+                           register WORD leftOffset __asm("d0"),
+                           register WORD topOffset __asm("d1"));
+VOID _intuition_DisposeObject(register struct IntuitionBase *IntuitionBase __asm("a6"),
+                              register APTR object __asm("a0"));
+APTR _intuition_NextObject(register struct IntuitionBase *IntuitionBase __asm("a6"),
+                           register APTR objectPtrPtr __asm("a0"));
+static VOID _string_update_longint(struct Gadget *gad);
+#define DSUPER(cl, obj, msg) _intuition_dispatch_method((cl)->cl_Super, (Object *)(obj), (Msg)(msg))
+
+/* draw a gadget of one of these classes again (from GM_HANDLEINPUT etc.) */
+static void _gc_redraw(struct GadgetInfo *gi, struct Gadget *gad)
+{
+    if (gi && gi->gi_Window)
+        _render_gadget(gi->gi_Window, gi->gi_Requester, gad);
+}
+
+/* the gadget's box in its window's RastPort */
+static void _gc_box(struct GadgetInfo *gi, struct Gadget *gad, LONG *l, LONG *t, LONG *w, LONG *h)
+{
+    *l = gad->LeftEdge;
+    *t = gad->TopEdge;
+    *w = gad->Width;
+    *h = gad->Height;
+    if (gi && gi->gi_Window)
+        _calculate_gadget_box(gi->gi_Window, gi->gi_Requester, gad, l, t, w, h);
+}
+
+static BOOL _gc_inside(struct gpInput *gpi, struct Gadget *gad)
+{
+    LONG l, t, w, h;
+
+    _gc_box(gpi->gpi_GInfo, gad, &l, &t, &w, &h);
+    return gpi->gpi_Mouse.X >= 0 && gpi->gpi_Mouse.Y >= 0 &&
+           gpi->gpi_Mouse.X < w && gpi->gpi_Mouse.Y < h;
+}
+
+/* OM_NOTIFY of a set of attributes through gadgetclass */
+static void _gc_notify(struct IClass *cl, Object *obj, struct GadgetInfo *gi, ULONG flags,
+                       ULONG tag, ULONG data)
+{
+    struct TagItem attrs[3];
+    struct opUpdate opu;
+
+    attrs[0].ti_Tag = tag;
+    attrs[0].ti_Data = data;
+    attrs[1].ti_Tag = GA_ID;
+    attrs[1].ti_Data = ((struct Gadget *)obj)->GadgetID;
+    attrs[2].ti_Tag = TAG_END;
+    attrs[2].ti_Data = 0;
+    opu.MethodID = OM_NOTIFY;
+    opu.opu_AttrList = attrs;
+    opu.opu_GInfo = gi;
+    opu.opu_Flags = flags;
+    _intuition_dispatch_method(cl, obj, (Msg)&opu);
+}
+
+/* the label of a button gadget: a string centred in the box, an IntuiText
+ * or an image at the box's corner (centred too when `centre`) */
+static void _gc_draw_label(struct RastPort *rp, struct Gadget *gad, struct DrawInfo *dri,
+                           LONG l, LONG t, LONG w, LONG h, BOOL centre, UWORD pen)
+{
+    if (!gad->GadgetText)
+        return;
+    switch (gad->Flags & GFLG_LABELMASK)
+    {
+        case GFLG_LABELSTRING:
+        {
+            STRPTR s = (STRPTR)gad->GadgetText;
+            WORD len = (WORD)strlen((char *)s);
+            WORD tw = TextLength(rp, s, len);
+            SetAPen(rp, pen);
+            SetDrMd(rp, JAM1);
+            Move(rp, l + (w - tw) / 2, t + (h - rp->TxHeight) / 2 + rp->TxBaseline);
+            Text(rp, s, len);
+            break;
+        }
+        case GFLG_LABELIMAGE:
+        {
+            struct Image *im = (struct Image *)gad->GadgetText;
+            if (centre)
+            {
+                l += (w - im->Width) / 2 - im->LeftEdge;
+                t += (h - im->Height) / 2 - im->TopEdge;
+            }
+            _intuition_DrawImageState(IntuitionBase, rp, im, l, t,
+                                      (gad->Flags & GFLG_SELECTED) ? IDS_SELECTED : IDS_NORMAL, dri);
+            break;
+        }
+        default:
+        {
+            struct IntuiText *it = gad->GadgetText;
+            if (centre)
+            {
+                struct TextFont *old = rp->Font;
+                struct TextFont *tf = NULL;
+                WORD tw, th;
+                if (it->ITextFont)
+                    tf = OpenFont(it->ITextFont);
+                if (tf)
+                    SetFont(rp, tf);
+                tw = TextLength(rp, it->IText, (WORD)strlen((char *)it->IText));
+                th = rp->TxHeight;
+                if (tf)
+                {
+                    SetFont(rp, old);
+                    CloseFont(tf);
+                }
+                l += (w - tw) / 2 - it->LeftEdge;
+                t += (h - th) / 2 - it->TopEdge;
+            }
+            _intuition_PrintIText(IntuitionBase, rp, it, l, t);
+            break;
+        }
+    }
+}
 
 /*
  * gadgetclass attributes (OM_NEW / OM_SET): the GA_* tags of
@@ -2236,6 +2387,7 @@ static ULONG modelclass_dispatch(
  */
 static ULONG _gadgetclass_set_attrs(Object *obj, struct Gadget *gadget, struct TagItem *taglist, BOOL init)
 {
+    struct ExtGadget *eg = (struct ExtGadget *)gadget;
     struct TagItem *tags = taglist;
     struct TagItem *tag;
     ULONG changed = 0;
@@ -2303,6 +2455,23 @@ static ULONG _gadgetclass_set_attrs(Object *obj, struct Gadget *gadget, struct T
             case GA_SysGType:
                 gadget->GadgetType = (gadget->GadgetType & ~GTYP_SYSTYPEMASK) | ((UWORD)tag->ti_Data & GTYP_SYSTYPEMASK);
                 break;
+            case GA_GadgetHelp:
+                if (tag->ti_Data)
+                    eg->MoreFlags |= GMORE_GADGETHELP;
+                else
+                    eg->MoreFlags &= ~GMORE_GADGETHELP;
+                break;
+            case GA_Bounds:
+                if (tag->ti_Data)
+                {
+                    struct IBox *b = (struct IBox *)tag->ti_Data;
+                    eg->BoundsLeftEdge = b->Left;
+                    eg->BoundsTopEdge = b->Top;
+                    eg->BoundsWidth = b->Width;
+                    eg->BoundsHeight = b->Height;
+                    eg->MoreFlags |= GMORE_BOUNDS;
+                }
+                break;
             case GA_Previous:
                 if (init && tag->ti_Data)
                 {
@@ -2328,989 +2497,934 @@ static ULONG gadgetclass_dispatch(
     register Msg msg __asm("a1"))
 {
     struct Gadget *gadget = (struct Gadget *)obj;
-    
-    switch (msg->MethodID) {
-        case OM_NEW: {
-            /* Call superclass first (rootclass) */
-            struct IClass *super = cl->cl_Super;
-            if (super && super->cl_Dispatcher.h_Entry)
-            {
-                typedef ULONG (*DispatchEntry)(register struct IClass *cl __asm("a0"),
-                                                register Object *obj __asm("a2"),
-                                                register Msg msg __asm("a1"));
-                DispatchEntry entry = (DispatchEntry)super->cl_Dispatcher.h_Entry;
-                /* AmigaOS: OM_NEW is sent with the true class as the
-                 * object; rootclass allocates and returns the object */
-                obj = (Object *)entry(super, obj, msg);
-                if (!obj)
-                    return 0;
-                gadget = (struct Gadget *)obj;
-            }
-            
-            /* Initialize gadget structure */
+
+    switch (msg->MethodID)
+    {
+        case OM_NEW:
+        {
+            struct opSet *ops = (struct opSet *)msg;
+            struct ICData *ic;
+            struct TagItem *tags, *tag;
+
+            /* AmigaOS: OM_NEW is sent with the true class as the object;
+             * rootclass allocates and returns the object */
+            obj = (Object *)DSUPER(cl, obj, msg);
+            if (!obj)
+                return 0;
+            gadget = (struct Gadget *)obj;
+
             gadget->GadgetType = GTYP_CUSTOMGADGET;
             /* AmigaOS 3.1: MutualExclude holds the hook Intuition calls for
              * a custom gadget - the object's class (probe intuition/customhook) */
             gadget->MutualExclude = (ULONG)OCLASS(obj);
-            /* AmigaOS 3.1: gadgetclass objects are ExtGadgets, GADGHCOMP */
             gadget->Flags = GFLG_EXTENDED;
-            gadget->Activation = 0;
-            gadget->GadgetID = 0;
-            gadget->UserData = NULL;
-            gadget->SpecialInfo = NULL;
-            gadget->NextGadget = NULL;
-            
-            /* Initialize embedded ICData */
-            struct ICData *ic = GADGET_ICDATA(obj);
+            gadget->Width = 80;
+            gadget->Height = 40;
+
+            ic = GADGET_ICDATA(obj);
             ic->ic_Target = NULL;
             ic->ic_Mapping = NULL;
             ic->ic_LoopCounter = 0;
-            
-            /* Process tags from opSet */
+
+            _gadgetclass_set_attrs(obj, gadget, ops->ops_AttrList, TRUE);
+            tags = ops->ops_AttrList;
+            while ((tag = NextTagItem(&tags)))
             {
-                struct opSet *ops = (struct opSet *)msg;
-                struct TagItem *tags = ops->ops_AttrList;
-                struct TagItem *tag;
-
-                _gadgetclass_set_attrs(obj, gadget, ops->ops_AttrList, TRUE);
-                while ((tag = NextTagItem(&tags)))
-                {
-                    if (tag->ti_Tag == ICA_TARGET)
-                        ic->ic_Target = (Object *)tag->ti_Data;
-                    else if (tag->ti_Tag == ICA_MAP)
-                        ic->ic_Mapping = (struct TagItem *)tag->ti_Data;
-                }
+                if (tag->ti_Tag == ICA_TARGET)
+                    ic->ic_Target = (Object *)tag->ti_Data;
+                else if (tag->ti_Tag == ICA_MAP)
+                    ic->ic_Mapping = (struct TagItem *)tag->ti_Data;
             }
-
             return (ULONG)obj;
         }
-            
-        case OM_DISPOSE:
-        {
-            /* Free embedded ICData resources */
-            struct ICData *ic = GADGET_ICDATA(obj);
-            _boopsi_free_icdata(ic);
 
-            /* Call superclass */
-            struct IClass *super = cl->cl_Super;
-            if (super && super->cl_Dispatcher.h_Entry)
-            {
-                typedef ULONG (*DispatchEntry)(register struct IClass *cl __asm("a0"),
-                                                register Object *obj __asm("a2"),
-                                                register Msg msg __asm("a1"));
-                DispatchEntry entry = (DispatchEntry)super->cl_Dispatcher.h_Entry;
-                return entry(super, obj, msg);
-            }
-            return 0;
-        }
-            
+        case OM_DISPOSE:
+            _boopsi_free_icdata(GADGET_ICDATA(obj));
+            return DSUPER(cl, obj, msg);
+
         case OM_SET:
         case OM_UPDATE:
         {
             struct opSet *ops = (struct opSet *)msg;
-            struct TagItem *tags = ops->ops_AttrList;
-            struct TagItem *tag;
             ULONG changed = 0;
 
-            /* Process ICA_TARGET/ICA_MAP for embedded IC support */
-            struct ICData *ic = GADGET_ICDATA(obj);
-            if (_boopsi_set_icdata(ic, ops->ops_AttrList))
+            if (_boopsi_set_icdata(GADGET_ICDATA(obj), ops->ops_AttrList))
                 changed = 1;
-            
             if (_gadgetclass_set_attrs(obj, gadget, ops->ops_AttrList, FALSE))
                 changed = 1;
-            (void)tags;
-            (void)tag;
             return changed;
         }
-            
+
         case OM_GET:
         {
             struct opGet *opg = (struct opGet *)msg;
-            /* AmigaOS 3.1 reference: gadgetclass OM_GET does not support the
-             * GA_* attributes (GA_Left/Top/Width/Height, GA_ID, GA_UserData,
-             * GA_Disabled, GA_Selected all fail). */
+            /* AmigaOS 3.1 reference: gadgetclass OM_GET answers none of
+             * the GA_* attributes */
             switch (opg->opg_AttrID)
             {
                 case ICA_TARGET:
-                {
-                    struct ICData *ic = GADGET_ICDATA(obj);
-                    *(opg->opg_Storage) = (ULONG)ic->ic_Target;
+                    *(opg->opg_Storage) = (ULONG)GADGET_ICDATA(obj)->ic_Target;
                     return 1;
-                }
                 case ICA_MAP:
-                {
-                    struct ICData *ic = GADGET_ICDATA(obj);
-                    *(opg->opg_Storage) = (ULONG)ic->ic_Mapping;
+                    *(opg->opg_Storage) = (ULONG)GADGET_ICDATA(obj)->ic_Mapping;
                     return 1;
-                }
                 default:
                     return 0;
             }
         }
-        
+
         case OM_NOTIFY:
-        {
-            /* Forward notification via embedded ICData */
-            struct ICData *ic = GADGET_ICDATA(obj);
-            _boopsi_do_notify(cl, obj, ic, (struct opUpdate *)msg);
+            _boopsi_do_notify(cl, obj, GADGET_ICDATA(obj), (struct opUpdate *)msg);
             return 0;
-        }
-        
+
         case ICM_SETLOOP:
-        {
-            struct ICData *ic = GADGET_ICDATA(obj);
-            ic->ic_LoopCounter++;
+            GADGET_ICDATA(obj)->ic_LoopCounter++;
             return 0;
-        }
-        
+
         case ICM_CLEARLOOP:
-        {
-            struct ICData *ic = GADGET_ICDATA(obj);
-            ic->ic_LoopCounter--;
+            GADGET_ICDATA(obj)->ic_LoopCounter--;
             return 0;
-        }
-        
+
         case ICM_CHECKLOOP:
-        {
-            struct ICData *ic = GADGET_ICDATA(obj);
-            return (ic->ic_LoopCounter > 0) ? TRUE : FALSE;
-        }
-        
+            return (GADGET_ICDATA(obj)->ic_LoopCounter > 0) ? TRUE : FALSE;
+
         case GM_RENDER:
-            /* Default: no rendering */
             return 0;
-            
+
         case GM_HITTEST:
-            /* Default: always hit if in bounds */
             return GMR_GADGETHIT;
-            
+
         case GM_GOACTIVE:
-            /* Default: become active immediately */
-            return GMR_MEACTIVE;
-            
         case GM_HANDLEINPUT:
-            /* Default: stay active */
-            return GMR_MEACTIVE;
-            
+            return GMR_NOREUSE;
+
         case GM_GOINACTIVE:
-            /* Default: go inactive */
             return 0;
     }
-    
-    /* Call superclass for unhandled methods */
-    {
-        struct IClass *super = cl->cl_Super;
-        if (super && super->cl_Dispatcher.h_Entry)
-        {
-            typedef ULONG (*DispatchEntry)(register struct IClass *cl __asm("a0"),
-                                            register Object *obj __asm("a2"),
-                                            register Msg msg __asm("a1"));
-            DispatchEntry entry = (DispatchEntry)super->cl_Dispatcher.h_Entry;
-            return entry(super, obj, msg);
-        }
-    }
-    
-    return 0;
+
+    return DSUPER(cl, obj, msg);
 }
 
-/* ButtonGClass dispatcher - button gadget class */
+/*
+ * buttongclass: a push (or toggle) button drawn from its image or border
+ * and its label.  OM_NEW adds no flags of its own; without GA_Width or
+ * GA_Height the box takes the size of GA_Image.
+ */
 static ULONG buttongclass_dispatch(
     register struct IClass *cl __asm("a0"),
     register Object *obj __asm("a2"),
     register Msg msg __asm("a1"))
 {
     struct Gadget *gadget = (struct Gadget *)obj;
-    
-    switch (msg->MethodID) {
-        case OM_NEW: {
-            /* Call superclass first (gadgetclass) */
-            struct IClass *super = cl->cl_Super;
-            if (super && super->cl_Dispatcher.h_Entry) {
-                typedef ULONG (*DispatchEntry)(register struct IClass *cl __asm("a0"),
-                                               register Object *obj __asm("a2"),
-                                               register Msg msg __asm("a1"));
-                DispatchEntry entry = (DispatchEntry)super->cl_Dispatcher.h_Entry;
-                /* AmigaOS: OM_NEW is sent with the true class as the
-                 * object; rootclass allocates and returns the object */
-                obj = (Object *)entry(super, obj, msg);
-                if (!obj)
-                    return 0;
-                gadget = (struct Gadget *)obj;
+
+    switch (msg->MethodID)
+    {
+        case OM_NEW:
+        {
+            struct opSet *ops = (struct opSet *)msg;
+            struct Image *im;
+
+            obj = (Object *)DSUPER(cl, obj, msg);
+            if (!obj)
+                return 0;
+            gadget = (struct Gadget *)obj;
+            im = (struct Image *)GetTagData(GA_Image, 0, ops->ops_AttrList);
+            if (im)
+            {
+                if (!FindTagItem(GA_Width, ops->ops_AttrList) && !FindTagItem(GA_RelWidth, ops->ops_AttrList))
+                    gadget->Width = im->Width;
+                if (!FindTagItem(GA_Height, ops->ops_AttrList) && !FindTagItem(GA_RelHeight, ops->ops_AttrList))
+                    gadget->Height = im->Height;
             }
-            
-            /* Set button-specific defaults */
-            gadget->GadgetType = GTYP_BOOLGADGET;
-            gadget->Flags = GFLG_GADGHCOMP;
-            gadget->Activation = GACT_RELVERIFY;
-            
             return (ULONG)obj;
         }
-        
-        case GM_RENDER: {
+
+        case GM_RENDER:
+        {
             struct gpRender *gpr = (struct gpRender *)msg;
             struct RastPort *rp = gpr->gpr_RPort;
             struct DrawInfo *dri = gpr->gpr_GInfo ? gpr->gpr_GInfo->gi_DrInfo : NULL;
-            ULONG state = 0;
-            
-            if (!rp) return 0;
+            BOOL sel = (gadget->Flags & GFLG_SELECTED) != 0;
+            LONG l, t, w, h;
 
-            /* Resolve gadget box through _calculate_gadget_box so that
-             * GFLG_REL* flags are handled correctly. */
-            LONG gbox_left = gadget->LeftEdge;
-            LONG gbox_top  = gadget->TopEdge;
-            LONG gbox_w    = gadget->Width;
-            LONG gbox_h    = gadget->Height;
-            if (gpr->gpr_GInfo && gpr->gpr_GInfo->gi_Window)
+            if (!rp)
+                return 0;
+            _gc_box(gpr->gpr_GInfo, gadget, &l, &t, &w, &h);
+            if (gadget->Flags & GFLG_GADGIMAGE)
             {
-                _calculate_gadget_box(gpr->gpr_GInfo->gi_Window,
-                                      gpr->gpr_GInfo->gi_Requester,
-                                      gadget,
-                                      &gbox_left, &gbox_top, &gbox_w, &gbox_h);
+                struct Image *im = (struct Image *)gadget->GadgetRender;
+                ULONG state = sel ? IDS_SELECTED : IDS_NORMAL;
+                if (sel && gadget->SelectRender && (gadget->Flags & GFLG_GADGHIGHBITS) == GFLG_GADGHIMAGE)
+                    im = (struct Image *)gadget->SelectRender;
+                if (gadget->Flags & GFLG_DISABLED)
+                    state = IDS_DISABLED;
+                if (im)
+                    _intuition_DrawImageState(IntuitionBase, rp, im, l, t, state, dri);
             }
-
-            /* Determine state for visual feedback */
-            if (gadget->Flags & GFLG_SELECTED)
-                state |= IDS_SELECTED;
-                
-            /* Draw the button frame */
-            _draw_bevel_box(rp, gbox_left, gbox_top, gbox_w, gbox_h, state, dri);
-            
-            /* Draw Label (GadgetText) */
-            if (gadget->GadgetText) {
-                struct IntuiText *it = gadget->GadgetText;
-                
-                SetAPen(rp, dri ? dri->dri_Pens[TEXTPEN] : 1);
-                SetBPen(rp, dri ? dri->dri_Pens[BACKGROUNDPEN] : 0);
-                
-                /* Simple centering calculation */
-                /* For now, just draw at offsets */
-                Move(rp, gbox_left + it->LeftEdge + 4, gbox_top + it->TopEdge + gbox_h/2 + 2); // Approximate centering offset
-                
-                if (it->IText) {
-                   Text(rp, it->IText, strlen((char *)it->IText));
-                }
+            else if (gadget->GadgetRender)
+            {
+                struct Border *b = (struct Border *)gadget->GadgetRender;
+                if (sel && gadget->SelectRender && (gadget->Flags & GFLG_GADGHIGHBITS) == GFLG_GADGHIMAGE)
+                    b = (struct Border *)gadget->SelectRender;
+                _intuition_DrawBorder(IntuitionBase, rp, b, l, t);
             }
+            /* AmigaOS 3.1's buttongclass draws neither its label (GA_Text,
+             * GA_IntuiText) nor a complement highlight: only the image in
+             * IDS_SELECTED (probe intuition/btnrender) */
+            (void)w;
+            (void)h;
             return 0;
         }
-        
-        case GM_HANDLEINPUT: {
+
+        case GM_GOACTIVE:
+        {
+            struct gpInput *gpi = (struct gpInput *)msg;
+
+            if (!gpi->gpi_IEvent)
+                return GMR_NOREUSE;
+            if (gadget->Activation & GACT_TOGGLESELECT)
+                gadget->Flags ^= GFLG_SELECTED;
+            else
+                gadget->Flags |= GFLG_SELECTED;
+            _gc_redraw(gpi->gpi_GInfo, gadget);
+            return GMR_MEACTIVE;
+        }
+
+        case GM_HANDLEINPUT:
+        {
             struct gpInput *gpi = (struct gpInput *)msg;
             struct InputEvent *ie = gpi->gpi_IEvent;
-            
-            /* Simple button behavior: release to verify */
-            if (ie->ie_Class == IECLASS_RAWMOUSE) {
-                if (ie->ie_Code == SELECTUP) {
-                    if (gpi->gpi_Termination)
-                        *gpi->gpi_Termination = gadget->GadgetID;
-                    return GMR_NOREUSE | GMR_VERIFY;
+            BOOL inside = _gc_inside(gpi, gadget);
+            BOOL toggle = (gadget->Activation & GACT_TOGGLESELECT) != 0;
+
+            if (!ie || ie->ie_Class != IECLASS_RAWMOUSE)
+                return GMR_MEACTIVE;
+            if (ie->ie_Code == SELECTUP)
+            {
+                if (!toggle && (gadget->Flags & GFLG_SELECTED))
+                {
+                    gadget->Flags &= ~GFLG_SELECTED;
+                    _gc_redraw(gpi->gpi_GInfo, gadget);
                 }
+                if (!inside)
+                    return GMR_NOREUSE;
+                _gc_notify(cl, obj, gpi->gpi_GInfo, 0, GA_ID, gadget->GadgetID);
+                return GMR_NOREUSE | GMR_VERIFY;
+            }
+            if (ie->ie_Code == MENUDOWN)
+            {
+                if (!toggle && (gadget->Flags & GFLG_SELECTED))
+                {
+                    gadget->Flags &= ~GFLG_SELECTED;
+                    _gc_redraw(gpi->gpi_GInfo, gadget);
+                }
+                return GMR_NOREUSE;
+            }
+            if (!toggle && ie->ie_Code == IECODE_NOBUTTON &&
+                inside != ((gadget->Flags & GFLG_SELECTED) != 0))
+            {
+                gadget->Flags ^= GFLG_SELECTED;
+                _gc_redraw(gpi->gpi_GInfo, gadget);
             }
             return GMR_MEACTIVE;
         }
+
+        case GM_GOINACTIVE:
+            if (!(gadget->Activation & GACT_TOGGLESELECT) && (gadget->Flags & GFLG_SELECTED))
+            {
+                gadget->Flags &= ~GFLG_SELECTED;
+                _gc_redraw(((struct gpGoInactive *)msg)->gpgi_GInfo, gadget);
+            }
+            return 0;
     }
-    
-    /* Call superclass */
-    {
-        struct IClass *super = cl->cl_Super;
-        if (super && super->cl_Dispatcher.h_Entry) {
-            typedef ULONG (*DispatchEntry)(register struct IClass *cl __asm("a0"),
-                                           register Object *obj __asm("a2"),
-                                           register Msg msg __asm("a1"));
-            DispatchEntry entry = (DispatchEntry)super->cl_Dispatcher.h_Entry;
-            return entry(super, obj, msg);
-        }
-    }
-    
-    return 0;
+
+    return DSUPER(cl, obj, msg);
 }
 
-/* PropGClass dispatcher - proportional gadget class */
+/*
+ * frbuttonclass: a buttongclass gadget whose GA_Image is a frame around
+ * its label.  With a label, OM_NEW sizes the box to the frame IM_FRAMEBOX
+ * puts around the label text (whatever GA_Width/GA_Height said).
+ */
+struct FrButtonData
+{
+    struct DrawInfo *dri;
+};
+
+static void _frbutton_label_size(struct Gadget *gad, struct DrawInfo *dri, WORD *w, WORD *h)
+{
+    struct RastPort rp;
+    struct TextFont *tf = dri ? dri->dri_Font : GfxBase->DefaultFont;
+
+    InitRastPort(&rp);
+    if (tf)
+        SetFont(&rp, tf);
+    *w = 0;
+    *h = rp.TxHeight;
+    switch (gad->Flags & GFLG_LABELMASK)
+    {
+        case GFLG_LABELSTRING:
+            *w = TextLength(&rp, (STRPTR)gad->GadgetText, (WORD)strlen((char *)gad->GadgetText));
+            break;
+        case GFLG_LABELIMAGE:
+            *w = ((struct Image *)gad->GadgetText)->Width;
+            *h = ((struct Image *)gad->GadgetText)->Height;
+            break;
+        default:
+        {
+            struct IntuiText *it = gad->GadgetText;
+            struct TextFont *itf = it->ITextFont ? OpenFont(it->ITextFont) : NULL;
+            if (itf)
+                SetFont(&rp, itf);
+            *w = TextLength(&rp, it->IText, (WORD)strlen((char *)it->IText));
+            *h = rp.TxHeight;
+            if (itf)
+                CloseFont(itf);
+            break;
+        }
+    }
+}
+
+static ULONG frbuttonclass_dispatch(
+    register struct IClass *cl __asm("a0"),
+    register Object *obj __asm("a2"),
+    register Msg msg __asm("a1"))
+{
+    struct Gadget *gadget = (struct Gadget *)obj;
+
+    switch (msg->MethodID)
+    {
+        case OM_NEW:
+        {
+            struct opSet *ops = (struct opSet *)msg;
+            struct FrButtonData *data;
+
+            obj = (Object *)DSUPER(cl, obj, msg);
+            if (!obj)
+                return 0;
+            gadget = (struct Gadget *)obj;
+            data = (struct FrButtonData *)INST_DATA(cl, obj);
+            data->dri = (struct DrawInfo *)GetTagData(GA_DrawInfo, 0, ops->ops_AttrList);
+            if (gadget->GadgetText && (gadget->Flags & GFLG_GADGIMAGE) && gadget->GadgetRender)
+            {
+                struct IBox in, out;
+                struct impFrameBox fb;
+                WORD tw, th;
+
+                _frbutton_label_size(gadget, data->dri, &tw, &th);
+                in.Left = 0;
+                in.Top = 0;
+                in.Width = tw;
+                in.Height = th;
+                out = in;
+                fb.MethodID = IM_FRAMEBOX;
+                fb.imp_ContentsBox = &in;
+                fb.imp_FrameBox = &out;
+                fb.imp_DrInfo = data->dri;
+                fb.imp_FrameFlags = 0;
+                if (_intuition_dispatch_method(OCLASS((Object *)gadget->GadgetRender),
+                                               (Object *)gadget->GadgetRender, (Msg)&fb))
+                {
+                    gadget->Width = out.Width;
+                    gadget->Height = out.Height;
+                }
+            }
+            return (ULONG)obj;
+        }
+
+        case OM_SET:
+        case OM_UPDATE:
+        {
+            struct opSet *ops = (struct opSet *)msg;
+            struct FrButtonData *data = (struct FrButtonData *)INST_DATA(cl, obj);
+            struct TagItem *t = FindTagItem(GA_DrawInfo, ops->ops_AttrList);
+            if (t)
+                data->dri = (struct DrawInfo *)t->ti_Data;
+            return DSUPER(cl, obj, msg);
+        }
+
+        case GM_RENDER:
+        {
+            struct gpRender *gpr = (struct gpRender *)msg;
+            struct RastPort *rp = gpr->gpr_RPort;
+            struct DrawInfo *dri = gpr->gpr_GInfo ? gpr->gpr_GInfo->gi_DrInfo : NULL;
+            BOOL sel = (gadget->Flags & GFLG_SELECTED) != 0;
+            LONG l, t, w, h;
+            UWORD pen;
+
+            if (!rp)
+                return 0;
+            if (!(gadget->Flags & GFLG_GADGIMAGE) || !gadget->GadgetRender)
+                return DSUPER(cl, obj, msg);
+            _gc_box(gpr->gpr_GInfo, gadget, &l, &t, &w, &h);
+            {
+                struct impDraw imd;
+                struct Image *im = (struct Image *)gadget->GadgetRender;
+                imd.MethodID = IM_DRAWFRAME;
+                imd.imp_RPort = rp;
+                imd.imp_Offset.X = (WORD)l;
+                imd.imp_Offset.Y = (WORD)t;
+                imd.imp_State = (gadget->Flags & GFLG_DISABLED) ? IDS_DISABLED :
+                                sel ? IDS_SELECTED : IDS_NORMAL;
+                imd.imp_DrInfo = dri;
+                imd.imp_Dimensions.Width = (WORD)w;
+                imd.imp_Dimensions.Height = (WORD)h;
+                _intuition_dispatch_method(OCLASS((Object *)im), (Object *)im, (Msg)&imd);
+            }
+            pen = dri ? dri->dri_Pens[sel ? FILLTEXTPEN : TEXTPEN] : 1;
+            if ((gadget->Flags & GFLG_LABELMASK) == GFLG_LABELITEXT && gadget->GadgetText)
+            {
+                /* an IntuiText label in TEXTPEN, JAM1, whatever its own
+                 * pens say (AmigaOS 3.1, probe intuition/sysreq) */
+                struct Gadget copy = *gadget;
+                struct IntuiText one = *gadget->GadgetText;
+                one.FrontPen = (UBYTE)pen;
+                one.DrawMode = JAM1;
+                copy.GadgetText = &one;
+                _gc_draw_label(rp, &copy, dri, l, t, w, h, TRUE, pen);
+            }
+            else
+                _gc_draw_label(rp, gadget, dri, l, t, w, h, TRUE, pen);
+            return 0;
+        }
+    }
+
+    return DSUPER(cl, obj, msg);
+}
+
+/*
+ * propgclass: a GTYP_CUSTOMGADGET around an embedded PropInfo (AUTOKNOB,
+ * FREEVERT unless PGA_Freedom says otherwise) and an empty knob Image.
+ * PGA_Top/Visible/Total set the pot and body of the free axis; dragging
+ * the knob reports PGA_Top through OM_NOTIFY (interim while moving).
+ */
+static void _propg_pots(struct PropGData *d)
+{
+    struct PropInfo *pi = &d->propinfo;
+    UWORD pot = 0, body = MAXBODY;
+
+    if (d->total > d->visible)
+    {
+        ULONG top = d->top;
+        if (top > (ULONG)(d->total - d->visible))
+            top = d->total - d->visible;
+        pot = (UWORD)((top * MAXPOT) / (ULONG)(d->total - d->visible));
+        body = d->visible ? (UWORD)(((ULONG)(d->visible - 1) * MAXBODY) / (ULONG)(d->total - 1)) : 0;
+    }
+    if (pi->Flags & FREEVERT)
+    {
+        pi->VertPot = pot;
+        pi->VertBody = body;
+    }
+    else
+    {
+        pi->HorizPot = pot;
+        pi->HorizBody = body;
+    }
+}
+
+/* PGA_Top for the current pot of the free axis */
+static UWORD _propg_top(struct PropGData *d)
+{
+    struct PropInfo *pi = &d->propinfo;
+    ULONG pot = (pi->Flags & FREEVERT) ? pi->VertPot : pi->HorizPot;
+
+    if (d->total <= d->visible)
+        return 0;
+    return (UWORD)((pot * (ULONG)(d->total - d->visible) + MAXPOT / 2) / MAXPOT);
+}
+
+static ULONG _propg_set(struct PropGData *d, struct TagItem *taglist, BOOL init)
+{
+    struct TagItem *tags = taglist, *tag;
+    BOOL pots = FALSE;
+    ULONG changed = 0;
+
+    while ((tag = NextTagItem(&tags)))
+    {
+        switch (tag->ti_Tag)
+        {
+            case PGA_Freedom:
+                d->propinfo.Flags = (d->propinfo.Flags & ~(FREEHORIZ | FREEVERT)) |
+                                    ((UWORD)tag->ti_Data & (FREEHORIZ | FREEVERT));
+                break;
+            case PGA_Borderless:
+                if (tag->ti_Data) d->propinfo.Flags |= PROPBORDERLESS;
+                else d->propinfo.Flags &= ~PROPBORDERLESS;
+                break;
+            case PGA_NewLook:
+                if (tag->ti_Data) d->propinfo.Flags |= PROPNEWLOOK;
+                else d->propinfo.Flags &= ~PROPNEWLOOK;
+                break;
+            case PGA_Top:     d->top = (UWORD)tag->ti_Data; pots = TRUE; break;
+            case PGA_Visible: d->visible = (UWORD)tag->ti_Data; pots = TRUE; break;
+            case PGA_Total:   d->total = (UWORD)tag->ti_Data; pots = TRUE; break;
+            case PGA_HorizPot:  if (init) continue; d->propinfo.HorizPot = (UWORD)tag->ti_Data; break;
+            case PGA_VertPot:   if (init) continue; d->propinfo.VertPot = (UWORD)tag->ti_Data; break;
+            case PGA_HorizBody: if (init) continue; d->propinfo.HorizBody = (UWORD)tag->ti_Data; break;
+            case PGA_VertBody:  if (init) continue; d->propinfo.VertBody = (UWORD)tag->ti_Data; break;
+            default:
+                continue;
+        }
+        changed = 1;
+    }
+    if (pots)
+        _propg_pots(d);
+    return changed;
+}
+
+/* render a propgclass gadget with the built-in prop gadget code */
+static void _propg_render(struct GadgetInfo *gi, struct Gadget *gad)
+{
+    UWORD type = gad->GadgetType;
+
+    if (!gi || !gi->gi_Window)
+        return;
+    gad->GadgetType = (type & ~GTYP_GTYPEMASK) | GTYP_PROPGADGET;
+    _render_gadget(gi->gi_Window, gi->gi_Requester, gad);
+    gad->GadgetType = type;
+}
+
+/* move the knob so that its corner lies at x, y of the knob range */
+static BOOL _propg_move(struct PropGData *d, struct PropLayout *pl, WORD kx, WORD ky)
+{
+    struct PropInfo *pi = &d->propinfo;
+    UWORD oh = pi->HorizPot, ov = pi->VertPot;
+    WORD mx = pl->rw - pl->kw, my = pl->rh - pl->kh;
+
+    if (pi->Flags & FREEHORIZ)
+    {
+        if (kx < 0) kx = 0;
+        if (kx > mx) kx = mx;
+        pi->HorizPot = mx > 0 ? (UWORD)(((ULONG)kx * MAXPOT) / (ULONG)mx) : 0;
+    }
+    if (pi->Flags & FREEVERT)
+    {
+        if (ky < 0) ky = 0;
+        if (ky > my) ky = my;
+        pi->VertPot = my > 0 ? (UWORD)(((ULONG)ky * MAXPOT) / (ULONG)my) : 0;
+    }
+    return pi->HorizPot != oh || pi->VertPot != ov;
+}
+
 static ULONG propgclass_dispatch(
     register struct IClass *cl __asm("a0"),
     register Object *obj __asm("a2"),
     register Msg msg __asm("a1"))
 {
     struct Gadget *gadget = (struct Gadget *)obj;
-    
+    struct PropGData *data;
+
     switch (msg->MethodID)
     {
         case OM_NEW:
         {
-            /* Call superclass first (gadgetclass) */
-            struct IClass *super = cl->cl_Super;
-            if (super && super->cl_Dispatcher.h_Entry)
-            {
-                typedef ULONG (*DispatchEntry)(register struct IClass *cl __asm("a0"),
-                                                register Object *obj __asm("a2"),
-                                                register Msg msg __asm("a1"));
-                DispatchEntry entry = (DispatchEntry)super->cl_Dispatcher.h_Entry;
-                /* AmigaOS: OM_NEW is sent with the true class as the
-                 * object; rootclass allocates and returns the object */
-                obj = (Object *)entry(super, obj, msg);
-                if (!obj)
-                    return 0;
-                gadget = (struct Gadget *)obj;
-            }
-            
-            /* Initialize PropGData instance data */
-            struct PropGData *data = (struct PropGData *)INST_DATA(cl, obj);
-            
-            /* Set up PropInfo defaults */
-            data->propinfo.Flags = PROPNEWLOOK | AUTOKNOB | FREEVERT;
-            data->propinfo.HorizPot = 0;
-            data->propinfo.VertPot = 0;
-            data->propinfo.HorizBody = MAXBODY;
-            data->propinfo.VertBody = MAXBODY;
+            struct opSet *ops = (struct opSet *)msg;
+
+            obj = (Object *)DSUPER(cl, obj, msg);
+            if (!obj)
+                return 0;
+            gadget = (struct Gadget *)obj;
+            data = (struct PropGData *)INST_DATA(cl, obj);
+            data->propinfo.Flags = AUTOKNOB | FREEVERT;
             data->top = 0;
             data->visible = 1;
             data->total = 1;
-            
-            /* Link PropInfo to gadget */
             gadget->SpecialInfo = &data->propinfo;
-            gadget->GadgetType = GTYP_PROPGADGET;
-            gadget->Flags = GFLG_GADGHCOMP;
-            gadget->Activation = GACT_RELVERIFY | GACT_IMMEDIATE;
-            
-            /* Process PGA tags */
-            struct opSet *ops = (struct opSet *)msg;
-            struct TagItem *tags = ops->ops_AttrList;
-            struct TagItem *tag;
-            
-            while ((tag = NextTagItem(&tags)))
-            {
-                switch (tag->ti_Tag)
-                {
-                    case PGA_Freedom:
-                        if (tag->ti_Data == FREEHORIZ)
-                        {
-                            data->propinfo.Flags &= ~FREEVERT;
-                            data->propinfo.Flags |= FREEHORIZ;
-                        }
-                        else
-                        {
-                            data->propinfo.Flags &= ~FREEHORIZ;
-                            data->propinfo.Flags |= FREEVERT;
-                        }
-                        break;
-                    case PGA_Top:
-                        data->top = (UWORD)tag->ti_Data;
-                        break;
-                    case PGA_Visible:
-                        data->visible = (UWORD)tag->ti_Data;
-                        break;
-                    case PGA_Total:
-                        data->total = (UWORD)tag->ti_Data;
-                        break;
-                    case PGA_NewLook:
-                        if (tag->ti_Data)
-                            data->propinfo.Flags |= PROPNEWLOOK;
-                        else
-                            data->propinfo.Flags &= ~PROPNEWLOOK;
-                        break;
-                }
-            }
-            
-            /* Convert top/visible/total to Pot/Body values */
-            if (data->total > data->visible)
-            {
-                if (data->propinfo.Flags & FREEVERT)
-                {
-                    data->propinfo.VertBody = (data->visible * MAXBODY) / data->total;
-                    if (data->total > data->visible)
-                        data->propinfo.VertPot = (data->top * MAXPOT) / (data->total - data->visible);
-                }
-                else
-                {
-                    data->propinfo.HorizBody = (data->visible * MAXBODY) / data->total;
-                    if (data->total > data->visible)
-                        data->propinfo.HorizPot = (data->top * MAXPOT) / (data->total - data->visible);
-                }
-            }
-            
+            gadget->GadgetRender = &data->knob;
+            gadget->Flags |= GFLG_GADGIMAGE;
+            _propg_set(data, ops->ops_AttrList, TRUE);
             return (ULONG)obj;
         }
-        
+
         case OM_SET:
         case OM_UPDATE:
         {
-            /* Let superclass handle GA_* and ICA_* tags */
-            struct IClass *super = cl->cl_Super;
-            ULONG retval = 0;
-            if (super && super->cl_Dispatcher.h_Entry)
-            {
-                typedef ULONG (*DispatchEntry)(register struct IClass *cl __asm("a0"),
-                                                register Object *obj __asm("a2"),
-                                                register Msg msg __asm("a1"));
-                DispatchEntry entry = (DispatchEntry)super->cl_Dispatcher.h_Entry;
-                retval = entry(super, obj, msg);
-            }
-            
-            /* Process PGA tags */
-            struct PropGData *data = (struct PropGData *)INST_DATA(cl, obj);
             struct opSet *ops = (struct opSet *)msg;
-            struct TagItem *tags = ops->ops_AttrList;
-            struct TagItem *tag;
-            BOOL changed = FALSE;
-            
-            while ((tag = NextTagItem(&tags)))
+            ULONG r = DSUPER(cl, obj, msg);
+            data = (struct PropGData *)INST_DATA(cl, obj);
+            /* the gadget's own imagery stays: GA_Image does not apply */
+            gadget->GadgetRender = &data->knob;
+            gadget->Flags |= GFLG_GADGIMAGE;
+            if (_propg_set(data, ops->ops_AttrList, FALSE))
             {
-                switch (tag->ti_Tag)
-                {
-                    case PGA_Freedom:
-                        if (tag->ti_Data == FREEHORIZ)
-                        {
-                            data->propinfo.Flags &= ~FREEVERT;
-                            data->propinfo.Flags |= FREEHORIZ;
-                        }
-                        else
-                        {
-                            data->propinfo.Flags &= ~FREEHORIZ;
-                            data->propinfo.Flags |= FREEVERT;
-                        }
-                        changed = TRUE;
-                        break;
-                    case PGA_Top:
-                        data->top = (UWORD)tag->ti_Data;
-                        changed = TRUE;
-                        break;
-                    case PGA_Visible:
-                        data->visible = (UWORD)tag->ti_Data;
-                        changed = TRUE;
-                        break;
-                    case PGA_Total:
-                        data->total = (UWORD)tag->ti_Data;
-                        changed = TRUE;
-                        break;
-                    case PGA_NewLook:
-                        if (tag->ti_Data)
-                            data->propinfo.Flags |= PROPNEWLOOK;
-                        else
-                            data->propinfo.Flags &= ~PROPNEWLOOK;
-                        changed = TRUE;
-                        break;
-                }
+                r = 1;
+                if (msg->MethodID == OM_UPDATE && ops->ops_GInfo)
+                    _propg_render(ops->ops_GInfo, gadget);
             }
-            
-            /* Recalculate Pot/Body if changed */
-            if (changed)
-            {
-                if (data->total > data->visible)
-                {
-                    if (data->propinfo.Flags & FREEVERT)
-                    {
-                        data->propinfo.VertBody = (data->visible * MAXBODY) / data->total;
-                        if (data->total > data->visible)
-                            data->propinfo.VertPot = (data->top * MAXPOT) / (data->total - data->visible);
-                    }
-                    else
-                    {
-                        data->propinfo.HorizBody = (data->visible * MAXBODY) / data->total;
-                        if (data->total > data->visible)
-                            data->propinfo.HorizPot = (data->top * MAXPOT) / (data->total - data->visible);
-                    }
-                }
-                retval = 1;
-            }
-            
-            return retval;
+            return r;
         }
-        
+
         case OM_GET:
         {
-            struct PropGData *data = (struct PropGData *)INST_DATA(cl, obj);
             struct opGet *opg = (struct opGet *)msg;
+            data = (struct PropGData *)INST_DATA(cl, obj);
+            /* AmigaOS 3.1 reference: PGA_Top and PGA_Freedom are gettable,
+             * PGA_Visible and PGA_Total are not */
             switch (opg->opg_AttrID)
             {
-                /* AmigaOS 3.1 reference: PGA_Top and PGA_Freedom are gettable,
-                 * PGA_Visible and PGA_Total are not. */
                 case PGA_Top:
                     *(opg->opg_Storage) = data->top;
                     return 1;
                 case PGA_Freedom:
                     *(opg->opg_Storage) = data->propinfo.Flags & (FREEHORIZ | FREEVERT);
                     return 1;
-                default:
-                {
-                    /* Let superclass handle GA_* queries */
-                    struct IClass *super = cl->cl_Super;
-                    if (super && super->cl_Dispatcher.h_Entry)
-                    {
-                        typedef ULONG (*DispatchEntry)(register struct IClass *cl __asm("a0"),
-                                                        register Object *obj __asm("a2"),
-                                                        register Msg msg __asm("a1"));
-                        DispatchEntry entry = (DispatchEntry)super->cl_Dispatcher.h_Entry;
-                        return entry(super, obj, msg);
-                    }
-                    return 0;
-                }
             }
+            return DSUPER(cl, obj, msg);
         }
-        
+
         case GM_RENDER:
-        {
-            struct gpRender *gpr = (struct gpRender *)msg;
-            struct RastPort *rp = gpr->gpr_RPort;
-            struct DrawInfo *dri = gpr->gpr_GInfo ? gpr->gpr_GInfo->gi_DrInfo : NULL;
-            struct PropInfo *pi = (struct PropInfo *)gadget->SpecialInfo;
-            
-            if (!rp) return 0;
-
-            /* Resolve gadget box through _calculate_gadget_box so that
-             * GFLG_RELRIGHT / GFLG_RELBOTTOM / GFLG_RELWIDTH /
-             * GFLG_RELHEIGHT are handled correctly. */
-            LONG gbox_left = gadget->LeftEdge;
-            LONG gbox_top  = gadget->TopEdge;
-            LONG gbox_w    = gadget->Width;
-            LONG gbox_h    = gadget->Height;
-            if (gpr->gpr_GInfo && gpr->gpr_GInfo->gi_Window)
-            {
-                _calculate_gadget_box(gpr->gpr_GInfo->gi_Window,
-                                      gpr->gpr_GInfo->gi_Requester,
-                                      gadget,
-                                      &gbox_left, &gbox_top, &gbox_w, &gbox_h);
-            }
-
-            /* Draw container (Recessed) */
-            _draw_bevel_box(rp, gbox_left, gbox_top, gbox_w, gbox_h, IDS_SELECTED, dri);
-            
-            /* Draw Knob if we have PropInfo */
-            if (pi)
-            {
-                WORD knobW, knobH, knobX, knobY;
-                
-                /* Autoknob */
-                WORD containerW = gbox_w - 4;
-                WORD containerH = gbox_h - 4;
-                
-                if (pi->Flags & AUTOKNOB)
-                {
-                    /* Calculate knob size based on Body */
-                    if (pi->Flags & FREEHORIZ)
-                        knobW = (containerW * (ULONG)pi->HorizBody) / 0xFFFF;
-                    else
-                        knobW = containerW;
-                        
-                    if (pi->Flags & FREEVERT)
-                        knobH = (containerH * (ULONG)pi->VertBody) / 0xFFFF;
-                    else
-                        knobH = containerH;
-                        
-                    /* Min size */
-                    if (knobW < 4) knobW = 4;
-                    if (knobH < 4) knobH = 4;
-                     
-                    /* Calculate knob position based on Pot */
-                    WORD maxMoveX = containerW - knobW;
-                    WORD maxMoveY = containerH - knobH;
-                     
-                    knobX = gbox_left + 2 + ((maxMoveX * (ULONG)pi->HorizPot) / 0xFFFF);
-                    knobY = gbox_top + 2 + ((maxMoveY * (ULONG)pi->VertPot) / 0xFFFF);
-                     
-                    /* Draw Knob (Raised) */
-                    _draw_bevel_box(rp, knobX, knobY, knobW, knobH, 0, dri);
-                }
-            }
+            _propg_render(((struct gpRender *)msg)->gpr_GInfo, gadget);
             return 0;
+
+        case GM_GOACTIVE:
+        {
+            struct gpInput *gpi = (struct gpInput *)msg;
+            struct PropLayout pl;
+            LONG l, t, w, h;
+            WORD x, y;
+
+            if (!gpi->gpi_IEvent)
+                return GMR_NOREUSE;
+            data = (struct PropGData *)INST_DATA(cl, obj);
+            _gc_box(gpi->gpi_GInfo, gadget, &l, &t, &w, &h);
+            _prop_layout(&data->propinfo, (WORD)w, (WORD)h, &pl);
+            x = gpi->gpi_Mouse.X - pl.lb;
+            y = gpi->gpi_Mouse.Y - pl.tb;
+            if (x >= pl.kx && x < pl.kx + pl.kw && y >= pl.ky && y < pl.ky + pl.kh)
+            {
+                /* the knob is grabbed */
+                data->offx = x - pl.kx;
+                data->offy = y - pl.ky;
+                data->propinfo.Flags |= KNOBHIT;
+                gadget->Flags |= GFLG_SELECTED;
+                _propg_render(gpi->gpi_GInfo, gadget);
+                return GMR_MEACTIVE;
+            }
+            /* a click beside the knob pages one body towards the pointer */
+            {
+                struct PropInfo *pi = &data->propinfo;
+                if ((pi->Flags & FREEVERT) && (y < pl.ky || y >= pl.ky + pl.kh))
+                {
+                    LONG p = pi->VertPot + (y < pl.ky ? -(LONG)pi->VertBody : (LONG)pi->VertBody);
+                    pi->VertPot = (UWORD)(p < 0 ? 0 : p > MAXPOT ? MAXPOT : p);
+                }
+                if ((pi->Flags & FREEHORIZ) && (x < pl.kx || x >= pl.kx + pl.kw))
+                {
+                    LONG p = pi->HorizPot + (x < pl.kx ? -(LONG)pi->HorizBody : (LONG)pi->HorizBody);
+                    pi->HorizPot = (UWORD)(p < 0 ? 0 : p > MAXPOT ? MAXPOT : p);
+                }
+                data->top = _propg_top(data);
+                _propg_render(gpi->gpi_GInfo, gadget);
+                _gc_notify(cl, obj, gpi->gpi_GInfo, 0, PGA_Top, data->top);
+                if (gpi->gpi_Termination)
+                    *gpi->gpi_Termination = data->top;
+                return GMR_NOREUSE | GMR_VERIFY;
+            }
         }
-        
+
         case GM_HANDLEINPUT:
         {
             struct gpInput *gpi = (struct gpInput *)msg;
             struct InputEvent *ie = gpi->gpi_IEvent;
-            struct PropGData *data = (struct PropGData *)INST_DATA(cl, obj);
-            struct PropInfo *pi = &data->propinfo;
-            
-            if (!ie || !pi)
+            struct PropLayout pl;
+            LONG l, t, w, h;
+
+            data = (struct PropGData *)INST_DATA(cl, obj);
+            if (!ie || ie->ie_Class != IECLASS_RAWMOUSE)
                 return GMR_MEACTIVE;
-            
-            DPRINTF(LOG_DEBUG, "_intuition: propgclass GM_HANDLEINPUT ie_Class=%d ie_Code=0x%x mouse=%d,%d\n",
-                    ie->ie_Class, ie->ie_Code, gpi->gpi_Mouse.X, gpi->gpi_Mouse.Y);
-            
-            /* Handle mouse button release */
-            if (ie->ie_Class == IECLASS_RAWMOUSE)
+            _gc_box(gpi->gpi_GInfo, gadget, &l, &t, &w, &h);
+            _prop_layout(&data->propinfo, (WORD)w, (WORD)h, &pl);
+            if (_propg_move(data, &pl, gpi->gpi_Mouse.X - pl.lb - data->offx,
+                            gpi->gpi_Mouse.Y - pl.tb - data->offy))
             {
-                if (ie->ie_Code == (IECODE_LBUTTON | IECODE_UP_PREFIX))
+                UWORD top = _propg_top(data);
+                _propg_render(gpi->gpi_GInfo, gadget);
+                if (top != data->top)
                 {
-                    /* Final notification with OPUF_INTERIM cleared */
-                    /* Update top from pot values */
-                    UWORD pot = (pi->Flags & FREEVERT) ? pi->VertPot : pi->HorizPot;
-                    UWORD newtop = 0;
-                    if (data->total > data->visible)
-                        newtop = (pot * (ULONG)(data->total - data->visible)) / MAXPOT;
-                    data->top = newtop;
-                    
-                    /* Send final notification */
-                    struct TagItem notifyattrs[3];
-                    notifyattrs[0].ti_Tag = PGA_Top;
-                    notifyattrs[0].ti_Data = data->top;
-                    notifyattrs[1].ti_Tag = GA_ID;
-                    notifyattrs[1].ti_Data = gadget->GadgetID;
-                    notifyattrs[2].ti_Tag = TAG_END;
-                    
-                    struct opUpdate notifymsg;
-                    notifymsg.MethodID = OM_NOTIFY;
-                    notifymsg.opu_AttrList = notifyattrs;
-                    notifymsg.opu_GInfo = gpi->gpi_GInfo;
-                    notifymsg.opu_Flags = 0; /* final */
-                    
-                    struct IClass *super = cl->cl_Super;
-                    if (super && super->cl_Dispatcher.h_Entry)
-                    {
-                        typedef ULONG (*DispatchEntry)(register struct IClass *cl __asm("a0"),
-                                                        register Object *obj __asm("a2"),
-                                                        register Msg msg __asm("a1"));
-                        DispatchEntry entry = (DispatchEntry)super->cl_Dispatcher.h_Entry;
-                        entry(super, obj, (Msg)&notifymsg);
-                    }
-                    
-                    if (gpi->gpi_Termination)
-                        *gpi->gpi_Termination = gadget->GadgetID;
-                    return GMR_NOREUSE | GMR_VERIFY;
+                    data->top = top;
+                    _gc_notify(cl, obj, gpi->gpi_GInfo, OPUF_INTERIM, PGA_Top, top);
                 }
             }
-            
-            /* Handle mouse movement while dragging */
-            if (ie->ie_Class == IECLASS_RAWMOUSE || ie->ie_Class == 0)
+            if (ie->ie_Code == SELECTUP || ie->ie_Code == MENUDOWN)
             {
-                WORD containerW = gadget->Width - 4;
-                WORD containerH = gadget->Height - 4;
-                WORD knobW, knobH;
-                WORD maxMoveX, maxMoveY;
-                WORD mouseX = gpi->gpi_Mouse.X - gadget->LeftEdge - 2;
-                WORD mouseY = gpi->gpi_Mouse.Y - gadget->TopEdge - 2;
-                
-                /* Calculate knob size */
-                if (pi->Flags & AUTOKNOB)
-                {
-                    if (pi->Flags & FREEHORIZ)
-                        knobW = (containerW * (ULONG)pi->HorizBody) / 0xFFFF;
-                    else
-                        knobW = containerW;
-                        
-                    if (pi->Flags & FREEVERT)
-                        knobH = (containerH * (ULONG)pi->VertBody) / 0xFFFF;
-                    else
-                        knobH = containerH;
-                        
-                    if (knobW < 4) knobW = 4;
-                    if (knobH < 4) knobH = 4;
-                }
-                else
-                {
-                    knobW = containerW;
-                    knobH = containerH;
-                }
-                
-                maxMoveX = containerW - knobW;
-                maxMoveY = containerH - knobH;
-                
-                /* Update pot values based on mouse position */
-                if ((pi->Flags & FREEHORIZ) && maxMoveX > 0)
-                {
-                    if (mouseX < 0) mouseX = 0;
-                    if (mouseX > maxMoveX) mouseX = maxMoveX;
-                    pi->HorizPot = (mouseX * 0xFFFF) / maxMoveX;
-                }
-                
-                if ((pi->Flags & FREEVERT) && maxMoveY > 0)
-                {
-                    if (mouseY < 0) mouseY = 0;
-                    if (mouseY > maxMoveY) mouseY = maxMoveY;
-                    pi->VertPot = (mouseY * 0xFFFF) / maxMoveY;
-                }
-                
-                DPRINTF(LOG_DEBUG, "_intuition: propgclass updated HorizPot=%d VertPot=%d\n",
-                        pi->HorizPot, pi->VertPot);
-                
-                /* Update top from pot and send interim notification */
-                UWORD pot = (pi->Flags & FREEVERT) ? pi->VertPot : pi->HorizPot;
-                UWORD newtop = 0;
-                if (data->total > data->visible)
-                    newtop = (pot * (ULONG)(data->total - data->visible)) / MAXPOT;
-                
-                if (newtop != data->top)
-                {
-                    data->top = newtop;
-                    
-                    /* Send interim notification */
-                    struct TagItem notifyattrs[3];
-                    notifyattrs[0].ti_Tag = PGA_Top;
-                    notifyattrs[0].ti_Data = data->top;
-                    notifyattrs[1].ti_Tag = GA_ID;
-                    notifyattrs[1].ti_Data = gadget->GadgetID;
-                    notifyattrs[2].ti_Tag = TAG_END;
-                    
-                    struct opUpdate notifymsg;
-                    notifymsg.MethodID = OM_NOTIFY;
-                    notifymsg.opu_AttrList = notifyattrs;
-                    notifymsg.opu_GInfo = gpi->gpi_GInfo;
-                    notifymsg.opu_Flags = OPUF_INTERIM;
-                    
-                    struct IClass *super = cl->cl_Super;
-                    if (super && super->cl_Dispatcher.h_Entry)
-                    {
-                        typedef ULONG (*DispatchEntry)(register struct IClass *cl __asm("a0"),
-                                                        register Object *obj __asm("a2"),
-                                                        register Msg msg __asm("a1"));
-                        DispatchEntry entry = (DispatchEntry)super->cl_Dispatcher.h_Entry;
-                        entry(super, obj, (Msg)&notifymsg);
-                    }
-                }
+                data->propinfo.Flags &= ~KNOBHIT;
+                gadget->Flags &= ~GFLG_SELECTED;
+                _propg_render(gpi->gpi_GInfo, gadget);
+                _gc_notify(cl, obj, gpi->gpi_GInfo, 0, PGA_Top, data->top);
+                if (gpi->gpi_Termination)
+                    *gpi->gpi_Termination = data->top;
+                return ie->ie_Code == SELECTUP ? (GMR_NOREUSE | GMR_VERIFY) : GMR_NOREUSE;
             }
-            
             return GMR_MEACTIVE;
         }
+
+        case GM_GOINACTIVE:
+            data = (struct PropGData *)INST_DATA(cl, obj);
+            if (gadget->Flags & GFLG_SELECTED)
+            {
+                data->propinfo.Flags &= ~KNOBHIT;
+                gadget->Flags &= ~GFLG_SELECTED;
+                _propg_render(((struct gpGoInactive *)msg)->gpgi_GInfo, gadget);
+            }
+            return 0;
     }
-    
-    /* Call superclass */
-    {
-        struct IClass *super = cl->cl_Super;
-        if (super && super->cl_Dispatcher.h_Entry)
-        {
-            typedef ULONG (*DispatchEntry)(register struct IClass *cl __asm("a0"),
-                                            register Object *obj __asm("a2"),
-                                            register Msg msg __asm("a1"));
-            DispatchEntry entry = (DispatchEntry)super->cl_Dispatcher.h_Entry;
-            return entry(super, obj, msg);
-        }
-    }
-    
-    return 0;
+
+    return DSUPER(cl, obj, msg);
 }
 
-/* StrGClass dispatcher - string gadget class */
+/*
+ * strgclass: a GTYP_CUSTOMGADGET (GACT_STRINGEXTEND) around an embedded
+ * StringInfo whose buffers it allocates unless STRINGA_Buffer and
+ * STRINGA_UndoBuffer give them (MaxChars defaults to 1).  Rendering and
+ * editing use Intuition's built-in string gadget code; Return ends the
+ * session with GADGETUP code 0.
+ */
+static void _strg_setlong(struct StringInfo *si, LONG v)
+{
+    char tmp[12];
+    LONG n = 0, i = 0;
+    ULONG u = v < 0 ? (ULONG)-v : (ULONG)v;
+
+    do
+    {
+        tmp[n++] = (char)('0' + u % 10);
+        u /= 10;
+    } while (u && n < 11);
+    if (v < 0 && si->MaxChars > 1)
+        si->Buffer[i++] = '-';
+    while (n > 0 && i < si->MaxChars - 1)
+        si->Buffer[i++] = tmp[--n];
+    si->Buffer[i] = '\0';
+    si->LongInt = v;
+}
+
+static void _strg_settext(struct StringInfo *si, CONST_STRPTR s)
+{
+    LONG i = 0;
+
+    if (si->MaxChars < 1)
+        return;
+    if (s)
+        while (s[i] && i < si->MaxChars - 1)
+        {
+            si->Buffer[i] = s[i];
+            i++;
+        }
+    si->Buffer[i] = '\0';
+}
+
+static ULONG _strg_set(struct Gadget *gad, struct StrGData *d, struct TagItem *taglist, BOOL init)
+{
+    struct StringInfo *si = &d->strinfo;
+    struct TagItem *tags = taglist, *tag;
+    ULONG changed = 0;
+
+    while ((tag = NextTagItem(&tags)))
+    {
+        switch (tag->ti_Tag)
+        {
+            case STRINGA_TextVal:
+                _strg_settext(si, (CONST_STRPTR)tag->ti_Data);
+                if (!init)
+                {
+                    si->NumChars = (WORD)strlen((char *)si->Buffer);
+                    si->BufferPos = si->NumChars;
+                    si->DispPos = 0;
+                }
+                break;
+            case STRINGA_LongVal:
+                gad->Activation |= GACT_LONGINT;
+                _strg_setlong(si, (LONG)tag->ti_Data);
+                if (!init)
+                {
+                    si->NumChars = (WORD)strlen((char *)si->Buffer);
+                    si->BufferPos = si->NumChars;
+                    si->DispPos = 0;
+                }
+                break;
+            case STRINGA_BufferPos:
+                si->BufferPos = (WORD)tag->ti_Data;
+                break;
+            case STRINGA_DispPos:
+                si->DispPos = (WORD)tag->ti_Data;
+                break;
+            case STRINGA_Justification:
+                gad->Activation = (gad->Activation & ~(GACT_STRINGCENTER | GACT_STRINGRIGHT)) |
+                                  ((UWORD)tag->ti_Data & (GACT_STRINGCENTER | GACT_STRINGRIGHT));
+                break;
+            case STRINGA_AltKeyMap:
+                si->AltKeyMap = (struct KeyMap *)tag->ti_Data;
+                break;
+            case STRINGA_Font:
+                d->ext.Font = (struct TextFont *)tag->ti_Data;
+                break;
+            case STRINGA_Pens:
+                d->ext.Pens[0] = (UBYTE)tag->ti_Data;
+                d->ext.Pens[1] = (UBYTE)(tag->ti_Data >> 8);
+                break;
+            case STRINGA_ActivePens:
+                d->ext.ActivePens[0] = (UBYTE)tag->ti_Data;
+                d->ext.ActivePens[1] = (UBYTE)(tag->ti_Data >> 8);
+                break;
+            case STRINGA_EditHook:
+                d->ext.EditHook = (struct Hook *)tag->ti_Data;
+                break;
+            case STRINGA_EditModes:
+                d->ext.InitialModes = tag->ti_Data;
+                break;
+            case STRINGA_ReplaceMode:
+                if (tag->ti_Data) d->ext.InitialModes |= SGM_REPLACE;
+                else d->ext.InitialModes &= ~SGM_REPLACE;
+                break;
+            case STRINGA_FixedFieldMode:
+                if (tag->ti_Data) d->ext.InitialModes |= SGM_FIXEDFIELD;
+                else d->ext.InitialModes &= ~SGM_FIXEDFIELD;
+                break;
+            case STRINGA_NoFilterMode:
+                if (tag->ti_Data) d->ext.InitialModes |= SGM_NOFILTER;
+                else d->ext.InitialModes &= ~SGM_NOFILTER;
+                break;
+            case STRINGA_ExitHelp:
+                if (tag->ti_Data) d->ext.InitialModes |= SGM_EXITHELP;
+                else d->ext.InitialModes &= ~SGM_EXITHELP;
+                break;
+            default:
+                continue;
+        }
+        changed = 1;
+    }
+    return changed;
+}
+
+/* run the built-in string gadget code on a strgclass gadget */
+static void _strg_render(struct GadgetInfo *gi, struct Gadget *gad)
+{
+    UWORD type = gad->GadgetType;
+
+    if (!gi || !gi->gi_Window)
+        return;
+    gad->GadgetType = (type & ~GTYP_GTYPEMASK) | GTYP_STRGADGET;
+    _render_gadget(gi->gi_Window, gi->gi_Requester, gad);
+    gad->GadgetType = type;
+}
+
+/* the buffer position under gadget-relative x */
+static WORD _strg_pos_at(struct GadgetInfo *gi, struct StringInfo *si, WORD x)
+{
+    struct RastPort *rp = gi && gi->gi_Window ? gi->gi_Window->RPort : NULL;
+    WORD len = (WORD)strlen((char *)si->Buffer), i;
+
+    if (!rp)
+        return len;
+    for (i = si->DispPos; i < len; i++)
+        if (TextLength(rp, si->Buffer + si->DispPos, (WORD)(i - si->DispPos + 1)) > x)
+            return i;
+    return len;
+}
+
+static void _strg_leave(struct IClass *cl, Object *obj, struct GadgetInfo *gi)
+{
+    struct Gadget *gad = (struct Gadget *)obj;
+    struct StrGData *d = (struct StrGData *)INST_DATA(cl, obj);
+    UWORD type = gad->GadgetType;
+
+    if (!(gad->Flags & GFLG_SELECTED))
+        return;
+    gad->Flags &= ~GFLG_SELECTED;
+    gad->GadgetType = (type & ~GTYP_GTYPEMASK) | GTYP_STRGADGET;
+    _string_update_longint(gad);
+    gad->GadgetType = type;
+    _strg_render(gi, gad);
+    if (gad->Activation & GACT_LONGINT)
+        _gc_notify(cl, obj, gi, 0, STRINGA_LongVal, (ULONG)d->strinfo.LongInt);
+    else
+        _gc_notify(cl, obj, gi, 0, STRINGA_TextVal, (ULONG)d->strinfo.Buffer);
+}
+
 static ULONG strgclass_dispatch(
     register struct IClass *cl __asm("a0"),
     register Object *obj __asm("a2"),
     register Msg msg __asm("a1"))
 {
     struct Gadget *gadget = (struct Gadget *)obj;
-    
+    struct StrGData *data;
+
     switch (msg->MethodID)
     {
         case OM_NEW:
         {
-            /* Call superclass first (gadgetclass) */
-            struct IClass *super = cl->cl_Super;
-            if (super && super->cl_Dispatcher.h_Entry)
-            {
-                typedef ULONG (*DispatchEntry)(register struct IClass *cl __asm("a0"),
-                                                register Object *obj __asm("a2"),
-                                                register Msg msg __asm("a1"));
-                DispatchEntry entry = (DispatchEntry)super->cl_Dispatcher.h_Entry;
-                /* AmigaOS: OM_NEW is sent with the true class as the
-                 * object; rootclass allocates and returns the object */
-                obj = (Object *)entry(super, obj, msg);
-                if (!obj)
-                    return 0;
-                gadget = (struct Gadget *)obj;
-            }
-            
-            /* Initialize StrGData instance data */
-            struct StrGData *data = (struct StrGData *)INST_DATA(cl, obj);
-            
-            /* Set defaults */
-            data->strinfo.MaxChars = 128;
-            data->strinfo.Buffer = data->buffer;
-            data->strinfo.UndoBuffer = data->undobuffer;
-            data->strinfo.BufferPos = 0;
-            data->strinfo.NumChars = 0;
-            data->strinfo.DispPos = 0;
-            data->strinfo.UndoPos = 0;
-            data->strinfo.LongInt = 0;
-            data->longval = 0;
-            
-            /* Clear buffers */
-            data->buffer[0] = '\0';
-            data->undobuffer[0] = '\0';
-            
-            /* Link StringInfo to gadget */
-            gadget->SpecialInfo = &data->strinfo;
-            gadget->GadgetType = GTYP_STRGADGET;
-            gadget->Flags = GFLG_GADGHCOMP;
-            gadget->Activation = GACT_RELVERIFY;
-            
-            /* Process STRINGA tags */
             struct opSet *ops = (struct opSet *)msg;
-            struct TagItem *tags = ops->ops_AttrList;
-            struct TagItem *tag;
-            
-            while ((tag = NextTagItem(&tags)))
+            struct StringInfo *si;
+            struct DrawInfo *dri;
+            LONG max;
+
+            obj = (Object *)DSUPER(cl, obj, msg);
+            if (!obj)
+                return 0;
+            gadget = (struct Gadget *)obj;
+            data = (struct StrGData *)INST_DATA(cl, obj);
+            si = &data->strinfo;
+            max = (LONG)GetTagData(STRINGA_MaxChars, 1, ops->ops_AttrList);
+            if (max < 1)
+                max = 1;
+            si->MaxChars = (WORD)max;
+            si->Buffer = (UBYTE *)GetTagData(STRINGA_Buffer, 0, ops->ops_AttrList);
+            si->UndoBuffer = (UBYTE *)GetTagData(STRINGA_UndoBuffer, 0, ops->ops_AttrList);
+            data->workbuffer = (UBYTE *)GetTagData(STRINGA_WorkBuffer, 0, ops->ops_AttrList);
+            if (!si->Buffer)
+                si->Buffer = data->ownbuf = AllocVec(max + 1, MEMF_PUBLIC | MEMF_CLEAR);
+            if (!si->UndoBuffer)
+                si->UndoBuffer = data->ownundo = AllocVec(max + 1, MEMF_PUBLIC | MEMF_CLEAR);
+            if (!data->workbuffer)
+                data->workbuffer = data->ownwork = AllocVec(max + 1, MEMF_PUBLIC | MEMF_CLEAR);
+            if (!si->Buffer || !si->UndoBuffer || !data->workbuffer)
             {
-                switch (tag->ti_Tag)
-                {
-                    case STRINGA_MaxChars:
-                    {
-                        LONG maxchars = (LONG)tag->ti_Data;
-                        if (maxchars > 0 && maxchars <= 128)
-                            data->strinfo.MaxChars = maxchars;
-                        break;
-                    }
-                    case STRINGA_Buffer:
-                        /* Use externally-provided buffer */
-                        if (tag->ti_Data)
-                        {
-                            data->strinfo.Buffer = (UBYTE *)tag->ti_Data;
-                        }
-                        break;
-                    case STRINGA_UndoBuffer:
-                        if (tag->ti_Data)
-                        {
-                            data->strinfo.UndoBuffer = (UBYTE *)tag->ti_Data;
-                        }
-                        break;
-                    case STRINGA_TextVal:
-                        if (tag->ti_Data)
-                        {
-                            _intuition_strncpy((char *)data->strinfo.Buffer, 
-                                    (const char *)tag->ti_Data, 
-                                    data->strinfo.MaxChars);
-                            data->strinfo.NumChars = strlen((char *)data->strinfo.Buffer);
-                            data->strinfo.BufferPos = data->strinfo.NumChars;
-                        }
-                        break;
-                    case STRINGA_LongVal:
-                        data->longval = (LONG)tag->ti_Data;
-                        data->strinfo.LongInt = data->longval;
-                        gadget->Activation |= GACT_LONGINT;
-                        /* Convert the long value to a string representation */
-                        {
-                            char tmpbuf[16];
-                            LONG val = data->longval;
-                            LONG i = 0;
-                            BOOL negative = FALSE;
-                            
-                            if (val < 0)
-                            {
-                                negative = TRUE;
-                                val = -val;
-                            }
-                            
-                            /* Build digits in reverse */
-                            if (val == 0)
-                            {
-                                tmpbuf[i++] = '0';
-                            }
-                            else
-                            {
-                                while (val > 0 && i < 14)
-                                {
-                                    tmpbuf[i++] = '0' + (val % 10);
-                                    val /= 10;
-                                }
-                            }
-                            if (negative)
-                                tmpbuf[i++] = '-';
-                            
-                            /* Reverse into buffer */
-                            LONG j;
-                            for (j = 0; j < i; j++)
-                            {
-                                data->strinfo.Buffer[j] = tmpbuf[i - 1 - j];
-                            }
-                            data->strinfo.Buffer[i] = '\0';
-                            data->strinfo.NumChars = i;
-                            data->strinfo.BufferPos = i;
-                        }
-                        break;
-                    case STRINGA_Justification:
-                        /* Store in Extension if available */
-                        break;
-                }
+                struct Msg_dummy { ULONG MethodID; } dm = { OM_DISPOSE };
+                _intuition_dispatch_method(OCLASS(obj), obj, (Msg)&dm);
+                return 0;
             }
-            
+            dri = (struct DrawInfo *)GetTagData(GA_DrawInfo, 0, ops->ops_AttrList);
+            data->ext.Pens[0] = data->ext.ActivePens[0] = dri ? (UBYTE)dri->dri_Pens[TEXTPEN] : 1;
+            data->ext.Pens[1] = data->ext.ActivePens[1] = dri ? (UBYTE)dri->dri_Pens[BACKGROUNDPEN] : 0;
+            data->ext.WorkBuffer = data->workbuffer;
+            si->Extension = &data->ext;
+            gadget->SpecialInfo = si;
+            gadget->Activation |= GACT_STRINGEXTEND;
+            _strg_set(gadget, data, ops->ops_AttrList, TRUE);
             return (ULONG)obj;
         }
-        
+
+        case OM_DISPOSE:
+            data = (struct StrGData *)INST_DATA(cl, obj);
+            if (data->ownbuf)
+                FreeVec(data->ownbuf);
+            if (data->ownundo)
+                FreeVec(data->ownundo);
+            if (data->ownwork)
+                FreeVec(data->ownwork);
+            data->ownbuf = data->ownundo = data->ownwork = NULL;
+            return DSUPER(cl, obj, msg);
+
         case OM_SET:
         case OM_UPDATE:
         {
-            /* Let superclass handle GA_* and ICA_* tags */
-            struct IClass *super = cl->cl_Super;
-            ULONG retval = 0;
-            if (super && super->cl_Dispatcher.h_Entry)
-            {
-                typedef ULONG (*DispatchEntry)(register struct IClass *cl __asm("a0"),
-                                                register Object *obj __asm("a2"),
-                                                register Msg msg __asm("a1"));
-                DispatchEntry entry = (DispatchEntry)super->cl_Dispatcher.h_Entry;
-                retval = entry(super, obj, msg);
-            }
-            
-            /* Process STRINGA tags */
-            struct StrGData *data = (struct StrGData *)INST_DATA(cl, obj);
             struct opSet *ops = (struct opSet *)msg;
-            struct TagItem *tags = ops->ops_AttrList;
-            struct TagItem *tag;
-            
-            while ((tag = NextTagItem(&tags)))
+            ULONG r = DSUPER(cl, obj, msg);
+            data = (struct StrGData *)INST_DATA(cl, obj);
+            if (_strg_set(gadget, data, ops->ops_AttrList, FALSE))
             {
-                switch (tag->ti_Tag)
-                {
-                    case STRINGA_TextVal:
-                        if (tag->ti_Data)
-                        {
-                            _intuition_strncpy((char *)data->strinfo.Buffer,
-                                    (const char *)tag->ti_Data,
-                                    data->strinfo.MaxChars);
-                            data->strinfo.NumChars = strlen((char *)data->strinfo.Buffer);
-                            data->strinfo.BufferPos = data->strinfo.NumChars;
-                            retval = 1;
-                        }
-                        break;
-                    case STRINGA_LongVal:
-                        data->longval = (LONG)tag->ti_Data;
-                        data->strinfo.LongInt = data->longval;
-                        /* Convert long to string */
-                        {
-                            char tmpbuf[16];
-                            LONG val = data->longval;
-                            LONG i = 0;
-                            BOOL negative = FALSE;
-                            
-                            if (val < 0)
-                            {
-                                negative = TRUE;
-                                val = -val;
-                            }
-                            
-                            if (val == 0)
-                            {
-                                tmpbuf[i++] = '0';
-                            }
-                            else
-                            {
-                                while (val > 0 && i < 14)
-                                {
-                                    tmpbuf[i++] = '0' + (val % 10);
-                                    val /= 10;
-                                }
-                            }
-                            if (negative)
-                                tmpbuf[i++] = '-';
-                            
-                            LONG j;
-                            for (j = 0; j < i; j++)
-                            {
-                                data->strinfo.Buffer[j] = tmpbuf[i - 1 - j];
-                            }
-                            data->strinfo.Buffer[i] = '\0';
-                            data->strinfo.NumChars = i;
-                            data->strinfo.BufferPos = i;
-                        }
-                        retval = 1;
-                        break;
-                }
+                r = 1;
+                if (msg->MethodID == OM_UPDATE && ops->ops_GInfo)
+                    _strg_render(ops->ops_GInfo, gadget);
             }
-            
-            return retval;
+            return r;
         }
-        
+
         case OM_GET:
         {
-            struct StrGData *data = (struct StrGData *)INST_DATA(cl, obj);
             struct opGet *opg = (struct opGet *)msg;
+            data = (struct StrGData *)INST_DATA(cl, obj);
             switch (opg->opg_AttrID)
             {
                 case STRINGA_TextVal:
@@ -3319,344 +3433,334 @@ static ULONG strgclass_dispatch(
                 case STRINGA_LongVal:
                     *(opg->opg_Storage) = (ULONG)data->strinfo.LongInt;
                     return 1;
-                default:
-                {
-                    /* Let superclass handle GA_* queries */
-                    struct IClass *super = cl->cl_Super;
-                    if (super && super->cl_Dispatcher.h_Entry)
-                    {
-                        typedef ULONG (*DispatchEntry)(register struct IClass *cl __asm("a0"),
-                                                        register Object *obj __asm("a2"),
-                                                        register Msg msg __asm("a1"));
-                        DispatchEntry entry = (DispatchEntry)super->cl_Dispatcher.h_Entry;
-                        return entry(super, obj, msg);
-                    }
-                    return 0;
-                }
             }
+            return DSUPER(cl, obj, msg);
         }
-        
+
         case GM_RENDER:
-        {
-            struct gpRender *gpr = (struct gpRender *)msg;
-            struct RastPort *rp = gpr->gpr_RPort;
-            struct DrawInfo *dri = gpr->gpr_GInfo ? gpr->gpr_GInfo->gi_DrInfo : NULL;
-            struct StringInfo *si = (struct StringInfo *)gadget->SpecialInfo;
-            UBYTE bgColor = dri ? dri->dri_Pens[BACKGROUNDPEN] : 0;
-            UBYTE txtColor = dri ? dri->dri_Pens[TEXTPEN] : 1;
-            WORD textY;
-            
-            if (!rp) return 0;
-
-            /* Resolve gadget box through _calculate_gadget_box so that
-             * GFLG_REL* flags are handled correctly. */
-            LONG gbox_left = gadget->LeftEdge;
-            LONG gbox_top  = gadget->TopEdge;
-            LONG gbox_w    = gadget->Width;
-            LONG gbox_h    = gadget->Height;
-            if (gpr->gpr_GInfo && gpr->gpr_GInfo->gi_Window)
-            {
-                _calculate_gadget_box(gpr->gpr_GInfo->gi_Window,
-                                      gpr->gpr_GInfo->gi_Requester,
-                                      gadget,
-                                      &gbox_left, &gbox_top, &gbox_w, &gbox_h);
-            }
-
-            /* Draw container (Recessed) */
-            _draw_bevel_box(rp, gbox_left, gbox_top, gbox_w, gbox_h, IDS_SELECTED, dri);
-            
-            /* Clear background inside */
-            SetAPen(rp, bgColor);
-            RectFill(rp, gbox_left + 2, gbox_top + 2, 
-                         gbox_left + gbox_w - 3, gbox_top + gbox_h - 3);
-            
-            /* Calculate text Y position (vertically centered) */
-            textY = gbox_top + (gbox_h / 2) + 3;
-            
-            /* Draw Text */
-            if (si && si->Buffer)
-            {
-                LONG len = strlen((char *)si->Buffer);
-                
-                SetAPen(rp, txtColor);
-                SetBPen(rp, bgColor);
-                SetDrMd(rp, JAM2);
-                
-                Move(rp, gbox_left + 4, textY);
-                if (len > 0)
-                {
-                    Text(rp, si->Buffer, len);
-                }
-                
-                /* Draw cursor if gadget is selected (active) */
-                if (gadget->Flags & GFLG_SELECTED)
-                {
-                    WORD cursorX;
-                    WORD cursorPos = si->BufferPos;
-                    
-                    /* Calculate cursor X position */
-                    if (cursorPos > 0 && rp->Font)
-                    {
-                        cursorX = gbox_left + 4 + TextLength(rp, si->Buffer, cursorPos);
-                    }
-                    else
-                    {
-                        cursorX = gbox_left + 4;
-                    }
-                    
-                    /* Draw cursor as a vertical bar (XOR mode) */
-                    SetAPen(rp, txtColor);
-                    SetDrMd(rp, COMPLEMENT);
-                    RectFill(rp, cursorX, gbox_top + 3, 
-                                 cursorX + 1, gbox_top + gbox_h - 4);
-                    SetDrMd(rp, JAM2);
-                }
-            }
+            _strg_render(((struct gpRender *)msg)->gpr_GInfo, gadget);
             return 0;
+
+        case GM_GOACTIVE:
+        {
+            struct gpInput *gpi = (struct gpInput *)msg;
+            struct StringInfo *si;
+            WORD len;
+
+            data = (struct StrGData *)INST_DATA(cl, obj);
+            si = &data->strinfo;
+            len = (WORD)strlen((char *)si->Buffer);
+            si->NumChars = len;
+            if (si->UndoBuffer)
+            {
+                WORD i;
+                for (i = 0; i <= len; i++)
+                    si->UndoBuffer[i] = si->Buffer[i];
+                si->UndoPos = si->BufferPos;
+            }
+            if (gpi->gpi_IEvent)
+                si->BufferPos = _strg_pos_at(gpi->gpi_GInfo, si, gpi->gpi_Mouse.X);
+            else if (si->BufferPos > len)
+                si->BufferPos = len;
+            gadget->Flags |= GFLG_SELECTED;
+            _strg_render(gpi->gpi_GInfo, gadget);
+            return GMR_MEACTIVE;
         }
-        
+
         case GM_HANDLEINPUT:
         {
             struct gpInput *gpi = (struct gpInput *)msg;
             struct InputEvent *ie = gpi->gpi_IEvent;
-            struct StringInfo *si = (struct StringInfo *)gadget->SpecialInfo;
-            
-            if (!ie || !si || !si->Buffer)
+            struct GadgetInfo *gi = gpi->gpi_GInfo;
+
+            data = (struct StrGData *)INST_DATA(cl, obj);
+            if (!ie)
                 return GMR_MEACTIVE;
-            
-            DPRINTF(LOG_DEBUG, "_intuition: strgclass GM_HANDLEINPUT ie_Class=%d ie_Code=0x%x\n",
-                    ie->ie_Class, ie->ie_Code);
-            
-            /* Handle mouse button release */
-            if (ie->ie_Class == IECLASS_RAWMOUSE)
+            if (ie->ie_Class == IECLASS_RAWMOUSE && ie->ie_Code == SELECTDOWN)
             {
-                if (ie->ie_Code == (IECODE_LBUTTON | IECODE_UP_PREFIX))
+                if (!_gc_inside(gpi, gadget))
                 {
-                    /* Click - don't deactivate, stay active for editing */
-                    return GMR_MEACTIVE;
+                    _strg_leave(cl, obj, gi);
+                    return GMR_REUSE;
                 }
+                data->strinfo.BufferPos = _strg_pos_at(gi, &data->strinfo, gpi->gpi_Mouse.X);
+                _strg_render(gi, gadget);
+                return GMR_MEACTIVE;
             }
-            
-            /* Handle keyboard input */
-            if (ie->ie_Class == IECLASS_RAWKEY)
+            if (ie->ie_Class == IECLASS_RAWKEY && !(ie->ie_Code & IECODE_UP_PREFIX))
             {
                 UWORD code = ie->ie_Code;
-                BOOL isUpKey = (code & IECODE_UP_PREFIX) != 0;
-                
-                if (isUpKey)
+                if (code == 0x44 || code == 0x43)       /* Return, Enter */
                 {
-                    /* Key release - ignore */
-                    return GMR_MEACTIVE;
+                    _strg_leave(cl, obj, gi);
+                    if (gpi->gpi_Termination)
+                        *gpi->gpi_Termination = 0;
+                    return GMR_NOREUSE | GMR_VERIFY;
                 }
-                
-                code &= ~IECODE_UP_PREFIX;
-                
-                /* Check for special keys */
-                switch (code)
+                if (code == 0x45)                       /* Esc */
                 {
-                    case 0x44: /* Return key */
-                        if (gpi->gpi_Termination)
-                            *gpi->gpi_Termination = gadget->GadgetID;
-                        gadget->Flags &= ~GFLG_SELECTED;
-                        return GMR_NOREUSE | GMR_VERIFY;
-                        
-                    case 0x45: /* Escape key */
-                        gadget->Flags &= ~GFLG_SELECTED;
-                        return GMR_NOREUSE;
-                        
-                    case 0x41: /* Backspace */
-                        if (si->BufferPos > 0 && si->NumChars > 0)
-                        {
-                            WORD i;
-                            for (i = si->BufferPos - 1; i < si->NumChars - 1; i++)
-                            {
-                                si->Buffer[i] = si->Buffer[i + 1];
-                            }
-                            si->Buffer[si->NumChars - 1] = '\0';
-                            si->BufferPos--;
-                            si->NumChars--;
-                        }
-                        return GMR_MEACTIVE;
-                        
-                    case 0x46: /* Delete */
-                        if (si->BufferPos < si->NumChars)
-                        {
-                            WORD i;
-                            for (i = si->BufferPos; i < si->NumChars - 1; i++)
-                            {
-                                si->Buffer[i] = si->Buffer[i + 1];
-                            }
-                            si->Buffer[si->NumChars - 1] = '\0';
-                            si->NumChars--;
-                        }
-                        return GMR_MEACTIVE;
-                        
-                    case 0x4F: /* Cursor Left */
-                        if (si->BufferPos > 0)
-                            si->BufferPos--;
-                        return GMR_MEACTIVE;
-                        
-                    case 0x4E: /* Cursor Right */
-                        if (si->BufferPos < si->NumChars)
-                            si->BufferPos++;
-                        return GMR_MEACTIVE;
-                        
-                    default:
-                        break;
+                    _strg_leave(cl, obj, gi);
+                    return GMR_NOREUSE;
                 }
-                
-                /* Try to convert the raw key to ASCII */
+                if (code == 0x42 && (gadget->Flags & GFLG_TABCYCLE))
                 {
-                    UBYTE ch = 0;
-                    
-                    if (code >= 0x00 && code <= 0x09)
-                    {
-                        static const UBYTE numRow[] = "1234567890";
-                        static const UBYTE numRowShift[] = "!@#$%^&*()";
-                        if (ie->ie_Qualifier & (IEQUALIFIER_LSHIFT | IEQUALIFIER_RSHIFT))
-                            ch = numRowShift[code];
-                        else
-                            ch = numRow[code];
-                    }
-                    else if (code >= 0x10 && code <= 0x19)
-                    {
-                        static const UBYTE qRow[] = "qwertyuiop";
-                        ch = qRow[code - 0x10];
-                        if (ie->ie_Qualifier & (IEQUALIFIER_LSHIFT | IEQUALIFIER_RSHIFT | IEQUALIFIER_CAPSLOCK))
-                            ch = ch - 'a' + 'A';
-                    }
-                    else if (code >= 0x20 && code <= 0x28)
-                    {
-                        static const UBYTE aRow[] = "asdfghjkl";
-                        ch = aRow[code - 0x20];
-                        if (ie->ie_Qualifier & (IEQUALIFIER_LSHIFT | IEQUALIFIER_RSHIFT | IEQUALIFIER_CAPSLOCK))
-                            ch = ch - 'a' + 'A';
-                    }
-                    else if (code >= 0x31 && code <= 0x39)
-                    {
-                        static const UBYTE zRow[] = "zxcvbnm,.";
-                        ch = zRow[code - 0x31];
-                        if (ie->ie_Qualifier & (IEQUALIFIER_LSHIFT | IEQUALIFIER_RSHIFT | IEQUALIFIER_CAPSLOCK))
-                            ch = ch - 'a' + 'A';
-                    }
-                    else if (code == 0x40)
-                    {
-                        ch = ' ';
-                    }
-                    else if (code == 0x0A)
-                    {
-                        ch = (ie->ie_Qualifier & (IEQUALIFIER_LSHIFT | IEQUALIFIER_RSHIFT)) ? '_' : '-';
-                    }
-                    else if (code == 0x0B)
-                    {
-                        ch = (ie->ie_Qualifier & (IEQUALIFIER_LSHIFT | IEQUALIFIER_RSHIFT)) ? '+' : '=';
-                    }
-                    
-                    /* Insert character if we got one */
-                    if (ch != 0 && si->NumChars < si->MaxChars - 1)
-                    {
-                        WORD i;
-                        for (i = si->NumChars; i > si->BufferPos; i--)
-                        {
-                            si->Buffer[i] = si->Buffer[i - 1];
-                        }
-                        si->Buffer[si->BufferPos] = ch;
-                        si->BufferPos++;
-                        si->NumChars++;
-                        si->Buffer[si->NumChars] = '\0';
-                    }
+                    _strg_leave(cl, obj, gi);
+                    if (gpi->gpi_Termination)
+                        *gpi->gpi_Termination = 0x09;
+                    return GMR_NOREUSE | GMR_VERIFY |
+                           ((ie->ie_Qualifier & (IEQUALIFIER_LSHIFT | IEQUALIFIER_RSHIFT)) ?
+                            GMR_PREVACTIVE : GMR_NEXTACTIVE);
+                }
+                if (gi && gi->gi_Window && code != 0x42)
+                {
+                    UWORD type = gadget->GadgetType;
+                    gadget->GadgetType = (type & ~GTYP_GTYPEMASK) | GTYP_STRGADGET;
+                    _handle_string_gadget_key(gadget, gi->gi_Window, code, ie->ie_Qualifier);
+                    gadget->GadgetType = type;
                 }
             }
-            
             return GMR_MEACTIVE;
         }
-        
+
         case GM_GOINACTIVE:
+            _strg_leave(cl, obj, ((struct gpGoInactive *)msg)->gpgi_GInfo);
+            return 0;
+    }
+
+    return DSUPER(cl, obj, msg);
+}
+
+/*
+ * groupgclass: a gadget that owns member gadgets (OM_ADDMEMBER).  A member
+ * moves by the group's position when it is added and whenever the group
+ * moves; the group's box grows to hold its members.  The group draws its
+ * members and passes input on to the member under the pointer.
+ */
+struct GroupGData
+{
+    struct MinList members;
+    struct Gadget *active;      /* member that has the input */
+};
+
+static void _groupg_send(struct GroupGData *d, Msg msg)
+{
+    Object *ostate = (Object *)d->members.mlh_Head;
+    Object *member;
+
+    while ((member = (Object *)_intuition_NextObject(IntuitionBase, &ostate)))
+        _intuition_dispatch_method(OCLASS(member), member, msg);
+}
+
+/* the pointer relative to a member instead of the group */
+static void _groupg_mouse(struct Gadget *group, struct Gadget *m, struct gpInput *in, struct gpInput *out)
+{
+    *out = *in;
+    out->gpi_Mouse.X = in->gpi_Mouse.X + group->LeftEdge - m->LeftEdge;
+    out->gpi_Mouse.Y = in->gpi_Mouse.Y + group->TopEdge - m->TopEdge;
+}
+
+static ULONG groupgclass_dispatch(
+    register struct IClass *cl __asm("a0"),
+    register Object *obj __asm("a2"),
+    register Msg msg __asm("a1"))
+{
+    struct Gadget *gadget = (struct Gadget *)obj;
+    struct GroupGData *data;
+
+    switch (msg->MethodID)
+    {
+        case OM_NEW:
         {
-            /* Send notification when gadget goes inactive */
-            struct StrGData *data = (struct StrGData *)INST_DATA(cl, obj);
-            struct gpGoInactive *gpgi = (struct gpGoInactive *)msg;
-            
-            /* Update LongInt if integer mode */
-            if (gadget->Activation & GACT_LONGINT)
+            struct opSet *ops = (struct opSet *)msg;
+
+            obj = (Object *)DSUPER(cl, obj, msg);
+            if (!obj)
+                return 0;
+            gadget = (struct Gadget *)obj;
+            data = (struct GroupGData *)INST_DATA(cl, obj);
+            NewList((struct List *)&data->members);
+            data->active = NULL;
+            if (!FindTagItem(GA_Width, ops->ops_AttrList) && !FindTagItem(GA_RelWidth, ops->ops_AttrList))
+                gadget->Width = 0;
+            if (!FindTagItem(GA_Height, ops->ops_AttrList) && !FindTagItem(GA_RelHeight, ops->ops_AttrList))
+                gadget->Height = 0;
+            return (ULONG)obj;
+        }
+
+        case OM_DISPOSE:
+        {
+            Object *ostate, *member;
+            data = (struct GroupGData *)INST_DATA(cl, obj);
+            ostate = (Object *)data->members.mlh_Head;
+            while ((member = (Object *)_intuition_NextObject(IntuitionBase, &ostate)))
             {
-                /* Parse the buffer as a number */
-                LONG val = 0;
-                BOOL negative = FALSE;
-                UBYTE *p = data->strinfo.Buffer;
-                
-                if (*p == '-')
+                struct Msg_dummy { ULONG MethodID; } m = { OM_REMOVE };
+                _intuition_dispatch_method(OCLASS(member), member, (Msg)&m);
+                _intuition_DisposeObject(IntuitionBase, member);
+            }
+            return DSUPER(cl, obj, msg);
+        }
+
+        case OM_ADDMEMBER:
+        {
+            struct opMember *opm = (struct opMember *)msg;
+            struct Gadget *m = (struct Gadget *)opm->opam_Object;
+            struct { ULONG MethodID; struct List *list; } add;
+            WORD r, b;
+
+            if (!m)
+                return 0;
+            data = (struct GroupGData *)INST_DATA(cl, obj);
+            m->LeftEdge += gadget->LeftEdge;
+            m->TopEdge += gadget->TopEdge;
+            add.MethodID = OM_ADDTAIL;
+            add.list = (struct List *)&data->members;
+            _intuition_dispatch_method(OCLASS((Object *)m), (Object *)m, (Msg)&add);
+            r = m->LeftEdge + m->Width - gadget->LeftEdge;
+            b = m->TopEdge + m->Height - gadget->TopEdge;
+            if (r > gadget->Width)
+                gadget->Width = r;
+            if (b > gadget->Height)
+                gadget->Height = b;
+            return 1;
+        }
+
+        case OM_REMMEMBER:
+        {
+            struct opMember *opm = (struct opMember *)msg;
+            struct Msg_dummy { ULONG MethodID; } m = { OM_REMOVE };
+            data = (struct GroupGData *)INST_DATA(cl, obj);
+            if (!opm->opam_Object)
+                return 0;
+            if (data->active == (struct Gadget *)opm->opam_Object)
+                data->active = NULL;
+            return _intuition_dispatch_method(OCLASS(opm->opam_Object), opm->opam_Object, (Msg)&m);
+        }
+
+        case OM_SET:
+        case OM_UPDATE:
+        {
+            WORD ox = gadget->LeftEdge, oy = gadget->TopEdge;
+            ULONG r = DSUPER(cl, obj, msg);
+            WORD dx = gadget->LeftEdge - ox, dy = gadget->TopEdge - oy;
+
+            if (dx || dy)
+            {
+                Object *ostate, *member;
+                data = (struct GroupGData *)INST_DATA(cl, obj);
+                ostate = (Object *)data->members.mlh_Head;
+                while ((member = (Object *)_intuition_NextObject(IntuitionBase, &ostate)))
                 {
-                    negative = TRUE;
-                    p++;
+                    ((struct Gadget *)member)->LeftEdge += dx;
+                    ((struct Gadget *)member)->TopEdge += dy;
                 }
-                while (*p >= '0' && *p <= '9')
+            }
+            return r;
+        }
+
+        case GM_RENDER:
+            data = (struct GroupGData *)INST_DATA(cl, obj);
+            _groupg_send(data, msg);
+            return 0;
+
+        case GM_HITTEST:
+        {
+            struct gpHitTest *ht = (struct gpHitTest *)msg;
+            Object *ostate, *member;
+            data = (struct GroupGData *)INST_DATA(cl, obj);
+            ostate = (Object *)data->members.mlh_Head;
+            while ((member = (Object *)_intuition_NextObject(IntuitionBase, &ostate)))
+            {
+                struct Gadget *m = (struct Gadget *)member;
+                struct gpHitTest mht = *ht;
+                mht.gpht_Mouse.X = ht->gpht_Mouse.X + gadget->LeftEdge - m->LeftEdge;
+                mht.gpht_Mouse.Y = ht->gpht_Mouse.Y + gadget->TopEdge - m->TopEdge;
+                if (mht.gpht_Mouse.X < 0 || mht.gpht_Mouse.Y < 0 ||
+                    mht.gpht_Mouse.X >= m->Width || mht.gpht_Mouse.Y >= m->Height ||
+                    (m->Flags & GFLG_DISABLED))
+                    continue;
+                if (_intuition_dispatch_method(OCLASS(member), member, (Msg)&mht) == GMR_GADGETHIT)
                 {
-                    val = val * 10 + (*p - '0');
-                    p++;
+                    data->active = m;
+                    return GMR_GADGETHIT;
                 }
-                if (negative)
-                    val = -val;
-                data->strinfo.LongInt = val;
-                data->longval = val;
             }
-            
-            /* Send OM_NOTIFY to superclass */
-            struct TagItem notifyattrs[3];
-            
-            if (gadget->Activation & GACT_LONGINT)
-            {
-                notifyattrs[0].ti_Tag = STRINGA_LongVal;
-                notifyattrs[0].ti_Data = (ULONG)data->strinfo.LongInt;
-            }
-            else
-            {
-                notifyattrs[0].ti_Tag = STRINGA_TextVal;
-                notifyattrs[0].ti_Data = (ULONG)data->strinfo.Buffer;
-            }
-            notifyattrs[1].ti_Tag = GA_ID;
-            notifyattrs[1].ti_Data = gadget->GadgetID;
-            notifyattrs[2].ti_Tag = TAG_END;
-            
-            struct opUpdate notifymsg;
-            notifymsg.MethodID = OM_NOTIFY;
-            notifymsg.opu_AttrList = notifyattrs;
-            notifymsg.opu_GInfo = gpgi->gpgi_GInfo;
-            notifymsg.opu_Flags = 0; /* final */
-            
-            struct IClass *super = cl->cl_Super;
-            if (super && super->cl_Dispatcher.h_Entry)
-            {
-                typedef ULONG (*DispatchEntry)(register struct IClass *cl __asm("a0"),
-                                                register Object *obj __asm("a2"),
-                                                register Msg msg __asm("a1"));
-                DispatchEntry entry = (DispatchEntry)super->cl_Dispatcher.h_Entry;
-                entry(super, obj, (Msg)&notifymsg);
-            }
-            
+            data->active = NULL;
             return 0;
         }
-    }
-    
-    /* Call superclass */
-    {
-        struct IClass *super = cl->cl_Super;
-        if (super && super->cl_Dispatcher.h_Entry)
+
+        case GM_GOACTIVE:
+        case GM_HANDLEINPUT:
         {
-            typedef ULONG (*DispatchEntry)(register struct IClass *cl __asm("a0"),
-                                            register Object *obj __asm("a2"),
-                                            register Msg msg __asm("a1"));
-            DispatchEntry entry = (DispatchEntry)super->cl_Dispatcher.h_Entry;
-            return entry(super, obj, msg);
+            struct gpInput mi;
+            ULONG r;
+            data = (struct GroupGData *)INST_DATA(cl, obj);
+            if (!data->active)
+                return GMR_NOREUSE;
+            _groupg_mouse(gadget, data->active, (struct gpInput *)msg, &mi);
+            r = _intuition_dispatch_method(OCLASS((Object *)data->active), (Object *)data->active, (Msg)&mi);
+            if (r & (GMR_NOREUSE | GMR_REUSE | GMR_NEXTACTIVE | GMR_PREVACTIVE))
+            {
+                struct gpGoInactive gi;
+                gi.MethodID = GM_GOINACTIVE;
+                gi.gpgi_GInfo = mi.gpi_GInfo;
+                gi.gpgi_Abort = 0;
+                _intuition_dispatch_method(OCLASS((Object *)data->active), (Object *)data->active, (Msg)&gi);
+                data->active = NULL;
+            }
+            return r;
         }
+
+        case GM_GOINACTIVE:
+            data = (struct GroupGData *)INST_DATA(cl, obj);
+            if (data->active)
+            {
+                _intuition_dispatch_method(OCLASS((Object *)data->active), (Object *)data->active, msg);
+                data->active = NULL;
+            }
+            return 0;
     }
-    
-    return 0;
+
+    return DSUPER(cl, obj, msg);
 }
 
 // libBase: IntuitionBase
 // baseType: struct IntuitionBase *
 // libname: intuition.library
+
+/* a public class of intuition.library (in the ClassList) */
+static struct IClass *_intuition_make_public_class(struct LXAIntuitionBase *base, const char *name,
+                                                   struct IClass *super, ULONG (*dispatch)(),
+                                                   ULONG instsize)
+{
+    struct IClass *cl;
+    struct LXAClassNode *node;
+    UBYTE *id;
+
+    if (!super)
+        return NULL;
+    cl = AllocMem(sizeof(struct IClass) + strlen(name) + 1, MEMF_PUBLIC | MEMF_CLEAR);
+    if (!cl)
+        return NULL;
+    id = (UBYTE *)(cl + 1);
+    strcpy((char *)id, name);
+    cl->cl_ID = (ClassID)id;
+    cl->cl_Super = super;
+    cl->cl_Dispatcher.h_Entry = dispatch;
+    cl->cl_InstOffset = super->cl_InstOffset + super->cl_InstSize;
+    cl->cl_InstSize = instsize;
+    super->cl_SubclassCount++;
+    node = AllocMem(sizeof(struct LXAClassNode), MEMF_PUBLIC | MEMF_CLEAR);
+    if (node)
+    {
+        node->class_ptr = cl;
+        node->node.ln_Type = NT_UNKNOWN;
+        node->node.ln_Name = (char *)id;
+        AddTail(&base->ClassList, &node->node);
+        cl->cl_Flags |= CLF_INLIST;
+    }
+    return cl;
+}
 
 struct IntuitionBase * __g_lxa_intuition_InitLib    ( register struct IntuitionBase *intuitionb    __asm("d0"),
                                                       register BPTR               seglist __asm("a0"),
@@ -3936,7 +4040,7 @@ struct IntuitionBase * __g_lxa_intuition_InitLib    ( register struct IntuitionB
         gadgetclass->cl_Dispatcher.h_SubEntry = NULL;
         gadgetclass->cl_Reserved = 0;
         gadgetclass->cl_InstOffset = base->RootClass->cl_InstOffset + base->RootClass->cl_InstSize;
-        gadgetclass->cl_InstSize = sizeof(struct Gadget) + sizeof(struct ICData);
+        gadgetclass->cl_InstSize = sizeof(struct ExtGadget) + sizeof(struct ICData);
         
         base->RootClass->cl_SubclassCount++;
         
@@ -4061,6 +4165,29 @@ struct IntuitionBase * __g_lxa_intuition_InitLib    ( register struct IntuitionB
         DPRINTF(LOG_DEBUG, "_intuition: strgclass created at 0x%08lx\n", (ULONG)strgclass);
     } else {
         DPRINTF(LOG_ERROR, "_intuition: Failed to allocate strgclass!\n");
+    }
+
+    _intuition_make_public_class(base, "itexticlass", base->ImageClass,
+                                 (ULONG (*)())lxa_itexticlass_dispatch, 0);
+    _intuition_make_public_class(base, "pointerclass", base->RootClass,
+                                 (ULONG (*)())lxa_pointerclass_dispatch, lxa_pointerclass_instsize);
+    _intuition_make_public_class(base, "frbuttonclass", base->ButtonGClass,
+                                 (ULONG (*)())frbuttonclass_dispatch, sizeof(struct FrButtonData));
+    _intuition_make_public_class(base, "groupgclass", base->GadgetClass,
+                                 (ULONG (*)())groupgclass_dispatch, sizeof(struct GroupGData));
+    /* the system requesters' body image (private, not in the ClassList) */
+    if (base->ImageClass)
+    {
+        struct IClass *cl = AllocMem(sizeof(struct IClass), MEMF_PUBLIC | MEMF_CLEAR);
+        if (cl)
+        {
+            cl->cl_Super = base->ImageClass;
+            cl->cl_Dispatcher.h_Entry = (ULONG (*)())sysreqbody_dispatch;
+            cl->cl_InstOffset = base->ImageClass->cl_InstOffset + base->ImageClass->cl_InstSize;
+            cl->cl_InstSize = sizeof(struct EasyReqData *);
+            base->ImageClass->cl_SubclassCount++;
+            base->SysReqBodyClass = cl;
+        }
     }
 
     return intuitionb;
@@ -4233,8 +4360,14 @@ static VOID _intuition_handle_mouse_button_event(struct IntuitionBase *Intuition
     DPRINTF(LOG_DEBUG, "_intuition: MouseButton code=0x%02x qual=0x%04x at (%d,%d)\n",
             code, qualifier, mouseX, mouseY);
 
+    /* an active BOOPSI gadget gets every button (GM_HANDLEINPUT) */
+    if (g_cg_gad && _cg_handleinput(&input_event, mouseX, mouseY))
+        return;
+
     if (!window)
         return;
+
+    BOOL gadgetUsed = FALSE;    /* gadget clicks are no IDCMP_MOUSEBUTTONS */
 
     {
         WORD relX = mouseX - window->LeftEdge;
@@ -4255,6 +4388,12 @@ static VOID _intuition_handle_mouse_button_event(struct IntuitionBase *Intuition
                     relX, relY, (ULONG)gad, (ULONG)window->FirstGadget,
                     gad ? gad->GadgetType : 0xFFFF);
             if (gad)
+                gadgetUsed = TRUE;
+            if (gad && _cg_goactive(window, NULL, gad, &input_event, mouseX, mouseY))
+            {
+                /* a BOOPSI custom gadget handles the click itself */
+            }
+            else if (gad)
             {
                 DPRINTF(LOG_DEBUG, "_intuition: SELECTDOWN on gadget type=0x%04x\n",
                         gad->GadgetType);
@@ -4348,6 +4487,7 @@ static VOID _intuition_handle_mouse_button_event(struct IntuitionBase *Intuition
         {
             if (g_active_gadget && g_active_window)
             {
+                gadgetUsed = TRUE;
                 struct Gadget *gad = g_active_gadget;
                 struct Window *activeWin = g_active_window;
                 WORD activeRelX = mouseX - activeWin->LeftEdge;
@@ -4577,6 +4717,7 @@ static VOID _intuition_handle_mouse_button_event(struct IntuitionBase *Intuition
             }
         }
 
+        if (!gadgetUsed)
         {
             WORD btnMsgX, btnMsgY;
             _compute_idcmp_mouse_coords(window, IDCMP_MOUSEBUTTONS, mouseX, mouseY, &btnMsgX, &btnMsgY);
@@ -4734,6 +4875,14 @@ static VOID _intuition_handle_pointerpos_event(struct IntuitionBase *IntuitionBa
     if (dispatch_input_device)
         _input_device_dispatch_event(&input_event);
 
+    if (g_cg_gad)
+    {
+        struct InputEvent move = input_event;
+        move.ie_Class = IECLASS_RAWMOUSE;
+        move.ie_Code = IECODE_NOBUTTON;
+        _cg_handleinput(&move, mouseX, mouseY);
+    }
+
     if (g_menu_mode && g_menu_window && screen)
         _menu_track_pointer(screen, mouseX, mouseY);
 
@@ -4845,6 +4994,10 @@ static VOID _intuition_handle_rawkey_event(struct IntuitionBase *IntuitionBase,
     if (dispatch_input_device)
         _input_device_dispatch_event(&input_event);
     _keyboard_device_record_event(rawkey, qualifier);
+
+    /* an active BOOPSI gadget gets every key (GM_HANDLEINPUT) */
+    if (g_cg_gad && _cg_handleinput(&input_event, mouseX, mouseY))
+        return;
 
     if (g_active_gadget && g_active_window &&
         (g_active_gadget->GadgetType & GTYP_GTYPEMASK) == GTYP_STRGADGET)
@@ -6052,8 +6205,10 @@ static struct Gadget *_find_gadget_at_pos_in_list(struct Window *window,
                 (int)gx0, (int)gy0, (int)(gx0 + width), (int)(gy0 + height),
                 relX, relY);
         
-        /* Check if point is inside gadget bounds */
-        if (relX >= gx0 && relX < gx0 + width && relY >= gy0 && relY < gy0 + height)
+        /* Check if point is inside gadget bounds; a custom gadget decides
+         * itself with GM_HITTEST (AmigaOS 3.1) */
+        if (relX >= gx0 && relX < gx0 + width && relY >= gy0 && relY < gy0 + height &&
+            _cg_hit(window, gad, relX, relY))
         {
             DPRINTF(LOG_DEBUG, "_intuition: _find_gadget_at_pos() hit gadget type=0x%04x at (%d,%d)\n",
                     gad->GadgetType, (int)relX, (int)relY);
@@ -6368,6 +6523,7 @@ static VOID _intuition_clear_window_runtime_state(struct Window *window)
         g_active_gadget = NULL;
         g_prop_click_offset = 0;
     }
+    _cg_abort_window(window);
 
     if (g_drag_window == window)
     {
@@ -6805,12 +6961,6 @@ static void _menu_pens(struct Window *window, UWORD *pens)
     }
 }
 
-/* the classic look box has 8 more pixels of padding on the right */
-static WORD _menu_extra_right(struct Window *window)
-{
-    return (window && !(window->Flags & WFLG_NEWLOOKMENUS)) ? 8 : 0;
-}
-
 static void _menu_item_origin(struct Screen *screen, struct Menu *menu, WORD *ox, WORD *oy)
 {
     *ox = menu->LeftEdge + 1 + screen->MenuHBorder;
@@ -6942,7 +7092,7 @@ static BOOL _get_menu_submenu_box(struct Window *window,
     if (!_get_menu_submenu_origin(window, menu, item, &ox, &oy))
         return FALSE;
 
-    _get_menu_item_chain_box(window->WScreen, item->SubItem, ox, oy, _menu_extra_right(window),
+    _get_menu_item_chain_box(window->WScreen, item->SubItem, ox, oy, 0,
                              boxX, boxY, boxWidth, boxHeight);
     return TRUE;
 }
@@ -7137,8 +7287,8 @@ static void _render_screen_title_bar(struct Screen *screen)
         if (fit > 0)
             Text(rp, (STRPTR)screen->Title, fit);
     }
-    lxa_sysi_draw(rp, SDEPTHIMAGE, _screen_sysi_size(screen), screen->Width - dw, 0,
-                  IDS_NORMAL, pens);
+    lxa_sysi_draw_h(rp, SDEPTHIMAGE, _screen_sysi_size(screen), screen->Width - dw, 0,
+                    screen->BarHeight + 1, IDS_NORMAL, pens);
     SetAPen(rp, oldpen);
     SetDrMd(rp, olddm);
 
@@ -7227,7 +7377,7 @@ static void _save_dropdown_for_menu(struct Window *window, struct Menu *menu)
 
     screen = window->WScreen;
     _menu_item_origin(screen, menu, &ox, &oy);
-    _get_menu_item_chain_box(screen, menu->FirstItem, ox, oy, _menu_extra_right(window),
+    _get_menu_item_chain_box(screen, menu->FirstItem, ox, oy, 0,
                              &bx, &by, &bw, &bh);
     saveRight = bx + bw;
     saveBottom = by + bh;
@@ -7254,7 +7404,7 @@ static void _render_menu_item_chain(struct Screen *screen, struct RastPort *rp,
 {
     struct MenuItem *item;
     UWORD pens[NUMDRIPENS + 1];
-    WORD bx, by, bw, bh, extra = _menu_extra_right(window);
+    WORD bx, by, bw, bh, extra = 0;
     UBYTE oldpen, olddm;
 
     if (!rp || !firstItem || !window)
@@ -7311,18 +7461,27 @@ static void _render_menu_item_chain(struct Screen *screen, struct RastPort *rp,
             if (cm)
                 _intuition_DrawImage(IntuitionBase, rp, cm, ix, iy + 1);
             else
-                lxa_sysi_draw(rp, MENUCHECK, SYSISIZE_MEDRES, ix, iy + 1, IDS_NORMAL, pens);
+            {
+                /* scaled for the screen font (probe intuition/sysiscaled) */
+                UWORD mw = 15, mh = 8;
+                lxa_sysi_menu_size(MENUCHECK, screen->RastPort.Font, &mw, &mh);
+                /* one row below the item top, like the text (3.1
+                 * reference: topaz 8 and topaz 11 menus) */
+                lxa_sysi_menu_draw(rp, MENUCHECK, mw, mh, ix, iy + 1, pens);
+            }
         }
 
         if (item->Flags & COMMSEQ)
         {
             UBYTE c = (UBYTE)item->Command;
             WORD cw = TextLength(rp, (STRPTR)&c, 1);
-            UWORD aw = 23;
+            UWORD aw = 23, ah = 8;
             WORD cx = ix + item->Width - cw;
 
-            lxa_sysi_dims(AMIGAKEY, SYSISIZE_MEDRES, &aw, NULL);
-            lxa_sysi_draw(rp, AMIGAKEY, SYSISIZE_MEDRES, cx - aw - 4, iy + 1, IDS_NORMAL, pens);
+            /* scaled for the screen font (probe intuition/sysiscaled) */
+            lxa_sysi_menu_size(AMIGAKEY, screen->RastPort.Font, &aw, &ah);
+            /* vertically centred in the item (rounded up; 3.1 reference) */
+            lxa_sysi_menu_draw(rp, AMIGAKEY, aw, ah, cx - aw - 4, iy + (item->Height - (WORD)ah + 1) / 2, pens);
             SetAPen(rp, pens[BARDETAILPEN]);
             SetDrMd(rp, JAM1);
             /* 3.1 reference: the key ends 2 px inside the item, 2 px
@@ -8273,6 +8432,256 @@ static BOOL _post_idcmp_message(struct Window *window, ULONG class, UWORD code,
  */
 /* Prevent re-entry to event processing (e.g., VBlank firing during WaitTOF) */
 
+/*
+ * BOOPSI custom gadget input (Phase 252), as Intuition V39 drives it
+ * (scenario interactive/custgad_input, AmigaOS 3.1):
+ *  - the gadget under a SELECTDOWN is found with GM_HITTEST (mouse relative
+ *    to the gadget box), then gets GM_GOACTIVE with that event; a
+ *    GACT_IMMEDIATE gadget posts IDCMP_GADGETDOWN;
+ *  - while it is active every mouse, key and timer event goes to it as
+ *    GM_HANDLEINPUT; the window sees none of them;
+ *  - GMR_NOREUSE/GMR_REUSE/GMR_NEXTACTIVE/GMR_PREVACTIVE end it with
+ *    GM_GOINACTIVE (gpgi_Abort 0); GMR_VERIFY posts IDCMP_GADGETUP with the
+ *    termination code for a GACT_RELVERIFY gadget; GMR_REUSE hands the
+ *    event on as if no gadget had been active; GMR_NEXTACTIVE and
+ *    GMR_PREVACTIVE activate the next/previous GFLG_TABCYCLE gadget;
+ *  - Intuition sends no GM_RENDER around activation;
+ *  - the termination code lives on between sessions: classes that do not
+ *    set it leave the code of an earlier gadget in GADGETUP.
+ */
+static struct Window *g_cg_win;
+static struct Requester *g_cg_req;
+static ULONG g_cg_term;
+
+static BOOL _cg_wants_input(struct Gadget *gad)
+{
+    struct Hook *h;
+
+    if (!gad || (gad->GadgetType & GTYP_GTYPEMASK) != GTYP_CUSTOMGADGET)
+        return FALSE;
+    /* the window and screen chrome is lxa's own (sysiclass images) */
+    if (gad->GadgetType & GTYP_SYSGADGET)
+        return FALSE;
+    if (_gadtools_IsGadTools(gad))
+        return FALSE;
+    h = (struct Hook *)gad->MutualExclude;
+    if (h)
+        return h->h_Entry != NULL;
+    return OCLASS((Object *)gad) != NULL;
+}
+
+static void _cg_ginfo(struct Window *window, struct Requester *req, struct GadgetInfo *gi)
+{
+    memset(gi, 0, sizeof(*gi));
+    gi->gi_Screen = window->WScreen;
+    gi->gi_Window = window;
+    gi->gi_Requester = req;
+    gi->gi_RastPort = window->RPort;
+    gi->gi_Layer = window->WLayer;
+    _intuition_gadget_domain(window, &gi->gi_Domain);
+    gi->gi_Pens.DetailPen = window->DetailPen;
+    gi->gi_Pens.BlockPen = window->BlockPen;
+    gi->gi_DrInfo = _intuition_GetScreenDrawInfo(IntuitionBase, window->WScreen);
+}
+
+static void _cg_ginfo_free(struct GadgetInfo *gi)
+{
+    if (gi->gi_DrInfo)
+        _intuition_FreeScreenDrawInfo(IntuitionBase, gi->gi_Screen, gi->gi_DrInfo);
+}
+
+/* the pointer relative to the gadget's box */
+static void _cg_mouse(struct Window *window, struct Requester *req, struct Gadget *gad,
+                      WORD mouseX, WORD mouseY, WORD *x, WORD *y)
+{
+    LONG l, t, w, h;
+
+    _calculate_gadget_box(window, req, gad, &l, &t, &w, &h);
+    *x = (WORD)(mouseX - window->LeftEdge - l);
+    *y = (WORD)(mouseY - window->TopEdge - t);
+}
+
+/* GM_HITTEST for a custom gadget whose box contains the pointer
+ * (window-relative coordinates); TRUE for gadgets that are not custom */
+static BOOL _cg_hit(struct Window *window, struct Gadget *gad, WORD relX, WORD relY)
+{
+    struct GadgetInfo gi;
+    struct gpHitTest ht;
+    ULONG r = GMR_GADGETHIT;
+    WORD x, y;
+
+    if (!_cg_wants_input(gad))
+        return TRUE;
+    _cg_ginfo(window, NULL, &gi);
+    _cg_mouse(window, NULL, gad, relX + window->LeftEdge, relY + window->TopEdge, &x, &y);
+    ht.MethodID = GM_HITTEST;
+    ht.gpht_GInfo = &gi;
+    ht.gpht_Mouse.X = x;
+    ht.gpht_Mouse.Y = y;
+    _custom_gadget_call(gad, (Msg)&ht, &r);
+    _cg_ginfo_free(&gi);
+    return r == GMR_GADGETHIT;
+}
+
+static void _cg_goinactive(BOOL abort)
+{
+    struct Gadget *gad = g_cg_gad;
+    struct Window *window = g_cg_win;
+    struct GadgetInfo gi;
+    struct gpGoInactive gpgi;
+
+    if (!gad)
+        return;
+    g_cg_gad = NULL;
+    g_cg_win = NULL;
+    g_cg_req = NULL;
+    if (!window)
+        return;
+    _cg_ginfo(window, NULL, &gi);
+    gpgi.MethodID = GM_GOINACTIVE;
+    gpgi.gpgi_GInfo = &gi;
+    gpgi.gpgi_Abort = abort ? 1 : 0;
+    _custom_gadget_call(gad, (Msg)&gpgi, NULL);
+    _cg_ginfo_free(&gi);
+}
+
+/* the window or the gadget goes away while the gadget is active */
+static void _cg_abort_window(struct Window *window)
+{
+    if (g_cg_gad && (!window || g_cg_win == window))
+        _cg_goinactive(TRUE);
+}
+
+static void _cg_abort_gadget(struct Gadget *gad)
+{
+    if (g_cg_gad && g_cg_gad == gad)
+        _cg_goinactive(TRUE);
+}
+
+LONG _intuition_ActivateGadget(register struct IntuitionBase *IntuitionBase __asm("a6"),
+                               register struct Gadget *gadget __asm("a0"),
+                               register struct Window *window __asm("a1"),
+                               register struct Requester *requester __asm("a2"));
+
+/* GMR_NEXTACTIVE/GMR_PREVACTIVE: the next (previous) GFLG_TABCYCLE gadget
+ * of the window, wrapping around */
+static void _cg_tab_cycle(struct Window *window, struct Gadget *from, BOOL prev)
+{
+    struct Gadget *g, *first = NULL, *last = NULL, *before = NULL, *after = NULL;
+    BOOL seen = FALSE;
+
+    for (g = window->FirstGadget; g; g = g->NextGadget)
+    {
+        if (g == from)
+        {
+            seen = TRUE;
+            continue;
+        }
+        if (!(g->Flags & GFLG_TABCYCLE) || (g->Flags & GFLG_DISABLED))
+            continue;
+        if (!first)
+            first = g;
+        last = g;
+        if (!seen)
+            before = g;
+        else if (!after)
+            after = g;
+    }
+    g = prev ? (before ? before : last) : (after ? after : first);
+    if (g)
+        _intuition_ActivateGadget(IntuitionBase, g, window, NULL);
+}
+
+/* a GM_GOACTIVE/GM_HANDLEINPUT result: TRUE when the event is used up */
+static BOOL _cg_result(ULONG r, UWORD qualifier)
+{
+    struct Gadget *gad = g_cg_gad;
+    struct Window *window = g_cg_win;
+
+    if (!(r & (GMR_NOREUSE | GMR_REUSE | GMR_NEXTACTIVE | GMR_PREVACTIVE)))
+        return TRUE;
+    /* GADGETUP comes before GM_GOINACTIVE: a class's final notification
+     * from GM_GOINACTIVE follows it (gradientslider, interactive-gadclass_input) */
+    if (window && (r & GMR_VERIFY) && (gad->Activation & GACT_RELVERIFY))
+        _post_idcmp_message(window, IDCMP_GADGETUP, (UWORD)g_cg_term, qualifier, gad,
+                            window->MouseX, window->MouseY);
+    _cg_goinactive(FALSE);
+    if (window && (r & (GMR_NEXTACTIVE | GMR_PREVACTIVE)))
+        _cg_tab_cycle(window, gad, (r & GMR_PREVACTIVE) != 0);
+    return (r & GMR_REUSE) ? FALSE : TRUE;
+}
+
+/* SELECTDOWN on gadget gad (found by _find_gadget_at_pos, so GM_HITTEST
+ * said yes) or ActivateGadget() (ie NULL): GM_GOACTIVE.  FALSE when gad is
+ * not a custom gadget lxa should drive this way. */
+static BOOL _cg_goactive(struct Window *window, struct Requester *req, struct Gadget *gad,
+                         struct InputEvent *ie, WORD mouseX, WORD mouseY)
+{
+    struct GadgetInfo gi;
+    struct gpInput gpi;
+    ULONG r = GMR_NOREUSE;
+
+    if (!window || !_cg_wants_input(gad))
+        return FALSE;
+    if (g_cg_gad)
+        _cg_goinactive(TRUE);
+    g_cg_gad = gad;
+    g_cg_win = window;
+    g_cg_req = req;
+    /* GADGETDOWN comes before GM_GOACTIVE's notifications (colorwheel) */
+    if (ie && (gad->Activation & GACT_IMMEDIATE))
+        _post_idcmp_message(window, IDCMP_GADGETDOWN, 0, ie->ie_Qualifier, gad,
+                            mouseX - window->LeftEdge, mouseY - window->TopEdge);
+    _cg_ginfo(window, req, &gi);
+    gpi.MethodID = GM_GOACTIVE;
+    gpi.gpi_GInfo = &gi;
+    gpi.gpi_IEvent = ie;
+    gpi.gpi_Termination = (LONG *)&g_cg_term;
+    _cg_mouse(window, req, gad, mouseX, mouseY, &gpi.gpi_Mouse.X, &gpi.gpi_Mouse.Y);
+    gpi.gpi_TabletData = NULL;
+    _custom_gadget_call(gad, (Msg)&gpi, &r);
+    _cg_ginfo_free(&gi);
+    _cg_result(r, ie ? ie->ie_Qualifier : 0);
+    return TRUE;
+}
+
+/* an input event while a custom gadget is active: GM_HANDLEINPUT.  TRUE
+ * when the gadget used the event up (nothing else may see it). */
+static BOOL _cg_handleinput(struct InputEvent *ie, WORD mouseX, WORD mouseY)
+{
+    struct GadgetInfo gi;
+    struct gpInput gpi;
+    struct Gadget *gad = g_cg_gad;
+    struct Window *window = g_cg_win;
+    ULONG r = GMR_NOREUSE;
+
+    if (!gad || !window)
+        return FALSE;
+    _cg_ginfo(window, g_cg_req, &gi);
+    gpi.MethodID = GM_HANDLEINPUT;
+    gpi.gpi_GInfo = &gi;
+    gpi.gpi_IEvent = ie;
+    gpi.gpi_Termination = (LONG *)&g_cg_term;
+    _cg_mouse(window, g_cg_req, gad, mouseX, mouseY, &gpi.gpi_Mouse.X, &gpi.gpi_Mouse.Y);
+    gpi.gpi_TabletData = NULL;
+    _custom_gadget_call(gad, (Msg)&gpi, &r);
+    _cg_ginfo_free(&gi);
+    return _cg_result(r, ie->ie_Qualifier);
+}
+
+/* the 10 Hz timer event for the active custom gadget */
+static void _cg_timer(void)
+{
+    struct InputEvent ie;
+
+    if (!g_cg_gad || !IntuitionBase)
+        return;
+    memset(&ie, 0, sizeof(ie));
+    ie.ie_Class = IECLASS_TIMER;
+    ie.ie_Qualifier = g_current_qualifier;
+    _cg_handleinput(&ie, IntuitionBase->MouseX, IntuitionBase->MouseY);
+}
+
 VOID _intuition_ProcessInputEvents(struct Screen *hint_screen)
 {
     ULONG event_type;
@@ -8422,6 +8831,10 @@ VOID _intuition_ProcessInputEvents(struct Screen *hint_screen)
                     }
                 }
                 
+                /* an active BOOPSI gadget gets every button (GM_HANDLEINPUT) */
+                if (g_cg_gad && _cg_handleinput(&input_event, mouseX, mouseY))
+                    break;
+
                 DPRINTF(LOG_DEBUG, "_intuition: MouseButton code=0x%02x qual=0x%04x at (%d,%d)\n",
                         code, qualifier, mouseX, mouseY);
 
@@ -8468,6 +8881,10 @@ VOID _intuition_ProcessInputEvents(struct Screen *hint_screen)
                     _exit_menu_mode(g_menu_window, mouseX, mouseY);
                 }
                 
+                /* a button event a gadget uses is not reported as
+                 * IDCMP_MOUSEBUTTONS (AmigaOS 3.1, interactive-custgad_input) */
+                BOOL gadgetUsed = FALSE;
+
                 if (window)
                 {
                     /* Convert to window-relative coordinates */
@@ -8501,6 +8918,12 @@ VOID _intuition_ProcessInputEvents(struct Screen *hint_screen)
                             g_active_window = NULL;
                         }
                         if (gad)
+                            gadgetUsed = TRUE;
+                        if (gad && _cg_goactive(window, NULL, gad, &input_event, mouseX, mouseY))
+                        {
+                            /* a BOOPSI custom gadget handles the click itself */
+                        }
+                        else if (gad)
                         {
                             DPRINTF(LOG_DEBUG, "_intuition: SELECTDOWN on gadget type=0x%04x\n",
                                     gad->GadgetType);
@@ -8618,6 +9041,7 @@ VOID _intuition_ProcessInputEvents(struct Screen *hint_screen)
                             struct Gadget *gad = g_active_gadget;
                             struct Window *activeWin = g_active_window;
                             
+                            gadgetUsed = TRUE;
                             /* Calculate relative position in the active window */
                             WORD activeRelX = mouseX - activeWin->LeftEdge;
                             WORD activeRelY = mouseY - activeWin->TopEdge;
@@ -8891,7 +9315,7 @@ VOID _intuition_ProcessInputEvents(struct Screen *hint_screen)
                      * Per RKRM: do NOT post for RMB when menus are being
                      * activated (MENUDOWN) or released (MENUUP), unless
                      * WFLG_RMBTRAP. The menu system consumes these events. */
-                    BOOL postMouseBtn = TRUE;
+                    BOOL postMouseBtn = !gadgetUsed;
                     if ((code == MENUDOWN || code == MENUUP) &&
                         !(window && (window->Flags & WFLG_RMBTRAP)))
                     {
@@ -8930,6 +9354,16 @@ VOID _intuition_ProcessInputEvents(struct Screen *hint_screen)
                     }
                 }
                 
+                /* an active BOOPSI gadget follows the pointer (GM_HANDLEINPUT
+                 * with a RAWMOUSE IECODE_NOBUTTON event, AmigaOS 3.1) */
+                if (g_cg_gad)
+                {
+                    struct InputEvent move = input_event;
+                    move.ie_Class = IECLASS_RAWMOUSE;
+                    move.ie_Code = IECODE_NOBUTTON;
+                    _cg_handleinput(&move, mouseX, mouseY);
+                }
+
                 /* Handle menu tracking when in menu mode */
                 if (g_menu_mode && g_menu_window && screen)
                     _menu_track_pointer(screen, mouseX, mouseY);
@@ -9059,6 +9493,10 @@ VOID _intuition_ProcessInputEvents(struct Screen *hint_screen)
                         break;
                     }
                 }
+
+                /* an active BOOPSI gadget gets every key (GM_HANDLEINPUT) */
+                if (g_cg_gad && _cg_handleinput(&input_event, mouseX, mouseY))
+                    break;
 
                 /*
                  * Phase 135: Keyboard events go to the ACTIVE window, not
@@ -9269,6 +9707,8 @@ VOID _intuition_InputTaskWork(BOOL tick)
      * active window on every tick and for any window when it posts another
      * message to it.
      */
+    if (tick)
+        _cg_timer();
     if (tick)
     {
         struct Window *win = IntuitionBase->ActiveWindow;
@@ -10153,9 +10593,18 @@ static const UWORD *_intuition_screen_pens(struct Screen *screen)
     return lxa_default_pens();
 }
 
+/* the system imagery of a screen: SYSISIZE_* by resolution, plus
+ * LXA_SYSI_OLDLOOK on an old-look screen (a DrawInfo without DRIF_NEWLOOK,
+ * e.g. a custom screen opened without SA_Pens) */
 static UWORD _screen_sysi_size(struct Screen *screen)
 {
-    return (screen && !(screen->Flags & SCREENHIRES)) ? SYSISIZE_LOWRES : SYSISIZE_MEDRES;
+    UWORD size = (screen && !(screen->Flags & SCREENHIRES)) ? SYSISIZE_LOWRES : SYSISIZE_MEDRES;
+    struct PubScreenNode *pub = screen ? _intuition_find_pubscreen_by_screen(
+        (struct LXAIntuitionBase *)IntuitionBase, screen) : NULL;
+
+    if (pub && !(((struct LXAPubScreenNode *)pub)->drawInfo.dri_Flags & DRIF_NEWLOOK))
+        size |= LXA_SYSI_OLDLOOK;
+    return size;
 }
 
 static WORD _screen_font_height(struct Screen *screen)
@@ -10258,6 +10707,8 @@ static struct Gadget *_create_sys_gadget(struct Window *window, UWORD systype,
         struct TagItem tags[] = {
             { SYSIA_Which, (ULONG)which },
             { SYSIA_Size, _screen_sysi_size(window->WScreen) },
+            /* the images follow the title bar's height (probe sysiheight) */
+            { IA_Height, (ULONG)height },
             { TAG_DONE, 0 }
         };
         gad->GadgetRender = _intuition_NewObjectA(IntuitionBase, NULL, (CONST_STRPTR)SYSICLASS, tags);
@@ -10388,6 +10839,7 @@ static void _create_screen_sys_gadgets(struct Screen *screen)
         struct TagItem tags[] = {
             { SYSIA_Which, DEPTHIMAGE },
             { SYSIA_Size, size },
+            { IA_Height, (ULONG)h },
             { TAG_DONE, 0 }
         };
         depth->GadgetRender = _intuition_NewObjectA(IntuitionBase, NULL, (CONST_STRPTR)SYSICLASS, tags);
@@ -10469,15 +10921,12 @@ static void _render_sys_gadget(struct Window *window, struct Gadget *gad)
         dri.dri_Pens = (UWORD *)_intuition_screen_pens(window->WScreen);
         dri.dri_Font = window->WScreen ? window->WScreen->RastPort.Font : NULL;
         dri.dri_Depth = window->WScreen ? window->WScreen->BitMap.Depth : 2;
-        dri.dri_Flags = DRIF_NEWLOOK;
         {
-            /* old-look screens keep the built-in imagery (Phase 252) */
-            struct PubScreenNode *pub = window->WScreen ? _intuition_find_pubscreen_by_screen(
-                (struct LXAIntuitionBase *)IntuitionBase, window->WScreen) : NULL;
-            BOOL newlook = pub && (((struct LXAPubScreenNode *)pub)->drawInfo.dri_Flags & DRIF_NEWLOOK);
-
+            /* old-look screens: the old-look images (LXA_SYSI_OLDLOOK, see
+             * _screen_sysi_size()) in the screen's pre-V36 pens */
+            dri.dri_Flags = (_screen_sysi_size(window->WScreen) & LXA_SYSI_OLDLOOK) ? 0 : DRIF_NEWLOOK;
             _intuition_DrawImageState(IntuitionBase, rp, im, (WORD)x, (WORD)y,
-                                      _window_image_state(window, gad), newlook ? &dri : NULL);
+                                      _window_image_state(window, gad), &dri);
         }
     }
 }
@@ -10612,8 +11061,10 @@ static void _render_window_frame_impl(struct Window *window, UBYTE user_gadgets)
     if (window->Title && bt > 0)
     {
         /* 3.1 reference: the title starts 10 px right of the close
-         * gadget and keeps 2 px clear of the separator (gallery-chrome) */
-        WORD tx = (title_left > 1) ? title_left + 10 : 4;
+         * gadget (1 px on lores screens; probe intuition/wintitle) and
+         * keeps 2 px clear of the separator (gallery-chrome) */
+        WORD gap = ((_screen_sysi_size(window->WScreen) & ~LXA_SYSI_OLDLOOK) == SYSISIZE_LOWRES) ? 1 : 10;
+        WORD tx = (title_left > 1) ? title_left + gap : 4;
         WORD avail = title_right - tx - 1;
         WORD len = strlen((const char *)window->Title);
         WORD fit;
@@ -12414,13 +12865,14 @@ struct Window * _intuition_BuildSysRequest ( register struct IntuitionBase * Int
         if (!scr && _intuition_OpenWorkBench(IntuitionBase))
             scr = _intuition_find_workbench_screen(IntuitionBase);
         srp = scr ? &scr->RastPort : NULL;
-        WORD fh = (srp && srp->TxHeight) ? (WORD)srp->TxHeight : 8;
         WORD ew = 0, eh = 0, ml = 0x7fff, mt = 0x7fff;
 
-        /* the texts' box with the same margin on both sides */
+        /* the texts' box, each in its ITextFont (else the screen
+         * RastPort's font), with the same margin on both sides */
         for (it = bodyText; it; it = it->NextText)
         {
-            WORD tw = (it->IText && srp) ? (WORD)TextLength(srp, it->IText, (UWORD)strlen((char *)it->IText)) : 0;
+            WORD tw, fh;
+            _sysreq_itext_size(srp, it, &tw, &fh);
             if (it->LeftEdge + tw > ew)
                 ew = it->LeftEdge + tw;
             if (it->TopEdge + fh > eh)
@@ -12451,8 +12903,12 @@ struct Window * _intuition_BuildSysRequest ( register struct IntuitionBase * Int
     (void)width;
     (void)height;
     g_sysreq_layout = TRUE;
+    g_sysreq_body = bodyText;
+    g_sysreq_pos = (posText && posText->IText) ? posText : NULL;
+    g_sysreq_neg = (negText && negText->IText) ? negText : NULL;
     reqWindow = _intuition_BuildEasyRequestArgs(IntuitionBase, window, &easy, flags, NULL);
     g_sysreq_layout = FALSE;
+    g_sysreq_body = g_sysreq_pos = g_sysreq_neg = NULL;
 
     FreeMem(gad_buf, pos_len + neg_len + 2);
     FreeMem(body_buf, body_len + 1);
@@ -12520,23 +12976,29 @@ VOID _intuition_FreeSysRequest ( register struct IntuitionBase * IntuitionBase _
             window->UserData = NULL;
             /* unlink the requester's buttons, keep the system gadgets for
              * CloseWindow() */
-            if (erd->gadget_mem)
-                _intuition_RemoveGList(IntuitionBase, window,
-                                       (struct Gadget *)erd->gadget_mem,
-                                       erd->num_gadgets);
+            if (erd->first)
+            {
+                struct Gadget *g = erd->first, *next;
+                WORD n;
 
-            if (erd->gadget_mem)
-                FreeMem(erd->gadget_mem, erd->gadget_mem_size);
+                _intuition_RemoveGList(IntuitionBase, window, erd->first, erd->num_gadgets + 1);
+                for (n = 0; n < erd->num_gadgets && g; n++)
+                {
+                    next = g->NextGadget;
+                    _intuition_DisposeObject(IntuitionBase, (APTR)g);
+                    g = next;
+                }
+            }
+            if (erd->frame)
+                _intuition_DisposeObject(IntuitionBase, erd->frame);
+            if (erd->body)
+                _intuition_DisposeObject(IntuitionBase, erd->body);
             if (erd->text_mem)
                 FreeMem(erd->text_mem, erd->text_mem_size);
             if (erd->gadget_text_mem)
                 FreeMem(erd->gadget_text_mem, erd->gadget_text_mem_size);
-            if (erd->border_mem)
-                FreeMem(erd->border_mem, erd->border_mem_size);
             if (erd->itext_mem)
                 FreeMem(erd->itext_mem, erd->itext_mem_size);
-            if (erd->border_xy_mem)
-                FreeMem(erd->border_xy_mem, erd->border_xy_mem_size);
             FreeMem(erd, sizeof(struct EasyReqData));
         }
 
@@ -13557,6 +14019,17 @@ UWORD _intuition_RemoveGList ( register struct IntuitionBase * IntuitionBase __a
             remaining--;
     }
 
+    /* an active BOOPSI gadget that leaves the window is aborted */
+    {
+        struct Gadget *g;
+        for (g = gadget; g; g = g->NextGadget)
+        {
+            _cg_abort_gadget(g);
+            if (g == last)
+                break;
+        }
+    }
+
     *link = last->NextGadget;
 
     return position;
@@ -13641,6 +14114,21 @@ LONG _intuition_ActivateGadget ( register struct IntuitionBase * IntuitionBase _
 
     if (gadget_type == GTYP_CUSTOMGADGET && (gadget->Activation & GACT_ACTIVEGADGET))
         return FALSE;
+
+    /* a BOOPSI gadget becomes the active gadget with GM_GOACTIVE (no
+     * input event); another active custom gadget is aborted first */
+    if (window && _cg_wants_input(gadget))
+    {
+        if (g_active_gadget && (g_active_gadget->GadgetType & GTYP_GTYPEMASK) == GTYP_STRGADGET)
+        {
+            _string_gadget_leave(g_active_window, g_active_gadget);
+            g_active_gadget = NULL;
+            g_active_window = NULL;
+        }
+        _cg_goactive(window, requester, gadget, NULL, IntuitionBase->MouseX, IntuitionBase->MouseY);
+        return g_cg_gad == gadget;
+    }
+    _cg_abort_window(NULL);
     
     /* Per RKRM, ActivateGadget() is primarily used for string gadgets.
      * It makes the gadget the active input gadget so it receives keyboard input.
@@ -14134,57 +14622,64 @@ UWORD _intuition_PubScreenStatus ( register struct IntuitionBase * IntuitionBase
     return PSNF_PRIVATE;
 }
 
+/* ObtainGIRPort() hands out a copy of the window's (screen's) RastPort:
+ * whatever a gadget changes in it (font, pens, draw mode) stays out of
+ * the window's own RastPort (AmigaOS 3.1: Typeface's BGUI gadgets SetFont
+ * the RastPort they get, the window's RPort keeps its font). */
+#define LXA_GIRP_MAGIC 0x47495250UL     /* 'GIRP' */
+struct LXAGIRPort
+{
+    struct RastPort rp;     /* first: the RastPort is the allocation */
+    ULONG magic;
+    struct RastPort *self;
+};
+
 struct RastPort	* _intuition_ObtainGIRPort ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct GadgetInfo * gInfo __asm("a0"))
 {
-    LXA_UNIMPLEMENTED("intuition", "ObtainGIRPort", "partial: returns the shared gadget RastPort instead of a clone (Phase 256)");
+    struct RastPort *src = NULL;
+    struct LXAGIRPort *g;
 
-    /* Obtain a RastPort for rendering a gadget.
-     * Returns NULL if unsuccessful.
-     * The GadgetInfo contains screen/window/layer info.
-     */
     DPRINTF (LOG_DEBUG, "_intuition: ObtainGIRPort(gInfo=%p)\n", gInfo);
-    
+
     if (!gInfo)
         return NULL;
-    
-    /* Return the RastPort from the GadgetInfo.
-     * In a full implementation, we'd clone and lock the rastport.
-     * For now, just return the one from gInfo.
-     */
     if (gInfo->gi_RastPort)
-    {
-        /* Lock the layer if present */
-        if (gInfo->gi_Layer)
-            LockLayerRom(gInfo->gi_Layer);
-        
-        return gInfo->gi_RastPort;
-    }
-    
-    /* If no RastPort in gInfo, try to get one from window or screen */
-    if (gInfo->gi_Window && gInfo->gi_Window->RPort)
-        return gInfo->gi_Window->RPort;
-    
-    if (gInfo->gi_Screen)
-        return &gInfo->gi_Screen->RastPort;
-    
-    return NULL;
+        src = gInfo->gi_RastPort;
+    else if (gInfo->gi_Window && gInfo->gi_Window->RPort)
+        src = gInfo->gi_Window->RPort;
+    else if (gInfo->gi_Screen)
+        src = &gInfo->gi_Screen->RastPort;
+    if (!src)
+        return NULL;
+    g = (struct LXAGIRPort *)AllocMem(sizeof(*g), MEMF_PUBLIC);
+    if (!g)
+        return NULL;
+    g->magic = LXA_GIRP_MAGIC;
+    g->self = &g->rp;
+    g->rp = *src;
+    if (g->rp.Layer)
+        LockLayerRom(g->rp.Layer);
+    return &g->rp;
 }
 
 VOID _intuition_ReleaseGIRPort ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a0"))
 {
-    /* Release a RastPort obtained via ObtainGIRPort.
-     * This unlocks the layer if it was locked.
-     */
+    struct LXAGIRPort *g;
+
     DPRINTF (LOG_DEBUG, "_intuition: ReleaseGIRPort(rp=%p)\n", rp);
-    
+
     if (!rp)
         return;
-    
-    /* Unlock the layer if present */
     if (rp->Layer)
         UnlockLayerRom(rp->Layer);
+    g = (struct LXAGIRPort *)rp;
+    if (g->magic == LXA_GIRP_MAGIC && g->self == rp)
+    {
+        g->magic = 0;
+        FreeMem(g, sizeof(*g));
+    }
 }
 
 VOID _intuition_GadgetMouse ( register struct IntuitionBase * IntuitionBase __asm("a6"),
@@ -14489,6 +14984,131 @@ LONG _intuition_EasyRequestArgs ( register struct IntuitionBase * IntuitionBase 
     return result;
 }
 
+/*
+ * The system requester's body (AmigaOS 3.1, probe intuition/sysreq): the
+ * image of the empty gadget that follows the buttons draws the whole inner
+ * window - a SHINEPEN/BACKGROUNDPEN dither, the recessed text frame and
+ * the body text (in TEXTPEN, whatever pens the caller's IntuiTexts carry).
+ * The requester draws it before the buttons.
+ */
+static void _sysreq_draw_body(struct RastPort *rp, struct EasyReqData *erd, WORD dx, WORD dy)
+{
+    const UWORD *rpens = erd->pens;
+    WORD y;
+    UWORD row_pat;
+    UWORD *old_pat = rp->AreaPtrn;
+    BYTE old_sz = rp->AreaPtSz;
+    WORD box_x = erd->box_x + dx, box_y = erd->box_y + dy;
+    WORD box_w = erd->box_w, box_h = erd->box_h;
+    WORD wleft = erd->win ? erd->win->LeftEdge : 0;
+
+    /* (x + y) odd -> SHINEPEN in window coordinates; the pattern bits are
+     * aligned to bitmap columns */
+    SetAPen(rp, rpens[SHINEPEN]);
+    SetBPen(rp, rpens[BACKGROUNDPEN]);
+    SetDrMd(rp, JAM2);
+    for (y = erd->iy0 + dy; y <= erd->iy1 + dy; y++)
+    {
+        /* bit 15 of the pattern is bitmap column 0 (even) */
+        BOOL shine_even = (((wleft + dx + y - dy + 1) & 1) == 0);
+        row_pat = shine_even ? 0xAAAA : 0x5555;
+        rp->AreaPtrn = &row_pat; rp->AreaPtSz = 0;
+        RectFill(rp, erd->ix0 + dx, y, erd->ix1 + dx, y);
+    }
+    rp->AreaPtrn = old_pat; rp->AreaPtSz = old_sz;
+
+    /* recessed text frame with a BACKGROUNDPEN interior */
+    SetAPen(rp, rpens[BACKGROUNDPEN]);
+    RectFill(rp, box_x + 1, box_y + 1, box_x + box_w - 2, box_y + box_h - 2);
+    SetAPen(rp, rpens[SHADOWPEN]);
+    Move(rp, box_x, box_y + box_h - 2);
+    Draw(rp, box_x, box_y);
+    Draw(rp, box_x + box_w - 2, box_y);
+    SetAPen(rp, rpens[SHINEPEN]);
+    Move(rp, box_x + box_w - 1, box_y + 1);
+    Draw(rp, box_x + box_w - 1, box_y + box_h - 1);
+    Draw(rp, box_x + 1, box_y + box_h - 1);
+
+    if (erd->sys_body)
+    {
+        /* BuildSysRequest(): the caller's IntuiTexts at their offsets */
+        struct IntuiText *it;
+        for (it = erd->sys_body; it; it = it->NextText)
+        {
+            struct IntuiText one = *it;
+            one.FrontPen = (UBYTE)rpens[TEXTPEN];
+            one.DrawMode = JAM1;
+            one.NextText = NULL;
+            _intuition_PrintIText(IntuitionBase, rp, &one, erd->text_x + dx, erd->text_y + dy);
+        }
+        return;
+    }
+
+    SetAPen(rp, rpens[TEXTPEN]);
+    SetDrMd(rp, JAM1);
+    {
+        char *p = (char *)erd->text_mem;
+        WORD line = 0;
+        while (p && *p)
+        {
+            char *line_start = p;
+            WORD line_len = 0;
+            while (*p && *p != '\n')
+            {
+                line_len++;
+                p++;
+            }
+            if (line_len > 0)
+            {
+                Move(rp, erd->text_x + dx, erd->text_y + dy + line * (erd->char_h + 1) + rp->TxBaseline);
+                Text(rp, (STRPTR)line_start, line_len);
+            }
+            if (*p == '\n') p++;
+            line++;
+        }
+    }
+}
+
+static ULONG sysreqbody_dispatch(register struct IClass *cl __asm("a0"),
+                                 register Object *obj __asm("a2"),
+                                 register Msg msg __asm("a1"))
+{
+    switch (msg->MethodID)
+    {
+        case IM_DRAW:
+        case IM_DRAWFRAME:
+        {
+            struct impDraw *imp = (struct impDraw *)msg;
+            struct Image *im = (struct Image *)obj;
+            struct EasyReqData *erd = *(struct EasyReqData **)INST_DATA(cl, obj);
+            if (erd && imp->imp_RPort)
+                _sysreq_draw_body(imp->imp_RPort, erd,
+                                  (WORD)(imp->imp_Offset.X + im->LeftEdge - erd->ix0),
+                                  (WORD)(imp->imp_Offset.Y + im->TopEdge - erd->iy0));
+            return 0;
+        }
+    }
+    return DSUPER(cl, obj, msg);
+}
+
+/* width and height of an IntuiText (one node) in its ITextFont, else in
+ * the font of rp */
+static void _sysreq_itext_size(struct RastPort *srp, const struct IntuiText *it, WORD *w, WORD *h)
+{
+    struct RastPort rp;
+    struct TextFont *tf = it->ITextFont ? OpenFont(it->ITextFont) : NULL;
+
+    InitRastPort(&rp);
+    if (tf)
+        SetFont(&rp, tf);
+    else if (srp && srp->Font)
+        SetFont(&rp, srp->Font);
+    *w = it->IText ? (WORD)TextLength(&rp, it->IText, (UWORD)strlen((char *)it->IText)) : 0;
+    *h = rp.TxHeight ? (WORD)rp.TxHeight : 8;
+    if (tf)
+        CloseFont(tf);
+}
+
 struct Window * _intuition_BuildEasyRequestArgs ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Window * window __asm("a0"),
                                                         register const struct EasyStruct * easyStruct __asm("a1"),
@@ -14619,12 +15239,37 @@ struct Window * _intuition_BuildEasyRequestArgs ( register struct IntuitionBase 
     WORD gad_height = char_h + 6;
     WORD total_gad_width = 0;
     WORD gad_widths[10];
-    WORD gad_text_w[10];
+    WORD gad_heights[10];
+    struct IntuiText *gad_itext[10];    /* BuildSysRequest(): the caller's */
 
     for (i = 0; i < num_gadgets && i < 10; i++)
     {
-        gad_text_w[i] = (WORD)TextLength(srp, (STRPTR)gad_labels[i], (UWORD)strlen(gad_labels[i]));
-        gad_widths[i] = gad_text_w[i] + 24;
+        gad_itext[i] = NULL;
+        if (g_sysreq_layout)
+        {
+            /* the caller's pos/neg IntuiText is the label (AmigaOS 3.1,
+             * probe intuition/sysreq): the button is its text, in its
+             * ITextFont, plus 24 wide and plus 6 high */
+            if (i == 0 && num_gadgets == 2)
+                gad_itext[i] = g_sysreq_pos;
+            else
+                gad_itext[i] = g_sysreq_neg;
+        }
+        if (gad_itext[i] && gad_itext[i]->IText)
+        {
+            WORD tw, th;
+            _sysreq_itext_size(srp, gad_itext[i], &tw, &th);
+            gad_widths[i] = tw + 24;
+            gad_heights[i] = th + 6;
+        }
+        else
+        {
+            gad_itext[i] = NULL;
+            gad_widths[i] = (WORD)TextLength(srp, (STRPTR)gad_labels[i], (UWORD)strlen(gad_labels[i])) + 24;
+            gad_heights[i] = char_h + 6;
+        }
+        if (gad_heights[i] > gad_height)
+            gad_height = gad_heights[i];
         total_gad_width += gad_widths[i];
     }
 
@@ -14676,46 +15321,110 @@ struct Window * _intuition_BuildEasyRequestArgs ( register struct IntuitionBase 
         }
     }
 
-    /* ---- Step 7: Allocate gadgets, borders, and IntuiText ---- */
-    LONG gadget_alloc = num_gadgets * sizeof(struct Gadget);
-    LONG border_alloc = num_gadgets * 2 * sizeof(struct Border);
-    LONG itext_alloc = num_gadgets * sizeof(struct IntuiText);
-    LONG border_xy_alloc = num_gadgets * 2 * 10 * sizeof(SHORT);
-
-    struct Gadget *gadgets = (struct Gadget *)AllocMem(gadget_alloc, MEMF_PUBLIC | MEMF_CLEAR);
-    struct Border *borders = (struct Border *)AllocMem(border_alloc, MEMF_PUBLIC | MEMF_CLEAR);
-    struct IntuiText *itexts = (struct IntuiText *)AllocMem(itext_alloc, MEMF_PUBLIC | MEMF_CLEAR);
-    SHORT *border_xy = (SHORT *)AllocMem(border_xy_alloc, MEMF_PUBLIC | MEMF_CLEAR);
-
-    if (!gadgets || !borders || !itexts || !border_xy)
+    /* the body text's origin: the block centred in the frame (for
+     * BuildSysRequest the texts' extent includes their offsets) */
+    WORD text_x = box_x + (box_w - body_pixel_w) / 2;
+    WORD text_y = box_y + char_h;
+    if (g_sysreq_layout)
     {
-        if (gadgets) FreeMem(gadgets, gadget_alloc);
-        if (borders) FreeMem(borders, border_alloc);
+        text_x = box_x + (box_w - g_sysreq_w) / 2;
+        text_y = box_y + (box_h - g_sysreq_h) / 2;
+    }
+
+    /* ---- Step 7: the buttons ----
+     * AmigaOS 3.1 (goldens gallery-easyrequest, gallery-autorequest): the
+     * buttons are frbuttonclass gadgets (GTYP_CUSTOMGADGET, GFLG_EXTENDED |
+     * GFLG_GADGIMAGE, GACT_RELVERIFY) with a one-pixel frame image and an
+     * IntuiText label, followed by an empty gadget (type 0, flags 7). */
+    LONG itext_alloc = num_gadgets * sizeof(struct IntuiText);
+    struct IntuiText *itexts = (struct IntuiText *)AllocMem(itext_alloc, MEMF_PUBLIC | MEMF_CLEAR);
+
+    erd = (struct EasyReqData *)AllocMem(sizeof(struct EasyReqData), MEMF_PUBLIC | MEMF_CLEAR);
+    if (erd)
+    {
+        struct TagItem ftags[] = {
+            { IA_FrameType, FRAME_DEFAULT },
+            { TAG_DONE, 0 }
+        };
+        erd->frame = (Object *)_intuition_NewObjectA(IntuitionBase, NULL, (CONST_STRPTR)FRAMEICLASS, ftags);
+    }
+    if (!itexts || !erd || !erd->frame)
+    {
         if (itexts) FreeMem(itexts, itext_alloc);
-        if (border_xy) FreeMem(border_xy, border_xy_alloc);
+        if (erd)
+        {
+            if (erd->frame)
+                _intuition_DisposeObject(IntuitionBase, erd->frame);
+            FreeMem(erd, sizeof(struct EasyReqData));
+        }
         FreeMem(body_buf, body_len + 1);
         FreeMem(gad_buf, gad_len + 1);
         return NULL;
     }
+    erd->text_mem = body_buf;
+    erd->text_mem_size = body_len + 1;
+    erd->gadget_text_mem = gad_buf;
+    erd->gadget_text_mem_size = gad_len + 1;
+    erd->itext_mem = itexts;
+    erd->itext_mem_size = itext_alloc;
+    erd->dummy.Flags = GFLG_GADGHNONE | GFLG_GADGIMAGE;
 
     const UWORD *rpens = _intuition_screen_pens(scr);
+
+    /* the body image of the trailing gadget (probe intuition/sysreq: a
+     * BOOPSI image over the window's inner box) */
+    erd->pens = rpens;
+    erd->ix0 = border_left;
+    erd->iy0 = border_top;
+    erd->ix1 = win_w - border_right - 1;
+    erd->iy1 = win_h - border_bottom - 1;
+    erd->box_x = box_x;
+    erd->box_y = box_y;
+    erd->box_w = box_w;
+    erd->box_h = box_h;
+    erd->text_x = text_x;
+    erd->text_y = text_y;
+    erd->char_h = char_h;
+    erd->sys_body = g_sysreq_layout ? g_sysreq_body : NULL;
+    if (((struct LXAIntuitionBase *)IntuitionBase)->SysReqBodyClass)
+    {
+        struct TagItem itags[] = {
+            { IA_Left, (ULONG)erd->ix0 },
+            { IA_Top, (ULONG)erd->iy0 },
+            { IA_Width, (ULONG)(erd->ix1 - erd->ix0 + 1) },
+            { IA_Height, (ULONG)(erd->iy1 - erd->iy0 + 1) },
+            { TAG_DONE, 0 }
+        };
+        erd->body = (Object *)_intuition_NewObjectA(IntuitionBase,
+                                                    ((struct LXAIntuitionBase *)IntuitionBase)->SysReqBodyClass,
+                                                    NULL, itags);
+        if (erd->body)
+        {
+            *(struct EasyReqData **)INST_DATA(((struct LXAIntuitionBase *)IntuitionBase)->SysReqBodyClass,
+                                              erd->body) = erd;
+            erd->dummy.GadgetRender = (APTR)erd->body;
+        }
+    }
 
     /* ---- Step 8: Set up gadgets ---- */
     {
         WORD free_w = box_w - total_gad_width;
         WORD used = 0;
+        struct Gadget *prev = NULL;
 
         for (i = 0; i < num_gadgets; i++)
         {
-            struct Gadget *g = &gadgets[i];
-            struct Border *b_shine = &borders[i * 2];
-            struct Border *b_shadow = &borders[i * 2 + 1];
             struct IntuiText *it = &itexts[i];
-            SHORT *xy_shine = &border_xy[i * 2 * 10];
-            SHORT *xy_shadow = &border_xy[(i * 2 + 1) * 10];
+            struct Gadget *g;
             WORD bw = gad_widths[i];
-            WORD bh = gad_height;
             WORD gx;
+            struct TagItem btags[] = {
+                { GA_ID, (i == num_gadgets - 1) ? 0 : i + 1 },  /* last = 0 */
+                { GA_RelVerify, TRUE },
+                { GA_Image, (ULONG)erd->frame },
+                { GA_IntuiText, (ULONG)it },
+                { TAG_DONE, 0 }
+            };
 
             if (num_gadgets == 1)
                 gx = box_x + free_w / 2;
@@ -14723,74 +15432,54 @@ struct Window * _intuition_BuildEasyRequestArgs ( register struct IntuitionBase 
                 gx = box_x + used + (WORD)(((LONG)free_w * i) / (num_gadgets - 1));
             used += bw;
 
-            /* Gadget ID: last gadget = 0, others count from 1 left-to-right */
-            g->GadgetID = (i == num_gadgets - 1) ? 0 : i + 1;
+            /* AmigaOS 3.1 (probe intuition/sysreq): pens 0/1 and JAM2 in
+             * all but the last label, whose fields stay 0; frbuttonclass
+             * draws the label in TEXTPEN anyway */
+            if (i < num_gadgets - 1)
+            {
+                it->BackPen = 1;
+                it->DrawMode = JAM2;
+            }
+            it->IText = (UBYTE *)gad_labels[i];
+            if (gad_itext[i])
+                btags[3].ti_Data = (ULONG)gad_itext[i];
+
+            g = (struct Gadget *)_intuition_NewObjectA(IntuitionBase, NULL, (CONST_STRPTR)"frbuttonclass", btags);
+            if (!g)
+                break;
+            /* the box as laid out (frbuttonclass sizes itself to its label) */
             g->LeftEdge = gx;
             g->TopEdge = gad_row_y;
             g->Width = bw;
-            g->Height = bh;
-            g->Flags = GFLG_GADGHCOMP;
-            g->Activation = GACT_RELVERIFY;
-            g->GadgetType = GTYP_BOOLGADGET;
-            g->GadgetRender = (APTR)b_shine;
-            g->GadgetText = it;
-            g->NextGadget = (i < num_gadgets - 1) ? &gadgets[i + 1] : NULL;
-
-            /* raised one-pixel frame, corners left out */
-            xy_shine[0] = 0;        xy_shine[1] = bh - 2;
-            xy_shine[2] = 0;        xy_shine[3] = 0;
-            xy_shine[4] = bw - 2;   xy_shine[5] = 0;
-            b_shine->FrontPen = (UBYTE)rpens[SHINEPEN];
-            b_shine->DrawMode = JAM1;
-            b_shine->Count = 3;
-            b_shine->XY = xy_shine;
-            b_shine->NextBorder = b_shadow;
-
-            xy_shadow[0] = bw - 1;  xy_shadow[1] = 1;
-            xy_shadow[2] = bw - 1;  xy_shadow[3] = bh - 1;
-            xy_shadow[4] = 1;       xy_shadow[5] = bh - 1;
-            b_shadow->FrontPen = (UBYTE)rpens[SHADOWPEN];
-            b_shadow->DrawMode = JAM1;
-            b_shadow->Count = 3;
-            b_shadow->XY = xy_shadow;
-            b_shadow->NextBorder = NULL;
-
-            it->FrontPen = (UBYTE)rpens[TEXTPEN];
-            it->BackPen = (UBYTE)rpens[BACKGROUNDPEN];
-            it->DrawMode = JAM1;
-            it->LeftEdge = (bw - gad_text_w[i]) / 2;
-            it->TopEdge = (bh - char_h) / 2;
-            it->ITextFont = NULL;
-            it->IText = (UBYTE *)gad_labels[i];
-            it->NextText = NULL;
+            g->Height = gad_heights[i];
+            if (prev)
+                prev->NextGadget = g;
+            else
+                erd->first = g;
+            prev = g;
+            erd->num_gadgets++;
         }
+        if (prev)
+            prev->NextGadget = &erd->dummy;
     }
-
-    /* ---- Step 9: Allocate EasyReqData for cleanup ---- */
-    erd = (struct EasyReqData *)AllocMem(sizeof(struct EasyReqData), MEMF_PUBLIC | MEMF_CLEAR);
-    if (!erd)
+    if (erd->num_gadgets != num_gadgets)
     {
-        FreeMem(gadgets, gadget_alloc);
-        FreeMem(borders, border_alloc);
+        struct Gadget *g = erd->first, *next;
+        while (g && g != &erd->dummy)
+        {
+            next = g->NextGadget;
+            _intuition_DisposeObject(IntuitionBase, (APTR)g);
+            g = next;
+        }
+        _intuition_DisposeObject(IntuitionBase, erd->frame);
+        if (erd->body)
+            _intuition_DisposeObject(IntuitionBase, erd->body);
+        FreeMem(erd, sizeof(struct EasyReqData));
         FreeMem(itexts, itext_alloc);
-        FreeMem(border_xy, border_xy_alloc);
         FreeMem(body_buf, body_len + 1);
         FreeMem(gad_buf, gad_len + 1);
         return NULL;
     }
-    erd->gadget_mem = gadgets;
-    erd->gadget_mem_size = gadget_alloc;
-    erd->text_mem = body_buf;
-    erd->text_mem_size = body_len + 1;
-    erd->gadget_text_mem = gad_buf;
-    erd->gadget_text_mem_size = gad_len + 1;
-    erd->border_mem = borders;
-    erd->border_mem_size = border_alloc;
-    erd->itext_mem = itexts;
-    erd->itext_mem_size = itext_alloc;
-    erd->border_xy_mem = border_xy;
-    erd->border_xy_mem_size = border_xy_alloc;
-    erd->num_gadgets = num_gadgets;
 
     /* ---- Step 10: Open the requester window ---- */
     memset(&nw, 0, sizeof(nw));
@@ -14812,11 +15501,18 @@ struct Window * _intuition_BuildEasyRequestArgs ( register struct IntuitionBase 
     reqWindow = _intuition_OpenWindow(IntuitionBase, &nw);
     if (!reqWindow)
     {
+        struct Gadget *g = erd->first, *next;
+        while (g && g != &erd->dummy)
+        {
+            next = g->NextGadget;
+            _intuition_DisposeObject(IntuitionBase, (APTR)g);
+            g = next;
+        }
+        _intuition_DisposeObject(IntuitionBase, erd->frame);
+        if (erd->body)
+            _intuition_DisposeObject(IntuitionBase, erd->body);
         FreeMem(erd, sizeof(struct EasyReqData));
-        FreeMem(gadgets, gadget_alloc);
-        FreeMem(borders, border_alloc);
         FreeMem(itexts, itext_alloc);
-        FreeMem(border_xy, border_xy_alloc);
         FreeMem(body_buf, body_len + 1);
         FreeMem(gad_buf, gad_len + 1);
         return (struct Window *)1; /* 1 = could not open window */
@@ -14829,80 +15525,15 @@ struct Window * _intuition_BuildEasyRequestArgs ( register struct IntuitionBase 
     /* Store cleanup data in UserData */
     reqWindow->UserData = (BYTE *)erd;
 
-    /* ---- Step 11: Render the requester body ---- */
-    {
-        struct RastPort *rp = reqWindow->RPort;
-        WORD ix0 = border_left, iy0 = border_top;
-        WORD ix1 = win_w - border_right - 1, iy1 = win_h - border_bottom - 1;
-        WORD y;
-        UWORD row_pat;
-        UWORD *old_pat = rp->AreaPtrn;
-        BYTE old_sz = rp->AreaPtSz;
-        WORD text_x = box_x + (box_w - body_pixel_w) / 2;
-        WORD text_y = box_y + char_h;
-        char *p = body_buf;
-        WORD line = 0;
-
-        /* SHINEPEN/BACKGROUNDPEN dither, (x + y) odd -> SHINEPEN in window
-         * coordinates; the pattern bits are aligned to bitmap columns */
-        SetAPen(rp, rpens[SHINEPEN]);
-        SetBPen(rp, rpens[BACKGROUNDPEN]);
-        SetDrMd(rp, JAM2);
-        for (y = iy0; y <= iy1; y++)
-        {
-            /* bit 15 of the pattern is bitmap column 0 (even) */
-            BOOL shine_even = (((reqWindow->LeftEdge + y + 1) & 1) == 0);
-            row_pat = shine_even ? 0xAAAA : 0x5555;
-            rp->AreaPtrn = &row_pat; rp->AreaPtSz = 0;
-            RectFill(rp, ix0, y, ix1, y);
-        }
-        rp->AreaPtrn = old_pat; rp->AreaPtSz = old_sz;
-
-        /* recessed text frame with a BACKGROUNDPEN interior */
-        SetAPen(rp, rpens[BACKGROUNDPEN]);
-        RectFill(rp, box_x + 1, box_y + 1, box_x + box_w - 2, box_y + box_h - 2);
-        SetAPen(rp, rpens[SHADOWPEN]);
-        Move(rp, box_x, box_y + box_h - 2);
-        Draw(rp, box_x, box_y);
-        Draw(rp, box_x + box_w - 2, box_y);
-        SetAPen(rp, rpens[SHINEPEN]);
-        Move(rp, box_x + box_w - 1, box_y + 1);
-        Draw(rp, box_x + box_w - 1, box_y + box_h - 1);
-        Draw(rp, box_x + 1, box_y + box_h - 1);
-
-        /* button interiors */
-        SetAPen(rp, rpens[BACKGROUNDPEN]);
-        for (i = 0; i < num_gadgets; i++)
-            RectFill(rp, gadgets[i].LeftEdge + 1, gadgets[i].TopEdge + 1,
-                     gadgets[i].LeftEdge + gadgets[i].Width - 2,
-                     gadgets[i].TopEdge + gadgets[i].Height - 2);
-
-        SetAPen(rp, rpens[TEXTPEN]);
-        SetDrMd(rp, JAM1);
-        while (*p)
-        {
-            char *line_start = p;
-            WORD line_len = 0;
-            while (*p && *p != '\n')
-            {
-                line_len++;
-                p++;
-            }
-
-            if (line_len > 0)
-            {
-                Move(rp, text_x, text_y + line * line_h + rp->TxBaseline);
-                Text(rp, (STRPTR)line_start, line_len);
-            }
-
-            if (*p == '\n') p++;
-            line++;
-        }
-    }
-
-    /* ---- Step 12: Add and render the buttons ---- */
-    _intuition_AddGList(IntuitionBase, reqWindow, gadgets, (UWORD)~0, num_gadgets, NULL);
-    _intuition_RefreshGList(IntuitionBase, gadgets, reqWindow, NULL, num_gadgets);
+    /* ---- Step 11: Add the gadgets; the body image first, then the
+     * buttons over it ---- */
+    erd->win = reqWindow;
+    _intuition_AddGList(IntuitionBase, reqWindow, erd->first, (UWORD)~0, num_gadgets + 1, NULL);
+    if (erd->body)
+        _intuition_RefreshGList(IntuitionBase, &erd->dummy, reqWindow, NULL, 1);
+    else
+        _sysreq_draw_body(reqWindow->RPort, erd, 0, 0);
+    _intuition_RefreshGList(IntuitionBase, erd->first, reqWindow, NULL, num_gadgets);
 
     DPRINTF(LOG_DEBUG, "_intuition: BuildEasyRequestArgs() created window 0x%08lx (%dx%d) with %d gadgets\n",
             (ULONG)reqWindow, win_w, win_h, num_gadgets);
@@ -15967,45 +16598,6 @@ static BOOL _is_object(struct LXAIntuitionBase *base, APTR ptr)
     return FALSE;
 }
 
-/* Helper to draw a bevel box (simple 3D frame) */
-static void _draw_bevel_box(struct RastPort *rp, WORD left, WORD top, WORD width, WORD height, 
-                           ULONG flags, const struct DrawInfo *drInfo)
-{
-    UBYTE shiPen = 2; /* Default Shine */
-    UBYTE shaPen = 1; /* Default Shadow */
-    
-    if (drInfo) {
-        shiPen = drInfo->dri_Pens[SHINEPEN];
-        shaPen = drInfo->dri_Pens[SHADOWPEN];
-    }
-    
-    WORD x0 = left;
-    WORD y0 = top;
-    WORD x1 = left + width - 1;
-    WORD y1 = top + height - 1;
-    
-    /* Flags could indicate recessed vs raised. 
-     * Default to raised.
-     * IDS_SELECTED or similar might invert.
-     */
-    BOOL recessed = (flags & IDS_SELECTED) ? TRUE : FALSE;
-    
-    UBYTE topPen = recessed ? shaPen : shiPen;
-    UBYTE botPen = recessed ? shiPen : shaPen;
-    
-    /* Top/Left */
-    SetAPen(rp, topPen);
-    Move(rp, x0, y1);
-    Draw(rp, x0, y0);
-    Draw(rp, x1, y0);
-    
-    /* Bottom/Right */
-    SetAPen(rp, botPen);
-    Draw(rp, x1, y1);
-    Draw(rp, x0, y1);
-    
-    /* Fill? usually caller handles content */
-}
 
 VOID _intuition_DrawImageState ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a0"),
@@ -16202,7 +16794,8 @@ static BOOL _intuition_is_builtin_gadget_class(struct IClass *cl)
         ULONG (*entry)() = cl->cl_Dispatcher.h_Entry;
         if (entry == (ULONG (*)())buttongclass_dispatch ||
             entry == (ULONG (*)())propgclass_dispatch ||
-            entry == (ULONG (*)())strgclass_dispatch)
+            entry == (ULONG (*)())strgclass_dispatch ||
+            entry == (ULONG (*)())groupgclass_dispatch)
             return TRUE;
     }
     return FALSE;

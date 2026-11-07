@@ -41,8 +41,14 @@
 
 #define CUBE_MAX        6               /* most levels per gun */
 #define CUBE_SIZE       (CUBE_MAX * CUBE_MAX * CUBE_MAX)
-#define KNOB_SIZE       7               /* the knob is 7 x 7 pixels */
-#define KNOB_HALF       3
+#define KNOB_W          9               /* the knob is 9 x 13 pixels */
+#define KNOB_H          13
+#define KNOB_HALF_W     4
+#define KNOB_HALF_H     6
+
+/* the wheel is an ellipse: 32 pixels across take 29 pixels down */
+#define ASPECT_X        32
+#define ASPECT_Y        29
 
 struct Wheel
 {
@@ -280,16 +286,38 @@ static void wheel_get_pens(struct Wheel *w)
  * geometry
  */
 
+/*
+ * 3.1 (tests/intuition/gadclass_input): an 80 x 80 wheel with a bevel box
+ * is an ellipse of radius 32 x 35 around (40, 40); the mouse maps to hue
+ * and saturation with y scaled by ASPECT_Y / ASPECT_X.
+ */
 static void wheel_shape(struct Wheel *w, struct IBox *gb, struct WheelShape *sh)
 {
-    LONG inset = w->bevel ? 4 : 2;
-    LONG width = (gb->Width - 2 * inset) & ~1, height = (gb->Height - 2 * inset) & ~1;
+    LONG inset_x = w->bevel ? 8 : 4, inset_y = w->bevel ? 5 : 1;
+    LONG rx = (gb->Width - 2 * inset_x) / 2, ry = (gb->Height - 2 * inset_y) / 2;
 
-    sh->ok = width >= 4 && height >= 4;
-    sh->rx = width / 2;
-    sh->ry = height / 2;
-    sh->cx = inset + sh->rx;
-    sh->cy = inset + sh->ry;
+    if (rx * ASPECT_X / ASPECT_Y <= ry)
+        ry = rx * ASPECT_X / ASPECT_Y;
+    else
+        rx = ry * ASPECT_Y / ASPECT_X;
+    sh->ok = rx >= 10 && ry >= 10;
+    sh->rx = rx;
+    sh->ry = ry;
+    sh->cx = gb->Width / 2;
+    sh->cy = gb->Height / 2;
+}
+
+/* half the width of the ellipse (rx + 1/2, ry + 1/2) in row dy, -1 outside */
+static LONG ellipse_half(LONG rx, LONG ry, LONG dy)
+{
+    LONG d = 2 * ry + 1;
+
+    if (dy < 0)
+        dy = -dy;
+    if (dy > ry)
+        return -1;
+    /* the square root with 4 more bits of precision */
+    return (2 * rx + 1) * (LONG)cwm_isqrt((ULONG)(d * d - 4 * dy * dy) << 8) / (32 * d);
 }
 
 /* half the width of the ellipse (rx, ry) in row dy, -1 outside */
@@ -302,32 +330,43 @@ static LONG ellipse_span(LONG rx, LONG ry, LONG dy)
     return rx * (LONG)cwm_isqrt((ULONG)(ry * ry - dy * dy)) / ry;
 }
 
-/* hue and saturation at a position relative to the wheel's centre */
+/*
+ * hue and saturation at a position relative to the wheel's centre; as on
+ * 3.1 the saturation comes in 32 steps of 0x800 (each with the low bits
+ * set), 0xFFFF from the edge outwards, and the centre is hue 0x8000, 0.
+ */
 static void wheel_colour_at(struct WheelShape *sh, LONG dx, LONG dy, ULONG *hue, ULONG *sat)
 {
-    LONG  ny = dy * sh->rx / sh->ry;    /* squeeze the ellipse into a circle */
-    ULONG dist = cwm_isqrt((ULONG)(dx * dx + ny * ny));
+    LONG  nx = dx * ASPECT_X, ny = dy * ASPECT_Y;
+    ULONG q = cwm_isqrt((ULONG)(nx * nx + ny * ny)) / (ULONG)sh->rx;
 
-    *hue = cwm_direction(dx, ny);
-    *sat = dist >= (ULONG)sh->rx ? 0xFFFF : dist * 0xFFFF / (ULONG)sh->rx;
+    if (!dx && !dy)
+    {
+        *hue = 0x8000;
+        *sat = 0;
+        return;
+    }
+    *hue = cwm_direction(nx, ny);
+    *sat = q >= 32 ? 0xFFFF : q ? (q << 11) | 0x7FF : 0;
 }
 
 /* the knob's centre, gadget relative, kept inside the gadget box */
 static void wheel_knob_at(struct Wheel *w, struct WheelShape *sh, struct IBox *gb, LONG *x, LONG *y)
 {
-    LONG ox = (LONG)((ULONG)sh->rx * w->sat >> 16), oy = (LONG)((ULONG)sh->ry * w->sat >> 16);
+    LONG ox = (LONG)((ULONG)sh->rx * w->sat >> 16);
+    LONG oy = (LONG)((ULONG)sh->rx * ASPECT_X * (w->sat >> 4) / ASPECT_Y >> 12);
 
     *x = sh->cx + ox * cwm_sin(w->hue) / 4096;
     *y = sh->cy - oy * cwm_cos(w->hue) / 4096;
 
-    if (*x < KNOB_HALF)
-        *x = KNOB_HALF;
-    if (*x > gb->Width - 1 - KNOB_HALF)
-        *x = gb->Width - 1 - KNOB_HALF;
-    if (*y < KNOB_HALF)
-        *y = KNOB_HALF;
-    if (*y > gb->Height - 1 - KNOB_HALF)
-        *y = gb->Height - 1 - KNOB_HALF;
+    if (*x < KNOB_HALF_W)
+        *x = KNOB_HALF_W;
+    if (*x > gb->Width - 1 - KNOB_HALF_W)
+        *x = gb->Width - 1 - KNOB_HALF_W;
+    if (*y < KNOB_HALF_H)
+        *y = KNOB_HALF_H;
+    if (*y > gb->Height - 1 - KNOB_HALF_H)
+        *y = gb->Height - 1 - KNOB_HALF_H;
 }
 
 /* --------------------------------------------------------------------------
@@ -362,23 +401,69 @@ static UBYTE wheel_pen(struct Wheel *w, ULONG hue, ULONG sat, LONG x, LONG y)
     return (UBYTE)w->pen[idx];
 }
 
-/* the monochrome wheel's decorations: spokes between the colours, letters */
+/* fill the ellipse (rx + 1/2, ry + 1/2) around (cx, cy) */
+static void fill_ellipse(struct RastPort *rp, LONG cx, LONG cy, LONG rx, LONG ry)
+{
+    LONG dy, half;
+
+    for (dy = -ry; dy <= ry; dy++)
+        if ((half = ellipse_half(rx, ry, dy)) >= 0)
+            RectFill(rp, cx - half, cy + dy, cx + half, cy + dy);
+}
+
+static LONG spoke_pt(LONG c, LONG r, LONG trig)
+{
+    /* the spokes are symmetric around x + 1/2 and y */
+    return c + (2 * r + 1) * trig / 8192;
+}
+
+/* c + off2 / 2 + r2 / 2 * trig / 4096, rounded down */
+static LONG wheel_pt(LONG c, LONG off2, LONG r2, LONG trig)
+{
+    return ((2 * c + off2) * 4096 + r2 * trig) / 8192;
+}
+
+/*
+ * The monochrome wheel as 3.1 draws it: a ring (4 pixels wide, 2 high), a
+ * gap as wide, a black disc with a chequered centre (7/12 of its size),
+ * spokes at the borders between the six colours and the letters.
+ */
 static void wheel_draw_mono(struct Wheel *w, struct RastPort *rp, struct DrawInfo *dri,
                             struct WheelShape *sh)
 {
-    LONG i, n = 0;
+    static UWORD chequer[] = { 0x5555, 0xAAAA };
+    UWORD *pens = dri->dri_Pens;
+    LONG   rxi = sh->rx - 8, ryi = sh->ry - 4;
+    LONG   i, n = 0;
 
     SetDrMd(rp, JAM1);
-    SetAPen(rp, dri->dri_Pens[SHINEPEN]);
+    SetAPen(rp, pens[SHADOWPEN]);
+    fill_ellipse(rp, sh->cx, sh->cy, sh->rx, sh->ry);
+    SetAPen(rp, pens[BACKGROUNDPEN]);
+    fill_ellipse(rp, sh->cx, sh->cy, sh->rx - 4, sh->ry - 2);
+    SetAPen(rp, pens[SHADOWPEN]);
+    fill_ellipse(rp, sh->cx, sh->cy, rxi, ryi);
 
-    /* spokes at the borders between the six colours, from half the radius out */
+    SetDrMd(rp, JAM2);
+    SetAPen(rp, pens[SHINEPEN]);
+    SetBPen(rp, pens[SHADOWPEN]);
+    SetAfPt(rp, chequer, 1);
+    fill_ellipse(rp, sh->cx, sh->cy, rxi * 7 / 12, ryi * 7 / 12);
+    SetAfPt(rp, NULL, 0);
+    SetDrMd(rp, JAM1);
+
+    /* spokes at the borders between the six colours, from the chequered
+       centre to the disc's edge */
+    SetAPen(rp, pens[SHINEPEN]);
     for (i = 0; i < 6; i++)
     {
         ULONG a = (ULONG)(2 * i + 1) * 0x10000 / 12;
         LONG  s = cwm_sin(a), c = cwm_cos(a);
 
-        Move(rp, sh->cx + sh->rx * s / 8192, sh->cy - sh->ry * c / 8192);
-        Draw(rp, sh->cx + (sh->rx - 2) * s / 4096, sh->cy - (sh->ry - 2) * c / 4096);
+        LONG  right = s > 0 ? 1 : 0;
+
+        Move(rp, spoke_pt(sh->cx, rxi * 7 / 12, s) + right, spoke_pt(sh->cy, ryi * 2 / 3, -c));
+        Draw(rp, spoke_pt(sh->cx, rxi - 1, s) + right, spoke_pt(sh->cy, ryi - 1, -c));
     }
 
     if (!w->letters)
@@ -388,13 +473,13 @@ static void wheel_draw_mono(struct Wheel *w, struct RastPort *rp, struct DrawInf
     if (dri->dri_Font)
         SetFont(rp, dri->dri_Font);
 
-    /* the letters (green, cyan, blue, magenta, red, yellow) at two thirds of
-       the radius; green sits at a third of a turn */
+    /* the letters (green, cyan, blue, magenta, red, yellow) near the disc's
+       edge; green sits at a third of a turn */
     for (i = 0; i < n; i++)
     {
         ULONG a = (ULONG)((i + 2) % 6) * 0x10000 / 6;
-        LONG  x = sh->cx + 2 * sh->rx * cwm_sin(a) / (3 * 4096);
-        LONG  y = sh->cy - 2 * sh->ry * cwm_cos(a) / (3 * 4096);
+        LONG  x = wheel_pt(sh->cx, 2, 2 * (rxi - 4), cwm_sin(a));
+        LONG  y = wheel_pt(sh->cy, 3, 2 * (ryi - 6), -cwm_cos(a));
 
         Move(rp, x - TextLength(rp, (STRPTR)&w->letters[i], 1) / 2,
              y - rp->TxHeight / 2 + rp->TxBaseline);
@@ -456,6 +541,24 @@ static BOOL wheel_build_image(struct Wheel *w, struct RastPort *rp, struct DrawI
     if (!sh->ok)
         return TRUE;
 
+    if (w->mask)
+    {
+        /* the mask covers the wheel and its outline */
+        for (y = -sh->ry; y <= sh->ry; y++)
+        {
+            LONG half = ellipse_half(sh->rx, sh->ry, y);
+
+            for (x = sh->cx - half; x <= sh->cx + half; x++)
+                w->mask[(sh->cy + y) * bpr + (x >> 3)] |= 0x80 >> (x & 7);
+        }
+    }
+
+    if (!w->levels)
+    {
+        wheel_draw_mono(w, &irp, dri, sh);
+        return TRUE;
+    }
+
     if (w->levels)
     {
         /* colour wheel: one row at a time through WritePixelLine8() */
@@ -470,15 +573,6 @@ static BOOL wheel_build_image(struct Wheel *w, struct RastPort *rp, struct DrawI
     for (y = sh->cy - sh->ry; y <= sh->cy + sh->ry; y++)
     {
         LONG dy = y - sh->cy, span = ellipse_span(sh->rx, sh->ry, dy);
-
-        /* the mask covers the outline too (an ellipse half a pixel larger) */
-        if (w->mask)
-        {
-            LONG outer = (2 * sh->rx + 1) * (LONG)cwm_isqrt((ULONG)((2 * sh->ry + 1) * (2 * sh->ry + 1) -
-                                                             4 * dy * dy)) / (2 * (2 * sh->ry + 1));
-            for (x = sh->cx - outer; x <= sh->cx + outer; x++)
-                w->mask[y * bpr + (x >> 3)] |= 0x80 >> (x & 7);
-        }
 
         if (span < 0 || dy == -sh->ry || dy == sh->ry)
             continue;
@@ -503,9 +597,6 @@ static BOOL wheel_build_image(struct Wheel *w, struct RastPort *rp, struct DrawI
     if (row)
         FreeVec(row);
 
-    if (!w->levels)
-        wheel_draw_mono(w, &irp, dri, sh);
-
     /* a two pixel outline */
     SetAPen(&irp, dri->dri_Pens[SHADOWPEN]);
     DrawEllipse(&irp, sh->cx, sh->cy, sh->rx, sh->ry);
@@ -517,15 +608,22 @@ static BOOL wheel_build_image(struct Wheel *w, struct RastPort *rp, struct DrawI
  * the knob
  */
 
-static const char knob_shape[KNOB_SIZE][KNOB_SIZE + 1] =
+/* 3.1's knob: o = shine pen, # = shadow pen */
+static const char knob_shape[KNOB_H][KNOB_W + 1] =
 {
-    "  ###  ",
-    " #   # ",
-    "#  o  #",
-    "# ooo #",
-    "#  o  #",
-    " #   # ",
-    "  ###  ",
+    "   ooo   ",
+    "  ooooo  ",
+    " ooooooo ",
+    "oo#####oo",
+    "o#######o",
+    "###ooo###",
+    "##ooooo##",
+    "###ooo###",
+    "o#######o",
+    "oo#####oo",
+    " ooooooo ",
+    "  ooooo  ",
+    "   ooo   ",
 };
 
 static void knob_paint(struct RastPort *rp, struct DrawInfo *dri, LONG left, LONG top)
@@ -533,9 +631,9 @@ static void knob_paint(struct RastPort *rp, struct DrawInfo *dri, LONG left, LON
     LONG x, y;
 
     SetDrMd(rp, JAM1);
-    for (y = 0; y < KNOB_SIZE; y++)
+    for (y = 0; y < KNOB_H; y++)
     {
-        for (x = 0; x < KNOB_SIZE; x++)
+        for (x = 0; x < KNOB_W; x++)
         {
             char c = knob_shape[y][x];
 
@@ -554,11 +652,11 @@ static void knob_show(struct Wheel *w, struct RastPort *rp, struct DrawInfo *dri
     LONG x, y;
 
     wheel_knob_at(w, sh, gb, &x, &y);
-    w->under_x = x - KNOB_HALF;
-    w->under_y = y - KNOB_HALF;
+    w->under_x = x - KNOB_HALF_W;
+    w->under_y = y - KNOB_HALF_H;
 
     if (!w->under)
-        w->under = AllocBitMap(KNOB_SIZE, KNOB_SIZE, GetBitMapAttr(rp->BitMap, BMA_DEPTH),
+        w->under = AllocBitMap(KNOB_W, KNOB_H, GetBitMapAttr(rp->BitMap, BMA_DEPTH),
                                BMF_MINPLANES, rp->BitMap);
     w->under_valid = FALSE;
     if (w->under)
@@ -568,7 +666,7 @@ static void knob_show(struct Wheel *w, struct RastPort *rp, struct DrawInfo *dri
         InitRastPort(&urp);
         urp.BitMap = w->under;
         ClipBlit(rp, gb->Left + w->under_x, gb->Top + w->under_y, &urp, 0, 0,
-                 KNOB_SIZE, KNOB_SIZE, 0xC0);
+                 KNOB_W, KNOB_H, 0xC0);
         w->under_valid = TRUE;
     }
     knob_paint(rp, dri, gb->Left + w->under_x, gb->Top + w->under_y);
@@ -578,7 +676,7 @@ static void knob_hide(struct Wheel *w, struct RastPort *rp, struct IBox *gb)
 {
     if (w->under_valid)
         BltBitMapRastPort(w->under, 0, 0, rp, gb->Left + w->under_x, gb->Top + w->under_y,
-                          KNOB_SIZE, KNOB_SIZE, 0xC0);
+                          KNOB_W, KNOB_H, 0xC0);
     w->under_valid = FALSE;
 }
 
@@ -848,19 +946,16 @@ static ULONG wheel_dispose(Class *cl, Object *o, Msg msg)
  * input
  */
 
-/* gadget relative mouse position inside the wheel? */
+/* gadget relative mouse position inside the gadget?  3.1 takes clicks
+   anywhere in the box, outside the wheel they give full saturation */
 static BOOL wheel_hit(struct Wheel *w, struct GadgetInfo *gi, Object *o, LONG mx, LONG my,
                       struct WheelShape *sh)
 {
     struct IBox gb;
-    LONG        span;
 
     classlib_GadgetBox((struct Gadget *)o, gi, &gb);
     wheel_shape(w, &gb, sh);
-    if (!sh->ok)
-        return FALSE;
-    span = ellipse_span(sh->rx, sh->ry, my - sh->cy);
-    return span >= 0 && mx >= sh->cx - span && mx <= sh->cx + span;
+    return sh->ok && mx >= 0 && my >= 0 && mx < gb.Width && my < gb.Height;
 }
 
 /* hue and saturation from the mouse; TRUE if they changed */

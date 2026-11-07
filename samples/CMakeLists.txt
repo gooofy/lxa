@@ -255,6 +255,8 @@ set(TESTS_LIST
     "../tests/intuition/display_alert|main|Tests/Intuition/DisplayAlert"
     "../tests/intuition/gadget_refresh|main|Tests/Intuition/GadgetRefresh"
     "../tests/intuition/gadgetclass|main|Tests/Intuition/GadgetClass"
+    "../tests/intuition/custgad_input|main|Tests/Intuition/CustGadInput"
+    "../tests/intuition/gadclass_input|main|Tests/Intuition/GadClassInput"
     "../tests/intuition/idcmp|main|Tests/Intuition/IDCMP"
     "../tests/intuition/idcmp_deltamove|main|Tests/Intuition/IDCMPDeltaMove"
     "../tests/intuition/idcmp_gfxbase_fields|main|Tests/Intuition/GfxBaseFields"

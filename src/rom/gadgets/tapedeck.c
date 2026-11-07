@@ -16,9 +16,13 @@
  *     TDECK_Tape cannot be read; OM_SET always returns 0;
  *   - the animation controls are four parts side by side - rewind, play,
  *     fast forward and the frame position - at 0, 27, 75 and 102 of 202
- *     pixels; the button of the current mode is drawn selected.
- *
- * The tape recorder look (TDECK_Tape) is not drawn yet.
+ *     pixels; the button of the current mode is drawn selected;
+ *   - the tape recorder (TDECK_Tape) has five buttons - rewind, play, fast
+ *     forward, stop and pause - at 0, 27, 75, 102 and 153; a click acts at
+ *     once: GM_GOACTIVE sets the mode (and clears the pause) or toggles the
+ *     pause and ends with GMR_NOREUSE | GMR_VERIFY, the code being the mode
+ *     plus 0x1000 while paused; it sends no OM_NOTIFY
+ *     (tests/intuition/gadclass_input).
  */
 
 #include <graphics/gfxmacros.h>
@@ -32,11 +36,18 @@
 #define DECK_WIDTH      202         /* the size of every new object */
 #define DECK_HEIGHT     16
 
-/* the parts of the animation controls, left to right */
-enum { SEG_REWIND, SEG_PLAY, SEG_FORWARD, SEG_FRAME, SEG_COUNT, SEG_NONE = -1 };
+/* the parts, left to right: animation controls end with the frame position,
+   the tape recorder with stop and pause */
+enum { SEG_REWIND, SEG_PLAY, SEG_FORWARD, SEG_FRAME, SEG_PAUSE, SEG_MAX, SEG_NONE = -1 };
+#define SEG_STOP    SEG_FRAME
+#define SEG_COUNT   4                   /* parts of the animation controls */
 
-/* where each part starts, in pixels of a DECK_WIDTH wide deck */
-static const UBYTE seg_start[SEG_COUNT + 1] = { 0, 27, 75, 102, DECK_WIDTH };
+/* where each part starts and where the next one would start, in pixels of
+   a DECK_WIDTH wide deck */
+static const UBYTE anim_start[SEG_MAX] = { 0, 27, 75, 102, 0 };
+static const UBYTE anim_end[SEG_MAX]   = { 27, 75, 102, DECK_WIDTH + 1, 0 };
+static const UBYTE tape_start[SEG_MAX] = { 0, 27, 75, 102, 153 };
+static const UBYTE tape_end[SEG_MAX]   = { 27, 75, 102, 150, 201 };
 
 struct Deck
 {
@@ -73,22 +84,24 @@ APTR classlib_FuncTab[] =
 struct DeckLayout
 {
     struct IBox box;
-    LONG        edge[SEG_COUNT + 1];    /* absolute x where each part starts */
+    int         count;                  /* number of parts */
+    LONG        left[SEG_MAX];          /* absolute x of each part */
+    LONG        right[SEG_MAX];
 };
 
-static void deck_layout(Object *o, struct GadgetInfo *gi, struct DeckLayout *l)
+static void deck_layout(struct Deck *d, Object *o, struct GadgetInfo *gi, struct DeckLayout *l)
 {
-    int s;
+    const UBYTE *start = d->tape ? tape_start : anim_start;
+    const UBYTE *end = d->tape ? tape_end : anim_end;
+    int          s;
 
     classlib_GadgetBox((struct Gadget *)o, gi, &l->box);
-    for (s = 0; s <= SEG_COUNT; s++)
-        l->edge[s] = l->box.Left + seg_start[s] * l->box.Width / DECK_WIDTH;
-}
-
-/* rightmost pixel of a part: the frame position part ends on its edge */
-static LONG seg_right(struct DeckLayout *l, int s)
-{
-    return (s == SEG_FRAME) ? l->edge[SEG_COUNT] : l->edge[s + 1] - 1;
+    l->count = d->tape ? SEG_MAX : SEG_COUNT;
+    for (s = 0; s < l->count; s++)
+    {
+        l->left[s]  = l->box.Left + start[s] * l->box.Width / DECK_WIDTH;
+        l->right[s] = l->box.Left + end[s] * l->box.Width / DECK_WIDTH - 1;
+    }
 }
 
 /* the part under a gadget relative position */
@@ -99,8 +112,8 @@ static int deck_part_at(struct DeckLayout *l, LONG mx, LONG my)
 
     if (mx < 0 || my < 0 || my >= l->box.Height - 1)
         return SEG_NONE;
-    for (s = 0; s < SEG_COUNT; s++)
-        if (x >= l->edge[s] && x <= seg_right(l, s))
+    for (s = 0; s < l->count; s++)
+        if (x >= l->left[s] && x <= l->right[s])
             return s;
     return SEG_NONE;
 }
@@ -108,8 +121,8 @@ static int deck_part_at(struct DeckLayout *l, LONG mx, LONG my)
 /* the frame position knob (6 pixels wide) moves between these x positions */
 static void frame_track(struct DeckLayout *l, LONG *first, LONG *range)
 {
-    *first = l->edge[SEG_FRAME] + 3;
-    *range = l->edge[SEG_COUNT] - 2 - 5 - *first;
+    *first = l->left[SEG_FRAME] + 3;
+    *range = l->right[SEG_FRAME] - 2 - 5 - *first;
     if (*range < 0)
         *range = 0;
 }
@@ -135,8 +148,12 @@ static void draw_arrow(struct RastPort *rp, LONG x, LONG y, BOOL to_left)
 
 static BOOL seg_selected(struct Deck *d, int s)
 {
-    static const UBYTE seg_mode[3] = { BUT_REWIND, BUT_PLAY, BUT_FORWARD };
+    static const UBYTE seg_mode[4] = { BUT_REWIND, BUT_PLAY, BUT_FORWARD, BUT_STOP };
 
+    if (s == SEG_PAUSE)
+        return d->paused;
+    if (s == SEG_FRAME && !d->tape)
+        return FALSE;
     return d->pressed == s || d->mode == seg_mode[s];
 }
 
@@ -144,7 +161,7 @@ static void draw_part(struct Deck *d, struct RastPort *rp, struct DrawInfo *dri,
                       struct DeckLayout *l, int s)
 {
     UWORD *pens = dri->dri_Pens;
-    LONG   left = l->edge[s], right = seg_right(l, s), width = right - left + 1;
+    LONG   left = l->left[s], right = l->right[s], width = right - left + 1;
     LONG   top = l->box.Top, height = l->box.Height - 1;
     LONG   arrow_y = top + (height - 7) / 2;
 
@@ -155,7 +172,7 @@ static void draw_part(struct Deck *d, struct RastPort *rp, struct DrawInfo *dri,
     {
         SetAttrs(d->frame, IA_Width, width, IA_Height, height, TAG_DONE);
         DrawImageState(rp, (struct Image *)d->frame, left, top,
-                       (s != SEG_FRAME && seg_selected(d, s)) ? IDS_SELECTED : IDS_NORMAL, dri);
+                       seg_selected(d, s) ? IDS_SELECTED : IDS_NORMAL, dri);
     }
 
     SetDrMd(rp, JAM1);
@@ -172,6 +189,8 @@ static void draw_part(struct Deck *d, struct RastPort *rp, struct DrawInfo *dri,
     else if (s == SEG_PLAY)
     {
         draw_arrow(rp, left + (width - 8) / 2, arrow_y, FALSE);
+        if (d->tape)
+            return;
 
         /* 3.1's play button: its bottom edge is shifted one pixel to the
            right and drawn in the shine pen (the next part covers the end) */
@@ -180,6 +199,19 @@ static void draw_part(struct Deck *d, struct RastPort *rp, struct DrawInfo *dri,
         SetAPen(rp, pens[SHINEPEN]);
         Move(rp, left + 1, top + height - 1);
         Draw(rp, right + 1, top + height - 1);
+    }
+    else if (d->tape)
+    {
+        /* stop: a 9 x 7 square; pause: two 3 pixel bars 3 apart */
+        LONG x = left + (width - 9) / 2;
+
+        if (s == SEG_STOP)
+            RectFill(rp, x, arrow_y, x + 8, arrow_y + 6);
+        else
+        {
+            RectFill(rp, x, arrow_y, x + 2, arrow_y + 6);
+            RectFill(rp, x + 6, arrow_y, x + 8, arrow_y + 6);
+        }
     }
     else
     {
@@ -205,11 +237,8 @@ static ULONG deck_render(Class *cl, Object *o, struct gpRender *msg)
     if (!rp || !msg->gpr_GInfo || !(dri = msg->gpr_GInfo->gi_DrInfo))
         return 0;
 
-    if (d->tape)
-        LXA_UNIMPLEMENTED("tapedeck.gadget", "GM_RENDER", "partial: TDECK_Tape drawn as animation controls");
-
-    deck_layout(o, msg->gpr_GInfo, &l);
-    for (s = 0; s < SEG_COUNT; s++)
+    deck_layout(d, o, msg->gpr_GInfo, &l);
+    for (s = 0; s < l.count; s++)
         draw_part(d, rp, dri, &l, s);
 
     if (((struct Gadget *)o)->Flags & GFLG_DISABLED)
@@ -217,7 +246,7 @@ static ULONG deck_render(Class *cl, Object *o, struct gpRender *msg)
         SetDrMd(rp, JAM1);
         SetAPen(rp, dri->dri_Pens[SHADOWPEN]);
         SetAfPt(rp, ghost, 1);
-        RectFill(rp, l.box.Left, l.box.Top, l.edge[SEG_COUNT], l.box.Top + l.box.Height - 2);
+        RectFill(rp, l.box.Left, l.box.Top, l.right[l.count - 1], l.box.Top + l.box.Height - 2);
         SetAfPt(rp, NULL, 0);
     }
     return 1;
@@ -373,10 +402,25 @@ static ULONG deck_goactive(Class *cl, Object *o, struct gpInput *msg)
     if (!msg->gpi_IEvent || (((struct Gadget *)o)->Flags & GFLG_DISABLED))
         return GMR_NOREUSE;
 
-    deck_layout(o, msg->gpi_GInfo, &l);
+    deck_layout(d, o, msg->gpi_GInfo, &l);
     s = deck_part_at(&l, msg->gpi_Mouse.X, msg->gpi_Mouse.Y);
     if (s == SEG_NONE)
         return GMR_NOREUSE;
+
+    if (d->tape)
+    {
+        /* the tape recorder acts on the click alone */
+        if (s == SEG_PAUSE)
+            d->paused = !d->paused;
+        else
+        {
+            d->mode   = s;                  /* SEG_* order = BUT_* order */
+            d->paused = 0;
+        }
+        classlib_Render(o, msg->gpi_GInfo, GREDRAW_UPDATE);
+        *msg->gpi_Termination = d->mode | (d->paused ? 0x1000 : 0);
+        return GMR_NOREUSE | GMR_VERIFY;
+    }
 
     d->pressed = s;
     ((struct Gadget *)o)->Flags |= GFLG_SELECTED;
@@ -406,7 +450,7 @@ static ULONG deck_handleinput(Class *cl, Object *o, struct gpInput *msg)
     if (!ie || ie->ie_Class != IECLASS_RAWMOUSE)
         return GMR_MEACTIVE;
 
-    deck_layout(o, msg->gpi_GInfo, &l);
+    deck_layout(d, o, msg->gpi_GInfo, &l);
 
     if (ie->ie_Code == IECODE_NOBUTTON)
     {
@@ -455,7 +499,7 @@ static ULONG deck_hittest(Class *cl, Object *o, struct gpHitTest *msg)
 {
     struct DeckLayout l;
 
-    deck_layout(o, msg->gpht_GInfo, &l);
+    deck_layout(INST_DATA(cl, o), o, msg->gpht_GInfo, &l);
     return deck_part_at(&l, msg->gpht_Mouse.X, msg->gpht_Mouse.Y) != SEG_NONE ? GMR_GADGETHIT : 0;
 }
 

@@ -31,7 +31,7 @@ means no test ever opened the library.
 | icon | 18 | 6 | 0 | 0 |
 | iffparse | 40 | 0 | 0 | 0 |
 | input | 1 | 0 | 0 | 0 |
-| intuition | 57 | 66 | 4 | 0 |
+| intuition | 61 | 62 | 4 | 0 |
 | keymap | 4 | 0 | 0 | 0 |
 | layers | 34 | 2 | 0 | 0 |
 | locale | 24 | 0 | 0 | 0 |
@@ -52,7 +52,7 @@ means no test ever opened the library.
 | translator | 0 | 1 | 0 | 0 |
 | utility | 38 | 0 | 5 | 0 |
 | wb | 16 | 0 | 0 | 0 |
-| **total** | **826** | **122** | **117** | **15** |
+| **total** | **830** | **118** | **117** | **15** |
 
 ## Untested and unimplemented LVOs
 
@@ -73,7 +73,7 @@ means no test ever opened the library.
 - **gadtools**: SetDesignFontA*, ScaleGadgetRectA*
 - **graphics**: ScrollVPort, WeighTAMatch*, SetMaxPen, ScrollRasterBF
 - **icon**: FreeFree, DupDiskObjectA, NewDiskObject, GetIconTagList, PutIconTagList, BumpRevisionLength
-- **intuition**: Intuition, AddGadget, ClearDMRequest, DisplayAlert, DisplayBeep, EndRequest, ModifyIDCMP, ModifyProp, MoveScreen, MoveWindow, OffGadget, OnGadget, OpenWorkBench, RefreshGadgets, RemoveGadget, Request, ScreenToBack, SetDMRequest, ShowTitle, SizeWindow, ViewPortAddress, SetPrefs, FreeSysRequest, MakeScreen, RemakeDisplay, RethinkDisplay, AllocRemember, AlohaWorkbench*, FreeRemember, LockIBase, UnlockIBase, GetScreenData, RefreshGList, AddGList, RemoveGList, ActivateWindow, RefreshWindowFrame, ActivateGadget, NewModifyProp, QueryOverscan, MoveWindowInFrontOf, ChangeWindowBox, SetEditHook, SetMouseQueue, ZipWindow, LockPubScreen, LockPubScreenList, UnlockPubScreenList, NextPubScreen, SetPubScreenModes, PubScreenStatus, ObtainGIRPort, ReleaseGIRPort, SysReqHandler, OpenWindowTagList, DrawImageState, PointInImage, NewObjectA, DisposeObject, SetAttrsA, GetAttr, FreeScreenDrawInfo, FreeClass, ScreenDepth, ScreenPosition, ScrollWindowRaster, TimedDisplayAlert, ShowWindow*, HideWindow*, IntuitionControlA*
+- **intuition**: Intuition, ClearPointer, DisplayAlert, DrawBorder, DrawImage, GetPrefs, InitRequester, ModifyProp, MoveScreen, MoveWindow, OffGadget, OpenScreen, ReportMouse1/ReportMouse, ScreenToBack, SetDMRequest, SetMenuStrip, SetWindowTitles, ShowTitle, SizeWindow, WindowToBack, WindowToFront, WindowLimits, SetPrefs, IntuiTextLength, WBenchToBack, WBenchToFront, BuildSysRequest, RethinkDisplay, AlohaWorkbench*, FreeRemember, UnlockIBase, GetScreenData, ActivateGadget, NewModifyProp, QueryOverscan, SetEditHook, ZipWindow, LockPubScreen, UnlockPubScreen, LockPubScreenList, UnlockPubScreenList, NextPubScreen, SetDefaultPubScreen, SetPubScreenModes, PubScreenStatus, ObtainGIRPort, ReleaseGIRPort, GadgetMouse, EasyRequestArgs, OpenWindowTagList, OpenScreenTagList, PointInImage, EraseImage, DisposeObject, GetAttr, SetGadgetAttrsA, NextObject, AddClass, FreeScreenDrawInfo, FreeClass, ChangeScreenBuffer, ScrollWindowRaster, DoGadgetMethodA, ShowWindow*, HideWindow*, IntuitionControlA*
 - **layers**: SwapBitsRastPortClipRect, SortLayerCR
 - **lowlevel**: ReadJoyPort*, GetLanguageSelection*, GetKey*, QueryKeys*, AddKBInt*, RemKBInt*, SystemControlA*, AddTimerInt*, RemTimerInt*, StopTimerInt*, StartTimerInt*, ElapsedTime*, AddVBlankInt*, RemVBlankInt*, SetJoyPortAttrsA*
 - **mathieeedoubbas**: IEEEDPFloor, IEEEDPCeil

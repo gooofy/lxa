@@ -1,0 +1,32 @@
+Ready
+methods of the logging gadget:
+  RENDER redraw=1
+  HITTEST mouse=10,5
+  GOACTIVE ie=2/68 mouse=10,5 term=1
+  HANDLEINPUT ie=2/E8 qual=0 mouse=10,5
+  HANDLEINPUT ie=1/10 qual=0 mouse=10,5
+  GOINACTIVE abort=0
+  HITTEST mouse=20,10
+  GOACTIVE ie=2/68 mouse=20,10 term=1
+  HANDLEINPUT ie=2/E8 qual=0 mouse=20,10
+  HANDLEINPUT ie=2/68 qual=0 mouse=110,10
+  GOINACTIVE abort=0
+  HITTEST mouse=10,5
+  GOACTIVE ie=2/68 mouse=10,5 term=1
+  HANDLEINPUT ie=2/E8 qual=0 mouse=10,5
+  HANDLEINPUT ie=1/45 qual=0 mouse=10,5
+  GOINACTIVE abort=0
+IDCMP:
+  GADGETDOWN id=1 code=0
+  GADGETUP id=1 code=42
+  GADGETDOWN id=1 code=0
+  GADGETDOWN id=2 code=0
+  GADGETUP id=2
+  IDCMPUPDATE PGA_Top=58
+  GADGETUP id=3
+  GADGETUP id=4 code=0
+  GADGETUP id=5
+  GADGETDOWN id=1 code=0
+final top=58 text="ab" moves=yes timers=yes
+flags log=8000 button=9000 prop=8004 str=8000
+Done

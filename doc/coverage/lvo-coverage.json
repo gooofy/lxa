@@ -1164,7 +1164,7 @@
  {
   "lib": "dos",
   "lvo": -228,
-  "function": "AllocDosObject/AllocDosObjectTagList",
+  "function": "AllocDosObjectTagList/AllocDosObject",
   "symbol": "dos_AllocDosObject",
   "status": "tested"
  },
@@ -1178,7 +1178,7 @@
  {
   "lib": "dos",
   "lvo": -240,
-  "function": "DoPkt1/DoPkt2/DoPkt0/DoPkt4/DoPkt/DoPkt3",
+  "function": "DoPkt1/DoPkt4/DoPkt/DoPkt0/DoPkt2/DoPkt3",
   "symbol": "dos_DoPkt",
   "status": "tested"
  },
@@ -1472,7 +1472,7 @@
  {
   "lib": "dos",
   "lvo": -498,
-  "function": "CreateNewProc/CreateNewProcTagList",
+  "function": "CreateNewProcTagList/CreateNewProc",
   "symbol": "dos_CreateNewProc",
   "status": "tested"
  },
@@ -1598,7 +1598,7 @@
  {
   "lib": "dos",
   "lvo": -606,
-  "function": "System/SystemTagList",
+  "function": "SystemTagList/System",
   "symbol": "dos_SystemTagList",
   "status": "tested"
  },
@@ -1787,7 +1787,7 @@
  {
   "lib": "dos",
   "lvo": -768,
-  "function": "NewLoadSeg/NewLoadSegTagList",
+  "function": "NewLoadSegTagList/NewLoadSeg",
   "symbol": "dos_NewLoadSeg",
   "status": "tested"
  },
@@ -2270,28 +2270,28 @@
  {
   "lib": "exec",
   "lvo": -234,
-  "function": "Insert/InsertMinNode",
+  "function": "InsertMinNode/Insert",
   "symbol": "exec_Insert",
   "status": "tested"
  },
  {
   "lib": "exec",
   "lvo": -240,
-  "function": "AddHeadMinList/AddHead",
+  "function": "AddHead/AddHeadMinList",
   "symbol": "exec_AddHead",
   "status": "tested"
  },
  {
   "lib": "exec",
   "lvo": -246,
-  "function": "AddTailMinList/AddTail",
+  "function": "AddTail/AddTailMinList",
   "symbol": "exec_AddTail",
   "status": "tested"
  },
  {
   "lib": "exec",
   "lvo": -252,
-  "function": "RemoveMinNode/Remove",
+  "function": "Remove/RemoveMinNode",
   "symbol": "exec_Remove",
   "status": "tested"
  },
@@ -2305,7 +2305,7 @@
  {
   "lib": "exec",
   "lvo": -264,
-  "function": "RemTailMinList/RemTail",
+  "function": "RemTail/RemTailMinList",
   "symbol": "exec_RemTail",
   "status": "tested"
  },
@@ -4785,14 +4785,14 @@
   "lvo": -42,
   "function": "AddGadget",
   "symbol": "intuition_AddGadget",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "intuition",
   "lvo": -48,
   "function": "ClearDMRequest",
   "symbol": "intuition_ClearDMRequest",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "intuition",
@@ -4806,7 +4806,7 @@
   "lvo": -60,
   "function": "ClearPointer",
   "symbol": "intuition_ClearPointer",
-  "status": "tested"
+  "status": "untested"
  },
  {
   "lib": "intuition",
@@ -4848,7 +4848,7 @@
   "lvo": -96,
   "function": "DisplayBeep",
   "symbol": "intuition_DisplayBeep",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "intuition",
@@ -4862,21 +4862,21 @@
   "lvo": -108,
   "function": "DrawBorder",
   "symbol": "intuition_DrawBorder",
-  "status": "tested"
+  "status": "untested"
  },
  {
   "lib": "intuition",
   "lvo": -114,
   "function": "DrawImage",
   "symbol": "intuition_DrawImage",
-  "status": "tested"
+  "status": "untested"
  },
  {
   "lib": "intuition",
   "lvo": -120,
   "function": "EndRequest",
   "symbol": "intuition_EndRequest",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "intuition",
@@ -4890,14 +4890,14 @@
   "lvo": -132,
   "function": "GetPrefs",
   "symbol": "intuition_GetPrefs",
-  "status": "tested"
+  "status": "untested"
  },
  {
   "lib": "intuition",
   "lvo": -138,
   "function": "InitRequester",
   "symbol": "intuition_InitRequester",
-  "status": "tested"
+  "status": "untested"
  },
  {
   "lib": "intuition",
@@ -4911,7 +4911,7 @@
   "lvo": -150,
   "function": "ModifyIDCMP",
   "symbol": "intuition_ModifyIDCMP",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "intuition",
@@ -4953,7 +4953,7 @@
   "lvo": -186,
   "function": "OnGadget",
   "symbol": "intuition_OnGadget",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "intuition",
@@ -4967,7 +4967,7 @@
   "lvo": -198,
   "function": "OpenScreen",
   "symbol": "intuition_OpenScreen",
-  "status": "tested"
+  "status": "untested"
  },
  {
   "lib": "intuition",
@@ -4981,7 +4981,7 @@
   "lvo": -210,
   "function": "OpenWorkBench",
   "symbol": "intuition_OpenWorkBench",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "intuition",
@@ -4995,28 +4995,28 @@
   "lvo": -222,
   "function": "RefreshGadgets",
   "symbol": "intuition_RefreshGadgets",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "intuition",
   "lvo": -228,
   "function": "RemoveGadget",
   "symbol": "intuition_RemoveGadget",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "intuition",
   "lvo": -234,
-  "function": "ReportMouse/ReportMouse1",
+  "function": "ReportMouse1/ReportMouse",
   "symbol": "intuition_ReportMouse",
-  "status": "tested"
+  "status": "untested"
  },
  {
   "lib": "intuition",
   "lvo": -240,
   "function": "Request",
   "symbol": "intuition_Request",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "intuition",
@@ -5044,7 +5044,7 @@
   "lvo": -264,
   "function": "SetMenuStrip",
   "symbol": "intuition_SetMenuStrip",
-  "status": "tested"
+  "status": "untested"
  },
  {
   "lib": "intuition",
@@ -5058,7 +5058,7 @@
   "lvo": -276,
   "function": "SetWindowTitles",
   "symbol": "intuition_SetWindowTitles",
-  "status": "tested"
+  "status": "untested"
  },
  {
   "lib": "intuition",
@@ -5086,28 +5086,28 @@
   "lvo": -300,
   "function": "ViewPortAddress",
   "symbol": "intuition_ViewPortAddress",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "intuition",
   "lvo": -306,
   "function": "WindowToBack",
   "symbol": "intuition_WindowToBack",
-  "status": "tested"
+  "status": "untested"
  },
  {
   "lib": "intuition",
   "lvo": -312,
   "function": "WindowToFront",
   "symbol": "intuition_WindowToFront",
-  "status": "tested"
+  "status": "untested"
  },
  {
   "lib": "intuition",
   "lvo": -318,
   "function": "WindowLimits",
   "symbol": "intuition_WindowLimits",
-  "status": "tested"
+  "status": "untested"
  },
  {
   "lib": "intuition",
@@ -5121,21 +5121,21 @@
   "lvo": -330,
   "function": "IntuiTextLength",
   "symbol": "intuition_IntuiTextLength",
-  "status": "tested"
+  "status": "untested"
  },
  {
   "lib": "intuition",
   "lvo": -336,
   "function": "WBenchToBack",
   "symbol": "intuition_WBenchToBack",
-  "status": "tested"
+  "status": "untested"
  },
  {
   "lib": "intuition",
   "lvo": -342,
   "function": "WBenchToFront",
   "symbol": "intuition_WBenchToFront",
-  "status": "tested"
+  "status": "untested"
  },
  {
   "lib": "intuition",
@@ -5156,7 +5156,7 @@
   "lvo": -360,
   "function": "BuildSysRequest",
   "symbol": "intuition_BuildSysRequest",
-  "status": "tested"
+  "status": "untested"
  },
  {
   "lib": "intuition",
@@ -5170,21 +5170,21 @@
   "lvo": -372,
   "function": "FreeSysRequest",
   "symbol": "intuition_FreeSysRequest",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "intuition",
   "lvo": -378,
   "function": "MakeScreen",
   "symbol": "intuition_MakeScreen",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "intuition",
   "lvo": -384,
   "function": "RemakeDisplay",
   "symbol": "intuition_RemakeDisplay",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "intuition",
@@ -5198,7 +5198,7 @@
   "lvo": -396,
   "function": "AllocRemember",
   "symbol": "intuition_AllocRemember",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "intuition",
@@ -5219,7 +5219,7 @@
   "lvo": -414,
   "function": "LockIBase",
   "symbol": "intuition_LockIBase",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "intuition",
@@ -5240,35 +5240,35 @@
   "lvo": -432,
   "function": "RefreshGList",
   "symbol": "intuition_RefreshGList",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "intuition",
   "lvo": -438,
   "function": "AddGList",
   "symbol": "intuition_AddGList",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "intuition",
   "lvo": -444,
   "function": "RemoveGList",
   "symbol": "intuition_RemoveGList",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "intuition",
   "lvo": -450,
   "function": "ActivateWindow",
   "symbol": "intuition_ActivateWindow",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "intuition",
   "lvo": -456,
   "function": "RefreshWindowFrame",
   "symbol": "intuition_RefreshWindowFrame",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "intuition",
@@ -5296,14 +5296,14 @@
   "lvo": -480,
   "function": "MoveWindowInFrontOf",
   "symbol": "intuition_MoveWindowInFrontOf",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "intuition",
   "lvo": -486,
   "function": "ChangeWindowBox",
   "symbol": "intuition_ChangeWindowBox",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "intuition",
@@ -5317,7 +5317,7 @@
   "lvo": -498,
   "function": "SetMouseQueue",
   "symbol": "intuition_SetMouseQueue",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "intuition",
@@ -5338,7 +5338,7 @@
   "lvo": -516,
   "function": "UnlockPubScreen",
   "symbol": "intuition_UnlockPubScreen",
-  "status": "tested"
+  "status": "untested"
  },
  {
   "lib": "intuition",
@@ -5366,7 +5366,7 @@
   "lvo": -540,
   "function": "SetDefaultPubScreen",
   "symbol": "intuition_SetDefaultPubScreen",
-  "status": "tested"
+  "status": "untested"
  },
  {
   "lib": "intuition",
@@ -5401,7 +5401,7 @@
   "lvo": -570,
   "function": "GadgetMouse",
   "symbol": "intuition_GadgetMouse",
-  "status": "tested"
+  "status": "untested"
  },
  {
   "lib": "intuition",
@@ -5415,7 +5415,7 @@
   "lvo": -588,
   "function": "EasyRequestArgs",
   "symbol": "intuition_EasyRequestArgs",
-  "status": "tested"
+  "status": "untested"
  },
  {
   "lib": "intuition",
@@ -5429,7 +5429,7 @@
   "lvo": -600,
   "function": "SysReqHandler",
   "symbol": "intuition_SysReqHandler",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "intuition",
@@ -5443,14 +5443,14 @@
   "lvo": -612,
   "function": "OpenScreenTagList",
   "symbol": "intuition_OpenScreenTagList",
-  "status": "tested"
+  "status": "untested"
  },
  {
   "lib": "intuition",
   "lvo": -618,
   "function": "DrawImageState",
   "symbol": "intuition_DrawImageState",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "intuition",
@@ -5464,14 +5464,14 @@
   "lvo": -630,
   "function": "EraseImage",
   "symbol": "intuition_EraseImage",
-  "status": "tested"
+  "status": "untested"
  },
  {
   "lib": "intuition",
   "lvo": -636,
   "function": "NewObjectA",
   "symbol": "intuition_NewObjectA",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "intuition",
@@ -5485,7 +5485,7 @@
   "lvo": -648,
   "function": "SetAttrsA",
   "symbol": "intuition_SetAttrsA",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "intuition",
@@ -5499,14 +5499,14 @@
   "lvo": -660,
   "function": "SetGadgetAttrsA",
   "symbol": "intuition_SetGadgetAttrsA",
-  "status": "tested"
+  "status": "untested"
  },
  {
   "lib": "intuition",
   "lvo": -666,
   "function": "NextObject",
   "symbol": "intuition_NextObject",
-  "status": "tested"
+  "status": "untested"
  },
  {
   "lib": "intuition",
@@ -5520,7 +5520,7 @@
   "lvo": -684,
   "function": "AddClass",
   "symbol": "intuition_AddClass",
-  "status": "tested"
+  "status": "untested"
  },
  {
   "lib": "intuition",
@@ -5576,21 +5576,21 @@
   "lvo": -780,
   "function": "ChangeScreenBuffer",
   "symbol": "intuition_ChangeScreenBuffer",
-  "status": "tested"
+  "status": "untested"
  },
  {
   "lib": "intuition",
   "lvo": -786,
   "function": "ScreenDepth",
   "symbol": "intuition_ScreenDepth",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "intuition",
   "lvo": -792,
   "function": "ScreenPosition",
   "symbol": "intuition_ScreenPosition",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "intuition",
@@ -5611,7 +5611,7 @@
   "lvo": -810,
   "function": "DoGadgetMethodA",
   "symbol": "intuition_DoGadgetMethodA",
-  "status": "tested"
+  "status": "untested"
  },
  {
   "lib": "intuition",
@@ -5625,7 +5625,7 @@
   "lvo": -822,
   "function": "TimedDisplayAlert",
   "symbol": "intuition_TimedDisplayAlert",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "intuition",

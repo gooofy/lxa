@@ -1,0 +1,121 @@
+-- sys body1 pos neg
+window box=0,0,164x50 bl=4 bt=11 br=4 bb=2
+   minw=164 minh=50 maxw=164 maxh=50 gzzw=156 gzzh=37
+   flags=0x08033046 idcmp=0x00200040 title="System Request" stitle dpen=0 bpen=1
+   rport rpfont=8 noborderrp layer box=0,0,164x50 lflags=0x0001
+  gad2 id=1 type=0x0005 flags=0x8004 act=0x0001 box=8,32,64x14 render noselect text nospecial mx=set
+  ext more=0x00000000
+  itext0 t="Retry" l=6 tp=3 fp=0 bp=1 dm=1 font=NULL
+    text=pos
+  gad3 id=0 type=0x0005 flags=0x8004 act=0x0001 box=84,32,72x14 render noselect text nospecial mx=set
+  ext more=0x00000000
+  itext0 t="Cancel" l=6 tp=3 fp=0 bp=1 dm=1 font=NULL
+    text=neg
+  gad4 id=0 type=0x0000 flags=0x0007 act=0x0000 box=0,0,0x0 render noselect notext nospecial mx=0
+  image0 box=4,11,156x37 depth=-1
+  body bg=0 box=39,18,86x8
+-- sys body1 neg only
+window box=0,0,160x50 bl=4 bt=11 br=4 bb=2
+   minw=160 minh=50 maxw=160 maxh=50 gzzw=152 gzzh=37
+   flags=0x08033046 idcmp=0x00200040 title="System Request" stitle dpen=0 bpen=1
+   rport rpfont=8 noborderrp layer box=0,0,160x50 lflags=0x0001
+  gad2 id=0 type=0x0005 flags=0x8004 act=0x0001 box=44,32,72x14 render noselect text nospecial mx=set
+  ext more=0x00000000
+  itext0 t="Cancel" l=6 tp=3 fp=0 bp=1 dm=1 font=NULL
+    text=neg
+  gad3 id=0 type=0x0000 flags=0x0007 act=0x0000 box=0,0,0x0 render noselect notext nospecial mx=0
+  image0 box=4,11,152x37 depth=-1
+  body bg=0 box=37,18,86x8
+-- sys body3
+window box=0,0,248x70 bl=4 bt=11 br=4 bb=2
+   minw=248 minh=70 maxw=248 maxh=70 gzzw=240 gzzh=57
+   flags=0x08033046 idcmp=0x00200040 title="System Request" stitle dpen=0 bpen=1
+   rport rpfont=8 noborderrp layer box=0,0,248x70 lflags=0x0001
+  gad2 id=1 type=0x0005 flags=0x8004 act=0x0001 box=8,52,64x14 render noselect text nospecial mx=set
+  ext more=0x00000000
+  itext0 t="Retry" l=6 tp=3 fp=0 bp=1 dm=1 font=NULL
+    text=pos
+  gad3 id=0 type=0x0005 flags=0x8004 act=0x0001 box=168,52,72x14 render noselect text nospecial mx=set
+  ext more=0x00000000
+  itext0 t="Cancel" l=6 tp=3 fp=0 bp=1 dm=1 font=NULL
+    text=neg
+  gad4 id=0 type=0x0000 flags=0x0007 act=0x0000 box=0,0,0x0 render noselect notext nospecial mx=0
+  image0 box=4,11,240x57 depth=-1
+  body bg=0 box=37,18,174x27
+-- sys body topaz9
+window box=0,0,322x52 bl=4 bt=11 br=4 bb=2
+   minw=322 minh=52 maxw=322 maxh=52 gzzw=314 gzzh=39
+   flags=0x08033046 idcmp=0x00200040 title="System Request" stitle dpen=0 bpen=1
+   rport rpfont=8 noborderrp layer box=0,0,322x52 lflags=0x0001
+  gad2 id=1 type=0x0005 flags=0x8004 act=0x0001 box=8,33,64x15 render noselect text nospecial mx=set
+  ext more=0x00000000
+  itext0 t="Okay" l=6 tp=3 fp=0 bp=1 dm=1 font=topaz.font/9
+    text=pos
+  gad3 id=0 type=0x0005 flags=0x8004 act=0x0001 box=242,33,72x14 render noselect text nospecial mx=set
+  ext more=0x00000000
+  itext0 t="Cancel" l=6 tp=3 fp=0 bp=1 dm=1 font=NULL
+    text=neg
+  gad4 id=0 type=0x0000 flags=0x0007 act=0x0000 box=0,0,0x0 render noselect notext nospecial mx=0
+  image0 box=4,11,314x39 depth=-1
+  body bg=0 box=37,18,247x8
+-- easy 3 buttons
+window box=0,0,200x65 bl=4 bt=11 br=4 bb=2
+   minw=200 minh=65 maxw=200 maxh=65 gzzw=192 gzzh=52
+   flags=0x08033046 idcmp=0x00200040 title="Probe" stitle dpen=0 bpen=1
+   rport rpfont=8 noborderrp layer box=0,0,200x65 lflags=0x0001
+  gad2 id=1 type=0x0005 flags=0x8004 act=0x0001 box=8,47,48x14 render noselect text nospecial mx=set
+  ext more=0x00000000
+  itext0 t="One" l=0 tp=0 fp=0 bp=1 dm=1 font=NULL
+    text=own
+  gad3 id=2 type=0x0005 flags=0x8004 act=0x0001 box=68,47,48x14 render noselect text nospecial mx=set
+  ext more=0x00000000
+  itext0 t="Two" l=0 tp=0 fp=0 bp=1 dm=1 font=NULL
+    text=own
+  gad4 id=0 type=0x0005 flags=0x8004 act=0x0001 box=128,47,64x14 render noselect text nospecial mx=set
+  ext more=0x00000000
+  itext0 t="Three" l=0 tp=0 fp=0 bp=0 dm=0 font=NULL
+    text=own
+  gad5 id=0 type=0x0000 flags=0x0007 act=0x0000 box=0,0,0x0 render noselect notext nospecial mx=0
+  image0 box=4,11,192x52 depth=-1
+  body bg=0 box=53,21,94x16
+-- easy 1 button
+window box=0,0,114x56 bl=4 bt=11 br=4 bb=2
+   minw=114 minh=56 maxw=114 maxh=56 gzzw=106 gzzh=43
+   flags=0x08033046 idcmp=0x00200040 title="Probe" stitle dpen=0 bpen=1
+   rport rpfont=8 noborderrp layer box=0,0,114x56 lflags=0x0001
+  gad2 id=0 type=0x0005 flags=0x8004 act=0x0001 box=37,38,40x14 render noselect text nospecial mx=set
+  ext more=0x00000000
+  itext0 t="Ok" l=0 tp=0 fp=0 bp=0 dm=0 font=NULL
+    text=own
+  gad3 id=0 type=0x0000 flags=0x0007 act=0x0000 box=0,0,0x0 render noselect notext nospecial mx=0
+  image0 box=4,11,106x43 depth=-1
+  body bg=0 box=34,21,46x8
+  bgimage
+   22222222222222222222222222222
+   23333333333333333333333311133
+   23133333333333333333333301113
+   23333333333333333333333312223
+   23333333333333333333333331113
+   21111111111111111111111111111
+   20000000000000000000000000003
+   20100000000000000000000000003
+   20100000000000000000000000003
+   20100000000000000000000000003
+   20100000000000000000000000003
+   20100000000000000100000000003
+   20100000010100000100000000003
+   20100000000100010100000000003
+   20100000000000010000000000003
+   20100000000000000000000000003
+   20100000000000000000000000003
+   20100000000000000000000000003
+   20022222222222222222222222203
+   20000000000000000000000000003
+   20000000000000000000000000003
+   20000000000000000000000000003
+   20000000000000000000000000003
+   20000000000000000000000000003
+   20000000000000000000000000003
+   20000000000000000000000000003
+   20000000000000000000000000003
+   22222222222222222222222222223

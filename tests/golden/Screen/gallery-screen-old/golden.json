@@ -1,16 +1,16 @@
 {
  "app": "Screen",
  "disabled": null,
- "lxa_version": "0.11.23",
- "promoted": "2026-10-03",
+ "lxa_version": "0.13.1",
+ "promoted": "2026-11-07",
  "reference": "AmigaOS 3.1 (KS 40.70), profile aga",
  "requires_apps": false,
  "scenario": "gallery-screen-old",
  "snapshots": {
   "screen": {
    "known_tree_diffs": [],
-   "pixel_budget": 797,
-   "pixel_phase": 252,
+   "pixel_budget": 8,
+   "pixel_phase": 259,
    "stdout_known_diff": null
   }
  }

@@ -1,22 +1,22 @@
 {
  "app": "Typeface",
  "disabled": null,
- "lxa_version": "0.11.26",
- "promoted": "2026-10-04",
+ "lxa_version": "0.13.1",
+ "promoted": "2026-11-07",
  "reference": "AmigaOS 3.1 (KS 40.70), profile aga",
  "requires_apps": true,
  "scenario": "typeface-preview",
  "snapshots": {
   "preview": {
    "known_tree_diffs": [],
-   "pixel_budget": 816,
-   "pixel_phase": 256,
+   "pixel_budget": 0,
+   "pixel_phase": null,
    "stdout_known_diff": null
   },
   "startup": {
    "known_tree_diffs": [],
-   "pixel_budget": 272,
-   "pixel_phase": 256,
+   "pixel_budget": 0,
+   "pixel_phase": null,
    "stdout_known_diff": null
   }
  }

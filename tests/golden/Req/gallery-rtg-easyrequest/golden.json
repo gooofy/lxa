@@ -1,9 +1,8 @@
 {
  "app": "Req",
  "disabled": null,
- "lxa_version": "0.12.9",
- "note": "rtg profile: system requesters on the 800x600 Workbench have wider margins on 3.1 (Phase 256); other residue as in the aga gallery",
- "promoted": "2026-10-18",
+ "lxa_version": "0.13.1",
+ "promoted": "2026-11-07",
  "reference": "AmigaOS 3.1 (KS 40.70), profile rtg",
  "requires_apps": false,
  "scenario": "gallery-rtg-easyrequest",
@@ -63,52 +62,12 @@
      "where": "screen[Workbench Screen]/window[Gallery Request]"
     },
     {
-     "field": "count",
-     "kind": "gadget",
-     "lxa": 5,
-     "phase": 256,
-     "ref": 6,
-     "where": "screen[Workbench Screen]/window[Gallery Request]"
-    },
-    {
-     "field": "type",
-     "kind": "gadget",
-     "lxa": 1,
-     "phase": 256,
-     "ref": 5,
-     "where": "screen[Workbench Screen]/window[Gallery Request]/gadget[0 id=1]"
-    },
-    {
-     "field": "flags",
-     "kind": "gadget",
-     "lxa": 0,
-     "phase": 256,
-     "ref": 32772,
-     "where": "screen[Workbench Screen]/window[Gallery Request]/gadget[0 id=1]"
-    },
-    {
      "field": "top",
      "kind": "gadget",
      "lxa": 47,
      "phase": 256,
      "ref": 53,
      "where": "screen[Workbench Screen]/window[Gallery Request]/gadget[0 id=1]"
-    },
-    {
-     "field": "type",
-     "kind": "gadget",
-     "lxa": 1,
-     "phase": 256,
-     "ref": 5,
-     "where": "screen[Workbench Screen]/window[Gallery Request]/gadget[1 id=2]"
-    },
-    {
-     "field": "flags",
-     "kind": "gadget",
-     "lxa": 0,
-     "phase": 256,
-     "ref": 32772,
-     "where": "screen[Workbench Screen]/window[Gallery Request]/gadget[1 id=2]"
     },
     {
      "field": "left",
@@ -125,22 +84,6 @@
      "phase": 256,
      "ref": 53,
      "where": "screen[Workbench Screen]/window[Gallery Request]/gadget[1 id=2]"
-    },
-    {
-     "field": "type",
-     "kind": "gadget",
-     "lxa": 1,
-     "phase": 256,
-     "ref": 5,
-     "where": "screen[Workbench Screen]/window[Gallery Request]/gadget[2 id=0]"
-    },
-    {
-     "field": "flags",
-     "kind": "gadget",
-     "lxa": 0,
-     "phase": 256,
-     "ref": 32772,
-     "where": "screen[Workbench Screen]/window[Gallery Request]/gadget[2 id=0]"
     },
     {
      "field": "left",

@@ -1,0 +1,232 @@
+-- sysiclass on the Workbench
+dri flags=0x00000001 depth=2 fonty=8 resx=22 resy=44
+DEPTH/med box=-1,0,24x11 n=0x5a544992 s=0xfdee2e81 i=0xfa033ea0
+ZOOM/med box=-1,0,24x11 n=0x15ffb5f2 s=0xcdd5d721 i=0xba5c65f3
+SIZE/med box=0,0,18x10 n=0xd98350fc s=0xd98350fc i=0xaec4d6cc
+CLOSE/med box=0,0,20x11 n=0x9e387a09 s=0xfae31b9e i=0xa38f763f
+SDEPTH/med box=0,0,23x11 n=0xead921da s=0x590dba13 i=0xead921da
+LEFT/med box=0,0,16x10 n=0xd7aa745d s=0x36c080a5 i=0x5cf26705
+UP/med box=0,0,18x11 n=0x8c872b2a s=0x56190e86 i=0xa85d4268
+RIGHT/med box=0,0,16x10 n=0x3fed2d9d s=0x1a5683e5 i=0x9f6e2a0d
+DOWN/med box=0,0,18x11 n=0xe2ea952a s=0xbe7a1e86 i=0x6cda2490
+CHECK/med box=0,0,26x11 n=0x0c9b8a8b s=0xf74df13a i=0x0c9b8a8b
+MX/med box=0,0,17x9 n=0xadadcc58 s=0x59baad35 i=0xadadcc58
+MENUCHECK/med box=0,0,15x8 n=0xd7468e1b s=0xd7468e1b i=0xd7468e1b
+AMIGAKEY/med box=0,0,23x8 n=0xa8a8160f s=0xa8a8160f i=0xa8a8160f
+DEPTH/low box=-1,0,18x11 n=0xbc6579a0 s=0xdf92fc9d i=0xe19ee160
+ZOOM/low box=-1,0,18x11 n=0xaa86f45c s=0x0d69fb83 i=0xa5d1161e
+SIZE/low box=0,0,13x11 n=0x190f5752 s=0x190f5752 i=0xc9edd8a1
+CLOSE/low box=0,0,15x11 n=0xc2c136e0 s=0x873a1f4b i=0x1dbec864
+SDEPTH/low box=0,0,17x11 n=0x7cf06520 s=0xfbbbd363 i=0x7cf06520
+LEFT/low box=0,0,16x11 n=0x79b18114 s=0x1577900a i=0x18b2130e
+UP/low box=0,0,13x11 n=0x8b0c2a72 s=0xbb372462 i=0x3817723f
+RIGHT/low box=0,0,16x11 n=0x2c3c9b6c s=0xba05a27a i=0x4113e23e
+DOWN/low box=0,0,13x11 n=0xddca82e2 s=0x47ef3912 i=0x64abaf23
+CHECK/low box=0,0,26x11 n=0x0c9b8a8b s=0xf74df13a i=0x0c9b8a8b
+MX/low box=0,0,17x9 n=0xadadcc58 s=0x59baad35 i=0xadadcc58
+MENUCHECK/low box=0,0,15x8 n=0xd7468e1b s=0xd7468e1b i=0xd7468e1b
+AMIGAKEY/low box=0,0,23x8 n=0xa8a8160f s=0xa8a8160f i=0xa8a8160f
+DEPTH/hi box=-1,0,24x11 n=0x5a544992 s=0xfdee2e81 i=0xfa033ea0
+ZOOM/hi box=-1,0,24x11 n=0x15ffb5f2 s=0xcdd5d721 i=0xba5c65f3
+SIZE/hi box=0,0,18x10 n=0xd98350fc s=0xd98350fc i=0xaec4d6cc
+CLOSE/hi box=0,0,20x11 n=0x9e387a09 s=0xfae31b9e i=0xa38f763f
+SDEPTH/hi box=0,0,23x11 n=0xead921da s=0x590dba13 i=0xead921da
+LEFT/hi box=0,0,23x22 n=0xf601b4b8 s=0x448a45b2 i=0x6e861ea7
+UP/hi box=0,0,23x22 n=0x2403baac s=0x29610280 i=0xc9e4211e
+RIGHT/hi box=0,0,23x22 n=0x4d5e4a20 s=0xf09b67ca i=0x0a0d8a1f
+DOWN/hi box=0,0,23x22 n=0xb913406a s=0xc9f369fe i=0x95bdf215
+CHECK/hi box=0,0,26x11 n=0x0c9b8a8b s=0xf74df13a i=0x0c9b8a8b
+MX/hi box=0,0,17x9 n=0xadadcc58 s=0x59baad35 i=0xadadcc58
+MENUCHECK/hi box=0,0,15x8 n=0xd7468e1b s=0xd7468e1b i=0xd7468e1b
+AMIGAKEY/hi box=0,0,23x8 n=0xa8a8160f s=0xa8a8160f i=0xa8a8160f
+-- frameiclass
+default/norm box=0,0,80x40 ret=1 frame box=8,18,34x16 specify box=-5,11,60x30 n=0x7b41734e s=0xb9851fc8
+default/rec box=0,0,80x40 ret=1 frame box=8,18,34x16 specify box=-5,11,60x30 n=0xcb82b0e8 s=0x59c3f9ae
+button/norm box=0,0,80x40 ret=1 frame box=6,18,38x16 specify box=-5,11,60x30 n=0x2a45d001 s=0x55a60bc5
+button/rec box=0,0,80x40 ret=1 frame box=6,18,38x16 specify box=-5,11,60x30 n=0xa318e089 s=0xbae2ca6d
+ridge/norm box=0,0,80x40 ret=1 frame box=4,17,42x18 specify box=-5,11,60x30 n=0xdd119969 s=0x9bf24f69
+ridge/rec box=0,0,80x40 ret=1 frame box=4,17,42x18 specify box=-5,11,60x30 n=0x64c09f99 s=0xe45aad39
+icondropbox/norm box=0,0,80x40 ret=1 frame box=2,16,46x20 specify box=-5,11,60x30 n=0xdd209ef1 s=0x3b1c81b5
+icondropbox/rec box=0,0,80x40 ret=1 frame box=2,16,46x20 specify box=-5,11,60x30 n=0xc578fe81 s=0x33b6be25
+-- itexticlass
+object = non-NULL
+itext box=0,0,80x40 depth=-1
+normal hash=0x156e2855
+selected hash=0x156e2855
+nodri hash=0x156e2855
+itext pens box box=5,6,30x9
+normal hash=0xb245491e
+-- pointerclass
+object = non-NULL
+BitMap not gettable
+XOffset not gettable
+YOffset not gettable
+WordWidth not gettable
+XResolution not gettable
+YResolution not gettable
+default object = non-NULL
+-- sysiclass old look topaz 8
+dri flags=0x00000000 depth=2 fonty=8 resx=22 resy=44
+DEPTH/med box=-1,0,24x11 n=0x0c6eed2a s=0xcb2fa5cb i=0x70067e75
+ZOOM/med box=-1,0,24x11 n=0x0af7c9c8 s=0x4c71ad29 i=0x372068e3
+SIZE/med box=0,0,18x10 n=0xa8039069 s=0xa8039069 i=0x9f7eb105
+CLOSE/med box=0,0,20x11 n=0xb891397a s=0x9fa5db2b i=0xd6118f6d
+SDEPTH/med box=0,0,23x11 n=0xbe1a2f15 s=0x56856492 i=0xbe1a2f15
+LEFT/med box=0,0,16x10 n=0x865c25b5 s=0x6821be75 i=0xc042ad75
+UP/med box=0,0,18x11 n=0xb4e83df9 s=0x702d3231 i=0xff21c031
+RIGHT/med box=0,0,16x10 n=0x17deb9f5 s=0xbd546bb5 i=0x6b100035
+DOWN/med box=0,0,18x11 n=0xe3e3ae39 s=0x707d5d71 i=0xff71eb71
+CHECK/med box=0,0,26x11 n=0x601e94dd s=0x47dc92e4 i=0x601e94dd
+MX/med box=0,0,17x9 n=0xb00adc97 s=0x7a0c1264 i=0xb00adc97
+MENUCHECK/med box=0,0,15x8 n=0x36797d5f s=0x36797d5f i=0x36797d5f
+AMIGAKEY/med box=0,0,23x8 n=0x93a69b13 s=0x93a69b13 i=0x93a69b13
+DEPTH/low box=-1,0,18x11 n=0x679f04b5 s=0x5ce6b7c6 i=0xed50800c
+ZOOM/low box=-1,0,18x11 n=0x5e6d13e5 s=0xbdb521c6 i=0xaf2a8420
+SIZE/low box=0,0,13x11 n=0xd702c639 s=0xd702c639 i=0x7e959436
+CLOSE/low box=0,0,15x11 n=0x3ff8225d s=0x945bf3b1 i=0xc5f45a9f
+SDEPTH/low box=0,0,17x11 n=0xd9243614 s=0x020578d5 i=0xd9243614
+LEFT/low box=0,0,16x11 n=0x90a1978e s=0xe5dae404 i=0x36ddf49a
+UP/low box=0,0,13x11 n=0xad02909b s=0xadd4434a i=0x170adbbe
+RIGHT/low box=0,0,16x11 n=0x150f4ee6 s=0x996f800c i=0x83495892
+DOWN/low box=0,0,13x11 n=0xc52994c3 s=0xb4228f66 i=0x10bc8fa2
+CHECK/low box=0,0,26x11 n=0x601e94dd s=0x47dc92e4 i=0x601e94dd
+MX/low box=0,0,17x9 n=0xb00adc97 s=0x7a0c1264 i=0xb00adc97
+MENUCHECK/low box=0,0,15x8 n=0x36797d5f s=0x36797d5f i=0x36797d5f
+AMIGAKEY/low box=0,0,23x8 n=0x93a69b13 s=0x93a69b13 i=0x93a69b13
+DEPTH/hi box=-1,0,24x11 n=0x0c6eed2a s=0xcb2fa5cb i=0x70067e75
+ZOOM/hi box=-1,0,24x11 n=0x0af7c9c8 s=0x4c71ad29 i=0x372068e3
+SIZE/hi box=0,0,18x10 n=0xa8039069 s=0xa8039069 i=0x9f7eb105
+CLOSE/hi box=0,0,20x11 n=0xb891397a s=0x9fa5db2b i=0xd6118f6d
+SDEPTH/hi box=0,0,23x11 n=0xbe1a2f15 s=0x56856492 i=0xbe1a2f15
+LEFT/hi box=0,0,23x22 n=0x7f54537e s=0x1ebea63a i=0x874c2e9e
+UP/hi box=0,0,23x22 n=0x6328169e s=0x1de2bcca i=0xe57f0d8c
+RIGHT/hi box=0,0,23x22 n=0xdc28e1ae s=0x83373ac2 i=0x22d39a16
+DOWN/hi box=0,0,23x22 n=0xdeba3f89 s=0x056b3961 i=0x6374e227
+CHECK/hi box=0,0,26x11 n=0x601e94dd s=0x47dc92e4 i=0x601e94dd
+MX/hi box=0,0,17x9 n=0xb00adc97 s=0x7a0c1264 i=0xb00adc97
+MENUCHECK/hi box=0,0,15x8 n=0x36797d5f s=0x36797d5f i=0x36797d5f
+AMIGAKEY/hi box=0,0,23x8 n=0x93a69b13 s=0x93a69b13 i=0x93a69b13
+-- sysiclass new look topaz 11
+dri flags=0x00000001 depth=2 fonty=11 resx=22 resy=44
+DEPTH/med box=-1,0,24x11 n=0x5a544992 s=0xfdee2e81 i=0xfa033ea0
+ZOOM/med box=-1,0,24x11 n=0x15ffb5f2 s=0xcdd5d721 i=0xba5c65f3
+SIZE/med box=0,0,18x10 n=0xd98350fc s=0xd98350fc i=0xaec4d6cc
+CLOSE/med box=0,0,20x11 n=0x9e387a09 s=0xfae31b9e i=0xa38f763f
+SDEPTH/med box=0,0,23x11 n=0xead921da s=0x590dba13 i=0xead921da
+LEFT/med box=0,0,16x10 n=0xd7aa745d s=0x36c080a5 i=0x5cf26705
+UP/med box=0,0,18x11 n=0x8c872b2a s=0x56190e86 i=0xa85d4268
+RIGHT/med box=0,0,16x10 n=0x3fed2d9d s=0x1a5683e5 i=0x9f6e2a0d
+DOWN/med box=0,0,18x11 n=0xe2ea952a s=0xbe7a1e86 i=0x6cda2490
+CHECK/med box=0,0,26x11 n=0x0c9b8a8b s=0xf74df13a i=0x0c9b8a8b
+MX/med box=0,0,17x9 n=0xadadcc58 s=0x59baad35 i=0xadadcc58
+MENUCHECK/med box=0,0,15x8 n=0xd7468e1b s=0xd7468e1b i=0xd7468e1b
+AMIGAKEY/med box=0,0,23x8 n=0xa8a8160f s=0xa8a8160f i=0xa8a8160f
+DEPTH/low box=-1,0,18x11 n=0xbc6579a0 s=0xdf92fc9d i=0xe19ee160
+ZOOM/low box=-1,0,18x11 n=0xaa86f45c s=0x0d69fb83 i=0xa5d1161e
+SIZE/low box=0,0,13x11 n=0x190f5752 s=0x190f5752 i=0xc9edd8a1
+CLOSE/low box=0,0,15x11 n=0xc2c136e0 s=0x873a1f4b i=0x1dbec864
+SDEPTH/low box=0,0,17x11 n=0x7cf06520 s=0xfbbbd363 i=0x7cf06520
+LEFT/low box=0,0,16x11 n=0x79b18114 s=0x1577900a i=0x18b2130e
+UP/low box=0,0,13x11 n=0x8b0c2a72 s=0xbb372462 i=0x3817723f
+RIGHT/low box=0,0,16x11 n=0x2c3c9b6c s=0xba05a27a i=0x4113e23e
+DOWN/low box=0,0,13x11 n=0xddca82e2 s=0x47ef3912 i=0x64abaf23
+CHECK/low box=0,0,26x11 n=0x0c9b8a8b s=0xf74df13a i=0x0c9b8a8b
+MX/low box=0,0,17x9 n=0xadadcc58 s=0x59baad35 i=0xadadcc58
+MENUCHECK/low box=0,0,15x8 n=0xd7468e1b s=0xd7468e1b i=0xd7468e1b
+AMIGAKEY/low box=0,0,23x8 n=0xa8a8160f s=0xa8a8160f i=0xa8a8160f
+DEPTH/hi box=-1,0,24x11 n=0x5a544992 s=0xfdee2e81 i=0xfa033ea0
+ZOOM/hi box=-1,0,24x11 n=0x15ffb5f2 s=0xcdd5d721 i=0xba5c65f3
+SIZE/hi box=0,0,18x10 n=0xd98350fc s=0xd98350fc i=0xaec4d6cc
+CLOSE/hi box=0,0,20x11 n=0x9e387a09 s=0xfae31b9e i=0xa38f763f
+SDEPTH/hi box=0,0,23x11 n=0xead921da s=0x590dba13 i=0xead921da
+LEFT/hi box=0,0,23x22 n=0xf601b4b8 s=0x448a45b2 i=0x6e861ea7
+UP/hi box=0,0,23x22 n=0x2403baac s=0x29610280 i=0xc9e4211e
+RIGHT/hi box=0,0,23x22 n=0x4d5e4a20 s=0xf09b67ca i=0x0a0d8a1f
+DOWN/hi box=0,0,23x22 n=0xb913406a s=0xc9f369fe i=0x95bdf215
+CHECK/hi box=0,0,26x11 n=0x0c9b8a8b s=0xf74df13a i=0x0c9b8a8b
+MX/hi box=0,0,17x9 n=0xadadcc58 s=0x59baad35 i=0xadadcc58
+MENUCHECK/hi box=0,0,15x8 n=0xd7468e1b s=0xd7468e1b i=0xd7468e1b
+AMIGAKEY/hi box=0,0,23x8 n=0xa8a8160f s=0xa8a8160f i=0xa8a8160f
+-- sysiclass old look topaz 11
+dri flags=0x00000000 depth=2 fonty=11 resx=22 resy=44
+DEPTH/med box=-1,0,24x11 n=0x0c6eed2a s=0xcb2fa5cb i=0x70067e75
+ZOOM/med box=-1,0,24x11 n=0x0af7c9c8 s=0x4c71ad29 i=0x372068e3
+SIZE/med box=0,0,18x10 n=0xa8039069 s=0xa8039069 i=0x9f7eb105
+CLOSE/med box=0,0,20x11 n=0xb891397a s=0x9fa5db2b i=0xd6118f6d
+SDEPTH/med box=0,0,23x11 n=0xbe1a2f15 s=0x56856492 i=0xbe1a2f15
+LEFT/med box=0,0,16x10 n=0x865c25b5 s=0x6821be75 i=0xc042ad75
+UP/med box=0,0,18x11 n=0xb4e83df9 s=0x702d3231 i=0xff21c031
+RIGHT/med box=0,0,16x10 n=0x17deb9f5 s=0xbd546bb5 i=0x6b100035
+DOWN/med box=0,0,18x11 n=0xe3e3ae39 s=0x707d5d71 i=0xff71eb71
+CHECK/med box=0,0,26x11 n=0x601e94dd s=0x47dc92e4 i=0x601e94dd
+MX/med box=0,0,17x9 n=0xb00adc97 s=0x7a0c1264 i=0xb00adc97
+MENUCHECK/med box=0,0,15x8 n=0x36797d5f s=0x36797d5f i=0x36797d5f
+AMIGAKEY/med box=0,0,23x8 n=0x93a69b13 s=0x93a69b13 i=0x93a69b13
+DEPTH/low box=-1,0,18x11 n=0x679f04b5 s=0x5ce6b7c6 i=0xed50800c
+ZOOM/low box=-1,0,18x11 n=0x5e6d13e5 s=0xbdb521c6 i=0xaf2a8420
+SIZE/low box=0,0,13x11 n=0xd702c639 s=0xd702c639 i=0x7e959436
+CLOSE/low box=0,0,15x11 n=0x3ff8225d s=0x945bf3b1 i=0xc5f45a9f
+SDEPTH/low box=0,0,17x11 n=0xd9243614 s=0x020578d5 i=0xd9243614
+LEFT/low box=0,0,16x11 n=0x90a1978e s=0xe5dae404 i=0x36ddf49a
+UP/low box=0,0,13x11 n=0xad02909b s=0xadd4434a i=0x170adbbe
+RIGHT/low box=0,0,16x11 n=0x150f4ee6 s=0x996f800c i=0x83495892
+DOWN/low box=0,0,13x11 n=0xc52994c3 s=0xb4228f66 i=0x10bc8fa2
+CHECK/low box=0,0,26x11 n=0x601e94dd s=0x47dc92e4 i=0x601e94dd
+MX/low box=0,0,17x9 n=0xb00adc97 s=0x7a0c1264 i=0xb00adc97
+MENUCHECK/low box=0,0,15x8 n=0x36797d5f s=0x36797d5f i=0x36797d5f
+AMIGAKEY/low box=0,0,23x8 n=0x93a69b13 s=0x93a69b13 i=0x93a69b13
+DEPTH/hi box=-1,0,24x11 n=0x0c6eed2a s=0xcb2fa5cb i=0x70067e75
+ZOOM/hi box=-1,0,24x11 n=0x0af7c9c8 s=0x4c71ad29 i=0x372068e3
+SIZE/hi box=0,0,18x10 n=0xa8039069 s=0xa8039069 i=0x9f7eb105
+CLOSE/hi box=0,0,20x11 n=0xb891397a s=0x9fa5db2b i=0xd6118f6d
+SDEPTH/hi box=0,0,23x11 n=0xbe1a2f15 s=0x56856492 i=0xbe1a2f15
+LEFT/hi box=0,0,23x22 n=0x7f54537e s=0x1ebea63a i=0x874c2e9e
+UP/hi box=0,0,23x22 n=0x6328169e s=0x1de2bcca i=0xe57f0d8c
+RIGHT/hi box=0,0,23x22 n=0xdc28e1ae s=0x83373ac2 i=0x22d39a16
+DOWN/hi box=0,0,23x22 n=0xdeba3f89 s=0x056b3961 i=0x6374e227
+CHECK/hi box=0,0,26x11 n=0x601e94dd s=0x47dc92e4 i=0x601e94dd
+MX/hi box=0,0,17x9 n=0xb00adc97 s=0x7a0c1264 i=0xb00adc97
+MENUCHECK/hi box=0,0,15x8 n=0x36797d5f s=0x36797d5f i=0x36797d5f
+AMIGAKEY/hi box=0,0,23x8 n=0x93a69b13 s=0x93a69b13 i=0x93a69b13
+times 18 = non-NULL
+-- sysiclass new look times 18
+dri flags=0x00000001 depth=2 fonty=18 resx=22 resy=44
+DEPTH/med box=-1,0,24x11 n=0x5a544992 s=0xfdee2e81 i=0xfa033ea0
+ZOOM/med box=-1,0,24x11 n=0x15ffb5f2 s=0xcdd5d721 i=0xba5c65f3
+SIZE/med box=0,0,18x10 n=0xd98350fc s=0xd98350fc i=0xaec4d6cc
+CLOSE/med box=0,0,20x11 n=0x9e387a09 s=0xfae31b9e i=0xa38f763f
+SDEPTH/med box=0,0,23x11 n=0xead921da s=0x590dba13 i=0xead921da
+LEFT/med box=0,0,16x10 n=0xd7aa745d s=0x36c080a5 i=0x5cf26705
+UP/med box=0,0,18x11 n=0x8c872b2a s=0x56190e86 i=0xa85d4268
+RIGHT/med box=0,0,16x10 n=0x3fed2d9d s=0x1a5683e5 i=0x9f6e2a0d
+DOWN/med box=0,0,18x11 n=0xe2ea952a s=0xbe7a1e86 i=0x6cda2490
+CHECK/med box=0,0,26x11 n=0x0c9b8a8b s=0xf74df13a i=0x0c9b8a8b
+MX/med box=0,0,17x9 n=0xadadcc58 s=0x59baad35 i=0xadadcc58
+MENUCHECK/med box=0,0,22x13 n=0xbe1032b8 s=0xbe1032b8 i=0xbe1032b8
+AMIGAKEY/med box=0,0,37x13 n=0x47e52a91 s=0x47e52a91 i=0x47e52a91
+DEPTH/low box=-1,0,18x11 n=0xbc6579a0 s=0xdf92fc9d i=0xe19ee160
+ZOOM/low box=-1,0,18x11 n=0xaa86f45c s=0x0d69fb83 i=0xa5d1161e
+SIZE/low box=0,0,13x11 n=0x190f5752 s=0x190f5752 i=0xc9edd8a1
+CLOSE/low box=0,0,15x11 n=0xc2c136e0 s=0x873a1f4b i=0x1dbec864
+SDEPTH/low box=0,0,17x11 n=0x7cf06520 s=0xfbbbd363 i=0x7cf06520
+LEFT/low box=0,0,16x11 n=0x79b18114 s=0x1577900a i=0x18b2130e
+UP/low box=0,0,13x11 n=0x8b0c2a72 s=0xbb372462 i=0x3817723f
+RIGHT/low box=0,0,16x11 n=0x2c3c9b6c s=0xba05a27a i=0x4113e23e
+DOWN/low box=0,0,13x11 n=0xddca82e2 s=0x47ef3912 i=0x64abaf23
+CHECK/low box=0,0,26x11 n=0x0c9b8a8b s=0xf74df13a i=0x0c9b8a8b
+MX/low box=0,0,17x9 n=0xadadcc58 s=0x59baad35 i=0xadadcc58
+MENUCHECK/low box=0,0,22x13 n=0xbe1032b8 s=0xbe1032b8 i=0xbe1032b8
+AMIGAKEY/low box=0,0,37x13 n=0x47e52a91 s=0x47e52a91 i=0x47e52a91
+DEPTH/hi box=-1,0,24x11 n=0x5a544992 s=0xfdee2e81 i=0xfa033ea0
+ZOOM/hi box=-1,0,24x11 n=0x15ffb5f2 s=0xcdd5d721 i=0xba5c65f3
+SIZE/hi box=0,0,18x10 n=0xd98350fc s=0xd98350fc i=0xaec4d6cc
+CLOSE/hi box=0,0,20x11 n=0x9e387a09 s=0xfae31b9e i=0xa38f763f
+SDEPTH/hi box=0,0,23x11 n=0xead921da s=0x590dba13 i=0xead921da
+LEFT/hi box=0,0,23x22 n=0xf601b4b8 s=0x448a45b2 i=0x6e861ea7
+UP/hi box=0,0,23x22 n=0x2403baac s=0x29610280 i=0xc9e4211e
+RIGHT/hi box=0,0,23x22 n=0x4d5e4a20 s=0xf09b67ca i=0x0a0d8a1f
+DOWN/hi box=0,0,23x22 n=0xb913406a s=0xc9f369fe i=0x95bdf215
+CHECK/hi box=0,0,26x11 n=0x0c9b8a8b s=0xf74df13a i=0x0c9b8a8b
+MX/hi box=0,0,17x9 n=0xadadcc58 s=0x59baad35 i=0xadadcc58
+MENUCHECK/hi box=0,0,22x13 n=0xbe1032b8 s=0xbe1032b8 i=0xbe1032b8
+AMIGAKEY/hi box=0,0,37x13 n=0x47e52a91 s=0x47e52a91 i=0x47e52a91

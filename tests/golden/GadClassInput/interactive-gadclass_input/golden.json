@@ -1,0 +1,29 @@
+{
+ "app": "GadClassInput",
+ "disabled": null,
+ "lxa_version": "0.13.1",
+ "promoted": "2026-11-07",
+ "reference": "AmigaOS 3.1 (KS 40.70), profile aga",
+ "requires_apps": false,
+ "scenario": "interactive-gadclass_input",
+ "snapshots": {
+  "after": {
+   "known_tree_diffs": [],
+   "pixel_budget": 182,
+   "pixel_phase": 259,
+   "stdout_known_diff": null
+  },
+  "end": {
+   "known_tree_diffs": [],
+   "pixel_budget": 0,
+   "pixel_phase": null,
+   "stdout_known_diff": 259
+  },
+  "start": {
+   "known_tree_diffs": [],
+   "pixel_budget": 71,
+   "pixel_phase": 259,
+   "stdout_known_diff": null
+  }
+ }
+}

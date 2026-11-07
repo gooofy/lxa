@@ -26,10 +26,10 @@ apps:
         rating: silver
     divergences:
     - signature: 'gadget.type: lxa lacks 0x4'
-      phase: 252
+      phase: 259
       owned: true
     - signature: 'gadget.count: lxa 3, reference 4'
-      phase: 252
+      phase: 259
       owned: true
     - signature: 'gadget.flags: lxa lacks 0x8004'
       phase: 256
@@ -73,7 +73,7 @@ apps:
       phase: 256
       owned: true
     - signature: 'app-amiblitz3: Text() strings missing in lxa'
-      phase: 252
+      phase: 259
       owned: true
     - signature: 'gadget.activation: lxa lacks 0x8010'
       phase: 256
@@ -91,10 +91,10 @@ apps:
       phase: 256
       owned: true
     - signature: 'gadget.type: lxa lacks 0x2004'
-      phase: 252
+      phase: 259
       owned: true
     - signature: 'gadget.type: lxa lacks 0x2004 lxa adds 0x2'
-      phase: 252
+      phase: 259
       owned: true
     - signature: 'window.flags: lxa adds 0x4000000'
       phase: 256
@@ -408,10 +408,10 @@ apps:
         rating: silver
     divergences:
     - signature: 'app-maxoncpp: Text() strings missing in lxa'
-      phase: 252
+      phase: 259
       owned: true
     - signature: 'gadget.count: lxa 3, reference 9'
-      phase: 252
+      phase: 259
       owned: true
     - signature: 'window.count: lxa 2, reference 1'
       phase: 256
@@ -588,13 +588,13 @@ apps:
       phase: 256
       owned: true
     - signature: 'gadget.type: lxa lacks 0x4'
-      phase: 252
+      phase: 259
       owned: true
     - signature: item geometry (width) differs
       phase: 256
       owned: true
     - signature: 'app-snoopdos: Text() strings missing in lxa'
-      phase: 252
+      phase: 259
       owned: true
     - signature: 'gadget.activation: lxa adds 0x8000'
       phase: 256
@@ -612,7 +612,7 @@ apps:
       phase: 256
       owned: true
     - signature: 'gadget.type: lxa lacks 0x4 lxa adds 0x2'
-      phase: 252
+      phase: 259
       owned: true
     - signature: 'item.flags: lxa adds 0x100'
       phase: 256

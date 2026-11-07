@@ -33,7 +33,10 @@ static std::vector<lxa_gadget_info_t> RequesterButtons(int window_index = 0)
     int count = lxa_get_gadget_count(window_index);
     for (int i = 0; i < count; i++) {
         lxa_gadget_info_t g;
-        if (lxa_get_gadget_info(window_index, i, &g) && !(g.gadget_type & 0x8000))
+        /* skip system gadgets and, as on AmigaOS 3.1, the empty gadget
+         * (type 0, GADGHNONE|GADGIMAGE) that follows the buttons */
+        if (lxa_get_gadget_info(window_index, i, &g) && !(g.gadget_type & 0x8000) &&
+            g.width > 0 && g.height > 0)
             result.push_back(g);
     }
     std::sort(result.begin(), result.end(),

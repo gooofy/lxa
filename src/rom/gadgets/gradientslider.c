@@ -505,8 +505,9 @@ static ULONG slider_handleinput(Class *cl, Object *o, struct gpInput *msg)
     switch (ie->ie_Code)
     {
         case SELECTUP:
+            /* the final notification comes from GM_GOINACTIVE, after
+             * Intuition's GADGETUP (interactive-gadclass_input) */
             *msg->gpi_Termination = s->cur;
-            slider_notify(o, s, msg->gpi_GInfo, FALSE, TRUE);
             return GMR_NOREUSE | GMR_VERIFY;
 
         case MENUDOWN:
@@ -527,7 +528,8 @@ static ULONG slider_handleinput(Class *cl, Object *o, struct gpInput *msg)
             travel = track_length(s, &t) - s->knob;
             pos    = s->grab_pos + (s->vertical ? msg->gpi_Mouse.Y : msg->gpi_Mouse.X) - s->grab_mouse;
 
-            val = travel > 0 ? (LONG)((long long)pos * (LONG)s->max / travel) : 0;
+            /* rounded to the nearest value, as on 3.1 */
+            val = travel > 0 ? (LONG)(((long long)pos * (LONG)s->max + travel / 2) / travel) : 0;
             if (val < 0)
                 val = 0;
             else if ((ULONG)val > s->max)
@@ -584,6 +586,9 @@ ULONG classlib_Dispatcher(register Class *cl __asm("a0"), register Object *o __a
         case GM_HITTEST:     return slider_hittest(cl, o, (struct gpHitTest *)msg);
         case GM_GOACTIVE:    return slider_goactive(cl, o, (struct gpInput *)msg);
         case GM_HANDLEINPUT: return slider_handleinput(cl, o, (struct gpInput *)msg);
+        case GM_GOINACTIVE:
+            slider_notify(o, INST_DATA(cl, o), ((struct gpGoInactive *)msg)->gpgi_GInfo, FALSE, TRUE);
+            return 0;
         case GM_DOMAIN:      return slider_domain(cl, o, (struct gpDomain *)msg);
     }
     return CL_DoSuperMethodA(cl, o, msg);

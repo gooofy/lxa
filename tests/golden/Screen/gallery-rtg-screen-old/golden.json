@@ -1,16 +1,15 @@
 {
  "app": "Screen",
  "disabled": null,
- "lxa_version": "0.12.9",
- "note": "rtg profile: system requesters on the 800x600 Workbench have wider margins on 3.1 (Phase 256); other residue as in the aga gallery",
- "promoted": "2026-10-18",
+ "lxa_version": "0.13.1",
+ "promoted": "2026-11-07",
  "reference": "AmigaOS 3.1 (KS 40.70), profile rtg",
  "requires_apps": false,
  "scenario": "gallery-rtg-screen-old",
  "snapshots": {
   "screen": {
    "known_tree_diffs": [],
-   "pixel_budget": 797,
+   "pixel_budget": 8,
    "pixel_phase": 256,
    "stdout_known_diff": null
   }

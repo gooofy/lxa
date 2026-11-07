@@ -1,34 +1,34 @@
 {
  "app": "Menus",
  "disabled": null,
- "lxa_version": "0.11.23",
- "promoted": "2026-10-03",
+ "lxa_version": "0.13.1",
+ "promoted": "2026-11-07",
  "reference": "AmigaOS 3.1 (KS 40.70), profile aga",
  "requires_apps": false,
  "scenario": "gallery-menus-old",
  "snapshots": {
   "menu0": {
    "known_tree_diffs": [],
-   "pixel_budget": 488,
-   "pixel_phase": 252,
+   "pixel_budget": 0,
+   "pixel_phase": null,
    "stdout_known_diff": null
   },
   "menu1": {
    "known_tree_diffs": [],
-   "pixel_budget": 578,
-   "pixel_phase": 252,
+   "pixel_budget": 0,
+   "pixel_phase": null,
    "stdout_known_diff": null
   },
   "menu2": {
    "known_tree_diffs": [],
-   "pixel_budget": 164,
-   "pixel_phase": 252,
+   "pixel_budget": 0,
+   "pixel_phase": null,
    "stdout_known_diff": null
   },
   "menu3": {
    "known_tree_diffs": [],
-   "pixel_budget": 164,
-   "pixel_phase": 252,
+   "pixel_budget": 0,
+   "pixel_phase": null,
    "stdout_known_diff": null
   },
   "screen": {

@@ -1,0 +1,69 @@
+# Phase 252: the Workbench 3.1 gadget classes colorwheel, gradientslider and
+# tapedeck driven with the mouse (Intuition's custom-gadget input protocol).
+# stdout must match on both systems.
+name: interactive-gadclass_input
+app:
+  sample: Tests/Intuition/GadClassInput
+steps:
+  - launch
+  - wait_output: "Ready"
+  - wait_idle
+  - snapshot: {name: start, window: GadClass}
+  - click: {window: GadClass, xy: [80, 40]}
+  - frames: 5
+  - click: {window: GadClass, xy: [60, 60]}
+  - frames: 5
+  - click: {window: GadClass, xy: [30, 60]}
+  - frames: 5
+  - click: {window: GadClass, xy: [60, 30]}
+  - frames: 5
+  - click: {window: GadClass, xy: [45, 85]}
+  - frames: 5
+  - click: {window: GadClass, xy: [95, 60]}
+  - frames: 5
+  - click: {window: GadClass, xy: [60, 95]}
+  - frames: 5
+  - click: {window: GadClass, xy: [25, 30]}
+  - frames: 5
+  - press: {window: GadClass, xy: [100, 116]}
+  - move: {window: GadClass, xy: [130, 116]}
+  - move: {window: GadClass, xy: [150, 116]}
+  - release: {window: GadClass, xy: [150, 116]}
+  - frames: 5
+  - click: {window: GadClass, xy: [40, 116]}
+  - frames: 5
+  - click: {window: GadClass, xy: [125, 47]}
+  - frames: 5
+  - click: {window: GadClass, xy: [140, 47]}
+  - frames: 5
+  - click: {window: GadClass, xy: [155, 47]}
+  - frames: 5
+  - click: {window: GadClass, xy: [170, 47]}
+  - frames: 5
+  - click: {window: GadClass, xy: [185, 47]}
+  - frames: 5
+  - click: {window: GadClass, xy: [200, 47]}
+  - frames: 5
+  - click: {window: GadClass, xy: [215, 47]}
+  - frames: 5
+  - click: {window: GadClass, xy: [230, 47]}
+  - frames: 5
+  - click: {window: GadClass, xy: [245, 47]}
+  - frames: 5
+  - click: {window: GadClass, xy: [260, 47]}
+  - frames: 5
+  - click: {window: GadClass, xy: [275, 47]}
+  - frames: 5
+  - click: {window: GadClass, xy: [290, 47]}
+  - frames: 5
+  - click: {window: GadClass, xy: [305, 47]}
+  - frames: 5
+  - click: {window: GadClass, xy: [318, 47]}
+  - frames: 5
+  - click: {window: GadClass, xy: [190, 47]}
+  - frames: 5
+  - wait_idle
+  - snapshot: {name: after, window: GadClass}
+  - click: {window: GadClass, xy: [8, 4]}
+  - wait_output: "Done"
+  - snapshot: {name: end, screen: false}

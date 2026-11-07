@@ -19,6 +19,7 @@
 #include <intuition/classes.h>
 #include <intuition/classusr.h>
 #include <intuition/imageclass.h>
+#include <intuition/pointerclass.h>
 #include <intuition/screens.h>
 
 #include <graphics/gfx.h>
@@ -59,16 +60,28 @@ static const UWORD *pens_of(const struct DrawInfo *dri)
 /* sysiclass images                                                          */
 /* ------------------------------------------------------------------------ */
 
-static const struct LXASysIEntry *sysi_entry(UWORD which, UWORD size)
+static const struct LXASysIEntry *sysi_find(UWORD which, UWORD size)
 {
     UWORD i;
 
-    if (size > SYSISIZE_HIRES)
-        size = SYSISIZE_MEDRES;
     for (i = 0; i < sizeof(g_sysi_entries) / sizeof(g_sysi_entries[0]); i++)
         if (g_sysi_entries[i].which == which && g_sysi_entries[i].size == size)
             return &g_sysi_entries[i];
     return NULL;
+}
+
+/* size: SYSISIZE_* optionally ORed with LXA_SYSI_OLDLOOK (the images of an
+ * old-look DrawInfo, i.e. one without DRIF_NEWLOOK) */
+static const struct LXASysIEntry *sysi_entry(UWORD which, UWORD size)
+{
+    UWORD look = size & LXA_SYSI_OLDLOOK;
+    const struct LXASysIEntry *e;
+
+    size &= ~LXA_SYSI_OLDLOOK;
+    if (size > SYSISIZE_HIRES)
+        size = SYSISIZE_MEDRES;
+    e = look ? sysi_find(which, size | look) : NULL;
+    return e ? e : sysi_find(which, size);
 }
 
 BOOL lxa_sysi_dims(UWORD which, UWORD size, UWORD *width, UWORD *height)
@@ -102,27 +115,27 @@ static UWORD state_index(ULONG state)
     }
 }
 
-BOOL lxa_sysi_draw(struct RastPort *rp, UWORD which, UWORD size, WORD x, WORD y,
-                   ULONG state, const UWORD *pens)
+static UWORD role_pen(UBYTE role, const UWORD *pens)
 {
-    const struct LXASysIEntry *e = sysi_entry(which, size);
-    const UBYTE *p;
-    WORD w, h, px, py;
-    UBYTE oldpen;
+    switch (role)
+    {
+        case 1: return pens[BACKGROUNDPEN];
+        case 2: return pens[SHINEPEN];
+        case 3: return pens[SHADOWPEN];
+        case 4: return pens[FILLPEN];
+        case 5: return pens[BARDETAILPEN];
+        default: return pens[BARBLOCKPEN];
+    }
+}
 
-    if (!rp || !e)
-        return FALSE;
-    if (!pens)
-        pens = g_default_pens;
+/* draws the run-length packed bitmap number bm (w x h pixels) at x, y */
+static void sysi_blit(struct RastPort *rp, UWORD bm, WORD w, WORD h, WORD x, WORD y,
+                      const UWORD *pens)
+{
+    const UBYTE *p = &g_sysi_pixels[g_sysi_offsets[bm]];
+    WORD px = 0, py = 0;
+    UBYTE oldpen = rp->FgPen;
 
-    w = e->dw;
-    h = e->dh;
-    x += e->dx;
-    y += e->dy;
-    p = &g_sysi_pixels[g_sysi_offsets[e->state[state_index(state)]]];
-    oldpen = rp->FgPen;
-    px = 0;
-    py = 0;
     while (py < h)
     {
         UBYTE code = *p++;
@@ -137,17 +150,7 @@ BOOL lxa_sysi_draw(struct RastPort *rp, UWORD which, UWORD size, WORD x, WORD y,
                 n = run;
             if (role)
             {
-                UWORD pen;
-                switch (role)
-                {
-                    case 1: pen = pens[BACKGROUNDPEN]; break;
-                    case 2: pen = pens[SHINEPEN]; break;
-                    case 3: pen = pens[SHADOWPEN]; break;
-                    case 4: pen = pens[FILLPEN]; break;
-                    case 5: pen = pens[BARDETAILPEN]; break;
-                    default: pen = pens[BARBLOCKPEN]; break;
-                }
-                SetAPen(rp, pen);
+                SetAPen(rp, role_pen(role, pens));
                 RectFill(rp, x + px, y + py, x + px + n - 1, y + py);
             }
             px += n;
@@ -159,6 +162,215 @@ BOOL lxa_sysi_draw(struct RastPort *rp, UWORD which, UWORD size, WORD x, WORD y,
             }
         }
     }
+    SetAPen(rp, oldpen);
+}
+
+/* the role of pixel (px, py) of the packed bitmap bm, w pixels wide */
+static UBYTE sysi_role_at(UWORD bm, WORD w, WORD px, WORD py)
+{
+    const UBYTE *p = &g_sysi_pixels[g_sysi_offsets[bm]];
+    LONG i = (LONG)py * w + px;
+
+    for (;;)
+    {
+        WORD run = *p >> 3;
+
+        if (i < run)
+            return *p & 7;
+        i -= run;
+        p++;
+    }
+}
+
+/* draws row src of the packed bitmap bm (w pixels wide) as row y */
+static void sysi_blit_row(struct RastPort *rp, UWORD bm, WORD w, WORD src, WORD x, WORD y,
+                          const UWORD *pens)
+{
+    const UBYTE *p = &g_sysi_pixels[g_sysi_offsets[bm]];
+    LONG skip = (LONG)src * w;
+    WORD px = 0;
+    WORD run = *p >> 3;
+
+    while (skip >= run)
+    {
+        skip -= run;
+        run = *++p >> 3;
+    }
+    run -= (WORD)skip;
+    while (px < w)
+    {
+        UBYTE role = *p & 7;
+        WORD n = w - px;
+
+        if (n > run)
+            n = run;
+        if (role)
+        {
+            SetAPen(rp, role_pen(role, pens));
+            RectFill(rp, x + px, y, x + px + n - 1, y);
+        }
+        px += n;
+        run = *++p >> 3;
+    }
+}
+
+/* the rows of the image's bitmap that make up the image stretched to
+ * height h (AmigaOS 3.1, probe intuition/sysiheight); for heights outside
+ * the reference table, the inner rows are spread evenly */
+static void sysi_rows(const struct LXASysIEntry *e, UWORD size, WORD h, UBYTE *rows)
+{
+    UWORD i;
+    WORD n, m, j;
+
+    for (i = 0; i < sizeof(g_sysi_hmap) / sizeof(g_sysi_hmap[0]); i++)
+    {
+        const struct LXASysIHMap *hm = &g_sysi_hmap[i];
+
+        if (hm->which == e->which && hm->size == size && hm->height == h)
+        {
+            for (j = 0; j < h; j++)
+                rows[j] = hm->rows[j];
+            return;
+        }
+    }
+    n = e->dh - 2;
+    m = h - 2;
+    rows[0] = 0;
+    for (j = 0; j < m; j++)
+        rows[j + 1] = (UBYTE)(1 + ((2 * j + 1) * n) / (2 * m));
+    rows[h - 1] = (UBYTE)(e->dh - 1);
+}
+
+/* the window and screen gadget images that follow IA_Height */
+BOOL lxa_sysi_stretches(UWORD which, UWORD size)
+{
+    return !(size & LXA_SYSI_OLDLOOK) &&
+           (which == DEPTHIMAGE || which == ZOOMIMAGE || which == CLOSEIMAGE ||
+            which == SDEPTHIMAGE);
+}
+
+BOOL lxa_sysi_draw_h(struct RastPort *rp, UWORD which, UWORD size, WORD x, WORD y, WORD h,
+                     ULONG state, const UWORD *pens)
+{
+    const struct LXASysIEntry *e = sysi_entry(which, size);
+    UBYTE rows[64];
+    UBYTE oldpen;
+    WORD j;
+
+    if (!rp || !e)
+        return FALSE;
+    if (!pens)
+        pens = g_default_pens;
+    if (h <= 2 || h == e->height || h > 64 || e->dy != 0 || e->dh != e->height ||
+        !lxa_sysi_stretches(which, size))
+    {
+        sysi_blit(rp, e->state[state_index(state)], e->dw, e->dh, x + e->dx, y + e->dy, pens);
+        return TRUE;
+    }
+    size &= ~LXA_SYSI_OLDLOOK;
+    if (size > SYSISIZE_HIRES)
+        size = SYSISIZE_MEDRES;
+    sysi_rows(e, size == SYSISIZE_HIRES ? SYSISIZE_MEDRES : size, h, rows);
+    oldpen = rp->FgPen;
+    for (j = 0; j < h; j++)
+        sysi_blit_row(rp, e->state[state_index(state)], e->dw, rows[j], x + e->dx, y + j, pens);
+    SetAPen(rp, oldpen);
+    return TRUE;
+}
+
+BOOL lxa_sysi_draw(struct RastPort *rp, UWORD which, UWORD size, WORD x, WORD y,
+                   ULONG state, const UWORD *pens)
+{
+    return lxa_sysi_draw_h(rp, which, size, x, y, 0, state, pens);
+}
+
+/* MENUCHECK and AMIGAKEY follow the screen font (AmigaOS 3.1, probe
+ * intuition/sysiscaled): the check mark is as wide as the font's 'm' plus
+ * 7, the Amiga key twice that minus 7, both as high as the baseline but at
+ * least 8 pixels. */
+BOOL lxa_sysi_menu_size(UWORD which, const struct TextFont *tf, UWORD *width, UWORD *height)
+{
+    WORD m = 8, base = 6, w;
+
+    if (which != MENUCHECK && which != AMIGAKEY)
+        return FALSE;
+    if (tf)
+    {
+        m = tf->tf_XSize;
+        if (tf->tf_CharSpace && 'm' >= tf->tf_LoChar && 'm' <= tf->tf_HiChar)
+        {
+            UWORD k = 'm' - tf->tf_LoChar;
+
+            m = ((const WORD *)tf->tf_CharSpace)[k];
+            if (tf->tf_CharKern)
+                m += ((const WORD *)tf->tf_CharKern)[k];
+        }
+        base = tf->tf_Baseline;
+    }
+    w = m + 7;
+    if (which == AMIGAKEY)
+        w = 2 * w - 7;
+    if (width)
+        *width = w;
+    if (height)
+        *height = base > 8 ? base : 8;
+    return TRUE;
+}
+
+/* draws MENUCHECK/AMIGAKEY in the given size: the reference bitmap of that
+ * size (every Workbench 3.1 font), otherwise the nearest one scaled */
+BOOL lxa_sysi_menu_draw(struct RastPort *rp, UWORD which, UWORD width, UWORD height,
+                        WORD x, WORD y, const UWORD *pens)
+{
+    const struct LXASysIMenu *best = NULL;
+    LONG bestd = 0x7fffffff;
+    UWORD i;
+    UBYTE oldpen;
+    WORD px, py;
+
+    if (!rp || !width || !height)
+        return FALSE;
+    if (!pens)
+        pens = g_default_pens;
+    for (i = 0; i < sizeof(g_sysi_menu) / sizeof(g_sysi_menu[0]); i++)
+    {
+        const struct LXASysIMenu *m = &g_sysi_menu[i];
+        LONG d;
+
+        if (m->which != which)
+            continue;
+        d = (LONG)(m->width > width ? m->width - width : width - m->width)
+          + (LONG)(m->height > height ? m->height - height : height - m->height);
+        if (d < bestd)
+        {
+            bestd = d;
+            best = m;
+        }
+    }
+    if (!best)
+        return FALSE;
+    if (!bestd)
+    {
+        sysi_blit(rp, best->bitmap, best->dw, best->dh, x + best->dx, y + best->dy, pens);
+        return TRUE;
+    }
+    oldpen = rp->FgPen;
+    for (py = 0; py < (WORD)height; py++)
+        for (px = 0; px < (WORD)width; px++)
+        {
+            WORD sx = (WORD)((LONG)px * best->width / width) - best->dx;
+            WORD sy = (WORD)((LONG)py * best->height / height) - best->dy;
+            UBYTE role;
+
+            if (sx < 0 || sy < 0 || sx >= best->dw || sy >= best->dh)
+                continue;
+            role = sysi_role_at(best->bitmap, best->dw, sx, sy);
+            if (role)
+            {
+                SetAPen(rp, role_pen(role, pens));
+                WritePixel(rp, x + px, y + py);
+            }
+        }
     SetAPen(rp, oldpen);
     return TRUE;
 }
@@ -332,24 +544,6 @@ WORD lxa_text_fit(struct RastPort *rp, CONST_STRPTR s, WORD len, WORD width)
     return n;
 }
 
-/* frame thickness (horizontal, vertical) per FRAME_* type */
-void lxa_frame_thickness(ULONG type, WORD *hthick, WORD *vthick)
-{
-    WORD hh, vv;
-
-    switch (type)
-    {
-        case FRAME_BUTTON:      hh = 2; vv = 1; break;
-        case FRAME_RIDGE:       hh = 4; vv = 2; break;
-        case FRAME_ICONDROPBOX: hh = 6; vv = 3; break;
-        default:                hh = 1; vv = 1; break;
-    }
-    if (hthick)
-        *hthick = hh;
-    if (vthick)
-        *vthick = vv;
-}
-
 /* ------------------------------------------------------------------------ */
 /* BOOPSI dispatchers                                                        */
 /* ------------------------------------------------------------------------ */
@@ -400,6 +594,10 @@ ULONG lxa_imageclass_dispatch(register struct IClass *cl __asm("a0"),
             if (obj)
             {
                 im = (struct Image *)obj;
+                /* AmigaOS 3.1: an image without IA_Width/IA_Height is
+                 * 80x40 (probe intuition/iclassnew) */
+                im->Width = 80;
+                im->Height = 40;
                 im->Depth = CUSTOMIMAGEDEPTH;
                 im->PlanePick = 1;      /* IA_FGPen default */
                 im->PlaneOnOff = 0;     /* IA_BGPen default */
@@ -583,8 +781,9 @@ ULONG lxa_fillrectclass_dispatch(register struct IClass *cl __asm("a0"),
 struct SysIData
 {
     UWORD which;
-    UWORD size;
+    UWORD size;             /* SYSISIZE_* | LXA_SYSI_OLDLOOK */
     struct DrawInfo *dri;
+    UWORD mw, mh;           /* MENUCHECK/AMIGAKEY: the size for the font */
 };
 
 const ULONG lxa_sysiclass_instsize = sizeof(struct SysIData);
@@ -611,17 +810,32 @@ ULONG lxa_sysiclass_dispatch(register struct IClass *cl __asm("a0"),
             sd->which = (UWORD)GetTagData(SYSIA_Which, (ULONG)~0, tags);
             sd->size = (UWORD)GetTagData(SYSIA_Size, SYSISIZE_MEDRES, tags);
             sd->dri = (struct DrawInfo *)GetTagData(SYSIA_DrawInfo, 0, tags);
-            if (!lxa_sysi_dims(sd->which, sd->size, &w, &h))
+            /* Intuition's own window gadgets pass LXA_SYSI_OLDLOOK */
+            if ((sd->size & ~LXA_SYSI_OLDLOOK) > SYSISIZE_HIRES)
+                sd->size = SYSISIZE_MEDRES;
+            if (sd->dri && !(sd->dri->dri_Flags & DRIF_NEWLOOK))
+                sd->size |= LXA_SYSI_OLDLOOK;
+            sd->mw = sd->mh = 0;
+            if (lxa_sysi_menu_size(sd->which, sd->dri ? sd->dri->dri_Font : NULL, &sd->mw, &sd->mh))
+            {
+                w = sd->mw;
+                h = sd->mh;
+            }
+            else if (!lxa_sysi_dims(sd->which, sd->size, &w, &h))
             {
                 /* AmigaOS 3.1: unknown SYSIA_Which values fail */
                 struct { ULONG MethodID; } dm = { OM_DISPOSE };
                 do_super(cl, obj, (Msg)&dm);
                 return 0;
             }
-            /* IA_Width/IA_Height given by the caller win */
+            /* IA_Width/IA_Height given by the caller win; the depth and
+             * zoom images stand one pixel left of their box (LeftEdge -1) */
+            if (!FindTagItem(IA_Left, tags) && !sd->mw)
+                im->LeftEdge = sysi_entry(sd->which, sd->size)->dx;
             if (!FindTagItem(IA_Width, tags))
                 im->Width = w;
-            if (!FindTagItem(IA_Height, tags))
+            /* the size gadget keeps its own height (probe sysiheight) */
+            if (!FindTagItem(IA_Height, tags) || sd->which == SIZEIMAGE)
                 im->Height = h;
             return (ULONG)obj;
         }
@@ -636,9 +850,18 @@ ULONG lxa_sysiclass_dispatch(register struct IClass *cl __asm("a0"),
             im = (struct Image *)obj;
             if (!dri)
                 dri = sd->dri;
-            lxa_sysi_draw(id->imp_RPort, sd->which, sd->size,
-                          id->imp_Offset.X + im->LeftEdge, id->imp_Offset.Y + im->TopEdge,
-                          id->imp_State, pens_of(dri));
+            if (sd->mw)
+            {
+                lxa_sysi_menu_draw(id->imp_RPort, sd->which, sd->mw, sd->mh,
+                                   id->imp_Offset.X + im->LeftEdge, id->imp_Offset.Y + im->TopEdge,
+                                   pens_of(dri));
+                return 1;
+            }
+            /* lxa_sysi_draw() adds the image's own offset again */
+            lxa_sysi_draw_h(id->imp_RPort, sd->which, sd->size,
+                            id->imp_Offset.X + im->LeftEdge - sysi_entry(sd->which, sd->size)->dx,
+                            id->imp_Offset.Y + im->TopEdge - sysi_entry(sd->which, sd->size)->dy,
+                            im->Height, id->imp_State, pens_of(dri));
             return 1;
         }
 
@@ -724,14 +947,152 @@ ULONG lxa_frameiclass_dispatch(register struct IClass *cl __asm("a0"),
             struct impFrameBox *fb = (struct impFrameBox *)msg;
             WORD hh, vv;
 
+            struct IBox *c = fb->imp_ContentsBox, *f = fb->imp_FrameBox;
+
             fd = INST_DATA(cl, obj);
-            lxa_frame_thickness(fd->type, &hh, &vv);
-            fb->imp_FrameBox->Left = fb->imp_ContentsBox->Left - hh;
-            fb->imp_FrameBox->Top = fb->imp_ContentsBox->Top - vv;
-            fb->imp_FrameBox->Width = fb->imp_ContentsBox->Width + 2 * hh;
-            fb->imp_FrameBox->Height = fb->imp_ContentsBox->Height + 2 * vv;
+            if (fb->imp_FrameFlags & FRAMEF_SPECIFY)
+            {
+                /* the frame's size is given: centre it on the contents */
+                f->Left = c->Left + (c->Width - f->Width) / 2;
+                f->Top = c->Top + (c->Height - f->Height) / 2;
+                return 1;
+            }
+            /* AmigaOS 3.1 (probe intuition/iclassnew): the space the frame
+             * leaves around its contents on each side, with or without a
+             * DrawInfo */
+            switch (fd->type)
+            {
+                case FRAME_BUTTON:      hh = 4; vv = 2; break;
+                case FRAME_RIDGE:       hh = 6; vv = 3; break;
+                case FRAME_ICONDROPBOX: hh = 8; vv = 4; break;
+                default:                hh = 2; vv = 2; break;
+            }
+            f->Left = c->Left - hh;
+            f->Top = c->Top - vv;
+            f->Width = c->Width + 2 * hh;
+            f->Height = c->Height + 2 * vv;
             return 1;
         }
+
+        default:
+            return do_super(cl, obj, msg);
+    }
+}
+
+VOID _intuition_PrintIText(register struct IntuitionBase *IntuitionBase __asm("a6"),
+                           register struct RastPort *rp __asm("a0"),
+                           register const struct IntuiText *iText __asm("a1"),
+                           register WORD left __asm("d0"),
+                           register WORD top __asm("d1"));
+
+/* itexticlass: an image that prints the IntuiText chain of IA_Data at its
+ * box's corner.  AmigaOS 3.1 (probe intuition/iclassnew) draws every text
+ * in the image's IA_FGPen (default 0) in JAM1, whatever the IntuiTexts'
+ * own pens and modes, the same in every state. */
+ULONG lxa_itexticlass_dispatch(register struct IClass *cl __asm("a0"),
+                               register Object *obj __asm("a2"),
+                               register Msg msg __asm("a1"))
+{
+    struct Image *im = (struct Image *)obj;
+
+    switch (msg->MethodID)
+    {
+        case OM_NEW:
+            obj = (Object *)do_super(cl, obj, msg);
+            if (obj && !FindTagItem(IA_FGPen, ((struct opSet *)msg)->ops_AttrList))
+                ((struct Image *)obj)->PlanePick = 0;
+            return (ULONG)obj;
+
+        case IM_DRAW:
+        case IM_DRAWFRAME:
+        {
+            struct impDraw *id = (struct impDraw *)msg;
+            const struct IntuiText *it;
+
+            if (!id->imp_RPort)
+                return 0;
+            for (it = (const struct IntuiText *)im->ImageData; it; it = it->NextText)
+            {
+                struct IntuiText one = *it;
+                one.FrontPen = im->PlanePick;
+                one.DrawMode = JAM1;
+                one.NextText = NULL;
+                _intuition_PrintIText(NULL, id->imp_RPort, &one,
+                                      id->imp_Offset.X + im->LeftEdge, id->imp_Offset.Y + im->TopEdge);
+            }
+            return 1;
+        }
+
+        default:
+            return do_super(cl, obj, msg);
+    }
+}
+
+/*
+ * pointerclass: a mouse pointer made from a BitMap (POINTERA_BitMap, the
+ * first two planes) for WA_Pointer / SetWindowPointer().  OM_NEW turns the
+ * bitmap into SetPointer() sprite data; none of the POINTERA_* attributes
+ * can be read back (AmigaOS 3.1, probe intuition/iclassnew).
+ */
+struct PointerData
+{
+    UWORD *sprite;              /* SetPointer() data: 2 + 2*height + 2 words */
+    ULONG size;
+    WORD width, height;         /* pixels */
+    WORD xoffset, yoffset;
+};
+
+const ULONG lxa_pointerclass_instsize = sizeof(struct PointerData);
+
+static void pointer_build(struct PointerData *pd, struct TagItem *tags)
+{
+    struct BitMap *bm = (struct BitMap *)GetTagData(POINTERA_BitMap, 0, tags);
+    LONG ww = (LONG)GetTagData(POINTERA_WordWidth, 1, tags);
+    WORD y, h, p;
+
+    pd->xoffset = (WORD)GetTagData(POINTERA_XOffset, 0, tags);
+    pd->yoffset = (WORD)GetTagData(POINTERA_YOffset, 0, tags);
+    if (!bm || ww < 1)
+        return;
+    h = (WORD)bm->Rows;
+    pd->width = 16;
+    pd->height = h;
+    pd->size = (ULONG)(4 + 2 * h) * sizeof(UWORD);
+    pd->sprite = AllocVec(pd->size, MEMF_CHIP | MEMF_CLEAR);
+    if (!pd->sprite)
+        return;
+    for (y = 0; y < h; y++)
+        for (p = 0; p < 2 && p < bm->Depth; p++)
+            if (bm->Planes[p])
+                pd->sprite[2 + 2 * y + p] = *(UWORD *)(bm->Planes[p] + y * bm->BytesPerRow);
+}
+
+ULONG lxa_pointerclass_dispatch(register struct IClass *cl __asm("a0"),
+                                register Object *obj __asm("a2"),
+                                register Msg msg __asm("a1"))
+{
+    struct PointerData *pd;
+
+    switch (msg->MethodID)
+    {
+        case OM_NEW:
+            obj = (Object *)do_super(cl, obj, msg);
+            if (obj)
+            {
+                pd = INST_DATA(cl, obj);
+                pointer_build(pd, ((struct opSet *)msg)->ops_AttrList);
+            }
+            return (ULONG)obj;
+
+        case OM_DISPOSE:
+            pd = INST_DATA(cl, obj);
+            if (pd->sprite)
+                FreeVec(pd->sprite);
+            pd->sprite = NULL;
+            return do_super(cl, obj, msg);
+
+        case OM_GET:
+            return 0;
 
         default:
             return do_super(cl, obj, msg);

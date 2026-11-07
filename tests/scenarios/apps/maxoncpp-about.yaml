@@ -1,0 +1,10 @@
+# Phase 252: MaxonDevelop's about window is built from groupgclass,
+# frbuttonclass and itexticlass objects (3.1: 462x204 with 9 gadgets).
+name: maxoncpp-about
+app: {manifest: MaxonCPP}
+steps:
+  - launch
+  - wait_window: {title: "Über MaxonDev", timeout: 30000}
+  - frames: 100
+  - snapshot: {name: about, window: "Über MaxonDev"}
+  - quit

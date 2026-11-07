@@ -1,0 +1,39 @@
+# Phase 252: Intuition drives BOOPSI custom gadgets (GM_HITTEST, GM_GOACTIVE,
+# GM_HANDLEINPUT, GM_GOINACTIVE) and the IDCMP messages of buttongclass,
+# frbuttonclass, propgclass (ICTARGET_IDCMP) and strgclass objects.
+# stdout must match on both systems.
+name: interactive-custgad_input
+app:
+  sample: Tests/Intuition/CustGadInput
+steps:
+  - launch
+  - wait_output: "Ready"
+  - wait_idle
+  - snapshot: {name: start, window: CustGad}
+  - click: {window: CustGad, xy: [30, 25]}
+  - frames: 5
+  - key: 16
+  - frames: 5
+  - click: {window: CustGad, xy: [40, 30]}
+  - frames: 5
+  - click: {window: CustGad, xy: [130, 30]}
+  - frames: 5
+  - press: {window: CustGad, xy: [208, 25]}
+  - move: {window: CustGad, xy: [208, 50]}
+  - move: {window: CustGad, xy: [208, 70]}
+  - release: {window: CustGad, xy: [208, 70]}
+  - frames: 5
+  - click: {window: CustGad, xy: [40, 65]}
+  - frames: 5
+  - type: "ab"
+  - key: 68
+  - frames: 5
+  - click: {window: CustGad, xy: [110, 65]}
+  - frames: 5
+  - click: {window: CustGad, xy: [30, 25]}
+  - frames: 5
+  - key: 69
+  - frames: 5
+  - click: {window: CustGad, xy: [8, 4]}
+  - wait_output: "Done"
+  - snapshot: {name: end, screen: false}

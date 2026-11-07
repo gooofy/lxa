@@ -1,0 +1,23 @@
+{
+ "app": "CustGadInput",
+ "disabled": null,
+ "lxa_version": "0.13.1",
+ "promoted": "2026-11-07",
+ "reference": "AmigaOS 3.1 (KS 40.70), profile aga",
+ "requires_apps": false,
+ "scenario": "interactive-custgad_input",
+ "snapshots": {
+  "end": {
+   "known_tree_diffs": [],
+   "pixel_budget": 0,
+   "pixel_phase": null,
+   "stdout_known_diff": null
+  },
+  "start": {
+   "known_tree_diffs": [],
+   "pixel_budget": 0,
+   "pixel_phase": null,
+   "stdout_known_diff": null
+  }
+ }
+}

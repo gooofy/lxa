@@ -104,7 +104,7 @@ AROS code must **not** be copied or ported into lxa: its licence (AROS Public Li
 | **M2** | Ground-truth the existing suite + conformance gallery | Quality → Compatibility | 220–224 |
 | **M3** | Breadth: app corpus, compat DB, sweeps, trace diff | Compatibility | 230–239, 244 |
 | **M4** | RTG / Picasso96 (complete) | Compatibility (reclassified, see M4) | 240–243, 246 |
-| **M5** | Close the facades: system-library completeness (own implementations; AROS as a reference only) | Compatibility | 250–258 |
+| **M5** | Close the facades: system-library completeness (own implementations; AROS as a reference only) | Compatibility | 250–259 |
 | **M6** | WINE-like desktop integration | New features | 260–265 |
 | **M7** | Dev platform, toolkits, performance | New features / Performance | 270–276 |
 
@@ -114,7 +114,7 @@ M0 and M1 are on the critical path: nothing in M2 and later is efficient without
 
 ## Next Phase
 
-> **M5 — Close the Facades**: Phases **252**, **255** and **256** (in that priority order; they may run in parallel worktrees). M0–M4 are complete; in M5, Phase 250 (rexxsyslib.library + ARexx) closed with v0.13.0 and Phase 251 (commodities/Exchange, input.device task) with v0.13.1.
+> **M5 — Close the Facades**: Phases **255**, **256** and **259** (in that priority order; they may run in parallel worktrees), then 253, 254, 257, 258. M0–M4 are complete; in M5, Phase 250 (rexxsyslib.library + ARexx) closed with v0.13.0, Phase 251 (commodities/Exchange, input.device task) with v0.13.1 and Phase 252 (BOOPSI class completeness) with v0.14.0.
 
 ---
 
@@ -160,19 +160,11 @@ Complete (Phases 230–239, 244, v0.11.88); see the summary table.  The Fred Fis
 
 The order below is provisional. After Phase 231/232 it is re-sorted by how often corpus programs hit each item. AROS may be read as a reference for every item, but the code is lxa's own (see "AROS code is a reference only"). Every phase is verified with conformance probes against the reference (the Phase 222 pattern).
 
-### Phase 252 — BOOPSI class completeness
-- [ ] itexticlass, frbuttonclass, groupgclass, pointerclass; a complete sysiclass (frameiclass exists; fillrectclass done in Phase 244, probe `intuition/fillrect`).
-- [ ] (from Phase 244) buttongclass and propgclass objects are GTYP_CUSTOMGADGET on 3.1 with the GA_* flags applied and a default box of 80x40 (propgclass: GFLG_GADGIMAGE with a knob image, Activation 0 unless asked); lxa's OM_NEW overwrites them with BOOLGADGET/PROPGADGET, GADGHCOMP and RELVERIFY. Needs real GM_RENDER/GM_GOACTIVE/GM_HANDLEINPUT (prop: drive the built-in prop code). Reference values: write probe `intuition/gclassnew` (NewObject with GA_RelRight/GA_RelBottom/GA_Image/GA_*Border/GA_Highlight/PGA_* - captured in Phase 244: e.g. arrow button type 0x0005 flags 0x801c act 0x0083). Apps: SnoopDos (border arrows/scrollers), AmiBlitz3 (PED window), the `gallery-autorequest`/`gallery-easyrequest` goldens.
-- [ ] (from Phase 244) System requesters (BuildSysRequest/BuildEasyRequestArgs) use BOOPSI button gadgets with the caller's IntuiTexts (`GadgetText` = the pos/neg IntuiText, type 0x0005, flags 0x8004) plus a trailing empty gadget (type 0, flags 0x0007); 3.1 measures the body with the IntuiText's ITextFont (topaz 9 body: 330x45). ACE's AIDE alert. Write probe `intuition/sysreq` (captured in Phase 244).
-- [ ] (from Phase 245) Intuition never sends GM_GOACTIVE/GM_HANDLEINPUT to BOOPSI custom gadgets, so colorwheel, gradientslider and tapedeck objects ignore the mouse (their methods work when called directly); dispatch input to GTYP_CUSTOMGADGET objects as 3.1 does and add an interactive test.
-- [ ] (from Phase 244) groupgclass: MaxonCPP's about window ("Konnte Gadget nicht kreieren", NewObject("groupgclass") returns NULL in lxa; 3.1: 462x204 with 9 gadgets).
-- [ ] Old-look (pre-V39 / non-NewLook) window images and sysiclass images scaled for larger screen fonts (gallery-screen-oldlook, gallery-menus-oldlook pages, Phase 223).
-- [ ] Gate: gallery pages (Phase 223) for each class match the reference.
-
 ### Phase 253 — datatypes: real class dispatch + WB 3.1 classes
 - [ ] C:AddDataTypes (needs the descriptor list; deferred from Phase 221).
 - [ ] Replace the private-struct guessing (`lxa_datatypes.c:385`) with real class dispatch and DataTypes descriptors (`DEVS:DataTypes`).
 - [ ] Implement picture, ilbm, text, ascii, sound and 8svx classes, and the `AddDTObject`/`RefreshDTObjectA`/`RemoveDTObject`/`DoAsyncLayout`/`PrintDTObjectA` stubs.
+- [ ] (from Phase 252) MaxonCPP's about window "Über MaxonDev4.0" opens since groupgclass exists, but at 298x163 instead of 3.1's 462x204 and it closes before the snapshot: its size comes from the picture datatype object it adds (`AddDTObject`). Promote `tests/scenarios/apps/maxoncpp-about.yaml` as a golden once it matches.
 - [ ] Gate: MultiView-equivalent scenarios (ILBM, text) match the reference.
 
 ### Phase 254 — amigaguide.library + amigaguide.datatype
@@ -227,6 +219,13 @@ The order below is provisional. After Phase 231/232 it is re-sorted by how often
 - [ ] File requester: 3.1's GadTools layout, Control menu, volume list, pattern gadget, unlimited entries, all ASLFR_* tags and results - verified with a gallery scenario and probes on the reference.
 - [ ] Font requester: size list, style/pen/draw-mode gadgets, sample text, Control menu, all ASLFO_* tags and results.
 - [ ] Gate: gallery goldens for both requesters; the stub inventory has no asl entry.
+
+### Phase 259 — Gadget-class and window-chrome pixel parity
+**Class**: Compatibility (residue of Phase 252; event sequences already match 3.1).
+- [ ] colorwheel.gadget: the hue lxa computes from a pointer position differs from 3.1 by up to 0x11 per 16 bits (golden `GadClassInput/interactive-gadclass_input`, stdout: 0x2243 vs 0x224C, 0x970B vs 0x970A, 0xDA3A vs 0xDA4B); lxa's wheel rendering and knob erase differ by 71/182 pixels (snapshots start/after). Probe the hue of a grid of points on the reference (`WHEEL_Hue` after a click) and fit the mapping.
+- [ ] Old-look window size gadget: on 3.1 the leftmost column of the image (rows 1-8) shows the border pen in a window, while the image drawn alone (probe `intuition/sysiscaled`) has pen 0 there (golden `Screen/gallery-screen-old`, 8 pixels at x = Width-18). Probe a sizing window on an old-look screen with several BorderRight values to find out what draws over the column.
+- [ ] Re-sweep ACE, AmiBlitz3, MaxonCPP and SnoopDos (`python3 -m rdd compat`): the Phase 244 clusters `gadget.(type|count)` and "Text() strings missing" (`doc/sweeps/owners.yaml`, `apps/compat.yaml`) were caused by the BOOPSI classes Phase 252 completed; fix what remains or re-own it.
+- [ ] Gate: both goldens without pixel or stdout budget.
 ---
 
 ## M6 — WINE-like Desktop Integration (New Features)
@@ -296,7 +295,7 @@ The order below is provisional. After Phase 231/232 it is re-sorted by how often
 | Scenarios with reference goldens | 0 | 4 | 300+ |
 | Test programs validated on real OS | 0 / 225 | — | 225 / 225 |
 | Stubbed system-library LVOs (Phase 203 inventory) | 85 stub + 39 partial + 117 without implementation (v0.11.1) | measured | 0 used by the corpus |
-| Line coverage (host + ROM) | ROM 82.9 % / host 40.8 % (v0.13.1, Phase 251; v0.11.0: 77.3 % / 32.6 %) | measured | never decreasing |
+| Line coverage (host + ROM) | ROM 82.9 % / host 40.8 % (v0.14.0, Phase 252; v0.11.0: 77.3 % / 32.6 %) | measured | never decreasing |
 | Flaky-test rate (20× runs) | 0 / 20 under load (v0.11.0) | 0 | 0 |
 | Full-suite wall time `-j16` | 22 s (v0.11.0; was 110 s) | ≤145 s | ≤120 s |
 
@@ -359,3 +358,4 @@ The order below is provisional. After Phase 231/232 it is re-sorted by how often
 | 245 | AROS code replaced by lxa's own (licensing: AROS is a reference only): BCPL support (`doc/bcpl.md`) and colorwheel/gradientslider/tapedeck gadget classes (`doc/gadget-classes.md`) rewritten, both APL LICENSE files and third-party rows gone; audit of every "based on AROS" site (`doc/aros-audit.md`): 10 rewritten (area vector collection, AddFont/RemFont, FontExtent, InitBitMap, DrawBorder, DoubleClick, MakeFunctions + dead `__AROS_*` macros, ReleaseSemaphore hand-over, Exception, WaitIO), 13 comments reworded to cite NDK/RKRM/3.1, 2 interface facts kept (`LA_*` tag values, SetIPrefs codes). Suite and `suite-ref --lxa-check` (338 programs) green. | v0.11.62 |
 | 250 | rexxsyslib.library + ARexx: rexxsyslib as lxa's own disk library (RexxMsg and argstring functions, Lock/UnlockRexxBase, the `rl_*` base fields and lists as on 3.1; probe `rexx/syslib`); Regina REXX 3.9.6 (LGPL, `src/regina/`, `README.lxa`) vendored as the ARexx interpreter `SYS:System/ARexx` with an ARexx personality (ARexx error numbers/texts, the 1.15 built-in set, Library List and function hosts, clip list, RC/FAILAT/RESULT, PARSE SOURCE, REXX: search, HI/TS/TE); `SYS:System/RexxMast` (the REXX port, one interpreter process per program from a pool of restored seglists) and `SYS:Rexxc` (RX, RXC, RXSET, RXLIB, HI, TS, TE, TCO, TCC, WaitForPort); `REXX:` assign; dos.library `dl_TimeReq`; LoadSeg reads reloc tables in blocks; probe `rexx/rexxmast` (results, builtins, conditions, error texts, host commands, function hosts, clips, script files, `rx` to a program's port) equal to 3.1. | v0.13.0 |
 | 251 | commodities.library + input.device task: input.device runs its handler chain in its own task (priority 20), woken by the level-3 interrupt only when there is work (input, IntuiTick, IECLASS_TIMER), and IND_WRITEEVENT is processed there (probe `input/handlertask`: handlers and custom objects may AllocMem, custom objects run with interrupts enabled); Intuition honours handlers that swallow mouse buttons and moves (golden `InputSwallow/interactive-input_swallow`); commodities' reserved vectors (-24, -108, five trailing slots) are one `moveq #0,d0` routine as on 3.1 (probe `commodities/reserved`); CXCMD_LIST_CHG to Exchange on CxBroker, broker ActivateCxObj and deletion, BrokerCommand(NULL) to the broker "Exchange" (probe `commodities/listchg`); GfxBase->copinit is 3.1's 192-byte table (probe `graphics/copinit`; Fish KCommodity scanned it from NULL inside Forbid and hung); a GadTools cycle gadget posts one GADGETUP per click; gadget ghosting is aligned to the screen bitmap; an interrupt that cannot reschedule (Forbid, supervisor code) sets SFF_SAR for Permit()/Enable() (probe `exec/systasks`); scenario option `wb31: true` (`WB31:` = the Workbench 3.1 partition on both sides). Gate: WB 3.1 Exchange lists, hides/shows, disables/enables and removes a broker (golden `ExchangeGate/exchange-gate`, identical to 3.1). | v0.13.1 |
+| 252 | BOOPSI class completeness: itexticlass, frbuttonclass, groupgclass, pointerclass and a complete sysiclass; buttongclass/propgclass objects as 3.1's GTYP_CUSTOMGADGETs (probes `intuition/gclassnew`, `iclassnew`, `btnrender`); Intuition drives custom gadgets with GM_HITTEST/GM_GOACTIVE/GM_HANDLEINPUT incl. timer events (goldens `CustGadInput`, `GadClassInput`: colorwheel/gradientslider/tapedeck events as on 3.1); ObtainGIRPort hands out a RastPort copy (Typeface's preview window keeps its font); system requesters with frbuttonclass buttons on the caller's IntuiTexts plus 3.1's trailing gadget whose image draws the body (probe `intuition/sysreq`); old-look window images and pens, title position per resolution (`intuition/wintitle`), sysiclass images scaled to the screen font: MENUCHECK/AMIGAKEY (`sysiscaled`) and window/screen gadgets stretched to IA_Height by row maps from the reference (`sysiheight`, `tools/rdd/sysitable.py`). Gallery goldens screen-lores/menus-old/menus-topaz11/prefs-fontpal/Typeface at 0 pixels; residue (colorwheel hue precision, one old-look size-gadget column) to Phase 259, the MaxonCPP about window size to 253. | v0.14.0 |

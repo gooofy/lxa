@@ -23,14 +23,13 @@ implementing the function, never by deleting the macro.
 | gadtools | 0 | 1 | 6 |
 | graphics | 0 | 6 | 7 |
 | icon | 0 | 2 | 0 |
-| intuition | 3 | 16 | 10 |
+| intuition | 3 | 15 | 10 |
 | p96 | 0 | 0 | 1 |
 | rexxsyslib | 0 | 0 | 1 |
-| tapedeck.gadget | 0 | 1 | 0 |
 | translator | 1 | 0 | 0 |
 | utility | 0 | 0 | 7 |
 | workbench | 0 | 0 | 3 |
-| **total** | **45** | **31** | **48** |
+| **total** | **45** | **29** | **48** |
 
 ## 68040
 
@@ -154,7 +153,6 @@ implementing the function, never by deleting the macro.
 - `ModifyProp` — partial: updates PropInfo but does not re-render the gadget (Phase 256) (`src/rom/lxa_intuition.c`)
 - `MoveScreen` — partial: screen position changes, display does not (Phase 256) (`src/rom/lxa_intuition.c`)
 - `NextPubScreen` — partial: only ever reports Workbench (Phase 256) (`src/rom/lxa_intuition.c`)
-- `ObtainGIRPort` — partial: returns the shared gadget RastPort instead of a clone (Phase 256) (`src/rom/lxa_intuition.c`)
 - `OpenScreen` — partial: fixed bar/border sizes, screen font height ignored (Phase 256) (`src/rom/lxa_intuition.c`)
 - `OpenScreenTagList` — partial: ignores SA_DClip, SA_Overscan, SA_Colors; SA_ErrorCode only for mode errors (Phase 256) (`src/rom/lxa_intuition.c`)
 - `OpenWindow` — partial: title bar height ignores screen font height (Phase 256) (`src/rom/lxa_intuition.c`)
@@ -185,10 +183,6 @@ implementing the function, never by deleting the macro.
 ## rexxsyslib
 
 - `Private` — private/reserved slot (`src/rom/lxa_rexxsyslib.c`)
-
-## tapedeck.gadget
-
-- `GM_RENDER` — partial: TDECK_Tape drawn as animation controls (`src/rom/gadgets/tapedeck.c`)
 
 ## translator
 

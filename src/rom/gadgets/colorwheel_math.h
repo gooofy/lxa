@@ -149,8 +149,9 @@ static inline ULONG cwm_isqrt(ULONG v)
 /*
  * The hue of a direction on the wheel: 0 straight up (red), increasing
  * clockwise on the screen (x to the right, y down), 0x10000 per turn.
- * atan of the ratio t = small/large in 0..1 is approximated by
- * t/8 + 0.0434 t (1 - t) turns (max. error about 0.1 degree).
+ * The ratio t = small/large in 0..1 gives t/8 + 0.0324 t (1 - t) turns:
+ * 3.1's wheel bends less than atan (fitted to the hues it reports for
+ * mouse clicks, tests/intuition/gadclass_input).
  */
 static inline ULONG cwm_direction(LONG dx, LONG dy)
 {
@@ -167,7 +168,7 @@ static inline ULONG cwm_direction(LONG dx, LONG dy)
         t = (ULONG)(((ULONG)ay << 15) / ax) << 1;
     if (t > 0x10000)
         t = 0x10000;
-    a = (t >> 3) + ((((t >> 4) * (0x10000 - t)) >> 12) * 2846 >> 16);
+    a = (t >> 3) + ((((t >> 4) * (0x10000 - t)) >> 12) * 2124 >> 16);
 
     if (ax > ay)
         a = 0x4000 - a;             /* measured from the horizontal axis */

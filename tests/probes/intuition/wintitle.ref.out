@@ -1,0 +1,50 @@
+-- lores oldlook
+close drag depth bt=11 box=16,1,31x7
+drag depth bt=11 box=4,1,31x7
+close bt=11 box=16,1,31x7
+close size depth bt=11 box=16,1,31x7
+-- lores newlook
+close drag depth bt=11 box=16,1,31x7
+drag depth bt=11 box=4,1,31x7
+close bt=11 box=16,1,31x7
+close size depth bt=11 box=16,1,31x7
+-- hires oldlook
+close drag depth bt=11 box=30,1,31x7
+drag depth bt=11 box=4,1,31x7
+close bt=11 box=30,1,31x7
+close size depth bt=11 box=30,1,31x7
+-- hires newlook
+close drag depth bt=11 box=30,1,31x7
+drag depth bt=11 box=4,1,31x7
+close bt=11 box=30,1,31x7
+close size depth bt=11 box=30,1,31x7
+-- hireslace oldlook
+close drag depth bt=11 box=30,1,31x7
+drag depth bt=11 box=4,1,31x7
+close bt=11 box=30,1,31x7
+close size depth bt=11 box=30,1,31x7
+-- hireslace newlook
+close drag depth bt=11 box=30,1,31x7
+drag depth bt=11 box=4,1,31x7
+close bt=11 box=30,1,31x7
+close size depth bt=11 box=30,1,31x7
+-- superhires oldlook
+close drag depth bt=11 box=30,1,31x7
+drag depth bt=11 box=4,1,31x7
+close bt=11 box=30,1,31x7
+close size depth bt=11 box=30,1,31x7
+-- superhires newlook
+close drag depth bt=11 box=30,1,31x7
+drag depth bt=11 box=4,1,31x7
+close bt=11 box=30,1,31x7
+close size depth bt=11 box=30,1,31x7
+-- loreslace oldlook
+close drag depth bt=11 box=16,1,31x7
+drag depth bt=11 box=4,1,31x7
+close bt=11 box=16,1,31x7
+close size depth bt=11 box=16,1,31x7
+-- loreslace newlook
+close drag depth bt=11 box=16,1,31x7
+drag depth bt=11 box=4,1,31x7
+close bt=11 box=16,1,31x7
+close size depth bt=11 box=16,1,31x7
