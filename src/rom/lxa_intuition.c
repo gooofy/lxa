@@ -1706,7 +1706,6 @@ static BOOL _prop_drag(struct Window *window, struct Gadget *gad, WORD mouseX, L
 }
 
 static LONG g_gt_down_code;     /* GADGETDOWN code of a GadTools MX click */
-static UWORD g_intuitick_counter;   /* VBlank counter for IDCMP_INTUITICKS (fires every 10th VBlank) */
 static UWORD g_current_qualifier;   /* last known input qualifier (for INTUITICKS messages) */
 static BOOL g_menu_mode;
 static struct Window *g_menu_window;
@@ -4442,7 +4441,8 @@ static VOID _intuition_handle_mouse_button_event(struct IntuitionBase *Intuition
                         gad->Flags &= ~GFLG_SELECTED;
                     }
 
-                    if (inside)
+                    /* a cycle gadget posted its GADGETUP above (once, as on 3.1) */
+                    if (inside && !_gadtools_IsCycle(gad))
                     {
                         LONG up_code = 0;
                         if (_gadtools_IsGadTools(gad) && !(gad->Activation & GACT_IMMEDIATE))
@@ -8409,7 +8409,18 @@ VOID _intuition_ProcessInputEvents(struct Screen *hint_screen)
                 input_event.ie_Class = IECLASS_RAWMOUSE;
                 input_event.ie_Code = code;
                 input_event.ie_Qualifier = qualifier;
-                _input_device_dispatch_event(&input_event);
+                {
+                    struct InputEvent *kept = _input_device_dispatch_event(&input_event);
+
+                    /* a handler swallowed the button or replaced it: as
+                     * for keys, Intuition sees only what the chain left */
+                    if (kept != &input_event || input_event.ie_NextEvent)
+                    {
+                        if (kept)
+                            _intuition_input_device_events(kept);
+                        break;
+                    }
+                }
                 
                 DPRINTF(LOG_DEBUG, "_intuition: MouseButton code=0x%02x qual=0x%04x at (%d,%d)\n",
                         code, qualifier, mouseX, mouseY);
@@ -8712,7 +8723,9 @@ VOID _intuition_ProcessInputEvents(struct Screen *hint_screen)
                                     gad->Flags &= ~GFLG_SELECTED;
                                 }
                                 
-                                if (inside)
+                                /* a cycle gadget posted its GADGETUP above
+                                 * (once, as on 3.1) */
+                                if (inside && !_gadtools_IsCycle(gad))
                                 {
                                     LONG up_code = 0;
                                     if (_gadtools_IsGadTools(gad) && !(gad->Activation & GACT_IMMEDIATE))
@@ -8906,7 +8919,16 @@ VOID _intuition_ProcessInputEvents(struct Screen *hint_screen)
 
                 input_event.ie_Class = IECLASS_POINTERPOS;
                 input_event.ie_Qualifier = qualifier;
-                _input_device_dispatch_event(&input_event);
+                {
+                    struct InputEvent *kept = _input_device_dispatch_event(&input_event);
+
+                    if (kept != &input_event || input_event.ie_NextEvent)
+                    {
+                        if (kept)
+                            _intuition_input_device_events(kept);
+                        break;
+                    }
+                }
                 
                 /* Handle menu tracking when in menu mode */
                 if (g_menu_mode && g_menu_window && screen)
@@ -9194,42 +9216,30 @@ VOID _intuition_ProcessInputEvents(struct Screen *hint_screen)
 }
 
 /*
- * VBlank hook for input processing.
- * Called from the VBlank interrupt handler to ensure input events
- * are processed even when the app doesn't call WaitTOF().
- * 
- * This function must be called from a context where interrupts are safe
- * (e.g., at the end of VBlank processing before scheduling).
- * 
- * IMPORTANT: This function is called from interrupt context. It MUST NOT
- * call OpenLibrary/CloseLibrary as this can cause reentrancy issues when
- * the interrupted code is also doing library calls. Instead, we use the
- * global IntuitionBase which is set up at ROM initialization time.
+ * Intuition's input processing: runs in the input.device task, which the
+ * VBlank interrupt wakes when input is waiting or a tick is due
+ * (lxa_dev_input.c, Phase 251) - on AmigaOS Intuition is an input handler
+ * at priority 50.  Events still pass the handler chain first
+ * (_input_device_dispatch_event()), at the point each one is processed.
  */
 
-VOID _intuition_VBlankInputHook(void)
+VOID _intuition_InputTaskWork(BOOL tick)
 {
-    /* Use global IntuitionBase - no OpenLibrary calls from interrupt context! */
+    /* Use global IntuitionBase - no OpenLibrary calls here */
     if (!IntuitionBase)
     {
-        LPRINTF(LOG_WARNING, "_intuition: VBlankInputHook: IntuitionBase is NULL!\n");
+        LPRINTF(LOG_WARNING, "_intuition: InputTaskWork: IntuitionBase is NULL!\n");
         return;
     }
     
-    if (!IntuitionBase->FirstScreen)
-    {
-        /* No screen yet - this is normal during startup */
-        return;
-    }
-    
-    DPRINTF(LOG_DEBUG, "_intuition: VBlankInputHook calling PIE, g_processing_events=%d g_menu_mode=%d\n",
+    /* PIE also runs without a screen: DisplayAlert() takes its mouse
+     * button from there (the events are discarded otherwise) */
+    DPRINTF(LOG_DEBUG, "_intuition: InputTaskWork calling PIE, g_processing_events=%d g_menu_mode=%d\n",
             g_processing_events, g_menu_mode);
     
     /* Reset re-entry guard here rather than relying on ProcessInputEvents
-     * to clear it. If the previous cycle budget expired mid-loop, the flag
-     * would remain set and block all future VBlank processing. Resetting
-     * at the top of the VBlank hook is safe because VBlankInputHook is
-     * the sole caller of ProcessInputEvents from interrupt context. */
+     * to clear it: if a previous pass was cut short, the flag would remain
+     * set and block all future input processing. */
     g_processing_events = FALSE;
     
     /*
@@ -9241,29 +9251,28 @@ VOID _intuition_VBlankInputHook(void)
      */
     _intuition_ProcessInputEvents(IntuitionBase->FirstScreen);
 
-    /* Phase 149: deferred-paint trigger.  Poll the host flag once per VBlank.
-     * If set, the host has called lxa_force_full_redraw() — send
-     * IDCMP_REFRESHWINDOW to all open windows so deferred-paint apps finally
-     * render.  The EMU_CALL clears the host flag atomically. */
+    /* Phase 149: deferred-paint trigger.  If the host has called
+     * lxa_force_full_redraw(), send IDCMP_REFRESHWINDOW to all open windows
+     * so deferred-paint apps finally render.  The EMU_CALL clears the host
+     * flag atomically. */
     if (emucall0(EMU_CALL_INT_FORCE_FULL_REDRAW))
     {
         lxa_force_full_redraw_all();
     }
 
     /*
-     * IDCMP_INTUITICKS: fire approximately every 10th VBlank (~5 Hz on PAL).
-     * AmigaOS 3.1 (tests/probes/intuition/ticks): only the active window
-     * gets ticks, and never a second one while WFLG_WINDOWTICKED is set;
-     * the flag is cleared when Intuition reaps the tick's reply, which it
-     * does for the active window on every tick and for any window when it
-     * posts another message to it.
+     * IDCMP_INTUITICKS: every 10th VBlank (~5 Hz on PAL; input.device
+     * counts the VBlanks and passes tick).  AmigaOS 3.1
+     * (tests/probes/intuition/ticks): only the active window gets ticks,
+     * and never a second one while WFLG_WINDOWTICKED is set; the flag is
+     * cleared when Intuition reaps the tick's reply, which it does for the
+     * active window on every tick and for any window when it posts another
+     * message to it.
      */
-    g_intuitick_counter++;
-    if (g_intuitick_counter >= 10)
+    if (tick)
     {
         struct Window *win = IntuitionBase->ActiveWindow;
 
-        g_intuitick_counter = 0;
         if (win && _intuition_find_window_state((struct LXAIntuitionBase *)IntuitionBase, win))
         {
             _reap_window_idcmp_replies(win);

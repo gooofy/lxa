@@ -48,6 +48,10 @@ def run(scn, out_dir, build=None):
             if not os.path.isdir(scn.keymaps_dir()):
                 raise RuntimeError("keymaps: %s missing (build the reference system)" % scn.keymaps_dir())
             lxa.assign("KEYMAPS", scn.keymaps_dir())
+        if scn.wb31:
+            if not os.path.isdir(scn.wb31_dir()):
+                raise RuntimeError("wb31: %s missing (build the reference system)" % scn.wb31_dir())
+            lxa.assign("WB31", scn.wb31_dir())
         for f in scn.prefs_files():
             # ENV:Sys/*.prefs - applied by C:IPrefs when the program boots
             lxa.install_prefs(os.path.join(scn.prefs_dir(), f))

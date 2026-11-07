@@ -25,6 +25,7 @@
 #include <libraries/mathffp.h>
 
 #include <graphics/gfxbase.h>
+#include <graphics/copper.h>
 #include <graphics/monitor.h>
 
 #include <intuition/intuitionbase.h>
@@ -6151,10 +6152,12 @@ static struct Task *wb_window_parent;
 /*
  * The system tasks programs find by name (probe exec/systasks: AmigaOS 3.1
  * has an "input.device" task at priority 20 and a "ramlib" process at 0,
- * both waiting).  SnoopDos looks both up before it builds its window.  lxa
- * dispatches input events from the VBlank input hook and loads disk
- * libraries in the caller's context, so these only wait.
+ * both waiting).  SnoopDos looks both up before it builds its window.  The
+ * input.device task runs the input handler chain (lxa_dev_input.c); lxa
+ * loads disk libraries in the caller's context, so the others only wait.
  */
+extern void _input_device_task(void);
+
 static void sys_wait_task(void)
 {
     for (;;)
@@ -6165,8 +6168,10 @@ static void create_system_tasks(void)
 {
     struct Task *t;
 
+    /* input.device runs the input handler chain, Intuition's input
+     * processing included (Phase 251): a large stack for rendering */
     if (!FindTask((STRPTR)"input.device") &&
-        (t = U_createTask((STRPTR)"input.device", 20, (APTR)sys_wait_task, 4096)))
+        (t = U_createTask((STRPTR)"input.device", 20, (APTR)_input_device_task, 32768)))
         emucall1(EMU_CALL_SYSTEM_TASK, (ULONG)t);
     /* one trackdisk.device task per floppy drive, priority 5 (probe
      * exec/tdunits: two drives; Fred Fish NoClick2 looks for them) */
@@ -6957,9 +6962,55 @@ void coldstart (void)
     GfxBase->ColorMask = 0xff000000;
     GfxBase->MonitorFlags = 0x0002;
     GfxBase->ExtSprites = 0x01;
-    /* copinit, SimpleSprites, ActiView left NULL — they require actual data
-     * structures. NULL is the correct initial value (no copper list, no sprites,
-     * no view loaded yet). ActiView is set when LoadView() is called. */
+    /* The system's initial copper list, laid out as on AmigaOS 3.1 (probe
+     * graphics/copinit): programs walk it for the sprite pointer moves
+     * (Fish KCommodity blanks the mouse pointer there).  Sprite 0 points
+     * to its own chip data, sprites 1-7 to the empty sprstop.
+     * SimpleSprites and ActiView stay NULL (ActiView is set by
+     * LoadView()).
+     *
+     * Programs written for the pre-V39 layout (sprstrtup at byte 20) scan
+     * from there in steps of 8 bytes for a SPR0PTH/SPR0PTL pair and find
+     * none in 3.1's copinit: on the reference KCommodity's scan runs on
+     * into Kickstart ROM and stops there, by chance, on matching code
+     * bytes.  lxa's ROM copy of the table is placed at 8n+4 so that its
+     * own pair lies on that scan's grid (copinit from AllocMem() is
+     * 8-aligned): such a scan always ends in read-only ROM. */
+    {
+        static const struct { UWORD pad[2]; UWORD w[88]; } copinit31_rom __attribute__((aligned(8))) =
+        { { 0, 0 }, {
+            0x00e0, 0x0000, 0x0100, 0x8201, 0x0106, 0x0c40, 0x0180, 0x0aaa,
+            0x0106, 0x0e40, 0x0180, 0x0aaa, 0x0106, 0x0c40, 0x01fc, 0x0000,
+            0x008e, 0x0181, 0x0090, 0x0281, 0x01e4, 0x0000, 0x0092, 0x0018,
+            0x0094, 0x0020, 0x0104, 0x0024, 0x0140, 0x0000, 0x0148, 0x0000,
+            0x0150, 0x0000, 0x0158, 0x0000, 0x0160, 0x0000, 0x0168, 0x0000,
+            0x0170, 0x0000, 0x0178, 0x0000, 0x0120, 0x0000, 0x0122, 0x0000,
+            0x0124, 0x0000, 0x0126, 0x0000, 0x0128, 0x0000, 0x012a, 0x0000,
+            0x012c, 0x0000, 0x012e, 0x0000, 0x0130, 0x0000, 0x0132, 0x0000,
+            0x0134, 0x0000, 0x0136, 0x0000, 0x0138, 0x0000, 0x013a, 0x0000,
+            0x013c, 0x0000, 0x013e, 0x0000, 0x0c01, 0xfffe, 0x0c01, 0xfffe,
+            0x008a, 0x0000, 0x0106, 0x0c00, 0xffff, 0xfffe, 0x0000, 0x0000
+            /* sprstop[8]: zero (AllocMem MEMF_CLEAR) */
+        } };
+        const UWORD *copinit31 = copinit31_rom.w;
+        struct copinit *ci = (struct copinit *) AllocMem(sizeof(struct copinit), MEMF_CHIP | MEMF_PUBLIC | MEMF_CLEAR);
+        UWORD *spr0 = (UWORD *) AllocMem(4 * sizeof(UWORD), MEMF_CHIP | MEMF_PUBLIC | MEMF_CLEAR);
+
+        if (ci && spr0)
+        {
+            ULONG p;
+            int i;
+
+            CopyMem((APTR) copinit31, ci, sizeof(copinit31_rom.w));
+            for (i = 0; i < 8; i++)
+            {
+                p = i ? (ULONG) ci->sprstop : (ULONG) spr0;
+                ci->sprstrtup[i * 4 + 1] = (UWORD) (p >> 16);
+                ci->sprstrtup[i * 4 + 3] = (UWORD) p;
+            }
+            GfxBase->copinit = ci;
+        }
+    }
 
     /* Phase 151/220: populate GfxBase->MonitorList with the native
      * pal.monitor (as AmigaOS 3.1 does on a PAL machine without

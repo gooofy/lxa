@@ -291,6 +291,8 @@ set(TESTS_LIST
     "../tests/devices/timer_async|main|Tests/Devices/TimerAsync"
     "../tests/devices/vclock|main|Tests/Devices/VClock"
     "../tests/devices/input|main|Tests/Devices/Input"
+    "../tests/devices/input_swallow|main|Tests/Devices/InputSwallow"
+    "../tests/commodities/exchange_gate|main|Tests/Commodities/ExchangeGate"
     "../tests/devices/keyboard|main|Tests/Devices/Keyboard"
     "../tests/devices/narrator|main|Tests/Devices/Narrator"
     "../tests/devices/gameport|main|Tests/Devices/Gameport"

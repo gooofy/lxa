@@ -1,0 +1,74 @@
+-- no brokers
+BrokerCommand(NULL, LIST_CHG) = -1
+-- CxBroker Other
+Exchange no messages
+Other no messages
+Third no messages
+BrokerCommand(NULL, LIST_CHG) without Exchange = -1
+-- after that
+Exchange no messages
+Other no messages
+Third no messages
+-- CxBroker Exchange
+Exchange no messages
+Other no messages
+Third no messages
+BrokerCommand(NULL, LIST_CHG) = 0
+-- after BrokerCommand(NULL, LIST_CHG)
+Exchange msg 0: type=0x40 id=27 data=NULL
+Other no messages
+Third no messages
+BrokerCommand(NULL, ENABLE) = 0
+-- after BrokerCommand(NULL, ENABLE)
+Exchange msg 0: type=0x40 id=17 data=NULL
+Other no messages
+Third no messages
+BrokerCommand("Other", LIST_CHG) = 0
+-- after BrokerCommand(Other, LIST_CHG)
+Exchange no messages
+Other msg 0: type=0x40 id=27 data=NULL
+Third no messages
+ActivateCxObj(Other, TRUE) = 0
+-- ActivateCxObj(Other, TRUE)
+Exchange msg 0: type=0x40 id=27 data=NULL
+Other no messages
+Third no messages
+ActivateCxObj(Other, TRUE) again = 2
+-- ActivateCxObj(Other, TRUE) again
+Exchange msg 0: type=0x40 id=27 data=NULL
+Other no messages
+Third no messages
+ActivateCxObj(Other, FALSE) = 2
+-- ActivateCxObj(Other, FALSE)
+Exchange msg 0: type=0x40 id=27 data=NULL
+Other no messages
+Third no messages
+-- CxFilter + AttachCxObj
+Exchange no messages
+Other no messages
+Third no messages
+ActivateCxObj(filter, FALSE) = 2
+-- ActivateCxObj(filter, FALSE)
+Exchange no messages
+Other no messages
+Third no messages
+-- SetCxObjPri(Other, 5)
+Exchange no messages
+Other no messages
+Third no messages
+-- CxBroker Third
+Exchange msg 0: type=0x40 id=27 data=NULL
+Other no messages
+Third no messages
+-- DeleteCxObj(Third)
+Exchange msg 0: type=0x40 id=27 data=NULL
+Other no messages
+Third no messages
+-- DeleteCxObjAll(Other)
+Exchange msg 0: type=0x40 id=27 data=NULL
+Other no messages
+Third no messages
+-- DeleteCxObj(Exchange)
+Exchange no messages
+Other no messages
+Third no messages

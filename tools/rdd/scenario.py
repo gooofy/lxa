@@ -14,6 +14,10 @@ A scenario is one YAML file, executed unchanged on both backends:
     keymaps: wb31                       # optional: the Workbench 3.1 keymaps
                                         # (Storage/Keymaps of the reference
                                         # system) as KEYMAPS: on both sides
+    wb31: true                          # optional: WB31: is the Workbench 3.1
+                                        # system (reference: SYS:, lxa: the
+                                        # reference's files, never committed)
+                                        # - programs such as Exchange (Phase 251)
     app:
       sample: SimpleGTGadget            # lxa sample/test binary (SYS:<path>)
       # manifest: DPaintV               # or an app from apps/<App>.json
@@ -130,6 +134,7 @@ class Scenario:
         self.keymaps = doc.get("keymaps")
         if self.keymaps not in (None, "wb31"):
             raise ScenarioError("%s: keymaps must be wb31" % path)
+        self.wb31 = bool(doc.get("wb31", False))
         self.prefs = doc.get("prefs")
         if self.prefs and not os.path.isdir(self.prefs_dir()):
             raise ScenarioError("%s: prefs directory %s missing" % (path, self.prefs))
@@ -196,6 +201,14 @@ class Scenario:
             return None
         refsys = os.environ.get("LXA_REFSYS_DIR", os.path.expanduser("~/.cache/lxa/refsys"))
         return os.path.join(refsys, "SYS-%s" % self.profile, "Storage", "Keymaps")
+
+    def wb31_dir(self):
+        """Host directory lxa mounts as WB31: (`wb31: true`): the reference's
+        Workbench 3.1 system, built from the user's ADFs; None: no WB31:."""
+        if not self.wb31:
+            return None
+        refsys = os.environ.get("LXA_REFSYS_DIR", os.path.expanduser("~/.cache/lxa/refsys"))
+        return os.path.join(refsys, "SYS-%s" % self.profile)
 
     def prefs_dir(self):
         """Host directory with the scenario's ENV:Sys/*.prefs files (None: the

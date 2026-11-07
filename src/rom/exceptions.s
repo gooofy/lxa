@@ -292,12 +292,9 @@ _handleIRQ3:
 
     move.l      4, a6
 
-    /* Process input events via Intuition hook */
-    /* This ensures IDCMP messages are delivered even when app doesn't use WaitTOF */
-    jsr         __intuition_VBlankInputHook
-
-    /* input.device: IECLASS_TIMER events through the handler chain */
-    jsr         __input_device_VBlankHook
+    /* input.device: wake its task, which runs the handler chain
+     * (Intuition's input processing, IECLASS_TIMER events) - Phase 251 */
+    jsr         __input_device_VBlankSignal
 
     /* Process expired timer requests via Timer hook */
     /* This calls ReplyMsg() for expired timers, properly waking up waiting tasks */
@@ -361,6 +358,10 @@ _handleIRQ3:
     bra         _exec_Schedule                      | jump into our scheduler
 
 3:
+    /* no switch now: remember it (SFF_SAR, bit 15 of SysFlags), so that
+     * Permit()/Enable() hand the CPU to a task this interrupt woke, as
+     * exec does - not only the next VBlank (probe exec/systasks) */
+    bset.b      #7, SysFlags(a6)
     movem.l     (sp)+, d0-d2/a0-a2/a6               | restore registers
     rte
 

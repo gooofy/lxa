@@ -1,0 +1,21 @@
+{
+ "backend": "ref",
+ "files": [
+  "screen.png",
+  "palette.json",
+  "tree.json",
+  "text.jsonl",
+  "stdout.txt"
+ ],
+ "profile": "aga",
+ "refsys_checksum": "c0c60b5fc8aae6df-3683aacf2e9e",
+ "scenario": "exchange-gate",
+ "schema": "lxa-bundle/1",
+ "screen": {
+  "depth": 2,
+  "height": 95,
+  "width": 574
+ },
+ "snapshot": "selected",
+ "window": 0
+}

@@ -71,6 +71,9 @@ python3 -m rdd report ../build/rdd                                # compare + co
   re-run (e.g. after a reference looked wrong).
 - Apps come from `apps/<App>.json` + `../lxa-apps` (`LXA_APPS`), mounted as
   `APPS:` on both sides.
+- `wb31: true` assigns `WB31:` to the Workbench 3.1 partition on both sides
+  (lxa: `~/.cache/lxa/refsys/SYS-<profile>`), for driving WB 3.1 tools such as
+  `WB31:Tools/Commodities/Exchange` from a sample (`exchange-gate.yaml`).
 
 ## 4. Goldens
 

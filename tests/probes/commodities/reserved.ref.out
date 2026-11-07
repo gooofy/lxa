@@ -1,0 +1,22 @@
+-- library
+vectors = 39
+-108 is a jmp = TRUE
+-108 shares code with -24 (ExtFunc) = TRUE
+-108 shares code with a private controller slot = FALSE
+-108 shares code with a private controller slot = FALSE
+-108 shares code with a private controller slot = FALSE
+-- call without brokers
+d0 = 0x00000000
+d1 = 0x22222222
+a0 = 0x33333333
+a1 = 0x44444444
+-- call with a broker
+broker = non-NULL
+d0 = 0x00000000
+d1 = 0x22222222
+a0 = 0x33333333
+a1 = 0x44444444
+CxObjError = 0
+ActivateCxObj (was inactive) = 0
+ActivateCxObj (was active) = 2
+CxObjType = 6

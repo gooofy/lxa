@@ -1,8 +1,8 @@
 {
  "app": "SysInfo",
  "disabled": null,
- "lxa_version": "0.11.96",
- "promoted": "2026-10-18",
+ "lxa_version": "0.13.0",
+ "promoted": "2026-11-07",
  "reference": "AmigaOS 3.1 (KS 40.70), profile aga",
  "requires_apps": true,
  "scenario": "sysinfo-gadgets",
@@ -36,7 +36,7 @@
     {
      "field": "flags",
      "kind": "window",
-     "lxa": 75776,
+     "lxa": 67584,
      "phase": 255,
      "ref": 79872,
      "where": "screen[0]/window[0]"
@@ -215,7 +215,16 @@
    "stdout_known_diff": null
   },
   "libraries": {
-   "known_tree_diffs": [],
+   "known_tree_diffs": [
+    {
+     "field": "flags",
+     "kind": "window",
+     "lxa": 67584,
+     "phase": 255,
+     "ref": 75776,
+     "where": "screen[0]/window[0]"
+    }
+   ],
    "pixel_budget": 5810,
    "pixel_phase": 255,
    "stdout_known_diff": null
@@ -249,7 +258,7 @@
     {
      "field": "flags",
      "kind": "window",
-     "lxa": 75776,
+     "lxa": 67584,
      "phase": 255,
      "ref": 79872,
      "where": "screen[0]/window[0]"

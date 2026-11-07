@@ -1,0 +1,136 @@
+OpenLibrary(rexxsyslib, 0) = non-NULL
+OpenLibrary(rexxsyslib, 45) = NULL
+OpenLibrary(rexxsyslib, 36) = non-NULL
+-- base
+lib_Version = 36
+ln_Name = "rexxsyslib.library"
+ln_Pri = 0
+lib_PosSize = 252
+lib_NegSize = 476
+rl_Flags = 0x00000000
+rl_SysBase == SysBase = TRUE
+rl_DOSBase == DOSBase = TRUE
+rl_NIL = non-NULL
+rl_Chunk = 1024
+rl_MaxNest = 32
+rl_NULL = ""
+rl_FALSE = "0"
+rl_TRUE = "1"
+rl_REXX = "REXX"
+rl_COMMAND = "COMMAND"
+rl_STDIN = "STDIN"
+rl_STDOUT = "STDOUT"
+rl_STDERR = "STDERR"
+rl_TRUE ns_Ivalue = 1
+rl_TRUE ns_Length = 1
+rl_TRUE ns_Flags = 0x0000009a
+rl_TRUE ns_Hash = 0x00000031
+rl_REXX ns_Length = 4
+rl_REXX ns_Flags = 0x00000086
+rl_REXX ns_Hash = 0x00000047
+rl_TaskName = "ARexx"
+rl_TaskPri = 0
+rl_StackSize = 4096
+rl_RexxDir = "REXX:"
+rl_CTABLE = non-NULL
+rl_CTABLE hash = 0x9134f8aa
+rl_CTABLE row 0 = 01 01 01 01 01 01 01 01 01 01 01 01 01 01 01 01
+rl_CTABLE row 1 = 01 01 01 01 01 01 01 01 01 01 01 01 01 01 01 01
+rl_CTABLE row 2 = 01 08 00 08 08 10 10 00 20 20 10 10 20 10 08 10
+rl_CTABLE row 3 = 0a 0a 0a 0a 0a 0a 0a 0a 0a 0a 20 20 10 10 10 08
+rl_CTABLE row 4 = 08 4c 4c 4c 4c 4c 4c 4c 4c 4c 4c 4c 4c 4c 4c 4c
+rl_CTABLE row 5 = 4c 4c 4c 4c 4c 4c 4c 4c 4c 4c 4c 00 00 00 10 08
+rl_CTABLE row 6 = 00 8c 8c 8c 8c 8c 8c 8c 8c 8c 8c 8c 8c 8c 8c 8c
+rl_CTABLE row 7 = 8c 8c 8c 8c 8c 8c 8c 8c 8c 8c 8c 00 10 00 10 01
+rl_CTABLE row 8 = 01 01 01 01 01 01 01 01 01 01 01 01 01 01 01 01
+rl_CTABLE row 9 = 01 01 01 01 01 01 01 01 01 01 01 01 01 01 01 01
+rl_CTABLE row a = 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+rl_CTABLE row b = 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+rl_CTABLE row c = 44 44 44 44 44 44 44 44 44 44 44 44 44 44 44 44
+rl_CTABLE row d = 44 44 44 44 44 44 44 00 44 44 44 44 44 44 44 44
+rl_CTABLE row e = 84 84 84 84 84 84 84 84 84 84 84 84 84 84 84 84
+rl_CTABLE row f = 84 84 84 84 84 84 84 00 84 84 84 84 84 84 84 84
+rl_RexxPort ln_Name = NULL
+rl_RexxPort ln_Type = 0
+FindPort(REXX) == &rl_RexxPort = FALSE
+FindPort(REXX) = NULL
+rl_ReadLock = 0
+rl_TraceFH = NULL
+rl_NumTask = 0
+rl_NumLib = 0
+rl_NumClip = 0
+rl_NumMsg = 0
+rl_NumPgm = 0
+rl_TraceCnt = 0
+-- argstrings
+CreateArgstring(0) ra_Size=9 ra_Length=0 Length=0 flags=0x46 hash=0x00 nul=0
+CreateArgstring(1) ra_Size=10 ra_Length=1 Length=1 flags=0x46 hash=0x61 nul=0
+CreateArgstring(2) ra_Size=11 ra_Length=2 Length=2 flags=0x46 hash=0xc3 nul=0
+CreateArgstring(3) ra_Size=12 ra_Length=3 Length=3 flags=0x46 hash=0x26 nul=0
+CreateArgstring(4) ra_Size=13 ra_Length=4 Length=4 flags=0x46 hash=0x8a nul=0
+CreateArgstring(5) ra_Size=14 ra_Length=5 Length=5 flags=0x46 hash=0xef nul=0
+CreateArgstring(7) ra_Size=16 ra_Length=7 Length=7 flags=0x46 hash=0xbc nul=0
+CreateArgstring(8) ra_Size=17 ra_Length=8 Length=8 flags=0x46 hash=0x24 nul=0
+CreateArgstring(9) ra_Size=18 ra_Length=9 Length=9 flags=0x46 hash=0x8d nul=0
+CreateArgstring(15) ra_Size=24 ra_Length=15 Length=15 flags=0x46 hash=0x18 nul=0
+CreateArgstring(16) ra_Size=25 ra_Length=16 Length=16 flags=0x46 hash=0x88 nul=0
+CreateArgstring(17) ra_Size=26 ra_Length=17 Length=17 flags=0x46 hash=0xf9 nul=0
+CreateArgstring(100) ra_Size=109 ra_Length=100 Length=100 flags=0x46 hash=0x9a nul=0
+hello = "hello" len=5 ra_Length=5 ra_Flags=0x46 ra_Hash=0x14
+123 = "123" len=3 ra_Length=3 ra_Flags=0x46 ra_Hash=0x96
+-42 = "-42" len=3 ra_Length=3 ra_Flags=0x46 ra_Hash=0x93
+1.5 = "1.5" len=3 ra_Length=3 ra_Flags=0x46 ra_Hash=0x94
+embedded nul: len=5 bytes: = 61 62 00 63 64 00
+hash ff fe = 253
+-- rexxmsg
+CreateRexxMsg = non-NULL
+ln_Type = 0
+ln_Pri = 0
+ln_Name = NULL
+ln_Name == rl_REXX buffer = FALSE
+mn_Length = 128
+mn_ReplyPort == port = TRUE
+rm_TaskBlock = NULL
+rm_LibBase == RexxSysBase = FALSE
+rm_LibBase = NULL
+rm_Action = 0x00000000
+rm_Result1 = 0
+rm_Result2 = 0
+rm_PassPort = NULL
+rm_CommAddr = "HOST"
+rm_FileExt = "ext"
+rm_Stdin = 0
+rm_Stdout = 0
+rm_avail = 0
+IsRexxMsg(rm) = FALSE
+CreateRexxMsg(NULL ext/host) = non-NULL
+  rm_CommAddr = NULL
+  rm_FileExt = NULL
+IsRexxMsg(plain, name NULL) = FALSE
+IsRexxMsg(plain, own "REXX") = TRUE
+IsRexxMsg(plain, "rexx") = FALSE
+IsRexxMsg(plain, msg's name) = FALSE
+FillRexxMsg(5) = -1
+  arg0 = "first" len=5 ra_Length=5 ra_Flags=0x46 ra_Hash=0x28
+  arg1 = "-42" len=3 ra_Length=3 ra_Flags=0x46 ra_Hash=0x93
+  arg2 = "third" len=5 ra_Length=5 ra_Flags=0x46 ra_Hash=0x1b
+  arg3 = "123456" len=6 ra_Length=6 ra_Flags=0x46 ra_Hash=0x35
+  arg4 = "0" len=1 ra_Length=1 ra_Flags=0x46 ra_Hash=0x30
+  arg5 = NULL
+  after ClearRexxMsg arg0 = NULL
+  after ClearRexxMsg arg1 = NULL
+  after ClearRexxMsg arg2 = NULL
+  after ClearRexxMsg arg3 = NULL
+  after ClearRexxMsg arg4 = NULL
+  after ClearRexxMsg arg5 = NULL
+FillRexxMsg(NULL slot) = -1
+  arg0 = "x" len=1 ra_Length=1 ra_Flags=0x46 ra_Hash=0x78
+  arg1 = NULL
+  arg2 = "z" len=1 ra_Length=1 ra_Flags=0x46 ra_Hash=0x7a
+FillRexxMsg(0) = -1
+ClearRexxMsg(16 NULL) ok = 1
+-- locks
+rl_ReadLock before = 0
+rl_ReadLock locked = 1
+rl_ReadLock locked twice = 2
+rl_ReadLock after = 0

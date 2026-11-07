@@ -2976,6 +2976,12 @@ int op_illg(int level)
             break;
         }
 
+        case EMU_CALL_INT_INPUT_PENDING:
+            /* Phase 251: the VBlank interrupt wakes input.device only
+             * when there is something to do */
+            m68k_set_reg(M68K_REG_D0, (display_event_pending() || s_force_full_redraw_pending) ? 1 : 0);
+            break;
+
         case EMU_CALL_INT_FORCE_FULL_REDRAW:
         {
             /* Phase 149: ROM VBlank hook polls this once per VBlank.

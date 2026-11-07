@@ -219,6 +219,8 @@ def run(scn, out_dir, build=None, use_cache=True):
                 elif kind == "launch":
                     if scn.writable:
                         agent.cmd("ASSIGN RDDAPP LXAREF:rddapp")
+                    if scn.wb31:
+                        agent.cmd("ASSIGN WB31 SYS:")
                     for name, rel, add in scn.assigns():
                         path = scn.app_amiga_dir() + ("/" + rel if rel not in ("", ".") else "")
                         agent.cmd("ASSIGN %s %s%s" % (name, path, " ADD" if add else ""))

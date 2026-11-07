@@ -147,6 +147,7 @@ void lxa_profile_emucall_name(int emucall_id, char *buf, int buf_size)
         { 3012, "EMU_CALL_INT_GET_MOUSE_BTN" },
         { 3013, "EMU_CALL_INT_GET_KEY" },
         { 3014, "EMU_CALL_INT_GET_EVENT_WIN" },
+        { 3031, "EMU_CALL_INT_INPUT_PENDING" },
         { 3020, "EMU_CALL_INT_OPEN_WINDOW" },
         { 3021, "EMU_CALL_INT_CLOSE_WINDOW" },
         { 3022, "EMU_CALL_INT_MOVE_WINDOW" },

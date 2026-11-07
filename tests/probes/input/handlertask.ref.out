@@ -1,0 +1,26 @@
+-- setup
+input.device task = non-NULL
+-- IND_WRITEEVENT
+DoIO = 0
+handler ran before DoIO returned = TRUE
+-- handler, written event
+called = TRUE
+in the input.device task = TRUE
+in the probe's task = FALSE
+interrupts enabled = TRUE
+multitasking enabled = TRUE
+AllocMem works = TRUE
+-- handler, timer event
+called = TRUE
+in the input.device task = TRUE
+in the probe's task = FALSE
+interrupts enabled = TRUE
+multitasking enabled = TRUE
+AllocMem works = TRUE
+-- commodities custom object
+called = TRUE
+in the input.device task = TRUE
+in the probe's task = FALSE
+interrupts enabled = TRUE
+multitasking enabled = TRUE
+AllocMem works = TRUE

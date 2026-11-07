@@ -231,6 +231,9 @@ typedef struct {
  */
 bool display_get_event(display_event_t *event);
 
+/* an input event is waiting (polls the host first) */
+bool display_event_pending(void);
+
 /*
  * Host objects (display_t, display_window_t) referenced from emulated memory
  * (e.g. Screen->ExtData) are exchanged as 32-bit handles, never as raw host

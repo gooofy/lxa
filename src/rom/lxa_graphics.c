@@ -40,6 +40,7 @@
 
 /* Forward declaration for input processing (defined in lxa_intuition.c) */
 extern VOID _intuition_ProcessInputEvents(struct Screen *screen);
+extern void _input_device_process_events(void);
 
 /* Global IntuitionBase (defined in exec.c) - used to avoid OpenLibrary from interrupt context */
 extern struct IntuitionBase *IntuitionBase;
@@ -5261,9 +5262,8 @@ VOID _graphics_RefreshAllScreens(void)
         return;
     }
     
-    /* Process all pending input events.  The function resolves the
-     * correct target screen per event internally. */
-    _intuition_ProcessInputEvents(IntuitionBase->FirstScreen);
+    /* Process all pending input events - in the input.device task */
+    _input_device_process_events();
     
     for (screen = IntuitionBase->FirstScreen; screen; screen = screen->NextScreen)
     {

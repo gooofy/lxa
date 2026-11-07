@@ -336,14 +336,6 @@
   "symbol": "_cgx_Private"
  },
  {
-  "lib": "commodities",
-  "function": "Private1",
-  "kind": "private",
-  "detail": "private/reserved slot",
-  "file": "src/rom/lxa_commodities.c",
-  "symbol": "_commodities_Private1"
- },
- {
   "lib": "datatypes",
   "function": "AddDTObject",
   "kind": "stub",

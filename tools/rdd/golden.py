@@ -188,6 +188,9 @@ def check(gdir, build=None, keep=None):
     if scn.keymaps_dir() and not os.path.isdir(scn.keymaps_dir()):
         print("SKIP %s: reference keymaps %s not built" % (scn.name, scn.keymaps_dir()))
         return 77
+    if scn.wb31_dir() and not os.path.isdir(scn.wb31_dir()):
+        print("SKIP %s: reference system %s not built" % (scn.name, scn.wb31_dir()))
+        return 77
     out = keep or tempfile.mkdtemp(prefix="rdd-golden-")
     env = dict(os.environ, PYTHONPATH=os.path.join(ROOT, "tools") + os.pathsep + os.environ.get("PYTHONPATH", ""))
     cmd = [sys.executable, "-m", "rdd.backend_lxa", scn.path, out]

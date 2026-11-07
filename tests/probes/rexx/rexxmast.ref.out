@@ -1,0 +1,449 @@
+REXX port before RexxMast = NULL
+start RexxMast = TRUE
+REXX port is rl_RexxPort = TRUE
+-- results
+script: return 1+2
+  rc=0 result="3" len=1
+script: return 'abc'
+  rc=0 result="abc" len=3
+script: return
+  rc=0 result=NULL
+script: exit 7
+  rc=0 result="7" len=1
+script: exit 'xyz'
+  rc=0 result="xyz" len=3
+script: exit
+  rc=0 result=NULL
+script: return 10/4
+  rc=0 result="2.5" len=3
+script: return 2**10
+  rc=0 result="1024" len=4
+script: return upper('abc') || d2c(65) || c2d('A')
+  rc=0 result="ABCA65" len=6
+script: return address()
+  rc=0 result="PROBEHOST" len=9
+script: return arg() '|' arg(1)
+  rc=0 result="0 | " len=4
+script (no RXFF_RESULT): return 'ignored'
+  rc=10 result2=47
+script (no RXFF_RESULT): exit 6
+  rc=6 result2=0
+-- builtins
+script: return 1/3
+  rc=0 result="0.333333333" len=11
+script: return 1e3 + 0
+  rc=0 result="1000" len=4
+script: return 'a' = 'A'
+  rc=0 result="0" len=1
+script: return datatype(12) datatype('x') datatype('12', 'W')
+  rc=0 result="NUM CHAR 1" len=10
+script: return c2x('AB') b2c('01000001') c2b('A')
+  rc=0 result="4142 A 01000001" len=15
+script: return bitand('ff'x, '0f'x) == '0f'x
+  rc=0 result="1" len=1
+script: return compress(' a b  c ') '|' trim('  x  ') '|' strip('  y  ')
+  rc=0 result="abc |   x | y" len=13
+script: return hash('abc') index('abcabc', 'c') find('a b c', 'b')
+  rc=0 result="38 3 2" len=6
+script: return translate('abc') right(5, 3, 0) left('ab', 4, '.')
+  rc=0 result="ABC 005 ab.." len=12
+script: return sourceline() sourceline(1)
+  rc=0 result="1 return sourceline() sourceline(1)" len=35
+script: parse source s; return s
+  rc=0 result="COMMAND 1 ? ? rexx PROBEHOST" len=28
+script: parse version v; return v
+  rc=0 result="ARexx V1.15 68070 68881 PAL 50HZ" len=32
+script: return show('P', 'AREXX')
+  rc=0 result="1" len=1
+script: return digits() fuzz() form()
+  rc=0 result="9 0 SCIENTIFIC" len=14
+script: return d2x(255) x2d('ff') d2c(72) || d2c(105)
+  rc=0 result="FF 255 Hi" len=9
+script: return words('a b c') word('a b c', 2) subword('a b c d', 2, 2)
+  rc=0 result="3 b b c" len=7
+script: return reverse('abc') copies('ab', 3) overlay('x', 'abc', 2)
+  rc=0 result="cba ababab axc" len=14
+script: return verify('abc', 'ab') abbrev('print', 'pri') xrange('a', 'e')
+  rc=0 result="3 1 abcde" len=9
+script: return max(1, 5, 3) min(4, 2) abs(-3) sign(-2) trunc(3.7)
+  rc=0 result="5 2 3 -1 3" len=10
+script: return format(3.14159, 2, 2) '|' format(5)
++++ Error 15 in line 1: Function not found
+  rc=10 result2=15
+script: x.1 = 'one'; i = 1; return x.i symbol('x.1') symbol('nope') symbol('1')
+  rc=0 result="one VAR LIT LIT" len=15
+script: call open('f', 'T:pio', 'W'); call writeln('f', 'line1'); call close('f'); call open('g', 'T:pio', 'R'); x = readln('g'); y = eof('g'); call close('g'); return x y exists('T:pio') exists('T:nope')
+  rc=0 result="line1 0 1 0" len=11
+script: return open('h', 'T:nope/x', 'R') close('nope')
+  rc=0 result="0 0" len=3
+script: interpret 'x = 2 * 21'; return x
+  rc=0 result="42" len=2
+script: return f(3); f: procedure; parse arg n; return n * 2
+  rc=0 result="6" len=1
+script: return value('nope') nope
+  rc=0 result="NOPE NOPE" len=9
+script: signal on novalue; return nope2; novalue: return 'novalue' sigl
+  rc=0 result="novalue 1" len=9
+-- conditions
+script: signal on error; 'WARN'; return 'no'; error: return 'trapped' rc sigl
+  host: RXCOMM flags=0x00000000 nargs=0 check=TRUE comm=PROBEHOST ext=rexx arg0="WARN" len=4
+  rc=0 result="trapped 5 1" len=11
+script: signal on failure; 'FAIL'; return 'no'; failure: return 'ftrap' rc sigl
+  host: RXCOMM flags=0x00000000 nargs=0 check=TRUE comm=PROBEHOST ext=rexx arg0="FAIL" len=4
+  rc=0 result="ftrap 10 1" len=10
+script: signal on error; 'FAIL'; return 'no'; error: return 'etrap' rc sigl
+  host: RXCOMM flags=0x00000000 nargs=0 check=TRUE comm=PROBEHOST ext=rexx arg0="FAIL" len=4
+  rc=0 result="etrap 10 1" len=10
+script: signal on syntax; x = 1/0; syntax: return 'syn' rc sigl errortext(rc)
+  rc=0 result="syn 48 1 Invalid operand" len=24
+script: signal on syntax; x = nofunc(); syntax: return 'syn' rc errortext(rc)
+  rc=0 result="syn 15 Function not found" len=25
+script: options failat 30; 'FAIL'; 'UNKNOWN'; return rc
+  host: RXCOMM flags=0x00000000 nargs=0 check=TRUE comm=PROBEHOST ext=rexx arg0="FAIL" len=4
+  host: RXCOMM flags=0x00000000 nargs=0 check=TRUE comm=PROBEHOST ext=rexx arg0="UNKNOWN" len=7
+  1 *-* 'UNKNOWN';
++++ Command returned 30
+  rc=0 result="30" len=2
+script: options failat 3; 'WARN'; return rc
+  host: RXCOMM flags=0x00000000 nargs=0 check=TRUE comm=PROBEHOST ext=rexx arg0="WARN" len=4
+  1 *-* 'WARN';
++++ Command returned 5
+  rc=0 result="5" len=1
+script: trace off; 'FAIL'; return rc
+  host: RXCOMM flags=0x00000000 nargs=0 check=TRUE comm=PROBEHOST ext=rexx arg0="FAIL" len=4
+  rc=0 result="10" len=2
+script: trace e; 'WARN'; return rc
+  host: RXCOMM flags=0x00000000 nargs=0 check=TRUE comm=PROBEHOST ext=rexx arg0="WARN" len=4
+  1 *-* 'WARN';
++++ Command returned 5
+  rc=0 result="5" len=1
+script: address command 'SYS:C/Wait 0'; return rc
+  rc=0 result="0" len=1
+script: address command 'nosuchcommand'; return rc
+nosuchcommand: Unknown command
+nosuchcommand failed returncode 10
+  1 *-* address command 'nosuchcommand';
++++ Command returned 10
+  rc=0 result="10" len=2
+script: address command; 'SYS:C/Wait 0'; return rc address()
+  rc=0 result="0 COMMAND" len=9
+-- errortext
+script: return errortext(0)
+  rc=0 result="Undiagnosed internal error" len=26
+script: return errortext(1)
+  rc=0 result="Program not found" len=17
+script: return errortext(2)
+  rc=0 result="Execution halted" len=16
+script: return errortext(3)
+  rc=0 result="Insufficient memory" len=19
+script: return errortext(4)
+  rc=0 result="" len=0
+script: return errortext(5)
+  rc=0 result="Unmatched quote" len=15
+script: return errortext(6)
+  rc=0 result="Unterminated comment" len=20
+script: return errortext(7)
+  rc=0 result="" len=0
+script: return errortext(8)
+  rc=0 result="Unrecognized token" len=18
+script: return errortext(9)
+  rc=0 result="Symbol or string >65535 characters" len=34
+script: return errortext(10)
+  rc=0 result="Invalid message packet" len=22
+script: return errortext(11)
+  rc=0 result="Command string error" len=20
+script: return errortext(12)
+  rc=0 result="Error return from function" len=26
+script: return errortext(13)
+  rc=0 result="Host environment not found" len=26
+script: return errortext(14)
+  rc=0 result="Requested library not found" len=27
+script: return errortext(15)
+  rc=0 result="Function not found" len=18
+script: return errortext(16)
+  rc=0 result="Function did not return value" len=29
+script: return errortext(17)
+  rc=0 result="Wrong number of arguments" len=25
+script: return errortext(18)
+  rc=0 result="Invalid argument to function" len=28
+script: return errortext(19)
+  rc=0 result="Invalid PROCEDURE" len=17
+script: return errortext(20)
+  rc=0 result="Unexpected THEN or WHEN" len=23
+script: return errortext(21)
+  rc=0 result="Unexpected ELSE or OTHERWISE" len=28
+script: return errortext(22)
+  rc=0 result="Unexpected BREAK, LEAVE or ITERATE" len=34
+script: return errortext(23)
+  rc=0 result="Invalid statement in SELECT" len=27
+script: return errortext(24)
+  rc=0 result="Missing or multiple THEN" len=24
+script: return errortext(25)
+  rc=0 result="Missing OTHERWISE" len=17
+script: return errortext(26)
+  rc=0 result="Missing or unexpected END" len=25
+script: return errortext(27)
+  rc=0 result="Symbol mismatch" len=15
+script: return errortext(28)
+  rc=0 result="Invalid DO syntax" len=17
+script: return errortext(29)
+  rc=0 result="Incomplete IF or SELECT" len=23
+script: return errortext(30)
+  rc=0 result="Label not found" len=15
+script: return errortext(31)
+  rc=0 result="Symbol expected" len=15
+script: return errortext(32)
+  rc=0 result="Symbol or string expected" len=25
+script: return errortext(33)
+  rc=0 result="Invalid keyword" len=15
+script: return errortext(34)
+  rc=0 result="Required keyword missing" len=24
+script: return errortext(35)
+  rc=0 result="Extraneous characters" len=21
+script: return errortext(36)
+  rc=0 result="Keyword conflict" len=16
+script: return errortext(37)
+  rc=0 result="Invalid template" len=16
+script: return errortext(38)
+  rc=0 result="" len=0
+script: return errortext(39)
+  rc=0 result="Uninitialized variable" len=22
+script: return errortext(40)
+  rc=0 result="Invalid variable name" len=21
+script: return errortext(41)
+  rc=0 result="Invalid expression" len=18
+script: return errortext(42)
+  rc=0 result="Unbalanced parentheses" len=22
+script: return errortext(43)
+  rc=0 result="Expression nesting >32" len=22
+script: return errortext(44)
+  rc=0 result="Invalid expression result" len=25
+script: return errortext(45)
+  rc=0 result="Expression required" len=19
+script: return errortext(46)
+  rc=0 result="Boolean value not 0 or 1" len=24
+script: return errortext(47)
+  rc=0 result="Arithmetic conversion error" len=27
+script: return errortext(48)
+  rc=0 result="Invalid operand" len=15
+script: return errortext(49)
+  rc=0 result="Undiagnosed internal error" len=26
+script: return errortext(50)
+  rc=0 result="Undiagnosed internal error" len=26
+-- errors
+script: x = (
++++ Error 41 in line 1: Invalid expression
+  rc=10 result2=41
+script: x = 1/0
++++ Error 48 in line 1: Invalid operand
+  rc=10 result2=48
+script: x = 'a' + 1
++++ Error 47 in line 1: Arithmetic conversion error
+  rc=10 result2=47
+script: x = nosuchfunction(1)
++++ Error 15 in line 1: Function not found
+  rc=10 result2=15
+script: do i = 1 to 3
++++ Error 26 in line 1: Missing or unexpected END
+  rc=10 result2=26
+script: end
++++ Error 26 in line 1: Missing or unexpected END
+  rc=10 result2=26
+script: say
+
+  rc=0 result=NULL
+script: signal nolabel
++++ Error 30 in line 1: Label not found
+  rc=10 result2=30
+script: call nolabel2
++++ Error 15 in line 1: Function not found
+  rc=10 result2=15
+script: x = substr('abc', 0)
++++ Error 18 in line 1: Invalid argument to function
+  rc=10 result2=18
+script: if 2 then nop
++++ Error 46 in line 1: Boolean value not 0 or 1
+  rc=10 result2=46
+script: x = 'zz'x
++++ Error 8 in line 1: Unrecognized token
+  rc=10 result2=8
+script: x = 'abc
++++ Error 5 in line 1: Unmatched quote
+  rc=10 result2=5
+script: x = 1 /* open
++++ Error 6 in line 1: Unterminated comment
+  rc=10 result2=6
+script: if 1 then; else nop; else nop
++++ Error 21 in line 1: Unexpected ELSE or OTHERWISE
+  rc=10 result2=21
+script: select; when 1 then nop; end; otherwise
++++ Error 21 in line 1: Unexpected ELSE or OTHERWISE
+  rc=10 result2=21
+script: x = abs()
++++ Error 17 in line 1: Wrong number of arguments
+  rc=10 result2=17
+script: x = left('a', -1)
++++ Error 18 in line 1: Invalid argument to function
+  rc=10 result2=18
+script: leave
++++ Error 22 in line 1: Unexpected BREAK, LEAVE or ITERATE
+  rc=10 result2=22
+script: procedure
++++ Error 19 in line 1: Invalid PROCEDURE
+  rc=10 result2=19
+script: x = 1 +
++++ Error 41 in line 1: Invalid expression
+  rc=10 result2=41
+script: x = (1
++++ Error 42 in line 1: Unbalanced parentheses
+  rc=10 result2=42
+script: x = 1)
++++ Error 42 in line 1: Unbalanced parentheses
+  rc=10 result2=42
+script: parse var
++++ Error 37 in line 1: Invalid template
+  rc=10 result2=37
+script: trace 'z'
++++ Error 33 in line 1: Invalid keyword
+  rc=10 result2=33
+script: x = 1e999999999 * 10
+  rc=0 result=NULL
+script: numeric digits 0
++++ Error 44 in line 1: Invalid expression result
+  rc=10 result2=44
+-- host commands
+script: options results; 'ECHO hello'; return rc '|' result
+  host: RXCOMM flags=0x00020000 nargs=0 check=TRUE comm=PROBEHOST ext=rexx arg0="ECHO hello" len=10
+  rc=0 result="0 | hello" len=9
+script: 'ECHO noresults'; return rc '|' result
+  host: RXCOMM flags=0x00000000 nargs=0 check=TRUE comm=PROBEHOST ext=rexx arg0="ECHO noresults" len=14
+  rc=0 result="0 | RESULT" len=10
+script: options results; 'FAIL'; return rc '|' result
+  host: RXCOMM flags=0x00020000 nargs=0 check=TRUE comm=PROBEHOST ext=rexx arg0="FAIL" len=4
+  1 *-* 'FAIL';
++++ Command returned 10
+  rc=0 result="10 | RESULT" len=11
+script: 'WARN'; return rc
+  host: RXCOMM flags=0x00000000 nargs=0 check=TRUE comm=PROBEHOST ext=rexx arg0="WARN" len=4
+  rc=0 result="5" len=1
+script: 'FATAL'; return rc
+  host: RXCOMM flags=0x00000000 nargs=0 check=TRUE comm=PROBEHOST ext=rexx arg0="FATAL" len=5
+  1 *-* 'FATAL';
++++ Command returned 20
+  rc=0 result="20" len=2
+script: 'UNKNOWN COMMAND'; return rc
+  host: RXCOMM flags=0x00000000 nargs=0 check=TRUE comm=PROBEHOST ext=rexx arg0="UNKNOWN COMMAND" len=15
+  1 *-* 'UNKNOWN COMMAND';
++++ Command returned 30
+  rc=0 result="30" len=2
+script: options results; 'EMPTY'; return rc '|' length(result)
+  host: RXCOMM flags=0x00020000 nargs=0 check=TRUE comm=PROBEHOST ext=rexx arg0="EMPTY" len=5
+  rc=0 result="0 | 0" len=5
+script: options results; address PROBEHOST 'ECHO viaaddr'; return result address()
+  host: RXCOMM flags=0x00020000 nargs=0 check=TRUE comm=PROBEHOST ext=rexx arg0="ECHO viaaddr" len=12
+  rc=0 result="viaaddr PROBEHOST" len=17
+script: address NOSUCHPORT 'x'; return rc
++++ Error 13 in line 1: Host environment not found
+  rc=10 result2=13
+script: address NOSUCHPORT; 'y'; return rc address()
++++ Error 13 in line 1: Host environment not found
+  rc=10 result2=13
+script: options results; 'ECHO a'; options; 'ECHO b'; return result
+  host: RXCOMM flags=0x00020000 nargs=0 check=TRUE comm=PROBEHOST ext=rexx arg0="ECHO a" len=6
+  host: RXCOMM flags=0x00000000 nargs=0 check=TRUE comm=PROBEHOST ext=rexx arg0="ECHO b" len=6
+  rc=0 result="a" len=1
+script: options results; x = 'ECHO' 'spaced  out'; x; return result
+  host: RXCOMM flags=0x00020000 nargs=0 check=TRUE comm=PROBEHOST ext=rexx arg0="ECHO spaced  out" len=16
+  rc=0 result="spaced  out" len=11
+script: return show('P','PROBEHOST') show('P','NOSUCHPORT') show('P','REXX')
+  rc=0 result="1 0 1" len=5
+-- function hosts
+script: return addlib('PROBEHOST', 0)
+  rc=0 result="1" len=1
+script: return probefn('a', 'b', 3)
+  host: RXFUNC flags=0x00020000 nargs=3 check=TRUE comm=PROBEHOST ext=rexx arg0="PROBEFN" len=7 arg1=a arg2=b arg3=3
+  rc=0 result="a+b+3+" len=6
+script: return probefn()
+  host: RXFUNC flags=0x00020000 nargs=0 check=TRUE comm=PROBEHOST ext=rexx arg0="PROBEFN" len=7
+  rc=0 result="" len=0
+script: x = failfn(1); return x
+  host: RXFUNC flags=0x00020000 nargs=1 check=TRUE comm=PROBEHOST ext=rexx arg0="FAILFN" len=6 arg1=1
++++ Error 12 in line 1: Error return from function
+  rc=10 result2=12
+script: x = otherfn(1); return x
+  host: RXFUNC flags=0x00020000 nargs=1 check=TRUE comm=PROBEHOST ext=rexx arg0="OTHERFN" len=7 arg1=1
++++ Error 12 in line 1: Error return from function
+  rc=10 result2=12
+script: return show('L', 'PROBEHOST')
+  rc=0 result="1" len=1
+script: return remlib('PROBEHOST')
+  rc=0 result="1" len=1
+script: return remlib('PROBEHOST')
+  rc=0 result="0" len=1
+script: x = probefn(1); return x
++++ Error 15 in line 1: Function not found
+  rc=10 result2=15
+-- clip list
+script: return setclip('pclip', 'cval')
+  rc=0 result="1" len=1
+script: return getclip('pclip') '|' getclip('nope') '|' show('C', 'pclip')
+  rc=0 result="cval |  | 1" len=11
+RXADDCON pclip2
+  rc=0 result2=0
+script: return getclip('pclip2')
+  rc=0 result="value2" len=6
+RXREMCON pclip2
+  rc=0 result2=0
+script: return '['getclip('pclip2')']'
+  rc=0 result="[]" len=2
+RXREMCON nope
+  rc=5 result2=0
+script: return setclip('pclip')
+  rc=0 result="1" len=1
+script: return '['getclip('pclip')']'
+  rc=0 result="[]" len=2
+-- script files
+RXCOMM T:pcmd.rexx one two
+  rc=0 result="[one two] 1" len=11
+RXCOMM T:pcmd one (extension)
+  rc=0 result="[one] 1" len=7
+RXCOMM T:pexit
+  rc=0 result="12" len=2
+RXCOMM T:pnocomment
+  rc=5 result2=1
+RXCOMM nosuchscript
+  rc=5 result2=1
+RXFUNC T:pfunc 2 3
+  rc=0 result="5" len=1
+RXFUNC T:pcmd x y
+  rc=0 result="[x] 2" len=5
+script: return pfunc(4, 5)
++++ Error 15 in line 1: Function not found
+  rc=10 result2=15
+-- script output
+say to rm_Stdout
+  rc=0 result="0" len=1
+  out: hello 2
+-- rx
+rx "say 6*7"
+  rc = 0
+  out: 42
+rx "exit 5"
+  rc = 5
+  out: Command returned 5
+rx T:pcmd hello
+  rc = 10
+  out: Command returned 10/47: Arithmetic conversion error
+  out: SYS:Rexxc/RX failed returncode 10
+rx T:pexit
+  rc = 12
+  out: Command returned 12
+  out: SYS:Rexxc/RX failed returncode 12
+rx nosuchscript
+  rc = 5
+  out: Command returned 5/1: Program not found
+rx async host commands
+  SystemTags = 0
+  host: RXCOMM flags=0x00000000 nargs=0 check=TRUE comm=REXX ext=REXX arg0="ECHO fromrx" len=11
+  host: RXCOMM flags=0x00000000 nargs=0 check=TRUE comm=REXX ext=REXX arg0="DONE" len=4
+stop RexxMast = TRUE

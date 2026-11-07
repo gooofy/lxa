@@ -289,6 +289,47 @@ static void cx_send_command(struct CommoditiesBase *cb, struct MsgPort *port, LO
     PutMsg(port, &m->cm_Msg);
 }
 
+/*
+ * The controller program is the broker named "Exchange": BrokerCommand()
+ * without a name commands it, and the library tells it CXCMD_LIST_CHG
+ * whenever a broker is added, (de)activated or deleted (probe
+ * commodities/listchg).  -1: no controller.
+ */
+static const char cx_controller[] = "Exchange";
+
+static LONG cx_command_broker(struct CommoditiesBase *cb, const char *name, LONG id)
+{
+    struct Node *n;
+    LONG r = -1;
+
+    Forbid();
+    for (n = cb->cx_Brokers.lh_Head; n->ln_Succ; n = n->ln_Succ)
+    {
+        struct CxObjPriv *co = (struct CxObjPriv *)n;
+
+        if (cx_streq(co->co_Name, name))
+        {
+            if (co->co_Port)
+            {
+                cx_send_command(cb, co->co_Port, id);
+                r = 0;
+            }
+            else
+            {
+                r = -2;
+            }
+            break;
+        }
+    }
+    Permit();
+    return r;
+}
+
+static void cx_list_changed(struct CommoditiesBase *cb)
+{
+    cx_command_broker(cb, cx_controller, CXCMD_LIST_CHG);
+}
+
 /****************************************************************************
  * library-owned input events
  ****************************************************************************/
@@ -816,7 +857,12 @@ static void cx_route(struct CommoditiesBase *cb, struct CxMsgPriv *m)
                 if (co->u.custom.action)
                 {
                     m->cm_ID = co->u.custom.id;
+                    /* as on 3.1, custom functions run in input.device's
+                     * task with interrupts enabled (probe input/handlertask);
+                     * cx_Busy keeps the handler from re-entering */
+                    Enable();
                     cx_call_custom(co->u.custom.action, m, co);
+                    Disable();
                 }
                 break;
 
@@ -903,7 +949,7 @@ static void cx_install_handler(struct CommoditiesBase *cb)
     cb->cx_Handler.is_Node.ln_Name = _g_commodities_ExLibName;
     cb->cx_Handler.is_Data = cb;
     cb->cx_Handler.is_Code = (VOID (*)())cx_input_handler;
-    /* the handler list is walked from the VBlank interrupt */
+    /* the handler list is walked by input.device's task */
     Disable();
     if (_input_device_add_handler(&cb->cx_Handler))
         cb->cx_HandlerAdded = TRUE;
@@ -1004,6 +1050,8 @@ static CxObj *cx_broker(struct CommoditiesBase *cb, struct NewBroker *nb, LONG *
     co->co_BFlags = nb->nb_Flags;
     co->co_Unique = nb->nb_Unique;
 
+    /* the controller hears of every broker but itself */
+    cx_list_changed(cb);
     Disable();
     Enqueue(&cb->cx_Brokers, &co->co_Node);
     Enable();
@@ -1067,11 +1115,21 @@ BPTR __g_lxa_commodities_CloseLib ( register struct CommoditiesBase *cxb __asm("
     return 0;
 }
 
-ULONG __g_lxa_commodities_ExtFuncLib ( void )
-{
-    PRIVATE_FUNCTION_ERROR("_commodities", "ExtFuncLib");
-    return 0;
-}
+/*
+ * The reserved vectors: ExtFunc (-24), CxReserved0 (-108) and the five
+ * CxReserved1-5 slots after MatchIX share one routine on 3.1 that returns
+ * 0 in D0 and leaves every other register alone (probe
+ * commodities/reserved).
+ */
+extern ULONG _commodities_Reserved(void);
+asm(
+"        .text                                       \n"
+"        .even                                       \n"
+"        .globl  __commodities_Reserved              \n"
+"__commodities_Reserved:                             \n"
+"        moveq   #0,d0                               \n"
+"        rts                                         \n"
+);
 
 /****************************************************************************
  * Commodities Functions (V36+)
@@ -1152,21 +1210,36 @@ LONG _commodities_ActivateCxObj ( register struct CommoditiesBase *CxBase __asm(
     else
         OBJ(co)->co_Flags &= ~COF_ACTIVE;
     Enable();
+    /* for a broker even if nothing changed (3.1) */
+    if (OBJ(co)->co_Node.ln_Type == CX_BROKER)
+        cx_list_changed(CxBase);
     return old;
 }
 
 void _commodities_DeleteCxObj ( register struct CommoditiesBase *CxBase __asm("a6"),
                                 register CxObj *co __asm("a0") )
 {
-    if (co)
-        cx_delete_obj(OBJ(co), FALSE);
+    BOOL broker;
+
+    if (!co)
+        return;
+    broker = OBJ(co)->co_Node.ln_Type == CX_BROKER;
+    cx_delete_obj(OBJ(co), FALSE);
+    if (broker)
+        cx_list_changed(CxBase);
 }
 
 void _commodities_DeleteCxObjAll ( register struct CommoditiesBase *CxBase __asm("a6"),
                                    register CxObj *co __asm("a0") )
 {
-    if (co)
-        cx_delete_obj(OBJ(co), TRUE);
+    BOOL broker;
+
+    if (!co)
+        return;
+    broker = OBJ(co)->co_Node.ln_Type == CX_BROKER;
+    cx_delete_obj(OBJ(co), TRUE);
+    if (broker)
+        cx_list_changed(CxBase);
 }
 
 ULONG _commodities_CxObjType ( register struct CommoditiesBase *CxBase __asm("a6"),
@@ -1267,13 +1340,6 @@ void _commodities_RemoveCxObj ( register struct CommoditiesBase *CxBase __asm("a
     Disable();
     cx_unlink(OBJ(co));
     Enable();
-}
-
-/* Private function slot */
-ULONG _commodities_Private1 ( register struct CommoditiesBase *CxBase __asm("a6") )
-{
-    PRIVATE_FUNCTION_ERROR("_commodities", "Private1");
-    return 0;
 }
 
 void _commodities_SetTranslate ( register struct CommoditiesBase *CxBase __asm("a6"),
@@ -1519,33 +1585,7 @@ LONG _commodities_BrokerCommand ( register struct CommoditiesBase *CxBase __asm(
                                   register STRPTR name __asm("a0"),
                                   register LONG id __asm("d0") )
 {
-    struct Node *n;
-    LONG r = -1;
-
-    if (!name)
-        return -1;
-
-    Forbid();
-    for (n = CxBase->cx_Brokers.lh_Head; n->ln_Succ; n = n->ln_Succ)
-    {
-        struct CxObjPriv *co = (struct CxObjPriv *)n;
-
-        if (cx_streq(co->co_Name, (const char *)name))
-        {
-            if (co->co_Port)
-            {
-                cx_send_command(CxBase, co->co_Port, id);
-                r = 0;
-            }
-            else
-            {
-                r = -2;
-            }
-            break;
-        }
-    }
-    Permit();
-    return r;
+    return cx_command_broker(CxBase, name ? (const char *)name : cx_controller, id);
 }
 
 /* MatchIX - Match an input event against an IX (V38+) */
@@ -1611,7 +1651,7 @@ APTR __g_lxa_commodities_FuncTab [] =
     __g_lxa_commodities_OpenLib,           // -6   Standard
     __g_lxa_commodities_CloseLib,          // -12  Standard
     __g_lxa_commodities_ExpungeLib,        // -18  Standard
-    __g_lxa_commodities_ExtFuncLib,        // -24  Standard (reserved)
+    _commodities_Reserved,                 // -24  ExtFunc (reserved)
     _commodities_CreateCxObj,              // -30  CreateCxObj
     _commodities_CxBroker,                 // -36  CxBroker
     _commodities_ActivateCxObj,            // -42  ActivateCxObj
@@ -1625,7 +1665,7 @@ APTR __g_lxa_commodities_FuncTab [] =
     _commodities_EnqueueCxObj,             // -90  EnqueueCxObj
     _commodities_InsertCxObj,              // -96  InsertCxObj
     _commodities_RemoveCxObj,              // -102 RemoveCxObj
-    _commodities_Private1,                 // -108 Private1
+    _commodities_Reserved,                 // -108 CxReserved0
     _commodities_SetTranslate,             // -114 SetTranslate
     _commodities_SetFilter,                // -120 SetFilter
     _commodities_SetFilterIX,              // -126 SetFilterIX
@@ -1642,6 +1682,11 @@ APTR __g_lxa_commodities_FuncTab [] =
     _commodities_FreeBrokerList,           // -192 FreeBrokerList (private)
     _commodities_BrokerCommand,            // -198 BrokerCommand (private)
     _commodities_MatchIX,                  // -204 MatchIX
+    _commodities_Reserved,                 // -210 CxReserved1
+    _commodities_Reserved,                 // -216 CxReserved2
+    _commodities_Reserved,                 // -222 CxReserved3
+    _commodities_Reserved,                 // -228 CxReserved4
+    _commodities_Reserved,                 // -234 CxReserved5
     (APTR) ((LONG)-1)
 };
 

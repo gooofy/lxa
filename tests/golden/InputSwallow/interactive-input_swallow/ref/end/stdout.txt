@@ -1,0 +1,4 @@
+Ready
+SELECTDOWN, swallowed so far 2
+SELECTUP, swallowed so far 2
+buttons seen: 1 down, 1 up; swallowed 2

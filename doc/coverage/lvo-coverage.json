@@ -1164,7 +1164,7 @@
  {
   "lib": "dos",
   "lvo": -228,
-  "function": "AllocDosObjectTagList/AllocDosObject",
+  "function": "AllocDosObject/AllocDosObjectTagList",
   "symbol": "dos_AllocDosObject",
   "status": "tested"
  },
@@ -1178,7 +1178,7 @@
  {
   "lib": "dos",
   "lvo": -240,
-  "function": "DoPkt/DoPkt2/DoPkt4/DoPkt3/DoPkt0/DoPkt1",
+  "function": "DoPkt1/DoPkt2/DoPkt0/DoPkt4/DoPkt/DoPkt3",
   "symbol": "dos_DoPkt",
   "status": "tested"
  },
@@ -2132,7 +2132,7 @@
   "lvo": -114,
   "function": "Debug",
   "symbol": "exec_Debug",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "exec",
@@ -2291,7 +2291,7 @@
  {
   "lib": "exec",
   "lvo": -252,
-  "function": "Remove/RemoveMinNode",
+  "function": "RemoveMinNode/Remove",
   "symbol": "exec_Remove",
   "status": "tested"
  },
@@ -4778,21 +4778,21 @@
   "lvo": -36,
   "function": "Intuition",
   "symbol": "intuition_Intuition",
-  "status": "tested"
+  "status": "untested"
  },
  {
   "lib": "intuition",
   "lvo": -42,
   "function": "AddGadget",
   "symbol": "intuition_AddGadget",
-  "status": "tested"
+  "status": "untested"
  },
  {
   "lib": "intuition",
   "lvo": -48,
   "function": "ClearDMRequest",
   "symbol": "intuition_ClearDMRequest",
-  "status": "tested"
+  "status": "untested"
  },
  {
   "lib": "intuition",
@@ -4841,14 +4841,14 @@
   "lvo": -90,
   "function": "DisplayAlert",
   "symbol": "intuition_DisplayAlert",
-  "status": "tested"
+  "status": "untested"
  },
  {
   "lib": "intuition",
   "lvo": -96,
   "function": "DisplayBeep",
   "symbol": "intuition_DisplayBeep",
-  "status": "tested"
+  "status": "untested"
  },
  {
   "lib": "intuition",
@@ -4876,7 +4876,7 @@
   "lvo": -120,
   "function": "EndRequest",
   "symbol": "intuition_EndRequest",
-  "status": "tested"
+  "status": "untested"
  },
  {
   "lib": "intuition",
@@ -4911,35 +4911,35 @@
   "lvo": -150,
   "function": "ModifyIDCMP",
   "symbol": "intuition_ModifyIDCMP",
-  "status": "tested"
+  "status": "untested"
  },
  {
   "lib": "intuition",
   "lvo": -156,
   "function": "ModifyProp",
   "symbol": "intuition_ModifyProp",
-  "status": "tested"
+  "status": "untested"
  },
  {
   "lib": "intuition",
   "lvo": -162,
   "function": "MoveScreen",
   "symbol": "intuition_MoveScreen",
-  "status": "tested"
+  "status": "untested"
  },
  {
   "lib": "intuition",
   "lvo": -168,
   "function": "MoveWindow",
   "symbol": "intuition_MoveWindow",
-  "status": "tested"
+  "status": "untested"
  },
  {
   "lib": "intuition",
   "lvo": -174,
   "function": "OffGadget",
   "symbol": "intuition_OffGadget",
-  "status": "tested"
+  "status": "untested"
  },
  {
   "lib": "intuition",
@@ -4953,7 +4953,7 @@
   "lvo": -186,
   "function": "OnGadget",
   "symbol": "intuition_OnGadget",
-  "status": "tested"
+  "status": "untested"
  },
  {
   "lib": "intuition",
@@ -4981,7 +4981,7 @@
   "lvo": -210,
   "function": "OpenWorkBench",
   "symbol": "intuition_OpenWorkBench",
-  "status": "tested"
+  "status": "untested"
  },
  {
   "lib": "intuition",
@@ -4995,14 +4995,14 @@
   "lvo": -222,
   "function": "RefreshGadgets",
   "symbol": "intuition_RefreshGadgets",
-  "status": "tested"
+  "status": "untested"
  },
  {
   "lib": "intuition",
   "lvo": -228,
   "function": "RemoveGadget",
   "symbol": "intuition_RemoveGadget",
-  "status": "tested"
+  "status": "untested"
  },
  {
   "lib": "intuition",
@@ -5016,14 +5016,14 @@
   "lvo": -240,
   "function": "Request",
   "symbol": "intuition_Request",
-  "status": "tested"
+  "status": "untested"
  },
  {
   "lib": "intuition",
   "lvo": -246,
   "function": "ScreenToBack",
   "symbol": "intuition_ScreenToBack",
-  "status": "tested"
+  "status": "untested"
  },
  {
   "lib": "intuition",
@@ -5037,7 +5037,7 @@
   "lvo": -258,
   "function": "SetDMRequest",
   "symbol": "intuition_SetDMRequest",
-  "status": "tested"
+  "status": "untested"
  },
  {
   "lib": "intuition",
@@ -5065,14 +5065,14 @@
   "lvo": -282,
   "function": "ShowTitle",
   "symbol": "intuition_ShowTitle",
-  "status": "tested"
+  "status": "untested"
  },
  {
   "lib": "intuition",
   "lvo": -288,
   "function": "SizeWindow",
   "symbol": "intuition_SizeWindow",
-  "status": "tested"
+  "status": "untested"
  },
  {
   "lib": "intuition",
@@ -5086,7 +5086,7 @@
   "lvo": -300,
   "function": "ViewPortAddress",
   "symbol": "intuition_ViewPortAddress",
-  "status": "tested"
+  "status": "untested"
  },
  {
   "lib": "intuition",
@@ -5114,7 +5114,7 @@
   "lvo": -324,
   "function": "SetPrefs",
   "symbol": "intuition_SetPrefs",
-  "status": "tested"
+  "status": "untested"
  },
  {
   "lib": "intuition",
@@ -5170,7 +5170,7 @@
   "lvo": -372,
   "function": "FreeSysRequest",
   "symbol": "intuition_FreeSysRequest",
-  "status": "tested"
+  "status": "untested"
  },
  {
   "lib": "intuition",
@@ -5184,7 +5184,7 @@
   "lvo": -384,
   "function": "RemakeDisplay",
   "symbol": "intuition_RemakeDisplay",
-  "status": "tested"
+  "status": "untested"
  },
  {
   "lib": "intuition",
@@ -5198,7 +5198,7 @@
   "lvo": -396,
   "function": "AllocRemember",
   "symbol": "intuition_AllocRemember",
-  "status": "tested"
+  "status": "untested"
  },
  {
   "lib": "intuition",
@@ -5212,98 +5212,98 @@
   "lvo": -408,
   "function": "FreeRemember",
   "symbol": "intuition_FreeRemember",
-  "status": "tested"
+  "status": "untested"
  },
  {
   "lib": "intuition",
   "lvo": -414,
   "function": "LockIBase",
   "symbol": "intuition_LockIBase",
-  "status": "tested"
+  "status": "untested"
  },
  {
   "lib": "intuition",
   "lvo": -420,
   "function": "UnlockIBase",
   "symbol": "intuition_UnlockIBase",
-  "status": "tested"
+  "status": "untested"
  },
  {
   "lib": "intuition",
   "lvo": -426,
   "function": "GetScreenData",
   "symbol": "intuition_GetScreenData",
-  "status": "tested"
+  "status": "untested"
  },
  {
   "lib": "intuition",
   "lvo": -432,
   "function": "RefreshGList",
   "symbol": "intuition_RefreshGList",
-  "status": "tested"
+  "status": "untested"
  },
  {
   "lib": "intuition",
   "lvo": -438,
   "function": "AddGList",
   "symbol": "intuition_AddGList",
-  "status": "tested"
+  "status": "untested"
  },
  {
   "lib": "intuition",
   "lvo": -444,
   "function": "RemoveGList",
   "symbol": "intuition_RemoveGList",
-  "status": "tested"
+  "status": "untested"
  },
  {
   "lib": "intuition",
   "lvo": -450,
   "function": "ActivateWindow",
   "symbol": "intuition_ActivateWindow",
-  "status": "tested"
+  "status": "untested"
  },
  {
   "lib": "intuition",
   "lvo": -456,
   "function": "RefreshWindowFrame",
   "symbol": "intuition_RefreshWindowFrame",
-  "status": "tested"
+  "status": "untested"
  },
  {
   "lib": "intuition",
   "lvo": -462,
   "function": "ActivateGadget",
   "symbol": "intuition_ActivateGadget",
-  "status": "tested"
+  "status": "untested"
  },
  {
   "lib": "intuition",
   "lvo": -468,
   "function": "NewModifyProp",
   "symbol": "intuition_NewModifyProp",
-  "status": "tested"
+  "status": "untested"
  },
  {
   "lib": "intuition",
   "lvo": -474,
   "function": "QueryOverscan",
   "symbol": "intuition_QueryOverscan",
-  "status": "tested"
+  "status": "untested"
  },
  {
   "lib": "intuition",
   "lvo": -480,
   "function": "MoveWindowInFrontOf",
   "symbol": "intuition_MoveWindowInFrontOf",
-  "status": "tested"
+  "status": "untested"
  },
  {
   "lib": "intuition",
   "lvo": -486,
   "function": "ChangeWindowBox",
   "symbol": "intuition_ChangeWindowBox",
-  "status": "tested"
+  "status": "untested"
  },
  {
   "lib": "intuition",
@@ -5317,21 +5317,21 @@
   "lvo": -498,
   "function": "SetMouseQueue",
   "symbol": "intuition_SetMouseQueue",
-  "status": "tested"
+  "status": "untested"
  },
  {
   "lib": "intuition",
   "lvo": -504,
   "function": "ZipWindow",
   "symbol": "intuition_ZipWindow",
-  "status": "tested"
+  "status": "untested"
  },
  {
   "lib": "intuition",
   "lvo": -510,
   "function": "LockPubScreen",
   "symbol": "intuition_LockPubScreen",
-  "status": "tested"
+  "status": "untested"
  },
  {
   "lib": "intuition",
@@ -5345,14 +5345,14 @@
   "lvo": -522,
   "function": "LockPubScreenList",
   "symbol": "intuition_LockPubScreenList",
-  "status": "tested"
+  "status": "untested"
  },
  {
   "lib": "intuition",
   "lvo": -528,
   "function": "UnlockPubScreenList",
   "symbol": "intuition_UnlockPubScreenList",
-  "status": "tested"
+  "status": "untested"
  },
  {
   "lib": "intuition",
@@ -5366,7 +5366,7 @@
   "lvo": -540,
   "function": "SetDefaultPubScreen",
   "symbol": "intuition_SetDefaultPubScreen",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "intuition",
@@ -5380,28 +5380,28 @@
   "lvo": -552,
   "function": "PubScreenStatus",
   "symbol": "intuition_PubScreenStatus",
-  "status": "tested"
+  "status": "untested"
  },
  {
   "lib": "intuition",
   "lvo": -558,
   "function": "ObtainGIRPort",
   "symbol": "intuition_ObtainGIRPort",
-  "status": "tested"
+  "status": "untested"
  },
  {
   "lib": "intuition",
   "lvo": -564,
   "function": "ReleaseGIRPort",
   "symbol": "intuition_ReleaseGIRPort",
-  "status": "tested"
+  "status": "untested"
  },
  {
   "lib": "intuition",
   "lvo": -570,
   "function": "GadgetMouse",
   "symbol": "intuition_GadgetMouse",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "intuition",
@@ -5429,14 +5429,14 @@
   "lvo": -600,
   "function": "SysReqHandler",
   "symbol": "intuition_SysReqHandler",
-  "status": "tested"
+  "status": "untested"
  },
  {
   "lib": "intuition",
   "lvo": -606,
   "function": "OpenWindowTagList",
   "symbol": "intuition_OpenWindowTagList",
-  "status": "tested"
+  "status": "untested"
  },
  {
   "lib": "intuition",
@@ -5450,7 +5450,7 @@
   "lvo": -618,
   "function": "DrawImageState",
   "symbol": "intuition_DrawImageState",
-  "status": "tested"
+  "status": "untested"
  },
  {
   "lib": "intuition",
@@ -5471,28 +5471,28 @@
   "lvo": -636,
   "function": "NewObjectA",
   "symbol": "intuition_NewObjectA",
-  "status": "tested"
+  "status": "untested"
  },
  {
   "lib": "intuition",
   "lvo": -642,
   "function": "DisposeObject",
   "symbol": "intuition_DisposeObject",
-  "status": "tested"
+  "status": "untested"
  },
  {
   "lib": "intuition",
   "lvo": -648,
   "function": "SetAttrsA",
   "symbol": "intuition_SetAttrsA",
-  "status": "tested"
+  "status": "untested"
  },
  {
   "lib": "intuition",
   "lvo": -654,
   "function": "GetAttr",
   "symbol": "intuition_GetAttr",
-  "status": "tested"
+  "status": "untested"
  },
  {
   "lib": "intuition",
@@ -5534,7 +5534,7 @@
   "lvo": -696,
   "function": "FreeScreenDrawInfo",
   "symbol": "intuition_FreeScreenDrawInfo",
-  "status": "tested"
+  "status": "untested"
  },
  {
   "lib": "intuition",
@@ -5555,42 +5555,42 @@
   "lvo": -714,
   "function": "FreeClass",
   "symbol": "intuition_FreeClass",
-  "status": "tested"
+  "status": "untested"
  },
  {
   "lib": "intuition",
   "lvo": -768,
   "function": "AllocScreenBuffer",
   "symbol": "intuition_AllocScreenBuffer",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "intuition",
   "lvo": -774,
   "function": "FreeScreenBuffer",
   "symbol": "intuition_FreeScreenBuffer",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "intuition",
   "lvo": -780,
   "function": "ChangeScreenBuffer",
   "symbol": "intuition_ChangeScreenBuffer",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "intuition",
   "lvo": -786,
   "function": "ScreenDepth",
   "symbol": "intuition_ScreenDepth",
-  "status": "tested"
+  "status": "untested"
  },
  {
   "lib": "intuition",
   "lvo": -792,
   "function": "ScreenPosition",
   "symbol": "intuition_ScreenPosition",
-  "status": "tested"
+  "status": "untested"
  },
  {
   "lib": "intuition",
@@ -5625,14 +5625,14 @@
   "lvo": -822,
   "function": "TimedDisplayAlert",
   "symbol": "intuition_TimedDisplayAlert",
-  "status": "tested"
+  "status": "untested"
  },
  {
   "lib": "intuition",
   "lvo": -828,
   "function": "HelpControl",
   "symbol": "intuition_HelpControl",
-  "status": "untested"
+  "status": "tested"
  },
  {
   "lib": "intuition",

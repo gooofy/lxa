@@ -16,7 +16,6 @@ implementing the function, never by deleting the macro.
 | amigaguide | 18 | 0 | 0 |
 | asl | 0 | 2 | 0 |
 | cgx | 0 | 0 | 1 |
-| commodities | 0 | 0 | 1 |
 | console | 1 | 0 | 0 |
 | datatypes | 5 | 0 | 0 |
 | dos | 14 | 1 | 10 |
@@ -31,7 +30,7 @@ implementing the function, never by deleting the macro.
 | translator | 1 | 0 | 0 |
 | utility | 0 | 0 | 7 |
 | workbench | 0 | 0 | 3 |
-| **total** | **45** | **31** | **49** |
+| **total** | **45** | **31** | **48** |
 
 ## 68040
 
@@ -67,10 +66,6 @@ implementing the function, never by deleting the macro.
 ## cgx
 
 - `Private` — private/reserved slot (`src/rom/lxa_cgx.c`)
-
-## commodities
-
-- `Private1` — private/reserved slot (`src/rom/lxa_commodities.c`)
 
 ## console
 

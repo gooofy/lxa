@@ -273,14 +273,16 @@ void lxa_draw_frame(struct RastPort *rp, ULONG type, BOOL recessed, WORD x, WORD
 /*
  * Ghosting of disabled gadgets: AmigaOS 3.1 overlays a sparse dot pattern
  * in BLOCKPEN (one dot every four pixels, alternate rows offset by two):
- * 0x1111 on even, 0x4444 on odd rows, counted from the top of the layer
- * the gadget lives in (phase_y: the layer top in RastPort coordinates;
- * menus are rendered in a layer starting at the bottom of the screen bar),
- * horizontally aligned to the bitmap.
+ * 0x1111 on even, 0x4444 on odd rows.  Gadget ghosting is aligned to the
+ * screen bitmap in both directions (a window at an odd top edge starts its
+ * rows with 0x1111 on odd RastPort rows: Exchange, golden exchange-gate);
+ * phase_y is the screen row of RastPort row 0, negated.  Menus pass their
+ * own phase (the bottom of the screen bar).
  */
 void lxa_ghost_rect(struct RastPort *rp, WORD x0, WORD y0, WORD x1, WORD y1, const UWORD *pens)
 {
-    lxa_ghost_rect_pen(rp, x0, y0, x1, y1, (pens ? pens : g_default_pens)[BLOCKPEN], 0);
+    lxa_ghost_rect_pen(rp, x0, y0, x1, y1, (pens ? pens : g_default_pens)[BLOCKPEN],
+                       (rp && rp->Layer) ? -rp->Layer->bounds.MinY : 0);
 }
 
 /* the same pattern in any pen (menus ghost with BARBLOCKPEN) */

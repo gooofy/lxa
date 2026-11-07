@@ -1,0 +1,32 @@
+# Phase 251 gate: Workbench 3.1's Exchange lists a commodity's broker and
+# controls it.  The commodity (Tests/Commodities/ExchangeGate) starts
+# Exchange and prints the commands it gets; stdout and the Exchange window
+# must match AmigaOS 3.1.
+name: exchange-gate
+fonts: wb31
+wb31: true
+app:
+  sample: Tests/Commodities/ExchangeGate
+steps:
+  - launch
+  - wait_output: "Exchange started"
+  - wait_window: "Exchange: Hot Key"
+  - frames: 50
+  - snapshot: {name: startup, window: "Exchange: Hot Key"}
+  # select the commodity in "Available Commodities"
+  - click: {anchor: inside, window: "Exchange: Hot Key", xy: [40, 31]}
+  - frames: 25
+  - snapshot: {name: selected, window: "Exchange: Hot Key"}
+  - click: {anchor: inside, window: "Exchange: Hot Key", xy: [473, 55]}   # Hide Interface
+  - frames: 25
+  - click: {anchor: inside, window: "Exchange: Hot Key", xy: [300, 55]}   # Show Interface
+  - frames: 25
+  - click: {anchor: inside, window: "Exchange: Hot Key", xy: [300, 70]}   # Active/Inactive cycle
+  - frames: 25
+  - snapshot: {name: inactive, window: "Exchange: Hot Key"}
+  - click: {anchor: inside, window: "Exchange: Hot Key", xy: [300, 70]}   # Active/Inactive cycle
+  - frames: 25
+  - click: {anchor: inside, window: "Exchange: Hot Key", xy: [473, 70]}   # Remove
+  - wait_output: "done"
+  - frames: 50
+  - snapshot: {name: removed, window: "Exchange: Hot Key"}

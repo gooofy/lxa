@@ -1,9 +1,9 @@
 {
  "app": "DPaintV",
  "disabled": null,
- "lxa_version": "0.12.10",
+ "lxa_version": "0.13.0",
  "note": "Phase 243 rtg profile; residue owned by 256 (WB screen flags 0x2000 by 246)",
- "promoted": "2026-10-18",
+ "promoted": "2026-11-07",
  "reference": "AmigaOS 3.1 (KS 40.70), profile rtg",
  "requires_apps": true,
  "scenario": "dpaintv-rtg",
@@ -91,7 +91,7 @@
      "where": "screen[Workbench Screen]/window[DeluxePaint 5.2 - Screen Format]/menu[Settings]/History/#?"
     }
    ],
-   "pixel_budget": 3543,
+   "pixel_budget": 2911,
    "pixel_phase": 256,
    "stdout_known_diff": null
   }

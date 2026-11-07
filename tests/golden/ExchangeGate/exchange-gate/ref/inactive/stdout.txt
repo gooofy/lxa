@@ -1,0 +1,5 @@
+broker ready
+Exchange started
+CXCMD_DISAPPEAR
+CXCMD_APPEAR
+CXCMD_DISABLE

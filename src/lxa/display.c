@@ -1478,11 +1478,19 @@ int display_get_delivered_qualifier(void)
     return g_delivered_qualifier;
 }
 
+/* Phase 251: is an event waiting?  (the VBlank interrupt wakes the
+ * input.device task only then) */
+bool display_event_pending(void)
+{
+    display_poll_events();
+    return g_event_queue_tail != g_event_queue_head;
+}
+
 bool display_get_event(display_event_t *event)
 {
     if (g_event_queue_tail == g_event_queue_head)
     {
-        LPRINTF(LOG_INFO, "display: get_event EMPTY head=%d tail=%d\n", g_event_queue_head, g_event_queue_tail);
+        DPRINTF(LOG_DEBUG, "display: get_event EMPTY head=%d tail=%d\n", g_event_queue_head, g_event_queue_tail);
         return false;  /* Queue empty */
     }
     

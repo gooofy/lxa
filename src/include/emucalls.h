@@ -189,6 +189,7 @@
 #define EMU_CALL_INT_GET_ROOTLESS  3028  /* Get rootless mode: () -> bool */
 #define EMU_CALL_INT_ATTACH_WINDOW 3029  /* Attach emulated Window*: (window_handle, window_ptr) -> success */
 #define EMU_CALL_INT_FORCE_FULL_REDRAW 3030 /* Force IDCMP_REFRESHWINDOW to all open windows: () -> count */
+#define EMU_CALL_INT_INPUT_PENDING 3031 /* Input event or forced redraw waiting: () -> bool (Phase 251) */
 
 /*
  * Timer Device emucalls (3500-3599)

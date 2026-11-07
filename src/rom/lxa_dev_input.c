@@ -14,6 +14,8 @@
 #include <devices/input.h>
 #include <devices/timer.h>
 
+#include <intuition/intuitionbase.h>
+
 #include "util.h"
 
 #define VERSION    40
@@ -51,6 +53,7 @@ struct InputBase
     UWORD          ib_MousePort;
     UBYTE          ib_MouseType;
     struct timeval ib_NextTimer;    /* when the next IECLASS_TIMER event is due */
+    struct List    ib_WriteList;    /* IND_WRITEEVENT requests for the input task */
 };
 
 static struct InputBase *g_input_base = NULL;
@@ -63,6 +66,7 @@ static void input_init_defaults(struct InputBase *inputbase)
     }
 
     NEWLIST(&inputbase->ib_HandlerList);
+    NEWLIST(&inputbase->ib_WriteList);
     inputbase->ib_KeyRepeatThreshold.tv_secs = 0;
     inputbase->ib_KeyRepeatThreshold.tv_micro = 500000;
     inputbase->ib_KeyRepeatPeriod.tv_secs = 0;
@@ -110,11 +114,12 @@ static void input_update_qualifier(struct InputBase *inputbase,
 }
 
 /*
- * Call a handler (a0 = events, a1 = is_Data, result in d0).  On AmigaOS
- * handlers run in input.device's task, so registers a handler changes never
- * reach the program that wrote the event (probe input/handlerregs; AMOS's
- * handler changes d4 - Fish WhereK).  lxa calls them in the writer's task:
- * every register but d0/d1/a0/a1 is preserved around the call.
+ * Call a handler (a0 = events, a1 = is_Data, result in d0).  Handlers run
+ * in input.device's task, so registers a handler changes never reach the
+ * program that wrote the event (probe input/handlerregs; AMOS's handler
+ * changes d4 - Fish WhereK); before that task exists and for AddIEvents()
+ * they may run elsewhere: every register but d0/d1/a0/a1 is preserved
+ * around the call.
  */
 extern struct InputEvent *input_call_handler_regs(APTR code, struct InputEvent *events, APTR data);
 asm(
@@ -345,6 +350,131 @@ void _input_device_VBlankHook(void)
     }
 }
 
+/*
+ * The input.device task (priority 20, as on AmigaOS 3.1).  Handlers - and
+ * Intuition's own event processing, which is a handler at priority 50 on
+ * 3.1 - run in this task, not in the VBlank interrupt: commodities' custom
+ * objects and other handlers may allocate memory, take semaphores and call
+ * libraries (Phase 251).  The level-3 interrupt only signals the task.
+ */
+#define INPUT_SIGB_VBLANK  16   /* a VBlank: process input, IntuiTicks, timer events */
+#define INPUT_SIGB_EVENTS  17   /* process pending input now (WaitTOF, console) */
+#define INPUT_SIGB_WRITE   18   /* IND_WRITEEVENT requests are queued */
+
+extern VOID _intuition_InputTaskWork(BOOL tick);
+extern VOID _intuition_ProcessInputEvents(struct Screen *screen);
+extern struct IntuitionBase *IntuitionBase;
+
+static struct Task *g_input_task = NULL;
+static UWORD g_input_vblanks;              /* VBlanks since the last IntuiTick */
+static volatile BOOL g_input_tick;         /* an IntuiTick is due */
+
+/* an IECLASS_TIMER event is due (and someone listens) */
+static BOOL input_timer_due(void)
+{
+    struct InputBase *inputbase = g_input_base;
+    struct timeval now;
+
+    if (!inputbase || !GETHEAD(&inputbase->ib_HandlerList))
+        return FALSE;
+    U_getSysTime(&now);
+    return now.tv_secs > inputbase->ib_NextTimer.tv_secs ||
+           (now.tv_secs == inputbase->ib_NextTimer.tv_secs &&
+            now.tv_micro >= inputbase->ib_NextTimer.tv_micro);
+}
+
+void _input_device_task(void)
+{
+    struct Task *me = FindTask(NULL);
+
+    AllocSignal(INPUT_SIGB_VBLANK);
+    AllocSignal(INPUT_SIGB_EVENTS);
+    AllocSignal(INPUT_SIGB_WRITE);
+    g_input_task = me;
+
+    for (;;)
+    {
+        ULONG sigs = Wait((1UL << INPUT_SIGB_VBLANK) | (1UL << INPUT_SIGB_EVENTS) |
+                          (1UL << INPUT_SIGB_WRITE));
+        BOOL tick = FALSE;
+
+        if (sigs & (1UL << INPUT_SIGB_WRITE))
+        {
+            struct IOStdReq *io;
+
+            for (;;)
+            {
+                Disable();
+                io = (struct IOStdReq *)RemHead(&g_input_base->ib_WriteList);
+                Enable();
+                if (!io)
+                    break;
+                io->io_Error = input_write_event(g_input_base, (struct InputEvent *)io->io_Data);
+                ReplyMsg(&io->io_Message);
+            }
+            if (!(sigs & ((1UL << INPUT_SIGB_VBLANK) | (1UL << INPUT_SIGB_EVENTS))))
+                continue;
+        }
+
+        if (sigs & (1UL << INPUT_SIGB_VBLANK))
+        {
+            Disable();
+            tick = g_input_tick;
+            g_input_tick = FALSE;
+            Enable();
+        }
+        _intuition_InputTaskWork(tick);
+        if (sigs & (1UL << INPUT_SIGB_VBLANK))
+            _input_device_VBlankHook();
+    }
+}
+
+/*
+ * The level-3 interrupt.  Like the 3.1 input.device task, which sleeps
+ * until the keyboard, gameport or its 10 Hz timer request has something,
+ * ours is woken only when there is work: input waiting, an IntuiTick (every
+ * 10th VBlank) or an IECLASS_TIMER event due.  Before the task exists
+ * (early start-up) the work is done here.
+ */
+void _input_device_VBlankSignal(void)
+{
+    BOOL work;
+
+    if (++g_input_vblanks >= 10)
+    {
+        g_input_vblanks = 0;
+        g_input_tick = TRUE;
+    }
+    work = g_input_tick || emucall0(EMU_CALL_INT_INPUT_PENDING) || input_timer_due();
+    if (!work)
+        return;
+    if (g_input_task)
+    {
+        Signal(g_input_task, 1UL << INPUT_SIGB_VBLANK);
+        return;
+    }
+    {
+        BOOL tick = g_input_tick;
+
+        g_input_tick = FALSE;
+        _intuition_InputTaskWork(tick);
+        _input_device_VBlankHook();
+    }
+}
+
+/* deliver pending input now: in the input task, which preempts a caller of
+ * lower priority at once */
+void _input_device_process_events(void)
+{
+    /* no screen is fine: a DisplayAlert() waits for its mouse button */
+    if (!IntuitionBase)
+        return;
+    if (!g_input_task || FindTask(NULL) == g_input_task)
+        _intuition_ProcessInputEvents(IntuitionBase->FirstScreen);
+    else if (emucall0(EMU_CALL_INT_INPUT_PENDING))
+        Signal(g_input_task, 1UL << INPUT_SIGB_EVENTS);
+}
+
 BOOL _input_device_add_handler(struct Interrupt *handler)
 {
     if (!g_input_base || !handler)
@@ -524,6 +654,18 @@ static BPTR __g_lxa_input_BeginIO(register struct Library *dev __asm("a6"),
          * does not change the device's qualifier state (PeekQualifier()
          * reflects the keyboard and mouse only) - verified on AmigaOS 3.1. */
         case IND_WRITEEVENT:
+            /* processed by the input task (Phase 251), which preempts a
+             * writer of lower priority at once */
+            if (g_input_task && FindTask(NULL) != g_input_task && io->io_Data)
+            {
+                ioreq->io_Flags &= ~IOF_QUICK;
+                ioreq->io_Message.mn_Node.ln_Type = NT_MESSAGE;
+                Disable();
+                AddTail(&inputbase->ib_WriteList, &ioreq->io_Message.mn_Node);
+                Enable();
+                Signal(g_input_task, 1UL << INPUT_SIGB_WRITE);
+                return 0;
+            }
             error = input_write_event(inputbase, (struct InputEvent *)io->io_Data);
             break;
 
@@ -546,8 +688,23 @@ static BPTR __g_lxa_input_BeginIO(register struct Library *dev __asm("a6"),
 static ULONG __g_lxa_input_AbortIO(register struct Library *dev __asm("a6"),
                                    register struct IORequest *ioreq __asm("a1"))
 {
-    (void)dev;
-    (void)ioreq;
+    struct InputBase *inputbase = (struct InputBase *)dev;
+    struct Node *node;
+
+    /* a queued IND_WRITEEVENT that the input task has not taken yet */
+    Disable();
+    for (node = GETHEAD(&inputbase->ib_WriteList); node; node = GETSUCC(node))
+    {
+        if (node == &ioreq->io_Message.mn_Node)
+        {
+            Remove(node);
+            Enable();
+            ioreq->io_Error = IOERR_ABORTED;
+            ReplyMsg(&ioreq->io_Message);
+            return 0;
+        }
+    }
+    Enable();
     return 0;
 }
 
