@@ -28,6 +28,11 @@ void setUp(void)
     /* Create temporary test directory */
     snprintf(g_test_dir, sizeof(g_test_dir), "/tmp/lxa_config_test_%d", (int)getpid());
     mkdir(g_test_dir, 0755);
+    {
+        char real[4096];
+        if (realpath(g_test_dir, real))   /* macOS: /tmp -> /private/tmp */
+            snprintf(g_test_dir, sizeof(g_test_dir), "%s", real);
+    }
 
     snprintf(g_config_path, sizeof(g_config_path), "%s/config.ini", g_test_dir);
 }

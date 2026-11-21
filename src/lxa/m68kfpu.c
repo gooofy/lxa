@@ -761,7 +761,7 @@ static void fpgen_rm_reg(uint16 w2)
 	int src = (w2 >> 10) & 0x7;
 	int dst = (w2 >>  7) & 0x7;
 	int opmode = w2 & 0x7f;
-	floatx80 source;
+	floatx80 source = {0};
 
 	// fmovecr #$f, fp0	f200 5c0f
 

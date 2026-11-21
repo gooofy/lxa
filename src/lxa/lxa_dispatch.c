@@ -8,6 +8,7 @@
  */
 
 #include "lxa_internal.h"
+#include "lxa_hostpath.h"
 #include "lxa_memory.h"
 #include "config.h"
 #include "lxa_vclock.h"
@@ -269,13 +270,12 @@ static int dos_fd_kind(uint32_t fh68k)
 static void dos_fd_note(uint32_t fh68k)
 {
     int fd = (int)m68k_read_memory_32(fh68k + 36);
-    char link[64], host[PATH_MAX];
-    ssize_t l;
+    char host[PATH_MAX];
+    long l;
 
     if (fd < 0 || fd >= DOS_COST_MAX_FD)
         return;
-    snprintf(link, sizeof(link), "/proc/self/fd/%d", fd);
-    l = readlink(link, host, sizeof(host) - 1);
+    l = lxa_fd_path(fd, host, sizeof(host));
     if (l < 0)
         l = 0;
     host[l] = 0;

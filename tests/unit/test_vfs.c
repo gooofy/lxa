@@ -28,6 +28,12 @@ void setUp(void)
 {
     /* Create temporary test directories */
     snprintf(g_test_dir, sizeof(g_test_dir), "/tmp/lxa_test_%d", (int)getpid());
+    mkdir(g_test_dir, 0755);
+    {
+        char real[4096];
+        if (realpath(g_test_dir, real))   /* macOS: /tmp -> /private/tmp */
+            snprintf(g_test_dir, sizeof(g_test_dir), "%s", real);
+    }
     snprintf(g_fixture_sys, sizeof(g_fixture_sys), "%s/sys", g_test_dir);
     snprintf(g_fixture_work, sizeof(g_fixture_work), "%s/work", g_test_dir);
 
