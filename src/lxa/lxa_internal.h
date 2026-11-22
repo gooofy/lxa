@@ -29,8 +29,19 @@
 #include <sys/statvfs.h>
 #include <time.h>
 #include <stdint.h>
-#include <linux/limits.h>
+#include <limits.h>
 #include <sys/xattr.h>
+#ifdef __APPLE__
+/* macOS xattr calls take extra position/options arguments, and struct stat
+ * names its timespec fields st_mtimespec etc. */
+#define getxattr(path, name, value, size)          getxattr((path), (name), (value), (size), 0, 0)
+#define fgetxattr(fd, name, value, size)           fgetxattr((fd), (name), (value), (size), 0, 0)
+#define setxattr(path, name, value, size, flags)   setxattr((path), (name), (value), (size), 0, (flags))
+#define removexattr(path, name)                    removexattr((path), (name), 0)
+#define st_atim st_atimespec
+#define st_mtim st_mtimespec
+#define st_ctim st_ctimespec
+#endif
 #include <readline/readline.h>
 #include <readline/history.h>
 

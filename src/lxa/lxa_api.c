@@ -33,7 +33,7 @@ extern uint32_t g_wb_window;       /* lxa.c: harness Workbench backdrop (Phase 2
 #include <sys/time.h>
 #include <time.h>
 #include <inttypes.h>
-#include <linux/limits.h>
+#include <limits.h>
 
 /* External declarations for lxa.c globals and functions */
 extern uint8_t g_rom[];

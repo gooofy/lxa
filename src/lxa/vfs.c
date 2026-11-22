@@ -5,9 +5,10 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include <errno.h>
-#include <linux/limits.h>
+#include <limits.h>
 #include <pwd.h>
 #include "vfs.h"
+#include "lxa_hostpath.h"
 #include "lxa_override.h"
 #include "util.h"
 
@@ -236,9 +237,8 @@ static const char *get_data_dir(void)
     /* lxa binary is typically at: <prefix>/bin/lxa or build/host/bin/lxa */
     /* sys files are at: <prefix>/share/lxa or build/target/sys */
     char exe_path[PATH_MAX];
-    ssize_t len = readlink("/proc/self/exe", exe_path, sizeof(exe_path) - 1);
+    long len = lxa_exe_path(exe_path, sizeof(exe_path));
     if (len > 0) {
-        exe_path[len] = '\0';
         
         /* Find the directory containing the executable */
         char *last_slash = strrchr(exe_path, '/');

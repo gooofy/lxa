@@ -1,4 +1,5 @@
 #include "lxa_internal.h"
+#include "lxa_hostpath.h"
 #include "lxa_memory.h"
 #include "lxa_api.h"
 #include "lxa_vclock.h"
@@ -198,13 +199,7 @@ struct map_sym_s
 
 static map_sym_t *_g_map      = NULL;
 
-typedef struct pending_bp_s pending_bp_t;
-
-struct pending_bp_s
-{
-    pending_bp_t *next;
-    char          name[256];
-};
+/* pending_bp_t is declared in lxa_internal.h */
 
 pending_bp_t *_g_pending_bps = NULL;
 
@@ -691,11 +686,8 @@ void cpu_instr_callback(int pc)
 /* Get the directory containing the running binary */
 static bool get_binary_dir(char *buf, size_t buf_size)
 {
-    ssize_t len = readlink("/proc/self/exe", buf, buf_size - 1);
-    if (len == -1)
+    if (lxa_exe_path(buf, buf_size) < 0)
         return false;
-    
-    buf[len] = '\0';
     
     /* Remove the binary name to get the directory */
     char *last_slash = strrchr(buf, '/');

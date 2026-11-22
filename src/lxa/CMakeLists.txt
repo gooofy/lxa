@@ -63,10 +63,12 @@ set(LXA_COMPILE_OPTIONS
     -g
     -O2
     -Wno-format-truncation
-    -Wno-stringop-truncation
     -Wno-format-overflow
     -Wno-return-type
 )
+if(CMAKE_C_COMPILER_ID STREQUAL "GNU")
+    list(APPEND LXA_COMPILE_OPTIONS -Wno-stringop-truncation)
+endif()
 
 # Phase 202: host code coverage (gcov).  `cmake -DLXA_COVERAGE=ON` then
 # `make coverage` (see tools/coverage_report.py).
@@ -99,7 +101,14 @@ endif()
 
 set(LXA_SDL_LINK_LIBS)
 if(SDL2_FOUND)
-    list(APPEND LXA_SDL_LINK_LIBS ${SDL2_LIBRARIES})
+    # SDL2_LINK_LIBRARIES carries the -L<dir> from pkg-config; plain
+    # SDL2_LIBRARIES would let the linker pick a wrong-arch copy from
+    # /usr/local/lib on Apple Silicon.
+    if(SDL2_LINK_LIBRARIES)
+        list(APPEND LXA_SDL_LINK_LIBS ${SDL2_LINK_LIBRARIES})
+    else()
+        list(APPEND LXA_SDL_LINK_LIBS ${SDL2_LIBRARIES})
+    endif()
 endif()
 
 find_library(SDL2_MIXER_LIBRARY SDL2_mixer)

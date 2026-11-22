@@ -14,7 +14,6 @@
 set -e  # Exit on error
 
 # Configuration
-INSTALL_PREFIX="/home/guenter/projects/amiga/lxa/usr"
 BUILD_TYPE="Release"
 BUILD_DIR="build"
 
@@ -41,6 +40,22 @@ error() {
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
+# Install prefix: override with INSTALL_PREFIX=/path ./build.sh
+INSTALL_PREFIX="${INSTALL_PREFIX:-$SCRIPT_DIR/usr}"
+
+# Portable CPU count and platform-specific CMake arguments
+if command -v nproc >/dev/null 2>&1; then
+    JOBS="$(nproc)"
+else
+    JOBS="$(sysctl -n hw.ncpu 2>/dev/null || echo 2)"
+fi
+EXTRA_CMAKE_ARGS=()
+if [ "$(uname -s)" = "Darwin" ] && command -v brew >/dev/null 2>&1; then
+    # readline is keg-only, so it needs its own entry
+    BREW_PREFIX="$(brew --prefix)"
+    EXTRA_CMAKE_ARGS+=("-DCMAKE_PREFIX_PATH=$BREW_PREFIX;$(brew --prefix readline 2>/dev/null || echo "$BREW_PREFIX")")
+fi
+
 # Handle clean command
 if [ "$1" == "clean" ]; then
     info "Cleaning build directory..."
@@ -66,11 +81,12 @@ cd "$BUILD_DIR"
 cmake \
     -DCMAKE_BUILD_TYPE="$BUILD_TYPE" \
     -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
+    "${EXTRA_CMAKE_ARGS[@]}" \
     ..
 
 # Build
 info "Building lxa (this may take a while)..."
-make -j$(nproc)
+make -j"$JOBS"
 
 info "Build complete!"
 

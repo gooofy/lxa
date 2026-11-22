@@ -8,6 +8,7 @@
  */
 
 #include "lxa_internal.h"
+#include "lxa_hostpath.h"
 #include "lxa_memory.h"
 #include "lxa_vclock.h"
 
@@ -4084,18 +4085,13 @@ uint32_t _dos_notify_poll(void)
  * Phase 10: File Handle Utilities
  */
 
-/* Get Linux path from fd using /proc/self/fd symlink */
+/* Get host path from fd (portable: /proc/self/fd or F_GETPATH) */
 static int _get_path_from_fd(int fd, char *buf, size_t bufsize)
 {
-    char proc_path[64];
-    snprintf(proc_path, sizeof(proc_path), "/proc/self/fd/%d", fd);
-    
-    ssize_t len = readlink(proc_path, buf, bufsize - 1);
-    if (len < 0) {
-        DPRINTF(LOG_DEBUG, "lxa: _get_path_from_fd(): readlink failed for fd=%d: %s\n", fd, strerror(errno));
+    if (lxa_fd_path(fd, buf, bufsize) < 0) {
+        DPRINTF(LOG_DEBUG, "lxa: _get_path_from_fd(): fd path lookup failed for fd=%d: %s\n", fd, strerror(errno));
         return 0;
     }
-    buf[len] = '\0';
     return 1;
 }
 
