@@ -7,7 +7,9 @@ if(NOT M68K_GCC)
 endif()
 
 # Toolchain paths
-set(M68K_PREFIX "/opt/amiga")
+if(NOT DEFINED M68K_PREFIX)
+    set(M68K_PREFIX "/opt/amiga")
+endif()
 set(M68K_GCC_BIN "${M68K_PREFIX}/bin/m68k-amigaos-gcc")
 
 # Common compiler flags for all commands
@@ -260,7 +262,7 @@ endforeach()
 set(REGINA_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../src/regina)
 set(REGINA_OBJDIR ${CMAKE_CURRENT_BINARY_DIR}/regina)
 file(MAKE_DIRECTORY ${REGINA_OBJDIR})
-set(REGINA_CFLAGS -mcrt=nix20 -m68000 -O2 -fbbb=- -w -funsigned-char
+set(REGINA_CFLAGS -mcrt=nix20 -m68000 -O2 -fbbb=- -w -funsigned-char -std=gnu89
     -DHAVE_CONFIG_H -DNDEBUG -I${REGINA_DIR})
 file(GLOB REGINA_HEADERS ${REGINA_DIR}/*.h ${CMAKE_CURRENT_SOURCE_DIR}/Rexxc/rexx_errtext.h)
 set(REGINA_SOURCES

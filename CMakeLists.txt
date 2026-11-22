@@ -39,12 +39,17 @@ message(STATUS "Configuring target build (m68k-amigaos)...")
 
 # Check for cross-compiler
 find_program(M68K_GCC m68k-amigaos-gcc
-    HINTS /opt/amiga/bin
+    HINTS $ENV{M68K_PREFIX}/bin /opt/amiga/bin
     DOC "m68k-amigaos GCC cross-compiler"
 )
 
 if(M68K_GCC)
     message(STATUS "Found m68k-amigaos-gcc: ${M68K_GCC}")
+
+    # Toolchain prefix is <prefix>/bin/m68k-amigaos-gcc; the subdirectories
+    # use it to locate the other tools and the NDK includes.
+    get_filename_component(M68K_GCC_BINDIR "${M68K_GCC}" DIRECTORY)
+    get_filename_component(M68K_PREFIX "${M68K_GCC_BINDIR}" DIRECTORY)
     
     # Add ROM build (cross-compiled)
     add_subdirectory(src/rom target/rom)

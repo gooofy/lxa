@@ -16,6 +16,7 @@
 #include <inline/exec.h>
 
 #include <intuition/intuition.h>
+#include <intuition/intuitionbase.h>
 #include <intuition/classes.h>
 #include <intuition/classusr.h>
 #include <intuition/imageclass.h>

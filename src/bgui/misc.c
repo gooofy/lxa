@@ -63,6 +63,7 @@
 #include "include/bgui_macros.h"
 #endif
 
+#include <stdarg.h>
 #include "include/classdefs.h"
 
 makeproto struct TextAttr Topaz80 =

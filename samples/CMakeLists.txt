@@ -7,7 +7,9 @@ if(NOT M68K_GCC)
 endif()
 
 # Toolchain paths
-set(M68K_PREFIX "/opt/amiga")
+if(NOT DEFINED M68K_PREFIX)
+    set(M68K_PREFIX "/opt/amiga")
+endif()
 set(M68K_GCC_BIN "${M68K_PREFIX}/bin/m68k-amigaos-gcc")
 
 # Common compiler flags for all samples
