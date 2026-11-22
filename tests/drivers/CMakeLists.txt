@@ -14,7 +14,9 @@ function(add_gtest_driver_target NAME)
     add_executable(${NAME} ${NAME}.cpp)
     target_link_libraries(${NAME} PRIVATE 
         liblxa
-        ${GTEST_LIBRARIES}
+        # GTEST_LINK_LIBRARIES keeps the pkg-config -L<dir>, which a plain
+        # -lgtest lacks when gtest is outside the default linker path (Homebrew).
+        ${GTEST_LINK_LIBRARIES}
         pthread
     )
     target_include_directories(${NAME} PRIVATE

@@ -76,9 +76,10 @@ class Lxa:
     def __init__(self, build=None, rootless=False, strict_unimplemented=False,
                  apps=None, extra_assigns=None):
         self.build = build or os.environ.get("LXA_BUILD", os.path.join(ROOT, "build"))
-        libpath = _find(self.build, "host", "lib", "liblxa.so")
+        libpath = (_find(self.build, "host", "lib", "liblxa.so")
+                   or _find(self.build, "host", "lib", "liblxa.dylib"))
         if not libpath:
-            raise RuntimeError("liblxa.so not found in %s (build the liblxa_shared target)" % self.build)
+            raise RuntimeError("liblxa.so/.dylib not found in %s (build the liblxa_shared target)" % self.build)
         self.lib = ctypes.CDLL(libpath)
         self._prototypes()
         # same prefix the GTest drivers use (LXA_TEST_PREFIX in lxa_test.h)

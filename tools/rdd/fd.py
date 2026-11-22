@@ -10,8 +10,11 @@ import functools
 import os
 import re
 
-FD_DIRS = [os.environ.get("LXA_FD_DIR", ""), "/opt/amiga/m68k-amigaos/ndk/lib/fd",
-           "/opt/amiga/m68k-amigaos/lib/fd"]
+# amiga-gcc install prefix (override with M68K_PREFIX when not in /opt/amiga)
+M68K_PREFIX = os.environ.get("M68K_PREFIX", "/opt/amiga")
+
+FD_DIRS = [os.environ.get("LXA_FD_DIR", ""), M68K_PREFIX + "/m68k-amigaos/ndk/lib/fd",
+           M68K_PREFIX + "/m68k-amigaos/lib/fd"]
 
 
 def _fd_path(lib):
@@ -48,7 +51,7 @@ def functions(lib):
     return out
 
 
-PROTO_DIRS = ["/opt/amiga/m68k-amigaos/ndk-include/clib", "/opt/amiga/m68k-amigaos/ndk13-include/clib"]
+PROTO_DIRS = [M68K_PREFIX + "/m68k-amigaos/ndk-include/clib", M68K_PREFIX + "/m68k-amigaos/ndk13-include/clib"]
 
 
 POINTERISH = re.compile(r"\*|\b(?:CONST_)?(?:BPTR|APTR|STRPTR|BSTR)\b|\bPLANEPTR\b|\bCONST_APTR\b")

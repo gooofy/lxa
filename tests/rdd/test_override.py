@@ -31,7 +31,7 @@ def run(program, args="", override=None):
     return r.stdout, r.stderr
 
 
-@unittest.skipUnless(os.path.exists(os.path.join(BUILD, "host", "lib", "liblxa.so")), "liblxa not built")
+@unittest.skipUnless(any(os.path.exists(os.path.join(BUILD, "host", "lib", n)) for n in ("liblxa.so", "liblxa.dylib")), "liblxa not built")
 @unittest.skipUnless(os.path.exists(os.path.join(WB_LIBS, "iffparse.library")),
                      "no Workbench 3.1 Libs/ (build the reference system)")
 class Override(unittest.TestCase):

@@ -13,7 +13,7 @@
 
 #include <stdio.h>
 
-extern struct Library *SysBase;
+extern struct ExecBase *SysBase;
 struct Library *UtilityBase;
 
 /* Hook entry point - converts register calling convention to C

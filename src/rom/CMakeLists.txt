@@ -7,7 +7,9 @@ if(NOT M68K_GCC)
 endif()
 
 # Toolchain paths
-set(M68K_PREFIX "/opt/amiga")
+if(NOT DEFINED M68K_PREFIX)
+    set(M68K_PREFIX "/opt/amiga")
+endif()
 set(M68K_AS "${M68K_PREFIX}/bin/m68k-amigaos-as")
 set(M68K_LD "${M68K_PREFIX}/bin/m68k-amigaos-ld")
 set(M68K_OBJCOPY "${M68K_PREFIX}/bin/m68k-amigaos-objcopy")
@@ -108,13 +110,21 @@ foreach(src ${ROM_ASM_SOURCES})
     list(APPEND ROM_OBJECTS ${obj})
 endforeach()
 
+# Sources compiled with -Os instead of -O2, for toolchains whose -O2 output
+# does not fit the 512 kB ROM region.  Empty by default.
+set(LXA_ROM_OS_SOURCES "" CACHE STRING "ROM C sources to compile with -Os (semicolon-separated)")
+
 # Compile C sources
 foreach(src ${ROM_C_SOURCES})
     get_filename_component(name ${src} NAME_WE)
     set(obj "${CMAKE_CURRENT_BINARY_DIR}/${name}.o")
+    set(src_cflags ${ROM_CFLAGS})
+    if(src IN_LIST LXA_ROM_OS_SOURCES)
+        list(APPEND src_cflags -Os)   # last -O option wins
+    endif()
     add_custom_command(
         OUTPUT ${obj}
-        COMMAND ${M68K_GCC} -c ${ROM_CFLAGS} -o ${obj} ${CMAKE_CURRENT_SOURCE_DIR}/${src}
+        COMMAND ${M68K_GCC} -c ${src_cflags} -o ${obj} ${CMAKE_CURRENT_SOURCE_DIR}/${src}
         DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/${src} ${ROM_HEADERS}
         COMMENT "Compiling ${src}"
     )

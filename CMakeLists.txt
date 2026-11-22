@@ -38,13 +38,27 @@ add_subdirectory(src/lxa host)
 message(STATUS "Configuring target build (m68k-amigaos)...")
 
 # Check for cross-compiler
+set(_m68k_hints /opt/amiga/bin)
+if(DEFINED ENV{M68K_PREFIX})
+    set(_m68k_hints $ENV{M68K_PREFIX}/bin ${_m68k_hints})
+endif()
 find_program(M68K_GCC m68k-amigaos-gcc
-    HINTS /opt/amiga/bin
+    HINTS ${_m68k_hints}
     DOC "m68k-amigaos GCC cross-compiler"
 )
 
 if(M68K_GCC)
     message(STATUS "Found m68k-amigaos-gcc: ${M68K_GCC}")
+
+    # Toolchain prefix is <prefix>/bin/m68k-amigaos-gcc; the subdirectories
+    # use it to locate the other tools and the NDK includes. An explicit
+    # -DM68K_PREFIX=... takes precedence. Resolve symlinks first so a link
+    # in /usr/local/bin still yields the real install prefix.
+    if(NOT DEFINED M68K_PREFIX)
+        get_filename_component(M68K_GCC_REAL "${M68K_GCC}" REALPATH)
+        get_filename_component(M68K_GCC_BINDIR "${M68K_GCC_REAL}" DIRECTORY)
+        get_filename_component(M68K_PREFIX "${M68K_GCC_BINDIR}" DIRECTORY)
+    endif()
     
     # Add ROM build (cross-compiled)
     add_subdirectory(src/rom target/rom)

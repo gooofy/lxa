@@ -51,7 +51,7 @@ class Units(unittest.TestCase):
         self.assertEqual(d["kind"], "order")
 
 
-@unittest.skipUnless(os.path.exists(os.path.join(BUILD, "host", "lib", "liblxa.so")), "liblxa not built")
+@unittest.skipUnless(any(os.path.exists(os.path.join(BUILD, "host", "lib", n)) for n in ("liblxa.so", "liblxa.dylib")), "liblxa not built")
 class InjectedBug(unittest.TestCase):
     """Test gate: tracediff names a deliberately injected return-value bug."""
 
