@@ -4085,7 +4085,7 @@ uint32_t _dos_notify_poll(void)
  * Phase 10: File Handle Utilities
  */
 
-/* Get Linux path from fd using /proc/self/fd symlink */
+/* Get host path from fd (portable: /proc/self/fd or F_GETPATH) */
 static int _get_path_from_fd(int fd, char *buf, size_t bufsize)
 {
     if (lxa_fd_path(fd, buf, bufsize) < 0) {

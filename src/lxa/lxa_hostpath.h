@@ -55,8 +55,8 @@ static inline long lxa_fd_path(int fd, char *buf, size_t bufsize)
     char link[64];
     snprintf(link, sizeof(link), "/proc/self/fd/%d", fd);
     ssize_t len = readlink(link, buf, bufsize - 1);
-    if (len < 0)
-        return -1;
+    if (len < 0 || (size_t)len == bufsize - 1)
+        return -1;      /* error, or possibly truncated */
     buf[len] = '\0';
     return (long)len;
 #endif

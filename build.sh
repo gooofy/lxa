@@ -50,8 +50,10 @@ else
     JOBS="$(sysctl -n hw.ncpu 2>/dev/null || echo 2)"
 fi
 EXTRA_CMAKE_ARGS=()
-if [ "$(uname -s)" = "Darwin" ] && [ -d /opt/homebrew ]; then
-    EXTRA_CMAKE_ARGS+=(-DCMAKE_PREFIX_PATH=/opt/homebrew)
+if [ "$(uname -s)" = "Darwin" ] && command -v brew >/dev/null 2>&1; then
+    # readline is keg-only, so it needs its own entry
+    BREW_PREFIX="$(brew --prefix)"
+    EXTRA_CMAKE_ARGS+=("-DCMAKE_PREFIX_PATH=$BREW_PREFIX;$(brew --prefix readline 2>/dev/null || echo "$BREW_PREFIX")")
 fi
 
 # Handle clean command
